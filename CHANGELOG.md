@@ -20,6 +20,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `true`/`false`/`1`/`0` rule. A value flag followed by another flag
   (`--key --widths 768`) is now a "missing value" usage error instead of
   silently taking `--widths` as the key.
+- **The `@playwright/test` peer range is now `>=1.45`.** It claimed `>=1.40`,
+  but `freezeClock` (on by default) calls `page.clock.setFixedTime`, which
+  Playwright added in 1.45 — a 1.40–1.44 install passed the peer check and
+  then failed at capture time. `styleproof setup` now installs the peer range
+  instead of its own hard-coded floor.
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children
