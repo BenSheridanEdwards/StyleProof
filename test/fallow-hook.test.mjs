@@ -60,3 +60,15 @@ test('local Fallow is exactly pinned so pre-commit and CI resolve the same relea
   assert.equal(lock.packages[''].devDependencies.fallow, '3.19.0');
   assert.equal(lock.packages['node_modules/fallow'].version, '3.19.0');
 });
+
+test('fallow suppression comments carry only issue kinds, with any explanation on its own line', () => {
+  // Fallow reads every token after `fallow-ignore-*` as an issue kind, so trailing prose
+  // (`— loaded via ...`) becomes one stale suppression per word instead of a comment.
+  const tracked = spawnSync('git', ['grep', '-n', 'fallow-ignore-', '--', 'src', 'bin', 'test', 'scripts'], {
+    cwd: new URL('..', import.meta.url),
+    encoding: 'utf8',
+  });
+  const suppressions = tracked.stdout.split('\n').filter((line) => /\/\/ fallow-ignore-/.test(line));
+  assert.ok(suppressions.length > 0, 'expected at least one fallow suppression to check');
+  for (const line of suppressions) assert.match(line, /\/\/ fallow-ignore-(file|next-line)( [a-z]+(-[a-z]+)*)+$/, line);
+});

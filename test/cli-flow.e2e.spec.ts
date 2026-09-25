@@ -44,6 +44,26 @@ async function freePort(): Promise<number> {
   throw new Error(`no free port in this worker's range ${WORKER_PORT_BASE}-${WORKER_PORT_BASE + PORTS_PER_WORKER - 1}`);
 }
 
+// Poll until a spawned server accepts connections, instead of sleeping a fixed interval
+// that a loaded CI runner can outlast. Bounded so a server that never binds fails loudly.
+async function waitForPort(port: number, timeoutMs = 15_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const open = await new Promise<boolean>((resolve) => {
+      const socket = net.connect(port, '127.0.0.1');
+      socket.once('connect', () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once('error', () => resolve(false));
+    });
+    if (open) return;
+    if (Date.now() > deadline)
+      throw new Error(`server on 127.0.0.1:${port} did not accept connections in ${timeoutMs}ms`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 function commandEnv(env: NodeJS.ProcessEnv = {}) {
   const merged = { ...process.env, PATH: `${PLAYWRIGHT_BIN}${path.delimiter}${process.env.PATH}`, CI: '1', ...env };
   for (const key of ['GITHUB_BASE_REF', 'GITHUB_SHA', 'GITHUB_HEAD_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH']) {
@@ -421,7 +441,7 @@ test('styleproof-capture --crawl follows same-origin nav links across pages', as
     writeMultiPageApp(app, port);
     const server = spawn('node', ['server.mjs', String(port)], { cwd: app });
     try {
-      await new Promise((r) => setTimeout(r, 500));
+      await waitForPort(port);
       const out = path.join(app, 'maps');
       const result = await runAsync(app, process.execPath, [
         CAPTURE,
@@ -497,7 +517,7 @@ http.createServer((req, res) => {
     );
     const server = spawn('node', ['server.mjs', String(port)], { cwd: app });
     try {
-      await new Promise((r) => setTimeout(r, 500));
+      await waitForPort(port);
       const out = path.join(app, 'maps');
       const result = await runAsync(app, process.execPath, [
         CAPTURE,

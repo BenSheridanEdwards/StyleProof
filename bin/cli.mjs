@@ -33,7 +33,8 @@ export async function run(name, main, { exitCode = 1, annotate = false } = {}) {
 
 /**
  * Define a command from a flag table. Each flag: `{ help, value?, repeat?, default?, negate?, required?, allowEmpty? }`.
- * A flag with `value` takes `--k v` or `--k=v`; without it, the flag is boolean (`--no-k` when `negate`).
+ * A flag with `value` takes `--k v` or `--k=v`; without it, the flag is boolean (`--no-k` when `negate`)
+ * and also accepts an inline `--k=true|false|1|0` (`--no-k=false` means `--k`).
  * `parse(argv)` yields `{ opts, args, passthrough }`; `-h/--help` prints the generated help.
  */
 export function defineCli({ name, alias, summary, usage, flags, notes = [], positionals = false }) {
@@ -85,7 +86,7 @@ function assertRequired(name, flags, opts) {
 function applyFlag(name, flags, opts, argv, i) {
   const token = resolveFlag(name, flags, argv[i]);
   if (!token.spec.value) {
-    opts[token.key] = !token.negated;
+    opts[token.key] = booleanFlag(name, token);
     return i;
   }
   let value = token.inline ?? argv[i + 1];
@@ -96,6 +97,15 @@ function applyFlag(name, flags, opts, argv, i) {
   else opts[token.key] = value;
   // The next token was consumed as the value unless it was inline or absent.
   return token.inline === undefined && !missing ? i + 1 : i;
+}
+
+/** A boolean flag's value: bare is on; inline `true|false|1|0` (case-insensitive) sets it; `--no-k` inverts. */
+function booleanFlag(name, token) {
+  const inline = token.inline?.toLowerCase();
+  const on = inline === undefined || inline === 'true' || inline === '1';
+  if (!on && inline !== 'false' && inline !== '0')
+    fail(name, `--${token.flag} expects true or false, got "${token.inline}"`);
+  return token.negated ? !on : on;
 }
 
 function initialOptions(flags) {

@@ -938,6 +938,28 @@ test('diff defaults to the GitHub PR base for stacked local branches when gh is 
   rmTmp(repo);
 });
 
+test('diff falls back to the default branch when gh pr view stalls, instead of hanging', () => {
+  const { repo } = setupCachedComparison();
+  const binDir = path.join(repo, 'fake-bin');
+  fs.mkdirSync(binDir);
+  const fakeGh = path.join(binDir, 'gh');
+  fs.writeFileSync(fakeGh, '#!/bin/sh\nexec sleep 30\n');
+  fs.chmodSync(fakeGh, 0o755);
+  const started = Date.now();
+  const r = runIn(repo, DIFF, [], {
+    env: {
+      PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      GITHUB_BASE_REF: '',
+      STYLEPROOF_GH_TIMEOUT_MS: '500',
+    },
+  });
+  const elapsed = Date.now() - started;
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
+  assert.ok(elapsed < 20_000, `a stalled gh must be bounded, took ${elapsed}ms`);
+  rmTmp(repo);
+});
+
 test('diff accepts a single base ref and uses cached maps', () => {
   const { repo } = setupCachedComparison({ headColor: 'rgb(255, 0, 0)' });
   const r = runIn(repo, DIFF, ['main']);

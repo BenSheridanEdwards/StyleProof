@@ -1,4 +1,5 @@
-// fallow-ignore-file unused-file — loaded via NODE_OPTIONS=--require, never imported
+// Loaded via NODE_OPTIONS=--require, never imported, so fallow sees no importer.
+// fallow-ignore-file unused-file
 // Preloaded via NODE_OPTIONS=--require for every Node process in the test tree:
 // the runner, its --test workers, and every spawnSync'd CLI child. On this
 // repo's Node 26.7.0/macOS runs a spawned CLI child can deadlock at teardown —

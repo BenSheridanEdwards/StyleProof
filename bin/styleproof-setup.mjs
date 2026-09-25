@@ -10,7 +10,8 @@ import { detectPackageManager } from './package-manager.mjs';
 import { binDir, defineCli, errorMessage, fail } from './cli.mjs';
 
 const NAME = 'styleproof setup';
-const version = JSON.parse(fs.readFileSync(path.join(binDir, '..', 'package.json'), 'utf8')).version;
+const manifest = JSON.parse(fs.readFileSync(path.join(binDir, '..', 'package.json'), 'utf8'));
+const version = manifest.version;
 const cli = defineCli({
   name: NAME,
   alias: 'setup',
@@ -78,7 +79,8 @@ try {
 } catch (error) {
   fail(NAME, errorMessage(error));
 }
-const packages = [`styleproof@${version}`, '@playwright/test@>=1.40'];
+// The Playwright floor is the peer range, so setup can never install a version the capture path rejects.
+const packages = [`styleproof@${version}`, `@playwright/test@${manifest.peerDependencies['@playwright/test']}`];
 // [install verb, dev flag, [browser-install command, leading args]] per package manager.
 const PLANS = {
   npm: ['install', '--save-dev', ['npm', ['exec']]],
