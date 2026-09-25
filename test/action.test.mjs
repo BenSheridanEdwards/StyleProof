@@ -82,7 +82,6 @@ function actionVerdictScript({ baseCaptureFailed, changed }) {
     .map((line) => line.replace(/^ {10}/, ''))
     .join('\n')
     .replace("'${{ steps.config.outputs.gate-inventory-removals }}'", "'true'")
-    .replace("'${{ inputs.base-capture-failed }}'", `'${baseCaptureFailed ? 'true' : 'false'}'`)
     .replace("'${{ steps.diff.outputs.changed }}'", `'${changed ? 'true' : 'false'}'`);
   return `
 const outputs = {};
@@ -91,6 +90,7 @@ const core = {
   info() {},
 };
 process.env.GITHUB_ACTION_PATH = ${JSON.stringify(path.join(here, '..'))};
+process.env.STYLEPROOF_BASE_CAPTURE_FAILED = ${JSON.stringify(baseCaptureFailed ? 'true' : 'false')};
 (async () => {
 ${script}
 require('fs').writeFileSync(process.env.STYLEPROOF_VERDICT_OUTPUT, JSON.stringify(outputs));
@@ -725,8 +725,11 @@ test('composite action only compares explicit base/head directories', () => {
   assert.match(actionYml, /baseline-dir:[\s\S]*?required: true/);
   assert.doesNotMatch(actionYml, /base-ref:/);
   assert.doesNotMatch(actionYml, /--base-ref/);
-  assert.match(actionYml, /styleproof-diff\.mjs" "\$\{\{ inputs\.baseline-dir \}\}" "\$\{\{ inputs\.fresh-dir \}\}"/);
-  assert.match(actionYml, /styleproof-report\.mjs" "\$\{\{ inputs\.baseline-dir \}\}" "\$\{\{ inputs\.fresh-dir \}\}"/);
+  // The directories reach bash through env, never as ${{ }} text spliced into the script.
+  assert.match(actionYml, /styleproof-diff\.mjs" "\$STYLEPROOF_BASELINE_DIR" "\$STYLEPROOF_FRESH_DIR"/);
+  assert.match(actionYml, /styleproof-report\.mjs" "\$STYLEPROOF_BASELINE_DIR" "\$STYLEPROOF_FRESH_DIR"/);
+  assert.equal((actionYml.match(/STYLEPROOF_BASELINE_DIR: \$\{\{ inputs\.baseline-dir \}\}/g) || []).length, 2);
+  assert.equal((actionYml.match(/STYLEPROOF_FRESH_DIR: \$\{\{ inputs\.fresh-dir \}\}/g) || []).length, 2);
 });
 
 test('composite action publishes every generated report crop', () => {
@@ -1368,6 +1371,76 @@ test('composite action self-verifies the published receipt before advertising th
   const verifiedIndex = publishBin.indexOf('await verifyPublishedReceipt(');
   const urlIndex = publishBin.indexOf('url=https://github.com/');
   assert.ok(verifiedIndex > 0 && urlIndex > verifiedIndex, 'outputs are written only after the receipt verifies');
+});
+
+/** Every `${{ inputs.* }}` expression that appears inside a run:/script: body. */
+function inputsInScriptBodies(yml) {
+  const found = [];
+  const lines = yml.split('\n');
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = lines[index].match(/^(\s+)(?:run|script): \|/);
+    if (!header) continue;
+    for (index += 1; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (line.trim() !== '' && !line.startsWith(`${header[1]}  `)) {
+        index -= 1;
+        break;
+      }
+      for (const match of line.matchAll(/\$\{\{[^}]*\binputs\.[^}]*\}\}/g)) found.push(match[0]);
+    }
+  }
+  return found;
+}
+
+test('composite action never splices string inputs into run or script bodies', () => {
+  // A crafted input spliced into bash or JavaScript source executes as code; inputs
+  // travel through env: instead. toJSON() is the one safe literal form.
+  assert.deepEqual(inputsInScriptBodies(actionYml), ['${{ toJSON(inputs.comment-marker) }}']);
+  const reusableApprove = fs.readFileSync(
+    path.join(here, '..', '.github/workflows/styleproof-approve-reusable.yml'),
+    'utf8',
+  );
+  // allow-self-approval is boolean-typed, so it can only render true/false.
+  assert.deepEqual(inputsInScriptBodies(reusableApprove), ['${{ inputs.allow-self-approval }}']);
+});
+
+async function runGateStep(statuses) {
+  const match = actionYml.match(/- id: gate[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
+  assert.ok(match, 'action.yml should contain the gate github-script program');
+  const script = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {10}/, ''))
+    .join('\n')
+    .replace("'${{ steps.diff.outputs.changed }}'", "'true'")
+    .replace("'${{ steps.context.outputs.head-sha }}'", `'${'a'.repeat(40)}'`)
+    .replace("'${{ steps.context.outputs.untrusted-capture }}'", "'false'");
+  assert.doesNotMatch(script, /\$\{\{/);
+  const outputs = {};
+  const github = { rest: { repos: { listCommitStatusesForRef: async () => ({ data: statuses }) } } };
+  const core = { setOutput: (name, value) => (outputs[name] = value) };
+  process.env.STYLEPROOF_STATUS_CONTEXT = 'StyleProof';
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  await new AsyncFunction('github', 'context', 'core', script)(github, { repo: { owner: 'o', repo: 'r' } }, core);
+  return outputs;
+}
+
+test('gate honours a prior approval only from the canonical github-actions[bot] creator', async () => {
+  const status = (creator) => ({
+    context: 'StyleProof',
+    state: 'success',
+    description: 'Approved by @reviewer',
+    creator,
+  });
+  const canonical = await runGateStep([status({ login: 'github-actions[bot]', type: 'Bot' })]);
+  assert.deepEqual(canonical, { approved: 'true', approver: 'reviewer' });
+  // Any other integration or user holding statuses:write cannot pre-approve the gate.
+  for (const creator of [
+    { login: 'some-app[bot]', type: 'Bot' },
+    { login: 'github-actions[bot]', type: 'User' },
+    null,
+  ]) {
+    assert.deepEqual(await runGateStep([status(creator)]), { approved: 'false', approver: '' });
+  }
 });
 
 test('composite action retries transient GitHub API failures on networked github-script steps', () => {

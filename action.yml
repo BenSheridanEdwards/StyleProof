@@ -35,7 +35,7 @@ inputs:
       until pruned).
     default: 'artifact'
   report-retention-days:
-    description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
+    description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer in either storage mode; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
     default: '30'
   report-branch:
     description: "Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is 'branch'."
@@ -193,6 +193,8 @@ runs:
         STYLEPROOF_EXPECTED_BASE_SHA: ${{ steps.context.outputs.base-sha }}
         STYLEPROOF_EXPECTED_HEAD_SHA: ${{ steps.context.outputs.head-sha }}
         STYLEPROOF_MODE: ${{ inputs.mode }}
+        STYLEPROOF_BASELINE_DIR: ${{ inputs.baseline-dir }}
+        STYLEPROOF_FRESH_DIR: ${{ inputs.fresh-dir }}
       run: |
         state_identity_arguments=()
         case "$STYLEPROOF_REQUIRE_STATE_IDENTITY" in
@@ -215,7 +217,7 @@ runs:
           --expected-after-sha "$STYLEPROOF_EXPECTED_HEAD_SHA"
         )
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"} | tee styleproof-diff.txt
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "$STYLEPROOF_BASELINE_DIR" "$STYLEPROOF_FRESH_DIR" --max=200 --json styleproof-diff.json ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"} | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -242,6 +244,8 @@ runs:
         STYLEPROOF_EXPECTED_BASE_SHA: ${{ steps.context.outputs.base-sha }}
         STYLEPROOF_EXPECTED_HEAD_SHA: ${{ steps.context.outputs.head-sha }}
         STYLEPROOF_MODE: ${{ inputs.mode }}
+        STYLEPROOF_BASELINE_DIR: ${{ inputs.baseline-dir }}
+        STYLEPROOF_FRESH_DIR: ${{ inputs.fresh-dir }}
       run: |
         set -euo pipefail
         rm -rf styleproof-report
@@ -271,7 +275,7 @@ runs:
           *) echo "mode must be certify, review-gate, migration, or advisory" >&2; exit 2 ;;
         esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "$STYLEPROOF_BASELINE_DIR" "$STYLEPROOF_FRESH_DIR" --out styleproof-report ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
@@ -495,6 +499,8 @@ runs:
     # re-parse styleproof-diff.json or guess whether approval can clear the run.
     - id: verdict
       uses: actions/github-script@v9
+      env:
+        STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
       with:
         script: |
           const fs = require('fs');
@@ -502,7 +508,7 @@ runs:
           const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
           const verdict = classifyStyleProofVerdict(diff, {
             gateInventoryRemovals: '${{ steps.config.outputs.gate-inventory-removals }}' !== 'false',
-            baseCaptureFailed: '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true',
+            baseCaptureFailed: (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true',
             changed: '${{ steps.diff.outputs.changed }}' === 'true',
           });
           const { state, reviewableChanged, dataResidueKeys } = verdict;
@@ -524,19 +530,25 @@ runs:
     - id: gate
       if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration')
       uses: actions/github-script@v9
+      env:
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const sha = '${{ steps.context.outputs.head-sha }}';
-          const STATUS = '${{ inputs.status-context }}';
+          const STATUS = process.env.STYLEPROOF_STATUS_CONTEXT;
           let approved = false;
           let approver = '';
           if (changed) {
             const { data } = await github.rest.repos.listCommitStatusesForRef({ ...context.repo, ref: sha, per_page: 100 });
             const mine = data.find((s) => s.context === STATUS);
-            approved = !!mine && mine.state === 'success';
+            // Trust only the canonical writer, as the approve workflow does: this Action and
+            // the approve workflow both write as github-actions[bot]. A success status from any
+            // other integration or user with statuses:write is not a sign-off.
+            const canonical = !!mine && mine.creator?.type === 'Bot' && mine.creator.login === 'github-actions[bot]';
+            approved = canonical && mine.state === 'success';
             // The approve workflow stamps "Approved by @x" into the status description.
             const m = approved && (mine.description || '').match(/Approved by @([A-Za-z0-9-]+)/);
             if (m) approver = m[1];
@@ -560,19 +572,19 @@ runs:
           artifact|branch) ;;
           *) echo "report-storage must be artifact or branch" >&2; exit 2 ;;
         esac
-        # Retention only applies in artifact mode (#690): 0 selects the
-        # repository default, which this contract does not bound. Values above
-        # 90 stay legal where repository settings allow them.
+        # Retention is validated in both modes (#690): it is rendered into the
+        # comment, and 0 selects the repository default, which this contract does
+        # not bound. Values above 90 stay legal where repository settings allow them.
+        case "$REPORT_RETENTION_DAYS" in
+          ''|*[!0-9]*)
+            echo "report-retention-days must be a positive integer of days" >&2
+            exit 2 ;;
+        esac
+        if [ "$REPORT_RETENTION_DAYS" -eq 0 ]; then
+          echo "report-retention-days must be at least 1 day (0 selects the repository default, unbounded by this contract)" >&2
+          exit 2
+        fi
         if [ "$REPORT_STORAGE" = 'artifact' ]; then
-          case "$REPORT_RETENTION_DAYS" in
-            ''|*[!0-9]*)
-              echo "report-retention-days must be a positive integer of days" >&2
-              exit 2 ;;
-          esac
-          if [ "$REPORT_RETENTION_DAYS" -eq 0 ]; then
-            echo "report-retention-days must be at least 1 day (0 selects the repository default, unbounded by this contract)" >&2
-            exit 2
-          fi
           # The artifact name follows comment-marker (#692-followup): the
           # default marker yields styleproof-report-pr-<n> — the exact name the
           # approval workflow resolves — while a distinct marker gets a
@@ -596,6 +608,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
+        STYLEPROOF_REPORT_BRANCH: ${{ inputs.report-branch }}
       run: |
         set -euo pipefail
         PR='${{ steps.context.outputs.pr-number }}'
@@ -612,7 +625,7 @@ runs:
         # sha/url/raw-base outputs.
         node "$GITHUB_ACTION_PATH/bin/styleproof-publish-report.mjs" \
           --repository '${{ github.repository }}' \
-          --branch '${{ inputs.report-branch }}' \
+          --branch "$STYLEPROOF_REPORT_BRANCH" \
           --report-path "$REPORT_PATH" \
           --report-dir styleproof-report \
           --head-sha "$REPORT_SHA" \
@@ -657,6 +670,14 @@ runs:
       id: comment
       if: success() && steps.context.outputs.pr-number != ''
       uses: actions/github-script@v9
+      env:
+        STYLEPROOF_REPORT_STORAGE: ${{ inputs.report-storage }}
+        STYLEPROOF_REQUIRE_APPROVAL: ${{ inputs.require-approval }}
+        STYLEPROOF_MODE: ${{ inputs.mode }}
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+        STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
+        STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
+        STYLEPROOF_REPORT_RETENTION_DAYS: ${{ inputs.report-retention-days }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
@@ -698,7 +719,7 @@ runs:
             ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
 
-          const reportStorage = '${{ inputs.report-storage }}';
+          const reportStorage = process.env.STYLEPROOF_REPORT_STORAGE;
           // upload-artifact emits artifact-digest as bare 64-hex (sha256:-prefixed
           // in some API surfaces — accept either, normalize to bare) — the approval
           // readback recomputes it over the downloaded zip, so anything malformed
@@ -737,8 +758,8 @@ runs:
           const headEnd = lines.findIndex((l) => l.startsWith('### '));
           const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
 
-          const requireApproval = '${{ inputs.require-approval }}' === 'true';
-          const mode = '${{ inputs.mode }}';
+          const requireApproval = process.env.STYLEPROOF_REQUIRE_APPROVAL === 'true';
+          const mode = process.env.STYLEPROOF_MODE;
           const blocking = '${{ steps.config.outputs.blocking }}';
           const migrationMode = mode === 'migration';
           const advisoryMode = mode === 'advisory' || blocking === 'advisory';
@@ -746,7 +767,7 @@ runs:
           const useReviewGate = !advisoryMode && (requireApproval || mode === 'review-gate' || migrationMode);
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const approver = '${{ steps.gate.outputs.approver }}';
-          const statusContext = '${{ inputs.status-context }}';
+          const statusContext = process.env.STYLEPROOF_STATUS_CONTEXT;
           const trustState = '${{ steps.verdict.outputs.state }}';
           // Bind approval to this exact commit so a post-report push can't inherit green.
           const headSha = '${{ steps.context.outputs.head-sha }}';
@@ -761,7 +782,7 @@ runs:
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
           const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
-          const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
+          const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
@@ -769,7 +790,7 @@ runs:
             PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
             DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
           }[trustState];
-          const contentEvaluated = '${{ inputs.include-content }}' === 'true';
+          const contentEvaluated = process.env.STYLEPROOF_INCLUDE_CONTENT === 'true';
           const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
           const migrationCleanGuidance = `_No reviewable style or structure changes detected — the **${statusContext}** check is green._`;
           const cleanGuidance = migrationMode
@@ -800,7 +821,7 @@ runs:
             ...(reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:sha256:${artifactDigest} -->`] : []),
             // Reviewer-visible expiry disclosure (#709): the artifact link is
             // bounded — name the bound where the download link lands.
-            ...(reportStorage === 'artifact' ? [`_The report artifact expires ${{ inputs.report-retention-days }} days after upload._`] : []),
+            ...(reportStorage === 'artifact' ? [`_The report artifact expires ${process.env.STYLEPROOF_REPORT_RETENTION_DAYS} days after upload._`] : []),
           ];
 
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
@@ -818,6 +839,10 @@ runs:
         (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
+      env:
+        STYLEPROOF_MODE: ${{ inputs.mode }}
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+        STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
@@ -831,7 +856,7 @@ runs:
           // or this run's page — the status's target_url must never dangle.
           const url = '${{ steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url }}' ||
             `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-          const mode = '${{ inputs.mode }}';
+          const mode = process.env.STYLEPROOF_MODE;
           const blocking = '${{ steps.config.outputs.blocking }}';
           const advisoryMode = mode === 'advisory' || blocking === 'advisory';
           // Advisory mode is always green; otherwise green when no review is needed or a prior sign-off approved this commit.
@@ -848,7 +873,7 @@ runs:
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
           const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
-          const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
+          const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
           const descriptions = {
             NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
             STYLE_REVIEW_REQUIRED: approved
@@ -863,7 +888,7 @@ runs:
           await github.rest.repos.createCommitStatus({
             ...context.repo,
             sha,
-            context: '${{ inputs.status-context }}',
+            context: process.env.STYLEPROOF_STATUS_CONTEXT,
             state: green ? 'success' : 'failure',
             description: descriptions[trustState] || `StyleProof trust failure: ${trustState}`,
             ...(changed && !approved && url ? { target_url: url } : {}),
@@ -990,13 +1015,15 @@ runs:
     - id: trust
       if: always()
       uses: actions/github-script@v9
+      env:
+        STYLEPROOF_REPORT_STORAGE: ${{ inputs.report-storage }}
       with:
         script: |
           // Name the failure domain so automation retries the right thing: a broken publish or a
           // failed comment/status delivery is REPORT_PUBLICATION_FAILED; a skipped publish means an
           // earlier step failed, so report the verdict if one exists. The publish step is
           // whichever one the storage mode ran: the branch graft or the artifact upload.
-          const publishOutcome = '${{ inputs.report-storage }}' === 'branch'
+          const publishOutcome = process.env.STYLEPROOF_REPORT_STORAGE === 'branch'
             ? '${{ steps.publish.outcome }}'
             : '${{ steps.report-artifact.outcome }}';
           const diffState = '${{ steps.verdict.outputs.state }}';

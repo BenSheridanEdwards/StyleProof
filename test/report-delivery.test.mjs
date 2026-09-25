@@ -56,6 +56,16 @@ function actionCommentScript({
     .split('\n')
     .map((line) => line.replace(/^ {10}/, ''))
     .join('\n');
+  // Inputs reach the script through the step's env: block (never spliced into the
+  // source), so seed process.env from that block with the same substitutions.
+  const envBlock = actionYml.match(/- name: Upsert PR comment[\s\S]*?\n {6}env:\n([\s\S]*?)\n {6}with:/);
+  assert.ok(envBlock, 'the PR comment step passes its inputs through env');
+  const environment = {};
+  for (const [, name, expression] of envBlock[1].matchAll(/^ {8}([A-Z_]+): \$\{\{ (.+?) \}\}$/gm)) {
+    assert.ok(replacements.has(expression), `no test value for ${expression}`);
+    environment[name] = replacements.get(expression);
+  }
+  script = `Object.assign(process.env, ${JSON.stringify(environment)});\n${script}`;
   for (const [expression, value] of replacements) {
     script = script.replaceAll(`\${{ ${expression} }}`, value);
   }

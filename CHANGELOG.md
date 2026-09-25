@@ -31,6 +31,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   escaped, `@` mentions are neutralised) and code spans collapse control
   characters. `safeKey` also replaces control characters; ordinary surface
   keys render exactly as before.
+- **The review gate only honours a canonical prior approval.** On a re-run the
+  Action accepted any existing `StyleProof` success status as a sign-off; it
+  now also requires the status creator to be `github-actions[bot]`, the same
+  check the approval workflow applies. Note: an approval workflow whose
+  `token` secret is a PAT writes its sign-off as that user, which a re-run no
+  longer honours — use `GITHUB_TOKEN` (the scaffolded default).
+- **Action inputs no longer reach script source.** `baseline-dir`,
+  `fresh-dir`, `report-branch`, `status-context`, `report-retention-days`,
+  `report-storage`, `mode`, `require-approval`, `include-content`, and
+  `base-capture-failed` were spliced into `run:`/`script:` bodies as
+  `${{ inputs.* }}` text; they now travel through `env:` (the reusable
+  approval workflow's `status-context` too). `report-retention-days` is
+  validated as a positive integer in branch mode as well as artifact mode.
 
 ### Fixed
 

@@ -50,10 +50,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v9
+        env:
+          # Passed through env, never spliced into the script source.
+          STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         with:
           github-token: ${{ secrets.token }}
           script: |
-            const STATUS = '${{ inputs.status-context }}';
+            const STATUS = process.env.STYLEPROOF_STATUS_CONTEXT;
             const allowSelfApproval = ${{ inputs.allow-self-approval }};
 
             // Minimal zip reader for artifact publications (#587): the report
