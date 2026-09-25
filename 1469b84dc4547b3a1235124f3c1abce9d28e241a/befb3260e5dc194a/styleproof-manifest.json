@@ -14,7 +14,7 @@
   "spec": "example/styleproof.spec.ts",
   "specHash": "55cac9f5a28abd15ff30fc162182eee35db26d01b4bc6a18b666c3d843b7654b",
   "lockfile": "package-lock.json",
-  "lockfileHash": "8d7ca844681dd80012fd427cf3a94fe2c2624044b866f68d22466ae7a3e6ace0",
+  "lockfileHash": "7c2eb172211010653832ac53716b5c21cc39405b14091e415af64e6c0ee0d2c8",
   "playwrightVersion": "1.61.1",
   "browserVersion": "149.0.7827.55",
   "platform": "linux",
@@ -23,5 +23,5 @@
   "screenshots": true,
   "har": false,
   "compatibilityKey": "befb3260e5dc194a",
-  "createdAt": "2026-09-25T14:05:38.704Z"
+  "createdAt": "2026-09-25T14:06:42.261Z"
 }
