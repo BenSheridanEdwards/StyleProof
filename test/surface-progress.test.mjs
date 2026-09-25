@@ -190,9 +190,15 @@ test('resolveNavigateTimeoutMs: a malformed spec option fails LOUDLY too', () =>
 test('runWithSurfaceTimeout: stuck navigate fails under the navigate budget, not the full ceiling', async () => {
   const started = Date.now();
   await assert.rejects(
-    runWithSurfaceTimeout('factory@1280', 300_000, () => 'navigate', () => new Promise(() => {}), {
-      navigateTimeoutMs: 40,
-    }),
+    runWithSurfaceTimeout(
+      'factory@1280',
+      300_000,
+      () => 'navigate',
+      () => new Promise(() => {}),
+      {
+        navigateTimeoutMs: 40,
+      },
+    ),
     (error) => {
       assert.match(error.message, /surface 'factory@1280' timed out/);
       assert.match(error.message, /'navigate' phase in flight/);
