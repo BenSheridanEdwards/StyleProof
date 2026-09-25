@@ -19,3 +19,6 @@ graphify-out/
 # fallow local cache
 .fallow/*.bin
 styleproof-audit.json
+
+# Privacy denylist: private names stay local (CI reads the STYLEPROOF_PRIVACY_DENYLIST secret)
+.styleproof-privacy-denylist

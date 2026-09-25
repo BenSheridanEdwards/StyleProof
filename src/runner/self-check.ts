@@ -13,10 +13,30 @@ export function isSelfCheckCaptureFailure(message: string): boolean {
 }
 
 /**
- * Run one capture unit under the baseline failure policy: a self-check failure is
- * fatal for the run; any other failure is recorded and tolerated only when
- * `tolerateSurfaceFailures` is set. Returns the failure line when the caller
- * aggregates instead of throwing (the crawl), else rethrows.
+ * Ledger a non-fatal surface failure. Returns true when the failure was swallowed
+ * under `--tolerate-surface-failures` (cold-base continue); false when the caller
+ * must still fail closed (Soft-pass HOLD) after leaving the ledger for survivors.
+ */
+function ledgerNonFatalSurfaceFailure(
+  settings: Settings,
+  captureKey: string,
+  reason: string,
+  aggregate?: (line: string) => void,
+): boolean {
+  recordSurfaceCaptureFailure(settings.outDir, { key: captureKey, reason, kind: 'capture' });
+  if (!settings.tolerateSurfaceFailures) return false;
+  if (aggregate) process.stderr.write(`styleproof: tolerated crawl capture failure for ${captureKey}\n`);
+  else warn(`styleproof: tolerated capture failure for ${captureKey} — ${reason}`);
+  return true;
+}
+
+/**
+ * Run one capture unit under the surface-failure policy: a self-check failure is
+ * fatal for the run; any other failure is always ledgered. When
+ * `tolerateSurfaceFailures` is set the failure is swallowed (cold-base continue);
+ * otherwise it rethrows so the run exits non-zero — Soft-pass HOLD — while leaving
+ * the ledger for partial publish of survivors.
+ * Returns the failure line when the caller aggregates instead of throwing (the crawl).
  */
 export async function withSurfaceFailureTolerance(
   settings: Settings,
@@ -28,12 +48,9 @@ export async function withSurfaceFailureTolerance(
     await run();
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
-    const fatal = isSelfCheckCaptureFailure(reason);
-    if (fatal) markFatalCaptureFailure(settings.outDir, reason);
-    if (!fatal && settings.tolerateSurfaceFailures) {
-      recordSurfaceCaptureFailure(settings.outDir, { key: captureKey, reason, kind: 'capture' });
-      if (aggregate) process.stderr.write(`styleproof: tolerated crawl capture failure for ${captureKey}\n`);
-      else warn(`styleproof: tolerated capture failure for ${captureKey} — ${reason}`);
+    if (isSelfCheckCaptureFailure(reason)) {
+      markFatalCaptureFailure(settings.outDir, reason);
+    } else if (ledgerNonFatalSurfaceFailure(settings, captureKey, reason, aggregate)) {
       return;
     }
     if (!aggregate) throw e;

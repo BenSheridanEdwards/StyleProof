@@ -139,6 +139,7 @@ export async function captureSurface(
         saveStyleMap(`${stem}.json.gz`, map);
         if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
       },
+      { navigateTimeoutMs: s.navigateTimeoutMs },
     );
     // One stable, greppable line per completed capture (failures already name themselves).
     process.stderr.write(

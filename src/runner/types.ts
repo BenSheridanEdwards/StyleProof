@@ -82,6 +82,8 @@ export type DefineOptions = ForcedStateLimits & {
   selfCheck?: boolean;
   /** Per-surface capture ceiling in ms (default 300000; STYLEPROOF_SURFACE_TIMEOUT_MS overrides when unset). */
   surfaceTimeoutMs?: number;
+  /** Navigate-phase budget in ms (default 60000, capped by surfaceTimeoutMs; STYLEPROOF_NAVIGATE_TIMEOUT_MS overrides when unset). */
+  navigateTimeoutMs?: number;
   /** Run capture tests in parallel across workers (default true). */
   parallel?: boolean;
   /** Opt-in content layer (advisory, never gates). */

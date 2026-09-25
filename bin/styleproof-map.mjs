@@ -92,7 +92,7 @@ const cli = defineCli({
       help: `run the capture 5x in fresh contexts and require every canonical map hash to match; records determinism: oracle-proven and writes ${DETERMINISM_RECEIPT}`,
     },
     'tolerate-surface-failures': {
-      help: 'baseline-only (never on head): record per-surface capture failures and continue when at least one map succeeds (self-check failures, and any failure that is not a ledgered surface failure, still fail)',
+      help: 'baseline-only exit-0 continue (never on head): when every failure is a ledgered surface failure and at least one map succeeds, continue and exit 0 (self-check failures, and any failure the ledger does not explain, still fail). Head/default Soft-pass HOLD: same ledgered survivors are published but exit stays non-zero',
     },
   },
   notes: [
@@ -348,28 +348,34 @@ if (status !== 0 && fatalCaptureFailure) {
   removeTree(targetDir);
   process.exit(status);
 }
-// Promote to a publishable partial baseline ONLY when EVERY failed test is a ledgered surface failure.
+// Publish survivors ONLY when EVERY failed test is a ledgered surface failure (head/default AND tolerate).
+// Soft-pass HOLD: without --tolerate-surface-failures the process stays red after publish;
+// with tolerate, exit becomes 0 (cold-base behavior unchanged).
 const unexplainedTests = unsuccessfulTests.filter((outcome) => !failureLedgered(outcome, toleratedFailures));
-if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
+let publishPartial = false;
+if (status !== 0 && captured > 0) {
   if (toleratedFailures.length > 0 && unsuccessfulTests.length > 0 && unexplainedTests.length === 0) {
+    publishPartial = true;
+    const label = tolerateSurfaceFailures ? 'tolerated' : 'ledgered';
     console.error(
-      `${NAME}: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} tolerated failure(s))`,
+      `${NAME}: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} ${label} failure(s))` +
+        (tolerateSurfaceFailures ? '' : ' — Soft-pass HOLD: exit stays non-zero'),
     );
-    status = 0;
+    if (tolerateSurfaceFailures) status = 0;
   } else if (toleratedFailures.length > 0) {
     const unexplained = unexplainedTests.length
       ? `: ${unexplainedTests.map((outcome) => `"${outcome.title}" (${outcome.status})`).join(', ')}`
       : ' (no failed capture test was recorded — a worker, hook, or config error)';
     console.error(
-      `${NAME}: Playwright exited ${status} with ${toleratedFailures.length} tolerated surface failure(s) but also a failure the ledger does not explain${unexplained} — failing the capture.`,
+      `${NAME}: Playwright exited ${status} with ${toleratedFailures.length} ledgered surface failure(s) but also a failure the ledger does not explain${unexplained} — failing the capture.`,
     );
   } else {
     console.error(
-      `${NAME}: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not tolerable; failing the capture.`,
+      `${NAME}: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not publishable; failing the capture.`,
     );
   }
 }
-if (status !== 0) process.exit(status);
+if (status !== 0 && !publishPartial) process.exit(status);
 if (!keepHar) removeHarFiles(targetDir);
 // Zero maps must not stamp a manifest: a bare dir means "no baseline yet" (first adoption).
 if (captured === 0) {
@@ -381,7 +387,7 @@ if (captured === 0) {
 if (opts['prove-determinism']) proveDeterminismOrDie();
 stampManifest();
 await upload(targetDir);
-process.exit(0);
+process.exit(status);
 
 /** Capture runs 2..N into fresh dirs; returns the first non-zero exit, else 0. */
 function runOracleCaptures(extraRunDirs) {
