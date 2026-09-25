@@ -269,7 +269,7 @@ if (opts.restore) {
       remote,
       compatibilityKey: expectedCompatibilityKey({ spec }),
     });
-    // Greppable exact-hit line for Fleet Visual / CI watchers (#734). Soft-pass HOLD: observe only.
+    // Greppable exact-hit line for consumer Visual / CI watchers (#734). Soft-pass HOLD: observe only.
     // CI suppresses this when it emits the final decision line itself.
     if (env.STYLEPROOF_SUPPRESS_MAP_RESTORE_OBSERVE !== '1') {
       console.error(

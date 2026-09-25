@@ -1,8 +1,8 @@
-// Greppable map-restore decision lines for Fleet Visual / CI watchers (issue #734).
+// Greppable map-restore decision lines for consumer Visual / CI watchers (issue #734).
 // Soft-pass HOLD: observe only — never soft-green, skip-as-pass, or weaken gates.
 // One stable line per restore decision; format is STABLE (`^styleproof: map-restore `).
 
-/** Exact SHA hit vs ancestor reuse vs cold/miss. Field name matches Fleet grep vocabulary. */
+/** Exact SHA hit vs ancestor reuse vs cold/miss. Field name matches consumer grep vocabulary. */
 export type MapBaseHit = 'exact' | 'ancestor' | 'miss';
 
 /**

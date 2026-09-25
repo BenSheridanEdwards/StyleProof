@@ -595,7 +595,7 @@ try {
   fs.rmSync(root, { recursive: true, force: true });
   if (noStore) {
     log('no map store (--no-store) — capturing base and head in this job');
-    // Soft-pass HOLD: structured cold reason for Fleet Visual (#734).
+    // Soft-pass HOLD: structured cold reason for consumer Visual (#734).
     logMapRestoreDecision({ side: 'base', sha: base, baseHit: 'miss', coldReason: 'no_store' });
     logMapRestoreDecision({ side: 'head', sha: head, baseHit: 'miss', coldReason: 'no_store' });
   } else {

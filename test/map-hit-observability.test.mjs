@@ -10,7 +10,7 @@ import {
   isColdReason,
 } from '../dist/map-hit-observability.js';
 
-// Greppable exact / ancestor / miss lines — Fleet Visual keys on `base_hit=` and
+// Greppable exact / ancestor / miss lines — consumer Visual keys on `base_hit=` and
 // `cold_reason=` (issue #734). Soft-pass HOLD: observe only.
 
 test('formatMapRestoreDecisionLine: exact hit names base_hit=exact and the SHA', () => {

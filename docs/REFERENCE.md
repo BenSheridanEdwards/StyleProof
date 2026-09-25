@@ -107,7 +107,7 @@ pre-commit hook, add this to your `.pre-commit-config.yaml`:
 
 When `styleproof-ci` (or standalone `styleproof-map --restore`) decides whether a
 side is an exact map-store hit, an ancestor reuse, or a cold miss, it emits **one
-greppable line** on stderr. Format is stable for Fleet Visual / CI watchers:
+greppable line** on stderr. Format is stable for consumer Visual / CI watchers:
 
 ```text
 styleproof: map-restore side=base sha=<full-sha> base_hit=exact

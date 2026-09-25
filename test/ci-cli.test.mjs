@@ -2152,7 +2152,7 @@ test('styleproof-ci: legacy STYLEPROOF_ANCESTOR_BASELINE=1 env var enables ances
     assert.match(
       result.stderr,
       new RegExp(`styleproof: map-restore side=base sha=${base} base_hit=ancestor ancestor_reuse_from=${ancestor}`),
-      'structured ancestor hit line for Fleet Visual grep (#734)',
+      'structured ancestor hit line for consumer Visual grep (#734)',
     );
     assert.match(
       result.stderr,

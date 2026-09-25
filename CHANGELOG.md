@@ -227,6 +227,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (`src/verdict.ts`) as a backstop, with only the documented escapes (unbound,
   `--allow-unasserted`, first adoption) neutralised, so a blocker the CLI's own
   gate table misses can no longer exit `0`.
+- **Map-restore observability comments scrub private consumer names (#734).**
+  Comments/docs that named a private downstream Visual product tripped
+  `privacy:check` denylist matching; wording now uses the anonymised
+  "consumer Visual" form. Field vocabulary (`base_hit`, `cold_reason`,
+  `ancestor_reuse_from`) is unchanged. Soft-pass HOLD remains observe-only.
+
 - **The privacy check no longer publishes, or misses, what it protects.** Repo
   tooling only — no product runtime change. The private-name denylist file was
   committed to the public repo; it is now gitignored and CI reads the
