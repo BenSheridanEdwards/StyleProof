@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Detection-rate corpus (`bench/`).** `npm run bench:detection` measures the
+  detector end-to-end: 56 seeded mutations on a deterministic fixture go through
+  real `captureStyleMap`/`diffStyleMaps` capture and diff — 46/46 observable
+  changes surfaced, 7/7 computed-identical rewrites stayed silent, 3/3
+  documented boundaries held. Receipt: `bench/detection-corpus.results.json`;
+  method and caveats: `bench/detection-corpus.review.md`. Benchmark only — not
+  part of the published package.
+
 ### Fixed
 
 - **Boolean CLI flags honour an inline value.** `--allow-unasserted=false`

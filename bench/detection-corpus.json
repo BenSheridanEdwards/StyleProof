@@ -1,0 +1,500 @@
+{
+  "fixture": "bench/detection-fixture.html",
+  "expectations": {
+    "detect": "a finding must land on the target element (and carry an expected prop when `props` is set)",
+    "clean": "zero findings — the change resolves to identical computed styles",
+    "blind": "documented detection boundary — zero findings expected on the target"
+  },
+  "cases": [
+    {
+      "id": "color-cta-bg",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-cta",
+      "props": ["background-color"],
+      "css": ".sp-cta { background: #dc2626; }",
+      "desc": "CTA background blue→red"
+    },
+    {
+      "id": "color-title-text",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-title",
+      "props": ["color"],
+      "css": ".sp-title { color: #9f1239; }",
+      "desc": "title text colour change"
+    },
+    {
+      "id": "color-card-border",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-card",
+      "props": ["border"],
+      "css": ".sp-card { border-color: #f59e0b; }",
+      "desc": "card border colour"
+    },
+    {
+      "id": "color-nav-bg",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-nav",
+      "props": ["background-color"],
+      "css": ".sp-nav { background: #14532d; }",
+      "desc": "nav background"
+    },
+    {
+      "id": "color-badge-opacity",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-badge",
+      "props": ["opacity"],
+      "css": ".sp-badge { opacity: 0.4; }",
+      "desc": "badge opacity"
+    },
+    {
+      "id": "color-card-shadow",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-card",
+      "props": ["box-shadow"],
+      "css": ".sp-card { box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }",
+      "desc": "card gains a shadow"
+    },
+    {
+      "id": "color-hero-gradient",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-hero",
+      "props": ["background-image"],
+      "css": ".sp-hero { background: linear-gradient(#fff, #dbeafe); }",
+      "desc": "hero background gains a gradient"
+    },
+    {
+      "id": "color-card-border-width",
+      "category": "color",
+      "expect": "detect",
+      "sel": ".sp-card",
+      "props": ["border"],
+      "css": ".sp-card { border-width: 3px; }",
+      "desc": "card border thickens"
+    },
+    {
+      "id": "type-title-size",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-title",
+      "props": ["font-size"],
+      "css": ".sp-title { font-size: 44px; }",
+      "desc": "title font-size bump"
+    },
+    {
+      "id": "type-cardtitle-weight",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-cardtitle",
+      "props": ["font-weight"],
+      "css": ".sp-cardtitle { font-weight: 800; }",
+      "desc": "card title weight"
+    },
+    {
+      "id": "type-cardtext-leading",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-cardtext",
+      "props": ["line-height"],
+      "css": ".sp-cardtext { line-height: 2; }",
+      "desc": "card text line-height"
+    },
+    {
+      "id": "type-navlink-tracking",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-navlink",
+      "props": ["letter-spacing"],
+      "css": ".sp-navlink { letter-spacing: 0.15em; }",
+      "desc": "nav link letter-spacing"
+    },
+    {
+      "id": "type-lede-family",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-lede",
+      "props": ["font-family"],
+      "css": ".sp-lede { font-family: Georgia, serif; }",
+      "desc": "lede font family"
+    },
+    {
+      "id": "type-badge-transform",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-badge",
+      "props": ["text-transform"],
+      "css": ".sp-badge { text-transform: uppercase; }",
+      "desc": "badge uppercase"
+    },
+    {
+      "id": "type-navlink-decoration",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-navlink",
+      "props": ["text-decoration"],
+      "css": ".sp-navlink { text-decoration: underline; }",
+      "desc": "nav link underline"
+    },
+    {
+      "id": "type-navlink-style",
+      "category": "typography",
+      "expect": "detect",
+      "sel": ".sp-navlink",
+      "props": ["font-style"],
+      "css": ".sp-navlink { font-style: italic; }",
+      "desc": "nav link italic"
+    },
+    {
+      "id": "space-card-margin",
+      "category": "spacing",
+      "expect": "detect",
+      "sel": ".sp-card",
+      "props": ["margin"],
+      "css": ".sp-card { margin-top: 24px; }",
+      "desc": "card margin"
+    },
+    {
+      "id": "space-cta-padding",
+      "category": "spacing",
+      "expect": "detect",
+      "sel": ".sp-cta",
+      "props": ["padding"],
+      "css": ".sp-cta { padding: 20px 40px; }",
+      "desc": "CTA padding"
+    },
+    {
+      "id": "space-cards-gap",
+      "category": "spacing",
+      "expect": "detect",
+      "sel": ".sp-cards",
+      "props": ["gap", "column-gap", "row-gap"],
+      "css": ".sp-cards { gap: 48px; }",
+      "desc": "cards gap widens"
+    },
+    {
+      "id": "space-hero-width",
+      "category": "spacing",
+      "expect": "detect",
+      "sel": ".sp-hero",
+      "props": ["width", "max-width"],
+      "css": ".sp-hero { max-width: 640px; }",
+      "desc": "hero max-width clamps"
+    },
+    {
+      "id": "space-card-minheight",
+      "category": "spacing",
+      "expect": "detect",
+      "sel": ".sp-card",
+      "props": ["min-height"],
+      "css": ".sp-card { min-height: 160px; }",
+      "desc": "card min-height"
+    },
+    {
+      "id": "space-cta-radius",
+      "category": "spacing",
+      "expect": "detect",
+      "sel": ".sp-cta",
+      "props": ["border-radius", "border-top-left-radius"],
+      "css": ".sp-cta { border-radius: 999px; }",
+      "desc": "CTA pill"
+    },
+    {
+      "id": "space-list-indent",
+      "category": "spacing",
+      "expect": "detect",
+      "sel": ".sp-list",
+      "props": ["padding-left"],
+      "css": ".sp-list { padding-left: 64px; }",
+      "desc": "list indents"
+    },
+    {
+      "id": "layout-cards-display",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-cards",
+      "props": ["display"],
+      "css": ".sp-cards { display: block; }",
+      "desc": "cards flex→block"
+    },
+    {
+      "id": "layout-cards-direction",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-cards",
+      "props": ["flex-direction"],
+      "css": ".sp-cards { flex-direction: column; }",
+      "desc": "cards row→column"
+    },
+    {
+      "id": "layout-nav-justify",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-nav",
+      "props": ["justify-content"],
+      "css": ".sp-nav { justify-content: flex-start; }",
+      "desc": "nav justify change"
+    },
+    {
+      "id": "layout-badge-absolute",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-badge",
+      "props": ["position", "top"],
+      "css": ".sp-badge { position: absolute; top: 8px; }",
+      "desc": "badge absolute positioned"
+    },
+    {
+      "id": "layout-overlay-z",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-overlay",
+      "props": ["z-index"],
+      "css": ".sp-overlay { z-index: 50; }",
+      "desc": "overlay z-index"
+    },
+    {
+      "id": "layout-card-overflow",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-card",
+      "props": ["overflow"],
+      "css": ".sp-card { overflow: hidden; }",
+      "desc": "card overflow hidden"
+    },
+    {
+      "id": "layout-badge-hidden",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-badge",
+      "props": ["visibility"],
+      "css": ".sp-badge { visibility: hidden; }",
+      "desc": "badge visibility hidden"
+    },
+    {
+      "id": "layout-badge-removed",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-badge",
+      "props": ["display"],
+      "css": ".sp-badge { display: none; }",
+      "desc": "badge display:none"
+    },
+    {
+      "id": "layout-grid-columns",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-grid",
+      "props": ["grid-template-columns"],
+      "css": ".sp-grid { grid-template-columns: 1fr 1fr 1fr; }",
+      "desc": "grid 2→3 columns"
+    },
+    {
+      "id": "layout-nav-align",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-nav",
+      "props": ["align-items"],
+      "css": ".sp-nav { align-items: flex-end; }",
+      "desc": "nav align-items"
+    },
+    {
+      "id": "layout-footer-align",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-footer",
+      "props": ["text-align"],
+      "css": ".sp-footer { text-align: center; }",
+      "desc": "footer centered"
+    },
+    {
+      "id": "layout-cardtext-wrap",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-cardtext",
+      "props": ["text-wrap"],
+      "css": ".sp-cardtext { white-space: nowrap; }",
+      "desc": "card text nowrap (computes to text-wrap-mode)"
+    },
+    {
+      "id": "layout-badge-rotate",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-badge",
+      "props": ["transform"],
+      "css": ".sp-badge { transform: rotate(3deg); }",
+      "desc": "badge rotated"
+    },
+    {
+      "id": "layout-img-filter",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-img",
+      "props": ["filter"],
+      "css": ".sp-img { filter: grayscale(1); }",
+      "desc": "image desaturated"
+    },
+    {
+      "id": "layout-cta-cursor",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-cta",
+      "props": ["cursor"],
+      "css": ".sp-cta { cursor: not-allowed; }",
+      "desc": "CTA cursor change"
+    },
+    {
+      "id": "layout-img-fit",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-img",
+      "props": ["object-fit"],
+      "css": ".sp-img { object-fit: contain; }",
+      "desc": "img object-fit"
+    },
+    {
+      "id": "layout-item-marker",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-item",
+      "props": ["list-style-type"],
+      "css": ".sp-item { list-style: square; }",
+      "desc": "list marker style"
+    },
+    {
+      "id": "layout-panel-maxwidth",
+      "category": "layout",
+      "expect": "detect",
+      "sel": ".sp-panel",
+      "props": ["max-width"],
+      "css": ".sp-panel { max-width: 320px; }",
+      "desc": "form panel clamps"
+    },
+    {
+      "id": "state-cta-hover",
+      "category": "state",
+      "expect": "detect",
+      "sel": ".sp-cta",
+      "props": ["background-color"],
+      "css": ".sp-cta:hover { background: #7c3aed; }",
+      "desc": "CTA hover colour"
+    },
+    {
+      "id": "state-field-focus",
+      "category": "state",
+      "expect": "detect",
+      "sel": ".sp-field",
+      "props": ["outline"],
+      "css": ".sp-field:focus { outline: 4px solid #dc2626; }",
+      "desc": "field focus outline"
+    },
+    {
+      "id": "pseudo-badge-marker",
+      "category": "state",
+      "expect": "detect",
+      "sel": ".sp-badge",
+      "props": ["color"],
+      "css": ".sp-badge::before { color: #dc2626; }",
+      "desc": "badge ::before marker colour"
+    },
+    {
+      "id": "clean-hex-vs-name",
+      "category": "no-op",
+      "expect": "clean",
+      "css": ".sp-logo { color: #ffffff; }",
+      "desc": "white → #ffffff equivalent"
+    },
+    {
+      "id": "clean-margin-longhand",
+      "category": "no-op",
+      "expect": "clean",
+      "css": ".sp-cardtext { margin: 0 0 0 0; }",
+      "desc": "margin 0 restated as four longhands"
+    },
+    {
+      "id": "clean-weight-alias",
+      "category": "no-op",
+      "expect": "clean",
+      "css": ".sp-logo { font-weight: bold; }",
+      "desc": "700 → bold alias"
+    },
+    {
+      "id": "clean-var-equivalent",
+      "category": "no-op",
+      "expect": "clean",
+      "css": ":root { --lede-c: #475569; } .sp-lede { color: var(--lede-c); }",
+      "desc": "direct colour → identical via custom property"
+    },
+    {
+      "id": "clean-duplicate-decl",
+      "category": "no-op",
+      "expect": "clean",
+      "css": ".sp-title { font-size: 32px; }",
+      "desc": "identical value redeclared"
+    },
+    {
+      "id": "clean-visibility-default",
+      "category": "no-op",
+      "expect": "clean",
+      "css": ".sp-card { visibility: visible; }",
+      "desc": "explicit default visibility"
+    },
+    {
+      "id": "clean-display-same",
+      "category": "no-op",
+      "expect": "clean",
+      "css": ".sp-tile { display: block; }",
+      "desc": "block redeclared on a block box"
+    },
+    {
+      "id": "blind-keyframes",
+      "category": "blind",
+      "expect": "blind",
+      "sel": ".sp-badge",
+      "css": "@keyframes pulse { from { opacity: 0; } to { opacity: 0.2; } }",
+      "desc": "@keyframes internals rewritten — animation-name unchanged, bodies are not computed styles"
+    },
+    {
+      "id": "blind-img-src",
+      "category": "blind",
+      "expect": "blind",
+      "sel": ".sp-img",
+      "attr": [
+        ".sp-img",
+        "src",
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjZGMyNjI2Ii8+PC9zdmc+"
+      ],
+      "desc": "img src swapped blue→red — element attributes are not computed styles"
+    },
+    {
+      "id": "blind-aria-label",
+      "category": "blind",
+      "expect": "blind",
+      "sel": ".sp-cta",
+      "attr": [".sp-cta", "aria-label", "Start now"],
+      "desc": "aria-label added — accessibility metadata is outside style evidence"
+    },
+    {
+      "id": "dom-link-href",
+      "category": "dom",
+      "expect": "detect",
+      "sel": ".sp-ext",
+      "attr": [".sp-ext", "href", "#other"],
+      "desc": "link href change — href is in the anchor element fingerprint, so the element re-keys as removed+added"
+    },
+    {
+      "id": "text-title",
+      "category": "dom",
+      "expect": "detect",
+      "sel": ".sp-title",
+      "text": [".sp-title", "Ship fearless teams"],
+      "desc": "title copy change — advisory text layer, captured when captureText is on",
+      "captureText": true
+    }
+  ]
+}
