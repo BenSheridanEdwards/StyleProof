@@ -1359,7 +1359,8 @@ test('composite action self-verifies the published receipt before advertising th
   // read-back still proves the published report belongs to THIS run without the
   // deleted release-confidence sidecar. report.json must still parse cleanly.
   assert.doesNotMatch(publishModule, /release-confidence|manifestDigest/);
-  assert.match(publishModule, /decoder\.decode\(markdown\)\.includes\(expectedReceipt\)/);
+  // Exactly one receipt marker, and it is this run's — never a mere substring match.
+  assert.match(publishModule, /receiptMarkers === 1 && markdownText\.split\(expectedReceipt\)\.length - 1 === 1/);
   assert.match(publishModule, /hasDuplicateJsonKeys\(reportSource\)/);
   // Fail CLOSED on a dead or mismatched report — never a green run with a bad URL.
   assert.match(publishModule, /do not trust this run's report/);
