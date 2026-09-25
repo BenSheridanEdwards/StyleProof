@@ -16,7 +16,7 @@ approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 | `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                                             | Hidden. Approval cannot clear it.          |
 | `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.                           | Hidden. Approval cannot clear it.          |
 | `CERTIFICATION_FAILED`             | Coverage, determinism, or report/diff consistency evidence is incomplete (not a recapture failure).          | Hidden. Approval cannot clear it.          |
-| `PARTIAL_BASELINE`                 | Named surface+SHA failed on the base bundle (Action copy interpolates the receipt). Not a recapture failure. | Hidden. Repair those surfaces on that SHA. |
+| `PARTIAL_BASELINE`                 | Named surface+SHA failed on the **base** bundle (Action copy interpolates the receipt). Not a recapture failure. Head Soft-pass HOLD partials (survivors published, job stays red) are compared rather than SKIPPED; they stay red via incomplete coverage / certification — Soft-pass HOLD, never soft-green. | Hidden. Repair those surfaces on that SHA. |
 | `DEGRADED_BASELINE`                | `base-capture-failed=true`: the base capture failed. This is a head-only receipt.                            | Hidden. Not a comparison.                  |
 | `REPORT_PUBLICATION_FAILED`        | The report artifact upload, report-branch publish, comment, or status delivery failed.                       | Hidden. Delivery failed.                   |
 
@@ -1410,6 +1410,8 @@ It's **asynchronous by design**: approval is a checkbox tick handled by a separa
 | `navigateTimeoutMs` | `60000` (1 min)            | Navigate-phase budget under the overall ceiling, ms (`STYLEPROOF_NAVIGATE_TIMEOUT_MS` overrides when unset; never exceeds `surfaceTimeoutMs`). A stuck navigate fails the surface with phase `navigate` named without burning the full ceiling; settle / capture / self-check keep the remaining overall budget. |
 | `screenshots`      | `true`                      | Save full-page screenshots for the report's before/after crops.                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `baseDir`          | `__stylemaps__`             | Output root directory.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+**Soft-pass HOLD (maps wall-clock):** navigate budgets and head partial publish keep the job red — no soft-green, no weaker evidence gates.
 
 Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<style>`/… and `next-route-announcer`) are skipped automatically; a surface's `ignore` adds to that default, it doesn't replace it.
 
