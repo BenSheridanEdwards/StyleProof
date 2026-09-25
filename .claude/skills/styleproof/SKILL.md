@@ -31,7 +31,8 @@ This skill is the map. Each step has its own skill; follow them in order.
 ## Use it (every PR / every check)
 
 - **`styleproof-capture`** — one-shot capture of any URL you point at.
-- **`styleproof-diff`** — the gate: 0 = certified identical, 1 = changed (or a
+- **`styleproof-diff`** — the gate: 0 = identical (certified only when
+  source-bound; unbound is a labelled diagnostic), 1 = changed (or a
   blocked gate: unacknowledged inventory removal, unacknowledged failing data
   endpoint, incomplete coverage, unproven determinism), 3 = new surface.
   Validate the differ before trusting a 0.

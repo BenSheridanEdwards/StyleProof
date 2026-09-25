@@ -1,4 +1,4 @@
-import type { DiffCounts } from '../diff.js';
+import type { DiffCounts, HeadOnlyVolatile } from '../diff.js';
 import {
   baselineFailureReceipts,
   honestBaselineCompareAttribution,
@@ -18,6 +18,8 @@ export type HeadlineInput = {
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
   volatileCount: number;
+  /** Subtrees volatile on the head only: excluded, never certified. */
+  headOnlyVolatile?: HeadOnlyVolatile[];
   liveCandidateLabels: string[];
   contentCount: number;
   contentEvaluated: boolean;
@@ -157,6 +159,11 @@ const NO_CHANGE = '✓ No reviewable computed-style changes among semantically m
 function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   const failure = consistencyFailureLines(input);
   if (failure || input.baseline.surfaceFailures.length > 0) return failure;
+  if (input.headOnlyVolatile?.length) {
+    return [
+      '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below). Fail closed (`CERTIFICATION_FAILED`); not a clean no-change.',
+    ];
+  }
   if (input.liveTextFreezeViolated) {
     return [
       '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared. Fail closed (`CERTIFICATION_FAILED`); not a style review.',
@@ -199,6 +206,15 @@ export function reportHeadline(input: HeadlineInput): string[] {
     md.push(
       '',
       `_${input.volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — changes inside them are NOT certified by this check.${candidates}_`,
+    );
+  }
+  const headOnly = input.headOnlyVolatile ?? [];
+  if (headOnly.length > 0) {
+    md.push(
+      '',
+      `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
+      ...headOnly.slice(0, 20).map((v) => `- \`${v.surface}\` · \`${v.path}\``),
+      ...(headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []),
     );
   }
   if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {

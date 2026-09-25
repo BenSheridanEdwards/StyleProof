@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StyleProof detection fixture</title>
+    <!--
+      Deterministic fixture for bench/detection-rate.mjs — no web fonts, no live
+      data, no real animation (@keyframes pulse is a static no-op; its internals
+      are mutated by corpus case blind-keyframes to prove keyframe bodies are
+      outside computed-style detection).
+
+      Every mutation target carries a stable `sp-*` marker class so findings can
+      be attributed by `cls` without depending on DOM position.
+
+      Mutation channel (kept dumb — the corpus JSON is the only source of truth):
+        ?css=<b64>            inject a <style> block
+        ?attr=<b64sel>:<b64name>:<b64value>   set a DOM attribute
+        ?text=<b64sel>:<b64text>              set textContent
+    -->
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        color: #1f2937;
+        background: #ffffff;
+      }
+      .sp-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 24px;
+        background: #0f172a;
+      }
+      .sp-logo {
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 20px;
+      }
+      .sp-navlink {
+        color: #cbd5e1;
+        text-decoration: none;
+        letter-spacing: 0;
+        margin-left: 16px;
+        font-style: normal;
+      }
+      .sp-hero {
+        padding: 48px 24px;
+        background: #f8fafc;
+        width: 100%;
+        max-width: none;
+      }
+      .sp-title {
+        font-size: 32px;
+        line-height: 1.2;
+        margin: 0 0 8px;
+      }
+      .sp-lede {
+        font-size: 16px;
+        color: #475569;
+        margin: 0 0 16px;
+      }
+      .sp-cta {
+        background: #2563eb;
+        color: #ffffff;
+        padding: 10px 20px;
+        border: 0;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        outline-color: #1d4ed8;
+      }
+      .sp-cta:hover {
+        background: #1d4ed8;
+      }
+      .sp-cards {
+        display: flex;
+        flex-direction: row;
+        gap: 16px;
+        padding: 24px;
+      }
+      .sp-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 16px;
+        background: #ffffff;
+        box-shadow: none;
+        min-height: 80px;
+        overflow: visible;
+        position: relative;
+        float: none;
+      }
+      .sp-cardtitle {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        text-transform: none;
+      }
+      .sp-cardtext {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0;
+        white-space: normal;
+        word-break: normal;
+      }
+      .sp-badge {
+        display: inline-block;
+        background: #dcfce7;
+        color: #166534;
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-top: 8px;
+        position: static;
+        top: auto;
+        opacity: 1;
+        z-index: auto;
+        visibility: visible;
+        transform: none;
+        filter: none;
+        animation: pulse 2s linear infinite;
+      }
+      .sp-badge::before {
+        content: "\25CF";
+        color: #166534;
+        margin-right: 4px;
+      }
+      @keyframes pulse {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .sp-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 0 24px 24px;
+      }
+      .sp-tile {
+        background: #eff6ff;
+        padding: 12px;
+        aspect-ratio: auto;
+      }
+      .sp-panel {
+        padding: 24px;
+        border: 0;
+      }
+      .sp-label {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+      .sp-field {
+        border: 1px solid #94a3b8;
+        border-radius: 4px;
+        padding: 8px;
+        font-size: 14px;
+        caret-color: auto;
+      }
+      .sp-field:focus {
+        outline: 2px solid #2563eb;
+      }
+      .sp-save {
+        margin-top: 12px;
+        background: #16a34a;
+        color: #ffffff;
+        border: 0;
+        padding: 8px 16px;
+        display: inline-block;
+      }
+      .sp-list {
+        padding-left: 24px;
+        margin: 8px 24px;
+      }
+      .sp-item {
+        list-style: disc;
+        margin: 4px 0;
+        vertical-align: baseline;
+      }
+      .sp-img {
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        display: block;
+        margin: 0 24px;
+      }
+      .sp-overlay {
+        position: absolute;
+        z-index: 1;
+        background: #ffffff;
+        padding: 4px;
+        border: 0;
+      }
+      .sp-footer {
+        background: #0f172a;
+        color: #94a3b8;
+        text-align: left;
+        padding: 16px 24px;
+        font-size: 13px;
+      }
+      .sp-ext {
+        color: #60a5fa;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav class="sp-nav">
+        <span class="sp-logo">ACME</span>
+        <span>
+          <a class="sp-navlink" href="#features">Features</a>
+          <a class="sp-navlink" href="#pricing">Pricing</a>
+        </span>
+      </nav>
+    </header>
+    <main>
+      <section class="sp-hero">
+        <h1 class="sp-title">Ship fearless</h1>
+        <p class="sp-lede">Every visual change, reviewed before it ships.</p>
+        <button class="sp-cta" type="button">Get started</button>
+      </section>
+      <section class="sp-cards">
+        <div class="sp-card">
+          <h2 class="sp-cardtitle">Capture</h2>
+          <p class="sp-cardtext">Computed styles, not pixels.</p>
+          <span class="sp-badge">stable</span>
+          <div class="sp-overlay">tip</div>
+        </div>
+        <div class="sp-card">
+          <h2 class="sp-cardtitle">Diff</h2>
+          <p class="sp-cardtext">Named down to the property.</p>
+        </div>
+        <div class="sp-card">
+          <h2 class="sp-cardtitle">Certify</h2>
+          <p class="sp-cardtext">Zero-change PRs close green.</p>
+        </div>
+      </section>
+      <section class="sp-grid">
+        <div class="sp-tile">Alpha</div>
+        <div class="sp-tile">Beta</div>
+      </section>
+      <form class="sp-panel">
+        <label class="sp-label" for="sp-f">Email</label>
+        <input class="sp-field" id="sp-f" />
+        <button class="sp-save" type="button">Save</button>
+      </form>
+      <ul class="sp-list">
+        <li class="sp-item">Framework agnostic</li>
+        <li class="sp-item">Fail closed</li>
+        <li class="sp-item">Privacy clean</li>
+      </ul>
+      <img
+        class="sp-img"
+        alt="swatch"
+        src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMjU2M2ViIi8+PC9zdmc+"
+      />
+      <footer class="sp-footer">
+        <p class="sp-note">&copy; <a class="sp-ext" href="#top">Acme</a></p>
+      </footer>
+    </main>
+    <script>
+      // Corpus mutation channel — see comment in <head>.
+      const params = new URLSearchParams(location.search);
+      const b64 = (s) => decodeURIComponent(escape(atob(s)));
+      if (params.get('css')) {
+        const el = document.createElement('style');
+        el.textContent = b64(params.get('css'));
+        document.head.append(el);
+      }
+      if (params.get('attr')) {
+        const [sel, name, value] = params.get('attr').split(':').map(b64);
+        document.querySelector(sel)?.setAttribute(name, value);
+      }
+      if (params.get('text')) {
+        const [sel, value] = params.get('text').split(':').map(b64);
+        const el = document.querySelector(sel);
+        if (el) el.textContent = value;
+      }
+    </script>
+  </body>
+</html>

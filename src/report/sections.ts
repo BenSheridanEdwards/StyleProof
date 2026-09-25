@@ -269,6 +269,7 @@ export type ReportArtifacts = Pick<
   surfaces: Array<Record<string, unknown>>;
   baselineProvenance: BaselineProvenance | null;
   liveTextFreeze: { violated: boolean; reason?: string } | null;
+  headOnlyVolatile?: ReportResult['headOnlyVolatile'];
 };
 
 /** Write report.md, report.json, and report.html. The JSON key order is a byte-stable contract. */
@@ -301,6 +302,8 @@ export function writeReportArtifacts(a: ReportArtifacts): {
     confidence: a.confidence,
     ...(a.baselineProvenance ? { baselineProvenance: a.baselineProvenance } : {}),
     ...(a.liveTextFreeze ? { liveTextFreeze: a.liveTextFreeze } : {}),
+    // Additive, only when present, so a clean report's bytes are unchanged.
+    ...(a.headOnlyVolatile?.length ? { volatility: { headOnly: a.headOnlyVolatile } } : {}),
     ...(a.legacyPairs ? { legacyPairs: a.legacyPairs } : {}),
     ...(a.criticalStates ? { criticalStates: a.criticalStates } : {}),
   };

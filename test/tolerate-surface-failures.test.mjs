@@ -361,6 +361,91 @@ test('styleproof-map: tolerate off keeps non-zero exit when Playwright fails', (
   }
 });
 
+test('styleproof-map: head/default publishes partial then exits non-zero (Soft-pass HOLD)', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    spawnSync('git', ['config', 'user.email', 't@test'], { cwd: root });
+    spawnSync('git', ['config', 'user.name', 't'], { cwd: root });
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    // Survivors + ledgered failures, NO tolerate flag — must publish then stay red.
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
+printf '%s\\n' '{"key":"about@900","reason":"navigate timeout","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const maps = path.join(root, 'maps');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'head', '--base-dir', maps, '--no-upload'],
+      {
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        STYLEPROOF_SHA: undefined,
+        GITHUB_HEAD_SHA: undefined,
+        GITHUB_BASE_SHA: undefined,
+        GITHUB_EVENT_PATH: undefined,
+        GITHUB_EVENT_NAME: undefined,
+        GITHUB_SHA: undefined,
+      },
+      root,
+    );
+    assert.notEqual(r.status, 0, `Soft-pass HOLD: head partial must stay red, got ${r.status}\n${r.stderr}`);
+    const manifestPath = path.join(maps, 'head', MAP_MANIFEST);
+    assert.equal(fs.existsSync(manifestPath), true, `expected publishable partial manifest\n${r.stderr}`);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.equal(manifest.surfaceCaptureFailures?.length, 1);
+    assert.match(r.stderr, /partial/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: head/default with survivors but NO ledger still refuses publish', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    spawnSync('git', ['config', 'user.email', 't@test'], { cwd: root });
+    spawnSync('git', ['config', 'user.name', 't'], { cwd: root });
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const maps = path.join(root, 'maps');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'head', '--base-dir', maps, '--no-upload'],
+      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.equal(fs.existsSync(path.join(maps, 'head', MAP_MANIFEST)), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('diff CLI: partial base manifest with failures vs full head fails closed as exit 1', () => {
   const root = mkTmp();
   const baseSha = 'a'.repeat(40);
@@ -718,6 +803,8 @@ test('styleproof-ci passes tolerate only on cold base capture args', () => {
   const headCapture = src.match(/'head capture'[\s\S]*?writeOutputs\(baseCaptureFailed\);/);
   assert.ok(headCapture, 'head capture block');
   assert.doesNotMatch(headCapture[0], /tolerate-surface-failures/);
+  assert.match(src, /isPublishablePartial/);
+  assert.match(src, /Soft-pass HOLD/);
 });
 
 test('styleproof-map help documents tolerate is baseline-only and CI head never enables it', () => {

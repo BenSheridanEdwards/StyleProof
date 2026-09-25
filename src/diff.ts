@@ -219,6 +219,20 @@ function volatilePaths(a: StyleMap, b: StyleMap): string[] {
   return [...new Set([...(a.volatile ?? []), ...(b.volatile ?? [])])];
 }
 
+/**
+ * Head live-region paths the base did NOT also exclude: the base compared that
+ * subtree, the head stopped settling it. The union skip above would hide
+ * whatever the PR changed there (a new interval toggling a class on a
+ * container), so these block certification instead of passing silently.
+ */
+export function headOnlyVolatilePaths(base: StyleMap, head: StyleMap): string[] {
+  const baseVolatile = base.volatile ?? [];
+  return (head.volatile ?? []).filter((p) => !isUnder(p, baseVolatile)).sort();
+}
+
+/** A head-only volatile subtree on one surface: excluded from the diff, so it cannot certify. */
+export type HeadOnlyVolatile = { surface: string; path: string };
+
 const unionKeys = (a: object, b: object): string[] => [...new Set([...Object.keys(a), ...Object.keys(b)])];
 const sortedUnionKeys = (a: object, b: object): string[] => unionKeys(a, b).sort();
 
@@ -433,6 +447,8 @@ export function diffStyleMapDirs(
   counts: DiffCounts;
   comparability: SurfaceComparability[];
   volatile: number;
+  /** Subtrees volatile on the head but compared on the base: excluded, so they block certification. */
+  headOnlyVolatile: HeadOnlyVolatile[];
   statesUncertified: number;
   compared: number;
   /** Bounded baseline capture failures read from the base manifest. */
@@ -453,7 +469,7 @@ export function diffStyleMapDirs(
   const comparability: SurfaceComparability[] = [];
   const pixels: PixelSurfaceResult[] = [];
   let counts: DiffCounts = { dom: 0, style: 0, state: 0 };
-  const uncompared = { volatile: 0, statesUncertified: 0 };
+  const uncompared = { volatile: 0, statesUncertified: 0, headOnlyVolatile: [] as HeadOnlyVolatile[] };
   const pixelOptions = typeof options.pixels === 'object' ? options.pixels : {};
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
@@ -510,12 +526,12 @@ function forcedStateEvidenceIncomplete(map: StyleMap): boolean {
   return map.statesSkipped === true || (map as StyleMapWithStateEvidence).statesCaptured === false;
 }
 
-/** Diff one paired surface, tallying what was NOT compared (volatile subtrees; an incomplete forced-state layer on EITHER side). */
+/** Diff one paired surface, tallying what was NOT compared (volatile subtrees, head-only ones named; an incomplete forced-state layer on EITHER side). */
 function diffSurfacePair(
   surface: string,
   fileA: string,
   fileB: string,
-  uncompared: { volatile: number; statesUncertified: number },
+  uncompared: { volatile: number; statesUncertified: number; headOnlyVolatile: HeadOnlyVolatile[] },
   options: DiffStyleOptions,
 ): { findings: Finding[]; comparability: SurfaceComparability } {
   const mapA = loadStyleMap(fileA);
@@ -525,6 +541,8 @@ function diffSurfacePair(
   // Certification excludes structure, so a moved element must be paired back onto
   // its head path first or a real restyle on it vanishes with the advisory remove+add.
   const comparableBase = options.includeStructure === false ? correspondBeforeMap(mapA, mapB) : mapA;
+  // Against the corresponded base, so a base live region matches the head path it moved to.
+  for (const p of headOnlyVolatilePaths(comparableBase, mapB)) uncompared.headOnlyVolatile.push({ surface, path: p });
   return {
     findings: diffStyleMaps(comparableBase, mapB, options),
     comparability: compareProductState(surface, mapA, mapB),

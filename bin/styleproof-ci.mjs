@@ -33,6 +33,7 @@ import {
 import {
   expectedCompatibilityKey,
   listMapStoreBundleShas,
+  readMapManifest,
   restoreMapBundle,
   writeBaselineProvenance,
 } from '../dist/map-store.js';
@@ -491,8 +492,13 @@ async function captureColdBase() {
     recordBaselineProvenance({ baseline: 'captured' });
     return false;
   }
-  // Tolerated failures already exit 0 with a partial baseline, so this is an untolerated
-  // failure: any maps on disk are debris from a run with no publishable manifest.
+  // Soft-pass HOLD: ledgered partials now stamp a manifest even when exit stays non-zero.
+  // Keep them so Action can diff survivors as PARTIAL_BASELINE (or equivalent red).
+  if (isPublishablePartial(baseDirPath)) {
+    log(`base capture exited ${status} with a publishable partial — keeping survivors (Soft-pass HOLD: stay red)`);
+    recordBaselineProvenance({ baseline: 'captured' });
+    return false;
+  }
   const mapCount = captureKeysIn(baseDirPath).length;
   if (mapCount > 0)
     log(
@@ -508,6 +514,11 @@ let baseHit = false;
 let headHit = false;
 let baseRestoredFromAncestorSha = '';
 let exitCode = 0;
+
+/** Survivors stamped with a manifest are publishable (Soft-pass HOLD: may still exit non-zero). */
+function isPublishablePartial(dir) {
+  return captureKeysIn(dir).length > 0 && readMapManifest(dir) != null;
+}
 
 function writeOutputs(baseCaptureFailed = false) {
   const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed, baseRestoredFromAncestorSha);
@@ -570,7 +581,14 @@ try {
         },
       ),
     );
-    if (status !== 0) bail(status);
+    if (status !== 0) {
+      const headDir = path.join(root, 'head');
+      if (isPublishablePartial(headDir)) {
+        log(`head capture exited ${status} with a publishable partial — keeping survivors (Soft-pass HOLD: stay red)`);
+        writeOutputs(baseCaptureFailed);
+      }
+      bail(status);
+    }
     writeOutputs(baseCaptureFailed);
   }
 } catch (error) {

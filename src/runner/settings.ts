@@ -4,7 +4,7 @@ import { warn } from '../capture/shared.js';
 import type { CaptureOptions } from '../capture/types.js';
 import { requireLiveTextCapture, validateLiveText } from '../live-text.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, restoreRealSpecClock } from '../spec-clock.js';
-import { resolveSurfaceTimeoutMs } from '../surface-progress.js';
+import { resolveNavigateTimeoutMs, resolveSurfaceTimeoutMs } from '../surface-progress.js';
 import type {
   CaptureConfig,
   ExpandedSurface,
@@ -121,6 +121,8 @@ export function resolveSettings(c: CaptureConfig): Settings {
   requireLiveTextCapture(liveText ?? undefined, c.captureText ?? false);
   const baseDir = resolveBaseDir(c.baseDir);
   const dir = c.dir as string;
+  const surfaceTimeoutMs = resolveSurfaceTimeoutMs(c.surfaceTimeoutMs);
+  const navigateTimeoutMs = resolveNavigateTimeoutMs(c.navigateTimeoutMs, surfaceTimeoutMs);
   return {
     ...resolveForcedStateLimits(c),
     dir,
@@ -133,7 +135,8 @@ export function resolveSettings(c: CaptureConfig): Settings {
     freezeClock,
     clockTime,
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
-    surfaceTimeoutMs: resolveSurfaceTimeoutMs(c.surfaceTimeoutMs),
+    surfaceTimeoutMs,
+    navigateTimeoutMs,
     captureText: c.captureText ?? false,
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),

@@ -78,8 +78,72 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (v3.0.3), `fallow-rs/fallow` (v3.28.0), and `gitleaks/gitleaks-action`
   (v3.0.0) are pinned to the commit their `v3` tag resolved to, with the tag in
   a comment; first-party `actions/*` keep their major tags.
+### Added
+
+- **Detection-rate corpus (`bench/`).** `npm run bench:detection` measures the
+  detector end-to-end: 56 seeded mutations on a deterministic fixture go through
+  real `captureStyleMap`/`diffStyleMaps` capture and diff — 46/46 observable
+  changes surfaced, 7/7 computed-identical rewrites stayed silent, 3/3
+  documented boundaries held. Receipt: `bench/detection-corpus.results.json`;
+  method and caveats: `bench/detection-corpus.review.md`. Benchmark only — not
+  part of the published package.
 
 ### Fixed
+
+- **A subtree that becomes volatile only on the head now blocks certification.**
+  Capture excludes a subtree that is still mutating at settle, and the diff
+  skipped the union of both sides' volatile lists — so a PR that added a timer
+  toggling a class on a container hid its own change and a source-bound
+  `styleproof-diff` exited `0` with `certifiesFully: true`. The differ now
+  separates head-only volatility (the base settled and compared that subtree)
+  from volatility present on both sides. Head-only volatility is a
+  certification blocker (`CERTIFICATION_FAILED` in the shared verdict):
+  `styleproof-diff` exits `1` and names each `surface: path`, `--json` records
+  `volatility.headOnly`, and `styleproof-report` exits `1`, drops the clean
+  headline, lists the subtrees, and adds `volatility.headOnly` to
+  `report.json` (only when non-empty). Volatility on both sides keeps today's
+  behaviour: excluded, warned, still certifiable. The determinism self-check
+  cannot hide it, because the recorded head map still carries its volatile list.
+- **Declared live text no longer waves unrelated changes through.** When any
+  declared `liveText` drifted and nothing reviewable remained, `styleproof-diff`
+  zeroed the whole run's change tally, which turned other fail-closed states
+  (for example a `:hover` width delta the report strips, which is
+  `raw_only_no_reviewable`) into exit `0` / `NO_REVIEWABLE_STYLE_CHANGES`.
+  The tally is now zeroed only when declared live text explains every raw
+  delta. The geometry that live text may explain is also narrower: only
+  size-type longhands (`width`, `height`, logical and min/max sizes, and the
+  transform/perspective origins that derive from them) on the live element and
+  its ancestors, on the base layer. Offsets such as `top`/`left`/`inset-*`,
+  pseudo layers, and state deltas stay reviewable, so a positioned card that
+  moves next to a drifting timestamp now exits `1`.
+- **`liveText.selectors` match only what the captured path can prove.** For
+  anything but a bare `.class` or type selector, an element counted as live
+  when any of its class tokens was a substring of the selector — `#clock`
+  matched classes `c`, `lock`, or `o`, making real text changes advisory.
+  A selector is now one compound (optional type, whole class tokens, `#id`);
+  an id matches only when the capture encoded it in the element's path.
+  Combinators, attribute selectors, and pseudo-classes match nothing
+  (fail closed). Age/clock tokens are still classified without selectors.
+- **`styleproof-diff` no longer calls an unbound exit `0` certified.** Without
+  `--expected-before-sha`/`--expected-after-sha` the source binding is
+  unverified, so the run is not certification even when nothing changed. The
+  exit code stays `0` (the no-args local form and the design-vs-build
+  two-directory form have no trusted SHAs to bind; `styleproof-report` keeps
+  exiting `1` for the same unbound run), but `--help`, the summary line
+  (`UNVERIFIED DIAGNOSTIC (not certified: unbound)`), and the audit trail's
+  `exitReason` now say so instead of `certified — no reviewable changes`.
+  The exit decision also reads the shared verdict's certification blockers
+  (`src/verdict.ts`) as a backstop, with only the documented escapes (unbound,
+  `--allow-unasserted`, first adoption) neutralised, so a blocker the CLI's own
+  gate table misses can no longer exit `0`.
+- **The privacy check no longer publishes, or misses, what it protects.** Repo
+  tooling only — no product runtime change. The private-name denylist file was
+  committed to the public repo; it is now gitignored and CI reads the
+  `STYLEPROOF_PRIVACY_DENYLIST` secret instead (warning, not failing, when the
+  secret is absent, e.g. on forks). `npm run privacy:check` now scans every
+  git-tracked text file plus the npm tarball, not just the tarball and a few
+  directories, and denylist matching is case-insensitive. Hits the wider scan
+  surfaced were scrubbed.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
@@ -95,6 +159,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 flag` to stderr and pollute every spawned child's output — and a checkout
   path containing spaces skips the injection rather than breaking
   NODE_OPTIONS.
+
+### Docs
+
+- **Reference and gate docs match what actually runs.** `docs/REFERENCE.md`
+  now points at `StyleProof@v7`, lists every Action input (including `mode`
+  and `require-state-identity`) and output (including `audit-json`) with how
+  `mode`, `fail-on-diff`, and `require-approval` interact, and has a per-command
+  flag reference that covers every flag of every bin plus `styleproof setup`.
+  `QUALITY_GATES.md` and `DEFINITION_OF_DONE.md` no longer claim the privacy scan
+  runs at commit time, and they now describe the sharded e2e job with its Firefox
+  project, the four jobs behind `required`, and the pre-commit
+  `fallow health --production` step. `CONTRIBUTING.md` separates the Node ≥18
+  runtime support from the Node 22.13+ development toolchain.
+
+### Changed
+
+- **Package `files` no longer lists the deleted `docs/phase0-truth-contract.md`.**
 
 ## [7.0.2] - 2026-09-18
 
