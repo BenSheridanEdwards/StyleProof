@@ -283,7 +283,7 @@ const MAP_STORE_PRUNE_STEP = `
           # its .git/config (the same approach the map store's own git transport uses).
           export GIT_TERMINAL_PROMPT=0
           AUTH=(-c credential.helper= -c 'credential.helper=!f() { if [ "$1" = get ]; then printf "%s\\n" username=x-access-token "password=$GH_TOKEN"; fi; }; f')
-          REMOTE="https://github.com/$REPO.git"
+          REMOTE="https://github.com/\${REPO}.git"
           if ! git "\${AUTH[@]}" ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
             echo "No $BRANCH branch yet — nothing to prune."; exit 0
           fi

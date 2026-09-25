@@ -18,7 +18,8 @@ const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const nativeRequire = createRequire(import.meta.url);
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const HEAD_SHA = 'c'.repeat(40);
-const ARTIFACT_URL = 'https://github.com/acme/app/actions/runs/9001/artifacts/77';
+const REPOSITORY = 'acme/app';
+const ARTIFACT_URL = `https://github.com/${REPOSITORY}/actions/runs/9001/artifacts/77`;
 const UNTRUSTED_DESCRIPTION = 'Fork PR — maps captured in an untrusted job; maintainer approval required';
 
 /** Compile one github-script step with its env: block, substituting every expression. */

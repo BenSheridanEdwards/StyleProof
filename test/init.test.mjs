@@ -712,7 +712,7 @@ test('styleproof-init: the map-store prune step never writes the token into a cl
     const workflow = readFile(root, '.github/workflows/styleproof.yml');
     const step = workflow.slice(workflow.indexOf("Prune this PR's head map from the map store"));
     assert.doesNotMatch(step, /x-access-token:\$|x-access-token:\$\{/, 'a token-bearing URL persists in .git/config');
-    assert.match(step, /REMOTE="https:\/\/github\.com\/\$REPO\.git"/);
+    assert.match(step, /REMOTE="https:\/\/github\.com\/\$\{REPO\}\.git"/);
     for (const command of ['ls-remote', 'clone', 'push origin']) {
       assert.match(step, new RegExp(`git "\\$\\{AUTH\\[@\\]\\}" ${command}`));
     }
