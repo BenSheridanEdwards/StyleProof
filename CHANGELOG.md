@@ -88,6 +88,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   documented boundaries held. Receipt: `bench/detection-corpus.results.json`;
   method and caveats: `bench/detection-corpus.review.md`. Benchmark only — not
   part of the published package.
+- **CI selective remap is opt-in and fail-closed (#733).** `STYLEPROOF_SELECTIVE_REMAP=1`
+  or `affected.selectiveRemap: true` lets `styleproof-ci` re-capture only surfaces the
+  affected-surfaces engine proves reachable and reuse base maps for the rest — only when
+  a usable base map set is present and the verdict is scoped. Missing/invalid graph,
+  surfaces map, base, or an unbounded `'all'` verdict falls back to a full remap with a
+  loud CI log (selective ON/OFF, recapture/reuse counts, reason). Soft-pass HOLD: no
+  soft-green; compare stays fail-closed on real diffs. Default (opt-in off) is unchanged
+  full remap. One-command install unchanged.
 
 ### Fixed
 

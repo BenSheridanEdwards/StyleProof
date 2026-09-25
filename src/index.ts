@@ -63,6 +63,24 @@ export type {
 
 // Affected-surface scoping for config `affected` blocks.
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
+export {
+  copyReuseSurfaceArtifacts,
+  decideSelectiveRemap,
+  formatSelectiveRemapPlan,
+  parseOnlySurfacesEnv,
+  resolveSelectiveRemapOptIn,
+  selectiveCaptureEnv,
+  surfaceKeyFromArtifactName,
+  surfaceKeysInMapDir,
+  surfaceMatchesOnlySet,
+  tryComputeAffectedVerdict,
+} from './selective-remap.js';
+export type {
+  AffectedVerdictAttempt,
+  DecideSelectiveRemapInput,
+  SelectiveRemapMode,
+  SelectiveRemapPlan,
+} from './selective-remap.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
 
 // Determinism oracle for proving capture stability inside specs.

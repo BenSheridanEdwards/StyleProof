@@ -39,6 +39,14 @@ import {
 } from '../dist/map-store.js';
 import { planAncestorBaselineReuse } from '../dist/ancestor-baseline.js';
 import { captureKeysIn } from '../dist/capture.js';
+import {
+  decideSelectiveRemap,
+  formatSelectiveRemapPlan,
+  resolveSelectiveRemapOptIn,
+  selectiveCaptureEnv,
+  surfaceKeysInMapDir,
+  tryComputeAffectedVerdict,
+} from '../dist/selective-remap.js';
 import { harnessMissingAtRef } from './spec-path-env.mjs';
 import { binDir, childEnv, defineCli, emitOutputs, errorMessage, fail } from './cli.mjs';
 import { ExitError, captureMap, checkoutSpec, dirtyAllowArgs, restoreMap } from './ci-shared.mjs';
@@ -98,6 +106,12 @@ const cli = defineCli({
     'STYLEPROOF_ANCESTOR_BASELINE=0 disables, STYLEPROOF_ANCESTOR_BASELINE_ROOTS overrides roots.',
     'Reuse is recorded in the log, in base-restored-from-ancestor=<sha>, and in a',
     'styleproof-baseline-provenance.json sidecar.',
+    '',
+    'Selective remap (opt-in, Soft-pass HOLD): STYLEPROOF_SELECTIVE_REMAP=1 or',
+    'affected.selectiveRemap in config. When a usable base is present and the affected',
+    'verdict is scoped, head capture re-captures only affected surfaces and reuses base',
+    'maps for the rest. Missing graph/surfaces/base or an unbounded verdict fails closed',
+    'to a full remap (never silent under-capture). Default remains full remap.',
     '',
     'exit codes: 0 both maps present; 2 usage error; a persistent map-store fault keeps the',
     "restore CLI's code; a failed capture propagates its own code",
@@ -446,6 +460,36 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
 
 const uploadFlag = noUpload ? '--no-upload' : '--upload';
 
+/** Opt-in selective head remap plan. Fail-closed to full remap; never soft-green. */
+function planHeadSelectiveRemap(baseMapsDir, consumerRoot, loaded) {
+  const optIn = resolveSelectiveRemapOptIn(env, loaded.config.affected);
+  const baseKeys = surfaceKeysInMapDir(baseMapsDir);
+  const basePresent = baseKeys.size > 0;
+  if (!optIn) {
+    return decideSelectiveRemap({
+      optIn: false,
+      basePresent,
+      allSurfaces: Object.keys(loaded.config.affected?.surfaces ?? {}),
+      verdict: null,
+    });
+  }
+  const attempt = tryComputeAffectedVerdict({
+    root: consumerRoot,
+    baseSha: base,
+    headSha: head,
+    affected: loaded.config.affected,
+    configDir: loaded.configDir,
+  });
+  return decideSelectiveRemap({
+    optIn: true,
+    basePresent,
+    allSurfaces: Object.keys(attempt.surfaces),
+    verdict: attempt.verdict,
+    verdictReason: attempt.reason,
+    baseSurfaceKeys: baseKeys,
+  });
+}
+
 /** Rebuild the base cold inside its own worktree; returns true when the capture failed. */
 async function captureColdBase() {
   fs.rmSync(root, { recursive: true, force: true });
@@ -571,13 +615,17 @@ try {
     }
     ensurePlaywrightBrowsersOrDie(consumerCwd);
     const replay = hasHarFiles(path.join(root, 'base')) ? { STYLEPROOF_REPLAY_FROM: path.join(root, 'base') } : {};
+    const loadedForSelective = await loadStyleProofConfigWithLocationAsync(consumerCwd);
+    const selectivePlan = planHeadSelectiveRemap(path.join(root, 'base'), consumerCwd, loadedForSelective);
+    log(formatSelectiveRemapPlan(selectivePlan));
+    const selectiveEnv = selectiveCaptureEnv(selectivePlan, path.join(root, 'base'));
     const status = await withOverlay(consumerCwd, spec, 'head capture', (dirtyAllow) =>
       captureMap(
         NAME,
         ['--spec', spec, '--dir', 'head', '--base-dir', root, '--sha', head, uploadFlag, ...dirtyAllow],
         {
           cwd: consumerCwd,
-          env: { ...env, ...replay },
+          env: { ...env, ...replay, ...selectiveEnv },
         },
       ),
     );

@@ -36,6 +36,12 @@ import {
   writeMapManifest,
 } from '../dist/map-store.js';
 import { CAPTURE_TEST_GREP } from '../dist/runner.js';
+import {
+  copyReuseSurfaceArtifacts,
+  parseOnlySurfacesEnv,
+  surfaceKeysInMapDir,
+  surfaceMatchesOnlySet,
+} from '../dist/selective-remap.js';
 import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determinism-oracle.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
@@ -299,6 +305,30 @@ try {
   fail(NAME, `cannot reuse capture directory ${targetDir}\n${errorMessage(error)}`);
 }
 
+// Opt-in selective remap (CI sets STYLEPROOF_REUSE_FROM + STYLEPROOF_ONLY_SURFACES):
+// seed unaffected surfaces from the base dir, then capture only the recapture set.
+const reuseFrom = (env.STYLEPROOF_REUSE_FROM ?? '').trim();
+if (reuseFrom && env.STYLEPROOF_ONLY_SURFACES === undefined) {
+  fail(
+    NAME,
+    'STYLEPROOF_REUSE_FROM requires STYLEPROOF_ONLY_SURFACES (comma-separated recapture keys; empty string = reuse all, capture none)',
+  );
+}
+const onlySurfaces = reuseFrom
+  ? parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES)
+  : parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES);
+if (reuseFrom) {
+  if (!fs.existsSync(reuseFrom)) {
+    fail(NAME, `STYLEPROOF_REUSE_FROM directory does not exist: ${reuseFrom}`);
+  }
+  const baseKeys = surfaceKeysInMapDir(reuseFrom);
+  const reuseKeys = [...baseKeys].filter((k) => !onlySurfaces || !surfaceMatchesOnlySet(k, onlySurfaces)).sort();
+  const { copied } = copyReuseSurfaceArtifacts({ fromDir: reuseFrom, toDir: targetDir, reuseKeys });
+  console.error(
+    `${NAME}: selective remap seeded ${copied} artifact(s) from base for ${reuseKeys.length} reuse surface(s); capturing ${onlySurfaces ? onlySurfaces.size : 0} surface(s)`,
+  );
+}
+
 const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const hasConfigArg = playwrightArgs.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 const configArgs =
@@ -311,6 +341,8 @@ const captureEnv = (label) => ({
   STYLEPROOF_SCREENSHOTS: screenshots,
   STYLEPROOF_FREEZE_SPEC_CLOCK: env.STYLEPROOF_FREEZE_SPEC_CLOCK ?? '1',
   ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
+  // Always pass through an explicit only-set when selective reuse is active (empty = capture none).
+  ...(onlySurfaces ? { STYLEPROOF_ONLY_SURFACES: [...onlySurfaces].join(',') } : {}),
 });
 const runCapture = (label, extraEnv = {}) =>
   spawnSync(playwright, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
@@ -325,6 +357,7 @@ function failureLedgered(outcome, failures) {
 }
 
 runVariantCrawl(captureEnv(dir));
+// Even with an empty only-set, run capture so coverage ledger + browser-build tests stamp the dir.
 // Every capture test records its outcome here, so one tolerated failure can never mask another failure.
 const outcomesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-outcomes-'));
 const result = runCapture(dir, { [CAPTURE_OUTCOMES_ENV]: outcomesDir });

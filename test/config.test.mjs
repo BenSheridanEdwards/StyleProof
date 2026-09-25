@@ -68,9 +68,30 @@ test('loadStyleProofConfig: reads the CLI default keys and the affected block', 
         surfaces: { home: 'src/pages/Home.tsx' },
         graph: 'dc.json',
         base: 'origin/main',
+        selectiveRemap: undefined,
       });
     },
   );
+});
+
+test('loadStyleProofConfig: affected.selectiveRemap opts into CI selective remap', () => {
+  withConfig(
+    {
+      affected: {
+        surfaces: { home: 'src/pages/Home.tsx' },
+        graph: 'dc.json',
+        base: 'origin/main',
+        selectiveRemap: true,
+      },
+    },
+    (dir) => {
+      const config = loadStyleProofConfig(dir);
+      assert.equal(config.affected?.selectiveRemap, true);
+    },
+  );
+  withConfig({ affected: { selectiveRemap: 'yes' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /selectiveRemap.*boolean/);
+  });
 });
 
 test("loadStyleProofConfig: validates the Action's gate-policy keys in the shared config", () => {
