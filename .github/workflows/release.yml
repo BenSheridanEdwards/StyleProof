@@ -38,9 +38,12 @@ jobs:
       released: ${{ steps.check.outputs.released }}
       version: ${{ steps.check.outputs.version }}
     steps:
+      # persist-credentials: false keeps the write token out of .git/config while
+      # dependencies and the test suite run; only the two tag pushes below get it.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need the tags to detect an existing release and to push a new one
+          persist-credentials: false
 
       # registry-url makes setup-node write an .npmrc that reads NODE_AUTH_TOKEN.
       - uses: actions/setup-node@v7
@@ -73,9 +76,12 @@ jobs:
             echo "released=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # --ignore-scripts: no dependency install script runs while this job holds
+      # contents: write and id-token: write. The build and e2e need none of them
+      # (esbuild resolves its platform package directly; Chromium is installed below).
       - name: Install dependencies
         if: steps.check.outputs.released == 'true'
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Build
         if: steps.check.outputs.released == 'true'
         run: npm run build
@@ -144,8 +150,12 @@ jobs:
           fi
           echo "::notice::Verified styleproof@${VERSION} on npm."
 
+      # Pushes authenticate through a credential helper that reads GH_TOKEN from
+      # this step's env — the token is never persisted in .git/config or argv.
       - name: Tag the release
         if: steps.check.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ steps.check.outputs.version }}"
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
@@ -157,7 +167,7 @@ jobs:
             echo "::notice::Tag v$VERSION already exists; preserving it for release repair."
           else
             git tag "v$VERSION" "$GITHUB_SHA"
-            git push origin "refs/tags/v$VERSION"
+            GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c 'credential.helper=!f() { if [ "$1" = get ]; then printf "%s\n" username=x-access-token "password=$GH_TOKEN"; fi; }; f' push origin "refs/tags/v$VERSION"
           fi
 
       # Extract and validate this version's section and explicit title from
@@ -179,7 +189,7 @@ jobs:
       # action treats as a file to read (ENOENT) instead of falling through.
       - name: Create GitHub Release (from CHANGELOG)
         if: steps.check.outputs.released == 'true' && steps.notes.outputs.have_notes == 'true'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: v${{ steps.check.outputs.version }}
           name: ${{ steps.notes.outputs.release_name }}
@@ -187,7 +197,7 @@ jobs:
 
       - name: Create GitHub Release (auto-generated notes)
         if: steps.check.outputs.released == 'true' && steps.notes.outputs.have_notes != 'true'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: v${{ steps.check.outputs.version }}
           name: ${{ steps.notes.outputs.release_name }}
@@ -198,10 +208,12 @@ jobs:
       # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
       - name: Move the major tag
         if: steps.check.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           MAJOR="v$(echo "${{ steps.check.outputs.version }}" | cut -d. -f1)"
           git tag -f "$MAJOR" "v${{ steps.check.outputs.version }}"
-          git push -f origin "refs/tags/$MAJOR"
+          GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c 'credential.helper=!f() { if [ "$1" = get ]; then printf "%s\n" username=x-access-token "password=$GH_TOKEN"; fi; }; f' push -f origin "refs/tags/$MAJOR"
 
   # Mirror the same version to GitHub Packages (scoped) so the repo's Packages
   # section stays in sync. Called here because a GITHUB_TOKEN-created Release does

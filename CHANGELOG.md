@@ -68,6 +68,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the clone's config; it authenticates through a credential helper that reads
   `GH_TOKEN` from the environment. Re-run `styleproof-init --upgrade` to
   refresh existing scaffolds.
+- **Release workflow hardening.** `release.yml` ran `npm ci` — and with it
+  every dependency install script — while holding `contents: write`,
+  `id-token: write`, and a persisted checkout token. It now installs with
+  `npm ci --ignore-scripts`, checks out with `persist-credentials: false`, and
+  gives only the version-tag and major-tag pushes the token, through a
+  step-scoped credential helper.
+- **Third-party actions are SHA-pinned.** `softprops/action-gh-release`
+  (v3.0.3), `fallow-rs/fallow` (v3.28.0), and `gitleaks/gitleaks-action`
+  (v3.0.0) are pinned to the commit their `v3` tag resolved to, with the tag in
+  a comment; first-party `actions/*` keep their major tags.
 
 ### Fixed
 
