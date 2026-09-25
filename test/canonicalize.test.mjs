@@ -48,6 +48,19 @@ test('unparseable colours and quoted strings are left untouched', () => {
   assert.equal(canonicalizeStyleValue('rgb(var(--x))'), 'rgb(var(--x))');
 });
 
+test('a backslash-escaped quote does not end the quoted text (its content is never rewritten)', () => {
+  // CSSOM serializes content: '"#fff' as "\"#fff" — all of it is text.
+  assert.equal(canonicalizeStyleValue('"\\"#fff"'), '"\\"#fff"');
+  assert.equal(canonicalizeStyleValue("'\\'a   ,b'"), "'\\'a   ,b'");
+  assert.equal(
+    canonicalizeStyleValue('"a\\\\" #fff'),
+    '"a\\\\" rgba(255, 255, 255, 1)',
+    'an escaped backslash still closes',
+  );
+  // The user-visible symptom: a real text change must stay a change.
+  assert.equal(styleValuesEqual('"\\"#fff"', '"\\"#ffffff"'), false);
+});
+
 // The user-visible regression: a serialization-only difference produces ZERO findings.
 test('diffStyleMaps ignores a serialization-only computed-style difference', () => {
   const el = (color, font) => ({

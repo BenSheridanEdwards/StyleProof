@@ -47,6 +47,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   acknowledgement ledger) exited the process before the cleanup `finally` ran.
   An exit hook now removes the workspace on every exit path; exit codes are
   unchanged.
+- **Escaped quotes no longer expose quoted text to canonicalization.** A
+  backslash-escaped quote (`content: "\"#fff"`) ended the quoted segment early,
+  so the rest of the string was canonicalized (`#fff` → `rgba(…)`) and a real
+  text change (`"\"#fff"` → `"\"#ffffff"`) compared equal. Escapes are now
+  respected, so quoted text is never rewritten.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
