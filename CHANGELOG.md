@@ -24,6 +24,23 @@ flag` to stderr and pollute every spawned child's output — and a checkout
   path containing spaces skips the injection rather than breaking
   NODE_OPTIONS.
 
+### Docs
+
+- **Reference and gate docs match what actually runs.** `docs/REFERENCE.md`
+  now points at `StyleProof@v7`, lists every Action input (including `mode`
+  and `require-state-identity`) and output (including `audit-json`) with how
+  `mode`, `fail-on-diff`, and `require-approval` interact, and has a per-command
+  flag reference that covers every flag of every bin plus `styleproof setup`.
+  `QUALITY_GATES.md` and `DEFINITION_OF_DONE.md` no longer claim the privacy scan
+  runs at commit time, and they now describe the sharded e2e job with its Firefox
+  project, the four jobs behind `required`, and the pre-commit
+  `fallow health --production` step. `CONTRIBUTING.md` separates the Node ≥18
+  runtime support from the Node 22.13+ development toolchain.
+
+### Changed
+
+- **Package `files` no longer lists the deleted `docs/phase0-truth-contract.md`.**
+
 ## [7.0.2] - 2026-09-18
 
 ### Added
