@@ -1482,10 +1482,14 @@ test('new-surface proof uses the captured viewport height instead of a blank ful
 });
 
 test('end-to-end: a live region is auto-excluded and noted, not reported as a change', () => {
-  // After differs ONLY on a path the after-capture flagged volatile (a live region).
+  // After differs ONLY on a path BOTH captures flagged volatile (a live region the
+  // base already excluded) — the pre-existing, still-certifiable shape.
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
-    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    before: {
+      ...sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+      volatile: ['body > div:nth-child(1) > button:nth-child(1)'],
+    },
     after: {
       ...sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
       volatile: ['body > div:nth-child(1) > button:nth-child(1)'],
@@ -1506,6 +1510,30 @@ test('end-to-end: a live region is auto-excluded and noted, not reported as a ch
   assert.match(md, /✓ No reviewable computed-style changes among semantically matched elements/);
   assert.match(md, /1 live region\(s\) auto-excluded/);
   assert.match(md, /Auto-detected live-state candidate\(s\): button\.cta \(role=status\)/);
+  rmTmp(root);
+});
+
+test('end-to-end: a region volatile only on the head is named and never reads as a clean no-change', () => {
+  // The base settled and compared the button; the head stopped settling it (a PR
+  // that added an interval). Its colour change must not vanish into a green.
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    after: {
+      ...sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+      volatile: ['body > div:nth-child(1) > button:nth-child(1)'],
+    },
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.deepEqual(res.headOnlyVolatile, [
+    { surface: 'home@1280', path: 'body > div:nth-child(1) > button:nth-child(1)' },
+  ]);
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  assert.match(md, /✗ Not certified — a subtree became volatile on head/);
+  assert.match(md, /1 subtree\(s\) newly volatile on head/);
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.volatility.headOnly.length, 1);
   rmTmp(root);
 });
 

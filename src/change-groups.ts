@@ -30,6 +30,7 @@ export {
   cleanFindingsForDisplay,
   isGeometryOnlyGroup,
   assessComparisonTruth,
+  rawFindingsExplainedByLiveText,
 } from './findings-clean.js';
 export type { ComparisonTruth, ComparisonSurface } from './findings-clean.js';
 
