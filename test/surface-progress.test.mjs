@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  DEFAULT_NAVIGATE_TIMEOUT_MS,
   DEFAULT_SURFACE_TIMEOUT_MS,
   captureTestBudgetMs,
   formatSurfaceHeartbeat,
+  resolveNavigateTimeoutMs,
   resolveSurfaceTimeoutMs,
   runWithSurfaceTimeout,
   surfaceTimeoutErrorMessage,
@@ -152,4 +154,105 @@ test('surfaceTimeoutErrorMessage: never classified as a self-check capture failu
   for (const phase of ['navigate', 'settle', 'capture', 'self-check']) {
     assert.equal(isSelfCheckCaptureFailure(surfaceTimeoutErrorMessage('factory@1280', phase, 300_000)), false);
   }
+});
+
+// --- #728 phase-aware navigate budget ---
+
+test('resolveNavigateTimeoutMs: defaults to 60s under a 300s ceiling', () => {
+  assert.equal(resolveNavigateTimeoutMs(undefined, 300_000, undefined), 60_000);
+  assert.equal(DEFAULT_NAVIGATE_TIMEOUT_MS, 60_000);
+});
+
+test('resolveNavigateTimeoutMs: never exceeds the overall surface ceiling', () => {
+  assert.equal(resolveNavigateTimeoutMs(undefined, 30_000, undefined), 30_000);
+  assert.equal(resolveNavigateTimeoutMs(90_000, 45_000, undefined), 45_000);
+  assert.equal(resolveNavigateTimeoutMs(undefined, 45_000, '90000'), 45_000);
+});
+
+test('resolveNavigateTimeoutMs: STYLEPROOF_NAVIGATE_TIMEOUT_MS overrides the default', () => {
+  assert.equal(resolveNavigateTimeoutMs(undefined, 300_000, '90000'), 90_000);
+});
+
+test('resolveNavigateTimeoutMs: the explicit spec option beats the environment variable', () => {
+  assert.equal(resolveNavigateTimeoutMs(15_000, 300_000, '90000'), 15_000);
+});
+
+test('resolveNavigateTimeoutMs: a malformed env value fails LOUDLY, never silently falls back', () => {
+  assert.throws(() => resolveNavigateTimeoutMs(undefined, 300_000, 'one minute'), /STYLEPROOF_NAVIGATE_TIMEOUT_MS/);
+  assert.throws(() => resolveNavigateTimeoutMs(undefined, 300_000, '-1'), /STYLEPROOF_NAVIGATE_TIMEOUT_MS/);
+});
+
+test('resolveNavigateTimeoutMs: a malformed spec option fails LOUDLY too', () => {
+  assert.throws(() => resolveNavigateTimeoutMs(0, 300_000), /navigateTimeoutMs/);
+  assert.throws(() => resolveNavigateTimeoutMs(Number.NaN, 300_000), /navigateTimeoutMs/);
+});
+
+test('runWithSurfaceTimeout: stuck navigate fails under the navigate budget, not the full ceiling', async () => {
+  const started = Date.now();
+  await assert.rejects(
+    runWithSurfaceTimeout('factory@1280', 300_000, () => 'navigate', () => new Promise(() => {}), {
+      navigateTimeoutMs: 40,
+    }),
+    (error) => {
+      assert.match(error.message, /surface 'factory@1280' timed out/);
+      assert.match(error.message, /'navigate' phase in flight/);
+      assert.match(error.message, /0\.0s/); // 40ms → 0.0s
+      assert.match(error.message, /navigateTimeoutMs/);
+      assert.match(error.message, /STYLEPROOF_NAVIGATE_TIMEOUT_MS/);
+      // Overall-ceiling wording must remain available for settle breaches; navigate breach names navigate knobs.
+      assert.doesNotMatch(error.message, /raise `surfaceTimeoutMs`/);
+      return true;
+    },
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 2_000, `navigate breach must not wait the 300s ceiling (elapsed ${elapsed}ms)`);
+});
+
+test('runWithSurfaceTimeout: after leaving navigate, settle can still use the long overall ceiling', async () => {
+  let phase = /** @type {'navigate' | 'settle'} */ ('navigate');
+  const result = await runWithSurfaceTimeout(
+    'factory@1280',
+    120,
+    () => phase,
+    async () => {
+      phase = 'settle';
+      // Longer than the navigate budget (40) but under the overall ceiling (120).
+      await new Promise((resolve) => setTimeout(resolve, 70));
+      return 'settled';
+    },
+    { navigateTimeoutMs: 40 },
+  );
+  assert.equal(result, 'settled');
+});
+
+test('runWithSurfaceTimeout: overall ceiling still names surfaceTimeoutMs when settle hangs', async () => {
+  let phase = /** @type {'navigate' | 'settle'} */ ('navigate');
+  await assert.rejects(
+    runWithSurfaceTimeout(
+      'home@768',
+      50,
+      () => phase,
+      async () => {
+        phase = 'settle';
+        await new Promise(() => {});
+      },
+      { navigateTimeoutMs: 20 },
+    ),
+    (error) => {
+      assert.match(error.message, /'settle' phase in flight/);
+      assert.match(error.message, /surfaceTimeoutMs/);
+      assert.match(error.message, /STYLEPROOF_SURFACE_TIMEOUT_MS/);
+      assert.doesNotMatch(error.message, /navigateTimeoutMs/);
+      return true;
+    },
+  );
+});
+
+test('surfaceTimeoutErrorMessage: navigate budget mentions navigate knobs without surfaceTimeoutMs raise wording', () => {
+  const msg = surfaceTimeoutErrorMessage('factory@1280', 'navigate', 60_000, 'navigate');
+  assert.match(msg, /navigateTimeoutMs/);
+  assert.match(msg, /STYLEPROOF_NAVIGATE_TIMEOUT_MS/);
+  assert.match(msg, /surfaceTimeoutMs/); // overall ceiling still named for context
+  assert.doesNotMatch(msg, /raise `surfaceTimeoutMs`/);
+  assert.equal(isSelfCheckCaptureFailure(msg), false);
 });
