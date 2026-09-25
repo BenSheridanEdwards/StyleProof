@@ -26,11 +26,11 @@
       "style": 0,
       "state": 0
     },
-    "newSurfaces": 1,
+    "newSurfaces": 0,
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
@@ -45,7 +45,7 @@
       "comparable": 1,
       "incomparable": 0,
       "unproven": 0,
-      "notRequired": 1,
+      "notRequired": 0,
       "requiredUnproven": 0,
       "globalRequiredUnproven": 0
     }
@@ -56,12 +56,6 @@
       "status": "comparable",
       "required": true,
       "reason": "explicit-state-match"
-    },
-    {
-      "surface": "pricing@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
     }
   ],
   "reportConsistency": {
@@ -75,24 +69,14 @@
     "changes": 0,
     "advisory": true
   },
-  "surfaces": [
-    {
-      "surface": "pricing@320",
-      "missing": "before",
-      "isNew": true,
-      "isRemoved": false,
-      "baselineStatus": "new",
-      "classification": "genuinely-new",
-      "image": "crops/pricing-320-1-new.png"
-    }
-  ],
+  "surfaces": [],
   "confidence": {
     "counts": {
       "inaccessible": 0,
       "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 2
+      "captured": 1
     },
     "completeness": "complete"
   },
@@ -107,13 +91,13 @@
     "status": "bound",
     "compatibility": "matched",
     "before": {
-      "expected": "69a68c654cb9ff24b29a5db00cbdf19f9b419c7e",
-      "observed": "69a68c654cb9ff24b29a5db00cbdf19f9b419c7e",
+      "expected": "b93372e13bdcf158bb3b6d3a64c01b6b3d8fa5a8",
+      "observed": "b93372e13bdcf158bb3b6d3a64c01b6b3d8fa5a8",
       "result": "matched"
     },
     "after": {
-      "expected": "7c523725e0d4fe6bfefff69a0c5576badfff177c",
-      "observed": "7c523725e0d4fe6bfefff69a0c5576badfff177c",
+      "expected": "898bff386b39a7dccc9141c068946a945a530c7c",
+      "observed": "898bff386b39a7dccc9141c068946a945a530c7c",
       "result": "matched"
     }
   },
@@ -121,18 +105,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "94f14320139637cc16cd79210c99d4a357cfceae9caafde85aac4cb13ca78e19",
+      "digest": "b95169c6252b0d40b79817cbd4f1f4d3048cd65facc388078b27feccc0f85350",
       "fileCount": 5,
       "mapCount": 1,
       "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "f2137b34786571ff3e491f815a6ff64cbb3cf59ab5024e1763f2d223ccd2d173",
-      "fileCount": 7,
-      "mapCount": 2,
-      "byteCount": 2451
+      "digest": "d1508aefa2eb0259744ca2e3e54c1d6efa4dbcd2af33cac72940cc5a8cb565c6",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED"
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
 }
