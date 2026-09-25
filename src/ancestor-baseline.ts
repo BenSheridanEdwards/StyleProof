@@ -86,10 +86,13 @@ export function captureRelevantChangedPaths(options: {
   });
 }
 
+/** Structured capture reason codes for greppable cold_reason=… observability (#734). */
+export type AncestorCaptureReasonCode = 'ancestor_none_stored' | 'ancestor_relevant_changes' | 'ancestor_error';
+
 /** Reuse names the ancestor and carries the no-relevant-changes proof; capture names the reason. */
 export type AncestorBaselineReusePlan =
   | { decision: 'reuse'; ancestorSha: string; ancestorDepth: number; changedPathCount: number }
-  | { decision: 'capture'; reason: string };
+  | { decision: 'capture'; reason: string; reasonCode: AncestorCaptureReasonCode };
 
 /** Decide whether the nearest stored-ancestor bundle may serve as the requested commit's
  *  baseline. FAIL-SAFE: any error returns a `capture` verdict; this never throws. */
@@ -109,6 +112,7 @@ export function planAncestorBaselineReuse(options: {
       return {
         decision: 'capture',
         reason: `no stored bundle among the ${ancestors.length} nearest first-parent ancestor(s)`,
+        reasonCode: 'ancestor_none_stored',
       };
     }
     const ancestorSha = ancestors[nearestStoredIndex];
@@ -124,6 +128,7 @@ export function planAncestorBaselineReuse(options: {
         reason:
           `${relevantPaths.length} of ${changedPaths.length} path(s) changed since ancestor ` +
           `${ancestorSha.slice(0, 12)} are capture-relevant (first: ${relevantPaths[0]})`,
+        reasonCode: 'ancestor_relevant_changes',
       };
     }
     return {
@@ -133,6 +138,10 @@ export function planAncestorBaselineReuse(options: {
       changedPathCount: changedPaths.length,
     };
   } catch (error) {
-    return { decision: 'capture', reason: error instanceof Error ? error.message : String(error) };
+    return {
+      decision: 'capture',
+      reason: error instanceof Error ? error.message : String(error),
+      reasonCode: 'ancestor_error',
+    };
   }
 }

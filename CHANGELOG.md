@@ -96,6 +96,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   loud CI log (selective ON/OFF, recapture/reuse counts, reason). Soft-pass HOLD: no
   soft-green; compare stays fail-closed on real diffs. Default (opt-in off) is unchanged
   full remap. One-command install unchanged.
+- **Map-restore hit observability (#734, Soft-pass HOLD).** `styleproof-ci` and
+  `styleproof-map --restore` emit one greppable stderr line per restore decision:
+  `styleproof: map-restore side=… sha=… base_hit=exact|ancestor|miss` with
+  `ancestor_reuse_from=<sha>` on ancestor reuse and structured `cold_reason=<enum>`
+  on miss/cold (including `no_bundle`, `compat_mismatch`, `no_store`, ancestor_*
+  reasons, and reserved `opt_in_selective_off` / `selective_all` for #733). Observe
+  only — does not soft-green, skip-as-pass, or weaken gates. See
+  `docs/REFERENCE.md` § Map-restore hit observability.
 
 ### Fixed
 

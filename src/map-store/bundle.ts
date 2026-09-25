@@ -40,7 +40,15 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
 
 export class MapStoreError extends Error {}
 /** An expected cache miss (no branch, or no bundle for this SHA/compatibility): recapture, never retry. */
-export class MapStoreNotFoundError extends MapStoreError {}
+export class MapStoreNotFoundError extends MapStoreError {
+  /** Structured cold_reason for greppable observability (#734). */
+  readonly coldReason: 'no_bundle' | 'compat_mismatch' | 'branch_missing';
+  constructor(message: string, coldReason: 'no_bundle' | 'compat_mismatch' | 'branch_missing' = 'no_bundle') {
+    super(message);
+    this.name = 'MapStoreNotFoundError';
+    this.coldReason = coldReason;
+  }
+}
 /** An upload refused by the consumer's own state (dirty tree, missing manifest): exit 2, never retried. */
 export class MapStorePreconditionError extends MapStoreError {}
 

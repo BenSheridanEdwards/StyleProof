@@ -180,15 +180,23 @@ export interface CachedCaptureDirs {
 }
 
 /** `miss` is an expected cache miss (never retried → NotFound); `infra` is a transient fault (retried). */
-type RestoreAttempt = { status: 'hit'; manifest: MapManifest } | { status: 'miss' | 'infra'; message: string };
+type MissColdReason = 'no_bundle' | 'compat_mismatch' | 'branch_missing';
+type RestoreAttempt =
+  | { status: 'hit'; manifest: MapManifest }
+  | { status: 'miss'; message: string; coldReason: MissColdReason }
+  | { status: 'infra'; message: string };
 
 type RestoreRequest = StoreTarget & { sha: string; compatibilityKey?: string; outDir: string };
 
-const miss = (message: string): RestoreAttempt => ({ status: 'miss', message });
+const miss = (message: string, coldReason: MissColdReason = 'no_bundle'): RestoreAttempt => ({
+  status: 'miss',
+  message,
+  coldReason,
+});
 
 function copyRestoredBundle(tmp: string, { sha, branch, compatibilityKey, outDir }: RestoreRequest): RestoreAttempt {
   const shaDir = path.join(tmp, sha);
-  if (!fs.existsSync(shaDir)) return miss(`no cached map for ${sha} on ${branch}`);
+  if (!fs.existsSync(shaDir)) return miss(`no cached map for ${sha} on ${branch}`, 'no_bundle');
   const candidates = fs
     .readdirSync(shaDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && (!compatibilityKey || entry.name === compatibilityKey))
@@ -198,19 +206,19 @@ function copyRestoredBundle(tmp: string, { sha, branch, compatibilityKey, outDir
     const scope = compatibilityKey
       ? `map for ${sha} with compatibility ${compatibilityKey}`
       : `map bundle under ${sha}`;
-    return miss(`no cached ${scope} on ${branch}`);
+    return miss(`no cached ${scope} on ${branch}`, compatibilityKey ? 'compat_mismatch' : 'no_bundle');
   }
   removeDirRecursive(outDir);
   copyDir(path.join(shaDir, candidates[0]), outDir, true);
   const manifest = readMapManifest(outDir);
-  return manifest ? { status: 'hit', manifest } : miss(`cached map for ${sha} is missing ${MAP_MANIFEST}`);
+  return manifest ? { status: 'hit', manifest } : miss(`cached map for ${sha} is missing ${MAP_MANIFEST}`, 'no_bundle');
 }
 
 /** One restore attempt: probe the branch, check out the one SHA's tree, copy the bundle. */
 function restoreMapStoreAttempt(request: RestoreRequest): RestoreAttempt {
   let tmp: string;
   try {
-    if (!lookupBranch(request)) return miss(`map store branch ${request.branch} does not exist`);
+    if (!lookupBranch(request)) return miss(`map store branch ${request.branch} does not exist`, 'branch_missing');
     // tree:0 keeps the clone to one exact-SHA subtree; an absent bundle surfaces as an empty tree.
     tmp = checkoutMapStore(request, { filter: 'tree:0', sparseSegment: request.sha, branchExists: true });
   } catch (error) {
@@ -245,7 +253,7 @@ export function restoreMapBundle(options: {
     });
     if (result.status === 'hit') return { value: result.manifest };
     // A genuine miss is terminal — the cold path recaptures. Only infra faults retry.
-    if (result.status === 'miss') throw new MapStoreNotFoundError(result.message);
+    if (result.status === 'miss') throw new MapStoreNotFoundError(result.message, result.coldReason);
     return { error: result.message };
   });
   if ('value' in outcome) return outcome.value;

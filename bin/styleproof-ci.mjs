@@ -38,6 +38,7 @@ import {
   writeBaselineProvenance,
 } from '../dist/map-store.js';
 import { planAncestorBaselineReuse } from '../dist/ancestor-baseline.js';
+import { classifyAncestorCaptureColdReason, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
 import { captureKeysIn } from '../dist/capture.js';
 import {
   decideSelectiveRemap,
@@ -287,6 +288,11 @@ async function restore(sha, dir, cwd) {
   );
 }
 
+/** Soft-pass HOLD: emit the stable greppable line on stderr (not through the ci: prefix). */
+function logMapRestoreDecision(decision) {
+  console.error(formatMapRestoreDecisionLine(decision));
+}
+
 function playwrightInstall(cwd, browserNames = ['chromium']) {
   const result = spawnSync(playwright, ['install', '--with-deps', ...browserNames], {
     stdio: 'inherit',
@@ -402,12 +408,13 @@ function recordBaselineProvenance(provenance) {
 }
 
 /** Reuse the nearest ancestor's bundle when nothing capture-relevant changed since it.
- *  Returns the ancestor SHA, or '' for the cold path. Fail-safe: errors only log. */
+ *  Returns `{ ancestorSha }` on reuse, or `{ ancestorSha: '', coldReason }` for the cold path.
+ *  Fail-safe: errors only log. */
 async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
-  if (!ancestorBaselineEnabled()) return '';
+  if (!ancestorBaselineEnabled()) return { ancestorSha: '', coldReason: 'ancestor_disabled' };
   if (specRefProvided) {
     log('ancestor baseline reuse: skipped — --spec-ref overlays the base spec, which reuse cannot prove against');
-    return '';
+    return { ancestorSha: '', coldReason: 'ancestor_spec_ref' };
   }
   try {
     const probeSpec = await specFor(baseProbeCwd);
@@ -430,7 +437,10 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
     });
     if (plan.decision === 'capture') {
       log(`ancestor baseline reuse: taking the full capture path — ${plan.reason}`);
-      return '';
+      return {
+        ancestorSha: '',
+        coldReason: classifyAncestorCaptureColdReason(plan.reason, plan.reasonCode),
+      };
     }
     // The restored manifest keeps naming the ancestor SHA it was verified at.
     restoreMapBundle({
@@ -451,10 +461,10 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
     log(
       `base miss for ${base.slice(0, 12)} — reused the baseline of nearest ancestor ${plan.ancestorSha.slice(0, 12)} (depth ${plan.ancestorDepth}; ${plan.changedPathCount} changed path(s), none capture-relevant)`,
     );
-    return plan.ancestorSha;
+    return { ancestorSha: plan.ancestorSha };
   } catch (error) {
     log(`ancestor baseline reuse: falling back to the full capture path — ${errorMessage(error)}`);
-    return '';
+    return { ancestorSha: '', coldReason: 'ancestor_error' };
   }
 }
 
@@ -585,16 +595,57 @@ try {
   fs.rmSync(root, { recursive: true, force: true });
   if (noStore) {
     log('no map store (--no-store) — capturing base and head in this job');
+    // Soft-pass HOLD: structured cold reason for Fleet Visual (#734).
+    logMapRestoreDecision({ side: 'base', sha: base, baseHit: 'miss', coldReason: 'no_store' });
+    logMapRestoreDecision({ side: 'head', sha: head, baseHit: 'miss', coldReason: 'no_store' });
   } else {
     // Probe both sides from detached worktrees so the consumer never visits --base.
     const baseRunCwd = worktreeRunCwd(worktrees.addDetached(base, 'probe-base'), consumerRel);
-    baseHit = await restore(base, 'base', baseRunCwd);
-    if (baseHit) recordBaselineProvenance({ baseline: 'exact-restore', restoredSha: base });
-    else {
-      baseRestoredFromAncestorSha = await tryRestoreNearestAncestorBaseline(baseRunCwd);
+    const baseRestore = await restore(base, 'base', baseRunCwd);
+    baseHit = baseRestore.hit;
+    if (baseHit) {
+      recordBaselineProvenance({ baseline: 'exact-restore', restoredSha: base });
+      logMapRestoreDecision({ side: 'base', sha: base, baseHit: 'exact', restoredSha: base });
+    } else {
+      const ancestor = await tryRestoreNearestAncestorBaseline(baseRunCwd);
+      baseRestoredFromAncestorSha = ancestor.ancestorSha;
       baseHit = Boolean(baseRestoredFromAncestorSha);
+      if (baseHit) {
+        logMapRestoreDecision({
+          side: 'base',
+          sha: base,
+          baseHit: 'ancestor',
+          ancestorReuseFrom: baseRestoredFromAncestorSha,
+        });
+      } else {
+        const skippedAncestor =
+          ancestor.coldReason === 'ancestor_disabled' || ancestor.coldReason === 'ancestor_spec_ref';
+        logMapRestoreDecision({
+          side: 'base',
+          sha: base,
+          baseHit: 'miss',
+          coldReason: skippedAncestor
+            ? (baseRestore.coldReason ?? ancestor.coldReason)
+            : (ancestor.coldReason ?? baseRestore.coldReason ?? 'no_bundle'),
+        });
+      }
     }
-    headHit = await restore(head, 'head', worktreeRunCwd(worktrees.addDetached(head, 'probe-head'), consumerRel));
+    const headRestore = await restore(
+      head,
+      'head',
+      worktreeRunCwd(worktrees.addDetached(head, 'probe-head'), consumerRel),
+    );
+    headHit = headRestore.hit;
+    if (headHit) {
+      logMapRestoreDecision({ side: 'head', sha: head, baseHit: 'exact', restoredSha: head });
+    } else {
+      logMapRestoreDecision({
+        side: 'head',
+        sha: head,
+        baseHit: 'miss',
+        coldReason: headRestore.coldReason ?? 'no_bundle',
+      });
+    }
   }
 
   if (baseHit && headHit) {
