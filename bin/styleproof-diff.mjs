@@ -19,6 +19,7 @@ import {
   groupByPath,
   groupBySignature,
   groupTitle,
+  rawFindingsExplainedByLiveText,
   summarizeProps,
 } from '../dist/change-groups.js';
 import { honestBaselineCompareAttribution, readBaselineProvenance } from '../dist/map-store.js';
@@ -513,12 +514,18 @@ if (liveTextFreezeViolated) {
 
 // ── verdict ────────────────────────────────────────────────────────────────────
 const reviewableTotal = truth.reviewableCounts.dom + truth.reviewableCounts.style + truth.reviewableCounts.state;
+// Zero the raw tally only when declared live text explains EVERY raw delta; any
+// other stripped delta (a cleaned :hover width, an offset) keeps failing closed.
 const declaredAgeOnly =
   Boolean(liveTextAudit?.declared) &&
   liveTextAudit.livePaths.length > 0 &&
   !liveTextFreezeViolated &&
   reviewableTotal === 0 &&
-  !truth.hasReviewableEvidence;
+  !truth.hasReviewableEvidence &&
+  rawFindingsExplainedByLiveText(
+    surfaces.filter((s) => !s.missing),
+    liveTextAudit,
+  );
 const total = declaredAgeOnly ? 0 : counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
 const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;

@@ -15,6 +15,7 @@ import {
 } from '../dist/live-text.js';
 import { diffContentMaps, diffStyleMaps } from '../dist/diff.js';
 import { assessComparisonTruth, isGeometryOnlyGroup } from '../dist/change-groups.js';
+import { dropDeclaredLiveTextGeometry } from '../dist/findings-clean.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
@@ -233,6 +234,52 @@ test('declared liveText still certifies a real stylesheet change next to age dri
     { gateInventoryRemovals: true, baseCaptureFailed: false, changed: truth.hasReviewableEvidence },
   );
   assert.equal(verdict.state, 'STYLE_REVIEW_REQUIRED');
+});
+
+test('declared liveText drops only size reflow on the live path and its ancestors', () => {
+  const audit = auditLiveTextChanges(
+    'dashboard@1280',
+    [{ kind: 'text', path: AGE_PATH, cls: 'age', before: 'open 102.1d', after: 'open 103.1d' }],
+    { freeze: false, selectors: ['.age'] },
+  );
+  const style = (p, prop) => ({
+    kind: 'style',
+    path: p,
+    cls: '',
+    pseudo: null,
+    props: [{ prop, before: '10px', after: '20px' }],
+  });
+  const kept = dropDeclaredLiveTextGeometry(
+    [style(AGE_PATH, 'width'), style('body', 'height'), style('body', 'top'), style('body', 'inset-inline-start')],
+    audit,
+  );
+  assert.deepEqual(
+    kept.map((f) => f.props[0].prop),
+    ['top', 'inset-inline-start'],
+    'offsets are never explained by a text reflow',
+  );
+});
+
+test('declared liveText does not exempt an unrelated cleaned state delta from raw-only fail-closed', () => {
+  const audit = auditLiveTextChanges(
+    'dashboard@1280',
+    [{ kind: 'text', path: AGE_PATH, cls: 'age', before: 'open 102.1d', after: 'open 103.1d' }],
+    { freeze: false, selectors: ['.age'] },
+  );
+  const hover = {
+    kind: 'state',
+    path: 'body > button:nth-child(2)',
+    cls: 'cta',
+    state: 'hover',
+    sub: 'body > button:nth-child(2)',
+    props: [{ prop: 'width', before: '100px', after: '120px' }],
+  };
+  const findings = [ageFinding(96, 104, 'open 102.1d', 'open 103.1d'), hover];
+  const truth = assessComparisonTruth([{ surface: 'dashboard@1280', findings }], { dom: 0, style: 1, state: 1 }, [], {
+    liveText: audit,
+  });
+  assert.equal(truth.hasReviewableEvidence, false);
+  assert.equal(truth.rawOnlyNoReviewable, true, 'the :hover delta is not live text — fail closed');
 });
 
 // ── fail-closed freeze ──────────────────────────────────────────────────────

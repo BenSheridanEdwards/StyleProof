@@ -1676,6 +1676,81 @@ test('source-bound report CLI refuses a clean verdict when a subtree became vola
   rmTmp(root);
 });
 
+// Declared live text must explain only what a text reflow can move. It used to zero
+// the whole run's tally as soon as any declared live text drifted and nothing
+// reviewable remained — laundering unrelated offsets and cleaned state deltas.
+const CARD = 'body > div:nth-child(1)';
+const AGE = `${CARD} > span:nth-child(1)`;
+const BUTTON = 'body > button:nth-child(2)';
+
+function liveTextPair({ cardTop, hoverWidth }) {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const side = (text, ageWidth, top, width) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body' },
+        [CARD]: { tag: 'div', cls: 'card', style: { position: 'absolute', top } },
+        [AGE]: {
+          tag: 'span',
+          cls: 'age',
+          style: { width: ageWidth },
+          computedValueStyle: { width: 'auto' },
+          ownTextLength: text.length,
+          text,
+        },
+        [BUTTON]: { tag: 'button', cls: 'cta', style: { color: 'rgb(0, 0, 0)' } },
+      },
+      states: { [BUTTON]: { hover: { [BUTTON]: { width } } } },
+    }),
+    metadata: { liveText: { freeze: false, selectors: ['.age'] } },
+  });
+  writeCapture(A, 'home@1280', side('open 102.1d', '96px', '10px', '100px'), null);
+  writeCapture(B, 'home@1280', side('open 103.1d', '104px', cardTop, hoverWidth), null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  return { root, A, B };
+}
+
+test('source-bound diff CLI still certifies declared live-text drift on its own', () => {
+  const { root, A, B } = liveTextPair({ cardTop: '10px', hoverWidth: '100px' });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(JSON.parse(fs.readFileSync(jsonOut, 'utf8')).certifiesFully, true);
+  rmTmp(root);
+});
+
+test('source-bound diff CLI does not let a drifting declared timestamp hide a positioned card moving', () => {
+  const { root, A, B } = liveTextPair({ cardTop: '20px', hoverWidth: '100px' });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.equal(receipt.reviewableCounts.style, 1, 'the card offset stays reviewable');
+  rmTmp(root);
+});
+
+test('source-bound diff CLI fails closed on a cleaned :hover width delta next to declared live-text drift', () => {
+  const { root, A, B } = liveTextPair({ cardTop: '10px', hoverWidth: '120px' });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /report consistency/);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.equal(receipt.reportConsistency.reason, 'raw_only_no_reviewable');
+  const verdict = classifyStyleProofVerdict(receipt, {
+    gateInventoryRemovals: true,
+    baseCaptureFailed: false,
+    changed: true,
+  });
+  assert.equal(verdict.state, 'CERTIFICATION_FAILED');
+  rmTmp(root);
+});
+
 // BOTH sides skipping the forced-state layer compares {} vs {} — certifying nothing.
 // The gate must say the layer is uncertified instead of "every state matches".
 test('source-bound diff CLI fails certification when either forced-state layer is incomplete', () => {

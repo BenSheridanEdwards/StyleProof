@@ -23,6 +23,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `report.json` (only when non-empty). Volatility on both sides keeps today's
   behaviour: excluded, warned, still certifiable. The determinism self-check
   cannot hide it, because the recorded head map still carries its volatile list.
+- **Declared live text no longer waves unrelated changes through.** When any
+  declared `liveText` drifted and nothing reviewable remained, `styleproof-diff`
+  zeroed the whole run's change tally, which turned other fail-closed states
+  (for example a `:hover` width delta the report strips, which is
+  `raw_only_no_reviewable`) into exit `0` / `NO_REVIEWABLE_STYLE_CHANGES`.
+  The tally is now zeroed only when declared live text explains every raw
+  delta. The geometry that live text may explain is also narrower: only
+  size-type longhands (`width`, `height`, logical and min/max sizes, and the
+  transform/perspective origins that derive from them) on the live element and
+  its ancestors, on the base layer. Offsets such as `top`/`left`/`inset-*`,
+  pseudo layers, and state deltas stay reviewable, so a positioned card that
+  moves next to a drifting timestamp now exits `1`.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
