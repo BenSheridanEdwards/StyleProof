@@ -42,7 +42,7 @@ export function captureKeyFromMapFile(filename: string): string {
 const mapFiles = (dir: string): string[] => fs.readdirSync(dir).filter(isMapFile);
 
 /** `[captureKey, map]` for every map file in `dir`; `[]` when the dir is missing. */
-function loadDirMaps(dir: string): Array<[string, StyleMap]> {
+export function loadDirMaps(dir: string): Array<[string, StyleMap]> {
   if (!fs.existsSync(dir)) return [];
   return mapFiles(dir).map((f) => [captureKeyFromMapFile(f), loadStyleMap(path.join(dir, f))]);
 }

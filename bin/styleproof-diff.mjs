@@ -34,7 +34,7 @@ import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { applyLegacyPairReceipts, auditLegacyPairs } from '../dist/legacy-pairs.js';
 import { applyCriticalObligationReceipts, auditCriticalObligations } from '../dist/critical-obligations.js';
 import { COVERAGE_LEDGER, auditCoverage, auditDeterminism } from '../dist/coverage.js';
-import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
+import { readConfidenceLedger, summarizeConfidence, withCaptureDeterminism } from '../dist/confidence-ledger.js';
 import { AUDIT_FILE_NAME, createAudit } from '../dist/audit.js';
 import { defineCli, errorMessage, fail, number } from './cli.mjs';
 import { compareFlags, resolveCompareInputs, withCaptureDirs } from './compare.mjs';
@@ -140,7 +140,10 @@ const read = withCaptureDirs(NAME, inputs, () => {
     residueAudit: readResidueAudit(dirB, headLedger),
     coverageExclusions: headLedger?.exclude ?? {},
     coverageVerdict: auditCoverage(surfaceKeysIn(dirB), headLedger),
-    determinismVerdict: auditDeterminism(readCoverageLedger(dirA), headLedger),
+    determinismVerdict: auditDeterminism(
+      withCaptureDeterminism(dirA, readCoverageLedger(dirA)),
+      withCaptureDeterminism(dirB, headLedger),
+    ),
     confidenceSummary: summarizeConfidence(readConfidenceLedger(dirB)),
     liveTextAudit: auditLiveTextDirs(dirA, dirB),
     surfacePaths: surfaceElementPaths(dirA, dirB),

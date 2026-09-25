@@ -15,6 +15,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   every screenshot layer compared" and exited 0. Such a surface now reports its
   `rest` layer as `missing-both` (an uncertified layer that blocks), and an
   armed run with no paired capture fails closed with "nothing certified".
+- **A live fallback under replay is no longer certified as replayed.** With
+  `selfCheck: false` and `replayFrom`, a surface with no replay HAR was captured
+  against the live backend (with a NON-deterministic warning) yet the ledger,
+  written from settings, still said `replayed`, so the gate reported
+  determinism proven. The map now records `metadata.inputs: 'live'` for such a
+  capture (and its popups), and `styleproof-diff`, the report, and the
+  confidence ledger downgrade a `replayed` bundle holding one to `unproven`.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI

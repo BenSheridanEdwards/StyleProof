@@ -35,8 +35,11 @@ export async function passLiveStreams(page: Page, url: string): Promise<void> {
   });
 }
 
-/** Replay the baseline's recorded data (or record ours) for the data URLs only, then freeze the clock. */
-async function pinInputs(page: Page, harName: string, s: Settings): Promise<void> {
+/**
+ * Replay the baseline's recorded data (or record ours) for the data URLs only, then freeze the clock.
+ * Returns `false` when replay was requested but no HAR exists, so the capture runs live.
+ */
+async function pinInputs(page: Page, harName: string, s: Settings): Promise<boolean> {
   let intercepting = true;
   if (!s.replayFrom) {
     await page.routeFromHAR(path.join(s.outDir, harName), { url: s.replayUrl, update: true, updateContent: 'embed' });
@@ -49,6 +52,7 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<void
   }
   if (intercepting) await passLiveStreams(page, s.replayUrl);
   if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
+  return intercepting;
 }
 
 /** One heartbeat unit per declared surface×width; an auto-width surface is ONE unit. */
@@ -75,14 +79,16 @@ function attachDataResidue(map: StyleMap, residue: DataResidueEntry[]): void {
  */
 export async function captureSurface(
   page: Page,
-  surface: ExpandedSurface,
+  declared: ExpandedSurface,
   width: number,
   s: Settings,
   ordinal: HeartbeatOrdinal,
 ): Promise<void> {
   // Declared BEFORE go(): JS animation libraries read prefers-reduced-motion at mount.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await pinInputs(page, `${surface.key}@${width}.har`, s);
+  const pinned = await pinInputs(page, `${declared.key}@${width}.har`, s);
+  // A live fallback is stamped on the map (and its popups) so the gate never reads it as replay-proven.
+  const surface = pinned ? declared : { ...declared, metadata: { ...declared.metadata, inputs: 'live' as const } };
   const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
   await page.setViewportSize({ width, height });
   // Both trackers are armed BEFORE go() so the surface's own load requests are seen. Residue

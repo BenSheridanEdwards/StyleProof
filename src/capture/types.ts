@@ -50,6 +50,11 @@ export type CaptureMetadata = {
   productState?: ProductStateIdentity;
   /** Consumer-declared live/age/clock text. Advisory unless `freeze` is true. */
   liveText?: { freeze: boolean; selectors: string[] };
+  /**
+   * `live` when replay was requested but no HAR existed for this capture, so it ran against the
+   * live backend: its inputs were not pinned, and a `replayed` ledger does not prove it.
+   */
+  inputs?: 'live';
 };
 
 export type LiveRegionCandidate = {

@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { COVERAGE_LEDGER, type CoverageLedger } from './coverage.js';
 import { surfaceKeyByCaptureKey } from './capture.js';
+import { loadDirMaps } from './capture/map-io.js';
 import { CONFIDENCE_LEDGER } from './map-store.js';
 import { readRegularFileNoFollow } from './safe-filesystem.js';
 
@@ -227,7 +228,7 @@ export function resolveBundleConfidence(dir: string): ConfidenceLedgerFile | nul
   const confidenceExists = fs.existsSync(path.join(dir, CONFIDENCE_LEDGER));
   const coverageExists = fs.existsSync(path.join(dir, COVERAGE_LEDGER));
   const persisted = readConfidenceLedger(dir);
-  const coverage = readCoverageLedgerLenient(dir);
+  const coverage = withCaptureDeterminism(dir, readCoverageLedgerLenient(dir));
   // Present-but-malformed provenance is not "absent": deriving from maps would launder corruption into complete.
   if ((confidenceExists && !persisted) || (coverageExists && !coverage)) return null;
   if (!persisted && !coverage) return null;
@@ -239,6 +240,17 @@ export function resolveBundleConfidence(dir: string): ConfidenceLedgerFile | nul
   const byKey = new Map<string, ConfidenceEntry>(derived.entries.map((e) => [e.surface, e]));
   for (const e of persisted.entries) addEntry(byKey, e);
   return toLedger(persisted.basis === 'asserted' || derived.basis === 'asserted' ? 'asserted' : 'unasserted', byKey);
+}
+
+/**
+ * The ledger's determinism as the captures actually achieved it. The ledger is written from
+ * settings before any capture runs, so a `replayed` basis is downgraded to `unproven` when any
+ * map in `dir` fell back to live inputs (no replay HAR) — a live capture is not replay-proven.
+ */
+export function withCaptureDeterminism(dir: string, ledger: CoverageLedger | null): CoverageLedger | null {
+  if (ledger?.determinism !== 'replayed') return ledger;
+  const live = loadDirMaps(dir).some(([, map]) => map.metadata?.inputs === 'live');
+  return live ? { ...ledger, determinism: 'unproven' } : ledger;
 }
 
 /** Lenient coverage-ledger read for ADVISORY consumers. The diff CLI keeps its own fail-loud read. */
