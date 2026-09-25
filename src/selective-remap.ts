@@ -5,6 +5,7 @@
  *
  * Soft-pass HOLD: this never soft-greens. A full-remap fallback still captures;
  * compare stays fail-closed on real diffs. Default (opt-in off) is full remap.
+ * Soft-pass HOLD confirmed for CI wiring.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
