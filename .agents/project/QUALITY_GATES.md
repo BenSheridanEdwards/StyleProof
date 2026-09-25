@@ -13,17 +13,18 @@ is listed here only if it exists and runs on a clean checkout.
 | Typecheck               | `tsc --noEmit`                                             | commit                         | `npm run typecheck`                                                                                                                                                             |
 | Lint                    | ESLint                                                     | commit + CI (Node 22)          | `npm run lint`                                                                                                                                                                  |
 | Format                  | Prettier                                                   | commit + CI (Node 22)          | `npm run format:check`                                                                                                                                                          |
-| Privacy scan            | `scripts/privacy-check.mjs`                                | commit (via chain) + CI        | `npm run privacy:check`                                                                                                                                                         |
-| Complexity / dead code  | Fallow                                                     | commit + CI                    | `npx fallow audit --base HEAD --health-baseline .fallow/health-baseline.json`; `.github/workflows/fallow.yml`                                                                   |
+| Privacy scan            | `scripts/privacy-check.mjs`                                | CI (Node 22) + `prepublishOnly` (not a local hook) | `npm run privacy:check`                                                                                                                                                         |
+| Complexity / dead code  | Fallow                                                     | commit + CI (`pull_request`)   | `npx --no-install fallow audit --base HEAD --health-baseline .fallow/health-baseline.json`; `.github/workflows/fallow.yml`                                                      |
+| Production health       | Fallow (`fallow health --production`)                      | commit + CI (`pull_request`)   | `npx --no-install fallow health --production --baseline .fallow/health-baseline.json --changed-since HEAD --diff-file <staged diff> --fail-on-issues`; CI runs the same health pass with `--changed-since <PR base SHA>` in `.github/workflows/fallow.yml` |
 | Secret scan (staged)    | gitleaks                                                   | commit (`.husky/pre-commit`)   | `gitleaks protect --staged --redact --verbose` (warn-and-skip if absent locally)                                                                                                |
 | Secret scan (history)   | `gitleaks/gitleaks-action@v2`                              | CI (PR + push), fail-closed    | `.github/workflows/secret-scan.yml`                                                                                                                                             |
 | SAST                    | CodeQL (`javascript-typescript`)                           | CI (PR + push + weekly cron)   | `.github/workflows/codeql.yml`                                                                                                                                                  |
 | Dependency audit        | npm audit                                                  | CI (Node 22)                   | `npm audit --audit-level=high`                                                                                                                                                  |
 | PR body validation      | `scripts/validate-pr-body.mjs`                             | CI (`pull_request`)            | `.github/workflows/pr-body.yml`                                                                                                                                                 |
 | Unit tests              | Node `--test`                                              | push (`.husky/pre-push`) + CI  | `npm test`; CI reuses its prior build via `npm run test:unit`                                                                                                                   |
-| E2E                     | Playwright                                                 | CI (parallel Node 22 job)      | `npm run build`; `npx playwright test`; print + upload the determinism oracle receipt                                                                                           |
+| E2E                     | Playwright                                                 | CI (Node 22, 3 shards + evidence job) | `npm run build`; `npx playwright test --config=playwright.ci.config.ts --shard=N/3` (base projects plus the `firefox-unsupported-state` Firefox project); `e2e-evidence` runs `scripts/verify-e2e-shards.mjs` to check full inventory coverage and print the determinism oracle receipt. Locally: `npm run test:e2e` (base `playwright.config.ts`, no Firefox project) |
 | CLI smoke               | Node `--test` (package-smoke)                              | CI (macOS + Windows)           | `node --test test/package-smoke.test.mjs`                                                                                                                                       |
-| Demo report freshness   | `scripts/demo-report.mjs --check`                          | CI (Node 22)                   | `npm run demo:check`                                                                                                                                                            |
+| Demo report freshness   | `scripts/demo-report.mjs --check`                          | CI (Node 22)                   | CI: `node scripts/demo-report.mjs --check`; locally `npm run demo:check`                                                                                                        |
 | Action dogfood          | the Action itself, on fixtures                             | CI (`pull_request`)            | `.github/workflows/action-dogfood.yml`                                                                                                                                          |
 | Map-store dogfood       | real capture + map store + diff                            | CI (`pull_request`)            | `.github/workflows/store-dogfood.yml`                                                                                                                                           |
 | Live StyleProof dogfood | Action on `styleproof.config.ts` surfaces (`example/demo`) | CI (`pull_request`, same-repo) | `.github/workflows/styleproof-dogfood.yml` — advisory (`fail-on-diff: false`); product-state ledger armed (declare-or-fail-closed); **not** part of the hosted `required` check |
@@ -33,14 +34,21 @@ is listed here only if it exists and runs on a clean checkout.
 ## Where each gate fires
 
 - **`.husky/commit-msg`** — commitlint.
-- **`.husky/pre-commit`** — build, typecheck, lint, format check, Fallow audit,
-  gitleaks staged-diff scan.
+- **`.husky/pre-commit`** — build, typecheck, lint, format check, gitleaks
+  staged-diff scan, Fallow audit, then `fallow health --production` over the
+  staged diff. The privacy scan is **not** a local hook; run
+  `npm run privacy:check` yourself before pushing.
 - **`.husky/pre-push`** — `npm test` (git hook env is unset first so it does not
   leak into the CLI tests' temp repos).
 - **CI (`ci.yml`)** — build and unit on the full Node matrix; lint, format,
-  privacy, npm audit, and demo freshness on Node 22; complete e2e plus the
-  determinism receipt in a parallel Node 22 job; CLI smoke on macOS + Windows;
-  one stable `required` check that fails unless all three lanes succeed.
+  privacy, npm audit, and demo freshness on Node 22; e2e in three parallel
+  Node 22 shards (`playwright.ci.config.ts`, which adds a Firefox project) plus
+  an `e2e-evidence` job that verifies shard coverage and prints the determinism
+  receipt; CLI smoke on macOS + Windows; one stable `required` check that fails
+  unless all four jobs it needs (`build`, `e2e`, `e2e-evidence`, `cli-smoke`)
+  succeed.
+- **`prepublishOnly`** — clean, build, typecheck, lint, format check, privacy
+  scan, `npm test`, and `npm run test:e2e` before any `npm publish`.
 - **CI (dedicated workflows)** — `secret-scan.yml`, `codeql.yml`, `pr-body.yml`,
   `fallow.yml`, `action-dogfood.yml`, `store-dogfood.yml`,
   `styleproof-dogfood.yml` (advisory, not required),
