@@ -6,7 +6,7 @@ import { correspondContentShiftedPaths } from '../path-correspondence.js';
 import { prettyLabel, safeKey } from '../change-groups.js';
 import { containerOf, paddedRect, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
-import { clipText } from './markdown.js';
+import { clipText, codeValue } from './markdown.js';
 import { screenshotPair, type RenderCtx } from './shared.js';
 
 /** The opt-in ADVISORY content layer: text and structure changes with before/after crops. */
@@ -161,7 +161,7 @@ export function contentSurfaces(ctx: RenderCtx): ContentSurface[] {
 
 function changeLines(ctx: RenderCtx, c: ContentChange): string[] {
   if (c.kind !== 'text')
-    return [`- ${c.change === 'retagged' ? `element retagged: \`${c.detail}\`` : `element ${c.change}`}`];
+    return [`- ${c.change === 'retagged' ? `element retagged: ${codeValue(c.detail ?? '')}` : `element ${c.change}`}`];
   const live =
     isAgeOnlyDrift(c.before, c.after) ||
     isLiveTextChange(c, { freeze: false, selectors: ctx.liveText.selectors ?? [] });

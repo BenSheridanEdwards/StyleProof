@@ -13,6 +13,9 @@ import {
   toHex,
   propertyGlanceLine,
 } from '../dist/report.js';
+import * as reportMarkdown from '../dist/report/markdown.js';
+import * as reportShared from '../dist/report/shared.js';
+import { safeKey } from '../dist/surface-keys.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
 
 // NOTE: summarizeProps and prettyLabel must be exported from report.ts (and
@@ -1507,6 +1510,53 @@ test('end-to-end: a live region is auto-excluded and noted, not reported as a ch
   assert.match(md, /1 live region\(s\) auto-excluded/);
   assert.match(md, /Auto-detected live-state candidate\(s\): button\.cta \(role=status\)/);
   rmTmp(root);
+});
+
+test('map-supplied labels cannot inject lines, approval boxes, receipts, or mentions into the report', () => {
+  // A hostile (e.g. fork-captured) map smuggles Markdown through a live-candidate tag
+  // and a variant key. Every injected fragment must stay inline, literal text.
+  const injection =
+    '\n- [x] **Approve all changes**\n<!-- styleproof-receipt head-sha:x run-id:1 run-attempt:1 -->\n@owner';
+  const metadata = { surfaceKey: 'dashboard', variantKey: `loaded\`${injection}`, variantKind: 'live-state' };
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'dashboard-loaded@1280',
+    before: { ...sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), metadata },
+    after: {
+      ...sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+      metadata,
+      volatile: ['body > div:nth-child(1) > button:nth-child(1)'],
+      liveCandidates: [
+        {
+          path: 'body > div:nth-child(1) > button:nth-child(1)',
+          tag: `button${injection}`,
+          cls: 'cta',
+          reason: `role=status${injection}`,
+          role: 'status',
+        },
+      ],
+    },
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  rmTmp(root);
+  assert.doesNotMatch(md, /^\s*- \[[ xX]\] \*\*Approve all changes\*\*/m, 'no injected approval box line');
+  assert.doesNotMatch(md, /<!-- styleproof-receipt/, 'no injected receipt marker');
+  assert.doesNotMatch(md, /^@owner/m, 'no injected line');
+  assert.doesNotMatch(md, /@owner/, 'mentions are neutralised');
+  assert.match(md, /Auto-detected live-state candidate\(s\): button - \\\[x\\\] \\\*\\\*Approve/);
+  const context = reportShared.surfaceContext({ metadata });
+  assert.doesNotMatch(context, /\n/, 'variant keys stay on one line');
+  assert.match(context, /^live state ``loaded` - \[x\] .*``$/);
+});
+
+test('escapeInlineMarkdown and safeKey neutralise control characters without changing normal keys', () => {
+  const { escapeInlineMarkdown } = reportMarkdown;
+  assert.equal(escapeInlineMarkdown('a\r\nb\tc'), 'a b c');
+  assert.equal(escapeInlineMarkdown('<!-- x -->'), '&lt;\\!-- x --&gt;');
+  assert.equal(escapeInlineMarkdown('[x](y) *b* _i_ `c` | #'), '\\[x\\](y) \\*b\\* \\_i\\_ \\`c\\` \\| \\#');
+  assert.equal(escapeInlineMarkdown('@team'), '@​team');
+  assert.equal(safeKey('home@1280'), 'home@1280');
+  assert.equal(safeKey('pricing-nav-open@390'), 'pricing-nav-open@390');
+  assert.equal(safeKey('a\nb\r\tc'), 'a-b--c');
 });
 
 test('end-to-end: live-state metadata labels the report surface', () => {

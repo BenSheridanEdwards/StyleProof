@@ -17,7 +17,7 @@ import {
   type ConfidenceSummary,
 } from '../confidence-ledger.js';
 import { safeKey } from '../change-groups.js';
-import { escapeMarkdownFailureReason } from './markdown.js';
+import { codeValue, escapeInlineMarkdown, escapeMarkdownFailureReason } from './markdown.js';
 
 /** The certification block a reviewer reads FIRST: the source-of-truth gates, one line each. */
 
@@ -79,7 +79,11 @@ function lenient<T>(read: () => T, fallback: T): T {
 }
 
 const describeFailedDataRequests = (entries: { surface: string; endpoint: string; reason: string }[]): string =>
-  entries.map((e) => `${e.surface} called \`${e.endpoint}\` (${e.reason})`).join('; ');
+  entries
+    .map(
+      (e) => `${escapeInlineMarkdown(e.surface)} called ${codeValue(e.endpoint)} (${escapeInlineMarkdown(e.reason)})`,
+    )
+    .join('; ');
 
 // A failed data request captured the fallback UI, so the real data state is unproven.
 function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
@@ -180,7 +184,7 @@ export function liveTextFreezeLines(audit: LiveTextAudit): string[] {
     .map((item) =>
       !item.before && !item.after
         ? `- \`${safeKey(item.surface)}\`: freeze declared but captured text was missing — cannot verify ages are pinned`
-        : `- \`${safeKey(item.surface)}\`: \`${item.before}\` → \`${item.after}\``,
+        : `- \`${safeKey(item.surface)}\`: ${codeValue(String(item.before))} → ${codeValue(String(item.after))}`,
     );
   return [
     '',
@@ -220,7 +224,9 @@ export function criticalObligationLines(
   }
   const describe = (key: string): string => {
     const meta = declared?.[key];
-    return meta ? `${key} (${meta.owner}: ${meta.reason})` : key;
+    return meta
+      ? `${escapeInlineMarkdown(key)} (${escapeInlineMarkdown(meta.owner)}: ${escapeInlineMarkdown(meta.reason)})`
+      : escapeInlineMarkdown(key);
   };
   return [
     `⛔ **Critical state obligations** — declared obligations must certify and cannot silently expire.`,

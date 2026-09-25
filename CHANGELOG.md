@@ -20,6 +20,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   decompressed (`MAX_STYLE_MAP_DECOMPRESSED_BYTES`) — far above real maps,
   which the Action's evidence binding already limits to 16 MiB per file. An
   optional second argument lowers the caps.
+- **Map-supplied strings are escaped in the report and PR comment.** Live-state
+  candidate labels (`tag`/`cls`/`reason`), variant keys, data-residue
+  surface/endpoint/reason text, live-text samples, critical-obligation notes,
+  retag details, component props, and changed-element names were interpolated
+  raw, so a newline in a captured `tag` could inject whole lines into the bot
+  comment — a fake verdict, a second **Approve all changes** box, or a forged
+  `styleproof-receipt` marker. Prose now goes through `escapeInlineMarkdown`
+  (control characters collapse to spaces, Markdown/HTML metacharacters are
+  escaped, `@` mentions are neutralised) and code spans collapse control
+  characters. `safeKey` also replaces control characters; ordinary surface
+  keys render exactly as before.
 
 ### Fixed
 

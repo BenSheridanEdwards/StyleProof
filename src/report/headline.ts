@@ -9,6 +9,7 @@ import {
 } from '../map-store.js';
 import { formatChangedSurfaceScope, formatSurfaceList, surfaceBase } from '../change-groups.js';
 import type { ChangeGroup, PreparedSurface, ReportConsistency } from './shared.js';
+import { escapeInlineMarkdown } from './markdown.js';
 
 /** Everything the headline prose between the certification block and the detail needs. */
 export type HeadlineInput = {
@@ -193,7 +194,7 @@ export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
   if (input.volatileCount > 0) {
     const candidates = input.liveCandidateLabels.length
-      ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).join('; ')}.`
+      ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`
       : '';
     md.push(
       '',

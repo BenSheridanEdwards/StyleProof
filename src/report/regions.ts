@@ -16,7 +16,7 @@ import {
   type Box,
 } from './geometry.js';
 import { cropNote, MISLEADING_CROP_REASON, renderCropPair, type CropImages } from './crop-pair.js';
-import { oneSidedDomPaths, propertyGlanceLine, regionHeading, renderCropChanges } from './markdown.js';
+import { codeValue, oneSidedDomPaths, propertyGlanceLine, regionHeading, renderCropChanges } from './markdown.js';
 import {
   formatSurfaceListWithContext,
   formatSurfaceWithContext,
@@ -160,7 +160,7 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
     paths.map((p) => map.elements[p]?.rect).filter((r): r is Rect => !!r);
   const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
   const changedNames = [...new Set(entries.filter((e): e is ElementEntry => !!e).map(shortElementName))].slice(0, 3);
-  const changedLabel = changedNames.length ? ` — changed: \`${changedNames.join('`, `')}\`` : '';
+  const changedLabel = changedNames.length ? ` — changed: ${changedNames.map(codeValue).join(', ')}` : '';
   return renderCropPair(a.ctx, {
     surface: cg.rep.sd.surface,
     suffix: String(a.seq.crop),
