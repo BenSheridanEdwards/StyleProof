@@ -20,9 +20,12 @@ report excerpt, or screenshots/video for UI behaviour. "The gates are green" and
 ## Local gates
 
 - `commit-msg` runs commitlint (Conventional Commits).
-- `pre-commit` runs build, typecheck, lint, format check, Fallow, and a
-  staged-diff gitleaks scan (skipped with a warning if gitleaks is not installed
-  locally; never skipped in CI).
+- `pre-commit` runs build, typecheck, lint, format check, a staged-diff
+  gitleaks scan (skipped with a warning if gitleaks is not installed locally;
+  never skipped in CI), Fallow audit, and `fallow health --production` on the
+  staged diff.
+- No hook runs `npm run privacy:check`; run it yourself (CI and
+  `prepublishOnly` enforce it).
 - `pre-push` runs `npm test`.
 - `npm run test:e2e` and `npm pack --dry-run --json` stay explicit because they
   depend on the touched surface.

@@ -13,9 +13,16 @@ npm install                 # also runs `npm run build` via the `prepare` script
 npx playwright install chromium   # for the smoke e2e
 ```
 
-Node 18+ is required. The only runtime dependency is `pngjs` (pure JS); dev deps are
-`@playwright/test`, `typescript`, the `eslint` + `typescript-eslint` + `globals` stack,
-and `prettier`.
+The published package supports Node 18+ (`engines.node: ">=18"`), and CI runs its
+build and unit tests on Node 18, 20, and 22. Developing it needs a newer Node: use
+Node 22.13+ (or 24+). The git hooks, lint, and commitlint depend on tools that
+declare newer engines: `@commitlint/cli` (`>=22.12.0`), `fallow` (`>=22`), and
+ESLint 10 (`^20.19.0 || ^22.13.0 || >=24`).
+
+The only runtime dependency is `pngjs` (pure JS). Dev dependencies include
+`@playwright/test`, `typescript`, the `eslint` + `typescript-eslint` + `globals`
+stack, `prettier`, `husky`, commitlint, and `fallow`. See `package.json` for the full
+list.
 
 ## Project layout
 
