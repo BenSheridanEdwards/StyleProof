@@ -22,6 +22,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   determinism proven. The map now records `metadata.inputs: 'live'` for such a
   capture (and its popups), and `styleproof-diff`, the report, and the
   confidence ledger downgrade a `replayed` bundle holding one to `unproven`.
+- **An auth-boundary observation failure in a nested crawl state fails the
+  crawl.** The in-place descent under an opened surface swallowed every error,
+  including the observation failure the worker pool treats as fatal, so a
+  `--crawl` that could not observe a depth-2 state still reported confidence
+  `complete`. The descent now rethrows it; ordinary errors stay fail-soft.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI

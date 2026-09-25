@@ -179,8 +179,9 @@ async function driveCandidate(
   // are breadth, owned by the queued family retry. --until-covered skips this: the breadth-first
   // queue reaches every distinct component faster.
   if (!ctx.opts.stopWhenCovered && persists && child.depth < ctx.opts.maxDepth) {
-    await sweepCandidatesHere(page, ctx, child, sink, presentIds).catch(() => {
-      /* fail-soft: the surface was already captured */
+    await sweepCandidatesHere(page, ctx, child, sink, presentIds).catch((err: unknown) => {
+      // Observation failures are fatal (runPool stops the crawl); anything else is fail-soft — the surface was already captured.
+      if (err instanceof AuthBoundaryObserveError) throw err;
     });
   }
   return 'changed';
