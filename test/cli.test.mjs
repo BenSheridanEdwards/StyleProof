@@ -17,6 +17,7 @@ import {
   writeCapture,
 } from './helpers.mjs';
 import { writeConfidenceLedger, buildConfidenceLedger } from '../dist/confidence-ledger.js';
+import { classifyStyleProofVerdict } from '../dist/verdict.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
@@ -1583,6 +1584,95 @@ test('diff CLI surfaces the excluded-volatile count in output and --json', () =>
   assert.match(r.stdout, /NOT certified/);
   const j = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
   assert.equal(j.volatileExcluded, 1);
+  rmTmp(root);
+});
+
+// Maintainer decision: NEW volatility blocks. A PR that adds an interval toggling a
+// class on a container makes that subtree volatile only on the head; the union skip
+// used to hide the change and a source-bound run exited 0 with certifiesFully: true.
+function headVolatilityPair({ baseVolatile }) {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const card = 'body > div:nth-child(1)';
+  const baseMap = makeMap({
+    elements: { body: { tag: 'body' }, [card]: { tag: 'div', cls: 'card', style: { color: 'rgb(0, 0, 0)' } } },
+  });
+  if (baseVolatile) {
+    delete baseMap.elements[card];
+    baseMap.volatile = [card];
+  }
+  const headMap = makeMap({ elements: { body: { tag: 'body' } } });
+  headMap.volatile = [card];
+  writeCapture(A, 'home@1280', baseMap, null);
+  writeCapture(B, 'home@1280', headMap, null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  return { root, A, B, card };
+}
+
+function runBoundDiff(A, B, jsonOut) {
+  return run(DIFF, [
+    A,
+    B,
+    '--json',
+    jsonOut,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+}
+
+test('source-bound diff CLI blocks a subtree that became volatile only on the head', () => {
+  const { root, A, B, card } = headVolatilityPair({ baseVolatile: false });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /1 subtree\(s\) newly volatile on head/);
+  assert.ok(r.stdout.includes(`home@1280: ${card}`), r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.deepEqual(receipt.volatility.headOnly, [{ surface: 'home@1280', path: card }]);
+  assert.equal(
+    classifyStyleProofVerdict(receipt, { gateInventoryRemovals: true, baseCaptureFailed: false, changed: true }).state,
+    'CERTIFICATION_FAILED',
+  );
+  rmTmp(root);
+});
+
+test('source-bound diff CLI keeps certifying when the same subtree is volatile on both sides', () => {
+  const { root, A, B } = headVolatilityPair({ baseVolatile: true });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /volatile subtree\(s\) excluded/);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, true);
+  assert.deepEqual(receipt.volatility.headOnly, []);
+  rmTmp(root);
+});
+
+test('source-bound report CLI refuses a clean verdict when a subtree became volatile only on the head', () => {
+  const { root, A, B, card } = headVolatilityPair({ baseVolatile: false });
+  const out = path.join(root, 'report');
+  const r = run(REPORT, [
+    A,
+    B,
+    '--out',
+    out,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /not certified — 1 subtree\(s\) newly volatile on head/);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  assert.ok(md.includes(`\`home@1280\` · \`${card}\``), md);
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.deepEqual(json.volatility.headOnly, [{ surface: 'home@1280', path: card }]);
   rmTmp(root);
 });
 

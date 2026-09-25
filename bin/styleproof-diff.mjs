@@ -164,7 +164,7 @@ const {
   sourceBinding,
   evidenceBinding,
 } = read;
-const { surfaces, counts, compared, volatile, statesUncertified, baselineFailures } = result;
+const { surfaces, counts, compared, volatile, headOnlyVolatile, statesUncertified, baselineFailures } = result;
 const pixelSurfaces = result.pixels ?? [];
 
 // ── declared ledgers: legacy pairs and critical obligations ────────────────────
@@ -546,6 +546,7 @@ const evidence = {
   partialBaseline,
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
   liveTextFreeze: { violated: liveTextFreezeViolated },
+  volatility: { headOnly: headOnlyVolatile },
 };
 const certificationEvidence = assessCertificationEvidence({ ...evidence, criticalStates: criticalAudit });
 
@@ -583,6 +584,10 @@ const GATES = [
     note: determinismVerdict?.status === 'unknown' ? ' + determinism unknown' : ' + determinism unproven',
   },
   { blocks: !certificationEvidence.interactionStatesComplete },
+  {
+    blocks: headOnlyVolatile.length > 0,
+    note: ` + ${headOnlyVolatile.length} subtree(s) newly volatile on head (excluded, not certified)`,
+  },
   {
     blocks: pixelBlocks,
     note: ` + pixel gate: ${pixelRegions} changed region(s)${pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''}`,
@@ -636,6 +641,8 @@ if (jsonOut) {
           partialBaseline,
           // Subtrees excluded because a side auto-detected them as volatile at capture settle.
           volatileExcluded: volatile,
+          // Subtrees volatile on the head but compared on the base: excluded, so they block certification.
+          volatility: { headOnly: headOnlyVolatile },
           // Surfaces whose forced-state layer was skipped or unsupported on either side.
           statesUncertified,
           coverage: coverageVerdict,
@@ -678,6 +685,17 @@ if (volatile > 0) {
   printSection(
     `⚠ ${volatile} auto-detected volatile subtree(s) excluded from the comparison (still mutating at capture\n` +
       '  settle) — changes inside them are NOT certified. Fixture the region, or `ignore` it deliberately.',
+  );
+}
+if (headOnlyVolatile.length > 0) {
+  printSection(
+    `✗ ${headOnlyVolatile.length} subtree(s) newly volatile on head — still mutating at capture settle on the head but\n` +
+      '  settled and compared on the base, so they were excluded and whatever changed inside them is NOT certified:',
+    [
+      ...headOnlyVolatile.slice(0, MAX).map((v) => `  ✗ ${v.surface}: ${v.path}`),
+      ...(headOnlyVolatile.length > MAX ? [`  ... and ${headOnlyVolatile.length - MAX} more`] : []),
+      '  → stop the head-side churn (a timer, stream, or animation the PR added), fixture it, or `ignore` the region on both sides.',
+    ],
   );
 }
 if (statesUncertified > 0) {
@@ -754,6 +772,9 @@ function trustReasons() {
     reasons.push(check('reviewable-changes', 'found', `${total} style, ${greenfieldNewSurfaces} new surface(s)`));
   }
   if (partialBaseline) reasons.push(check('baseline-surface-capture', 'failed', baselineAttribution.summary));
+  if (headOnlyVolatile.length > 0) {
+    reasons.push(check('volatility', 'failed', `${headOnlyVolatile.length} subtree(s) newly volatile on head`));
+  }
   return reasons;
 }
 

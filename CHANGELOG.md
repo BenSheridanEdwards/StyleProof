@@ -9,6 +9,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A subtree that becomes volatile only on the head now blocks certification.**
+  Capture excludes a subtree that is still mutating at settle, and the diff
+  skipped the union of both sides' volatile lists — so a PR that added a timer
+  toggling a class on a container hid its own change and a source-bound
+  `styleproof-diff` exited `0` with `certifiesFully: true`. The differ now
+  separates head-only volatility (the base settled and compared that subtree)
+  from volatility present on both sides. Head-only volatility is a
+  certification blocker (`CERTIFICATION_FAILED` in the shared verdict):
+  `styleproof-diff` exits `1` and names each `surface: path`, `--json` records
+  `volatility.headOnly`, and `styleproof-report` exits `1`, drops the clean
+  headline, lists the subtrees, and adds `volatility.headOnly` to
+  `report.json` (only when non-empty). Volatility on both sides keeps today's
+  behaviour: excluded, warned, still certifiable. The determinism self-check
+  cannot hide it, because the recorded head map still carries its volatile list.
+
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children

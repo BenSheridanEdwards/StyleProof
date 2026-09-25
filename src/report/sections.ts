@@ -258,6 +258,7 @@ export type ReportArtifacts = Pick<
   | 'reportConsistency'
   | 'baselineFailures'
   | 'confidence'
+  | 'headOnlyVolatile'
   | 'legacyPairs'
   | 'criticalStates'
 > & {
@@ -301,6 +302,8 @@ export function writeReportArtifacts(a: ReportArtifacts): {
     confidence: a.confidence,
     ...(a.baselineProvenance ? { baselineProvenance: a.baselineProvenance } : {}),
     ...(a.liveTextFreeze ? { liveTextFreeze: a.liveTextFreeze } : {}),
+    // Additive, only when present, so a clean report's bytes are unchanged.
+    ...(a.headOnlyVolatile.length ? { volatility: { headOnly: a.headOnlyVolatile } } : {}),
     ...(a.legacyPairs ? { legacyPairs: a.legacyPairs } : {}),
     ...(a.criticalStates ? { criticalStates: a.criticalStates } : {}),
   };
