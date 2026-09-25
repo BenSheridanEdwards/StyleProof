@@ -13,6 +13,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   publisher's read-back accepted any `report.md` that _contained_ this run's
   receipt; a duplicated or second (stale/injected) `styleproof-receipt` marker
   now fails closed, matching the approval workflow's exactly-one rule.
+- **Style-map reads are size-capped.** `loadStyleMap` read a capture file with
+  no size bound and gunzipped it with no output limit, so a gzip bomb in an
+  untrusted fork capture could exhaust the trusted report job's memory. Reads
+  now fail closed above 256 MiB on disk (`MAX_STYLE_MAP_FILE_BYTES`) or 1 GiB
+  decompressed (`MAX_STYLE_MAP_DECOMPRESSED_BYTES`) — far above real maps,
+  which the Action's evidence binding already limits to 16 MiB per file. An
+  optional second argument lowers the caps.
 
 ### Fixed
 

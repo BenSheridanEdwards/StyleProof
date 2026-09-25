@@ -14,24 +14,53 @@ export function saveStyleMap(filePath: string, map: StyleMap): void {
   fs.writeFileSync(filePath, filePath.endsWith('.gz') ? gzipSync(json) : json);
 }
 
+/**
+ * Size caps for reading one style map. Real maps are kilobytes to a few MiB (and the
+ * Action's evidence binding already refuses any capture file over 16 MiB), so these are
+ * generous backstops: a hostile or corrupt capture — e.g. a gzip bomb uploaded by an
+ * untrusted fork capture job — fails closed instead of exhausting the runner's memory.
+ */
+export const MAX_STYLE_MAP_FILE_BYTES = 256 * 1024 * 1024;
+export const MAX_STYLE_MAP_DECOMPRESSED_BYTES = 1024 * 1024 * 1024;
+
+export type StyleMapReadLimits = { maxFileBytes?: number; maxDecompressedBytes?: number };
+
 /** Read a style map written by {@link saveStyleMap} (`.json` or `.json.gz`). */
-export function loadStyleMap(filePath: string): StyleMap {
+export function loadStyleMap(filePath: string, limits: StyleMapReadLimits = {}): StyleMap {
+  const maxFileBytes = limits.maxFileBytes ?? MAX_STYLE_MAP_FILE_BYTES;
+  const maxDecompressedBytes = limits.maxDecompressedBytes ?? MAX_STYLE_MAP_DECOMPRESSED_BYTES;
   let raw: Buffer;
   try {
-    raw = readRegularFileNoFollow(filePath);
+    raw = readRegularFileNoFollow(filePath, maxFileBytes);
   } catch (e) {
     throw new Error(`styleproof: cannot read capture ${filePath}: ${(e as Error).message}`, { cause: e });
   }
-  try {
-    const text = filePath.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8');
-    return JSON.parse(text);
-  } catch (e) {
-    throw new Error(
-      `styleproof: capture ${filePath} is corrupt or truncated (${(e as Error).message}). ` +
-        'Re-capture it — a partial write or interrupted upload produces an unreadable .gz.',
-      { cause: e },
+  const oversized = (): Error =>
+    new Error(
+      `styleproof: capture ${filePath} is larger than the ${maxDecompressedBytes}-byte style-map limit once ` +
+        'decompressed — refusing to parse it. A real map is far smaller; re-capture it.',
     );
+  let bytes: Buffer;
+  try {
+    bytes = filePath.endsWith('.gz') ? gunzipSync(raw, { maxOutputLength: maxDecompressedBytes }) : raw;
+  } catch (e) {
+    // zlib throws a RangeError (ERR_BUFFER_TOO_LARGE) once output passes maxOutputLength.
+    throw e instanceof RangeError ? oversized() : corruptCapture(filePath, e);
   }
+  if (bytes.length > maxDecompressedBytes) throw oversized();
+  try {
+    return JSON.parse(bytes.toString('utf8'));
+  } catch (e) {
+    throw corruptCapture(filePath, e);
+  }
+}
+
+function corruptCapture(filePath: string, e: unknown): Error {
+  return new Error(
+    `styleproof: capture ${filePath} is corrupt or truncated (${(e as Error).message}). ` +
+      'Re-capture it — a partial write or interrupted upload produces an unreadable .gz.',
+    { cause: e },
+  );
 }
 
 /** Capture key from a map filename (`home@1280.json.gz` → `home@1280`). */
