@@ -2,8 +2,9 @@
 // Diff two computed-style map captures and apply every certification gate.
 // Per surface: DOM changes, computed-style changes (incl. pseudo elements), and
 // :hover/:focus/:active deltas. Custom properties (--*) are inputs, not outcomes.
-// Exit 0 = identical (certified), 1 = reviewable differences or non-certifying
-// evidence, 2 = usage/capture error, 3 = only NEW surfaces with no baseline.
+// Exit 0 = identical (certified only when source-bound; an unbound run is a labelled
+// diagnostic), 1 = reviewable differences or non-certifying evidence,
+// 2 = usage/capture error, 3 = only NEW surfaces with no baseline.
 import fs from 'node:fs';
 import path from 'node:path';
 import { auditLiveTextDirs, diffStyleMapDirs, findingLabel, summarizeComparability } from '../dist/diff.js';
@@ -62,7 +63,11 @@ const cli = defineCli({
     },
   },
   notes: [
-    'exit: 0 identical (certified), 1 differences found OR non-certifying evidence',
+    'exit: 0 identical — certified only when source-bound (--expected-before-sha and',
+    '      --expected-after-sha); without them 0 is an UNVERIFIED DIAGNOSTIC, not',
+    '      certification (--json certifiesFully: false), so the local and',
+    '      design-vs-build two-directory forms keep working. 1 differences found OR',
+    '      non-certifying evidence',
     '      (unasserted completeness, unknown/unproven determinism, incomplete registry,',
     '      inventory/residue failures, removed surfaces), 2 usage/capture error,',
     '      3 only NEW surfaces (present only on the head side, no baseline to diff',
@@ -600,6 +605,24 @@ const GATES = [
     note: ` + pixel gate: ${pixelRegions} changed region(s)${pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''}`,
   },
 ];
+// Backstop: the shared verdict's blockers (src/verdict.ts) also drive the exit, so
+// a blocker the rows above miss can never exit 0. Only the documented escapes are
+// neutralised: an unbound run stays a labelled diagnostic (exit 0, certifiesFully
+// false — the local and design-vs-build two-directory forms carry no trusted SHAs),
+// and --allow-unasserted / first adoption relax only what coverageBlocks and
+// determinismBlocks already relax.
+const exitEvidence = assessCertificationEvidence({
+  ...evidence,
+  sourceBinding: { status: 'bound' },
+  coverage: coverageBlocks ? coverageVerdict : { basis: 'complete' },
+  determinism: determinismBlocks ? determinismVerdict : { status: 'proven' },
+  legacyPairs: legacyPairAudit,
+  criticalStates: criticalAudit,
+});
+GATES.push({
+  blocks: !exitEvidence.certifies,
+  note: GATES.some((gate) => gate.blocks) ? '' : ' + non-certifying evidence',
+});
 const clean = !GATES.some((gate) => gate.blocks);
 const notes =
   (greenfieldNewSurfaces > 0 ? ` (+${greenfieldNewSurfaces} new surface(s) with no baseline)` : '') +
@@ -732,7 +755,7 @@ function summaryLine() {
   else if (repairDebtOnly)
     diagnostic = `${newSurfaces} surface(s) on head have no base map because a named baseline surface capture failed — not a base recapture failure`;
   if (sourceBinding.status !== 'bound') {
-    return `⚠ UNVERIFIED DIAGNOSTIC: ${diagnostic}; trusted source SHAs were not supplied, so this result is not certification`;
+    return `⚠ UNVERIFIED DIAGNOSTIC (not certified: unbound): ${diagnostic}; trusted source SHAs were not supplied, so this result is not certification`;
   }
   if (newSurfaces > 0) return `ℹ ${diagnostic}${repairDebtOnly ? ' (see callout above)' : ''}`;
   return declaredLegacyPairs
@@ -808,7 +831,12 @@ try {
     { gateInventoryRemovals: true, baseCaptureFailed: false, changed: exitCode === 1 || exitCode === 3 },
   );
   const exitReason = {
-    0: 'certified — no reviewable changes',
+    // Exit 0 is certification only when certifiesFully; say which diagnostic it is otherwise.
+    0: certifiesFully
+      ? 'certified — no reviewable changes'
+      : sourceBinding.status !== 'bound'
+        ? 'not certified: unbound — no reviewable changes, but trusted source SHAs were not supplied'
+        : 'not certified: diagnostic or advisory — no reviewable changes',
     1: clean ? 'non-certifying evidence' : 'reviewable differences found',
     3: 'new surfaces only — review before baselining',
   };

@@ -43,6 +43,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   an id matches only when the capture encoded it in the element's path.
   Combinators, attribute selectors, and pseudo-classes match nothing
   (fail closed). Age/clock tokens are still classified without selectors.
+- **`styleproof-diff` no longer calls an unbound exit `0` certified.** Without
+  `--expected-before-sha`/`--expected-after-sha` the source binding is
+  unverified, so the run is not certification even when nothing changed. The
+  exit code stays `0` (the no-args local form and the design-vs-build
+  two-directory form have no trusted SHAs to bind; `styleproof-report` keeps
+  exiting `1` for the same unbound run), but `--help`, the summary line
+  (`UNVERIFIED DIAGNOSTIC (not certified: unbound)`), and the audit trail's
+  `exitReason` now say so instead of `certified — no reviewable changes`.
+  The exit decision also reads the shared verdict's certification blockers
+  (`src/verdict.ts`) as a backstop, with only the documented escapes (unbound,
+  `--allow-unasserted`, first adoption) neutralised, so a blocker the CLI's own
+  gate table misses can no longer exit `0`.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI

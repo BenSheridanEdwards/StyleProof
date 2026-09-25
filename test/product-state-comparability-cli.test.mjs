@@ -96,6 +96,27 @@ test('diff CLI labels an unbound clean comparison as diagnostic rather than cert
   }
 });
 
+// Exit 0 stays for the unbound local / design-vs-build two-directory forms (they carry
+// no trusted SHAs), but every surface must say it is not certification — the audit
+// trail used to record `certified — no reviewable changes` for an unbound run.
+test('diff CLI says an unbound exit 0 is not certified in output, --json, audit trail, and --help', () => {
+  const capture = fixture({});
+  try {
+    const json = path.join(capture.root, 'unbound.json');
+    const result = runDiffRaw(capture, ['--json', json]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /not certified: unbound/);
+    assert.equal(JSON.parse(fs.readFileSync(json, 'utf8')).certifiesFully, false);
+    const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
+    assert.equal(audit.trustDecision.exitCode, 0);
+    assert.match(audit.trustDecision.exitReason, /^not certified: unbound/);
+    const help = runDiffRaw(capture, ['--help']);
+    assert.match(help.stdout, /certified only when source-bound/);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
 test('report CLI labels unbound clean output and durable markdown as unverified diagnostics', () => {
   const capture = fixture({});
   try {
