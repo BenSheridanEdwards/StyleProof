@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The privacy check no longer publishes, or misses, what it protects.** Repo
+  tooling only — no product runtime change. The private-name denylist file was
+  committed to the public repo; it is now gitignored and CI reads the
+  `STYLEPROOF_PRIVACY_DENYLIST` secret instead (warning, not failing, when the
+  secret is absent, e.g. on forks). `npm run privacy:check` now scans every
+  git-tracked text file plus the npm tarball, not just the tarball and a few
+  directories, and denylist matching is case-insensitive. Hits the wider scan
+  surfaced were scrubbed.
+
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children

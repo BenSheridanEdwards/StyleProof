@@ -20,7 +20,15 @@ const TEXT_EXT = new Set([
 const ALLOWED_GITHUB = new Set([
   'github.com/bensheridanedwards/styleproof',
   'raw.githubusercontent.com/bensheridanedwards/styleproof',
+  'github.com/bensheridanedwards/', // maintainer profile (no repo segment)
+  'github.com/owner/repo', // docs placeholder
+  // Public open-source tools the repo's tooling credits or links to.
+  'github.com/abhigyanpatwari/gitnexus',
+  'github.com/gitleaks/gitleaks',
+  'github.com/humanlayer/skills',
 ]);
+// Generated lockfile: third-party registry metadata (funding links), not authored content.
+const GITHUB_URL_EXEMPT = new Set(['package-lock.json']);
 
 function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
@@ -58,10 +66,10 @@ export function findPrivacyFindings(entries, denylist = []) {
         out.push({ file, line: lineOf(text, match.index ?? 0), rule, match: match[0].trim() });
       }
     }
-    githubUrlFindings(out, file, text);
+    if (!GITHUB_URL_EXEMPT.has(file)) githubUrlFindings(out, file, text);
 
     for (const token of denylist) {
-      const at = text.indexOf(token);
+      const at = text.toLowerCase().indexOf(token.toLowerCase());
       if (at !== -1) out.push({ file, line: lineOf(text, at), rule: 'denylist token', match: token });
     }
   }
@@ -86,8 +94,31 @@ function npmPackFiles(root) {
   return JSON.parse(pack.stdout)[0].files.map((file) => file.path);
 }
 
-function publicFiles(root) {
+function gitTrackedFiles(root) {
+  const git = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
+  if (git.status !== 0) return null;
+  return git.stdout.split('\0').filter(Boolean);
+}
+
+function isFile(file) {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export function publicFiles(root) {
   const files = new Set(npmPackFiles(root).filter(textFile));
+  const tracked = gitTrackedFiles(root);
+  if (tracked) {
+    // Every tracked file is public on GitHub, not just what npm ships.
+    for (const rel of tracked) {
+      if ((textFile(rel) || path.extname(rel) === '') && isFile(path.join(root, rel))) files.add(rel);
+    }
+    return [...files].sort();
+  }
+  // Not a git checkout (e.g. an unpacked tarball): scan the known public dirs.
   for (const rel of ['action.yml', 'CHANGELOG.md', 'README.md']) files.add(rel);
   for (const dir of ['.github/workflows', 'docs', 'example', 'test', 'bench', 'scripts']) {
     for (const file of walk(path.join(root, dir))) {
@@ -106,12 +137,20 @@ export function denylist(root) {
   return values.map((v) => v.trim()).filter((v) => v.length >= 3 && !v.startsWith('#'));
 }
 
+export function missingDenylistWarning(tokens, env = process.env) {
+  if (env.GITHUB_ACTIONS !== 'true' || tokens.length) return null;
+  return '::warning::privacy-check: STYLEPROOF_PRIVACY_DENYLIST secret is not configured; denylist tokens were not checked';
+}
+
 function main() {
   const root = path.dirname(fileURLToPath(import.meta.url));
   const repo = path.resolve(root, '..');
   const files = publicFiles(repo);
   const entries = files.map((file) => ({ file, text: fs.readFileSync(path.join(repo, file), 'utf8') }));
-  const findings = findPrivacyFindings(entries, denylist(repo));
+  const tokens = denylist(repo);
+  const warning = missingDenylistWarning(tokens);
+  if (warning) console.log(warning);
+  const findings = findPrivacyFindings(entries, tokens);
   if (findings.length) {
     for (const f of findings) console.error(`${f.file}:${f.line}: ${f.rule}: ${f.match}`);
     process.exit(1);

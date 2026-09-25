@@ -48,6 +48,8 @@ jobs:
         run: npm run format:check
       - name: Privacy check
         if: matrix.node == '22'
+        env:
+          STYLEPROOF_PRIVACY_DENYLIST: ${{ secrets.STYLEPROOF_PRIVACY_DENYLIST }}
         run: npm run privacy:check
 
       # Fail the build on a known high/critical-severity vulnerability in the

@@ -52,6 +52,7 @@ npm run build         # tsc → dist/  (the bins import dist/, so build first)
 npm run typecheck     # tsc --noEmit, strict
 npm run lint          # eslint .
 npm run format:check  # prettier --check  (use `npm run format` to fix)
+npm run privacy:check # scan every git-tracked + npm-packed text file for private leaks
 npm test              # builds, then node --test over test/*.test.mjs (fast, no browser)
 npm run test:e2e      # Playwright smoke: the page.evaluate + CDP capture path
 ```
@@ -60,6 +61,13 @@ The unit suite imports the **built `dist/`** (the same surface the bins and cons
 use), so a stale build can't yield a false green — `npm test` rebuilds first. Add or
 update tests for any behaviour you change. The smoke e2e is the only coverage of the
 browser-evaluated capture functions; run it when you touch `src/capture.ts`.
+
+`privacy:check` also blocks private names from a denylist that is never committed
+(the list itself would leak them). Put one name per line in a local
+`.styleproof-privacy-denylist` (gitignored), or pass comma/newline-separated names in
+`STYLEPROOF_PRIVACY_DENYLIST`. CI reads that env from the repository secret of the same
+name; matching is case-insensitive. Without it (for example on forks) the check still
+runs its other rules and emits a warning instead of failing.
 
 You can also **dogfood** the tool against a real production build, which is the fastest
 way to see a change end to end:

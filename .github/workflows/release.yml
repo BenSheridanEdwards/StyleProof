@@ -90,6 +90,8 @@ jobs:
         run: npm run format:check
       - name: Privacy check
         if: steps.check.outputs.released == 'true'
+        env:
+          STYLEPROOF_PRIVACY_DENYLIST: ${{ secrets.STYLEPROOF_PRIVACY_DENYLIST }}
         run: npm run privacy:check
       - name: Unit tests
         if: steps.check.outputs.released == 'true'

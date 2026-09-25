@@ -28,7 +28,8 @@
 - **Privacy-clean.** No private project names, repos, PR numbers, internal URLs,
   or real UI/CSS shapes in code, tests, fixtures, docs, commits, or PR text. Use
   generic examples (`home`, `pricing`, `ROUTES`). `npm run privacy:check`
-  enforces it; the denylist lives in `.styleproof-privacy-denylist`.
+  enforces it; the denylist lives in a gitignored local
+  `.styleproof-privacy-denylist` or the `STYLEPROOF_PRIVACY_DENYLIST` env/secret.
 
 ## Commits and branches
 
