@@ -31,6 +31,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   forever. The call is now bounded (10s, `STYLEPROOF_GH_TIMEOUT_MS` to
   override); a timeout counts as "no PR base" and falls back to
   `origin/main`/`origin/master`/`main`/`master` as before.
+- **CLI crawl e2e tests wait for their server instead of sleeping.** Test
+  infrastructure only. Two `cli-flow` e2e tests slept a fixed 500ms after
+  spawning their HTTP server, which a loaded runner can outlast; they now poll
+  until the port accepts connections (bounded at 15s).
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children
