@@ -24,7 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: fallow-rs/fallow@v3
+      - uses: fallow-rs/fallow@bd8fca5af5df4ccfd94c7a835d17bd93c31a7cef # v3.28.0
         with:
           command: audit
           no-cache: true
