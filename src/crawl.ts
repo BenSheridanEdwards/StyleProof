@@ -143,8 +143,9 @@ export function crawlCoverageGaps(
 ): CrawlCoverageGaps {
   const discovered = new Set(discoveredKeys);
   const expectedSet = new Set(expected);
-  const missing = [...expectedSet].filter((k) => !discovered.has(k) && !(k in exclude));
-  const unexpected = [...discovered].filter((k) => !expectedSet.has(k) && !(k in exclude));
+  // Own keys only: `k in exclude` would read `constructor` / `toString` as reviewed opt-outs.
+  const missing = [...expectedSet].filter((k) => !discovered.has(k) && !Object.hasOwn(exclude, k));
+  const unexpected = [...discovered].filter((k) => !expectedSet.has(k) && !Object.hasOwn(exclude, k));
   const staleExclusions = Object.keys(exclude).filter((k) => !expectedSet.has(k) && !discovered.has(k));
   return { missing, unexpected, staleExclusions };
 }

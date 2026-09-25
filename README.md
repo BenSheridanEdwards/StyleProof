@@ -316,7 +316,8 @@ report leads with their verdicts:
   capture — blocks certification unless `--allow-unasserted` diagnostic mode).
 - **Determinism** — the ledger records how each capture proved itself
   (`self-checked` / `replayed`); a green from an `unproven` **or unknown**
-  capture blocks, because a clean diff of two nondeterministic (or pre-ledger)
+  capture blocks — including a `replayed` run where any surface had no replay
+  HAR and was captured live (the map records it) — because a clean diff of two nondeterministic (or pre-ledger)
   reads could just be luck. Pass `--allow-unasserted` only for explicit
   diagnostic compares (`certifiesFully: false` in JSON).
 - **Inventory** — with `inventory: true` (on in `styleproof-init` scaffolds),

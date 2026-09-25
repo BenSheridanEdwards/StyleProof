@@ -22,6 +22,20 @@ function linkExternalJson(directory, name, value) {
   fs.symlinkSync(target, path.join(directory, name));
 }
 
+test('readFatalCaptureFailure: absent is undefined; present-but-unreadable throws (fail closed)', () => {
+  const workspace = mkTmp('styleproof-fatal-marker-');
+  try {
+    assert.equal(readFatalCaptureFailure(workspace), undefined, 'a missing marker is no failure');
+    fs.mkdirSync(path.join(workspace, FATAL_CAPTURE_MARKER));
+    assert.throws(() => readFatalCaptureFailure(workspace), /unreadable fatal capture marker/);
+    fs.rmdirSync(path.join(workspace, FATAL_CAPTURE_MARKER));
+    fs.writeFileSync(path.join(workspace, FATAL_CAPTURE_MARKER), 'self-check failed\n');
+    assert.equal(readFatalCaptureFailure(workspace), 'self-check failed');
+  } finally {
+    rmTmp(workspace);
+  }
+});
+
 test('bundle readers refuse symlink targets and manifests fail closed as invalid evidence', () => {
   const workspace = mkTmp('styleproof-safe-readers-');
   try {
@@ -38,7 +52,7 @@ test('bundle readers refuse symlink targets and manifests fail closed as invalid
     assert.equal(readBaselineProvenance(bundle), null);
     assert.equal(readConfidenceLedger(bundle), null);
     assert.equal(readCoverageLedgerLenient(bundle), null);
-    assert.equal(readFatalCaptureFailure(bundle), undefined);
+    assert.throws(() => readFatalCaptureFailure(bundle), /unreadable fatal capture marker/);
     assert.throws(() => loadStyleMap(path.join(bundle, 'home@1280.json')), /refusing symbolic-link filesystem entry/);
   } finally {
     rmTmp(workspace);

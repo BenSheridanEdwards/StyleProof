@@ -13,6 +13,7 @@ import {
   bundleSurfaceKeys,
   CONFIDENCE_LEDGER,
   readCoverageLedgerLenient,
+  withCaptureDeterminism,
   type ConfidenceLedgerFile,
   type ConfidenceSummary,
 } from '../confidence-ledger.js';
@@ -168,7 +169,9 @@ export function certificationLines(
   return [
     '**Certification**',
     coverageLine(coverage, explicitExclusionCount(headLedger)),
-    determinismLine(auditDeterminism(baseLedger, headLedger)),
+    determinismLine(
+      auditDeterminism(withCaptureDeterminism(beforeDir, baseLedger), withCaptureDeterminism(afterDir, headLedger)),
+    ),
     inventoryLine(inv, hasCapturedInventory(beforeInventories, afterInventories)),
     // Only with residue or an armed gate, so an ordinary bundle keeps its 3-line block.
     ...(hasResidue ? [dataResidueLine(res)] : []),

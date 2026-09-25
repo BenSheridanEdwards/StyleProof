@@ -41,14 +41,16 @@ export type PixelComparison = {
 
 export type PixelLayerResult =
   | { layer: PixelLayer; status: 'compared'; comparison: PixelComparison }
-  | { layer: PixelLayer; status: 'missing-before' | 'missing-after' };
+  | { layer: PixelLayer; status: 'missing-before' | 'missing-after' }
+  /** No screenshot layer exists on either side (e.g. captured with screenshots off): nothing was compared. */
+  | { layer: 'rest'; status: 'missing-both' };
 
 export type PixelSurfaceResult = {
   surface: string;
   layers: PixelLayerResult[];
   /** Regions across every compared layer. */
   regionCount: number;
-  /** Layers with a screenshot on one side only — the gate cannot certify those. */
+  /** Layers the gate could not compare (one side only, or no screenshot at all) — it cannot certify those. */
   uncompared: PixelLayer[];
 };
 
@@ -261,7 +263,11 @@ function layerPath(dir: string, surface: string, layer: PixelLayer): string {
   return layer === 'rest' ? `${stem}.png` : stateLayerScreenshotPath(stem, layer);
 }
 
-/** Compare every screenshot layer of one paired surface; a layer on one side only is reported as uncompared. */
+/**
+ * Compare every screenshot layer of one paired surface; a layer on one side only is reported as uncompared.
+ * A surface with no screenshot on either side reports its `rest` layer as `missing-both` — comparing
+ * nothing is never a pass.
+ */
 export function pixelDiffSurface(
   dirA: string,
   dirB: string,
@@ -289,6 +295,7 @@ export function pixelDiffSurface(
     );
     layers.push({ layer, status: 'compared', comparison });
   }
+  if (!layers.length) layers.push({ layer: 'rest', status: 'missing-both' });
   return {
     surface,
     layers,

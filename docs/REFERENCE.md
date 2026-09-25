@@ -1074,7 +1074,10 @@ Deterministic captures from the same compatibility environment render
 byte-identical, so the gate expects exact equality and tolerates only
 anti-aliasing noise: a per-pixel YIQ colour distance under `0.1` is not a change,
 and a connected region smaller than 4 pixels is dropped. A screenshot layer that
-exists on one side only cannot be certified and fails the gate closed. Pixel
+exists on one side only cannot be certified and fails the gate closed, and so
+does a surface with no screenshot on either side (for example captured with
+screenshots off) or a run with no paired capture at all — comparing nothing is
+never a pass. Pixel
 results never enter the computed-style counts; the two verdicts are reported
 side by side.
 
