@@ -35,6 +35,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   its ancestors, on the base layer. Offsets such as `top`/`left`/`inset-*`,
   pseudo layers, and state deltas stay reviewable, so a positioned card that
   moves next to a drifting timestamp now exits `1`.
+- **`liveText.selectors` match only what the captured path can prove.** For
+  anything but a bare `.class` or type selector, an element counted as live
+  when any of its class tokens was a substring of the selector — `#clock`
+  matched classes `c`, `lock`, or `o`, making real text changes advisory.
+  A selector is now one compound (optional type, whole class tokens, `#id`);
+  an id matches only when the capture encoded it in the element's path.
+  Combinators, attribute selectors, and pseudo-classes match nothing
+  (fail closed). Age/clock tokens are still classified without selectors.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI

@@ -1696,7 +1696,6 @@ function liveTextPair({ cardTop, hoverWidth }) {
           tag: 'span',
           cls: 'age',
           style: { width: ageWidth },
-          computedValueStyle: { width: 'auto' },
           ownTextLength: text.length,
           text,
         },
@@ -1748,6 +1747,37 @@ test('source-bound diff CLI fails closed on a cleaned :hover width delta next to
     changed: true,
   });
   assert.equal(verdict.state, 'CERTIFICATION_FAILED');
+  rmTmp(root);
+});
+
+test('source-bound diff CLI does not treat an element as live because its class is a substring of the selector', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const TOTAL = 'body > span:nth-child(1)';
+  const side = (text, width) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body' },
+        [TOTAL]: {
+          tag: 'span',
+          cls: 'c lock',
+          style: { width },
+          ownTextLength: text.length,
+          text,
+        },
+      },
+    }),
+    metadata: { liveText: { freeze: false, selectors: ['#clock'] } },
+  });
+  writeCapture(A, 'home@1280', side('Total 12', '60px'), null);
+  writeCapture(B, 'home@1280', side('Total 40', '64px'), null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.equal(JSON.parse(fs.readFileSync(jsonOut, 'utf8')).certifiesFully, false);
   rmTmp(root);
 });
 
