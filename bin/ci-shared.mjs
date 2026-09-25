@@ -2,6 +2,7 @@
 // styleproof-map: styleproof-ci (the runner) and styleproof-prepush (the hook).
 import path from 'node:path';
 import { classifyRestoreExit } from '../dist/ci.js';
+import { classifyColdReasonFromMissMessage, extractColdReasonFromLog } from '../dist/map-hit-observability.js';
 import { resolveStyleProofConfigPath, specPathForCwd } from '../dist/config.js';
 import { decodeSpecPathEnv, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 import { runBin } from './cli.mjs';
@@ -28,10 +29,20 @@ export function checkoutSpec(loaded, cwd, fallback) {
 
 export const dirtyAllowArgs = (paths) => paths.flatMap((p) => ['--dirty-allow', p]);
 
-/** `styleproof-map --restore`: true on a hit, false on a genuine miss. A persistent
- *  map-store fault (the restore CLI already retried) throws with its exit code. */
+/** `styleproof-map --restore`: `{ hit }` on success/miss. A persistent map-store
+ *  fault (the restore CLI already retried) throws with its exit code. On miss,
+ *  `coldReason` is taken from the structured map-restore line when present. */
 export function restoreMap(mapArgs, { cwd, env, dir = '', next } = {}) {
-  const r = runBin('styleproof-map', ['--restore', ...mapArgs], { cwd, env });
+  // Pipe so we can read cold_reason= from the map CLI, then forward streams unchanged.
+  const r = runBin('styleproof-map', ['--restore', ...mapArgs], {
+    cwd,
+    env: { ...env, STYLEPROOF_SUPPRESS_MAP_RESTORE_OBSERVE: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const stdout = r.stdout?.toString?.('utf8') ?? (typeof r.stdout === 'string' ? r.stdout : '');
+  const stderr = r.stderr?.toString?.('utf8') ?? (typeof r.stderr === 'string' ? r.stderr : '');
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
   if (r.error)
     throw new ExitError(`could not run styleproof-map --restore${dir && ` for ${dir}`}\n${r.error.message}`, 1);
   const outcome = classifyRestoreExit(r.status);
@@ -41,7 +52,10 @@ export function restoreMap(mapArgs, { cwd, env, dir = '', next } = {}) {
       r.status ?? 5,
     );
   }
-  return outcome === 'hit';
+  if (outcome === 'hit') return { hit: true };
+  const combined = `${stdout}\n${stderr}`;
+  const coldReason = extractColdReasonFromLog(combined) ?? classifyColdReasonFromMissMessage(combined) ?? 'no_bundle';
+  return { hit: false, coldReason };
 }
 
 /** `styleproof-map` capture: returns the exit status (1 when it could not even spawn). */

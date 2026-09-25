@@ -45,6 +45,7 @@ import {
 import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determinism-oracle.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
+import { classifyColdReasonFromMissMessage, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
 import { defineCli, errorMessage, fail, filesUnder, runBin } from './cli.mjs';
 
 const NAME = 'styleproof-map';
@@ -259,6 +260,7 @@ function runVariantCrawl(captureEnvironment) {
 const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 
 if (opts.restore) {
+  const restoreSide = dir === 'base' || dir === 'head' ? dir : 'restore';
   try {
     const manifest = restoreMapBundle({
       sha,
@@ -267,23 +269,39 @@ if (opts.restore) {
       remote,
       compatibilityKey: expectedCompatibilityKey({ spec }),
     });
+    // Greppable exact-hit line for consumer Visual / CI watchers (#734). Soft-pass HOLD: observe only.
+    // CI suppresses this when it emits the final decision line itself.
+    if (env.STYLEPROOF_SUPPRESS_MAP_RESTORE_OBSERVE !== '1') {
+      console.error(
+        formatMapRestoreDecisionLine({
+          side: restoreSide,
+          sha,
+          baseHit: 'exact',
+          restoredSha: manifest.sha,
+        }),
+      );
+    }
     console.log(`${NAME}: restored ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey}) to ${targetDir}`);
     process.exit(0);
   } catch (error) {
     // 4 = bundle absent (expected miss → recapture); 5 = infrastructure fault after retries.
-    const [what, next, code] =
-      error instanceof MapStoreNotFoundError
-        ? [
-            `no cached map for ${sha} on ${cacheBranch} (cache miss)`,
-            `Next: run ${NAME} at that commit to build/upload the map, or let CI recapture both sides.`,
-            4,
-          ]
-        : [
-            `could not reach the map store to restore ${sha} from ${cacheBranch}`,
-            'Next: retry — this is a transient map-store/network fault, not a missing bundle.',
-            5,
-          ];
-    fail(NAME, `${what}\n${errorMessage(error)}\n${next}`, code);
+    if (error instanceof MapStoreNotFoundError) {
+      const coldReason = error.coldReason ?? classifyColdReasonFromMissMessage(errorMessage(error));
+      // Always emit miss lines so styleproof-ci can extract cold_reason= from stderr.
+      console.error(formatMapRestoreDecisionLine({ side: restoreSide, sha, baseHit: 'miss', coldReason }));
+      fail(
+        NAME,
+        `no cached map for ${sha} on ${cacheBranch} (cache miss)\n${errorMessage(error)}\n` +
+          `Next: run ${NAME} at that commit to build/upload the map, or let CI recapture both sides.`,
+        4,
+      );
+    }
+    fail(
+      NAME,
+      `could not reach the map store to restore ${sha} from ${cacheBranch}\n${errorMessage(error)}\n` +
+        'Next: retry — this is a transient map-store/network fault, not a missing bundle.',
+      5,
+    );
   }
 }
 

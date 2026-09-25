@@ -1797,11 +1797,22 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
           GIT_CALLS: gitLog,
           GITHUB_OUTPUT: githubOutput,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          // Capture is shimmed; skip host browser preflight so this asserts restore
+          // observability without requiring a real Chromium build on the runner.
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
         }),
         repo,
       );
       assert.equal(result.status, 0, result.stderr + result.stdout);
       assert.match(result.stderr, /no map store \(--no-store\)/);
+      assert.match(
+        result.stderr,
+        new RegExp(`styleproof: map-restore side=base sha=${base} base_hit=miss cold_reason=no_store`),
+      );
+      assert.match(
+        result.stderr,
+        new RegExp(`styleproof: map-restore side=head sha=${head} base_hit=miss cold_reason=no_store`),
+      );
 
       const calls = fs.existsSync(gitLog) ? fs.readFileSync(gitLog, 'utf8') : '';
       assert.match(calls, /worktree add .*cold-base/, 'the git call log captured the cold capture worktree');
@@ -2138,6 +2149,16 @@ test('styleproof-ci: legacy STYLEPROOF_ANCESTOR_BASELINE=1 env var enables ances
     );
     assert.equal(result.status, 0, result.stderr + result.stdout);
     assert.match(result.stderr, /reused the baseline of nearest ancestor/, 'reuse is stated in the run log');
+    assert.match(
+      result.stderr,
+      new RegExp(`styleproof: map-restore side=base sha=${base} base_hit=ancestor ancestor_reuse_from=${ancestor}`),
+      'structured ancestor hit line for consumer Visual grep (#734)',
+    );
+    assert.match(
+      result.stderr,
+      new RegExp(`styleproof: map-restore side=head sha=${head} base_hit=exact`),
+      'structured exact head hit line (#734)',
+    );
     const outputs = fs.readFileSync(githubOutput, 'utf8');
     assert.match(outputs, /base-hit=true/);
     assert.match(outputs, /head-hit=true/);

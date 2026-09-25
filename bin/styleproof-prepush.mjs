@@ -57,7 +57,7 @@ await run(
     if (!choice.sha) return;
 
     const mapArgs = ['--sha', choice.sha, '--dir', opts.dir, '--base-dir', opts['base-dir'], '--spec', spec];
-    if (!restoreMap(mapArgs, { next: 'Retry the push.' })) {
+    if (!restoreMap(mapArgs, { next: 'Retry the push.' }).hit) {
       const status = captureMap(NAME, [...mapArgs, '--upload', ...dirtyAllowArgs(opts['dirty-allow'])]);
       if (status !== 0) process.exit(status);
     }

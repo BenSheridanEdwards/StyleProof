@@ -154,6 +154,7 @@ test('planAncestorBaselineReuse: a capture-relevant change since the stored ance
       cwd: repo,
     });
     assert.equal(plan.decision, 'capture');
+    assert.equal(plan.reasonCode, 'ancestor_relevant_changes');
     assert.match(plan.reason, /1 of 2 path\(s\)/);
     assert.match(plan.reason, /src\/app\.css/);
   } finally {
@@ -175,6 +176,7 @@ test('planAncestorBaselineReuse: no stored ancestor within the walk → full cap
       cwd: repo,
     });
     assert.equal(plan.decision, 'capture');
+    assert.equal(plan.reasonCode, 'ancestor_none_stored');
     assert.match(plan.reason, /no stored bundle among the 1 nearest first-parent ancestor\(s\)/);
   } finally {
     rmTmp(root);
@@ -192,6 +194,7 @@ test('planAncestorBaselineReuse: FAIL-SAFE — a walk error yields a capture ver
       cwd: notARepo,
     });
     assert.equal(plan.decision, 'capture');
+    assert.equal(plan.reasonCode, 'ancestor_error');
     assert.match(plan.reason, /rev-list/);
   } finally {
     rmTmp(notARepo);
