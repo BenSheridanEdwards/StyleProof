@@ -19,6 +19,54 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`--pixels` no longer passes having compared nothing.** A paired surface
+  with no screenshot on either side (captured with screenshots off) was skipped
+  silently, so `styleproof-diff --pixels` printed "0 changed region(s) …
+  every screenshot layer compared" and exited 0. Such a surface now reports its
+  `rest` layer as `missing-both` (an uncertified layer that blocks), and an
+  armed run with no paired capture fails closed with "nothing certified".
+- **A live fallback under replay is no longer certified as replayed.** With
+  `selfCheck: false` and `replayFrom`, a surface with no replay HAR was captured
+  against the live backend (with a NON-deterministic warning) yet the ledger,
+  written from settings, still said `replayed`, so the gate reported
+  determinism proven. The map now records `metadata.inputs: 'live'` for such a
+  capture (and its popups), and `styleproof-diff`, the report, and the
+  confidence ledger downgrade a `replayed` bundle holding one to `unproven`.
+- **An auth-boundary observation failure in a nested crawl state fails the
+  crawl.** The in-place descent under an opened surface swallowed every error,
+  including the observation failure the worker pool treats as fatal, so a
+  `--crawl` that could not observe a depth-2 state still reported confidence
+  `complete`. The descent now rethrows it; ordinary errors stay fail-soft.
+- **A tolerated surface failure no longer masks other capture failures.**
+  `styleproof-map --tolerate-surface-failures` reset ANY non-zero Playwright
+  exit to 0 once one surface failure was ledgered, so a failed coverage-ledger
+  or manifest test, or a crashed worker, still published a "partial baseline".
+  The capture tests now record their outcomes (to a temp dir named by
+  `STYLEPROOF_CAPTURE_OUTCOMES_DIR`, set only by `styleproof-map`), and the
+  exit is reset only when every failed or unfinished test is a ledgered
+  surface failure; otherwise the capture fails, naming the unexplained test.
+- **An unreadable fatal-capture marker is fatal, not "no failure".**
+  `readFatalCaptureFailure` returned `undefined` on any read error, so a marker
+  that existed but could not be read safely (symlink, non-regular file, I/O
+  error) let a self-check failure be tolerated and published. It now returns
+  `undefined` only when the marker is absent and throws otherwise;
+  `styleproof-map` treats that as a fatal failure and discards the capture.
+- **Cached-map compares no longer leak restored temp dirs on an exit-2 error.**
+  `styleproof-diff` / `styleproof-report` restore the map-store bundles into a
+  temp workspace, but a ledger error inside the read (a corrupt coverage or
+  acknowledgement ledger) exited the process before the cleanup `finally` ran.
+  An exit hook now removes the workspace on every exit path; exit codes are
+  unchanged.
+- **Escaped quotes no longer expose quoted text to canonicalization.** A
+  backslash-escaped quote (`content: "\"#fff"`) ended the quoted segment early,
+  so the rest of the string was canonicalized (`#fff` → `rgba(…)`) and a real
+  text change (`"\"#fff"` → `"\"#ffffff"`) compared equal. Escapes are now
+  respected, so quoted text is never rewritten.
+- **Surface keys named like `Object.prototype` members are no longer
+  silently excluded.** The coverage guard (`coverageGaps`) and the crawl's
+  `crawlCoverageGaps` tested `key in exclude`, so an expected surface such as
+  `constructor` or `toString` read as a reviewed opt-out and its missing
+  capture passed the guard. Only the exclusion map's own keys count now.
 - **Boolean CLI flags honour an inline value.** `--allow-unasserted=false`
   used to turn diagnostic mode _on_, because the shared `styleproof-*` flag
   parser set a boolean flag to true whatever followed the `=`. Inline `true`/`false`/`1`/`0` (case-insensitive)

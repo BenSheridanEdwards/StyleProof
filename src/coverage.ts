@@ -27,7 +27,8 @@ export function coverageGaps(
   const expectedList = [...expected];
   const expectedSet = new Set(expectedList);
   return {
-    uncovered: expectedList.filter((k) => !captured.has(k) && !(k in exclude)),
+    // Own keys only: `k in exclude` would read `constructor` / `toString` as reviewed opt-outs.
+    uncovered: expectedList.filter((k) => !captured.has(k) && !Object.hasOwn(exclude, k)),
     staleExclusions: Object.keys(exclude).filter((k) => !expectedSet.has(k)),
   };
 }

@@ -81,6 +81,20 @@ test('the record-then-replay flow — base self-checked, head replayed — is pr
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('a replayed HEAD ledger whose capture fell back to live inputs BLOCKS (exit 1)', () => {
+  // selfCheck off + replayFrom: the ledger says "replayed", but this surface had no HAR and
+  // was captured live — the map records that, and the gate must not read it as proven.
+  const { root, base, head } = fixture('self-checked', 'replayed');
+  const live = JSON.stringify({ defaults: {}, elements: {}, states: {}, metadata: { inputs: 'live' } });
+  fs.writeFileSync(path.join(head, 'home@1440.json'), live);
+  fs.writeFileSync(path.join(base, 'home@1440.json'), live);
+  const { code, out } = run(base, head);
+  assert.equal(code, 1, `a live capture is not replay-proven\n${out}`);
+  assert.match(out, /determinism NOT proven/);
+  assert.doesNotMatch(out, /determinism proven/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('an unproven HEAD capture BLOCKS (exit 1) even with a clean style diff', () => {
   const { root, base, head } = fixture('self-checked', 'unproven');
   const { code, out } = run(base, head);

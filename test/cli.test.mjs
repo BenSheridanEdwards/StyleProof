@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PNG } from 'pngjs';
 import { saveStyleMap } from '../dist/capture.js';
 import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey } from '../dist/map-store.js';
 import {
@@ -520,6 +521,31 @@ test('diff CLI exits 0 when captures are identical', () => {
   rmTmp(root);
 });
 
+test('diff CLI --pixels fails closed when neither side has a screenshot (nothing compared)', () => {
+  // identicalPair writes no PNGs — as a capture with screenshots off would.
+  const { root, A, B } = identicalPair();
+  const r = run(DIFF, [A, B, '--pixels']);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stdout, /every screenshot layer compared/);
+  assert.match(r.stdout, /home@1280: ✗ no screenshot on either side — nothing compared, surface uncertified/);
+  assert.match(r.stdout, /pixel gate: 0 changed region\(s\) in 0 surface\(s\), 1 uncertified layer\(s\)/);
+  rmTmp(root);
+});
+
+test('diff CLI --pixels passes when identical screenshots were compared', () => {
+  const { root, A, B } = identicalPair();
+  const png = PNG.sync.write(new PNG({ width: 8, height: 8 }));
+  fs.writeFileSync(path.join(A, 'home@1280.png'), png);
+  fs.writeFileSync(path.join(B, 'home@1280.png'), png);
+  const r = run(DIFF, [A, B, '--pixels']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(
+    r.stdout,
+    /pixel gate: 0 changed region\(s\) across 1 paired capture\(s\), every screenshot layer compared/,
+  );
+  rmTmp(root);
+});
+
 test('diff CLI exits 1 when captures differ', () => {
   const { root, A, B } = differingPair();
   const r = run(DIFF, [A, B]);
@@ -851,7 +877,12 @@ function seedMapStore(repo, bundles) {
   }
 }
 
-function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main', changeLockfile = false } = {}) {
+function setupCachedComparison({
+  headColor = 'rgb(0, 0, 0)',
+  baseBranch = 'main',
+  changeLockfile = false,
+  seedHead = () => {},
+} = {}) {
   const repo = mkTmp();
   gitInit(repo);
   addBareOrigin(repo);
@@ -894,6 +925,7 @@ function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main'
     : undefined;
   writeManifest(baseDir, baseRefSha, baseCompatibilityKey, baseLockfileProvenance);
   writeManifest(headDir, headSha, headCompatibilityKey, headLockfileProvenance);
+  seedHead(headDir);
   seedMapStore(repo, [
     {
       sha: baseRefSha,
@@ -922,6 +954,41 @@ test('diff defaults to cached maps against the inferred main branch', () => {
   assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
   rmTmp(repo);
 });
+
+for (const [label, seedHead, prepare, reason] of [
+  [
+    'a corrupt head coverage ledger',
+    (headDir) => fs.writeFileSync(path.join(headDir, 'styleproof-coverage.json'), '{not json'),
+    () => {},
+    /corrupt coverage ledger/,
+  ],
+  [
+    'a corrupt inventory acknowledgement ledger',
+    (headDir) => {
+      const map = mapWith('rgb(0, 0, 0)');
+      map.inventory = [{ key: 'route:/pricing', kind: 'link', label: 'Pricing', href: '/pricing' }];
+      writeCapture(headDir, 'home@1280', map, null);
+    },
+    (repo) => fs.writeFileSync(path.join(repo, 'styleproof.inventory.json'), '{not json'),
+    /styleproof\.inventory\.json/,
+  ],
+]) {
+  test(`diff removes restored cached-map temp dirs when it exits 2 on ${label}`, () => {
+    const { repo } = setupCachedComparison({ seedHead });
+    prepare(repo);
+    const tmp = path.join(repo, 'private-tmp');
+    fs.mkdirSync(tmp);
+    const r = runIn(repo, DIFF, ['main'], { env: { TMPDIR: tmp, TMP: tmp, TEMP: tmp } });
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+    assert.match(r.stderr, reason);
+    assert.deepEqual(
+      fs.readdirSync(tmp).filter((name) => name.startsWith('styleproof-cache-')),
+      [],
+      `restored map-store dirs leaked (exit ${r.status}): ${r.stderr}`,
+    );
+    rmTmp(repo);
+  });
+}
 
 test('diff defaults to the GitHub PR base for stacked local branches when gh is available', () => {
   const { repo } = setupCachedComparison({ baseBranch: 'stack-base' });

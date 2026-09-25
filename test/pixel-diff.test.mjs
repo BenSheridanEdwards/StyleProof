@@ -134,6 +134,20 @@ test('pixelDiffSurface compares every layer present on both sides and flags one-
   rmTmp(root);
 });
 
+test('pixelDiffSurface: no screenshot on either side is an uncompared surface, never a vacuous pass', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  fs.mkdirSync(A, { recursive: true });
+  fs.mkdirSync(B, { recursive: true });
+  const map = makeMap({ elements: {} });
+  const result = pixelDiffSurface(A, B, 'home@200', map, map);
+  assert.deepEqual(result.layers, [{ layer: 'rest', status: 'missing-both' }]);
+  assert.deepEqual(result.uncompared, ['rest']);
+  assert.equal(result.regionCount, 0);
+  rmTmp(root);
+});
+
 test('diffStyleMapDirs with pixels: a change the computed-style differ cannot see is still gated and attributed', () => {
   // Same computed styles on both sides (an <img> whose bytes changed) — style diff is empty.
   const img = {

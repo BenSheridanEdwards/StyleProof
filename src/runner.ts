@@ -11,6 +11,7 @@ import {
   captureSurface,
   heartbeatUnitCount,
   writeBrowserBuildTest,
+  recordCaptureTestOutcomes,
   writeCoverageLedgerTest,
 } from './runner/surface-capture.js';
 import type { DefineOptions, HeartbeatOrdinal } from './runner/types.js';
@@ -108,6 +109,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     // project pins `fullyParallel: false`; `parallel: false` keeps file order for specs whose
     // sibling tests read the captured maps.
     if (options.parallel !== false) test.describe.configure({ mode: 'parallel' });
+    recordCaptureTestOutcomes();
     writeCoverageLedgerTest(settings, expected ?? null, exclude ?? {}, captureSurfaces);
     writeBrowserBuildTest(settings);
     // Ordinals are assigned at define time (stable across workers); test budgets derive from

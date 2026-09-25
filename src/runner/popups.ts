@@ -88,6 +88,7 @@ function popupMetadata(surface: ExpandedSurface, popupId: string): CaptureMetada
     variantKey: surface.metadata?.variantKey ? `${surface.metadata.variantKey}/${popupId}` : popupId,
     variantKind: 'popup',
     ...(surface.metadata?.productState ? { productState: surface.metadata.productState } : {}),
+    ...(surface.metadata?.inputs ? { inputs: surface.metadata.inputs } : {}),
   };
 }
 

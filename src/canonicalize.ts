@@ -87,7 +87,18 @@ function canonColor(token: string): string {
 }
 
 type Seg = { text: string; quoted: boolean };
-/** Split into quoted and unquoted segments so a `content: "#fff"` is never rewritten. */
+
+/** Index just past the quote closing the string opened at `open`; a backslash escapes the next char. */
+function closingQuoteEnd(value: string, open: number): number {
+  const quote = value[open];
+  for (let i = open + 1; i < value.length; i++) {
+    if (value[i] === '\\') i++;
+    else if (value[i] === quote) return i + 1;
+  }
+  return value.length;
+}
+
+/** Split into quoted and unquoted segments so a `content: "#fff"` (or `"\"#fff"`) is never rewritten. */
 function splitQuoted(value: string): Seg[] {
   const segs: Seg[] = [];
   let buf = '';
@@ -100,8 +111,7 @@ function splitQuoted(value: string): Seg[] {
     }
     if (buf) segs.push({ text: buf, quoted: false });
     buf = '';
-    const end = value.indexOf(ch, i + 1);
-    const stop = end === -1 ? value.length : end + 1;
+    const stop = closingQuoteEnd(value, i);
     segs.push({ text: value.slice(i, stop), quoted: true });
     i = stop;
   }

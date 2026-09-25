@@ -169,6 +169,10 @@ export function coverageExclusions(afterDir) {
  *  underneath it. Restored dirs are removed afterwards, so read everything inside `read`. Exits 2 on failure. */
 export function withCaptureDirs(name, inputs, read) {
   const { beforeDir, afterDir } = inputs;
+  // `read` and the catch below may exit the process (a ledger `fail()`), which skips `finally`;
+  // an exit hook still removes the restored dirs. Removal is idempotent, so both paths are safe.
+  const cleanup = () => cleanupCachedCaptureDirs(inputs.cacheCapture);
+  process.once('exit', cleanup);
   try {
     const manifestless = manifestlessSide(beforeDir, afterDir);
     if (manifestless) throw new Error(manifestlessError(manifestless));
@@ -187,6 +191,7 @@ export function withCaptureDirs(name, inputs, read) {
     console.error(errorMessage(error));
     process.exit(2);
   } finally {
-    cleanupCachedCaptureDirs(inputs.cacheCapture);
+    process.removeListener('exit', cleanup);
+    cleanup();
   }
 }

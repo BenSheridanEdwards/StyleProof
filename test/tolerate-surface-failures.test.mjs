@@ -222,6 +222,8 @@ mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
 touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
 mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
 printf '%s\\n' '{"key":"about@900","reason":"boom","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+printf '%s\\n' '{"title":"home @ 900","status":"passed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/home.json"
+printf '%s\\n' '{"title":"about @ 900","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/about.json"
 exit 1
 `,
     );
@@ -251,6 +253,60 @@ exit 1
     rmTmp(root);
   }
 });
+
+for (const [label, outcomes, expected] of [
+  [
+    'a failed coverage-ledger test',
+    `printf '%s\\n' '{"title":"about @ 900","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/about.json"
+printf '%s\\n' '{"title":"styleproof coverage ledger","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/ledger.json"`,
+    /"styleproof coverage ledger" \(failed\)/,
+  ],
+  [
+    'a capture test that never finished (crashed worker)',
+    `printf '%s\\n' '{"title":"about @ 900","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/about.json"
+printf '%s\\n' '{"title":"pricing @ 900","status":"running"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/pricing.json"`,
+    /"pricing @ 900" \(running\)/,
+  ],
+  ['no recorded failed test at all (hook or config error)', ':', /no failed capture test was recorded/],
+]) {
+  test(`styleproof-map: a tolerated surface failure does NOT mask ${label}`, () => {
+    const root = mkTmp();
+    try {
+      const spec = path.join(root, 'e2e/styleproof.spec.ts');
+      fs.mkdirSync(path.dirname(spec), { recursive: true });
+      fs.writeFileSync(spec, '// fake spec');
+      spawnSync('git', ['init', '-q'], { cwd: root });
+      const binDir = path.join(root, 'fake-bin');
+      fs.mkdirSync(binDir);
+      const fakePlaywright = path.join(binDir, 'playwright');
+      fs.writeFileSync(
+        fakePlaywright,
+        `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+printf '%s\\n' '{"key":"about@900","reason":"boom","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+${outcomes}
+exit 1
+`,
+      );
+      fs.chmodSync(fakePlaywright, 0o755);
+      const maps = path.join(root, 'maps');
+      const r = run(
+        MAP,
+        ['--spec', spec, '--dir', 'base', '--base-dir', maps, '--tolerate-surface-failures', '--no-upload'],
+        { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+        root,
+      );
+      assert.equal(r.status, 1, r.stderr + r.stdout);
+      assert.doesNotMatch(r.stderr, /publishing partial baseline/);
+      assert.match(r.stderr, /failure the ledger does not explain/);
+      assert.match(r.stderr, expected);
+      assert.equal(fs.existsSync(path.join(maps, 'base', MAP_MANIFEST)), false);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
 
 test('styleproof-map: tolerate flag does NOT promote a failure with no ledger entry', () => {
   const root = mkTmp();
@@ -331,6 +387,46 @@ exit 1
   }
 });
 
+test('styleproof-map: an unreadable fatal marker is still fatal, never "no failure"', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    // The marker exists but is not a readable regular file; every other signal says "tolerable".
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+printf '%s\\n' '{"key":"about@900","reason":"boom","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+printf '%s\\n' '{"title":"about @ 900","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/about.json"
+mkdir "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-fatal-capture.flag"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const maps = path.join(root, 'maps');
+    const targetDir = path.join(maps, 'base');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'base', '--base-dir', maps, '--tolerate-surface-failures', '--no-upload'],
+      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.doesNotMatch(r.stderr, /publishing partial baseline/);
+    assert.match(r.stderr, /fatal self-check failure.*unreadable fatal capture marker/i);
+    assert.equal(fs.existsSync(targetDir), false, 'fatal capture output must be discarded');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map: tolerate off keeps non-zero exit when Playwright fails', () => {
   const root = mkTmp();
   try {
@@ -381,6 +477,8 @@ mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
 touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
 mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
 printf '%s\\n' '{"key":"about@900","reason":"navigate timeout","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+printf '%s\\n' '{"title":"home @ 900","status":"passed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/home.json"
+printf '%s\\n' '{"title":"about @ 900","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/about.json"
 exit 1
 `,
     );
@@ -406,6 +504,53 @@ exit 1
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     assert.equal(manifest.surfaceCaptureFailures?.length, 1);
     assert.match(r.stderr, /partial/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: head/default refuses publish when a ledgered failure sits beside an unexplained one', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    // One ledgered surface failure plus a failed coverage-ledger test: Soft-pass must not publish.
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
+printf '%s\\n' '{"key":"about@900","reason":"navigate timeout","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+printf '%s\\n' '{"title":"about @ 900","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/about.json"
+printf '%s\\n' '{"title":"coverage ledger","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/ledger.json"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const maps = path.join(root, 'maps');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'head', '--base-dir', maps, '--no-upload'],
+      {
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        STYLEPROOF_SHA: undefined,
+        GITHUB_HEAD_SHA: undefined,
+        GITHUB_BASE_SHA: undefined,
+        GITHUB_EVENT_PATH: undefined,
+        GITHUB_EVENT_NAME: undefined,
+        GITHUB_SHA: undefined,
+      },
+      root,
+    );
+    assert.notEqual(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(path.join(maps, 'head', MAP_MANIFEST)), false, r.stderr);
+    assert.match(r.stderr, /failure the ledger does not explain: "coverage ledger" \(failed\)/);
   } finally {
     rmTmp(root);
   }
