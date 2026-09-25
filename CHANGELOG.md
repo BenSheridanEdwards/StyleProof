@@ -78,6 +78,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (v3.0.3), `fallow-rs/fallow` (v3.28.0), and `gitleaks/gitleaks-action`
   (v3.0.0) are pinned to the commit their `v3` tag resolved to, with the tag in
   a comment; first-party `actions/*` keep their major tags.
+
 ### Added
 
 - **Detection-rate corpus (`bench/`).** `npm run bench:detection` measures the
