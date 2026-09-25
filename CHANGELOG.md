@@ -67,6 +67,32 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `crawlCoverageGaps` tested `key in exclude`, so an expected surface such as
   `constructor` or `toString` read as a reviewed opt-out and its missing
   capture passed the guard. Only the exclusion map's own keys count now.
+- **Boolean CLI flags honour an inline value.** `--allow-unasserted=false`
+  used to turn diagnostic mode _on_, because the shared `styleproof-*` flag
+  parser set a boolean flag to true whatever followed the `=`. Inline `true`/`false`/`1`/`0` (case-insensitive)
+  now set the flag accordingly (`--no-x=false` means `--x`); any other inline
+  value is a usage error (exit 2).
+- **`styleproof-capture` flag parsing matches the other commands.**
+  `--require-full-coverage=false` (and every other boolean flag given an
+  inline value) turned the option on; it now follows the same
+  `true`/`false`/`1`/`0` rule. A value flag followed by another flag
+  (`--key --widths 768`) is now a "missing value" usage error instead of
+  silently taking `--widths` as the key.
+- **The `@playwright/test` peer range is now `>=1.45`.** It claimed `>=1.40`,
+  but `freezeClock` (on by default) calls `page.clock.setFixedTime`, which
+  Playwright added in 1.45 — a 1.40–1.44 install passed the peer check and
+  then failed at capture time. `styleproof setup` now installs the peer range
+  instead of its own hard-coded floor.
+- **Base-branch inference no longer hangs on a stalled `gh`.** `styleproof-diff`
+  and `styleproof-report` without a base ask `gh pr view` for the PR base with
+  no timeout, so a stalled `gh` (network, auth prompt) hung the command
+  forever. The call is now bounded (10s, `STYLEPROOF_GH_TIMEOUT_MS` to
+  override); a timeout counts as "no PR base" and falls back to
+  `origin/main`/`origin/master`/`main`/`master` as before.
+- **CLI crawl e2e tests wait for their server instead of sleeping.** Test
+  infrastructure only. Two `cli-flow` e2e tests slept a fixed 500ms after
+  spawning their HTTP server, which a loaded runner can outlast; they now poll
+  until the port accepts connections (bounded at 15s).
 - **A subtree that becomes volatile only on the head now blocks certification.**
   Capture excludes a subtree that is still mutating at settle, and the diff
   skipped the union of both sides' volatile lists — so a PR that added a timer

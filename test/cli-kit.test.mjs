@@ -35,6 +35,17 @@ test('cli kit: --k v, --k=v, repeatable flags, and --no-k all parse', () => {
   assert.deepEqual(args, ['p1', 'p2']);
 });
 
+test('cli kit: a boolean flag honours an inline true/false/1/0 value, including --no-k=', () => {
+  const upload = (argv) => cli.parse(argv).opts.upload;
+  assert.equal(upload(['--upload=false']), false);
+  assert.equal(upload(['--upload=FALSE']), false);
+  assert.equal(upload(['--upload=0']), false);
+  assert.equal(upload(['--upload=true']), true);
+  assert.equal(upload(['--upload=1']), true);
+  assert.equal(upload(['--no-upload=true']), false);
+  assert.equal(upload(['--no-upload=false']), true);
+});
+
 test('cli kit: tokens after -- are passthrough and never trigger help', () => {
   const parsed = cli.parse(['--out', 'x', '--', '--help', '-h', '--nope']);
   assert.deepEqual(parsed.opts, { list: [], out: 'x' });
@@ -49,13 +60,16 @@ test('cli kit: a missing value and an unknown flag are usage errors (exit 2)', (
         '--input-type=module',
         '-e',
         `import { defineCli } from ${JSON.stringify(CLI_KIT)};
-         defineCli({ name: 'kit', usage: ['kit'], flags: { out: { value: 'dir', help: 'x' } } }).parse(${JSON.stringify(argv)});`,
+         defineCli({ name: 'kit', usage: ['kit'], flags: { out: { value: 'dir', help: 'x' }, dry: { help: 'y' } } }).parse(${JSON.stringify(argv)});`,
       ],
       { encoding: 'utf8' },
     );
   const missing = script(['--out']);
   assert.equal(missing.status, 2);
   assert.match(missing.stderr, /--out requires a value/);
+  const badBoolean = script(['--dry=maybe']);
+  assert.equal(badBoolean.status, 2);
+  assert.match(badBoolean.stderr, /--dry expects true or false, got "maybe"/);
   const unknown = script(['--zzz']);
   assert.equal(unknown.status, 2);
   assert.match(unknown.stderr, /unknown flag: --zzz/);

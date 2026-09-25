@@ -16,7 +16,7 @@ npx playwright install chromium   # forced :hover/:focus/:active states are Chro
 npx styleproof-init
 ```
 
-Requires **Node ≥ 18** (ESM) and **@playwright/test ≥ 1.40** (peer dep).
+Requires **Node ≥ 18** (ESM) and **@playwright/test ≥ 1.45** (peer dep).
 
 `styleproof-init` scaffolds, non-destructively (it sits beside your existing
 Playwright config, never edits it):
