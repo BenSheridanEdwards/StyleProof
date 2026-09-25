@@ -52,6 +52,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   so the rest of the string was canonicalized (`#fff` → `rgba(…)`) and a real
   text change (`"\"#fff"` → `"\"#ffffff"`) compared equal. Escapes are now
   respected, so quoted text is never rewritten.
+- **Surface keys named like `Object.prototype` members are no longer
+  silently excluded.** The coverage guard (`coverageGaps`) and the crawl's
+  `crawlCoverageGaps` tested `key in exclude`, so an expected surface such as
+  `constructor` or `toString` read as a reviewed opt-out and its missing
+  capture passed the guard. Only the exclusion map's own keys count now.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI

@@ -13,6 +13,16 @@ test('coverageGaps: nothing missing when every expected key is captured', () => 
 
 // ------------------------------------------------------- the bug this exists to catch
 
+test('coverageGaps: a key named like an Object.prototype member is not excluded by inheritance', () => {
+  // `constructor` / `toString` are real route slugs; `k in exclude` read them as opted out.
+  const { uncovered } = coverageGaps(['home'], ['home', 'constructor', 'toString', '__proto__'], {});
+  assert.deepEqual(uncovered, ['constructor', 'toString', '__proto__']);
+  assert.deepEqual(
+    auditCoverage(['home'], { version: 1, expected: ['home', 'constructor'], exclude: {} }).basis,
+    'incomplete',
+  );
+});
+
 test('coverageGaps: an expected route with no surface is flagged uncovered', () => {
   // The whole point: `pricing` is in the app's universe but nobody added a surface.
   const { uncovered } = coverageGaps(['home', 'about'], ['home', 'about', 'pricing']);

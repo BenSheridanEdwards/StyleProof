@@ -193,6 +193,14 @@ test('crawlCoverageGaps: rendered nav reconciles clean against a matching expect
   });
 });
 
+test('crawlCoverageGaps: a key named like an Object.prototype member is never excluded by inheritance', () => {
+  assert.deepEqual(crawlCoverageGaps(['index', 'toString'], ['index', 'constructor']), {
+    missing: ['constructor'],
+    unexpected: ['toString'],
+    staleExclusions: [],
+  });
+});
+
 test('crawlCoverageGaps: an expected key with no rendered link is a nav regression', () => {
   // `pricing` is in the registry but the nav stopped linking to it.
   assert.deepEqual(crawlCoverageGaps(['index'], ['index', 'pricing']), {
