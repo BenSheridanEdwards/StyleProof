@@ -107,6 +107,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A repository checked out at the filesystem root is no longer refused.**
+  `isWithinDirectory('/', …)` compared against a `//` prefix, so
+  `styleproof-ci` rejected `--spec` and the working directory as "outside the
+  repository" when the repo lived at `/` (for example a container with
+  `WORKDIR /`).
 - **`styleproof-diff` and `styleproof-report` honour the configured map store.**
   The `--cache-branch` and `--remote` flags carried built-in defaults, so the
   `cacheBranch`/`remote` config keys and `STYLEPROOF_CACHE_BRANCH`/

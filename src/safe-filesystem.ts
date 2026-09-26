@@ -19,7 +19,9 @@ export class UnsafeFilesystemEntryError extends Error {
 export function isWithinDirectory(root: string, candidate: string): boolean {
   const resolvedRoot = path.resolve(root);
   const resolved = path.resolve(candidate);
-  return resolved === resolvedRoot || resolved.startsWith(`${resolvedRoot}${path.sep}`);
+  // A filesystem root (`/`, `C:\`) already ends with the separator.
+  const prefix = resolvedRoot.endsWith(path.sep) ? resolvedRoot : `${resolvedRoot}${path.sep}`;
+  return resolved === resolvedRoot || resolved.startsWith(prefix);
 }
 
 function sameFileIdentity(first: fs.Stats, second: fs.Stats): boolean {
