@@ -115,6 +115,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-capture <url> --help` prints help.** Help was only recognised
+  as the first argument, so `--help` after the URL exited 2 with
+  "unknown flag", unlike every other command.
 - **Next.js route discovery skips folders the App Router never serves.**
   Private `_folder`s and intercepting-route folders (`(.)x`, `(..)x`,
   `(...)x`) were emitted as non-dynamic routes such as `/_drafts` and
