@@ -115,6 +115,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Breakpoint discovery captures the band a fractional query opens.**
+  Boundaries were rounded to the nearest px, so `(min-width: 767.4px)` (or
+  `48.01em`) yielded 767 and no captured width matched the query. A boundary
+  is now the first whole px where the match flips (`ceil` for `min-width`,
+  `>=` and `<`; `floor + 1` for `max-width`, `<=` and `>`). Whole-number
+  queries are unchanged; projects with fractional queries may see one
+  auto-discovered width move by 1px and must regenerate that baseline.
 - **A repository checked out at the filesystem root is no longer refused.**
   `isWithinDirectory('/', …)` compared against a `//` prefix, so
   `styleproof-ci` rejected `--spec` and the working directory as "outside the
