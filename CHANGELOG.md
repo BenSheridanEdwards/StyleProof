@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+- **`report.html` no longer renders markup from captured CSS values or map
+  metadata.** HTML comments were staged before code spans, and code spans only
+  understood a single-backtick fence, so a value containing a backtick and
+  `<!-->` escaped its `<code>` and became live HTML. `<sub>` and `<summary>`
+  lines were copied verbatim, so a map's `variantKey` reached the page
+  unescaped. Code spans now honour any fence length and stage first, only the
+  generator's own `<!-- styleproof-… -->` comments pass through, and caption
+  and summary text is escaped like every other line.
 - **Fork PRs never auto-green.** In the capture/report split the untrusted
   `pull_request` capture job uploads _both_ the base and head maps, so a fork
   could upload identical maps and receive a green `StyleProof` status from the
