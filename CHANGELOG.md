@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+- **`report.html` no longer renders markup from captured CSS values or map
+  metadata.** HTML comments were staged before code spans, and code spans only
+  understood a single-backtick fence, so a value containing a backtick and
+  `<!-->` escaped its `<code>` and became live HTML. `<sub>` and `<summary>`
+  lines were copied verbatim, so a map's `variantKey` reached the page
+  unescaped. Code spans now honour any fence length and stage first, only the
+  generator's own `<!-- styleproof-… -->` comments pass through, and caption
+  and summary text is escaped like every other line.
 - **GitHub Packages mirror installs without dependency scripts.** The mirror
   job holds `packages: write`; it now runs `npm ci --ignore-scripts` (building
   `dist/` explicitly, as before) and checks out with
@@ -112,6 +120,36 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The plain-English summary no longer misreads hairline borders.** A
+  `border-width` starting with `0` counted as "no border", so `0.5px → 1px`
+  read "gains a 1px border" and `1px → 0px 1px` read "loses its border". Only
+  a value whose every side is zero now counts as no border.
+- **`styleproof-capture <url> --help` prints help.** Help was only recognised
+  as the first argument, so `--help` after the URL exited 2 with
+  "unknown flag", unlike every other command.
+- **Next.js route discovery skips folders the App Router never serves.**
+  Private `_folder`s and intercepting-route folders (`(.)x`, `(..)x`,
+  `(...)x`) were emitted as non-dynamic routes such as `/_drafts` and
+  `/feed/(.)photo`, so a generated spec navigated to 404 pages and listed
+  them in `expected`.
+- **Breakpoint discovery captures the band a fractional query opens.**
+  Boundaries were rounded to the nearest px, so `(min-width: 767.4px)` (or
+  `48.01em`) yielded 767 and no captured width matched the query. A boundary
+  is now the first whole px where the match flips (`ceil` for `min-width`,
+  `>=` and `<`; `floor + 1` for `max-width`, `<=` and `>`). Whole-number
+  queries are unchanged; projects with fractional queries may see one
+  auto-discovered width move by 1px and must regenerate that baseline.
+- **A repository checked out at the filesystem root is no longer refused.**
+  `isWithinDirectory('/', …)` compared against a `//` prefix, so
+  `styleproof-ci` rejected `--spec` and the working directory as "outside the
+  repository" when the repo lived at `/` (for example a container with
+  `WORKDIR /`).
+- **`styleproof-diff` and `styleproof-report` honour the configured map store.**
+  The `--cache-branch` and `--remote` flags carried built-in defaults, so the
+  `cacheBranch`/`remote` config keys and `STYLEPROOF_CACHE_BRANCH`/
+  `STYLEPROOF_REMOTE` were never read in cached-map mode. A project that
+  publishes maps to a custom branch or remote now restores them from the same
+  place (flag > env > config > built-in, as `styleproof-map` already did).
 - **`--pixels` no longer passes having compared nothing.** A paired surface
   with no screenshot on either side (captured with screenshots off) was skipped
   silently, so `styleproof-diff --pixels` printed "0 changed region(s) …

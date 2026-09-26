@@ -190,7 +190,9 @@ const gridRule: Rule = (m, mark) => {
   return out;
 };
 
-const noBorder = (v: string): boolean => /^0/.test(v) || v === '(unset)';
+// Every side zero: `0.5px` is a hairline and `0px 1px` keeps its side borders.
+const noBorder = (v: string): boolean =>
+  v === '(unset)' || v.split(/\s+/).every((side) => /^0(?:\.0*)?(?:px)?$/.test(side));
 const borderWidthRule = single(
   'border-width',
   ({ before, after }) => {

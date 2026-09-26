@@ -1757,6 +1757,17 @@ test('colorName maps rgb to a legible palette word', () => {
   assert.equal(colorName('none'), null); // not a colour
 });
 
+test('describeChange only calls a border gained or lost when every side is zero', () => {
+  const say = (before, after) =>
+    describeChange([{ label: 'div.card', props: [{ prop: 'border-width', before, after }] }])[0];
+  assert.match(say('0.5px', '1px'), /border 0\.5px → 1px/);
+  assert.match(say('1px', '0.5px'), /border 1px → 0\.5px/);
+  assert.match(say('1px', '0px 1px'), /border 1px → 0px 1px/);
+  assert.match(say('0px', '1px'), /gains a 1px border/);
+  assert.match(say('1px', '0px'), /loses its border/);
+  assert.match(say('(unset)', '2px'), /gains a 2px border/);
+});
+
 test('describeChange names a grid column-count change', () => {
   const out = describeChange([
     { label: 'div.grid', props: [{ prop: 'grid-template-columns', before: '380px ×2', after: '253px 253px 253px' }] },

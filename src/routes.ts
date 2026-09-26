@@ -21,6 +21,8 @@ const PAGES_EXT_RE = /\.(?:js|jsx|ts|tsx)$/;
 
 const isGroupOrSlot = (seg: string): boolean => /^\(.*\)$/.test(seg) || seg.startsWith('@');
 const isDynamicSeg = (seg: string): boolean => /\[.*\]/.test(seg);
+/** App Router folders that are never URL segments: private `_folder`s and intercepting `(.)x` / `(..)x` / `(...)x`. */
+const isUnroutableAppDir = (seg: string): boolean => seg.startsWith('_') || /^\(\.+\)/.test(seg);
 
 /** Filename-safe, readable key from a route path. */
 function toKey(routePath: string): string {
@@ -56,7 +58,9 @@ function appRoutes(appDir: string): DiscoveredRoute[] {
     if (entries.some((e) => e.isFile() && APP_PAGE_RE.test(e.name))) {
       out.push(makeRoute(segs.filter((s) => !isGroupOrSlot(s))));
     }
-    for (const e of entries) if (e.isDirectory()) walk(path.join(dir, e.name), [...segs, e.name]);
+    for (const e of entries) {
+      if (e.isDirectory() && !isUnroutableAppDir(e.name)) walk(path.join(dir, e.name), [...segs, e.name]);
+    }
   };
   walk(appDir, []);
   return out;

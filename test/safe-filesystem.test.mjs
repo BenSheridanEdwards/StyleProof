@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readRegularFileNoFollow, UnsafeFilesystemEntryError } from '../dist/safe-filesystem.js';
+import { isWithinDirectory, readRegularFileNoFollow, UnsafeFilesystemEntryError } from '../dist/safe-filesystem.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 test('readRegularFileNoFollow reads regular bytes and refuses symlinks', () => {
@@ -39,4 +39,12 @@ test('readRegularFileNoFollow refuses a FIFO without opening it', { skip: proces
   } finally {
     rmTmp(workspace);
   }
+});
+
+test('isWithinDirectory treats every path as inside the filesystem root', () => {
+  const root = path.parse(process.cwd()).root;
+  assert.equal(isWithinDirectory(root, root), true);
+  assert.equal(isWithinDirectory(root, path.join(root, 'repo', 'app')), true);
+  assert.equal(isWithinDirectory(path.join(root, 'repo'), path.join(root, 'repo', 'app')), true);
+  assert.equal(isWithinDirectory(path.join(root, 'repo'), path.join(root, 'repo-other')), false);
 });

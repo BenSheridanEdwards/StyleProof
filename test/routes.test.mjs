@@ -36,6 +36,22 @@ test('discoverNextRoutes: App Router — page.* dirs become routes, groups strip
   }
 });
 
+test('discoverNextRoutes: App Router skips private folders and intercepting routes', () => {
+  const root = mkTmp();
+  try {
+    touch(root, 'app/feed/page.tsx'); // /feed
+    touch(root, 'app/photo/page.tsx'); // /photo
+    touch(root, 'app/feed/@modal/(.)photo/page.tsx'); // intercepts /photo — not a URL
+    touch(root, 'app/(..)settings/page.tsx'); // intercepting — not a URL
+    touch(root, 'app/(...)help/page.tsx'); // intercepting — not a URL
+    touch(root, 'app/_drafts/page.tsx'); // private folder — not routable
+    touch(root, 'app/docs/_parts/intro/page.tsx'); // under a private folder — not routable
+    assert.deepEqual(paths(discoverNextRoutes(root)), ['/feed', '/photo']);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('discoverNextRoutes: App Router under src/, catch-all is dynamic', () => {
   const root = mkTmp();
   try {

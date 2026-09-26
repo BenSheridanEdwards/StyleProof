@@ -9,6 +9,7 @@ import {
   CiWorktreeSession,
   assertResolvableCommit,
   ciWorktreeScratchParent,
+  consumerRelativeFromRepoRoot,
   ensureConsumerAtHead,
   gitRepoRoot,
   worktreeRunCwd,
@@ -188,4 +189,12 @@ exec "${realGit}" "$@"
     else process.env.PATH = previousPath;
     rmTmp(root);
   }
+});
+
+test('consumerRelativeFromRepoRoot: a repository at the filesystem root keeps its subdirectory', () => {
+  const root = path.parse(process.cwd()).root;
+  assert.equal(consumerRelativeFromRepoRoot(root, root), '.');
+  assert.equal(consumerRelativeFromRepoRoot(root, path.join(root, 'app')), 'app');
+  const repo = path.join(root, 'repo');
+  assert.throws(() => consumerRelativeFromRepoRoot(repo, path.join(root, 'repo-other')), CiWorktreeError);
 });
