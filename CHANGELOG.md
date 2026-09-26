@@ -112,6 +112,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Unit suite no longer rebuilds `dist/` mid-run.** The privacy check listed
+  package files with `npm pack --dry-run --ignore-scripts` in the live
+  checkout, and npm 10 (bundled with Node 18/20/22) runs `prepare` (`tsc`)
+  anyway — so its unit test rewrote the shared `dist/` while other test files
+  imported it, flaking them with `does not provide an export named …`. The
+  check now packs a lifecycle-stripped copy of the `files` allowlist (the
+  scanned file list is unchanged), and `scripts/run-node-test.mjs` fails the
+  run if any test modifies `dist/`.
+
 - **`--pixels` no longer passes having compared nothing.** A paired surface
   with no screenshot on either side (captured with screenshots off) was skipped
   silently, so `styleproof-diff --pixels` printed "0 changed region(s) …

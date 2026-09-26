@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -88,10 +89,30 @@ function walk(dir) {
   });
 }
 
+// Pack a lifecycle-stripped copy, never `root` itself: npm 10 (bundled with Node
+// 18/20/22) runs `prepare` on `npm pack --dry-run` even under --ignore-scripts, and
+// this repo's `prepare` is `tsc` — it rewrote the shared dist/ while other unit-test
+// files were importing it ("does not provide an export named …"). Copying the
+// `files` allowlist keeps npm's own packlist rules deciding what ships.
 function npmPackFiles(root) {
-  const pack = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: root, encoding: 'utf8' });
-  if (pack.status !== 0) throw new Error(pack.stderr || pack.stdout || 'npm pack --dry-run failed');
-  return JSON.parse(pack.stdout)[0].files.map((file) => file.path);
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-privacy-pack-'));
+  try {
+    for (const rel of manifest.files ?? []) {
+      const src = path.join(root, rel);
+      if (fs.existsSync(src)) fs.cpSync(src, path.join(stage, rel), { recursive: true });
+    }
+    delete manifest.scripts;
+    fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify(manifest, null, 2));
+    const pack = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
+      cwd: stage,
+      encoding: 'utf8',
+    });
+    if (pack.status !== 0) throw new Error(pack.stderr || pack.stdout || 'npm pack --dry-run failed');
+    return JSON.parse(pack.stdout)[0].files.map((file) => file.path);
+  } finally {
+    fs.rmSync(stage, { recursive: true, force: true });
+  }
 }
 
 function gitTrackedFiles(root) {

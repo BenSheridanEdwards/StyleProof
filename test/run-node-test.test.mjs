@@ -1,7 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { NODE_TEST_TIMEOUT_MS, nodeTestArgs, nodeTestEnv } from '../scripts/run-node-test.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  NODE_TEST_TIMEOUT_MS,
+  fileSnapshot,
+  nodeTestArgs,
+  nodeTestEnv,
+  snapshotChanges,
+} from '../scripts/run-node-test.mjs';
 
 test('omits --test-timeout on Node 18', () => {
   const args = nodeTestArgs({ nodeMajor: 18, files: ['test/x.test.mjs'] });
@@ -39,4 +48,29 @@ test('a spawned Node child loads the preload (#718)', () => {
   assert.equal(r.stderr, '');
   assert.equal(r.status, 0);
   assert.equal(r.stdout, '1');
+});
+
+test('fileSnapshot/snapshotChanges report files added, removed, or rewritten in dist/', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-dist-snapshot-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'report'));
+    fs.writeFileSync(path.join(dir, 'kept.js'), 'export const a = 1;\n');
+    fs.writeFileSync(path.join(dir, 'report', 'rewritten.js'), 'export const b = 1;\n');
+    fs.writeFileSync(path.join(dir, 'removed.js'), 'export const c = 1;\n');
+    const before = fileSnapshot(dir);
+    assert.deepEqual(snapshotChanges(before, fileSnapshot(dir)), []);
+
+    // Same size, later mtime: what a tsc rebuild of an unchanged module looks like.
+    fs.writeFileSync(path.join(dir, 'report', 'rewritten.js'), 'export const b = 1;\n');
+    fs.utimesSync(path.join(dir, 'report', 'rewritten.js'), new Date(), new Date(Date.now() + 5_000));
+    fs.rmSync(path.join(dir, 'removed.js'));
+    fs.writeFileSync(path.join(dir, 'added.js'), '');
+    assert.deepEqual(snapshotChanges(before, fileSnapshot(dir)), ['added.js', 'removed.js', 'report/rewritten.js']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('fileSnapshot of a missing dir is empty', () => {
+  assert.equal(fileSnapshot(path.join(os.tmpdir(), 'styleproof-no-such-dist-dir')).size, 0);
 });
