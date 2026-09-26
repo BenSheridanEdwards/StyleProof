@@ -115,6 +115,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The plain-English summary no longer misreads hairline borders.** A
+  `border-width` starting with `0` counted as "no border", so `0.5px → 1px`
+  read "gains a 1px border" and `1px → 0px 1px` read "loses its border". Only
+  a value whose every side is zero now counts as no border.
 - **`styleproof-capture <url> --help` prints help.** Help was only recognised
   as the first argument, so `--help` after the URL exited 2 with
   "unknown flag", unlike every other command.
