@@ -2,35 +2,35 @@
   "gateMode": "certify",
   "counts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "rawCounts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "reviewableCounts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "comparison": {
     "rawCounts": {
       "dom": 0,
-      "style": 0,
+      "style": 1,
       "state": 0
     },
     "reviewableCounts": {
       "dom": 0,
-      "style": 0,
+      "style": 1,
       "state": 0
     },
     "newSurfaces": 0,
     "removedSurfaces": 0,
-    "rawChangedSurfaces": 0,
-    "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": false,
+    "rawChangedSurfaces": 1,
+    "reviewableChangedSurfaces": 1,
+    "hasReviewableEvidence": true,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
@@ -65,11 +65,58 @@
   "baselineFailures": [],
   "partialBaseline": false,
   "content": {
-    "evaluated": true,
-    "changes": 1,
+    "evaluated": false,
+    "changes": 0,
     "advisory": true
   },
-  "surfaces": [],
+  "surfaces": [
+    {
+      "surfaces": [
+        "home@320"
+      ],
+      "representative": "home@320",
+      "regions": [
+        {
+          "paths": [
+            "body > main:nth-child(1)"
+          ],
+          "before": {
+            "x": 12,
+            "y": 12,
+            "w": 204,
+            "h": 104
+          },
+          "after": {
+            "x": 12,
+            "y": 12,
+            "w": 204,
+            "h": 104
+          },
+          "images": {
+            "composite": "crops/home-320-1-composite.png",
+            "annotated": "crops/home-320-1-annotated.png"
+          }
+        }
+      ],
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1)",
+          "cls": "panel",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(255, 0, 0)"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        }
+      ],
+      "classification": "changed"
+    }
+  ],
   "confidence": {
     "counts": {
       "inaccessible": 0,
@@ -112,12 +159,12 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "04c0237803a05ee41e47abbfac345f745cf1dd1aa2f1bdc6e78bc543d858f4e1",
+      "digest": "6da415b85235f53ecc475b55a9362bf9a68c01918c4cace25cc71e5878c7b09f",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1555
+      "byteCount": 1527
     }
   },
-  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES",
+  "actionTrustState": "STYLE_REVIEW_REQUIRED",
   "untrustedCapture": false
 }
