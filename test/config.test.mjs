@@ -311,7 +311,7 @@ test('styleproof-diff / styleproof-report: a malformed config is a usage error (
   });
 });
 
-test('styleproof-diff / styleproof-report: cached-map remote follows flag > env > config > built-in', () => {
+test('styleproof-diff / styleproof-report: cached-map remote and branch follow flag > env > config > built-in', () => {
   // No remote exists in the temp repo, so the "git remote <name> was not found"
   // message names the remote that won the precedence contest.
   withConfig({ remote: 'from-config-remote', cacheBranch: 'from-config-maps' }, (dir) => {
@@ -339,6 +339,33 @@ test('styleproof-diff / styleproof-report: cached-map remote follows flag > env 
         run(['--remote', 'from-flag-remote'], { STYLEPROOF_REMOTE: 'from-env-remote' }).stderr,
         /git remote from-flag-remote was not found/,
       );
+    }
+
+    // Once the configured remote exists (an empty bare repo), the "map store branch <name>
+    // does not exist" message names the branch that won the same contest.
+    const bare = mkTmp('styleproof-config-remote-');
+    try {
+      spawnSync('git', ['init', '-q', '--bare', bare], { encoding: 'utf8' });
+      git('remote', 'add', 'from-config-remote', bare);
+      for (const bin of ['styleproof-diff.mjs', 'styleproof-report.mjs']) {
+        const run = (args, extraEnv = {}) =>
+          spawnSync(process.execPath, [path.join(here, '..', 'bin', bin), 'main', ...args], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: { ...env, ...extraEnv },
+          });
+        assert.match(run([]).stderr, /map store branch from-config-maps does not exist/, bin);
+        assert.match(
+          run([], { STYLEPROOF_CACHE_BRANCH: 'from-env-maps' }).stderr,
+          /map store branch from-env-maps does not exist/,
+        );
+        assert.match(
+          run(['--cache-branch', 'from-flag-maps'], { STYLEPROOF_CACHE_BRANCH: 'from-env-maps' }).stderr,
+          /map store branch from-flag-maps does not exist/,
+        );
+      }
+    } finally {
+      rmTmp(bare);
     }
   });
 });

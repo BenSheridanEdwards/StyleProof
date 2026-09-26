@@ -1224,13 +1224,16 @@ test('report CLI compares normally when both dirs carry a manifest', () => {
 
 test('capture CLI prints help when -h/--help follows the URL', () => {
   const CAPTURE = path.join(here, '..', 'bin', 'styleproof-capture.mjs');
+  const UNIFIED = path.join(here, '..', 'bin', 'styleproof.mjs');
   for (const args of [
     ['http://127.0.0.1:1', '--help'],
     ['http://127.0.0.1:1', '--widths', '1280', '-h'],
   ]) {
-    const r = run(CAPTURE, args);
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /-h, --help/);
+    // Direct binary and the unified `styleproof crawl` alias behave the same.
+    for (const r of [run(CAPTURE, args), run(UNIFIED, ['crawl', ...args])]) {
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /-h, --help/);
+    }
   }
 });
 
