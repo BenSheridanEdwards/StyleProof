@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false # publishes with NODE_AUTH_TOKEN; never pushes
 
       - uses: actions/setup-node@v7
         with:
@@ -25,7 +27,7 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@bensheridanedwards'
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts # dependency install scripts never run with packages:write
       - run: npm run build
       - name: Install Chromium
         run: npx playwright install --with-deps chromium

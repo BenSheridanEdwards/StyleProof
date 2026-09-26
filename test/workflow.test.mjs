@@ -136,6 +136,15 @@ test('release installs without dependency scripts and never persists the checkou
   assert.doesNotMatch(release, /run: npm ci\n/);
 });
 
+test('the GitHub Packages mirror installs without dependency scripts and never persists the checkout token', () => {
+  const mirror = fs.readFileSync(path.join(here, '..', '.github/workflows/github-packages.yml'), 'utf8');
+  assert.match(mirror, /packages: write/);
+  assert.match(mirror, /- uses: actions\/checkout@v7\n {8}with:\n {10}persist-credentials: false\b/);
+  assert.match(mirror, /- run: npm ci --ignore-scripts\b/);
+  assert.doesNotMatch(mirror, /run: npm ci\s*\n/);
+  assert.match(mirror, /- run: npm run build\n/, 'dist/ is still built explicitly');
+});
+
 test('every release tag push carries explicit, step-scoped credentials', () => {
   const steps = release.split(/\n(?= {6}- name: )/);
   const pushSteps = steps.filter((step) => /\bpush\b.*refs\/tags/.test(step));
