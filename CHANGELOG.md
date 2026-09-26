@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+- **GitHub Packages mirror installs without dependency scripts.** The mirror
+  job holds `packages: write`; it now runs `npm ci --ignore-scripts` (building
+  `dist/` explicitly, as before) and checks out with
+  `persist-credentials: false`, matching the release job.
+
 - **Fork PRs never auto-green.** In the capture/report split the untrusted
   `pull_request` capture job uploads _both_ the base and head maps, so a fork
   could upload identical maps and receive a green `StyleProof` status from the
@@ -258,6 +263,13 @@ flag` to stderr and pollute every spawned child's output — and a checkout
   NODE_OPTIONS.
 
 ### Docs
+
+- **Advisory mode is described truthfully.** The `mode` input description no
+  longer says advisory "NEVER blocks CI": it never fails on style changes, but
+  evidence gates (partial/degraded baseline, unacknowledged navigable removals,
+  `CERTIFICATION_FAILED`, `DATA_RESIDUE_UNACKNOWLEDGED`) still fail the job, and
+  a fork PR's untrusted capture stays pending until approved.
+  `QUALITY_GATES.md` now names the SHA-pinned `gitleaks-action@v3`.
 
 - **Reference and gate docs match what actually runs.** `docs/REFERENCE.md`
   now points at `StyleProof@v7`, lists every Action input (including `mode`
