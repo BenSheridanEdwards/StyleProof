@@ -115,6 +115,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Next.js route discovery skips folders the App Router never serves.**
+  Private `_folder`s and intercepting-route folders (`(.)x`, `(..)x`,
+  `(...)x`) were emitted as non-dynamic routes such as `/_drafts` and
+  `/feed/(.)photo`, so a generated spec navigated to 404 pages and listed
+  them in `expected`.
 - **Breakpoint discovery captures the band a fractional query opens.**
   Boundaries were rounded to the nearest px, so `(min-width: 767.4px)` (or
   `48.01em`) yielded 767 and no captured width matched the query. A boundary
