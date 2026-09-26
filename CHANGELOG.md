@@ -107,6 +107,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-diff` and `styleproof-report` honour the configured map store.**
+  The `--cache-branch` and `--remote` flags carried built-in defaults, so the
+  `cacheBranch`/`remote` config keys and `STYLEPROOF_CACHE_BRANCH`/
+  `STYLEPROOF_REMOTE` were never read in cached-map mode. A project that
+  publishes maps to a custom branch or remote now restores them from the same
+  place (flag > env > config > built-in, as `styleproof-map` already did).
 - **`--pixels` no longer passes having compared nothing.** A paired surface
   with no screenshot on either side (captured with screenshots off) was skipped
   silently, so `styleproof-diff --pixels` printed "0 changed region(s) …

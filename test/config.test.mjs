@@ -311,6 +311,38 @@ test('styleproof-diff / styleproof-report: a malformed config is a usage error (
   });
 });
 
+test('styleproof-diff / styleproof-report: cached-map remote follows flag > env > config > built-in', () => {
+  // No remote exists in the temp repo, so the "git remote <name> was not found"
+  // message names the remote that won the precedence contest.
+  withConfig({ remote: 'from-config-remote', cacheBranch: 'from-config-maps' }, (dir) => {
+    const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+    git('init', '-q', '-b', 'main');
+    git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init');
+    fs.mkdirSync(path.join(dir, 'e2e'));
+    fs.writeFileSync(path.join(dir, 'e2e', 'styleproof.spec.ts'), '');
+    const env = { ...process.env };
+    delete env.STYLEPROOF_REMOTE;
+    delete env.STYLEPROOF_CACHE_BRANCH;
+    for (const bin of ['styleproof-diff.mjs', 'styleproof-report.mjs']) {
+      const run = (args, extraEnv = {}) =>
+        spawnSync(process.execPath, [path.join(here, '..', 'bin', bin), 'main', ...args], {
+          cwd: dir,
+          encoding: 'utf8',
+          env: { ...env, ...extraEnv },
+        });
+      assert.match(run([]).stderr, /git remote from-config-remote was not found/, bin);
+      assert.match(
+        run([], { STYLEPROOF_REMOTE: 'from-env-remote' }).stderr,
+        /git remote from-env-remote was not found/,
+      );
+      assert.match(
+        run(['--remote', 'from-flag-remote'], { STYLEPROOF_REMOTE: 'from-env-remote' }).stderr,
+        /git remote from-flag-remote was not found/,
+      );
+    }
+  });
+});
+
 test('the reference documents every top-level one-config adoption block', () => {
   const readme = fs.readFileSync(path.join(here, '..', 'docs/REFERENCE.md'), 'utf8');
   const configReference = readme.slice(readme.indexOf('**Config file `styleproof.config.ts`'));
