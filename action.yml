@@ -70,8 +70,13 @@ inputs:
       Operation mode: 'certify' (default) fails on any style diff, 'review-gate'
       sets a commit status instead of failing, 'migration' treats structure changes
       (added/removed elements) as reviewable alongside style changes and uses
-      review-gate semantics, 'advisory' posts comments and artifacts but NEVER
-      blocks CI (allows first-time adopters to evaluate signal quality). In
+      review-gate semantics, 'advisory' posts comments and artifacts and never
+      fails the job on style changes (allows first-time adopters to evaluate
+      signal quality). Evidence gates still fail the job in every mode: a
+      partial or degraded baseline, unacknowledged navigable removals, and
+      unapprovable certification failures (CERTIFICATION_FAILED,
+      DATA_RESIDUE_UNACKNOWLEDGED). A fork PR's untrusted capture keeps the
+      status pending until a maintainer approves, even in advisory mode. In
       migration mode the report gallery shows Changed styles, New surfaces, and
       New/removed elements sections.
     default: 'certify'
