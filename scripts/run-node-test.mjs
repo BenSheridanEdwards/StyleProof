@@ -41,9 +41,48 @@ function defaultTestFiles() {
     .sort();
 }
 
+/**
+ * Identity of every file under `dir` (size, mtime, inode). Test files import the
+ * shared prebuilt dist/ concurrently, so any test that rebuilds it mid-suite
+ * (tsc truncates then rewrites each module) flakes unrelated files with
+ * "does not provide an export named …". Comparing snapshots catches that writer.
+ */
+export function fileSnapshot(dir) {
+  const snapshot = new Map();
+  const visit = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const file = path.join(current, entry.name);
+      if (entry.isDirectory()) visit(file);
+      else {
+        const stat = fs.statSync(file);
+        snapshot.set(path.relative(dir, file), `${stat.size}:${stat.mtimeMs}:${stat.ino}`);
+      }
+    }
+  };
+  if (fs.existsSync(dir)) visit(dir);
+  return snapshot;
+}
+
+/** Paths added, removed, or rewritten between two fileSnapshot()s. */
+export function snapshotChanges(before, after) {
+  const paths = new Set([...before.keys(), ...after.keys()]);
+  return [...paths].filter((rel) => before.get(rel) !== after.get(rel)).sort();
+}
+
 function main() {
   const watch = process.argv.includes('--watch');
+  const dist = path.join(ROOT, 'dist');
+  const before = watch ? null : fileSnapshot(dist);
   const result = spawnSync(process.execPath, nodeTestArgs({ watch }), { stdio: 'inherit', env: nodeTestEnv() });
+  const changed = before ? snapshotChanges(before, fileSnapshot(dist)) : [];
+  if (changed.length) {
+    console.error(
+      `run-node-test: the unit suite modified ${changed.length} file(s) in the shared dist/ ` +
+        `(e.g. ${changed.slice(0, 5).join(', ')}). A test rebuilt or wrote the prebuilt package ` +
+        'while other test files import it concurrently; build into a temp dir instead.',
+    );
+    process.exit(1);
+  }
   process.exit(result.status ?? 1);
 }
 

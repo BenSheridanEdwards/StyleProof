@@ -101,6 +101,30 @@ test('every git-tracked text file is scanned, not only npm-pack files and a few 
   assert.ok(!files.includes('.styleproof-privacy-denylist'));
 });
 
+test('listing npm-pack files never runs the package prepare script (it rebuilt the shared dist/)', () => {
+  // npm 10 runs `prepare` on `npm pack --dry-run` despite --ignore-scripts; here
+  // that is `tsc`, which rewrote dist/ under concurrently running test files.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-pack-prepare-'));
+  const marker = path.join(root, 'PREPARE_RAN');
+  try {
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({
+        name: 'pack-prepare-fixture',
+        version: '1.0.0',
+        files: ['index.js'],
+        scripts: { prepare: `node -e "require('fs').writeFileSync('PREPARE_RAN', '')"` },
+      }),
+    );
+    fs.writeFileSync(path.join(root, 'index.js'), 'export {};\n');
+    const files = publicFiles(root);
+    assert.ok(files.includes('index.js'), `the packed file must still be scanned: ${files.join(', ')}`);
+    assert.equal(fs.existsSync(marker), false, 'publicFiles ran the prepare lifecycle script');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('CI warns when the denylist secret is not configured, without failing', () => {
   assert.equal(
     missingDenylistWarning([], { GITHUB_ACTIONS: 'true' }),
