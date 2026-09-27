@@ -161,8 +161,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   against the live backend (with a NON-deterministic warning) yet the ledger,
   written from settings, still said `replayed`, so the gate reported
   determinism proven. The map now records `metadata.inputs: 'live'` for such a
-  capture (and its popups), and `styleproof-diff`, the report, and the
-  confidence ledger downgrade a `replayed` bundle holding one to `unproven`.
+  capture (and its popups), and the `styleproof-diff` and report determinism
+  gate downgrades a `replayed` bundle holding one to `unproven`, so any live
+  surface still refuses certification. The confidence ledger and badge are
+  per surface: only the surfaces whose map (or popup map) was captured live
+  read `unproven-determinism`; the others keep `captured` instead of the whole
+  bundle turning unproven.
 - **An auth-boundary observation failure in a nested crawl state fails the
   crawl.** The in-place descent under an opened surface swallowed every error,
   including the observation failure the worker pool treats as fatal, so a
