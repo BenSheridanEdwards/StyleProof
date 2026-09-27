@@ -258,6 +258,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   an id matches only when the capture encoded it in the element's path.
   Combinators, attribute selectors, and pseudo-classes match nothing
   (fail closed). Age/clock tokens are still classified without selectors.
+- **A live path on one surface no longer exempts the same path on another.**
+  Declared live text was merged across surfaces by DOM path alone, so a
+  timestamp drifting on `home` let a size-only change at the identical path on
+  `pricing` drop out of review, and a source-bound `styleproof-diff` exited `0`
+  with `certifiesFully: true`. Live paths are now scoped to the surface whose
+  text drifted: the audit carries `surfaceLivePaths` (`{ surface, path }`), and
+  the diff, the report, and the raw-residue check only exempt geometry on that
+  surface. `livePaths` is unchanged (the union, for display).
 - **`styleproof-diff` no longer calls an unbound exit `0` certified.** Without
   `--expected-before-sha`/`--expected-after-sha` the source binding is
   unverified, so the run is not certification even when nothing changed. The

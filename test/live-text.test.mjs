@@ -275,11 +275,17 @@ test('declared liveText drops only size reflow on the live path and its ancestor
   const kept = dropDeclaredLiveTextGeometry(
     [style(AGE_PATH, 'width'), style('body', 'height'), style('body', 'top'), style('body', 'inset-inline-start')],
     audit,
+    'dashboard@1280',
   );
   assert.deepEqual(
     kept.map((f) => f.props[0].prop),
     ['top', 'inset-inline-start'],
     'offsets are never explained by a text reflow',
+  );
+  assert.equal(
+    dropDeclaredLiveTextGeometry([style(AGE_PATH, 'width')], audit, 'pricing@1280').length,
+    1,
+    'a live path on one surface never exempts the same path on another',
   );
 });
 

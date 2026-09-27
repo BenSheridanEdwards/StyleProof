@@ -1885,6 +1885,59 @@ test('source-bound diff CLI does not treat an element as live because its class 
   rmTmp(root);
 });
 
+// A live path is scoped to the surface whose text drifted. It used to be merged
+// across surfaces by path alone, so the same DOM path on another surface had its
+// size-only change dropped and the run certified.
+test('source-bound diff CLI does not let live text on one surface exempt the same path on another', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const side = (text, ageWidth) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body' },
+        [CARD]: { tag: 'div', cls: 'card' },
+        [AGE]: { tag: 'span', cls: 'age', style: { width: ageWidth }, ownTextLength: text.length, text },
+      },
+    }),
+    metadata: { liveText: { freeze: false, selectors: ['.age'] } },
+  });
+  // home: declared live text drifts (advisory). pricing: same path, same text, but it got wider.
+  writeCapture(A, 'home@1280', side('open 102.1d', '96px'), null);
+  writeCapture(B, 'home@1280', side('open 103.1d', '96px'), null);
+  writeCapture(A, 'pricing@1280', side('plan 12', '96px'), null);
+  writeCapture(B, 'pricing@1280', side('plan 12', '104px'), null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /pricing@1280/);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.equal(receipt.reviewableCounts.style, 1, 'the pricing width change stays reviewable');
+  assert.equal(
+    classifyStyleProofVerdict(receipt, { gateInventoryRemovals: true, baseCaptureFailed: false, changed: true }).state,
+    'STYLE_REVIEW_REQUIRED',
+  );
+  const out = path.join(root, 'report');
+  const report = run(REPORT, [
+    A,
+    B,
+    '--out',
+    out,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+  assert.equal(report.status, 1, report.stdout);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  assert.match(md, /\| `width` \| `96px` \| `104px` \|/);
+  rmTmp(root);
+});
+
 // BOTH sides skipping the forced-state layer compares {} vs {} — certifying nothing.
 // The gate must say the layer is uncertified instead of "every state matches".
 test('source-bound diff CLI fails certification when either forced-state layer is incomplete', () => {

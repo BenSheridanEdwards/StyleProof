@@ -221,7 +221,7 @@ function prepareReportSurfaces(
       const [before, after] = [ctx.load(ctx.beforeDir, sd.surface), ctx.load(ctx.afterDir, sd.surface)];
       const corresponded = presentationDiffStyleMaps(before, after, { includeStructure });
       const focused = ctx.includeNoise ? corresponded : cleanFindingsForDisplay(corresponded);
-      return { sd, findings: dropDeclaredLiveTextGeometry(focused, ctx.liveText) };
+      return { sd, findings: dropDeclaredLiveTextGeometry(focused, ctx.liveText, sd.surface) };
     })
     .filter((s) => s.sd.missing || s.findings.length > 0);
 }
