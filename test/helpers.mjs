@@ -20,6 +20,19 @@ export function spawnSyncBounded(command, args = [], options = {}) {
   return spawnSync(command, args, { ...options, timeout });
 }
 
+/** Parse a spawned CLI's `--json` output file. A child that exits early never writes
+ *  it, and a bare readFileSync surfaces an undiagnosable ENOENT — report the child's
+ *  status, error, and stderr instead so the real failure is what gets logged. */
+export function readSpawnedJson(jsonPath, result) {
+  if (!fs.existsSync(jsonPath)) {
+    const detail = (result.stderr || result.stdout || '').trim();
+    throw new Error(
+      `child exited ${result.status ?? 'null'}${result.error ? ` (${result.error.message})` : ''} without writing ${path.basename(jsonPath)}${detail ? `: ${detail}` : ''}`,
+    );
+  }
+  return JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+}
+
 /** Make a unique temp dir; returns its path. Caller removes via rmTmp. */
 export function mkTmp(prefix = 'styleproof-test-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));

@@ -38,6 +38,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   surface whose head capture failed; git errors, `@auto` keys, and missing
   SHAs keep the failure.
 
+- **CLI test harness reports the child's real error when `--json` output is
+  missing.** A spawned CLI that exits early used to surface as an
+  undiagnosable `ENOENT` on `readFileSync`; `readSpawnedJson` now throws the
+  child's exit status, error, and stderr.
+
 ## [7.1.0] - 2026-09-27
 
 ### Security
