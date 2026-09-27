@@ -117,6 +117,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reasons, and reserved `opt_in_selective_off` / `selective_all` for #733). Observe
   only — does not soft-green, skip-as-pass, or weaken gates. See
   `docs/REFERENCE.md` § Map-restore hit observability.
+- **Detection corpus runs in CI.** A dedicated `detection corpus` job runs
+  `node bench/detection-rate.mjs --check` on Node 22 with Chromium, and the
+  stable `required` check now depends on it — a detection regression fails the
+  PR instead of only showing up in a local re-run.
 
 ### Fixed
 

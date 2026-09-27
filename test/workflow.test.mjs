@@ -14,7 +14,8 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
   const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
   const evidenceJob = ci.match(/ {2}e2e-evidence:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
-  const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}required:)/)?.[0] ?? '';
+  const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}detection-corpus:)/)?.[0] ?? '';
+  const detectionCorpus = ci.match(/ {2}detection-corpus:[\s\S]*?(?=\n {2}required:)/)?.[0] ?? '';
   const required = ci.match(/ {2}required:[\s\S]*$/)?.[0] ?? '';
 
   assert.equal(packageJson.scripts['test:unit'], 'node scripts/run-node-test.mjs');
@@ -66,18 +67,31 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(cliSmoke, /node --test test\/package-smoke\.test\.mjs/);
   assert.doesNotMatch(cliSmoke, /npm run typecheck|playwright/);
 
+  // The corpus job mirrors the e2e browser setup but needs Chromium only.
+  assert.match(detectionCorpus, /name: detection corpus/);
+  assert.match(detectionCorpus, /node-version: '22'/);
+  assert.match(detectionCorpus, /npm ci/);
+  assert.match(detectionCorpus, /npm run build/);
+  assert.match(detectionCorpus, /Cache Playwright browsers/);
+  assert.match(detectionCorpus, /npx playwright install --with-deps chromium/);
+  assert.match(detectionCorpus, /npx playwright install chromium/);
+  assert.doesNotMatch(detectionCorpus, /firefox/);
+  assert.match(detectionCorpus, /node bench\/detection-rate\.mjs --check/);
+
   assert.match(required, /name: required/);
   assert.match(required, /if: always\(\)/);
-  assert.match(required, /needs: \[build, e2e, e2e-evidence, cli-smoke\]/);
+  assert.match(required, /needs: \[build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
   assert.match(required, /BUILD_RESULT: \$\{\{ needs\.build\.result \}\}/);
   assert.match(required, /E2E_RESULT: \$\{\{ needs\.e2e\.result \}\}/);
   assert.match(required, /E2E_EVIDENCE_RESULT: \$\{\{ needs\.e2e-evidence\.result \}\}/);
   assert.match(required, /CLI_SMOKE_RESULT: \$\{\{ needs\.cli-smoke\.result \}\}/);
+  assert.match(required, /DETECTION_CORPUS_RESULT: \$\{\{ needs\.detection-corpus\.result \}\}/);
   assert.match(required, /set -euo pipefail/);
   assert.match(required, /test "\$BUILD_RESULT" = success/);
   assert.match(required, /test "\$E2E_RESULT" = success/);
   assert.match(required, /test "\$E2E_EVIDENCE_RESULT" = success/);
   assert.match(required, /test "\$CLI_SMOKE_RESULT" = success/);
+  assert.match(required, /test "\$DETECTION_CORPUS_RESULT" = success/);
   assert.doesNotMatch(required, /actions\/checkout/);
 });
 
