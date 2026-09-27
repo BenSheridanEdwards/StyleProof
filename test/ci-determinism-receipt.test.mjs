@@ -19,7 +19,7 @@ test('CI prints and uploads the determinism receipt after browser verification',
   assert.ok(uploadIndex > printIndex, 'CI must upload the same receipt after printing it');
   assert.match(workflow, new RegExp(receiptPath.replaceAll('.', '\\.')));
   assert.match(workflow, /node scripts\/verify-e2e-shards.mjs/);
-  assert.match(workflow, /needs: \[build, e2e, e2e-evidence, cli-smoke\]/);
+  assert.match(workflow, /needs: \[build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
   assert.match(workflow, /if-no-files-found: error/);
   assert.match(workflow, /retention-days: 30/);
 });

@@ -186,12 +186,54 @@ jobs:
       - run: npm run build
       - run: node --test test/package-smoke.test.mjs
 
+  # Detection-rate corpus: the seeded-mutation measurement must stay green, or a
+  # detector regression lands silently. Needs Chromium, so it mirrors the e2e
+  # browser setup (chromium only — the fixture has no firefox path).
+  detection-corpus:
+    name: detection corpus
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install browsers (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install browsers (cache hit, no OS deps)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+
+      - name: Detection-rate corpus
+        run: node bench/detection-rate.mjs --check
+
   # Stable branch-protection context. Internal jobs may evolve, but this check
   # fails unless every required CI evidence lane completed successfully.
   required:
     name: required
     if: always()
-    needs: [build, e2e, e2e-evidence, cli-smoke]
+    needs: [build, e2e, e2e-evidence, cli-smoke, detection-corpus]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required CI evidence
@@ -200,9 +242,11 @@ jobs:
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
           CLI_SMOKE_RESULT: ${{ needs.cli-smoke.result }}
+          DETECTION_CORPUS_RESULT: ${{ needs.detection-corpus.result }}
         run: |
           set -euo pipefail
           test "$BUILD_RESULT" = success
           test "$E2E_RESULT" = success
           test "$E2E_EVIDENCE_RESULT" = success
           test "$CLI_SMOKE_RESULT" = success
+          test "$DETECTION_CORPUS_RESULT" = success
