@@ -1,4 +1,4 @@
-import type { DiffCounts, HeadOnlyVolatile } from '../diff.js';
+import type { BaseOnlyVolatile, DiffCounts, HeadOnlyVolatile } from '../diff.js';
 import {
   baselineFailureReceipts,
   honestBaselineCompareAttribution,
@@ -20,6 +20,8 @@ export type HeadlineInput = {
   volatileCount: number;
   /** Subtrees volatile on the head only: excluded, never certified. */
   headOnlyVolatile?: HeadOnlyVolatile[];
+  /** Subtrees volatile on the base only: excluded, held for review (approvable). */
+  baseOnlyVolatile?: BaseOnlyVolatile[];
   liveCandidateLabels: string[];
   contentCount: number;
   contentEvaluated: boolean;
@@ -164,6 +166,11 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
       '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below). Fail closed (`CERTIFICATION_FAILED`); not a clean no-change.',
     ];
   }
+  if (input.baseOnlyVolatile?.length) {
+    return [
+      '⚠ Review required — a subtree volatile on the base settled on head and was excluded from the comparison (see below). Not a clean no-change; approve once the head rendering there is reviewed.',
+    ];
+  }
   if (input.liveTextFreezeViolated) {
     return [
       '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared. Fail closed (`CERTIFICATION_FAILED`); not a style review.',
@@ -215,6 +222,15 @@ export function reportHeadline(input: HeadlineInput): string[] {
       `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
       ...headOnly.slice(0, 20).map((v) => `- \`${v.surface}\` · \`${v.path}\``),
       ...(headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []),
+    );
+  }
+  const baseOnly = input.baseOnlyVolatile ?? [];
+  if (baseOnly.length > 0) {
+    md.push(
+      '',
+      `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
+      ...baseOnly.slice(0, 20).map((v) => `- \`${v.surface}\` · \`${v.path}\``),
+      ...(baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []),
     );
   }
   if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {

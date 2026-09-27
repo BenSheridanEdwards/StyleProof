@@ -81,6 +81,34 @@ test('diffStyleMapDirs names subtrees volatile on the head but compared on the b
   rmTmp(root);
 });
 
+test('diffStyleMapDirs names subtrees volatile on the base but settled on the head', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const card = 'body > div:nth-child(1)';
+  writeCapture(A, 'home@1280', { ...makeMap({ elements: { body: { tag: 'body' } } }), volatile: [card] }, null);
+  writeCapture(B, 'home@1280', makeMap({ elements: { [card]: { tag: 'div', style: { color: 'red' } } } }), null);
+  const { counts, headOnlyVolatile, baseOnlyVolatile } = diffStyleMapDirs(A, B);
+  assert.equal(counts.style + counts.dom + counts.state, 0, 'the head card is never compared');
+  assert.deepEqual(headOnlyVolatile, []);
+  assert.deepEqual(baseOnlyVolatile, [{ surface: 'home@1280', path: card }]);
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs names neither side when the same subtree is volatile on both', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const feed = 'body > ul:nth-child(1)';
+  const side = { ...makeMap({ elements: { body: { tag: 'body' } } }), volatile: [feed] };
+  writeCapture(A, 'home@1280', side, null);
+  writeCapture(B, 'home@1280', side, null);
+  const result = diffStyleMapDirs(A, B);
+  assert.deepEqual(result.headOnlyVolatile, []);
+  assert.deepEqual(result.baseOnlyVolatile, []);
+  rmTmp(root);
+});
+
 test('diffStyleMapDirs keeps volatility present on both sides out of headOnlyVolatile', () => {
   const root = mkTmp();
   const A = path.join(root, 'a');

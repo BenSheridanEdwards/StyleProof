@@ -8,6 +8,7 @@ import {
   presentationDiffStyleMaps,
   summarizeComparability,
   type ComparabilitySummary,
+  type BaseOnlyVolatile,
   type HeadOnlyVolatile,
   type SurfaceComparability,
   type SurfaceDiff,
@@ -150,6 +151,8 @@ export type ReportResult = {
   confidence: ConfidenceSummary;
   /** Subtrees volatile on the head but compared on the base: excluded, so the report can never certify. */
   headOnlyVolatile: HeadOnlyVolatile[];
+  /** Subtrees volatile on the base but settled on the head: excluded, so the report holds them for review. */
+  baseOnlyVolatile: BaseOnlyVolatile[];
   reportMdPath: string;
   reportJsonPath: string;
   /** Present only when `migration: true`. */
@@ -314,6 +317,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       changedScope: countChangedSurfaceScope(changeGroups, surfaceKeyOf),
       volatileCount: diff.volatile,
       headOnlyVolatile: diff.headOnlyVolatile,
+      baseOnlyVolatile: diff.baseOnlyVolatile,
       liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
       contentCount: contentSection.count,
       contentEvaluated: includeContent,
@@ -373,6 +377,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baselineProvenance,
     liveTextFreeze: liveTextFreezeReceipt(liveText),
     headOnlyVolatile: diff.headOnlyVolatile,
+    baseOnlyVolatile: diff.baseOnlyVolatile,
     legacyPairs: gates.legacyPairs,
     criticalStates: gates.criticalStates,
   });
@@ -391,6 +396,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     partialBaseline: baseline.failures.length > 0,
     confidence,
     headOnlyVolatile: diff.headOnlyVolatile,
+    baseOnlyVolatile: diff.baseOnlyVolatile,
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
   };
