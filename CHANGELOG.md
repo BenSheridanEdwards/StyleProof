@@ -120,6 +120,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Unit suite no longer rebuilds `dist/` mid-run.** The privacy check listed
+  package files with `npm pack --dry-run --ignore-scripts` in the live
+  checkout, and npm 10 (bundled with Node 18/20/22) runs `prepare` (`tsc`)
+  anyway — so its unit test rewrote the shared `dist/` while other test files
+  imported it, flaking them with `does not provide an export named …`. The
+  check now packs a lifecycle-stripped copy of the `files` allowlist (the
+  scanned file list is unchanged), and `scripts/run-node-test.mjs` fails the
+  run if any test modifies `dist/`.
+
 - **The plain-English summary no longer misreads hairline borders.** A
   `border-width` starting with `0` counted as "no border", so `0.5px → 1px`
   read "gains a 1px border" and `1px → 0px 1px` read "loses its border". Only
