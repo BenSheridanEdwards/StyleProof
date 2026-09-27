@@ -233,6 +233,19 @@ export function headOnlyVolatilePaths(base: StyleMap, head: StyleMap): string[] 
 /** A head-only volatile subtree on one surface: excluded from the diff, so it cannot certify. */
 export type HeadOnlyVolatile = { surface: string; path: string };
 
+/**
+ * Base live-region paths the head did NOT also exclude: the head settled that
+ * subtree, but the base never compared it, so whatever the head renders there
+ * is unchecked. Reviewable and approvable — never a clean certification.
+ */
+export function baseOnlyVolatilePaths(base: StyleMap, head: StyleMap): string[] {
+  const headVolatile = head.volatile ?? [];
+  return (base.volatile ?? []).filter((p) => !isUnder(p, headVolatile)).sort();
+}
+
+/** A base-only volatile subtree on one surface: excluded from the diff, so it needs review. */
+export type BaseOnlyVolatile = { surface: string; path: string };
+
 const unionKeys = (a: object, b: object): string[] => [...new Set([...Object.keys(a), ...Object.keys(b)])];
 const sortedUnionKeys = (a: object, b: object): string[] => unionKeys(a, b).sort();
 
@@ -449,6 +462,8 @@ export function diffStyleMapDirs(
   volatile: number;
   /** Subtrees volatile on the head but compared on the base: excluded, so they block certification. */
   headOnlyVolatile: HeadOnlyVolatile[];
+  /** Subtrees volatile on the base but settled on the head: excluded, so they need review. */
+  baseOnlyVolatile: BaseOnlyVolatile[];
   statesUncertified: number;
   compared: number;
   /** Bounded baseline capture failures read from the base manifest. */
@@ -469,7 +484,7 @@ export function diffStyleMapDirs(
   const comparability: SurfaceComparability[] = [];
   const pixels: PixelSurfaceResult[] = [];
   let counts: DiffCounts = { dom: 0, style: 0, state: 0 };
-  const uncompared = { volatile: 0, statesUncertified: 0, headOnlyVolatile: [] as HeadOnlyVolatile[] };
+  const uncompared: UncomparedTally = { volatile: 0, statesUncertified: 0, headOnlyVolatile: [], baseOnlyVolatile: [] };
   const pixelOptions = typeof options.pixels === 'object' ? options.pixels : {};
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
@@ -526,12 +541,19 @@ function forcedStateEvidenceIncomplete(map: StyleMap): boolean {
   return map.statesSkipped === true || (map as StyleMapWithStateEvidence).statesCaptured === false;
 }
 
-/** Diff one paired surface, tallying what was NOT compared (volatile subtrees, head-only ones named; an incomplete forced-state layer on EITHER side). */
+type UncomparedTally = {
+  volatile: number;
+  statesUncertified: number;
+  headOnlyVolatile: HeadOnlyVolatile[];
+  baseOnlyVolatile: BaseOnlyVolatile[];
+};
+
+/** Diff one paired surface, tallying what was NOT compared (volatile subtrees, one-sided ones named; an incomplete forced-state layer on EITHER side). */
 function diffSurfacePair(
   surface: string,
   fileA: string,
   fileB: string,
-  uncompared: { volatile: number; statesUncertified: number; headOnlyVolatile: HeadOnlyVolatile[] },
+  uncompared: UncomparedTally,
   options: DiffStyleOptions,
 ): { findings: Finding[]; comparability: SurfaceComparability } {
   const mapA = loadStyleMap(fileA);
@@ -543,6 +565,7 @@ function diffSurfacePair(
   const comparableBase = options.includeStructure === false ? correspondBeforeMap(mapA, mapB) : mapA;
   // Against the corresponded base, so a base live region matches the head path it moved to.
   for (const p of headOnlyVolatilePaths(comparableBase, mapB)) uncompared.headOnlyVolatile.push({ surface, path: p });
+  for (const p of baseOnlyVolatilePaths(comparableBase, mapB)) uncompared.baseOnlyVolatile.push({ surface, path: p });
   return {
     findings: diffStyleMaps(comparableBase, mapB, options),
     comparability: compareProductState(surface, mapA, mapB),

@@ -97,11 +97,17 @@ function addEntry(byKey: Map<string, ConfidenceEntry>, e: ConfidenceEntry): void
   if (!prev || STATUS_PRECEDENCE[e.status] < STATUS_PRECEDENCE[prev.status]) byKey.set(e.surface, e);
 }
 
-function capturedEntries(captured: ReadonlySet<string>, coverage: CoverageLedger | null): ConfidenceEntry[] {
+function capturedEntries(
+  captured: ReadonlySet<string>,
+  coverage: CoverageLedger | null,
+  liveInputs: ReadonlySet<string>,
+): ConfidenceEntry[] {
   // A missing basis is legacy provenance, not proof: the badge stays limited until the capture records one.
   const proven = coverage?.determinism === 'self-checked' || coverage?.determinism === 'replayed';
+  // Under a replayed basis, a surface whose map fell back to live inputs is not replay-proven.
+  const replayMissed = (surface: string) => coverage?.determinism === 'replayed' && liveInputs.has(surface);
   return [...captured].map((surface) =>
-    proven
+    proven && !replayMissed(surface)
       ? entry(surface, 'captured', 'capture')
       : entry(surface, 'unproven-determinism', 'determinism', UNPROVEN_REASON),
   );
@@ -156,11 +162,13 @@ export function buildConfidenceLedger(input: {
   incompleteUi?: ConfidenceIncompleteUiInput[];
   /** Discovered crawl surfaces that did not produce a complete map sweep. */
   captureGaps?: Array<{ surface: string; reason: string }>;
+  /** Surfaces with a map captured against live inputs (`metadata.inputs: 'live'`): never replay-proven. */
+  liveInputSurfaces?: Iterable<string>;
 }): ConfidenceLedgerFile {
   const captured = new Set(input.capturedKeys);
   const byKey = new Map<string, ConfidenceEntry>();
   for (const e of [
-    ...capturedEntries(captured, input.coverage),
+    ...capturedEntries(captured, input.coverage, new Set(input.liveInputSurfaces ?? [])),
     ...coverageEntries(captured, input.coverage),
     ...authEntries(input.auth),
     ...incompleteUiEntries(input.incompleteUi),
@@ -228,13 +236,19 @@ export function resolveBundleConfidence(dir: string): ConfidenceLedgerFile | nul
   const confidenceExists = fs.existsSync(path.join(dir, CONFIDENCE_LEDGER));
   const coverageExists = fs.existsSync(path.join(dir, COVERAGE_LEDGER));
   const persisted = readConfidenceLedger(dir);
-  const coverage = withCaptureDeterminism(dir, readCoverageLedgerLenient(dir));
+  // Not downgraded bundle-wide: a live fallback marks only its own surface (and popups) unproven.
+  // The determinism gate still reads withCaptureDeterminism, so any live surface refuses certification.
+  const coverage = readCoverageLedgerLenient(dir);
   // Present-but-malformed provenance is not "absent": deriving from maps would launder corruption into complete.
   if ((confidenceExists && !persisted) || (coverageExists && !coverage)) return null;
   if (!persisted && !coverage) return null;
   // A crawl's persisted producer ledger is authoritative: re-deriving could launder a partial map.
   if (persisted && !coverage) return persisted;
-  const derived = buildConfidenceLedger({ capturedKeys: bundleSurfaceKeys(dir, coverage?.expected), coverage });
+  const derived = buildConfidenceLedger({
+    capturedKeys: bundleSurfaceKeys(dir, coverage?.expected),
+    coverage,
+    liveInputSurfaces: liveInputSurfaceKeys(dir, coverage?.expected),
+  });
   if (!persisted) return derived;
   // Persisted entries win over the derived set (strongest status); an asserted registry on either side keeps completeness assertable.
   const byKey = new Map<string, ConfidenceEntry>(derived.entries.map((e) => [e.surface, e]));
@@ -264,13 +278,27 @@ export function readCoverageLedgerLenient(dir: string): CoverageLedger | null {
   });
 }
 
+/** A capture key's ledger surface key: the registry key when declared, else its authoring surfaceKey. */
+function ledgerSurfaceKey(captureKey: string, surfaceKey: string | undefined, registry: Set<string> | null): string {
+  const capturedKey = captureKey.replace(/@\d+$/, '');
+  return registry?.has(capturedKey) ? capturedKey : (surfaceKey ?? capturedKey);
+}
+
 /** Deduped surface keys captured in a bundle dir (`<key>@<width>.json[.gz]` → `<key>`). */
 export function bundleSurfaceKeys(dir: string, expected: readonly string[] | null = null): string[] {
   const registry = expected ? new Set(expected) : null;
-  const keys = [...surfaceKeyByCaptureKey(dir)].map(([captureKey, surfaceKey]) => {
-    const capturedKey = captureKey.replace(/@\d+$/, '');
-    return registry?.has(capturedKey) ? capturedKey : (surfaceKey ?? capturedKey);
-  });
+  const keys = [...surfaceKeyByCaptureKey(dir)].map(([captureKey, surfaceKey]) =>
+    ledgerSurfaceKey(captureKey, surfaceKey, registry),
+  );
+  return [...new Set(keys)];
+}
+
+/** Ledger surface keys (popups fold into their surface) with any map captured against live inputs. */
+function liveInputSurfaceKeys(dir: string, expected: readonly string[] | null = null): string[] {
+  const registry = expected ? new Set(expected) : null;
+  const keys = loadDirMaps(dir)
+    .filter(([, map]) => map.metadata?.inputs === 'live')
+    .map(([captureKey, map]) => ledgerSurfaceKey(captureKey, map.metadata?.surfaceKey, registry));
   return [...new Set(keys)];
 }
 

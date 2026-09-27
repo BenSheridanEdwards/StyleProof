@@ -170,8 +170,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   against the live backend (with a NON-deterministic warning) yet the ledger,
   written from settings, still said `replayed`, so the gate reported
   determinism proven. The map now records `metadata.inputs: 'live'` for such a
-  capture (and its popups), and `styleproof-diff`, the report, and the
-  confidence ledger downgrade a `replayed` bundle holding one to `unproven`.
+  capture (and its popups), and the `styleproof-diff` and report determinism
+  gate downgrades a `replayed` bundle holding one to `unproven`, so any live
+  surface still refuses certification. The confidence ledger and badge are
+  per surface: only the surfaces whose map (or popup map) was captured live
+  read `unproven-determinism`; the others keep `captured` instead of the whole
+  bundle turning unproven.
 - **An auth-boundary observation failure in a nested crawl state fails the
   crawl.** The in-place descent under an opened surface swallowed every error,
   including the observation failure the worker pool treats as fatal, so a
@@ -247,6 +251,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `report.json` (only when non-empty). Volatility on both sides keeps today's
   behaviour: excluded, warned, still certifiable. The determinism self-check
   cannot hide it, because the recorded head map still carries its volatile list.
+- **A subtree volatile only on the base is no longer silently uncompared.** A
+  subtree still mutating at settle on the base but settled on the head was
+  excluded like shared volatility, so whatever the head rendered there went
+  unchecked and a source-bound `styleproof-diff` exited `0` with
+  `certifiesFully: true`. It is now a reviewable change, not a certification
+  blocker: `styleproof-diff` exits `1` and names each `surface: path`,
+  `--json` records `volatility.baseOnly`, `styleproof-report` exits `1`, drops
+  the clean headline, lists the subtrees, and adds `volatility.baseOnly` to
+  `report.json` (only when non-empty; `volatility.headOnly` is then present as
+  well). The shared verdict counts it as a reviewable change, so the Action
+  reports `STYLE_REVIEW_REQUIRED` (approvable in review-gate mode, failing in
+  certify mode) and its `changed` output is `true` — never
+  `CERTIFICATION_FAILED` and never a green no-change. Head-only volatility
+  stays a hard blocker; volatility on both sides is unchanged.
 - **Declared live text no longer waves unrelated changes through.** When any
   declared `liveText` drifted and nothing reviewable remained, `styleproof-diff`
   zeroed the whole run's change tally, which turned other fail-closed states
@@ -267,6 +285,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   an id matches only when the capture encoded it in the element's path.
   Combinators, attribute selectors, and pseudo-classes match nothing
   (fail closed). Age/clock tokens are still classified without selectors.
+- **A live path on one surface no longer exempts the same path on another.**
+  Declared live text was merged across surfaces by DOM path alone, so a
+  timestamp drifting on `home` let a size-only change at the identical path on
+  `pricing` drop out of review, and a source-bound `styleproof-diff` exited `0`
+  with `certifiesFully: true`. Live paths are now scoped to the surface whose
+  text drifted: the audit carries `surfaceLivePaths` (`{ surface, path }`), and
+  the diff, the report, and the raw-residue check only exempt geometry on that
+  surface. `livePaths` is unchanged (the union, for display).
 - **`styleproof-diff` no longer calls an unbound exit `0` certified.** Without
   `--expected-before-sha`/`--expected-after-sha` the source binding is
   unverified, so the run is not certification even when nothing changed. The

@@ -2,7 +2,7 @@ import { summarizeComparability, type ProductStateComparabilityStatus } from './
 import { type DiffCounts, type Finding, type PropChange } from './diff.js';
 import { trackCount } from './describe.js';
 import { isNonValue, summarizeProps } from './prop-summary.js';
-import { emptyLiveTextAudit, isLiveTextGeometryPath, type LiveTextAudit } from './live-text.js';
+import { emptyLiveTextAudit, isLiveTextGeometryPath, liveTextPathsOn, type LiveTextAudit } from './live-text.js';
 
 /**
  * Path grouping, change signatures, titles, reflow-noise cleaning, and the
@@ -239,25 +239,34 @@ const LIVE_TEXT_REFLOW_PROPS = new Set(
 
 /**
  * Drop age-driven geometry so declared live/age text is not a style finding.
- * The rule: a base-layer style finding on a live path or one of its ancestors
- * is dropped only when EVERY changed prop is a size-type longhand in
- * {@link LIVE_TEXT_REFLOW_PROPS}. Anything else — an offset, a colour, a state
- * delta, a pseudo layer — stays, because text length cannot explain it.
+ * The rule: a base-layer style finding on a live path of THIS surface, or one
+ * of its ancestors, is dropped only when EVERY changed prop is a size-type
+ * longhand in {@link LIVE_TEXT_REFLOW_PROPS}. Anything else — an offset, a
+ * colour, a state delta, a pseudo layer, or the same path on another surface —
+ * stays, because text length cannot explain it.
  */
-export function dropDeclaredLiveTextGeometry(findings: Finding[], liveText: LiveTextAudit | undefined): Finding[] {
-  if (!liveText?.declared || liveText.livePaths.length === 0) return findings;
+export function dropDeclaredLiveTextGeometry(
+  findings: Finding[],
+  liveText: LiveTextAudit | undefined,
+  surface: string,
+): Finding[] {
+  if (!liveText?.declared) return findings;
+  const livePaths = liveTextPathsOn(liveText, surface);
+  if (livePaths.length === 0) return findings;
   return findings.filter(
     (f) =>
       f.kind !== 'style' ||
       f.pseudo !== null ||
-      !isLiveTextGeometryPath(f.path, liveText.livePaths) ||
+      !isLiveTextGeometryPath(f.path, livePaths) ||
       !f.props.every((p) => LIVE_TEXT_REFLOW_PROPS.has(p.prop)),
   );
 }
 
 /** True when declared live text explains every RAW finding: nothing else changed on any paired surface. */
 export function rawFindingsExplainedByLiveText(surfaces: ComparisonSurface[], liveText: LiveTextAudit): boolean {
-  return surfaces.every((surface) => dropDeclaredLiveTextGeometry(surface.findings, liveText).length === 0);
+  return surfaces.every(
+    (surface) => dropDeclaredLiveTextGeometry(surface.findings, liveText, surface.surface).length === 0,
+  );
 }
 
 function reviewableFindings(
@@ -268,7 +277,7 @@ function reviewableFindings(
 ): Finding[] {
   // A single receipt summarised: an unknown status, incomparable, or a required unproven pair blocks review.
   if (comparison && summarizeComparability([comparison], requireStateIdentity).blocksCertification) return [];
-  return dropDeclaredLiveTextGeometry(cleanFindingsForDisplay(surface.findings), liveText);
+  return dropDeclaredLiveTextGeometry(cleanFindingsForDisplay(surface.findings), liveText, surface.surface);
 }
 
 const sumSurfaceCounts = (surfaces: ComparisonSurface[]): DiffCounts =>

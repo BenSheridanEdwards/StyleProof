@@ -162,17 +162,22 @@ export type LiveTextFreezeViolation = {
   after: string;
 };
 
+/** A live/age/clock text path on one surface. */
+export type LiveTextPath = { surface: string; path: string };
+
 export type LiveTextAudit = {
   declared: boolean;
   freeze: boolean;
   selectors: string[];
-  /** Element paths whose text change is live/age/clock. */
+  /** Element paths whose text change is live/age/clock (union across surfaces; display only). */
   livePaths: string[];
+  /** Each live path with the surface it drifted on. Exemptions apply only on that surface. */
+  surfaceLivePaths: LiveTextPath[];
   violations: LiveTextFreezeViolation[];
 };
 
 export function emptyLiveTextAudit(): LiveTextAudit {
-  return { declared: false, freeze: false, selectors: [], livePaths: [], violations: [] };
+  return { declared: false, freeze: false, selectors: [], livePaths: [], surfaceLivePaths: [], violations: [] };
 }
 
 export function resolveLiveTextDeclaration(
@@ -194,6 +199,7 @@ export function auditLiveTextChanges(
     freeze: declaration?.freeze === true,
     selectors: declaration?.selectors ?? [],
     livePaths: live.map((change) => change.path),
+    surfaceLivePaths: live.map((change) => ({ surface, path: change.path })),
     violations: declaration?.freeze
       ? live.map((change) => ({ surface, path: change.path, before: change.before ?? '', after: change.after ?? '' }))
       : [],
@@ -207,8 +213,14 @@ export function mergeLiveTextAudits(audits: LiveTextAudit[]): LiveTextAudit {
     freeze: audits.some((audit) => audit.freeze),
     selectors: [...new Set(audits.flatMap((audit) => audit.selectors))],
     livePaths: [...new Set(audits.flatMap((audit) => audit.livePaths))],
+    surfaceLivePaths: audits.flatMap((audit) => audit.surfaceLivePaths),
     violations: audits.flatMap((audit) => audit.violations),
   };
+}
+
+/** The live paths that drifted on `surface` — never another surface's, even at the same DOM path. */
+export function liveTextPathsOn(audit: LiveTextAudit, surface: string): string[] {
+  return (audit.surfaceLivePaths ?? []).filter((entry) => entry.surface === surface).map((entry) => entry.path);
 }
 
 /** True when `path` is a live path or an ancestor of one in StyleProof's `a > b` paths. */

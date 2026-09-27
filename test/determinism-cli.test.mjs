@@ -10,6 +10,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { resolveBundleConfidence } from '../dist/confidence-ledger.js';
+import { generateStyleMapReport } from '../dist/report.js';
 import { fixtureCommitSha } from './helpers.mjs';
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'styleproof-diff.mjs');
@@ -92,6 +94,32 @@ test('a replayed HEAD ledger whose capture fell back to live inputs BLOCKS (exit
   assert.equal(code, 1, `a live capture is not replay-proven\n${out}`);
   assert.match(out, /determinism NOT proven/);
   assert.doesNotMatch(out, /determinism proven/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a live fallback marks only its own surface unproven, and the run still does not certify', () => {
+  // Two surfaces under a replayed head ledger; only `pricing` had no HAR and fell back to live.
+  const { root, base, head } = fixture('self-checked', 'replayed');
+  const live = JSON.stringify({ defaults: {}, elements: {}, states: {}, metadata: { inputs: 'live' } });
+  for (const dir of [base, head]) {
+    fs.writeFileSync(path.join(dir, 'pricing@1440.json'), dir === head ? live : map());
+    const ledger = JSON.parse(fs.readFileSync(path.join(dir, COVERAGE_LEDGER), 'utf8'));
+    fs.writeFileSync(path.join(dir, COVERAGE_LEDGER), JSON.stringify({ ...ledger, expected: ['home', 'pricing'] }));
+  }
+  const { code, out } = run(base, head);
+  assert.equal(code, 1, `any live surface keeps the gate closed\n${out}`);
+  assert.match(out, /determinism NOT proven/);
+
+  const statuses = Object.fromEntries(resolveBundleConfidence(head).entries.map((e) => [e.surface, e.status]));
+  assert.deepEqual(statuses, { home: 'captured', pricing: 'unproven-determinism' });
+
+  const outDir = path.join(root, 'report');
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir });
+  assert.equal(result.confidence.counts.captured, 1);
+  assert.equal(result.confidence.counts['unproven-determinism'], 1);
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.match(md, /\*\*Confidence\*\* — ⚠ limited \(1 captured, 1 unproven-determinism\)/);
+  assert.match(md, /\*\*Determinism\*\* — ✗ NOT proven/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

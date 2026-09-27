@@ -1694,7 +1694,7 @@ test('diff CLI surfaces the excluded-volatile count in output and --json', () =>
 // Maintainer decision: NEW volatility blocks. A PR that adds an interval toggling a
 // class on a container makes that subtree volatile only on the head; the union skip
 // used to hide the change and a source-bound run exited 0 with certifiesFully: true.
-function headVolatilityPair({ baseVolatile }) {
+function headVolatilityPair({ baseVolatile, headVolatile = true }) {
   const root = mkTmp();
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
@@ -1706,8 +1706,14 @@ function headVolatilityPair({ baseVolatile }) {
     delete baseMap.elements[card];
     baseMap.volatile = [card];
   }
-  const headMap = makeMap({ elements: { body: { tag: 'body' } } });
-  headMap.volatile = [card];
+  // A settled head carries the card, restyled: the base never compared it, so nothing checks it.
+  const headMap = makeMap({
+    elements: { body: { tag: 'body' }, [card]: { tag: 'div', cls: 'card', style: { color: 'rgb(255, 0, 0)' } } },
+  });
+  if (headVolatile) {
+    delete headMap.elements[card];
+    headMap.volatile = [card];
+  }
   writeCapture(A, 'home@1280', baseMap, null);
   writeCapture(B, 'home@1280', headMap, null);
   writeManifest(A, 'a'.repeat(40), 'same-env-key');
@@ -1754,6 +1760,7 @@ test('source-bound diff CLI keeps certifying when the same subtree is volatile o
   const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
   assert.equal(receipt.certifiesFully, true);
   assert.deepEqual(receipt.volatility.headOnly, []);
+  assert.deepEqual(receipt.volatility.baseOnly, []);
   rmTmp(root);
 });
 
@@ -1777,6 +1784,55 @@ test('source-bound report CLI refuses a clean verdict when a subtree became vola
   assert.ok(md.includes(`\`home@1280\` · \`${card}\``), md);
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
   assert.deepEqual(json.volatility.headOnly, [{ surface: 'home@1280', path: card }]);
+  rmTmp(root);
+});
+
+// Maintainer decision: volatility on the BASE only is reviewable and approvable, not
+// a hard blocker. The base never compared the subtree, so whatever the head renders
+// there is unchecked; it used to be excluded silently and a bound run certified.
+test('source-bound diff CLI holds a subtree volatile only on the base for review, never a clean certification', () => {
+  const { root, A, B, card } = headVolatilityPair({ baseVolatile: true, headVolatile: false });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /1 subtree\(s\) volatile on the base only/);
+  assert.ok(r.stdout.includes(`home@1280: ${card}`), r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.deepEqual(receipt.volatility.baseOnly, [{ surface: 'home@1280', path: card }]);
+  assert.deepEqual(receipt.volatility.headOnly, []);
+  const verdict = classifyStyleProofVerdict(receipt, {
+    gateInventoryRemovals: true,
+    baseCaptureFailed: false,
+    changed: true,
+  });
+  assert.equal(verdict.state, 'STYLE_REVIEW_REQUIRED', 'approvable, not CERTIFICATION_FAILED');
+  assert.equal(verdict.reviewableChanged, true);
+  rmTmp(root);
+});
+
+test('source-bound report CLI names a subtree volatile only on the base and holds it for review', () => {
+  const { root, A, B, card } = headVolatilityPair({ baseVolatile: true, headVolatile: false });
+  const out = path.join(root, 'report');
+  const r = run(REPORT, [
+    A,
+    B,
+    '--out',
+    out,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /review required — 1 subtree\(s\) volatile on the base only/);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  assert.doesNotMatch(md, /CERTIFICATION_FAILED/);
+  assert.match(md, /1 subtree\(s\) volatile on the base only/);
+  assert.ok(md.includes(`\`home@1280\` · \`${card}\``), md);
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.deepEqual(json.volatility, { headOnly: [], baseOnly: [{ surface: 'home@1280', path: card }] });
   rmTmp(root);
 });
 
@@ -1882,6 +1938,59 @@ test('source-bound diff CLI does not treat an element as live because its class 
   const r = runBoundDiff(A, B, jsonOut);
   assert.equal(r.status, 1, r.stdout);
   assert.equal(JSON.parse(fs.readFileSync(jsonOut, 'utf8')).certifiesFully, false);
+  rmTmp(root);
+});
+
+// A live path is scoped to the surface whose text drifted. It used to be merged
+// across surfaces by path alone, so the same DOM path on another surface had its
+// size-only change dropped and the run certified.
+test('source-bound diff CLI does not let live text on one surface exempt the same path on another', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const side = (text, ageWidth) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body' },
+        [CARD]: { tag: 'div', cls: 'card' },
+        [AGE]: { tag: 'span', cls: 'age', style: { width: ageWidth }, ownTextLength: text.length, text },
+      },
+    }),
+    metadata: { liveText: { freeze: false, selectors: ['.age'] } },
+  });
+  // home: declared live text drifts (advisory). pricing: same path, same text, but it got wider.
+  writeCapture(A, 'home@1280', side('open 102.1d', '96px'), null);
+  writeCapture(B, 'home@1280', side('open 103.1d', '96px'), null);
+  writeCapture(A, 'pricing@1280', side('plan 12', '96px'), null);
+  writeCapture(B, 'pricing@1280', side('plan 12', '104px'), null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /pricing@1280/);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.equal(receipt.reviewableCounts.style, 1, 'the pricing width change stays reviewable');
+  assert.equal(
+    classifyStyleProofVerdict(receipt, { gateInventoryRemovals: true, baseCaptureFailed: false, changed: true }).state,
+    'STYLE_REVIEW_REQUIRED',
+  );
+  const out = path.join(root, 'report');
+  const report = run(REPORT, [
+    A,
+    B,
+    '--out',
+    out,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+  assert.equal(report.status, 1, report.stdout);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  assert.match(md, /\| `width` \| `96px` \| `104px` \|/);
   rmTmp(root);
 });
 

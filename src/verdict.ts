@@ -20,8 +20,9 @@ export type CertificationEvidenceReceipt = {
   partialBaseline?: unknown;
   explainedMissingBaselineSurfaces?: unknown;
   liveTextFreeze?: { violated?: unknown } | null;
-  /** Subtrees volatile on the head but compared on the base were excluded: never certified. */
-  volatility?: { headOnly?: unknown } | null;
+  /** Subtrees volatile on the head but compared on the base were excluded: never certified.
+   *  `baseOnly` (volatile on the base, settled on the head) is reviewable, not a blocker. */
+  volatility?: { headOnly?: unknown; baseOnly?: unknown } | null;
   /** Legacy product-state pair ledger. Armed + undeclared/stale fails closed. */
   legacyPairs?: { armed?: unknown; undeclared?: unknown; staleAcknowledgements?: unknown } | null;
   /** Critical state obligations. Armed + failing/unresolved/contradictory fails closed. */
@@ -122,7 +123,8 @@ export function classifyStyleProofVerdict(
     reviewableCount(receipt) > 0 ||
     hasReviewableSurface(receipt.surfaces, explained) ||
     entryCount(receipt.inventory?.added) > 0 ||
-    entryCount(receipt.inventory?.removed) > 0;
+    entryCount(receipt.inventory?.removed) > 0 ||
+    entryCount(receipt.volatility?.baseOnly) > 0;
   const inventoryFailures = options.gateInventoryRemovals
     ? entryCount(receipt.inventory?.unacknowledged) + entryCount(receipt.inventory?.staleAcknowledgements)
     : 0;

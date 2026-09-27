@@ -85,8 +85,9 @@ outputs:
   changed:
     description: >-
       "true" when style review is required: a semantically matched element changed
-      computed style, pseudo-element, or forced state; or a surface was added or
-      removed and must be reviewed before changing the baseline.
+      computed style, pseudo-element, or forced state; a surface was added or
+      removed; or a subtree volatile only on the base went uncompared — each must
+      be reviewed before changing the baseline.
     value: ${{ steps.verdict.outputs.reviewable-changed }}
   report-url:
     description: >-

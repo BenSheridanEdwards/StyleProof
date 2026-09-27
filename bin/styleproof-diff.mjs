@@ -173,7 +173,16 @@ const {
   sourceBinding,
   evidenceBinding,
 } = read;
-const { surfaces, counts, compared, volatile, headOnlyVolatile, statesUncertified, baselineFailures } = result;
+const {
+  surfaces,
+  counts,
+  compared,
+  volatile,
+  headOnlyVolatile,
+  baseOnlyVolatile,
+  statesUncertified,
+  baselineFailures,
+} = result;
 const pixelSurfaces = result.pixels ?? [];
 
 // ── declared ledgers: legacy pairs and critical obligations ────────────────────
@@ -568,7 +577,7 @@ const evidence = {
   partialBaseline,
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
   liveTextFreeze: { violated: liveTextFreezeViolated },
-  volatility: { headOnly: headOnlyVolatile },
+  volatility: { headOnly: headOnlyVolatile, baseOnly: baseOnlyVolatile },
 };
 const certificationEvidence = assessCertificationEvidence({ ...evidence, criticalStates: criticalAudit });
 
@@ -609,6 +618,10 @@ const GATES = [
   {
     blocks: headOnlyVolatile.length > 0,
     note: ` + ${headOnlyVolatile.length} subtree(s) newly volatile on head (excluded, not certified)`,
+  },
+  {
+    blocks: baseOnlyVolatile.length > 0,
+    note: ` + ${baseOnlyVolatile.length} subtree(s) volatile on the base only (excluded, review required)`,
   },
   {
     blocks: pixelBlocks,
@@ -684,7 +697,8 @@ if (jsonOut) {
           // Subtrees excluded because a side auto-detected them as volatile at capture settle.
           volatileExcluded: volatile,
           // Subtrees volatile on the head but compared on the base: excluded, so they block certification.
-          volatility: { headOnly: headOnlyVolatile },
+          // Subtrees volatile on the base but settled on the head: excluded, so they need review (approvable).
+          volatility: { headOnly: headOnlyVolatile, baseOnly: baseOnlyVolatile },
           // Surfaces whose forced-state layer was skipped or unsupported on either side.
           statesUncertified,
           coverage: coverageVerdict,
@@ -737,6 +751,17 @@ if (headOnlyVolatile.length > 0) {
       ...headOnlyVolatile.slice(0, MAX).map((v) => `  ✗ ${v.surface}: ${v.path}`),
       ...(headOnlyVolatile.length > MAX ? [`  ... and ${headOnlyVolatile.length - MAX} more`] : []),
       '  → stop the head-side churn (a timer, stream, or animation the PR added), fixture it, or `ignore` the region on both sides.',
+    ],
+  );
+}
+if (baseOnlyVolatile.length > 0) {
+  printSection(
+    `⚠ ${baseOnlyVolatile.length} subtree(s) volatile on the base only — still mutating at capture settle on the base but\n` +
+      '  settled on the head, so they were excluded and whatever the head renders inside them is NOT checked (review required):',
+    [
+      ...baseOnlyVolatile.slice(0, MAX).map((v) => `  ⚠ ${v.surface}: ${v.path}`),
+      ...(baseOnlyVolatile.length > MAX ? [`  ... and ${baseOnlyVolatile.length - MAX} more`] : []),
+      '  → review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.',
     ],
   );
 }
@@ -816,6 +841,9 @@ function trustReasons() {
   if (partialBaseline) reasons.push(check('baseline-surface-capture', 'failed', baselineAttribution.summary));
   if (headOnlyVolatile.length > 0) {
     reasons.push(check('volatility', 'failed', `${headOnlyVolatile.length} subtree(s) newly volatile on head`));
+  }
+  if (baseOnlyVolatile.length > 0) {
+    reasons.push(check('base-volatility', 'found', `${baseOnlyVolatile.length} subtree(s) volatile on the base only`));
   }
   return reasons;
 }
