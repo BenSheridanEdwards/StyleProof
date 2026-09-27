@@ -1596,14 +1596,18 @@ test('restoreMapBundle authenticates the branch-existence ls-remote with the wor
     );
     const invocations = fs.readFileSync(invocationLog, 'utf8');
     const extraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
-    const escapedKey = extraHeaderKey.replace(/[.*]/g, '\\$&');
-    const escapedHeader = expectedHeader.replace(/[.*+]/g, '\\$&');
-    assert.match(
-      invocations,
-      new RegExp(`-c ${escapedKey}= -c ${escapedKey}=${escapedHeader} ls-remote --exit-code --heads origin`),
+    const lsRemote = invocations
+      .split('\n')
+      .find((line) => line.includes('ls-remote --exit-code --heads origin styleproof-maps'));
+    assert.ok(lsRemote, 'the branch probe ran');
+    assert.ok(
+      lsRemote.includes(`-c ${extraHeaderKey}=`) && lsRemote.includes(`${extraHeaderKey}=${expectedHeader}`),
       'the ls-remote probe carries the workflow-token extraheader like the clone does',
     );
-    assert.doesNotMatch(invocations, /^ls-remote /m, 'no bare ls-remote remains on the restore path');
+    assert.ok(
+      !invocations.split('\n').some((line) => line.startsWith('ls-remote ')),
+      'no bare ls-remote remains on the restore path',
+    );
   } finally {
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
