@@ -1175,6 +1175,27 @@ test('detectViewportWidths reads the real @media breakpoints off the loaded page
   expect(widths).toEqual([360, 481, 768, 1024]);
 });
 
+test('detectViewportWidths reaches every band a fractional @media query opens', async ({ page }) => {
+  // Each band paints a distinct colour. Rounding a fractional boundary to the nearest px
+  // lands one px outside its band, so the browser never renders that band's style.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .x { color: rgb(0, 0, 0) }
+    @media (min-width: 767.4px) { .x { color: rgb(1, 1, 1) } }
+    @media (min-width: 64.01em) { .x { color: rgb(2, 2, 2) } }
+    @media (max-width: 479.6px) { .x { color: rgb(3, 3, 3) } }
+  </style></head><body><span class="x">hi</span></body></html>`;
+  const seen = await withPage(page, html, async () => {
+    const colours = new Set<string>();
+    for (const width of await detectViewportWidths(page)) {
+      await page.setViewportSize({ width, height: 600 });
+      colours.add(await page.locator('.x').evaluate((el) => getComputedStyle(el).color));
+    }
+    return [...colours].sort();
+  });
+  expect(seen).toEqual(['rgb(0, 0, 0)', 'rgb(1, 1, 1)', 'rgb(2, 2, 2)', 'rgb(3, 3, 3)']);
+});
+
 test('detectViewportWidths returns a single width when the page has no width @media rules', async ({ page }) => {
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}.x{color:rgb(0,0,0)}</style></head><body><span class="x">hi</span></body></html>`;
   const widths = await withPage(page, html, () => detectViewportWidths(page));

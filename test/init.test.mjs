@@ -72,6 +72,22 @@ test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the co
   }
 });
 
+test('styleproof-init: Next.js private and intercepting folders are not counted as routes', () => {
+  const root = mkTmp();
+  try {
+    touch(root, 'app/page.tsx');
+    touch(root, 'app/photo/page.tsx');
+    touch(root, 'app/@modal/(.)photo/page.tsx'); // intercepts /photo — not a URL
+    touch(root, 'app/_drafts/page.tsx'); // private folder — never served
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /detected 2 Next\.js route\(s\)/);
+    assert.doesNotMatch(res.stdout, /dynamic route\(s\) excluded/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: non-Next project → crawl-by-default spec (nothing to hand-list)', () => {
   const root = mkTmp();
   try {

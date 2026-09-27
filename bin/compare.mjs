@@ -41,8 +41,8 @@ export function compareFlags() {
       value: 'path',
       help: 'StyleProof spec used to select compatible cached maps (default: e2e/styleproof.spec.ts)',
     },
-    'cache-branch': { value: 'b', help: 'map store branch for cached-map mode', default: DEFAULT_MAP_STORE_BRANCH },
-    remote: { value: 'name', help: 'git remote for the map store', default: DEFAULT_REMOTE },
+    'cache-branch': { value: 'b', help: `map store branch for cached-map mode (default: ${DEFAULT_MAP_STORE_BRANCH})` },
+    remote: { value: 'name', help: `git remote for the map store (default: ${DEFAULT_REMOTE})` },
     'require-state-identity': {
       help: 'require explicit matching productState {id, revision} on every paired capture; undeclared pairs are non-certifying',
     },

@@ -17,10 +17,25 @@ const escapeHtml = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
- * Inline markup. Code spans and HTML comments are staged out before escaping
- * and emphasis so their contents are never reinterpreted; `_` only marks
- * emphasis at word boundaries so identifiers like `STYLE_REVIEW_REQUIRED`
- * survive intact.
+ * A comment the report generator writes itself (`<!-- styleproof-new -->`,
+ * receipts). No `<` or `>` inside, so it cannot close early and smuggle markup.
+ * Any other comment is untrusted text and is escaped.
+ */
+const STYLEPROOF_COMMENT = /<!-- styleproof-[^<>]*? -->/g;
+
+/**
+ * A code span with any fence length (`codeValue` widens the fence past the
+ * value's backticks), per the CommonMark rule: the closing run matches the
+ * opening run exactly. One pad space on each side is stripped.
+ */
+const CODE_SPAN = /(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)/g;
+const unpad = (code: string) => (/^ .* $/.test(code) && code.trim() ? code.slice(1, -1) : code);
+
+/**
+ * Inline markup. Code spans are staged out first, then StyleProof's own
+ * comments, before escaping and emphasis, so their contents are never
+ * reinterpreted; `_` only marks emphasis at word boundaries so identifiers
+ * like `STYLE_REVIEW_REQUIRED` survive intact.
  */
 function inline(text: string): string {
   const staged: string[] = [];
@@ -29,8 +44,8 @@ function inline(text: string): string {
     return `\uE000${staged.length - 1}\uE000`;
   };
   const protectedText = text
-    .replace(/<!--[\s\S]*?-->/g, (comment) => stage(comment))
-    .replace(/`([^`\n]+)`/g, (_m, code) => stage(`<code>${escapeHtml(code)}</code>`));
+    .replace(CODE_SPAN, (_m, _fence, code) => stage(`<code>${escapeHtml(unpad(code))}</code>`))
+    .replace(STYLEPROOF_COMMENT, (comment) => stage(comment));
   const html = escapeHtml(protectedText)
     .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" loading="lazy">')
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
@@ -40,6 +55,17 @@ function inline(text: string): string {
 }
 
 const RAW_LINE = /^<(?:sub|details|summary|\/details|!--)/;
+const FOLD_LINE = /^<\/?details>$/;
+const COMMENT_LINE = /^<!-- styleproof-[^<>]*? -->$/;
+const WRAPPED_LINE = /^<(sub|summary)>(.*)<\/\1>$/;
+
+/** Raw HTML lines: fold tags and StyleProof comments verbatim, caption text as inline markup, anything else escaped. */
+function rawLine(line: string): string {
+  if (FOLD_LINE.test(line) || COMMENT_LINE.test(line)) return line;
+  const wrapped = line.match(WRAPPED_LINE);
+  if (wrapped) return `<${wrapped[1]}>${inline(wrapped[2])}</${wrapped[1]}>`;
+  return `<p>${inline(line)}</p>`;
+}
 const BLANK = /^\s*$/;
 const HEADING = /^#{1,6}\s/;
 const RULE = /^\s*---+\s*$/;
@@ -99,7 +125,7 @@ const runOf = (test: RegExp, html: (taken: string[]) => string): BlockReader => 
 
 const blockReaders: BlockReader[] = [
   oneLine(BLANK.test.bind(BLANK), () => ''),
-  oneLine(RAW_LINE.test.bind(RAW_LINE), (line) => line),
+  oneLine(RAW_LINE.test.bind(RAW_LINE), rawLine),
   (lines, i) => {
     const heading = lines[i].match(/^(#{1,6})\s+(.*)$/);
     if (!heading) return null;

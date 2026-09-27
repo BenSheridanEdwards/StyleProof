@@ -101,3 +101,16 @@ test('a Tailwind-default sheet resolves to one width per breakpoint', () => {
   const boundaries = medias.flatMap((t) => mediaTextWidthBoundaries(t));
   assert.deepEqual(widthsFromBoundaries(boundaries), [360, 640, 768, 1024, 1280, 1536]);
 });
+
+test('fractional values open the band at the first whole px where the match flips', () => {
+  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 767.4px)'), [768]);
+  assert.deepEqual(mediaTextWidthBoundaries('(width >= 767.4px)'), [768]);
+  assert.deepEqual(mediaTextWidthBoundaries('(width < 767.4px)'), [768]);
+  assert.deepEqual(mediaTextWidthBoundaries('(max-width: 767.6px)'), [768]);
+  assert.deepEqual(mediaTextWidthBoundaries('(width > 767.6px)'), [768]);
+  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 48.01em)', 16), [769]);
+  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 30.03em)', 10), [301]);
+  // Exact values stay exact despite float noise in the em→px product.
+  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 64.1em)', 10), [641]);
+  assert.deepEqual(mediaTextWidthBoundaries('(max-width: 64.1em)', 10), [642]);
+});

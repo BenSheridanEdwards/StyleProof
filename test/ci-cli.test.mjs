@@ -547,6 +547,12 @@ test('normalizeRepoRelativeSpec: rejects absolute and out-of-repo paths', () => 
   }
 });
 
+test('normalizeRepoRelativeSpec: a repository at the filesystem root accepts an in-repo spec', () => {
+  const root = path.parse(process.cwd()).root;
+  assert.equal(normalizeRepoRelativeSpec('e2e/styleproof.spec.ts', root), 'e2e/styleproof.spec.ts');
+  assert.throws(() => normalizeRepoRelativeSpec('../outside.spec.ts', root), /stay inside the repository/);
+});
+
 test('styleproof-ci: invalid --spec-ref fails loudly before capture', () => {
   const root = mkTmp('styleproof-ci-bad-ref-');
   const remote = path.join(root, 'remote.git');

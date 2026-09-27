@@ -104,7 +104,7 @@ styleproof-capture is a compatibility alias for the unified CLI: styleproof craw
 `;
 
 const argv = process.argv.slice(2);
-if (argv[0] === '-h' || argv[0] === '--help') {
+if (argv.some((arg) => arg === '-h' || arg === '--help')) {
   process.stdout.write(HELP);
   process.exit(0);
 }

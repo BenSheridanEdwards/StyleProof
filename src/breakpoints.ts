@@ -53,7 +53,10 @@ export function mediaTextWidthBoundaries(mediaText: string, rootFontPx = 16): nu
   const t = mediaText.toLowerCase();
   const out = new Set<number>();
   const add = (raw: string, unit: string, offset: number): void => {
-    const n = Math.round(parseFloat(raw) * (unit === 'px' ? 1 : rootFontPx)) + offset;
+    // Viewports are whole px: `>= V` / `< V` flip at the first integer >= V, `> V` / `<= V` at the
+    // first integer > V. Trim float noise (`64.1 * 10`) so an exact value stays exact.
+    const px = Math.round(parseFloat(raw) * (unit === 'px' ? 1 : rootFontPx) * 1e6) / 1e6;
+    const n = offset === 0 ? Math.ceil(px) : Math.floor(px) + 1;
     if (n > 0) out.add(n);
   };
   for (const m of t.matchAll(RE_MIN_MAX)) add(m[2], m[3], m[1] === 'min' ? 0 : 1);

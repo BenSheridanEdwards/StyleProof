@@ -123,3 +123,37 @@ test('the committed demo report renders completely (#698)', () => {
   assert.doesNotMatch(html, /!\[/, 'no image syntax may survive unrendered');
   assert.doesNotMatch(html, /&lt;!--/, 'comments must pass through as comments, not visible text');
 });
+
+test('report.html keeps an author-controlled comment inside a double-fenced value inert', async () => {
+  const { propertyGlanceLine } = await import('../dist/report/markdown.js');
+  const after = '"`<!--><img src=x onerror=alert(1)>-->"';
+  const md = propertyGlanceLine([
+    { kind: 'style', path: 'p', props: [{ prop: 'font-family', before: 'serif', after }] },
+  ]);
+  const html = renderReportHtml(md);
+  assert.doesNotMatch(html, /<img src=x/, 'a CSS value must never become live markup');
+  assert.doesNotMatch(html, /<!-->/);
+  assert.match(html, /<code>&quot;`&lt;!--&gt;&lt;img src=x onerror=alert\(1\)&gt;--&gt;&quot;<\/code>/);
+  // A single-fenced value holding a comment keeps its text instead of a stray placeholder.
+  assert.match(renderReportHtml('`a<!-- x -->b`'), /<code>a&lt;!-- x --&gt;b<\/code>/);
+  assert.match(renderReportHtml('`` `x` ``'), /<code>`x`<\/code>/);
+});
+
+test('report.html escapes map-supplied text on caption, summary, and comment lines', async () => {
+  const { formatSurfaceWithContext } = await import('../dist/report/shared.js');
+  const map = { metadata: { variantKind: 'popup', variantKey: '<img src=x onerror=alert(1)>' } };
+  const html = renderReportHtml(
+    [
+      `<sub>before · ${formatSurfaceWithContext('home@1280', map)}</sub>`,
+      '',
+      '<summary><img src=x onerror=alert(1)></summary>',
+      '',
+      '<!-- not ours --><img src=x onerror=alert(1)>',
+      '',
+      '<subversive><img src=x onerror=alert(1)>',
+    ].join('\n'),
+  );
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /<sub>before · home @ 1280 · popup <code>&lt;img src=x onerror=alert\(1\)&gt;<\/code><\/sub>/);
+  assert.match(html, /<summary>&lt;img src=x onerror=alert\(1\)&gt;<\/summary>/);
+});
