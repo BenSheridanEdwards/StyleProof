@@ -1553,6 +1553,70 @@ test('restoreMapBundle retries an infrastructure fault and fails as a plain MapS
   }
 });
 
+// Regression: a private remote answers an unauthenticated `ls-remote` with a credential
+// prompt, which fails the restore as an infrastructure fault before the authenticated
+// clone is even attempted. The branch probe must carry the same auth as that clone —
+// the workflow token when STYLEPROOF_MAP_STORE_TOKEN is set. (Observed on a private
+// consumer: every restore exited 5 with "could not read Username for 'https://github.com'"
+// while publishes, which always carried auth, worked — the store looked write-only.)
+test('restoreMapBundle authenticates the branch-existence ls-remote with the workflow token', () => {
+  const root = mkTmp('styleproof-restore-auth-');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git.log');
+  const seededSha = 'a'.repeat(40);
+  const compatibilityKey = 'deadbeefdeadbeef';
+  const token = 'fake-workflow-token';
+  const expectedHeader = `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  try {
+    const { consumer } = seedMapStore(root, seededSha, compatibilityKey);
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+    process.env.STYLEPROOF_MAP_STORE_TOKEN = token;
+
+    const restored = path.join(root, 'restored');
+    restoreMapBundle({ sha: seededSha, outDir: restored, cwd: consumer });
+
+    assert.equal(
+      fs.readFileSync(path.join(restored, 'home@1280.json'), 'utf8'),
+      '{"seeded":true}\n',
+      'the restore still succeeds end to end',
+    );
+    const invocations = fs.readFileSync(invocationLog, 'utf8');
+    const extraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
+    const escapedKey = extraHeaderKey.replace(/[.*]/g, '\\$&');
+    const escapedHeader = expectedHeader.replace(/[.*+]/g, '\\$&');
+    assert.match(
+      invocations,
+      new RegExp(`-c ${escapedKey}= -c ${escapedKey}=${escapedHeader} ls-remote --exit-code --heads origin`),
+      'the ls-remote probe carries the workflow-token extraheader like the clone does',
+    );
+    assert.doesNotMatch(invocations, /^ls-remote /m, 'no bare ls-remote remains on the restore path');
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousLog;
+    if (previousToken === undefined) delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
+    else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousToken;
+    rmTmp(root);
+  }
+});
+
 // A relative cwd changes the resolved spec and lockfile paths unless it is
 // normalized first, which would stamp different keys for the same checkout.
 test('expectedCompatibilityKey is identical for relative and absolute cwd', () => {

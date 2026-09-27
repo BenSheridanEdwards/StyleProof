@@ -124,6 +124,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Map-store restore authenticates its branch probe.** `lookupBranch`'s
+  `ls-remote` ran bare, so a private remote answered it with a credential
+  prompt (`could not read Username for 'https://github.com'`), which failed the
+  restore as an infrastructure fault before the authenticated clone was even
+  attempted — the store read as write-only. The probe now carries the same
+  auth headers as the clone (`STYLEPROOF_MAP_STORE_TOKEN` when set, else the
+  checkout's discovered `http.*.extraheader`). Public remotes were unaffected —
+  anonymous `ls-remote` succeeds — which is why only private consumers hit it.
+
 - **Unit suite no longer rebuilds `dist/` mid-run.** The privacy check listed
   package files with `npm pack --dry-run --ignore-scripts` in the live
   checkout, and npm 10 (bundled with Node 18/20/22) runs `prepare` (`tsc`)

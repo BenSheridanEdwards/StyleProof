@@ -144,9 +144,16 @@ export function assertRemote({ cwd, remote }: StoreTarget): void {
 }
 
 /** Whether the store branch exists on the remote. `--exit-code` 2 is a true miss; any other
- *  failure is infrastructure and throws, so a network blip never reads as "no branch". */
+ *  failure is infrastructure and throws, so a network blip never reads as "no branch". The
+ *  probe carries the same auth as the clone it precedes — a private remote answers an
+ *  unauthenticated ls-remote with a credential prompt, which reads as an infrastructure
+ *  fault and fails the restore before the clone is even attempted. */
 export function lookupBranch({ cwd, remote, branch }: StoreTarget): boolean {
-  const lookup = networkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
+  const lookup = networkGit(
+    cwd,
+    [...configArguments(effectiveGitHttpExtraHeaders(cwd)), 'ls-remote', '--exit-code', '--heads', remote, branch],
+    1 << 20,
+  );
   if (lookup.status === 0) return true;
   if (lookup.status === 2) return false;
   throw new MapStoreError(gitFailureMessage(lookup, 'could not query map store branch'));
