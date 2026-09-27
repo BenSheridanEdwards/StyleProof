@@ -64,7 +64,12 @@ function pushViaConsumerCheckout(
 ): GitResult {
   const commit = gitStdout(checkout, ['rev-parse', 'HEAD']);
   const tipRef = 'refs/styleproof/map-store-tip';
+  // Carry the same auth the isolated path computed: under `persist-credentials: false`
+  // (the scaffolded default) or `-c`-scoped checkout auth there is no ambient credential
+  // for a private remote, so a bare fetch/push would hit a credential prompt.
+  const consumerAuth = configArguments(effectiveGitHttpExtraHeaders(cwd));
   const importTip = networkGit(cwd, [
+    ...consumerAuth,
     'fetch',
     '-q',
     '--no-write-fetch-head',
@@ -77,7 +82,7 @@ function pushViaConsumerCheckout(
     if (importCommit.status !== 0) {
       return withFailures(importCommit, [...failures, describeFailure('consumer checkout import', importCommit)]);
     }
-    const push = networkGit(cwd, ['push', '-q', remote, `${commit}:refs/heads/${branch}`]);
+    const push = networkGit(cwd, [...consumerAuth, 'push', '-q', remote, `${commit}:refs/heads/${branch}`]);
     return push.status === 0
       ? push
       : withFailures(push, [...failures, describeFailure('consumer checkout push', push)]);
