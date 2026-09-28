@@ -167,7 +167,7 @@ export function auditRemovals(
 ): { unexplained: NavigableItem[]; staleAllowances: string[] } {
   const removedKeys = new Set(delta.removed.map((i) => i.key));
   return {
-    unexplained: delta.removed.filter((i) => !(i.key in allowed)),
+    unexplained: delta.removed.filter((i) => !Object.hasOwn(allowed, i.key)),
     staleAllowances: Object.keys(allowed).filter((k) => !removedKeys.has(k)),
   };
 }
