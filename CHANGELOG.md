@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Prototype-named elements no longer poison the capture probe cache.** The
+  in-page capture keyed its UA-default and element-probe caches with
+  page-supplied tag names on plain objects, so an element whose tag matched an
+  inherited `Object.prototype` member — `constructor`, `watch`, `unwatch`, or
+  `__proto__` — read the inherited value instead of probing: `defaultFor`
+  returned a function or prototype as the "defaults", and `snap` then recorded
+  every computed property as non-default (~470 bogus props per element,
+  surfacing as false-positive diffs). The caches are now null-prototype
+  lookups, and `auditRemovals` uses `Object.hasOwn` for the same reason.
+
 ## [7.1.0] - 2026-09-27
 
 ### Security

@@ -88,8 +88,11 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   frame.style.cssText = 'position:absolute;left:-9999px;width:100px;height:100px;border:0';
   document.body.appendChild(frame);
   const fdoc = frame.contentDocument as Document;
-  const defaults: Record<string, Props> = {};
-  const probeCache: Record<string, Element> = {};
+  // Null-prototype lookups: page-supplied tag names become keys, and `in`/`[]` on a
+  // plain object inherits names like 'constructor'/'hasOwnProperty' — such an element
+  // would return an inherited function instead of a probe (or poison __proto__ on write).
+  const defaults: Record<string, Props> = Object.create(null);
+  const probeCache: Record<string, Element> = Object.create(null);
   const probeFor = (tag: string): Element => {
     if (!(tag in probeCache)) {
       const probe = fdoc.createElement(tag);
