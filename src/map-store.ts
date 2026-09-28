@@ -1,5 +1,6 @@
 // Public entry for the map store. Everything lives in src/map-store/*; this module keeps
 // the import path `map-store.js` that the CLIs, action.yml, and tests consume.
+export * from './map-store/base-absence.js';
 export * from './map-store/bundle.js';
 export * from './map-store/manifest.js';
 export * from './map-store/receipts.js';

@@ -19,6 +19,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   overlay and zoom sit under an optional toggle. `currentColor` follow-ons nest
   under the primary `color` property. Review-gate **Approve all changes**
   semantics unchanged.
+### Fixed
+
+- **A surface a pull request adds is no longer reported as `PARTIAL_BASELINE`.**
+  Under `--spec-ref` the base runs the head harness, so a newly declared surface
+  was attempted on base, failed there (its route did not exist yet), and blocked
+  the run as baseline repair debt that approval cannot clear. `styleproof-diff`
+  and `styleproof-report` now set such a base failure aside only on positive git
+  evidence: the head harness (the spec located in the head tree and bound to the
+  head manifest's `specHash`, so a capture run from a package directory works
+  from the repository root) declares
+  `key: '<name>'`, the base harness does not mention `<name>` at all, and the
+  head captured the key. The surface is then reviewed as new and needs sign-off
+  like any other visual change, and `styleproof-diff --json` / `report.json`
+  list it in an additive `undeclaredOnBase` field. A surface declared on both
+  sides whose base capture failed stays `PARTIAL_BASELINE`, as does a new
+  surface whose head capture failed; git errors, `@auto` keys, and missing
+  SHAs keep the failure.
 
 ## [7.1.0] - 2026-09-27
 

@@ -1,8 +1,10 @@
+import fs from 'node:fs';
 import type { BaseOnlyVolatile, DiffCounts, HeadOnlyVolatile } from '../diff.js';
 import {
   baselineFailureReceipts,
   honestBaselineCompareAttribution,
-  readMapManifest,
+  isMapFile,
+  readBaselineFailureLedger,
   surfaceMissingMatchesBaselineFailure,
   type BaselineFailureReceipt,
   type SurfaceCaptureFailure,
@@ -37,13 +39,25 @@ export type HeadlineInput = {
 export type BaselineInfo = {
   surfaceFailures: SurfaceCaptureFailure[];
   failures: BaselineFailureReceipt[];
+  /** Base capture failures set aside because git proves the base never declared the surface. */
+  undeclaredOnBase: string[];
   sha?: string;
 };
 
-export function readBaselineInfo(beforeDir: string): BaselineInfo {
-  const manifest = readMapManifest(beforeDir);
-  const surfaceFailures = manifest?.surfaceCaptureFailures ?? [];
-  return { surfaceFailures, failures: baselineFailureReceipts(surfaceFailures, manifest?.sha) };
+export function readBaselineInfo(beforeDir: string, afterDir: string): BaselineInfo {
+  const headKeys = new Set(
+    fs
+      .readdirSync(afterDir)
+      .filter(isMapFile)
+      .map((f) => f.replace(/\.json(\.gz)?$/, '')),
+  );
+  const ledger = readBaselineFailureLedger(beforeDir, afterDir, headKeys);
+  return {
+    surfaceFailures: ledger.failures,
+    failures: baselineFailureReceipts(ledger.failures, ledger.sha),
+    undeclaredOnBase: ledger.undeclaredOnBase,
+    sha: ledger.sha,
+  };
 }
 
 /** Headline counts with the zeros dropped. */
@@ -71,6 +85,16 @@ export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]):
   if (failures.length === 0) return [];
   const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: failures });
   return [`⚠️ **${failures.length} baseline capture failure(s)**: ${attribution.summary}`];
+}
+
+/** Disclose base capture attempts that were not counted as baseline failures. */
+export function undeclaredOnBaseLines(keys: readonly string[], sha?: string): string[] {
+  if (keys.length === 0) return [];
+  const at = sha ? ` \`${sha.slice(0, 12)}\`` : '';
+  return [
+    `ℹ️ **${keys.length} base capture attempt(s) not counted as baseline failures**: \`${formatSurfaceList([...keys])}\`. ` +
+      `The base commit${at} never declared these surface(s) (the head capture spec ran against base), so they are reviewed as new surfaces.`,
+  ];
 }
 
 export function baselineFailureDetailLines(failures: BaselineFailureReceipt[]): string[] {
@@ -201,6 +225,7 @@ function summaryLines(input: HeadlineInput): string[] {
     '',
     ...baselineFailureSummaryLines(baseline.failures),
     ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures),
+    ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
   ];
   if (changeGroups.length > 0) {
     md.push(

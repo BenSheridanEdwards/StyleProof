@@ -271,6 +271,8 @@ export type ReportArtifacts = Pick<
   liveTextFreeze: { violated: boolean; reason?: string } | null;
   headOnlyVolatile?: ReportResult['headOnlyVolatile'];
   baseOnlyVolatile?: ReportResult['baseOnlyVolatile'];
+  /** Base capture failures set aside because the base never declared the surface. */
+  undeclaredOnBase?: string[];
 };
 
 /** Write report.md, report.json, and report.html. The JSON key order is a byte-stable contract. */
@@ -296,6 +298,8 @@ export function writeReportArtifacts(a: ReportArtifacts): {
     reportConsistency: a.reportConsistency,
     baselineFailures: a.baselineFailures,
     partialBaseline: a.baselineFailures.length > 0,
+    // Additive, only when present, so reports without it keep their bytes.
+    ...(a.undeclaredOnBase?.length ? { undeclaredOnBase: a.undeclaredOnBase } : {}),
     content: a.content,
     surfaces: a.surfaces,
     // Additive (#399 confidence badge, #367 baseline provenance): a consumer must

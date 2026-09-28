@@ -6,8 +6,18 @@ import fs from 'node:fs';
 
 export const sha256 = (input: string | Buffer): string => createHash('sha256').update(input).digest('hex');
 
-export function runGit(cwd: string, args: string[], options: { env?: NodeJS.ProcessEnv; maxBuffer?: number } = {}) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: options.maxBuffer ?? 1 << 28, env: options.env });
+export function runGit(
+  cwd: string,
+  args: string[],
+  options: { env?: NodeJS.ProcessEnv; maxBuffer?: number; timeout?: number } = {},
+) {
+  return spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: options.maxBuffer ?? 1 << 28,
+    env: options.env,
+    timeout: options.timeout,
+  });
 }
 
 /** Trimmed stdout of a successful `git` call, else ''. */
