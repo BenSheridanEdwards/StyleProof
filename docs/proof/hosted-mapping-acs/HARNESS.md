@@ -52,12 +52,12 @@ StyleProof may later wire this to existing capture/diff/report seams. This stub 
 
 ## Checklist for a future execution ticket
 
-- [ ] Consumer Visual path named (generic)
-- [ ] Exact tip pin recorded in the execution PR / receipt
-- [ ] `known-css` delta applied and hosted report reviewed
-- [ ] `known-structure` delta applied and hosted report reviewed
-- [ ] `noop-equivalent` delta applied; report invents no false change
-- [ ] Fail-closed proven on incomplete / wrong mapping case
+- [x] Consumer Visual path named (generic) — see RECEIPT.md
+- [x] Exact tip pin recorded in the execution PR / receipt — see RECEIPT.md
+- [x] `known-css` delta applied and hosted report reviewed — see RECEIPT.md
+- [x] `known-structure` delta applied and hosted report reviewed — see RECEIPT.md
+- [x] `noop-equivalent` delta applied; report invents no false change — see RECEIPT.md
+- [x] Fail-closed proven on incomplete / wrong mapping case — see RECEIPT.md
 - [ ] Soft-pass HOLD lifted only when ACs 1–4 are evidenced on the pinned tip
 - [ ] No claim of Phase 2 mapping proved until that evidence exists
 
