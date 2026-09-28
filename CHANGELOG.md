@@ -157,6 +157,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Map-store publish fallback authenticates like the isolated path.** The
+  consumer-checkout fallback (`pushViaConsumerCheckout`) fetched and pushed
+  bare — under `persist-credentials: false` or `-c`-scoped checkout auth there
+  is no ambient credential, so the fallback could never work on a private
+  remote. It now carries the same effective headers (`STYLEPROOF_MAP_STORE_TOKEN`
+  or the checkout's discovered `http.*.extraheader`).
+
 - **Map-store restore authenticates its branch probe.** `lookupBranch`'s
   `ls-remote` ran bare, so a private remote answered it with a credential
   prompt (`could not read Username for 'https://github.com'`), which failed the

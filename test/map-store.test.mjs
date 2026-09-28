@@ -772,6 +772,94 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
   }
 });
 
+// Regression: with STYLEPROOF_MAP_STORE_TOKEN set and no ambient checkout credentials
+// (persist-credentials: false, the scaffolded default — or `-c`-scoped extraheader), the
+// consumer-checkout fallback's fetch/push were bare and hit a credential prompt on a
+// private remote. The fallback must carry the same effective auth as the isolated path.
+test('publishMapBundle consumer fallback authenticates its fetch and push with the workflow token', async () => {
+  const root = mkTmp('styleproof-fallback-auth-');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git.log');
+  const token = 'fake-workflow-token';
+  const expectedHeader = `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  try {
+    const { consumer } = seedMapStore(root, 'a'.repeat(40), 'deadbeefdeadbeef');
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    execFileSync(realGit, ['config', 'user.email', 'styleproof@example.test'], { cwd: consumer });
+    execFileSync(realGit, ['config', 'user.name', 'StyleProof Test'], { cwd: consumer });
+    fs.writeFileSync(path.join(consumer, 'styleproof.spec.ts'), 'export default {};\n');
+    execFileSync(realGit, ['add', '-A'], { cwd: consumer });
+    execFileSync(realGit, ['commit', '-qm', 'initial consumer'], { cwd: consumer });
+    const consumerSha = execFileSync(realGit, ['rev-parse', 'HEAD'], { cwd: consumer, encoding: 'utf8' }).trim();
+    assert.match(consumerSha, /^[0-9a-f]{40}$/);
+    const capture = path.join(consumer, '.styleproof/maps/current');
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{}');
+    writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: consumerSha,
+      screenshots: false,
+      dirty: false,
+      cwd: consumer,
+    });
+
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    // Reject every push so the publish falls through the isolated extraheader push and
+    // the credential-helper push into the consumer-checkout fallback. The fetch and push
+    // issued THERE are what this test inspects.
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in *"push -q origin"*) echo "deliberate push rejection" >&2; exit 128 ;; esac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+    process.env.STYLEPROOF_MAP_STORE_TOKEN = token;
+
+    await assert.rejects(
+      publishMapBundle({ dir: capture, cwd: consumer }),
+      /deliberate push rejection/,
+      'all pushes are rejected so the fallback path is exercised end to end',
+    );
+
+    const invocations = fs.readFileSync(invocationLog, 'utf8');
+    const extraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
+    const consumerFetch = invocations
+      .split('\n')
+      .find((line) => line.includes('fetch -q --no-write-fetch-head origin +refs/heads/styleproof-maps:'));
+    assert.ok(consumerFetch, 'the consumer-checkout fallback ran its tip fetch');
+    assert.ok(
+      consumerFetch.includes(`-c ${extraHeaderKey}=`) && consumerFetch.includes(`${extraHeaderKey}=${expectedHeader}`),
+      'the consumer tip fetch carries the workflow-token extraheader',
+    );
+    const consumerPush = invocations
+      .split('\n')
+      .find((line) => line.includes(':refs/heads/styleproof-maps') && line.includes('push -q origin'));
+    assert.ok(consumerPush, 'the consumer-checkout fallback attempted its push');
+    assert.ok(
+      consumerPush.includes(`-c ${extraHeaderKey}=`) && consumerPush.includes(`${extraHeaderKey}=${expectedHeader}`),
+      'the consumer push carries the workflow-token extraheader',
+    );
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousLog;
+    if (previousToken === undefined) delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
+    else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousToken;
+    rmTmp(root);
+  }
+});
+
 test('publishMapBundle consumer fallback survives a partial isolated clone that cannot serve historic blobs', async () => {
   const root = mkTmp('styleproof-partial-fallback-');
   const remote = path.join(root, 'remote.git');
