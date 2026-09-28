@@ -224,12 +224,12 @@ jobs:
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
-      - name: Assert undeclared legacy pairs fail closed and cannot certify
+      - name: Assert undeclared legacy pairs fail closed (visual-only, not certified)
         run: |
           test '${{ steps.legacy-undeclared.outcome }}' = 'failure'
           test '${{ steps.legacy-undeclared.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
           grep -E 'undeclared legacy pair' styleproof-report/report.md
-          grep -F 'cannot certify' styleproof-report/report.md
+          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
 
       - id: certfail
         continue-on-error: true
