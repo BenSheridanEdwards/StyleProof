@@ -68,12 +68,13 @@ test('a bundle with no captured inventory reports "not checked", never "unchange
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('a captured inventory with no removals still reports the ✓ it earned (#478)', () => {
+test('a captured inventory with no removals hides the green ✓ (#478 / report UX)', () => {
   const { dir, base, head, out } = bundle({ baseNav: ['home', 'about'], headNav: ['home', 'about'] });
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
 
-  assert.match(md, /\*\*Inventory\*\* — ✓ navigable set unchanged/);
+  // All-green certification stays hidden; inventory still ran (not "not checked").
+  assert.doesNotMatch(md, /\*\*Inventory\*\* — ✓ navigable set unchanged/);
   assert.doesNotMatch(md, /not checked/);
   fs.rmSync(dir, { recursive: true, force: true });
 });

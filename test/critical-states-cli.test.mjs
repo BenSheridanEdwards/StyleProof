@@ -254,8 +254,9 @@ test('report CLI fails closed on failing obligations and certifies comparable on
     );
     assert.equal(clean.status, 0, clean.stderr || clean.stdout);
     const cleanMd = fs.readFileSync(path.join(certifyingOut, 'report.md'), 'utf8');
-    assert.match(cleanMd, /Critical state obligations/);
-    assert.match(cleanMd, /certifying on comparable paired evidence/);
+    // Green certification (all ✓) stays hidden — only failures/warnings surface in Evidence.
+    assert.doesNotMatch(cleanMd, /Critical state obligations/);
+    assert.doesNotMatch(cleanMd, /certifying on comparable paired evidence/);
     const cleanJson = JSON.parse(fs.readFileSync(path.join(certifyingOut, 'report.json'), 'utf8'));
     assert.deepEqual(cleanJson.criticalStates.certified, ['home']);
   } finally {

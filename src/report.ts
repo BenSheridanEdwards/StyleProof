@@ -340,6 +340,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   md.trimToBudget();
 
   const out: SectionState = { md, json: [], seq: { crop: 0 } };
+  // Budget-aware: large failure receipts collapse under the display-budget notice (report.json keeps full list).
+  if (baseline.failures.length > 0) {
+    md.detail(
+      baselineFailureDetailLines(baseline.failures),
+      `- ${baseline.failures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
+    );
+  }
   const oneSided = renderOneSidedSections(ctx, out, missing, baseline.surfaceFailures);
   const changed = renderChangedSections(
     ctx,
@@ -377,7 +384,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     ...(provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
     ...comparabilityEvidence,
     ...criticalObligationLines(gates.criticalStates, opts.criticalObligations),
-    ...baselineFailureDetailLines(baseline.failures),
   ];
 
   // "Nothing else" when restyles exist but no advisory content / inventory issues.

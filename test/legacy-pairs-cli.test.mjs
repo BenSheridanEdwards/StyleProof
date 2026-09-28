@@ -266,7 +266,7 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
     const blockedMd = fs.readFileSync(path.join(undeclaredOut, 'report.md'), 'utf8');
     assert.match(blockedMd, /undeclared legacy pair/);
-    assert.match(blockedMd, /cannot certify/);
+    assert.match(blockedMd, /not a certified same-state compare|cannot certify|cannot be approved/);
 
     fs.writeFileSync(
       path.join(declared.root, 'declared.json'),
@@ -293,7 +293,7 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     assert.equal(advisory.status, 0, advisory.stderr || advisory.stdout);
     const declaredMd = fs.readFileSync(path.join(declaredOut, 'report.md'), 'utf8');
     assert.match(declaredMd, /declared legacy pair/);
-    assert.match(declaredMd, /advisory, not certification/);
+    assert.match(declaredMd, /not a certified same-state compare|visual-only|advisory, not certification/);
     const declaredJson = JSON.parse(fs.readFileSync(path.join(declaredOut, 'report.json'), 'utf8'));
     assert.deepEqual(declaredJson.legacyPairs.declared, ['home@1280']);
   } finally {

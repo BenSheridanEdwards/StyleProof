@@ -1,6 +1,6 @@
 ## 🗺️ StyleProof report
 
-⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head share a surface key, but identity is unproven — treat as visual-only, not a certified same-state compare (legacy compatibility is not proof).
+⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
 
 **2 changes need review**
 
@@ -32,7 +32,7 @@ _home @ 900_
 
 ![before ◀ │ ▶ after](crops/home-900-2-composite.png)
 
-<sub>◀ before  ·  after ▶ — home @ 900</sub>
+<sub>◀ before · after ▶ — home @ 900</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -56,9 +56,9 @@ _home @ 900_
 
 Style:
 
-| Property | Before | After |
-| --- | --- | --- |
-| `color` | `#9ca3af` | `#2563eb` |
+| Property | Before    | After     |
+| -------- | --------- | --------- |
+| `color`  | `#9ca3af` | `#2563eb` |
 
 </details>
 
@@ -70,7 +70,7 @@ _home @ 900_
 
 ![before ◀ │ ▶ after](crops/home-900-3-composite.png)
 
-<sub>◀ before  ·  after ▶ — home @ 900</sub>
+<sub>◀ before · after ▶ — home @ 900</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -90,8 +90,8 @@ _home @ 900_
 
 Style:
 
-| Property | Before | After |
-| --- | --- | --- |
+| Property           | Before    | After     |
+| ------------------ | --------- | --------- |
 | `background-color` | `#2563eb` | `#dc2626` |
 
 </details>
@@ -113,9 +113,9 @@ _The changed element is not visible in the captured page (it is outside the scre
 
 Style:
 
-| Property | Before | After |
-| --- | --- | --- |
-| `opacity` | `0.85` | `1` |
+| Property  | Before | After |
+| --------- | ------ | ----- |
+| `opacity` | `0.85` | `1`   |
 
 </details>
 
@@ -133,7 +133,7 @@ _3 content/structure change(s). **Advisory only** — content and DOM structure 
 
 ![before ◀ │ ▶ after](crops/duplicate-insertion-900-content-1-composite.png)
 
-<sub>◀ before  ·  after ▶ — duplicate-insertion@900</sub>
+<sub>◀ before · after ▶ — duplicate-insertion@900</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -153,7 +153,7 @@ _3 content/structure change(s). **Advisory only** — content and DOM structure 
 
 ![before ◀ │ ▶ after](crops/home-900-content-2-composite.png)
 
-<sub>◀ before  ·  after ▶ — home@900</sub>
+<sub>◀ before · after ▶ — home@900</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -176,7 +176,7 @@ _3 content/structure change(s). **Advisory only** — content and DOM structure 
 
 ![before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-composite.png)
 
-<sub>◀ before  ·  after ▶ — sibling-insertion@900</sub>
+<sub>◀ before · after ▶ — sibling-insertion@900</sub>
 
 <details>
 <summary>Show highlight overlay</summary>

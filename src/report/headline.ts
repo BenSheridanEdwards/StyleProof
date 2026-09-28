@@ -157,7 +157,12 @@ const NO_CHANGE = '✓ No reviewable computed-style changes among semantically m
 
 function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   const failure = consistencyFailureLines(input);
-  if (failure || input.baseline.surfaceFailures.length > 0) return failure;
+  if (failure) return failure;
+  // Baseline capture failures are reviewable evidence even with zero restyles — surface them
+  // here (not as "0 changes need review") so the receipt stays above the fold.
+  if (input.baseline.surfaceFailures.length > 0) {
+    return [...baselineFailureSummaryLines(input.baseline.failures)];
+  }
   if (input.headOnlyVolatile?.length) {
     return [
       '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below). Fail closed (`CERTIFICATION_FAILED`); not a clean no-change.',

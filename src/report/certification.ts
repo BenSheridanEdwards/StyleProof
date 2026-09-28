@@ -268,13 +268,13 @@ export function productStateWarningLines(comparison: ComparabilitySummary, legac
   }
   if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification) {
     return [
-      '⚠️ **Product-state identity unproven** (declared legacy pair). Base and head share a surface key, but identity is unproven — treat as visual-only, not a certified same-state compare (legacy compatibility is not proof).',
+      '⚠️ **Product-state identity unproven** (declared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
       '',
     ];
   }
   if (!comparison.blocksCertification) {
     return [
-      '⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head share a surface key, but identity is unproven — treat as visual-only, not a certified same-state compare (legacy compatibility is not proof).',
+      '⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
       '',
     ];
   }
