@@ -187,7 +187,7 @@ export function renderChangedSections(
   totalSurfaceBases: number,
 ): { totalFindings: number } {
   const ordered = [...groups.chrome, ...groups.rest];
-  if (ordered.length > 0) out.md.append(['', '## Element-level changes']);
+  if (ordered.length > 0) out.md.append(['', '## Changes']);
   // The chrome banner rides on the first promoted group only.
   let banner = groups.chrome.length > 0 ? chromeCalloutLines(groups.chrome.length, totalSurfaceBases) : [];
   let totalFindings = 0;

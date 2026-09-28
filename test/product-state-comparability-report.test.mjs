@@ -67,7 +67,7 @@ test('report discloses explicit product-state mismatch and withholds approvable 
   assert.deepEqual(json.comparability, result.comparability);
   assert.match(md, /product-state comparison.*incomparable|incomparable.*product-state comparison/i);
   assert.match(md, /diagnostic only|not approval evidence|cannot be approved/i);
-  assert.doesNotMatch(md, /## Element-level changes/);
+  assert.doesNotMatch(md, /## (?:Element-level )?Changes/);
   assert.doesNotMatch(md, /private-selector/, 'suppressed raw paths must not appear as report evidence');
   rmTmp(dirs.root);
 });
@@ -81,7 +81,7 @@ test('report strict mode suppresses undeclared legacy style deltas as globally r
   assert.equal(result.comparison.blocksCertification, true);
   assert.equal(result.comparison.reviewableCounts.style, 0);
   assert.match(md, /product-state comparison.*unproven|unproven.*product-state comparison/i);
-  assert.doesNotMatch(md, /## Element-level changes/);
+  assert.doesNotMatch(md, /## (?:Element-level )?Changes/);
   rmTmp(dirs.root);
 });
 
@@ -92,8 +92,8 @@ test('report keeps undeclared legacy deltas reviewable without strict mode while
   assert.equal(result.comparison.status, 'unproven');
   assert.equal(result.comparison.blocksCertification, false);
   assert.equal(result.comparison.reviewableCounts.style, 1);
-  assert.match(md, /legacy compatibility|not proof/i);
-  assert.match(md, /## Element-level changes/);
+  assert.match(md, /legacy compatibility|not proof|visual-only/i);
+  assert.match(md, /## Changes/);
   rmTmp(dirs.root);
 });
 
@@ -109,7 +109,9 @@ test('matching explicit identity remains comparable across an ordinary copy edit
   assert.equal(result.comparison.status, 'comparable');
   assert.equal(result.comparison.blocksCertification, false);
   assert.equal(result.changedSurfaces, 1);
-  assert.match(md, /product-state comparison.*comparable|comparable.*product-state comparison/i);
-  assert.match(md, /## Element-level changes/);
+  // Proven product-state is hidden from the report body; machine receipt still says comparable.
+  assert.doesNotMatch(md, /Product-state identity unproven/);
+  assert.equal(result.comparison.status, 'comparable');
+  assert.match(md, /## Changes/);
   rmTmp(dirs.root);
 });

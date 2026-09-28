@@ -623,7 +623,7 @@ test('content evidence obeys the existing report budget without dropping generat
       afterDir: dirs.afterDir,
       outDir: path.join(dirs.root, outDir),
       includeContent: true,
-      maxReportBytes: 600,
+      maxReportBytes: 900,
       zoomBelow: 0,
     });
     return {

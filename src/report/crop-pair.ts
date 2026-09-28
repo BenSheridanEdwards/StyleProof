@@ -68,12 +68,15 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
     `<sub>◀ ${left}  ·  ${right} ▶ — ${captions.pair}</sub>`,
   ];
 
+  // One primary before/after. Annotated + zoom live under a single optional
+  // highlight toggle so the report is not three duplicate carousels.
+  const overlay: string[] = [];
   const annotatedA = annotateCrop(before, rectsA);
   const annotatedB = annotateCrop(after, rectsB);
   if (annotatedA.highlighted || annotatedB.highlighted) {
     images.annotated = `${stem}-annotated.png`;
     writeComposite(ctx.outDir, images.annotated, [annotatedA.png, annotatedB.png], labels);
-    md.push(
+    overlay.push(
       '',
       `![highlighted ${left} ◀ │ ▶ ${right}](${ctx.img(images.annotated)})`,
       '',
@@ -86,12 +89,15 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
     images.zoom = `${stem}-zoom.png`;
     const zoomed = (png: PNG, rects: Rect[]): PNG => zoomCrop(png, zoom.box, rects, zoom.factor);
     writeComposite(ctx.outDir, images.zoom, [zoomed(pngA, rectsA), zoomed(pngB, rectsB)], labels);
-    md.push(
+    overlay.push(
       '',
       `![zoomed ${left} ◀ │ ▶ ${right}](${ctx.img(images.zoom)})`,
       '',
       `<sub>🔬 ${captions.zoom(zoom.factor)}</sub>`,
     );
+  }
+  if (overlay.length) {
+    md.push('', '<details>', '<summary>Show highlight overlay</summary>', ...overlay, '', '</details>');
   }
   return { md, images };
 }

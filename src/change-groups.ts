@@ -6,7 +6,8 @@
  * public surface so `dist/change-groups.js` imports keep resolving.
  */
 
-export { isNonValue, summarizeProps, prettyLabel } from './prop-summary.js';
+export { isNonValue, summarizeProps, summarizePropsWithFollowOns, prettyLabel, humanLabel } from './prop-summary.js';
+export type { SummarizedProp } from './prop-summary.js';
 
 export {
   safeKey,

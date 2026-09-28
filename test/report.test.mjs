@@ -255,13 +255,9 @@ test('end-to-end: a tiny change gets a magnified zoom crop and the highlight sho
     assert.ok(md.includes(`](${imagePath})`), `report.md references committed relative crop ${imagePath}`);
   }
   assert.match(md, /🔬 magnified \d+× — change too small to see at 1:1/, 'zoom is captioned with its factor');
-  assert.match(md, /🔍 magenta boxes mark each change/, 'the highlight is shown by default');
+  assert.match(md, /🔍 magenta boxes mark each change/, 'the highlight overlay is present');
   assert.match(md, /changed: `span\.caret`/, 'the changed element is named next to the image');
-  assert.doesNotMatch(
-    md,
-    /<summary>🔍 Highlight what changed<\/summary>/,
-    'highlight is no longer hidden behind a toggle',
-  );
+  assert.match(md, /<summary>Show highlight overlay<\/summary>/, 'highlight sits under an optional toggle');
   rmTmp(root);
 });
 
@@ -291,7 +287,7 @@ test('end-to-end: a large change gets no zoom crop (visible at 1:1)', () => {
   assert.equal(region.images.zoom, undefined, 'no zoom image for a clearly-visible change');
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.doesNotMatch(md, /🔬 magnified/, 'no zoom caption for a large change');
-  assert.match(md, /🔍 magenta boxes mark each change/, 'highlight still shown by default');
+  assert.match(md, /🔍 magenta boxes mark each change/, 'highlight overlay still present under the toggle');
   rmTmp(root);
 });
 
@@ -625,13 +621,13 @@ test('two far-apart changes become two crop sections, each holding only its own 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
 
   // One ### section per crop, each headed by the element it is anchored on.
-  assert.match(md, /### `a\.nav-cta` · 1 element restyled/);
-  assert.match(md, /### `div\.card` · 1 element restyled/);
+  assert.match(md, /### (?:\*\*[^*]+\*\* )?`a\.nav-cta` · 1 element restyled/);
+  assert.match(md, /### (?:\*\*[^*]+\*\* )?`div\.card` · 1 element restyled/);
 
   // Split on the headings and assert each section carries ONLY its own property.
   const sections = md.split(/\n### /).slice(1);
-  const nav = sections.find((s) => s.startsWith('`a.nav-cta`'));
-  const card = sections.find((s) => s.startsWith('`div.card`'));
+  const nav = sections.find((s) => s.includes('`a.nav-cta`'));
+  const card = sections.find((s) => s.includes('`div.card`'));
   assert.ok(nav.includes('border-radius') && !nav.includes('background-color'), 'nav crop shows only its change');
   assert.ok(card.includes('background-color') && !card.includes('border-radius'), 'card crop shows only its change');
 
@@ -747,7 +743,7 @@ test('property tables fold under a <details> toggle with an essence line; foldDe
     generateStyleMapReport({ ...f, outDir: path.join(f.root, 'inline'), foldDetailsAt: Infinity }).reportMdPath,
     'utf8',
   );
-  assert.ok(!inline.includes('<summary>Show'), 'foldDetailsAt: Infinity keeps the tables out of a fold');
+  assert.ok(!inline.includes('<summary>Show the property'), 'foldDetailsAt: Infinity keeps the tables out of a fold');
   assert.match(inline, /\| `border-radius` \| `8px` \| `9999px` \|/, 'table is present inline');
   rmTmp(f.root);
 });
@@ -770,7 +766,7 @@ test('a newly-added element shows the values its states take, not a bogus "befor
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /\*\*Added\*\* `a\.link`/);
+  assert.match(md, /\*\*Added\*\* (?:\*\*[^*]+\*\* )?`a\.link`/);
   assert.match(md, /Interactive states:/);
   assert.match(md, /\| State \| Property \| Value \|/);
   assert.match(md, /`:hover` \| `color` \| `#0000ff`/); // colours render as hex (with a GitHub swatch)
@@ -800,7 +796,7 @@ test('an added element reports its full resting computed style, value-only', () 
     afterPng: solidPng(1280, 800),
   });
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
-  assert.match(md, /\*\*Added\*\* `button\.btn`/);
+  assert.match(md, /\*\*Added\*\* (?:\*\*[^*]+\*\* )?`button\.btn`/);
   assert.match(md, /Style inventory \(head-side — no baseline\)/);
   assert.match(md, /\| Property \| Value \|/); // value-only, no bogus Before column
   assert.doesNotMatch(md, /\| Property \| Before \| After \|/, 'added-node inventory is never a before→after table');
@@ -1457,7 +1453,7 @@ test('new surfaces render before ordinary element changes', () => {
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const newSurfaceIndex = md.indexOf('`pricing@1280` · new surface');
-  const changedElementIndex = md.indexOf('### `button');
+  const changedElementIndex = md.search(/### \*\*.*\*\* `button|### `button/);
   assert.ok(newSurfaceIndex >= 0, 'new surface is present');
   assert.ok(changedElementIndex >= 0, 'ordinary changed element is present');
   assert.ok(newSurfaceIndex < changedElementIndex, 'the new page/surface is shown before lower-level element changes');
@@ -1991,7 +1987,11 @@ test('end-to-end: responsive grids (same track count, different px) collapse to 
   writeCapture(afterDir, 'agents@1440', map('295px 228px', 'rgb(255, 0, 0)'), solidPng(1440, 400));
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.equal((md.match(/^### `div\.netgrid`/gm) || []).length, 1, 'one grouped section, not one per width');
+  assert.equal(
+    (md.match(/^### (?:\*\*[^*]+\*\* )?`div\.netgrid`/gm) || []).length,
+    1,
+    'one grouped section, not one per width',
+  );
   assert.match(md, /Identical across 2 surfaces/);
   rmTmp(root);
 });
@@ -2026,8 +2026,8 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /!\[before ◀ │ ▶ after\]\(crops\/[^)]+-composite\.png\)/, 'clean composite shown');
-  assert.doesNotMatch(md, /<summary>🔍 Highlight what changed<\/summary>/, 'highlight is not hidden behind a toggle');
-  assert.match(md, /!\[highlighted[^\]]*\]\(crops\/[^)]+-annotated\.png\)/, 'highlighted image shown by default');
+  assert.match(md, /<summary>Show highlight overlay<\/summary>/, 'highlight sits under an optional toggle');
+  assert.match(md, /!\[highlighted[^\]]*\]\(crops\/[^)]+-annotated\.png\)/, 'highlighted image still emitted');
   const crops = fs.readdirSync(path.join(outDir, 'crops'));
   const ann = crops.find((f) => f.endsWith('-annotated.png'));
   assert.ok(ann && crops.some((f) => f.endsWith('-composite.png')), 'both image files written');
@@ -2932,7 +2932,8 @@ test('report headline and global chrome use surface-base counts with variant det
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### '));
   assert.match(summary, /2 changed surface bases \(4 variants\) with an existing baseline/);
-  assert.match(summary, /Surface base.*@width/);
+  assert.doesNotMatch(summary, /Surface base.*@width/);
+  assert.match(summary, /changes need review|change needs review/);
   assert.match(md, /## 🧱 Global chrome change — across all 2 captured surface base\(s\)/);
   rmTmp(root);
 });
