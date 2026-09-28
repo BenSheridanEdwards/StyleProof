@@ -87,8 +87,9 @@ function locateHarness(top: string, headSha: string, spec: string, specHash: str
   return path.posix.dirname(normalized) === '.' ? located : path.posix.dirname(located);
 }
 
+/** POSIX ERE for a literal `key: '<name>'` declaration; every ERE metacharacter is escaped. */
 const declaredKeyPattern = (name: string): string =>
-  `key[[:space:]]*:[[:space:]]*["'\`]${name.replace(/\./g, '\\.')}["'\`]`;
+  `key[[:space:]]*:[[:space:]]*["'\`]${name.replace(/[\\.[\]()*+?{}|^$]/g, '\\$&')}["'\`]`;
 
 function gitTopLevel(cwd: string): string | null {
   const r = runGit(cwd, ['rev-parse', '--show-toplevel'], { timeout: GIT_TIMEOUT_MS });
