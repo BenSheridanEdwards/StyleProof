@@ -190,7 +190,7 @@ jobs:
         run: |
           test '${{ steps.legacy-identity.outputs.changed }}' = 'false'
           test '${{ steps.legacy-identity.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
-          grep -F 'comparable on' styleproof-report/report.md
+          grep -F '"status": "comparable"' styleproof-report/report.json
 
       - id: legacy-declared
         uses: ./
@@ -208,7 +208,7 @@ jobs:
           test '${{ steps.legacy-declared.outputs.changed }}' = 'false'
           test '${{ steps.legacy-declared.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
           grep -E 'declared legacy pair' styleproof-report/report.md
-          grep -F 'advisory, not certification' styleproof-report/report.md
+          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
           grep -F '"declared": [' styleproof-report/report.json
           grep -F 'home@320' styleproof-report/report.json
 

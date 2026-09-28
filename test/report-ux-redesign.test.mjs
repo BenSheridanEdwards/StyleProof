@@ -37,7 +37,7 @@ function tmpDirs() {
 }
 
 test('humanLabel title-cases the marker class before the selector', () => {
-  assert.equal(humanLabel('html > body > div:nth-child(1)', 'fleet-title'), 'Fleet title');
+  assert.equal(humanLabel('html > body > div:nth-child(1)', 'page-title'), 'Page title');
   assert.equal(humanLabel('html > body > h1', ''), 'h1');
 });
 
@@ -58,7 +58,7 @@ test('report skeleton is verdict-first with one primary crop and collapsed evide
   const el = (color) => ({
     'html > body > div:nth-child(1)': {
       tag: 'div',
-      cls: 'fleet-title',
+      cls: 'page-title',
       rect: [10, 10, 200, 40],
       style: { color },
     },
@@ -85,7 +85,7 @@ test('report skeleton is verdict-first with one primary crop and collapsed evide
   assert.doesNotMatch(md.slice(0, md.indexOf('## Changes')), /\*\*Certification\*\*/);
 
   // Human label before selector.
-  assert.match(md, /\*\*Fleet title\*\* `div\.fleet-title`/);
+  assert.match(md, /\*\*Page title\*\* `div\.page-title`/);
 
   // No mid-report glossary.
   assert.doesNotMatch(md, /Surface base.*=.*product UI state/);

@@ -156,7 +156,7 @@ export function summarizePropsWithFollowOns(props: PropChange[]): SummarizedProp
   return nestCurrentColorFollowOns(map);
 }
 
-/** Leaf tag from a path: `html > body > div.fleet-title:nth-child(2)` → `div`. */
+/** Leaf tag from a path: `html > body > div.page-title:nth-child(2)` → `div`. */
 function pathTag(p: string): string {
   return (
     (p.split('>').pop() ?? '')
@@ -175,11 +175,11 @@ export function prettyLabel(p: string, cls: string): string {
   return /^[a-z][a-z0-9-]*$/.test(first) ? `${tag}.${first}` : tag;
 }
 
-/** Human label before the selector: `fleet-title` → `Fleet title`; else the tag. */
+/** Human label before the selector: `page-title` → `Page title`; else the tag. */
 export function humanLabel(p: string, cls: string): string {
   const first = (cls.split(/\s+/)[0] ?? '').trim();
   if (/^[a-z][a-z0-9-]*$/.test(first)) {
-    // Sentence case: "fleet-title" → "Fleet title" (human label before the selector).
+    // Sentence case: "page-title" → "Page title" (human label before the selector).
     return first
       .split('-')
       .filter(Boolean)

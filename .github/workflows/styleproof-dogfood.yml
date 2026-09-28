@@ -114,7 +114,7 @@ jobs:
           test -f example/styleproof.product-state.json
           grep -F '"home"' example/styleproof.product-state.json
           grep -E 'declared legacy pair' styleproof-report/report.md
-          grep -F 'advisory, not certification' styleproof-report/report.md
+          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
           grep -F '"armed": true' styleproof-report/report.json
           grep -E 'home@' styleproof-report/report.json
 
