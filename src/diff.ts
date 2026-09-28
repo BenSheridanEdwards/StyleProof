@@ -11,8 +11,8 @@ export {
 import {
   isMapFile,
   MAP_MANIFEST,
-  readMapManifest,
   baselineFailureReceipts,
+  readBaselineFailureLedger,
   surfaceMissingMatchesBaselineFailure,
   type BaselineFailureReceipt,
   type SurfaceCaptureFailure,
@@ -468,14 +468,17 @@ export function diffStyleMapDirs(
   compared: number;
   /** Bounded baseline capture failures read from the base manifest. */
   baselineFailures: BaselineFailureReceipt[];
+  /** Base capture failures set aside because git proves the base never declared the surface. */
+  undeclaredOnBase: string[];
   /** One entry per paired surface when `options.pixels` is set; absent otherwise. */
   pixels?: PixelSurfaceResult[];
 } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
-  const baselineManifest = readMapManifest(dirA);
-  const baselineSurfaceFailures = baselineManifest?.surfaceCaptureFailures ?? [];
-  const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures, baselineManifest?.sha);
+  // A head-only surface the base never declared is new, not a baseline capture failure.
+  const ledger = readBaselineFailureLedger(dirA, dirB, new Set(Object.keys(indexB)));
+  const baselineSurfaceFailures = ledger.failures;
+  const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures, ledger.sha);
   const names = sortedUnionKeys(indexA, indexB);
   if (names.length === 0) throw new Error(`no .json(.gz) captures found in ${dirA} or ${dirB}`);
   assertBothSidesCaptured(dirA, indexA, indexB);
@@ -510,6 +513,7 @@ export function diffStyleMapDirs(
     ...uncompared,
     compared: names.length,
     baselineFailures,
+    undeclaredOnBase: ledger.undeclaredOnBase,
     ...(options.pixels ? { pixels } : {}),
   };
 }

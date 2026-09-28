@@ -182,6 +182,7 @@ const {
   baseOnlyVolatile,
   statesUncertified,
   baselineFailures,
+  undeclaredOnBase,
 } = result;
 const pixelSurfaces = result.pixels ?? [];
 
@@ -220,6 +221,11 @@ if (partialBaseline) {
   printSection(`⚠ ${baselineFailures.length} baseline capture failure(s): ${baselineAttribution.summary}`, [
     '  Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.',
   ]);
+}
+if (undeclaredOnBase.length) {
+  printSection(
+    `ℹ ${undeclaredOnBase.length} base capture attempt(s) not counted as baseline failures — the base commit never declared: ${undeclaredOnBase.join(', ')}`,
+  );
 }
 
 function comparabilityHeadline() {
@@ -694,6 +700,8 @@ if (jsonOut) {
           ...(baselineProvenance ? { baselineProvenance } : {}),
           explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
           partialBaseline,
+          // Additive, only when present: base failures the base commit never declared.
+          ...(undeclaredOnBase.length ? { undeclaredOnBase } : {}),
           // Subtrees excluded because a side auto-detected them as volatile at capture settle.
           volatileExcluded: volatile,
           // Subtrees volatile on the head but compared on the base: excluded, so they block certification.

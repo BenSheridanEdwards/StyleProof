@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import test from 'node:test';
@@ -915,6 +916,128 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
         expectedState,
         fixture,
       );
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** Run diff → report → merge → verdict exactly as the Action does, from `cwd`. */
+function runActionPipeline({ cwd, beforeDir, afterDir, baseSha, headSha }) {
+  const shaArguments = ['--expected-before-sha', baseSha, '--expected-after-sha', headSha];
+  const diff = spawnSync(
+    process.execPath,
+    [
+      path.join(here, '..', 'bin/styleproof-diff.mjs'),
+      beforeDir,
+      afterDir,
+      '--json',
+      'styleproof-diff.json',
+      ...shaArguments,
+    ],
+    { cwd, encoding: 'utf8' },
+  );
+  assert.ok([0, 1, 3].includes(diff.status), diff.stderr || diff.stdout);
+  const report = spawnSync(
+    process.execPath,
+    [
+      path.join(here, '..', 'bin/styleproof-report.mjs'),
+      beforeDir,
+      afterDir,
+      '--out',
+      'styleproof-report',
+      ...shaArguments,
+    ],
+    { cwd, encoding: 'utf8' },
+  );
+  assert.ok([0, 1].includes(report.status), report.stderr || report.stdout);
+  fs.writeFileSync(path.join(cwd, 'merge.mjs'), actionReportMergeScript());
+  fs.writeFileSync(path.join(cwd, 'github-output'), '');
+  const merge = spawnSync(process.execPath, ['merge.mjs'], {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      STYLEPROOF_INCLUDE_CONTENT: 'false',
+      STYLEPROOF_EXPECTED_BASE_SHA: baseSha,
+      STYLEPROOF_EXPECTED_HEAD_SHA: headSha,
+      GITHUB_ACTION_PATH: path.join(here, '..'),
+      GITHUB_OUTPUT: path.join(cwd, 'github-output'),
+    },
+  });
+  assert.equal(merge.status, 0, merge.stderr || merge.stdout);
+  fs.writeFileSync(
+    path.join(cwd, 'verdict.cjs'),
+    actionVerdictScript({ baseCaptureFailed: false, changed: [1, 3].includes(diff.status) }),
+  );
+  const verdict = spawnSync(process.execPath, ['verdict.cjs'], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: path.join(cwd, 'verdict.json') },
+  });
+  assert.equal(verdict.status, 0, verdict.stderr || verdict.stdout);
+  return {
+    state: JSON.parse(fs.readFileSync(path.join(cwd, 'verdict.json'), 'utf8')).state,
+    report: JSON.parse(fs.readFileSync(path.join(cwd, 'styleproof-report', 'report.json'), 'utf8')),
+  };
+}
+
+test('Action: a surface the head spec adds is STYLE_REVIEW_REQUIRED; one declared on both sides stays PARTIAL_BASELINE', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-undeclared-'));
+  try {
+    for (const [scenario, baseKeys, expectedState] of [
+      ['added', ['home'], 'STYLE_REVIEW_REQUIRED'],
+      ['existing', ['home', 'about'], 'PARTIAL_BASELINE'],
+    ]) {
+      // The consumer repository: the fixture manifests name `scripts/action-dogfood-fixtures.mjs` as the spec.
+      const repo = path.join(root, scenario);
+      const spec = path.join(repo, 'scripts', 'action-dogfood-fixtures.mjs');
+      fs.mkdirSync(path.dirname(spec), { recursive: true });
+      const git = (...args) =>
+        spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], {
+          cwd: repo,
+          encoding: 'utf8',
+        }).stdout.trim();
+      const declare = (keys) => keys.map((key) => `export const ${key} = { key: '${key}' };\n`).join('');
+      git('init', '-q');
+      fs.writeFileSync(spec, declare(baseKeys));
+      git('add', '.');
+      git('commit', '-q', '-m', 'base');
+      const baseSha = git('rev-parse', 'HEAD');
+      fs.writeFileSync(spec, declare(['home', 'about']));
+      git('commit', '-q', '--allow-empty', '-am', 'head');
+      const headSha = git('rev-parse', 'HEAD');
+
+      const fixtures = path.join(root, `${scenario}-fixtures`);
+      const generated = spawnSync(
+        process.execPath,
+        [path.join(here, '..', 'scripts/action-dogfood-fixtures.mjs'), fixtures, baseSha, headSha],
+        { encoding: 'utf8' },
+      );
+      assert.equal(generated.status, 0, generated.stderr);
+      // The base ran the head spec (spec overlay) and `about@320` failed there.
+      // Both sides record the head spec's hash, as the overlay produces.
+      const specHash = createHash('sha256').update(fs.readFileSync(spec)).digest('hex');
+      for (const side of ['base', 'head']) {
+        const manifestPath = path.join(fixtures, `partial-${side}`, 'styleproof-manifest.json');
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        manifest.specHash = specHash;
+        if (side === 'base') {
+          manifest.surfaceCaptureFailures = [{ key: 'about@320', reason: 'locator timeout', kind: 'capture' }];
+        }
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      }
+
+      const { state, report } = runActionPipeline({
+        cwd: repo,
+        beforeDir: path.join(fixtures, 'partial-base'),
+        afterDir: path.join(fixtures, 'partial-head'),
+        baseSha,
+        headSha,
+      });
+      assert.equal(state, expectedState, scenario);
+      assert.equal(report.partialBaseline, scenario === 'existing', scenario);
+      assert.deepEqual(report.undeclaredOnBase, scenario === 'added' ? ['about@320'] : undefined, scenario);
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
