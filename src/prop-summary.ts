@@ -103,25 +103,88 @@ function fold(map: Map<string, PropChange>, { short, parts, combine, uniform }: 
   });
 }
 
+/** A summarized property that may carry nested currentColor follow-ons. */
+export type SummarizedProp = PropChange & { followOns?: PropChange[] };
+
+function cleanedProp(p: PropChange): PropChange {
+  return { prop: p.prop, before: cleanVal(p.before), after: cleanVal(p.after) };
+}
+
+function isMeaningful(p: PropChange): boolean {
+  return p.before !== p.after && !(isNonValue(p.before) && isNonValue(p.after));
+}
+
+/** Peel currentColor followers off `color` into nested followOns (report display). */
+function nestCurrentColorFollowOns(map: Map<string, PropChange>): SummarizedProp[] {
+  const color = map.get('color');
+  const followOns: PropChange[] = [];
+  if (color) {
+    for (const follower of CURRENTCOLOR_FOLLOWERS) {
+      const f = map.get(follower);
+      if (f && sameChange(f, color)) {
+        followOns.push(cleanedProp(f));
+        map.delete(follower);
+      }
+    }
+  }
+  const rows: SummarizedProp[] = [...map.values()]
+    .map(cleanedProp)
+    .filter(isMeaningful)
+    .sort((a, b) => orderIdx(a.prop) - orderIdx(b.prop) || a.prop.localeCompare(b.prop));
+  if (color && followOns.length) {
+    const idx = rows.findIndex((r) => r.prop === 'color');
+    if (idx >= 0) rows[idx] = { ...rows[idx], followOns };
+  }
+  return rows;
+}
+
 /** Collapse longhands into reviewable shorthand rows and drop no-op deltas. */
 export function summarizeProps(props: PropChange[]): PropChange[] {
+  // Counts/signatures drop currentColor echoes so they never inflate peer diffs.
+  return summarizePropsWithFollowOns(props).map(({ prop, before, after }) => ({ prop, before, after }));
+}
+
+/**
+ * Same collapse as `summarizeProps`, but currentColor followers that track `color`
+ * nest under it (`followOns`) instead of disappearing — one primary property card,
+ * not peer diffs for caret/outline/text-decoration echoes.
+ */
+export function summarizePropsWithFollowOns(props: PropChange[]): SummarizedProp[] {
   const map = new Map(props.map((p) => [p.prop, { ...p }]));
   for (const [logical, physical] of Object.entries(LOGICAL_TO_PHYSICAL)) dropEcho(map, logical, physical);
-  for (const follower of CURRENTCOLOR_FOLLOWERS) dropEcho(map, follower, 'color');
   for (const family of FOLDS) fold(map, family);
-  return [...map.values()]
-    .map((p) => ({ prop: p.prop, before: cleanVal(p.before), after: cleanVal(p.after) }))
-    .filter((p) => p.before !== p.after && !(isNonValue(p.before) && isNonValue(p.after)))
-    .sort((a, b) => orderIdx(a.prop) - orderIdx(b.prop) || a.prop.localeCompare(b.prop));
+  return nestCurrentColorFollowOns(map);
+}
+
+/** Leaf tag from a path: `html > body > div.page-title:nth-child(2)` → `div`. */
+function pathTag(p: string): string {
+  return (
+    (p.split('>').pop() ?? '')
+      .trim()
+      .replace(/:nth-child\(\d+\)/, '')
+      .replace(/:sp-key\([a-z0-9]+\)/, '')
+      // Paths never carry classes, but tolerate a mistaken `tag.class` leaf.
+      .replace(/\.[a-z][a-z0-9_-]*/gi, '') || 'el'
+  );
 }
 
 /** `div.who-grid`, `a.nav-cta`, `h3` — the semantic marker class, else the tag. */
 export function prettyLabel(p: string, cls: string): string {
-  const tag =
-    (p.split('>').pop() ?? '')
-      .trim()
-      .replace(/:nth-child\(\d+\)/, '')
-      .replace(/:sp-key\([a-z0-9]+\)/, '') || 'el';
+  const tag = pathTag(p);
   const first = cls.split(/\s+/)[0] ?? '';
   return /^[a-z][a-z0-9-]*$/.test(first) ? `${tag}.${first}` : tag;
+}
+
+/** Human label before the selector: `page-title` → `Page title`; else the tag. */
+export function humanLabel(p: string, cls: string): string {
+  const first = (cls.split(/\s+/)[0] ?? '').trim();
+  if (/^[a-z][a-z0-9-]*$/.test(first)) {
+    // Sentence case: "page-title" → "Page title" (human label before the selector).
+    return first
+      .split('-')
+      .filter(Boolean)
+      .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase()))
+      .join(' ');
+  }
+  return pathTag(p);
 }

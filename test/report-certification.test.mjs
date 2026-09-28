@@ -1,6 +1,5 @@
-// Source of truth — the report leads with the certification gates. A reviewer reading
-// report.md should see "is this green trustworthy?" (coverage complete? determinism
-// proven? did the navigable set shrink?) BEFORE the pixel details.
+// Source of truth — the report leads with the verdict. Green certification stays hidden;
+// failures/warnings collapse under Evidence. Advisory vs blocking semantics unchanged.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -39,7 +38,7 @@ function bundle({ captured, baseNav, headNav, expected, exclude = {}, baseDet, h
 }
 const readMd = (out) => fs.readFileSync(path.join(out, 'report.md'), 'utf8');
 
-test('a healthy bundle leads with all-green certification', () => {
+test('a healthy bundle hides all-green certification (verdict first)', () => {
   const { root, base, head, out } = bundle({
     captured: ['home', 'about'],
     baseNav: ['home', 'about'],
@@ -50,10 +49,11 @@ test('a healthy bundle leads with all-green certification', () => {
   });
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
-  assert.match(md, /\*\*Certification\*\*/);
-  assert.match(md, /Coverage.*✓ complete/);
-  assert.match(md, /Determinism.*✓ proven/);
-  assert.match(md, /Inventory.*✓ navigable set unchanged/);
+  assert.doesNotMatch(md, /\*\*Certification\*\*/);
+  assert.doesNotMatch(md, /Coverage.*✓ complete/);
+  assert.doesNotMatch(md, /Determinism.*✓ proven/);
+  assert.doesNotMatch(md, /Inventory.*✓ navigable set unchanged/);
+  assert.match(md, /No reviewable computed-style changes|change needs review|changes need review/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -75,10 +75,11 @@ test('the report carries no release-confidence layer, and the confidence ledger 
   assert.equal(report.releaseConfidence, undefined);
   assert.equal(result.releaseConfidence, undefined);
   assert.equal(fs.existsSync(path.join(out, 'styleproof-release-confidence.json')), false);
-  // The reviewer-facing confidence line the layer duplicated is untouched, and the
-  // certification block still leads the report, ahead of the visual verdict.
-  assert.match(md, /\*\*Confidence\*\* — ✓ complete/);
-  assert.ok(md.indexOf('**Certification**') < md.indexOf('No reviewable computed-style changes'));
+  // All-green confidence stays hidden; the machine receipt in report.json still carries it.
+  assert.doesNotMatch(md, /\*\*Confidence\*\* — ✓ complete/);
+  assert.doesNotMatch(md, /\*\*Certification\*\*/);
+  assert.equal(result.confidence.completeness, 'complete');
+  assert.match(md, /No reviewable computed-style changes/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -104,7 +105,8 @@ test('expanded captures satisfy the expanded registry in both coverage and confi
   }
   const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
-  assert.match(md, /Coverage.*✓ complete \(all 2 registered surface\(s\) captured\)/);
+  // Green coverage is hidden in Markdown; completeness still lands in report.json.
+  assert.doesNotMatch(md, /Coverage.*✓ complete/);
   assert.doesNotMatch(md, /INCOMPLETE/);
   assert.equal(result.confidence.completeness, 'complete');
   fs.rmSync(root, { recursive: true, force: true });
@@ -122,7 +124,7 @@ test('complete coverage distinguishes captures from explicit exclusions', () => 
   });
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
-  assert.match(md, /Coverage.*✓ complete \(2 of 3 registered surface\(s\) captured; 1 explicitly excluded\)/);
+  assert.doesNotMatch(md, /Coverage.*✓ complete/);
   assert.doesNotMatch(md, /all 3 registered surface\(s\) captured/);
   fs.rmSync(root, { recursive: true, force: true });
 });
@@ -267,7 +269,8 @@ test('a clean healthy bundle (no residue, not armed) omits the data-residue line
   const { root, base, head, out } = residueBundle({ residue: null, gate: false });
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
-  assert.match(md, /\*\*Certification\*\*/); // ledger present → block renders
+  // Unasserted coverage/confidence still surface as warnings; residue must not.
+  assert.match(md, /\*\*Certification\*\*/);
   assert.doesNotMatch(md, /Failed data request/);
   fs.rmSync(root, { recursive: true, force: true });
 });
@@ -278,7 +281,7 @@ test('a clean healthy bundle (no residue, not armed) omits the data-residue line
 // on one never implies the other.
 import { writeConfidenceLedger, buildConfidenceLedger, CONFIDENCE_LEDGER } from '../dist/confidence-ledger.js';
 
-test('a healthy asserted bundle renders Confidence ✓ complete, and report.json carries the summary', () => {
+test('a healthy asserted bundle hides Confidence ✓ complete in Markdown; report.json still carries it', () => {
   const { root, base, head, out } = bundle({
     captured: ['home', 'about'],
     baseNav: ['home', 'about'],
@@ -289,7 +292,7 @@ test('a healthy asserted bundle renders Confidence ✓ complete, and report.json
   });
   const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
-  assert.match(md, /\*\*Confidence\*\* — ✓ complete \(2 captured\)/);
+  assert.doesNotMatch(md, /\*\*Confidence\*\* — ✓ complete/);
   assert.equal(result.confidence.completeness, 'complete');
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
   assert.equal(json.confidence.completeness, 'complete');

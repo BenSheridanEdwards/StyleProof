@@ -14,8 +14,9 @@ test('report.html covers the report Markdown grammar (#698)', () => {
     [
       '## 🗺️ StyleProof report',
       '',
-      '**3 computed-style difference(s)** across 1 distinct change(s).',
-      '_**Surface base** = one product UI state._',
+      '**1 change needs review**',
+      '',
+      '3 computed-style difference(s) across 1 distinct change(s).',
       '',
       '### `home@900` · 1 element restyled <!-- styleproof-new -->',
       '',
@@ -49,8 +50,8 @@ test('report.html covers the report Markdown grammar (#698)', () => {
 
   assert.match(html, /^<!doctype html>/);
   assert.match(html, /<h2>🗺️ StyleProof report<\/h2>/);
-  assert.match(html, /<strong>3 computed-style difference\(s\)<\/strong>/);
-  assert.match(html, /<em><strong>Surface base<\/strong> = one product UI state\.<\/em>/);
+  assert.match(html, /<strong>1 change needs review<\/strong>/);
+  assert.match(html, /3 computed-style difference\(s\) across 1 distinct change\(s\)\./);
   assert.match(html, /<h3><code>home@900<\/code> · 1 element restyled <!-- styleproof-new --><\/h3>/);
   assert.match(html, /<code>#9ca3af<\/code> → <code>#2563eb<\/code>/);
   assert.match(html, /<img src="crops\/home-900-2-composite\.png" alt="before ◀ │ ▶ after"/);

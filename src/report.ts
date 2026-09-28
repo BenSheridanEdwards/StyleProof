@@ -54,7 +54,9 @@ import {
   certificationLines,
   comparabilityLine,
   criticalObligationLines,
+  evidenceSection,
   liveTextFreezeLines,
+  productStateWarningLines,
 } from './report/certification.js';
 import { baselineFailureDetailLines, readBaselineInfo, reportHeadline } from './report/headline.js';
 import { countShownChanges, groupBySignature } from './report/regions.js';
@@ -70,7 +72,14 @@ import {
 // Re-exported so consumers (and tests) reach the summariser and grouping
 // primitives through the package's report module rather than deep paths.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
-export { summarizeProps, prettyLabel, assessComparisonTruth } from './change-groups.js';
+export {
+  summarizeProps,
+  summarizePropsWithFollowOns,
+  prettyLabel,
+  humanLabel,
+  assessComparisonTruth,
+} from './change-groups.js';
+export type { SummarizedProp } from './change-groups.js';
 export type { ComparisonTruth } from './change-groups.js';
 export { propertyGlanceLine } from './report/markdown.js';
 export { MIGRATION_GALLERY_LABELS, type MigrationGallery } from './report/migration-gallery.js';
@@ -301,38 +310,37 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const baselineProvenance = readBaselineProvenance(beforeDir);
   const provenanceLine = baselineProvenanceLine(baselineProvenance);
   const md = new ReportMarkdown(opts.maxReportBytes ?? 400_000);
+  // Verdict first (above the fold), then the product-state warning when it fires —
+  // never certification checklist first, and never a green product-state peer card.
+  const headline = reportHeadline({
+    changeGroups,
+    missing,
+    shown,
+    changedScope: countChangedSurfaceScope(changeGroups, surfaceKeyOf),
+    volatileCount: diff.volatile,
+    headOnlyVolatile: diff.headOnlyVolatile,
+    baseOnlyVolatile: diff.baseOnlyVolatile,
+    liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
+    contentCount: contentSection.count,
+    contentEvaluated: includeContent,
+    reportConsistency,
+    rawCounts: comparison.rawCounts,
+    baseline,
+    confidenceBlocked: confidence.counts.inaccessible > 0,
+    comparisonBlocked: comparison.blocksCertification,
+    liveTextFreezeViolated: comparison.liveTextFreezeViolated,
+  });
   md.lines.push(
     '## 🗺️ StyleProof report',
     '',
-    ...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }),
-    ...liveTextFreezeLines(liveText),
-    ...(provenanceLine ? [provenanceLine, ''] : []),
-    comparabilityLine(comparison, gates.legacyPairs),
-    '',
-    ...criticalObligationLines(gates.criticalStates, opts.criticalObligations),
-    ...reportHeadline({
-      changeGroups,
-      missing,
-      shown,
-      changedScope: countChangedSurfaceScope(changeGroups, surfaceKeyOf),
-      volatileCount: diff.volatile,
-      headOnlyVolatile: diff.headOnlyVolatile,
-      baseOnlyVolatile: diff.baseOnlyVolatile,
-      liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
-      contentCount: contentSection.count,
-      contentEvaluated: includeContent,
-      reportConsistency,
-      rawCounts: comparison.rawCounts,
-      baseline,
-      confidenceBlocked: confidence.counts.inaccessible > 0,
-      comparisonBlocked: comparison.blocksCertification,
-      liveTextFreezeViolated: comparison.liveTextFreezeViolated,
-    }),
+    ...productStateWarningLines(comparison, gates.legacyPairs),
+    ...headline,
     ...stateCoverageLines(ctx),
   );
   md.trimToBudget();
 
   const out: SectionState = { md, json: [], seq: { crop: 0 } };
+  // Budget-aware: large failure receipts collapse under the display-budget notice (report.json keeps full list).
   if (baseline.failures.length > 0) {
     md.detail(
       baselineFailureDetailLines(baseline.failures),
@@ -361,6 +369,36 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       `- ${contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
     );
   }
+
+  // Evidence (failures/warnings only) collapses by default under the fold.
+  const certIssues = certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence });
+  const comparabilityEvidence = (() => {
+    const line = comparabilityLine(comparison, gates.legacyPairs);
+    // Proven / not-required stay out of Evidence; the above-the-fold warning covers unproven cases.
+    if (/✓ comparable|not required/.test(line)) return [];
+    return [line, ''];
+  })();
+  const evidenceBody = [
+    ...certIssues,
+    ...liveTextFreezeLines(liveText),
+    ...(provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
+    ...comparabilityEvidence,
+    ...criticalObligationLines(gates.criticalStates, opts.criticalObligations),
+  ];
+
+  // "Nothing else" when restyles exist but no advisory content / inventory issues.
+  const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
+  if (
+    changeGroups.length > 0 &&
+    missing.length === 0 &&
+    contentSection.count === 0 &&
+    !migrationGallery &&
+    !inventoryTouched
+  ) {
+    md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
+  }
+
+  md.append(evidenceSection(evidenceBody));
 
   const paths = writeReportArtifacts({
     outDir,

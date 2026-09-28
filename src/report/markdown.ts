@@ -1,6 +1,15 @@
 import type { Finding, PropChange } from '../diff.js';
 import { describeChange, toHex, type DescribeCtx, type ElementChange } from '../describe.js';
-import { groupByPath, groupTitle, isNonValue, prettyLabel, summarizeProps } from '../change-groups.js';
+import {
+  groupByPath,
+  groupTitle,
+  humanLabel,
+  isNonValue,
+  prettyLabel,
+  summarizeProps,
+  summarizePropsWithFollowOns,
+  type SummarizedProp,
+} from '../change-groups.js';
 
 type StyleFinding = Extract<Finding, { kind: 'style' }>;
 type StateFinding = Extract<Finding, { kind: 'state' }>;
@@ -114,10 +123,21 @@ export function propertyGlanceLine(findings: Finding[]): string {
   return parts.join('<br>\n');
 }
 
+function propRows(rows: SummarizedProp[], added: boolean): string[][] {
+  const out: string[][] = [];
+  for (const r of rows) {
+    out.push([codeValue(r.prop), ...valueCells(r, added)]);
+    for (const f of r.followOns ?? []) {
+      out.push([`↳ ${codeValue(f.prop)} _(currentColor)_`, ...valueCells(f, added)]);
+    }
+  }
+  return out;
+}
+
 function styleSection(styles: StyleFinding[], added: boolean): string[] {
   const out: string[] = [];
   for (const s of styles) {
-    const rows = summarizeProps(s.props);
+    const rows = summarizePropsWithFollowOns(s.props);
     if (!rows.length) continue;
     const heading = s.pseudo
       ? `On \`${s.pseudo}\`${added ? ' (head-side inventory — no baseline)' : ''}:`
@@ -125,27 +145,25 @@ function styleSection(styles: StyleFinding[], added: boolean): string[] {
         ? 'Style inventory (head-side — no baseline):'
         : 'Style:';
     const header = added ? ['Property', 'Value'] : ['Property', 'Before', 'After'];
-    out.push(
-      '',
-      heading,
-      '',
-      ...table(
-        header,
-        rows.map((r) => [codeValue(r.prop), ...valueCells(r, added)]),
-      ),
-    );
+    out.push('', heading, '', ...table(header, propRows(rows, added)));
   }
   return out;
 }
 
 function statesSection(states: StateFinding[], added: boolean): string[] {
-  const rows = states.flatMap((st) =>
-    summarizeProps(st.props).map((c) => [
-      codeValue(`:${st.state}`),
-      codeValue(c.prop),
-      valueCells(c, added).join(' → '),
-    ]),
-  );
+  const rows: string[][] = [];
+  for (const st of states) {
+    for (const c of summarizePropsWithFollowOns(st.props)) {
+      rows.push([codeValue(`:${st.state}`), codeValue(c.prop), valueCells(c, added).join(' → ')]);
+      for (const f of c.followOns ?? []) {
+        rows.push([
+          codeValue(`:${st.state}`),
+          `↳ ${codeValue(f.prop)} _(currentColor)_`,
+          valueCells(f, added).join(' → '),
+        ]);
+      }
+    }
+  }
   if (!rows.length) return [];
   const header = ['State', 'Property', added ? 'Value' : 'Before → After'];
   return ['', added ? 'Interactive states:' : 'Interactive-state changes:', '', ...table(header, rows)];
@@ -156,19 +174,26 @@ const renderComponent = (c: NonNullable<DomFinding['component']>): string => {
   return `${codeValue(c.name)}${entries.length ? ` (${entries.map(([k, v]) => escapeInlineMarkdown(`${k}=${v}`)).join(', ')})` : ''}`;
 };
 
-const DOM_HEADING: Record<DomFinding['change'], (label: string, dom: DomFinding) => string> = {
-  removed: (label) => `**Removed** \`${label}\``,
-  added: (label) => `**Added** \`${label}\``,
-  retagged: (label, dom) => `**Retagged** \`${label}\` ${escapeInlineMarkdown(dom.detail ?? '')}`,
-};
-
 /** One element's heading + body (no leading blank, no ×N suffix); null when nothing to show. */
 function renderOneElement(group: Finding[]): { head: string; body: string[] } | null {
-  const label = prettyLabel(group[0].path, group[0].cls);
+  const path = group[0].path;
+  const cls = group[0].cls;
+  const selector = prettyLabel(path, cls);
+  const human = humanLabel(path, cls);
+  // Human label before selector when the class humanizes to something distinct.
+  const named =
+    human && human.toLowerCase() !== selector.toLowerCase()
+      ? `**${escapeInlineMarkdown(human)}** \`${selector}\``
+      : `**\`${selector}\`**`;
   const dom = ofKind(group, 'dom')[0];
-  if (dom?.change === 'removed') return { head: DOM_HEADING.removed(label, dom), body: [] };
+  if (dom?.change === 'removed') return { head: `**Removed** ${named}`, body: [] };
   const added = dom?.change === 'added';
-  const head = dom ? DOM_HEADING[dom.change](label, dom) : `**\`${label}\`**`;
+  const head =
+    dom?.change === 'added'
+      ? `**Added** ${named}`
+      : dom?.change === 'retagged'
+        ? `**Retagged** ${named} ${escapeInlineMarkdown(dom.detail ?? '')}`
+        : named;
   const body = [
     ...(dom?.component ? ['', `React component: ${renderComponent(dom.component)}`] : []),
     ...styleSection(ofKind(group, 'style'), added),
@@ -248,10 +273,16 @@ export function renderCropChanges(findings: Finding[], foldAt: number, ctx: Desc
   return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`, ...tables, '', '</details>'];
 }
 
-/** A crop's heading: the anchor element, then what happened inside it. */
+/** A crop's heading: human label, selector, then what happened inside it. */
 export function regionHeading(regionPaths: string[], findings: Finding[]): string {
   const anchors = [...regionPaths].sort((a, b) => a.split(' > ').length - b.split(' > ').length);
-  const head = prettyLabel(anchors[0] ?? '', findings.find((f) => f.path === anchors[0])?.cls ?? '');
-  const label = anchors.length > 1 ? `\`${head}\` + ${anchors.length - 1} more` : `\`${head}\``;
+  const cls = findings.find((f) => f.path === anchors[0])?.cls ?? '';
+  const selector = prettyLabel(anchors[0] ?? '', cls);
+  const human = humanLabel(anchors[0] ?? '', cls);
+  const named =
+    human && human.toLowerCase() !== selector.toLowerCase()
+      ? `**${escapeInlineMarkdown(human)}** \`${selector}\``
+      : `\`${selector}\``;
+  const label = anchors.length > 1 ? `${named} + ${anchors.length - 1} more` : named;
   return `${label} · ${groupTitle(findings)}`;
 }

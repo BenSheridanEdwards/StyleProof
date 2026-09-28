@@ -81,9 +81,6 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
   return '`' + formatSurfaceList(shownSurfaces) + '`' + more;
 }
 
-const SURFACE_SCOPE_GLOSSARY =
-  '_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._';
-
 export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]): string[] {
   if (failures.length === 0) return [];
   const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: failures });
@@ -184,7 +181,12 @@ const NO_CHANGE = '✓ No reviewable computed-style changes among semantically m
 
 function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   const failure = consistencyFailureLines(input);
-  if (failure || input.baseline.surfaceFailures.length > 0) return failure;
+  if (failure) return failure;
+  // Baseline capture failures are reviewable evidence even with zero restyles — surface them
+  // here (not as "0 changes need review") so the receipt stays above the fold.
+  if (input.baseline.surfaceFailures.length > 0) {
+    return [...baselineFailureSummaryLines(input.baseline.failures)];
+  }
   if (input.headOnlyVolatile?.length) {
     return [
       '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below). Fail closed (`CERTIFICATION_FAILED`); not a clean no-change.',
@@ -209,20 +211,26 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   return [blocked ? scope.replace(/^✓ /, 'Computed-style scope only: ') : scope];
 }
 
+function verdictNeedsReview(n: number): string {
+  return n === 1 ? '**1 change needs review**' : `**${n} changes need review**`;
+}
+
 function summaryLines(input: HeadlineInput): string[] {
   const { changeGroups, missing, shown, changedScope, baseline } = input;
   const noChange = changeGroups.length === 0 && missing.length === 0 ? noChangedSurfaceSummary(input) : undefined;
   if (noChange) return noChange;
+  const reviewable = changeGroups.length + missing.length;
   const md = [
+    verdictNeedsReview(reviewable),
+    '',
     ...baselineFailureSummaryLines(baseline.failures),
     ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures),
     ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
   ];
   if (changeGroups.length > 0) {
     md.push(
-      ...(md.length > 0 ? [''] : []),
+      ...(md.length > 0 && md[md.length - 1] !== '' ? [''] : []),
       `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
-      SURFACE_SCOPE_GLOSSARY,
     );
   }
   return md;

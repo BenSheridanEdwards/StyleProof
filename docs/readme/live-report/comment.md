@@ -2,12 +2,15 @@
 
 ## 🗺️ StyleProof report
 
+⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
+
+**1 change needs review**
+
 **2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
-_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
-## Element-level changes
+## Changes
 
-### `button.btn` · 1 element restyled
+### **Btn** `button.btn` · 1 element restyled
 
 _demo-button @ 900_
 
@@ -18,11 +21,16 @@ _demo-button @ 900_
 
 <sub>◀ before · after ▶ — demo-button @ 900</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
 
-**`button.btn`**
+</details>
+
+**Btn** `button.btn`
 
 Style:
 
@@ -31,7 +39,7 @@ Style:
 | `padding`          | `14px 28px` | `18px 32px` |
 | `background-color` | `#14b8a6`   | `#dc2626`   |
 
-### `a.link` · 1 element restyled `:hover`
+### **Link** `a.link` · 1 element restyled `:hover`
 
 _demo-button @ 900_
 
@@ -43,19 +51,32 @@ _Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 <sub>◀ base :hover · head :hover ▶ — both sides are :hover</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
 
-**`a.link`**
+</details>
+
+**Link** `a.link`
 
 Interactive-state changes:
 
-| State    | Property | Before → After        |
-| -------- | -------- | --------------------- |
-| `:hover` | `color`  | `#a5f3fc` → `#fca5a5` |
+| State    | Property                                       | Before → After        |
+| -------- | ---------------------------------------------- | --------------------- |
+| `:hover` | `color`                                        | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `caret-color` _(currentColor)_               | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `outline-color` _(currentColor)_             | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `column-rule-color` _(currentColor)_         | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `row-rule-color` _(currentColor)_            | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `text-decoration-color` _(currentColor)_     | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `text-emphasis-color` _(currentColor)_       | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
 
-### `a.link` · 1 element restyled `:focus`
+### **Link** `a.link` · 1 element restyled `:focus`
 
 _demo-button @ 900_
 
@@ -67,11 +88,16 @@ _Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 <sub>◀ base :focus · head :focus ▶ — both sides are :focus</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
 
-**`a.link`**
+</details>
+
+**Link** `a.link`
 
 Interactive-state changes:
 
@@ -79,7 +105,7 @@ Interactive-state changes:
 | -------- | --------------- | --------------------- |
 | `:focus` | `outline-color` | `#5eead4` → `#fca5a5` |
 
-### `a.link` · 1 element restyled `:active`
+### **Link** `a.link` · 1 element restyled `:active`
 
 _demo-button @ 900_
 
@@ -91,17 +117,39 @@ _Both sides are :active. Left is the old :active. Right is the new :active._
 
 <sub>◀ base :active · head :active ▶ — both sides are :active</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
 
-**`a.link`**
+</details>
+
+**Link** `a.link`
 
 Interactive-state changes:
 
-| State     | Property | Before → After        |
-| --------- | -------- | --------------------- |
-| `:active` | `color`  | `#2dd4bf` → `#f87171` |
+| State     | Property                                       | Before → After        |
+| --------- | ---------------------------------------------- | --------------------- |
+| `:active` | `color`                                        | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `caret-color` _(currentColor)_               | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `outline-color` _(currentColor)_             | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `column-rule-color` _(currentColor)_         | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `row-rule-color` _(currentColor)_            | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-decoration-color` _(currentColor)_     | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-emphasis-color` _(currentColor)_       | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+
+_Nothing else — no other element or inventory changes in this compare._
+
+<details>
+<summary>Evidence (warnings & failures)</summary>
+
+⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s).
+
+</details>
 
 - [ ] **Approve all changes**
 

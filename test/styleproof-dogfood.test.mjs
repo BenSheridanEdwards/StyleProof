@@ -87,7 +87,7 @@ test('live StyleProof-on-StyleProof arms declare-or-fail-closed for home@* pairs
   assert.ok(declared.home.trim().length > 0, 'home must be declared with a non-empty reason');
   assert.match(workflow, /STYLEPROOF_PRODUCT_STATE:\s*example\/styleproof\.product-state\.json/);
   assert.match(workflow, /declared legacy pair/);
-  assert.match(workflow, /advisory, not certification/);
+  assert.match(workflow, /visual-only, not a certified same-state compare/);
   assert.doesNotMatch(
     workflow,
     /ledger stays unarmed|does not set `productState\.legacyPairs`/,

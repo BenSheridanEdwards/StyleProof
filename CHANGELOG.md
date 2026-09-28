@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **Report UX redesign (verdict-first).** The report leads with
+  `N change(s) need review` and one card per distinct change (human label before
+  the selector, e.g. **Page title** `div.page-title`). Green certification
+  stays hidden; failures/warnings collapse under a default-closed Evidence
+  section. Product-state identity warnings sit above the fold in plain language
+  when unproven and are omitted when proven. Mid-report surface-base glossary
+  dropped (see `docs/REFERENCE.md`). One primary before/after crop; highlight
+  overlay and zoom sit under an optional toggle. `currentColor` follow-ons nest
+  under the primary `color` property. Review-gate **Approve all changes**
+  semantics unchanged.
+
 ### Fixed
 
 - **A surface a pull request adds is no longer reported as `PARTIAL_BASELINE`.**

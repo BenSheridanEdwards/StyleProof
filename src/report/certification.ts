@@ -143,8 +143,19 @@ function confidenceLine(
   return `- **Confidence** — ⚠ limited (${parts})${named}${details.length ? `\n${details.join('\n')}` : ''}`;
 }
 
-/** Coverage / determinism / inventory / residue / confidence. Empty when the bundle
- *  carries no certification metadata at all (an old capture). */
+/** A certification line that still needs a reviewer's eyes (not an all-green ✓). */
+function isCertificationIssue(line: string): boolean {
+  // Keep warnings/failures; drop pure-success ticks so an all-green block stays hidden.
+  if (/✗|⚠|⛔/.test(line)) return true;
+  // Inventory additions are informational (they never gate) but still worth naming.
+  if (/Inventory/.test(line) && /added/.test(line)) return true;
+  if (/✓/.test(line) && !/⚠|✗|⛔/.test(line)) return false;
+  return true;
+}
+
+/** Coverage / determinism / inventory / residue / confidence.
+ *  Empty when the bundle carries no certification metadata, OR when every gate is ✓
+ *  (green certification is hidden — only failures/warnings surface). */
 export function certificationLines(
   beforeDir: string,
   afterDir: string,
@@ -166,18 +177,19 @@ export function certificationLines(
   const hasResidue = res.residue.length > 0 || res.armed;
   if (!hasConfidence && !hasInvChange && !hasResidue) return [];
   const coverage = auditCoverage(bundleSurfaceKeys(afterDir, headLedger?.expected ?? null), headLedger);
-  return [
-    '**Certification**',
+  const lines = [
     coverageLine(coverage, explicitExclusionCount(headLedger)),
     determinismLine(
       auditDeterminism(withCaptureDeterminism(beforeDir, baseLedger), withCaptureDeterminism(afterDir, headLedger)),
     ),
     inventoryLine(inv, hasCapturedInventory(beforeInventories, afterInventories)),
-    // Only with residue or an armed gate, so an ordinary bundle keeps its 3-line block.
+    // Only with residue or an armed gate, so an ordinary bundle keeps its short block.
     ...(hasResidue ? [dataResidueLine(res)] : []),
     confidenceLine(confidence.ledger, confidence.summary, sidecarPresent),
-    '',
   ];
+  const issues = lines.filter(isCertificationIssue);
+  if (issues.length === 0) return [];
+  return ['**Certification**', ...issues, ''];
 }
 
 export function liveTextFreezeLines(audit: LiveTextAudit): string[] {
@@ -220,10 +232,8 @@ export function criticalObligationLines(
 ): string[] {
   if (!audit?.armed) return [];
   if (audit.failing.length + audit.unresolved.length + audit.contradictory.length === 0) {
-    return [
-      `**Critical state obligations** — ✓ ${audit.certified.length} declared obligation(s) certifying on comparable paired evidence.`,
-      '',
-    ];
+    // All-green critical obligations stay hidden with the rest of the green certification.
+    return [];
   }
   const describe = (key: string): string => {
     const meta = declared?.[key];
@@ -244,23 +254,70 @@ export function criticalObligationLines(
   ];
 }
 
-/** One product-state comparison line (the caller adds the blank line after it). */
-export function comparabilityLine(comparison: ComparabilitySummary, legacyPairs?: LegacyPairAudit): string {
+/**
+ * Plain-language product-state warning for the above-the-fold verdict.
+ * Empty when identity is proven (comparable) or not required — never shown as a peer restyle card.
+ */
+export function productStateWarningLines(comparison: ComparabilitySummary, legacyPairs?: LegacyPairAudit): string[] {
+  if (comparison.status === 'comparable' || comparison.status === 'not-required') return [];
+  if (legacyPairs?.armed && legacyPairs.undeclared.length > 0) {
+    return [
+      '⛔ **Product-state identity unproven** (undeclared legacy pair). Treat as visual-only, not a certified same-state compare. Declare `productState {id, revision}` or record it in `styleproof.product-state.json`.',
+      '',
+    ];
+  }
+  if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification) {
+    return [
+      '⚠️ **Product-state identity unproven** (declared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
+      '',
+    ];
+  }
+  if (!comparison.blocksCertification) {
+    return [
+      '⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
+      '',
+    ];
+  }
   const counts = comparison.counts;
-  if (comparison.status === 'comparable')
-    return `**Product-state comparison** — ✓ comparable on ${counts.comparable} paired capture(s) using explicit consumer-owned identity.`;
-  if (comparison.status === 'not-required')
-    return '**Product-state comparison** — not required; there are no paired capture obligations.';
-  if (legacyPairs?.armed && legacyPairs.undeclared.length > 0)
-    return `⛔ **Product-state comparison** — ${legacyPairs.undeclared.length} undeclared legacy pair(s). Declare each as productState {id, revision} or record it in styleproof.product-state.json; unknown pairs cannot certify.`;
-  if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification)
-    return `⚠️ **Product-state comparison** — ${legacyPairs.declared.length} declared legacy pair(s) on the record. This is advisory, not certification that both captures reached the same product state.`;
-  if (!comparison.blocksCertification)
-    return `⚠️ **Product-state comparison** — unproven on ${counts.unproven} undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.`;
   const reasons = [
     counts.incomparable ? `${counts.incomparable} incomparable` : '',
     counts.requiredUnproven ? `${counts.requiredUnproven} required-unproven` : '',
     counts.globalRequiredUnproven ? `${counts.globalRequiredUnproven} globally required-unproven` : '',
   ].filter(Boolean);
-  return `⛔ **Product-state comparison** — ${comparison.status}; ${reasons.join(', ')} paired capture(s). Raw detector evidence is diagnostic only, is not approval evidence, and cannot certify this comparison.`;
+  return [
+    `⛔ **Product-state identity unproven.** ${comparison.status}; ${reasons.join(', ')} paired capture(s). Treat the diff as visual-only, not a certified same-state compare — raw detector evidence is diagnostic only, is not approval evidence, and cannot be approved as one.`,
+    '',
+  ];
+}
+
+/** One product-state comparison line for the collapsed Evidence section (caller adds blank after). */
+export function comparabilityLine(comparison: ComparabilitySummary, legacyPairs?: LegacyPairAudit): string {
+  const counts = comparison.counts;
+  // Proven / not-required stay out of the above-the-fold warning; Evidence may still note them briefly.
+  if (comparison.status === 'comparable')
+    return `**Product-state comparison** — ✓ comparable on ${counts.comparable} paired capture(s) using explicit consumer-owned identity.`;
+  if (comparison.status === 'not-required')
+    return '**Product-state comparison** — not required; there are no paired capture obligations.';
+  // Failures/warnings already shown above the fold via productStateWarningLines — keep a short Evidence echo.
+  if (legacyPairs?.armed && legacyPairs.undeclared.length > 0)
+    return `⛔ **Product-state comparison** — ${legacyPairs.undeclared.length} undeclared legacy pair(s).`;
+  if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification)
+    return `⚠️ **Product-state comparison** — ${legacyPairs.declared.length} declared legacy pair(s) on the record.`;
+  if (!comparison.blocksCertification)
+    return `⚠️ **Product-state comparison** — unproven on ${counts.unproven} undeclared legacy pair(s).`;
+  const reasons = [
+    counts.incomparable ? `${counts.incomparable} incomparable` : '',
+    counts.requiredUnproven ? `${counts.requiredUnproven} required-unproven` : '',
+    counts.globalRequiredUnproven ? `${counts.globalRequiredUnproven} globally required-unproven` : '',
+  ].filter(Boolean);
+  return `⛔ **Product-state comparison** — ${comparison.status}; ${reasons.join(', ')} paired capture(s).`;
+}
+
+/** Fold Evidence (certification issues, receipts) under a collapsed <details> by default. */
+export function evidenceSection(body: string[]): string[] {
+  const lines = body.filter((l, i, arr) => !(l === '' && (i === 0 || arr[i - 1] === '')));
+  while (lines.length && lines[0] === '') lines.shift();
+  while (lines.length && lines[lines.length - 1] === '') lines.pop();
+  if (!lines.length) return [];
+  return ['', '<details>', '<summary>Evidence (warnings & failures)</summary>', '', ...lines, '', '</details>'];
 }

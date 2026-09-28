@@ -69,17 +69,21 @@ fs.rmSync(res.reportJsonPath, { force: true });
 fs.rmSync(work, { recursive: true, force: true });
 
 function restingChangesFirst(markdown) {
-  const heading = '## Element-level changes\n\n';
+  const heading = '## Changes\n\n';
   const start = markdown.indexOf(heading);
   if (start === -1) return markdown;
   const bodyStart = start + heading.length;
-  const body = markdown.slice(bodyStart);
-  const blocks = body.split(/(?=^### )/m);
+  // Only reorder ### change cards. Trailing "Nothing else" / Evidence stay put.
+  const trailMatch = markdown.slice(bodyStart).search(/\n(?=_Nothing else|<details>\n<summary>Evidence)/);
+  const bodyEnd = trailMatch === -1 ? markdown.length : bodyStart + trailMatch;
+  const body = markdown.slice(bodyStart, bodyEnd);
+  const trail = markdown.slice(bodyEnd);
+  const blocks = body.split(/(?=^### )/m).filter(Boolean);
   const resting = blocks.filter(
     (block) => block.startsWith('### ') && !['`:hover`', '`:focus`', '`:active`'].some((s) => block.includes(s)),
   );
   const states = blocks.filter((block) => !resting.includes(block));
-  return markdown.slice(0, bodyStart) + [...resting, ...states].join('');
+  return markdown.slice(0, bodyStart) + [...resting, ...states].join('') + trail;
 }
 
 const report = restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8'));

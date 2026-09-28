@@ -1,11 +1,12 @@
 ## 🗺️ StyleProof report
 
-⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
+⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
+
+**2 changes need review**
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
 **3 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
-_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 📝 _3 advisory content change(s) below — they don't affect the check._
 
@@ -21,9 +22,9 @@ _pricing @ 900_
 
 _No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
 
-## Element-level changes
+## Changes
 
-### `span.caret` · 1 element restyled
+### **Caret** `span.caret` · 1 element restyled
 
 _home @ 900_
 
@@ -33,6 +34,9 @@ _home @ 900_
 
 <sub>◀ before  ·  after ▶ — home @ 900</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted before ◀ │ ▶ after](crops/home-900-2-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `span.caret`</sub>
@@ -41,12 +45,14 @@ _home @ 900_
 
 <sub>🔬 magnified 5× — change too small to see at 1:1 — changed: `span.caret`</sub>
 
+</details>
+
 - **`span.caret`** — text gray (`#9ca3af`) → blue (`#2563eb`)
 
 <details>
 <summary>Show the property change</summary>
 
-**`span.caret`**
+**Caret** `span.caret`
 
 Style:
 
@@ -56,7 +62,7 @@ Style:
 
 </details>
 
-### `button.cta` · 1 element restyled
+### **Cta** `button.cta` · 1 element restyled
 
 _home @ 900_
 
@@ -66,16 +72,21 @@ _home @ 900_
 
 <sub>◀ before  ·  after ▶ — home @ 900</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted before ◀ │ ▶ after](crops/home-900-3-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `button.cta`</sub>
+
+</details>
 
 - **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
 
 <details>
 <summary>Show the property change</summary>
 
-**`button.cta`**
+**Cta** `button.cta`
 
 Style:
 
@@ -85,7 +96,7 @@ Style:
 
 </details>
 
-### `aside.off-canvas-status` · 1 element restyled
+### **Off canvas status** `aside.off-canvas-status` · 1 element restyled
 
 _home @ 900_
 
@@ -98,7 +109,7 @@ _The changed element is not visible in the captured page (it is outside the scre
 <details>
 <summary>Show the property change</summary>
 
-**`aside.off-canvas-status`**
+**Off canvas status** `aside.off-canvas-status`
 
 Style:
 
@@ -124,9 +135,14 @@ _3 content/structure change(s). **Advisory only** — content and DOM structure 
 
 <sub>◀ before  ·  after ▶ — duplicate-insertion@900</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted before ◀ │ ▶ after](crops/duplicate-insertion-900-content-1-annotated.png)
 
 <sub>🔍 magenta boxes mark the changed content</sub>
+
+</details>
 
 ### `home@900` · 1 content/structure change(s)
 
@@ -139,6 +155,9 @@ _3 content/structure change(s). **Advisory only** — content and DOM structure 
 
 <sub>◀ before  ·  after ▶ — home@900</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted before ◀ │ ▶ after](crops/home-900-content-2-annotated.png)
 
 <sub>🔍 magenta boxes mark the changed content</sub>
@@ -146,6 +165,8 @@ _3 content/structure change(s). **Advisory only** — content and DOM structure 
 ![zoomed before ◀ │ ▶ after](crops/home-900-content-2-zoom.png)
 
 <sub>🔬 magnified 2×: content change too small to read at 1:1</sub>
+
+</details>
 
 ### `sibling-insertion@900` · 1 content/structure change(s)
 
@@ -157,6 +178,18 @@ _3 content/structure change(s). **Advisory only** — content and DOM structure 
 
 <sub>◀ before  ·  after ▶ — sibling-insertion@900</sub>
 
+<details>
+<summary>Show highlight overlay</summary>
+
 ![highlighted before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-annotated.png)
 
 <sub>🔍 magenta boxes mark the changed content</sub>
+
+</details>
+
+<details>
+<summary>Evidence (warnings & failures)</summary>
+
+⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s).
+
+</details>
