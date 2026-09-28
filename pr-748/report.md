@@ -2,43 +2,19 @@
 
 **1 change needs review**
 
-**1 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 320`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
-## Changes
+## One-sided pages, states, or surfaces — review first
 
-### **Panel** `main.panel` · 1 element restyled
+### `pricing@320` · new surface <!-- styleproof-new -->
 
-_home @ 320_
+_pricing @ 320_
 
-`color` `#000000` → `#ff0000`
+![new surface — after](crops/pricing-320-1-new.png)
 
-![before ◀ │ ▶ after](crops/home-320-1-composite.png)
+<sub>after · pricing @ 320</sub>
 
-<sub>◀ before  ·  after ▶ — home @ 320</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted before ◀ │ ▶ after](crops/home-320-1-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `main.panel`</sub>
-
-</details>
-
-- **`main.panel`** — text black (`#000000`) → red (`#ff0000`)
-
-<details>
-<summary>Show the property change</summary>
-
-**Panel** `main.panel`
-
-Style:
-
-| Property | Before | After |
-| --- | --- | --- |
-| `color` | `#000000` | `#ff0000` |
-
-</details>
+_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
