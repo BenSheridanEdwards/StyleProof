@@ -1,0 +1,13 @@
+## 🗺️ StyleProof report
+
+**Certification**
+- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
+- **Determinism** — ✓ proven (base self-checked, head self-checked)
+- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
+- **Confidence** — ✓ complete (1 captured)
+
+**Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
+
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
+
+<!-- styleproof-receipt head-sha:3f1ba7223187e7032bd55d7ee50f9b4f89d0e5d3 run-id:36400700126 run-attempt:1 -->
