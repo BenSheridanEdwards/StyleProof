@@ -6,8 +6,8 @@
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
 - **Confidence** — ✓ complete (1 captured)
 
-⚠️ **Product-state comparison** — 1 declared legacy pair(s) on the record. This is advisory, not certification that both captures reached the same product state.
+⛔ **Product-state comparison** — 1 undeclared legacy pair(s). Declare each as productState {id, revision} or record it in styleproof.product-state.json; unknown pairs cannot certify.
 
-✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
+Computed-style scope only: No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
 <!-- styleproof-receipt head-sha:3f1ba7223187e7032bd55d7ee50f9b4f89d0e5d3 run-id:36400700126 run-attempt:1 -->
