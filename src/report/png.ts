@@ -61,65 +61,19 @@ export function annotateCrop(crop: Crop, rects: Rect[]): { png: PNG; highlighted
   return { png: out, highlighted };
 }
 
-const LABEL_COLOR: RGB = [139, 148, 158];
-const LABEL_SCALE = 2;
-const GLYPH_W = 5 * LABEL_SCALE;
-const GLYPHS: Record<string, readonly string[]> = {
-  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
-  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
-  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
-  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
-  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
-  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
-  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
-  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
-  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
-  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
-};
-
-function directionLabel(label: string, fallback: 'BEFORE' | 'AFTER'): string {
-  const normalized = label.trim().toUpperCase();
-  if (/^BASE(?:\s|:|$)/.test(normalized)) return 'BASE';
-  if (/^HEAD(?:\s|:|$)/.test(normalized)) return 'HEAD';
-  return fallback;
-}
-
-const labelWidth = (label: string): number => label.length * GLYPH_W + (label.length - 1) * LABEL_SCALE;
-
-function drawLabel(canvas: PNG, label: string, x: number, width: number): void {
-  const startX = x + Math.floor((width - labelWidth(label)) / 2);
-  for (let i = 0; i < label.length; i++) {
-    const glyph = GLYPHS[label[i]];
-    if (!glyph) continue;
-    const glyphX = startX + i * (GLYPH_W + LABEL_SCALE);
-    for (let row = 0; row < glyph.length; row++) {
-      for (let col = 0; col < glyph[row].length; col++) {
-        if (glyph[row][col] !== '1') continue;
-        fillRect(canvas, glyphX + col * LABEL_SCALE, 3 + row * LABEL_SCALE, LABEL_SCALE, LABEL_SCALE, LABEL_COLOR);
-      }
-    }
-  }
-}
-
-/** One before|after image: both crops on a dark canvas with a divider and direction labels. */
-export function compositePair(before: PNG, after: PNG, leftLabel = 'before', rightLabel = 'after'): PNG {
+/** One before|after image: two panels on a dark canvas with a divider (captions live in markdown). */
+export function compositePair(before: PNG, after: PNG): PNG {
   const PAD = 20;
   const GAP = 28;
   const w = Math.max(before.width, after.width);
   const h = Math.max(before.height, after.height);
-  const left = directionLabel(leftLabel, 'BEFORE');
-  const right = directionLabel(rightLabel, 'AFTER');
-  const panelWidth = Math.max(w, labelWidth(left) + 8, labelWidth(right) + 8);
-  const width = PAD + panelWidth + GAP + panelWidth + PAD;
+  const width = PAD + w + GAP + w + PAD;
   const canvas = new PNG({ width, height: PAD + h + PAD });
   fillRect(canvas, 0, 0, width, canvas.height, [13, 17, 23]); // GitHub dark
-  const rightX = PAD + panelWidth + GAP;
-  const offset = Math.floor((panelWidth - w) / 2);
-  drawLabel(canvas, left, PAD, panelWidth);
-  drawLabel(canvas, right, rightX, panelWidth);
-  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, PAD + offset, PAD);
-  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightX + offset, PAD);
-  fillRect(canvas, PAD + panelWidth + GAP / 2 - 1, PAD, 2, h, [48, 54, 61]); // divider
+  const rightX = PAD + w + GAP;
+  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, PAD, PAD);
+  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightX, PAD);
+  fillRect(canvas, PAD + w + GAP / 2 - 1, PAD, 2, h, [48, 54, 61]); // divider
   return canvas;
 }
 
@@ -150,6 +104,6 @@ export function zoomCrop(src: PNG, box: Box, rects: Rect[], factor: number): PNG
 }
 
 /** Write a before|after composite under `outDir`. */
-export function writeComposite(outDir: string, rel: string, pair: [PNG, PNG], labels: [string, string]): void {
-  writePng(path.join(outDir, rel), compositePair(pair[0], pair[1], ...labels));
+export function writeComposite(outDir: string, rel: string, pair: [PNG, PNG]): void {
+  writePng(path.join(outDir, rel), compositePair(pair[0], pair[1]));
 }

@@ -119,8 +119,9 @@ test('generateStyleMapReport renders the content section only when includeConten
   const compositePath = path.join(dirs.root, 'on', 'crops', 'landing-1280-content-1-composite.png');
   assert.ok(fs.existsSync(compositePath));
   const composite = PNG.sync.read(fs.readFileSync(compositePath));
+  assert.match(md, /◀ before {2}· {2}after ▶/, 'content direction lives in the markdown caption');
   const label = [139, 148, 158];
-  const labelPixels = [0, 0];
+  let labelPixels = 0;
   for (let y = 0; y < 20; y++) {
     for (let x = 0; x < composite.width; x++) {
       const offset = (y * composite.width + x) * 4;
@@ -129,12 +130,11 @@ test('generateStyleMapReport renders the content section only when includeConten
         composite.data[offset + 1] === label[1] &&
         composite.data[offset + 2] === label[2]
       ) {
-        labelPixels[x < composite.width / 2 ? 0 : 1]++;
+        labelPixels++;
       }
     }
   }
-  assert.equal(labelPixels[0], 416, 'content composite embeds the exact BEFORE glyphs');
-  assert.equal(labelPixels[1], 316, 'content composite embeds the exact AFTER glyphs');
+  assert.equal(labelPixels, 0, 'content composite has no in-image BEFORE/AFTER glyphs');
 
   // …and it NEVER gates: styles are identical, so the surface count and exit basis stay 0.
   assert.equal(on.changedSurfaces, 0);

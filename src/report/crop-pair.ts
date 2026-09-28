@@ -52,7 +52,6 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
   const { box, pngA, pngB, rectsA, rectsB, captions } = spec;
   const left = spec.labels?.left ?? 'before';
   const right = spec.labels?.right ?? 'after';
-  const labels: [string, string] = [left, right];
   const w = Math.max(ctx.minWidth, box.w);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
   const before = cropPng(pngA, box, w, h);
@@ -60,7 +59,7 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
   if (spec.skipIdentical && before.png.data.equals(after.png.data)) return null;
   const stem = cropStem(spec.surface, spec.suffix);
   const images: CropImages = { composite: `${stem}-composite.png` };
-  writeComposite(ctx.outDir, images.composite!, [before.png, after.png], labels);
+  writeComposite(ctx.outDir, images.composite!, [before.png, after.png]);
   const md = [
     '',
     `![${left} ◀ │ ▶ ${right}](${ctx.img(images.composite!)})`,
@@ -75,7 +74,7 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
   const annotatedB = annotateCrop(after, rectsB);
   if (annotatedA.highlighted || annotatedB.highlighted) {
     images.annotated = `${stem}-annotated.png`;
-    writeComposite(ctx.outDir, images.annotated, [annotatedA.png, annotatedB.png], labels);
+    writeComposite(ctx.outDir, images.annotated, [annotatedA.png, annotatedB.png]);
     overlay.push(
       '',
       `![highlighted ${left} ◀ │ ▶ ${right}](${ctx.img(images.annotated)})`,
@@ -88,7 +87,7 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
   if (zoom) {
     images.zoom = `${stem}-zoom.png`;
     const zoomed = (png: PNG, rects: Rect[]): PNG => zoomCrop(png, zoom.box, rects, zoom.factor);
-    writeComposite(ctx.outDir, images.zoom, [zoomed(pngA, rectsA), zoomed(pngB, rectsB)], labels);
+    writeComposite(ctx.outDir, images.zoom, [zoomed(pngA, rectsA), zoomed(pngB, rectsB)]);
     overlay.push(
       '',
       `![zoomed ${left} ◀ │ ▶ ${right}](${ctx.img(images.zoom)})`,

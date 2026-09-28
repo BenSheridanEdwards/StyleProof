@@ -1289,7 +1289,7 @@ test('end-to-end: a valid composite PNG of the expected size is written', () => 
   rmTmp(root);
 });
 
-test('end-to-end: composite PNG embeds durable before and after direction labels', () => {
+test('end-to-end: composite PNG is pure UI chrome with no in-image direction labels', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
@@ -1301,25 +1301,23 @@ test('end-to-end: composite PNG embeds durable before and after direction labels
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
   const png = PNG.sync.read(fs.readFileSync(compositePath));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /◀ before {2}· {2}after ▶/, 'direction lives in the markdown caption');
   const label = [139, 148, 158];
-  const countLabelPixels = (x0, x1) => {
-    let count = 0;
-    for (let y = 0; y < 20; y++) {
-      for (let x = x0; x < x1; x++) {
-        const offset = (y * png.width + x) * 4;
-        if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
-          count++;
-        }
+  let labelPixels = 0;
+  for (let y = 0; y < 20; y++) {
+    for (let x = 0; x < png.width; x++) {
+      const offset = (y * png.width + x) * 4;
+      if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
+        labelPixels++;
       }
     }
-    return count;
-  };
-  assert.equal(countLabelPixels(20, 340), 416, 'left crop has the exact in-image BEFORE glyphs');
-  assert.equal(countLabelPixels(368, 688), 316, 'right crop has the exact in-image AFTER glyphs');
+  }
+  assert.equal(labelPixels, 0, 'top pad band has no bitmap BEFORE/AFTER glyphs');
   rmTmp(root);
 });
 
-test('end-to-end: narrow crops expand neutral chrome so direction labels never overlap or clip', () => {
+test('end-to-end: narrow crops stay panel-sized with no in-image direction labels', () => {
   const map = (color) =>
     makeMap({
       elements: {
@@ -1342,17 +1340,15 @@ test('end-to-end: narrow crops expand neutral chrome so direction labels never o
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
   const png = PNG.sync.read(fs.readFileSync(compositePath));
+  // 1×1 panels: PAD20 + 1 + GAP28 + 1 + PAD20 = 70 wide, PAD20 + 1 + PAD20 = 41 tall.
+  assert.equal(png.width, 70);
+  assert.equal(png.height, 41);
   const label = [139, 148, 158];
-  const counts = [0, 0];
-  for (let y = 0; y < 20; y++) {
-    for (let x = 0; x < png.width; x++) {
-      const offset = (y * png.width + x) * 4;
-      if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
-        counts[x < png.width / 2 ? 0 : 1]++;
-      }
-    }
+  let labelPixels = 0;
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === label[0] && png.data[i + 1] === label[1] && png.data[i + 2] === label[2]) labelPixels++;
   }
-  assert.deepEqual(counts, [416, 316], 'each narrow panel contains one complete, non-overlapping direction label');
+  assert.equal(labelPixels, 0, 'narrow composite has no bitmap direction glyphs');
   rmTmp(root);
 });
 
@@ -2116,49 +2112,18 @@ test('state-only change crops hover vs hover, not rest vs rest', () => {
   const crops = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-composite.png'));
   assert.equal(crops.length, 1);
   const png = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', crops[0])));
+  assert.match(md, /◀ base :hover {2}· {2}head :hover ▶/, 'state direction lives in the markdown caption');
   const label = [139, 148, 158];
-  let baseLabelPixels = 0;
-  let headLabelPixels = 0;
+  let labelPixels = 0;
   for (let y = 0; y < 20; y++) {
     for (let x = 0; x < png.width; x++) {
       const offset = (y * png.width + x) * 4;
-      if (png.data[offset] !== label[0] || png.data[offset + 1] !== label[1] || png.data[offset + 2] !== label[2]) {
-        continue;
+      if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
+        labelPixels++;
       }
-      if (x < png.width / 2) baseLabelPixels++;
-      else headLabelPixels++;
     }
   }
-  assert.equal(baseLabelPixels, 284, 'state comparison embeds the exact BASE glyph count');
-  assert.equal(headLabelPixels, 284, 'state comparison embeds the exact HEAD glyph count');
-  const firstGlyphTopRow = (x0, x1) => {
-    const points = [];
-    for (let y = 0; y < 20; y++) {
-      for (let x = x0; x < x1; x++) {
-        const offset = (y * png.width + x) * 4;
-        if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
-          points.push([x, y]);
-        }
-      }
-    }
-    const minX = Math.min(...points.map(([x]) => x));
-    const minY = Math.min(...points.map(([, y]) => y));
-    const occupied = new Set(points.map(([x, y]) => `${x - minX}:${y - minY}`));
-    return Array.from({ length: 10 }, (_, x) => occupied.has(`${x}:0`));
-  };
-  assert.deepEqual(firstGlyphTopRow(0, png.width / 2), [true, true, true, true, true, true, true, true, false, false]);
-  assert.deepEqual(firstGlyphTopRow(png.width / 2, png.width), [
-    true,
-    true,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    true,
-    true,
-  ]);
+  assert.equal(labelPixels, 0, 'state composite has no in-image BASE/HEAD glyphs');
   let sawCyan = false;
   let sawPink = false;
   for (let i = 0; i < png.data.length; i += 4) {
