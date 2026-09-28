@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.2.0] - 2026-09-28
+
 ### Changed
 
 - **Report UX redesign (verdict-first).** The report leads with
@@ -21,6 +23,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   semantics unchanged.
 
 ### Fixed
+
+- **Map-store publish fallback authenticates like the isolated path.** The
+  consumer-checkout fallback (`pushViaConsumerCheckout`) fetched and pushed
+  bare — under `persist-credentials: false` or `-c`-scoped checkout auth there
+  is no ambient credential, so the fallback could never work on a private
+  remote. It now carries the same effective headers (`STYLEPROOF_MAP_STORE_TOKEN`
+  or the checkout's discovered `http.*.extraheader`).
 
 - **A surface a pull request adds is no longer reported as `PARTIAL_BASELINE`.**
   Under `--spec-ref` the base runs the head harness, so a newly declared surface
@@ -171,13 +180,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   PR instead of only showing up in a local re-run.
 
 ### Fixed
-
-- **Map-store publish fallback authenticates like the isolated path.** The
-  consumer-checkout fallback (`pushViaConsumerCheckout`) fetched and pushed
-  bare — under `persist-credentials: false` or `-c`-scoped checkout auth there
-  is no ambient credential, so the fallback could never work on a private
-  remote. It now carries the same effective headers (`STYLEPROOF_MAP_STORE_TOKEN`
-  or the checkout's discovered `http.*.extraheader`).
 
 - **Map-store restore authenticates its branch probe.** `lookupBranch`'s
   `ls-remote` ran bare, so a private remote answered it with a credential
@@ -4497,6 +4499,7 @@ number)`), so each viewport band can capture at its own height. Default remains 
   property, and state that drifted (exit 1).
 
 [Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.1.0...HEAD
+[7.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.1.0...v7.2.0
 [7.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.0.2...v7.1.0
 [7.0.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.0.1...v7.0.2
 [7.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.0.0...v7.0.1
