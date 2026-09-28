@@ -1,13 +1,13 @@
 ## 🗺️ StyleProof report
 
-**Certification**
-- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
-- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
-- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Confidence** — ⚠ limited (0 captured, 1 unproven-determinism)
-
-**Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
-
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
-<!-- styleproof-receipt head-sha:524caf434839060c5a4d155035059693b587300e run-id:36319261074 run-attempt:1 -->
+<details>
+<summary>Evidence (warnings & failures)</summary>
+
+**Certification**
+- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
+
+</details>
+
+<!-- styleproof-receipt head-sha:3f2e2cefa42d9b741ccf4428f016673ef862702a run-id:36442144831 run-attempt:1 -->
