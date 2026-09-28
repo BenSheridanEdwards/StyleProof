@@ -284,7 +284,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Shared-chrome tier (#193): purely presentational — only render order and one banner differ.
   const chrome = classifyChrome(changeGroups, surfaceElementPaths(beforeDir, afterDir), surfaceKeyOf);
   const shown = countShownChanges(changeGroups);
-  const baseline = readBaselineInfo(beforeDir);
+  const baseline = readBaselineInfo(beforeDir, afterDir);
   const comparison: ReportComparison = {
     ...comparisonForReport(rawComparison, ctx.includeNoise, prepared.length - missing.length),
     ...comparabilitySummary,
@@ -371,6 +371,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     comparability: gates.comparability,
     reportConsistency,
     baselineFailures: baseline.failures,
+    undeclaredOnBase: baseline.undeclaredOnBase,
     content: { evaluated: includeContent, changes: contentSection.count, advisory: true },
     surfaces: out.json,
     confidence,
