@@ -444,12 +444,20 @@ runs:
         }
         const reportMissingSurfaces = new Set();
         for (const entry of reportMissing) {
+          const validImage = (value) => typeof value === 'string' && value.length > 0 && value.length <= 512;
+          // #756: a one-sided page ships every tile plus how much of its height they show.
+          const tiled = Object.hasOwn(entry, 'images');
           const allowedKeys = Object.hasOwn(entry, 'image')
-            ? ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'image', 'classification']
+            ? ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'classification', 'image',
+                ...(tiled ? ['images', 'shownHeight', 'capturedHeight'] : [])]
             : ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'classification'];
           if (!exactKeys(entry, allowedKeys) || !boundedSurfaceKey(entry.surface) ||
               reportMissingSurfaces.has(entry.surface) || diffMissingBySurface.get(entry.surface) !== entry.missing ||
-              (Object.hasOwn(entry, 'image') && (typeof entry.image !== 'string' || entry.image.length === 0 || entry.image.length > 512))) {
+              (Object.hasOwn(entry, 'image') && !validImage(entry.image)) ||
+              (tiled && (!Array.isArray(entry.images) || entry.images.length === 0 || entry.images.length > 64 ||
+                !entry.images.every(validImage) || entry.images[0] !== entry.image ||
+                !Number.isInteger(entry.capturedHeight) || !Number.isInteger(entry.shownHeight) ||
+                entry.shownHeight < 1 || entry.shownHeight > entry.capturedHeight))) {
             throw new Error('StyleProof missing-baseline surface receipts are missing or malformed');
           }
           reportMissingSurfaces.add(entry.surface);

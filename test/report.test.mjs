@@ -1472,7 +1472,79 @@ test('new-surface proof uses the captured viewport height instead of a blank ful
   const image = md.match(/!\[new surface — after\]\((crops\/[^)]+-new\.png)\)/)?.[1];
   assert.ok(image, 'new-surface image is present');
   assert.equal(PNG.sync.read(fs.readFileSync(path.join(outDir, image))).height, 600);
-  assert.match(md, /top viewport of page/);
+  rmTmp(root);
+});
+
+/** A tall page: grey above the fold, one magenta band far below it (the content #756 hid). */
+function tallPageWithBelowFoldBand(width, height, bandTop) {
+  const png = PNG.sync.read(solidPng(width, height));
+  for (let y = bandTop; y < bandTop + 40; y++) {
+    for (let x = 0; x < width; x++) png.data.set([255, 0, 200, 255], (y * width + x) << 2);
+  }
+  return PNG.sync.write(png);
+}
+
+const oneSidedImages = (md, alt) =>
+  [...md.matchAll(new RegExp(`!\\[${alt}[^\\]]*\\]\\((crops/[^)]+)\\)`, 'g'))].map((m) => m[1]);
+
+const hasBand = (outDir, rel) => {
+  const png = PNG.sync.read(fs.readFileSync(path.join(outDir, rel)));
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === 255 && png.data[i + 1] === 0 && png.data[i + 2] === 200) return true;
+  }
+  return false;
+};
+
+test('new-surface proof shows the whole captured page in viewport-height tiles, not only the top viewport (#756)', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  writeCapture(beforeDir, 'home@1280', makeMap(), solidPng(1280, 600));
+  writeCapture(afterDir, 'home@1280', makeMap(), solidPng(1280, 600));
+  const viewport = { width: 1280, height: 600 };
+  writeCapture(afterDir, 'pricing@1280', { ...makeMap(), viewport }, tallPageWithBelowFoldBand(1280, 2100, 1900));
+  writeCapture(beforeDir, 'about@1280', { ...makeMap(), viewport }, tallPageWithBelowFoldBand(1280, 1500, 1300));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const tiles = oneSidedImages(md, 'new surface');
+  assert.equal(tiles.length, 4, 'a 2100px page at a 600px viewport is shown as 4 tiles');
+  const heights = tiles.map((rel) => PNG.sync.read(fs.readFileSync(path.join(outDir, rel))).height);
+  assert.deepEqual(heights, [600, 600, 600, 300], 'tiles cover the full captured height');
+  assert.ok(
+    tiles.some((rel) => hasBand(outDir, rel)),
+    'below-the-fold content appears in the report',
+  );
+  assert.doesNotMatch(md, /top viewport of page/);
+  assert.match(md, /part 4 of 4 · 1800–2100 of 2100px/);
+
+  const removedTiles = oneSidedImages(md, 'removed surface');
+  assert.equal(removedTiles.length, 3, 'removed surfaces are tiled the same way');
+  assert.ok(removedTiles.some((rel) => hasBand(outDir, rel)));
+
+  const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const entry = json.surfaces.find((s) => s.surface === 'pricing@1280');
+  assert.equal(entry.image, tiles[0], 'image stays the first tile for older consumers');
+  assert.deepEqual(entry.images, tiles);
+  assert.equal(entry.shownHeight, 2100);
+  assert.equal(entry.capturedHeight, 2100);
+  rmTmp(root);
+});
+
+test('a new surface taller than the tile cap says exactly how much is shown (#756)', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  writeCapture(beforeDir, 'home@1280', makeMap(), solidPng(1280, 100));
+  writeCapture(afterDir, 'home@1280', makeMap(), solidPng(1280, 100));
+  const viewport = { width: 320, height: 100 };
+  writeCapture(afterDir, 'pricing@320', { ...makeMap(), viewport }, solidPng(320, 1234));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.equal(oneSidedImages(md, 'new surface').length, 8);
+  assert.match(md, /showing 800 of 1234px — the remaining 434px below are not shown in this report/);
+  const entry = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces.find(
+    (s) => s.surface === 'pricing@320',
+  );
+  assert.equal(entry.shownHeight, 800);
+  assert.equal(entry.capturedHeight, 1234);
   rmTmp(root);
 });
 
