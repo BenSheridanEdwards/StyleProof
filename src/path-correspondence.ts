@@ -5,11 +5,18 @@ import type { ElementEntry, StyleMap } from './capture.js';
  * every element by its structural path, so path churn that leaves an element
  * visually where it was (a sibling inserted, a wrapper added) would read as
  * remove + add — and, structure being advisory, a real restyle on it would
- * vanish. Two conservative passes rewrite the BEFORE map onto the head's paths:
+ * vanish. Conservative passes rewrite the BEFORE map onto the head's paths:
  *
+ *   0. own-text identity — where the capture recorded own text (`captureText`), an
+ *      element whose tag + own text is unique on both sides pairs wherever it moved
+ *      (a sibling inserted, a group re-parented), with the same hashed identities
+ *      along the path. Its ancestors pair when every identified descendant agrees on
+ *      one destination of the same tag/class/component; its unidentified descendants
+ *      follow. Text is compared in memory only, never emitted.
  *   1. content shift — same hashed semantic path pattern, tag, class, own-text
  *      length and component on both sides pair k-th to k-th, only while the group
- *      is the same size on both sides (an nth-child shift, never an add/remove).
+ *      is the same size on both sides (an nth-child shift, never an add/remove)
+ *      and no member was already placed by own-text identity.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
  *      unique on both sides, sharing an ancestor segment or re-nested. For
  *      certification the hashed identities along the path must also match.
@@ -87,13 +94,20 @@ function pathsByContentSignature(map: StyleMap): Map<string, string[]> {
 }
 
 /** base path → head path for elements whose identity is recognisable on both sides but whose path moved. */
-function correspondingPathsByContentSignature(before: StyleMap, after: StyleMap): Map<string, string> {
+function correspondingPathsByContentSignature(
+  before: StyleMap,
+  after: StyleMap,
+  identified: Map<string, string>,
+): Map<string, string> {
   const bySignatureAfter = pathsByContentSignature(after);
+  const identifiedTargets = new Set(identified.values());
   const beforeToAfter = new Map<string, string>();
   for (const [signature, beforePaths] of pathsByContentSignature(before)) {
     const afterPaths = bySignatureAfter.get(signature) ?? [];
     // A size change means a real add/remove somewhere in the group: stay concrete.
     if (afterPaths.length !== beforePaths.length) continue;
+    // Own-text identity already placed part of this group; k-th pairing could contradict it.
+    if (beforePaths.some((p) => identified.has(p)) || afterPaths.some((p) => identifiedTargets.has(p))) continue;
     beforePaths.forEach((beforePath, i) => {
       if (afterPaths[i] !== beforePath) beforeToAfter.set(beforePath, afterPaths[i]!);
     });
@@ -101,9 +115,8 @@ function correspondingPathsByContentSignature(before: StyleMap, after: StyleMap)
   return beforeToAfter;
 }
 
-/** Re-key identifiable base elements onto their head paths so an nth-child shift compares the right siblings. */
-export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
-  const beforeToAfter = correspondingPathsByContentSignature(before, after);
+/** Re-key base elements onto their head paths; an unmatched occupant of a claimed path is dropped. */
+function applyPathMoves(before: StyleMap, beforeToAfter: Map<string, string>): StyleMap {
   if (beforeToAfter.size === 0) return before;
   // A matched element can move onto a path held by an ambiguous base element; that
   // occupant has no trustworthy head identity and must not overwrite the match.
@@ -111,6 +124,13 @@ export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap)
     [...beforeToAfter.values()].filter((afterPath) => afterPath in before.elements && !beforeToAfter.has(afterPath)),
   );
   return remapStyleMap(before, (p) => beforeToAfter.get(p) ?? (displaced.has(p) ? null : p));
+}
+
+/** Re-key identifiable base elements onto their head paths: own-text identity, plus the nth-child shift for the rest. */
+export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
+  const identified = ownTextIdentityMoves(before, after);
+  const shifted = correspondingPathsByContentSignature(before, after, identified);
+  return applyPathMoves(before, new Map([...shifted, ...identified]));
 }
 
 // ─── pass 2: geometry ──────────────────────────────────────────────────────────
@@ -211,12 +231,123 @@ export function remapBeforeStyleMap(before: StyleMap, beforeToAfter: Map<string,
   return remapStyleMap(before, (p) => remapPath(p, beforeToAfter));
 }
 
-/** Presentation: geometry correspondence only, so a shifted sibling still shows its crops as a one-sided inventory. */
-export function presentationBeforeMap(before: StyleMap, after: StyleMap): StyleMap {
-  return remapBeforeStyleMap(before, correspondElementPaths(before, after));
+// ─── pass 0: own-text identity ─────────────────────────────────────────────────
+
+const parentPath = (elementPath: string): string | null => {
+  const at = elementPath.lastIndexOf(' > ');
+  return at === -1 ? null : elementPath.slice(0, at);
+};
+
+const isStrictAncestor = (ancestor: string, elementPath: string): boolean => elementPath.startsWith(`${ancestor} > `);
+
+/** tag + own text → paths. Only captures taken with `captureText` carry text; nothing here is emitted. */
+function pathsByOwnText(map: StyleMap): Map<string, string[]> {
+  const byText = new Map<string, string[]>();
+  for (const [elementPath, element] of Object.entries(map.elements)) {
+    if (!element.text) continue;
+    const key = JSON.stringify([element.tag, element.text]);
+    const paths = byText.get(key);
+    if (paths) paths.push(elementPath);
+    else byText.set(key, [elementPath]);
+  }
+  return byText;
 }
 
-/** Certification: content shift first, then geometry among whatever is still one-sided. */
+/** Elements whose tag + own text is unique on both sides: base path → head path (possibly unchanged). */
+function ownTextAnchors(before: StyleMap, after: StyleMap): Array<[string, string]> {
+  const afterByText = pathsByOwnText(after);
+  const anchors: Array<[string, string]> = [];
+  for (const [key, beforePaths] of pathsByOwnText(before)) {
+    const afterPaths = afterByText.get(key);
+    if (beforePaths.length === 1 && afterPaths?.length === 1) anchors.push([beforePaths[0]!, afterPaths[0]!]);
+  }
+  return anchors;
+}
+
+/**
+ * Where each anchor, and each ancestor it walks up through, says its base path went.
+ * The walk stops once one side's ancestor contains the other's (a wrapper added or
+ * removed); an anchor that did not move votes its whole ancestor chain in place.
+ */
+function destinationVotes(anchors: Array<[string, string]>): Map<string, Set<string>> {
+  const votes = new Map<string, Set<string>>();
+  for (const [beforePath, afterPath] of anchors) {
+    let [b, a]: Array<string | null> = [beforePath, afterPath];
+    while (b && a && !isStrictAncestor(b, a) && !isStrictAncestor(a, b)) {
+      votes.set(b, (votes.get(b) ?? new Set<string>()).add(a));
+      [b, a] = [parentPath(b), parentPath(a)];
+    }
+  }
+  return votes;
+}
+
+/** An ancestor pairs only onto the same tag/class/component; an anchor's own text already names it. */
+function samePairableShape(
+  before: ElementEntry | undefined,
+  after: ElementEntry | undefined,
+  anchor: boolean,
+): boolean {
+  if (!before || !after || before.tag !== after.tag) return false;
+  return anchor || (before.cls === after.cls && before.component?.name === after.component?.name);
+}
+
+/** Moves every vote agrees on, one base path to one head path, with the same hashed identities along the path. */
+function unanimousMoves(
+  before: StyleMap,
+  after: StyleMap,
+  anchors: Array<[string, string]>,
+  votes: Map<string, Set<string>>,
+): Map<string, string> {
+  const claims = new Map<string, number>();
+  for (const targets of votes.values()) for (const target of targets) claims.set(target, (claims.get(target) ?? 0) + 1);
+  const anchorPaths = new Set(anchors.map(([beforePath]) => beforePath));
+  const moves = new Map<string, string>();
+  for (const [beforePath, targets] of votes) {
+    const [afterPath] = [...targets];
+    if (targets.size !== 1 || afterPath === beforePath || claims.get(afterPath!) !== 1) continue;
+    const anchor = anchorPaths.has(beforePath);
+    if (!samePairableShape(before.elements[beforePath], after.elements[afterPath!], anchor)) continue;
+    if (hashedIdentitySequence(beforePath) === hashedIdentitySequence(afterPath!)) moves.set(beforePath, afterPath!);
+  }
+  return moves;
+}
+
+/** The head path of an unidentified element inside a moved ancestor, when the head captured it. */
+function followMovedAncestor(elementPath: string, moves: Map<string, string>, after: StyleMap): string | null {
+  for (let ancestor = parentPath(elementPath); ancestor; ancestor = parentPath(ancestor)) {
+    const to = moves.get(ancestor);
+    if (to === undefined) continue;
+    const target = to + elementPath.slice(ancestor.length);
+    return target in after.elements ? target : null;
+  }
+  return null;
+}
+
+/** base path → head path for identified elements and the subtrees they carry; a contested target stays concrete. */
+function ownTextIdentityMoves(before: StyleMap, after: StyleMap): Map<string, string> {
+  const anchors = ownTextAnchors(before, after);
+  const votes = destinationVotes(anchors);
+  const moves = unanimousMoves(before, after, anchors, votes);
+  if (moves.size === 0) return moves;
+  const sourcesByTarget = new Map<string, string[]>();
+  for (const beforePath of Object.keys(before.elements)) {
+    // An element with its own (contested or in-place) vote never follows an ancestor.
+    const target =
+      moves.get(beforePath) ?? (votes.has(beforePath) ? null : followMovedAncestor(beforePath, moves, after));
+    if (target) sourcesByTarget.set(target, [...(sourcesByTarget.get(target) ?? []), beforePath]);
+  }
+  return new Map(
+    [...sourcesByTarget].flatMap(([target, sources]) => (sources.length === 1 ? [[sources[0]!, target] as const] : [])),
+  );
+}
+
+/** Presentation: own-text identity, then geometry; a shifted sibling without either still shows as one-sided. */
+export function presentationBeforeMap(before: StyleMap, after: StyleMap): StyleMap {
+  const identified = applyPathMoves(before, ownTextIdentityMoves(before, after));
+  return remapBeforeStyleMap(identified, correspondElementPaths(identified, after));
+}
+
+/** Certification: own-text identity and content shift first, then geometry among whatever is still one-sided. */
 export function correspondBeforeMap(before: StyleMap, after: StyleMap): StyleMap {
   const shifted = correspondContentShiftedPaths(before, after);
   return remapBeforeStyleMap(shifted, correspondElementPaths(shifted, after, { requireSameHashedIdentity: true }));
