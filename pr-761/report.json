@@ -39,7 +39,7 @@
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
     "status": "comparable",
-    "requireStateIdentity": true,
+    "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
       "comparable": 1,
