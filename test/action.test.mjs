@@ -260,6 +260,21 @@ test('production diff and report receipts pass through the exact Action merge pr
     assert.equal(firstAdoptionMerged.sourceBinding.before.result, 'no-capture');
     assert.equal(firstAdoptionMerged.comparison.status, 'not-required');
 
+    // #756: a tiled one-sided entry (every tile + honest height) passes; a tampered one does not.
+    const runMergeWith = (surfacePatch) => {
+      const tiledReport = structuredClone(firstAdoptionReport);
+      Object.assign(tiledReport.surfaces[0], surfacePatch);
+      fs.writeFileSync(reportJsonPath, JSON.stringify(tiledReport));
+      fs.writeFileSync(diffJsonPath, JSON.stringify(firstAdoptionDiff));
+      return spawnSync(process.execPath, [mergeScript], { cwd: root, encoding: 'utf8', env: actionEnv });
+    };
+    const tiles = { image: 'crops/a-1-new.png', images: ['crops/a-1-new.png', 'crops/a-1-new-2.png'] };
+    const tiledMerge = runMergeWith({ ...tiles, shownHeight: 1600, capturedHeight: 2140 });
+    assert.equal(tiledMerge.status, 0, tiledMerge.stderr || tiledMerge.stdout);
+    const overclaimed = runMergeWith({ ...tiles, shownHeight: 2141, capturedHeight: 2140 });
+    assert.equal(overclaimed.status, 1, overclaimed.stderr || overclaimed.stdout);
+    assert.match(overclaimed.stderr, /missing-baseline surface receipts are missing or malformed/);
+
     const partialReport = structuredClone(firstAdoptionReport);
     const partialDiff = structuredClone(firstAdoptionDiff);
     const partialSurface = partialReport.surfaces[0];
