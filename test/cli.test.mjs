@@ -1582,13 +1582,58 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
     const r = run(DIFF, [A, B]);
     assert.equal(r.status, 1, r.stderr);
     // The nav recolour is chrome (every base that hosts the nav changed it), and
-    // the pure-nav surfaces group under the callout.
-    assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 captured surface base\(s\)/, r.stdout);
+    // the pure-nav surfaces group under the callout. That group spans settings and
+    // reports only (home renders in place), so the banner says so (#752).
+    assert.match(r.stdout, /🧱 Global chrome change\(s\) — across 2 of 3 captured surface base\(s\)/, r.stdout);
     assert.match(r.stdout, /1 change\(s\) rode the shared frame/, r.stdout);
     // home entangled the nav change with its OWN h1 restyle, so it renders in place
     // (never hidden under the chrome banner) — the view-specific change stays visible.
     assert.match(r.stdout, /home@1280: 2 elements restyled/, 'the view-specific change stays visible');
     assert.match(r.stdout, /color: rgb\(0, 0, 0\) → rgb\(255, 0, 0\)/, 'home h1 restyle shown');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('diff CLI keeps a one-base, two-width change out of the global chrome tier (#752)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  try {
+    // A tab strip rendered by two bases; each restyles it differently, so no single
+    // change spans more than one base (settings-profile's is two widths of one base).
+    const tabs = (color) => ({
+      'html > body > div.tab-strip': {
+        tag: 'div',
+        cls: 'tab-strip',
+        rect: [0, 0, 700, 40],
+        style: { display: 'flex' },
+      },
+      'html > body > div.tab-strip > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'tab',
+        rect: [10, 4, 120, 32],
+        style: { color },
+      },
+    });
+    for (const w of [1024, 768]) {
+      writeCapture(A, `settings-profile@${w}`, makeMap({ elements: tabs('rgb(0, 0, 0)') }), null);
+      writeCapture(B, `settings-profile@${w}`, makeMap({ elements: tabs('rgb(255, 0, 0)') }), null);
+    }
+    writeCapture(A, 'settings-billing@1280', makeMap({ elements: tabs('rgb(0, 0, 0)') }), null);
+    writeCapture(B, 'settings-billing@1280', makeMap({ elements: tabs('rgb(0, 0, 255)') }), null);
+    const page = makeMap({ elements: { 'html > body > main': { tag: 'main', style: { display: 'block' } } } });
+    for (const v of ['home', 'reports']) {
+      writeCapture(A, `${v}@1280`, page, null);
+      writeCapture(B, `${v}@1280`, page, null);
+    }
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
+
+    const r = run(DIFF, [A, B]);
+    assert.equal(r.status, 1, r.stderr);
+    assert.doesNotMatch(r.stdout, /Global chrome/, 'a change seen on one surface base is not chrome');
+    assert.match(r.stdout, /settings-profile @ 1024, 768/, 'the two-width change still prints in place');
   } finally {
     rmTmp(root);
   }
