@@ -76,11 +76,12 @@ export function loadDirMaps(dir: string): Array<[string, StyleMap]> {
   return mapFiles(dir).map((f) => [captureKeyFromMapFile(f), loadStyleMap(path.join(dir, f))]);
 }
 
-/** Every surface map's navigable inventory, in the shape the inventory audit consumes. */
-export function readInventories(dir: string): Array<{ inventory?: NavigableItem[] }> {
+/** Every surface map's navigable inventory, keyed by capture key, in the shape the inventory audit consumes. */
+export function readInventories(dir: string): Array<{ inventory?: NavigableItem[]; surface: string }> {
   return mapFiles(dir).map((f) => {
     const m = loadStyleMap(path.join(dir, f));
-    return m.inventory ? { inventory: m.inventory } : {};
+    const surface = captureKeyFromMapFile(f);
+    return m.inventory ? { inventory: m.inventory, surface } : { surface };
   });
 }
 
