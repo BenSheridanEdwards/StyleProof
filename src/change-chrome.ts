@@ -43,17 +43,31 @@ export function chromePaths(
   surfacePaths: Map<string, Set<string>>,
   surfaceKeyOf?: (captureKey: string) => string | undefined,
 ): Set<string> {
+  const changed = new Map<string, Set<string>>();
+  for (const f of changedOnSurfaces) for (const s of f.surfaces) addTo(changed, f.path, s);
+  const byPath = [...changed].map(([path, surfaces]) => ({ host: path, path, surfaces: [...surfaces] }));
+  return new Set(chromeHosted(byPath, surfacePaths, surfaceKeyOf).map((c) => c.path));
+}
+
+/**
+ * The shared-chrome rule for any change: keep the changes whose `host` path is rendered
+ * on MORE THAN ONE surface base and that changed on EVERY base rendering it. A one-sided
+ * element change passes its parent as `host`: a newly added path is rendered only where
+ * it was added, so its container is what says where it should have appeared (#754).
+ */
+export function chromeHosted<T extends { host: string; surfaces: string[] }>(
+  changes: T[],
+  surfacePaths: Map<string, Set<string>>,
+  surfaceKeyOf?: (captureKey: string) => string | undefined,
+): T[] {
   const baseOf = (captureKey: string) => productSurfaceBase(captureKey, surfaceKeyOf?.(captureKey));
   const hosting = new Map<string, Set<string>>();
   for (const [surface, paths] of surfacePaths) for (const p of paths) addTo(hosting, p, baseOf(surface));
-  const changed = new Map<string, Set<string>>();
-  for (const f of changedOnSurfaces) for (const s of f.surfaces) addTo(changed, f.path, baseOf(s));
-  const chrome = new Set<string>();
-  for (const [path, changedBases] of changed) {
-    const hostingBases = hosting.get(path) ?? new Set([path]);
-    if (hostingBases.size > 1 && [...hostingBases].every((b) => changedBases.has(b))) chrome.add(path);
-  }
-  return chrome;
+  return changes.filter((c) => {
+    const changedBases = new Set(c.surfaces.map(baseOf));
+    const hostingBases = hosting.get(c.host) ?? new Set([c.host]);
+    return hostingBases.size > 1 && [...hostingBases].every((b) => changedBases.has(b));
+  });
 }
 
 /**

@@ -3,7 +3,8 @@ import { captureKeysIn, isUnder, type ElementEntry, type Rect, type StyleMap } f
 import { diffContentMaps, type ContentChange } from '../diff.js';
 import { isAgeOnlyDrift, isLiveTextChange } from '../live-text.js';
 import { correspondContentShiftedPaths } from '../path-correspondence.js';
-import { prettyLabel, safeKey } from '../change-groups.js';
+import { countCapturedSurfaceBases, formatSurfaceList, prettyLabel, safeKey, surfaceWidth } from '../change-groups.js';
+import { chromeHosted } from '../change-chrome.js';
 import { containerOf, paddedRect, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
 import { clipText, codeValue } from './markdown.js';
@@ -81,7 +82,7 @@ function contentBox(s: Sides, c: ContentChange): Box | null {
   return sharedAncestorBox(s, c.path, leaf) ?? leaf;
 }
 
-function contentCropLines(s: Sides, surface: string, c: ContentChange, seq: number): string[] {
+function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
   const box = contentBox(s, c);
   if (!box) return [];
   const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
@@ -89,7 +90,7 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, seq: numb
   // Identical pixels on both sides is no evidence; name the absence instead.
   const pair = renderCropPair(s.ctx, {
     surface,
-    suffix: `content-${seq}`,
+    suffix,
     box,
     pngA: s.pngA,
     pngB: s.pngB,
@@ -159,6 +160,95 @@ export function contentSurfaces(ctx: RenderCtx): ContentSurface[] {
     .filter(({ changes }) => changes.length > 0);
 }
 
+/** A one-sided element change drawn the same way on every surface base that renders its container. */
+export type ChromeStructureChange = { change: StructureChange; surfaces: string[]; bases: number };
+
+type OneSidedIndexEntry = { change: StructureChange; surfaces: string[]; host: string };
+
+const oneSidedIdentity = (c: StructureChange): string => `${c.change}\0${c.path}\0${c.cls}`;
+
+/** Every added/removed element across the run, keyed by change + path + class, with the surfaces it hit. */
+function indexOneSided(surfaces: ContentSurface[]): OneSidedIndexEntry[] {
+  const byIdentity = new Map<string, OneSidedIndexEntry>();
+  for (const { surface, changes } of surfaces) {
+    for (const c of changes) {
+      if (c.kind !== 'structure' || c.change === 'retagged') continue;
+      const entry = byIdentity.get(oneSidedIdentity(c)) ?? { change: c, surfaces: [], host: containerOf(c.path) };
+      entry.surfaces.push(surface);
+      byIdentity.set(oneSidedIdentity(c), entry);
+    }
+  }
+  return [...byIdentity.values()];
+}
+
+/**
+ * Split out one-sided element changes that are shared chrome (#754): the same element
+ * added (or removed) at the same path on every captured surface base that renders its
+ * container, a persistent nav, header, or footer. Each is listed ONCE under Global
+ * chrome instead of once per surface; everything else stays in the advisory list.
+ */
+export function splitChromeStructure(
+  surfaces: ContentSurface[],
+  surfacePaths: Map<string, Set<string>>,
+  surfaceKeyOf?: (captureKey: string) => string | undefined,
+): { chrome: ChromeStructureChange[]; rest: ContentSurface[] } {
+  const chrome = chromeHosted(indexOneSided(surfaces), surfacePaths, surfaceKeyOf);
+  const promoted = new Set(chrome.map((entry) => oneSidedIdentity(entry.change)));
+  const rest = surfaces
+    .map(({ surface, changes }) => ({
+      surface,
+      changes: changes.filter((c) => c.kind !== 'structure' || !promoted.has(oneSidedIdentity(c))),
+    }))
+    .filter(({ changes }) => changes.length > 0);
+  return {
+    chrome: chrome.map(({ change, surfaces: hit }) => ({
+      change,
+      surfaces: hit,
+      bases: countCapturedSurfaceBases(hit, surfaceKeyOf),
+    })),
+    rest,
+  };
+}
+
+/** One Global chrome entry: the element, where it changed, and a crop from the widest capture. */
+function chromeStructureLines(ctx: RenderCtx, entry: ChromeStructureChange, seq: number): string[] {
+  const { change: c, surfaces, bases } = entry;
+  const surface = surfaces.reduce((wide, s) => (surfaceWidth(s) > surfaceWidth(wide) ? s : wide));
+  const [pngA, pngB] = screenshotPair(ctx, surface);
+  // One-sided structure crops against the raw maps, as the per-surface advisory entries do.
+  const sides =
+    pngA && pngB
+      ? { ctx, mapA: ctx.load(ctx.beforeDir, surface), mapB: ctx.load(ctx.afterDir, surface), pngA, pngB }
+      : null;
+  const crop = sides && seq < ctx.maxCrops ? contentCropLines(sides, surface, c, `chrome-${seq + 1}`) : [];
+  return [
+    '',
+    `**\`${prettyLabel(c.path, c.cls)}\`** — element ${c.change} on all ${bases} surface base${bases === 1 ? '' : 's'} ` +
+      `that render its container (${surfaces.length} capture${surfaces.length === 1 ? '' : 's'})`,
+    '',
+    `<sub>${formatSurfaceList(surfaces)}</sub>`,
+    ...crop,
+  ];
+}
+
+/** The Global chrome section for shared one-sided element changes (visible, never advisory-scattered). */
+export function renderChromeStructureSection(ctx: RenderCtx, chrome: ChromeStructureChange[]): string[] {
+  if (chrome.length === 0) return [];
+  const n = chrome.length;
+  return [
+    '',
+    '---',
+    '',
+    `## 🧱 Global chrome — ${n} element ${n === 1 ? 'change' : 'changes'} on every surface base that renders its container`,
+    '',
+    `_Each element below was added or removed identically on every captured surface base that renders its ` +
+      `container (a persistent nav, header, or footer), so it is listed once here instead of once per surface. ` +
+      `It is a visible change to the frame every view draws — review it once. DOM structure is outside the ` +
+      `computed-style certification, so this does not change the check's verdict._`,
+    ...chrome.flatMap((entry, seq) => chromeStructureLines(ctx, entry, seq)),
+  ];
+}
+
 function changeLines(ctx: RenderCtx, c: ContentChange): string[] {
   if (c.kind !== 'text')
     return [`- ${c.change === 'retagged' ? `element retagged: ${codeValue(c.detail ?? '')}` : `element ${c.change}`}`];
@@ -183,7 +273,7 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
   for (const c of changes) {
     const mapA = c.kind === 'text' ? comparableMapA : rawMapA;
     const sides = pngA && pngB ? { ctx, mapA, mapB, pngA, pngB } : null;
-    const cropLines = sides && seq < ctx.maxCrops ? contentCropLines(sides, surface, c, seq + 1) : [];
+    const cropLines = sides && seq < ctx.maxCrops ? contentCropLines(sides, surface, c, `content-${seq + 1}`) : [];
     if (cropLines.some((line) => line.startsWith('!['))) seq++;
     md.push('', `**\`${prettyLabel(c.path, c.cls)}\`**`, '', ...changeLines(ctx, c), ...cropLines);
   }

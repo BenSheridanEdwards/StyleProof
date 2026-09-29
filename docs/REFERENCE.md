@@ -1160,6 +1160,14 @@ a side-by-side crop. The section does **not** affect `changed`, the `StyleProof`
 status, or the diff exit code, by design. With `captureText` off, structural
 evidence still renders but text values are never stored.
 
+An element added (or removed) identically — same path, same class — on every
+captured surface base that renders its container (a new link in a persistent
+sidebar nav) is not repeated once per surface. It is listed once in a **🧱 Global
+chrome** section above the advisory list, with one crop from the widest capture
+and the surfaces it appeared on, and the headline names it. `report.json`
+records it in `content.globalChrome`; `content.changes` counts each such entry
+once. Like the rest of this layer it does not change the verdict.
+
 The first token of a developer-authored `data-style` value participates in the
 capture's hashed semantic path when it uniquely identifies a sibling. This
 prevents a new row, card, or control variant at the same `nth-child` position

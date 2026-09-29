@@ -23,6 +23,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   with this version. Until then a surface that already rendered two
   same-labelled affordances can show one informational (non-gating) addition.
   (#754)
+- **An element added on every surface is listed once under Global chrome.** With
+  `--include-content`, an element added (or removed) identically on every
+  captured surface base that renders its container — a new link in a
+  persistent sidebar nav — was repeated as one advisory "element added" entry
+  per surface. It is now one **🧱 Global chrome** entry above the advisory list,
+  with one crop, the surfaces it appeared on, and a headline line; `report.json`
+  adds `content.globalChrome` and `content.changes` counts each entry once.
+  Like all DOM structure outside `--migration`, it does not change the verdict.
+  (#754)
 
 ## [7.2.0] - 2026-09-28
 
