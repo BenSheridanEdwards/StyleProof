@@ -2942,7 +2942,9 @@ test('report promotes a frame-wide change to a chrome callout, leaves a one-view
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // One global-chrome callout at the top for the nav addition.
   assert.match(md, /## 🧱 Global chrome change/, md.slice(0, 1200));
-  assert.match(md, /rode the shared frame every view draws/);
+  // The promoted group spans settings and reports; home renders in place (#752).
+  assert.match(md, /across 2 of 3 captured surface base\(s\)/);
+  assert.match(md, /rode the shared frame/);
   // The home h1 restyle is still shown — never hidden under the banner.
   assert.match(md, /title/);
   // Counts and exit-relevant results are unchanged by the presentational tier.
@@ -3006,6 +3008,38 @@ test('report headline counts live-state variants under metadata.surfaceKey produ
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### ') >= 0 ? md.indexOf('\n### ') : md.length);
   assert.match(summary, /1 changed surface base \(2 variants\) with an existing baseline/);
+  rmTmp(root);
+});
+
+test('report keeps a one-base, two-width change out of the global chrome tier (#752)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  // A tab strip is rendered by two bases only. settings-profile (two widths) and
+  // settings-billing each restyle the same tab differently, so the path changed on
+  // every base that hosts it — but no single change spans more than one base.
+  const tabs = (color) => ({
+    'html > body > div.tab-strip': { tag: 'div', cls: 'tab-strip', rect: [0, 0, 700, 40], style: { display: 'flex' } },
+    'html > body > div.tab-strip > button:nth-child(1)': {
+      tag: 'button',
+      cls: 'tab',
+      rect: [10, 4, 120, 32],
+      style: { color },
+    },
+  });
+  for (const w of [1024, 768]) {
+    writeCapture(beforeDir, `settings-profile@${w}`, makeMap({ elements: tabs('rgb(0, 0, 0)') }), solidPng(w, 300));
+    writeCapture(afterDir, `settings-profile@${w}`, makeMap({ elements: tabs('rgb(255, 0, 0)') }), solidPng(w, 300));
+  }
+  writeCapture(beforeDir, 'settings-billing@1280', makeMap({ elements: tabs('rgb(0, 0, 0)') }), solidPng(1280, 300));
+  writeCapture(afterDir, 'settings-billing@1280', makeMap({ elements: tabs('rgb(0, 0, 255)') }), solidPng(1280, 300));
+  const page = makeMap({ elements: { 'html > body > main': { tag: 'main', style: { display: 'block' } } } });
+  for (const v of ['home', 'reports']) {
+    writeCapture(beforeDir, `${v}@1280`, page, solidPng(1280, 300));
+    writeCapture(afterDir, `${v}@1280`, page, solidPng(1280, 300));
+  }
+
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /Global chrome/, 'a change seen on one surface base is a per-surface change, not chrome');
+  assert.match(md, /settings-profile @ 1024, 768/, 'the two-width change still renders in place');
   rmTmp(root);
 });
 
