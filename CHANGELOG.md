@@ -29,6 +29,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   for the pairing, never emitted or diffed. Maps captured without `captureText`
   behave exactly as before; no capture format change and no baseline
   regeneration.
+- **New and removed surfaces now show the whole captured page, not only its
+  top viewport (#756).** A one-sided surface was cropped to its first viewport
+  (captioned "top viewport of page"), so approving a new surface covered
+  content below the fold the reviewer never saw. The report now renders the
+  full-page screenshot as numbered viewport-height tiles, each captioned with
+  its part and pixel range (e.g. part 2 of 3, 600–1200 of 1500px). Past 8
+  tiles it states exactly how much is shown and that the rest is not (e.g.
+  showing 800 of 1234px, the remaining 434px not shown in this report).
+  `report.json` keeps `image` (the first tile) and adds `images`,
+  `shownHeight`, and `capturedHeight`; the Action's receipt check accepts them.
 - **Global chrome no longer claims changes confined to one surface base (#752).**
   A change seen only on several widths of one surface base (e.g.
   `settings-profile @ 1024, 768`) was promoted under "🧱 Global chrome changes —
