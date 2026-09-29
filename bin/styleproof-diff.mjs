@@ -12,9 +12,11 @@ import { liveTextFreezeError } from '../dist/live-text.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import {
   assessComparisonTruth,
+  chromeSpanLabel,
   classifyChrome,
   cleanFindingsForDisplay,
   countCapturedSurfaceBases,
+  countChangedSurfaceScope,
   derivedLonghandCount,
   formatSurfaceList,
   groupByPath,
@@ -353,12 +355,13 @@ function printGroup(cg) {
   if (lines.length > MAX) console.log(`  ... and ${lines.length - MAX} more lines (re-run with --max ${lines.length})`);
 }
 
-// Shared-chrome tier: a change that rode the frame every view draws gets one banner.
+// Shared-chrome tier: a change that rode the shared frame gets one banner.
 const { chrome, rest } = classifyChrome(groupBySignature(preparedForGrouping), surfacePaths, surfaceKeyOf);
 if (chrome.length) {
   const bases = countCapturedSurfaceBases([...surfacePaths.keys()], surfaceKeyOf);
+  const span = chromeSpanLabel(countChangedSurfaceScope(chrome, surfaceKeyOf).bases, bases);
   printSection(
-    `🧱 Global chrome change(s) — across all ${bases} captured surface base(s): ${chrome.length} change(s) rode the shared frame every view draws (a persistent nav, header, or footer).`,
+    `🧱 Global chrome change(s) — across ${span} captured surface base(s): ${chrome.length} change(s) rode the shared frame (a persistent nav, header, or footer).`,
   );
 }
 for (const cg of [...chrome, ...rest]) printGroup(cg);
