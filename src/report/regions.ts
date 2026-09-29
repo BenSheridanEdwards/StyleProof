@@ -5,6 +5,7 @@ import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
 import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
 import { annotationPaths } from './annotation-paths.js';
+import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
   intersects,
   outermost,
@@ -138,6 +139,8 @@ type RegionArgs = {
   region: Box | null;
   pngs: Pngs;
   seq: { crop: number };
+  /** Sibling spacing changes whose run this region shows (#755). */
+  spacing: SiblingSpacingChange[];
 };
 
 type CropPack = { md: string[]; images: CropImages; visualEvidence?: 'not-rendered'; reason?: string };
@@ -203,6 +206,25 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
   return { md, stateImages };
 }
 
+const spacingJson = (spacing: SiblingSpacingChange[]) => (spacing.length ? { spacing } : {});
+
+type RestingSection = { md: string[]; pack: CropPack; trailing: string[] };
+
+/**
+ * The resting section: heading, glance line, spacing lines, crop, then the property
+ * changes. A region without one still names its spacing, once, at its end (`trailing`).
+ */
+function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean): RestingSection {
+  if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
+  const md = ['', `### ${regionHeading(a.g.paths, cropFindings)}`, '', a.surfaceList];
+  const glance = propertyGlanceLine(cropFindings);
+  if (glance) md.push('', glance);
+  md.push(...spacingLines(a.spacing));
+  const pack = regionCrop(a, cropFindings, a.pngs);
+  md.push(...pack.md, ...renderCropChanges(cropFindings, a.ctx.foldDetailsAt, a.describeCtx));
+  return { md, pack, trailing: [] };
+}
+
 /** One crop region: heading, resting crop, then each forced-state crop. */
 function renderRegion(a: RegionArgs): { md: string[]; regionJson: Record<string, unknown> } {
   const { g, cg, ctx, describeCtx, surfaceList, region, pngs } = a;
@@ -212,14 +234,9 @@ function renderRegion(a: RegionArgs): { md: string[]; regionJson: Record<string,
   const stateOnly = !hasDom && rest.length === 0 && regionFindings.some((f) => f.kind === 'state');
   const md: string[] = [];
   const cropFindings = hasDom ? regionFindings : rest;
-  let resting: CropPack = { md: [], images: {} };
-  if (!stateOnly && cropFindings.length) {
-    md.push('', `### ${regionHeading(g.paths, cropFindings)}`, '', surfaceList);
-    const glance = propertyGlanceLine(cropFindings);
-    if (glance) md.push('', glance);
-    resting = regionCrop(a, cropFindings, pngs);
-    md.push(...resting.md, ...renderCropChanges(cropFindings, ctx.foldDetailsAt, describeCtx));
-  }
+  const section = restingSection(a, cropFindings, !stateOnly && cropFindings.length > 0);
+  const resting = section.pack;
+  md.push(...section.md);
   const states = hasDom ? { md: [], stateImages: {} } : stateSections(a, regionFindings, stateOnly);
   md.push(...states.md);
   const images = stateOnly && !resting.images.composite ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
@@ -229,6 +246,7 @@ function renderRegion(a: RegionArgs): { md: string[]; regionJson: Record<string,
     if (note) md.push('', note);
     md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
   }
+  md.push(...section.trailing);
   const { visualEvidence, reason } = resting;
   return {
     md,
@@ -239,6 +257,7 @@ function renderRegion(a: RegionArgs): { md: string[]; regionJson: Record<string,
       images,
       ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
       ...(visualEvidence ? { visualEvidence, reason } : {}),
+      ...spacingJson(a.spacing),
     },
   };
 }
@@ -255,11 +274,25 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);
   const findingCount = findings.length;
+  // The raw base: a geometry correspondence can move part of a run and split it.
+  const spacing = siblingSpacingChanges(ctx.load(ctx.beforeDir, sd.surface), mapB);
   if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
     const reason = MISLEADING_CROP_REASON;
     return {
-      md: ['', `_${reason}_`, '', ...renderCropChanges(findings, ctx.foldDetailsAt, describeCtx)],
-      json: { ...json, visualEvidence: 'not-rendered', reason, classification: sd.classification },
+      md: [
+        '',
+        `_${reason}_`,
+        ...spacingLines(spacing),
+        '',
+        ...renderCropChanges(findings, ctx.foldDetailsAt, describeCtx),
+      ],
+      json: {
+        ...json,
+        visualEvidence: 'not-rendered',
+        reason,
+        ...spacingJson(spacing),
+        classification: sd.classification,
+      },
       findingCount,
     };
   }
@@ -272,14 +305,18 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     cg.surfaces.length > 1
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
+  const claimed = new Set<SiblingSpacingChange>();
   const rendered = groups.map((g) => {
     const region = visible(g.after) ? g.after : g.before;
-    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq });
+    const own = claimSpacing(spacing, g.paths, claimed);
+    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own });
   });
   const regions = rendered.map((r) => r.regionJson);
+  // A changed run no crop region shows is still named, once, under the group.
+  const unclaimed = spacing.filter((change) => !claimed.has(change));
   return {
-    md: rendered.flatMap((r) => r.md),
-    json: { ...json, regions, classification: sd.classification },
+    md: [...rendered.flatMap((r) => r.md), ...spacingLines(unclaimed)],
+    json: { ...json, regions, ...spacingJson(unclaimed), classification: sd.classification },
     findingCount,
   };
 }

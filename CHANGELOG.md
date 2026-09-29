@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **The report names spacing lost when siblings leave a parent's gap.** When a
+  run of siblings stops being spaced by its container (a `display: contents`
+  wrapper turned into a gapless flex column, or the siblings moved into a new
+  one), their own computed style barely changes: the gap belongs to the parent
+  they left. The report now reads the spacing from the rendered boxes the maps
+  already carry and says so under the changed region, e.g.
+  `Spacing between section.group siblings 14px → 0px`. Runs pair by the same
+  container and sibling paths, or, when they moved, by a tag + class sequence
+  unique on both sides. A pair whose siblings changed size along the gap (text
+  reflow, content) is never reported. Explanation only: `report.json` carries
+  it as `spacing` on the region, and counts and the verdict are unchanged. (#755)
+
 ## [7.2.0] - 2026-09-28
 
 ### Changed
