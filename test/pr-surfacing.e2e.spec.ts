@@ -256,6 +256,37 @@ test.describe('every PR change class is surfaced in the diff', () => {
     expect(certify(base, head)).toEqual([]);
   });
 
+  // #753: with captured own text, an inserted same-class sibling or a re-parented group
+  // pairs by identity instead of position — no invented active-state swap, and a real
+  // restyle on the moved element still surfaces at its head path.
+  const TAB_CSS =
+    '.strip{display:flex;gap:8px}.tab{border:0;border-bottom:2px solid transparent;background:none;' +
+    'color:rgb(90,90,90)}.tab[aria-selected=true]{color:rgb(0,80,200);border-bottom-color:rgb(0,80,200)}';
+  const strip = (labels: string[]) =>
+    `<div class="strip">${labels.map((l) => `<button class="tab" aria-selected="${l === 'Gamma'}">${l}</button>`).join('')}</div>`;
+  const TEXT = { captureText: true };
+
+  test('an inserted same-class tab certifies NOTHING on its shifted siblings', async ({ page }) => {
+    const base = await cap(page, TAB_CSS, strip(['Alpha', 'Beta', 'Gamma', 'Delta']), TEXT);
+    const head = await cap(page, TAB_CSS, strip(['Alpha', 'Omega', 'Beta', 'Gamma', 'Delta']), TEXT);
+    expect(certify(base, head)).toEqual([]);
+  });
+
+  test('a group moved into a new wrapper with a RESTYLE → the style finding sits on its head path', async ({
+    page,
+  }) => {
+    const css = (bg: string) =>
+      `.group{display:flex;background:rgb(240,240,240)}.group.b{background:${bg}}.wrap{padding:12px}`;
+    const groups =
+      '<section class="group"><span>Item 1</span></section><section class="group b"><span>Item 2</span></section>';
+    const base = await cap(page, css('rgb(240,240,240)'), `<main>${groups}</main>`, TEXT);
+    const head = await cap(page, css('rgb(255,230,230)'), `<main><div class="wrap">${groups}</div></main>`, TEXT);
+    const findings = certify(base, head);
+    expect(findings.map((f) => [f.path, f.props.map((p) => p.prop)])).toEqual([
+      ['body > main:nth-child(1) > div:nth-child(1) > section:nth-child(2)', ['background-color']],
+    ]);
+  });
+
   test('a clean no-op change surfaces NOTHING (zero false positives)', async ({ page }) => {
     const base = await cap(page, boxCss('background-color:rgb(200,200,200)'), BOX);
     const head = await cap(page, boxCss('background-color:rgb(200,200,200)'), BOX);

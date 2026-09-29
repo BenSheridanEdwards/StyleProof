@@ -1171,6 +1171,13 @@ When StyleProof aligns elements shifted by a sibling insertion, it normalizes
 only numeric `nth-child` positions and preserves every one of those hashed
 semantic segments in the ancestry. Correspondence therefore cannot undo the
 identity boundary and compare two different semantic roles as a restyle.
+When both captures recorded own text, an element whose tag and own text are
+unique on both sides is paired by that identity first, so a sibling inserted
+into a same-class group (a new tab) or a group moved into a new wrapper pairs
+each element with itself instead of its positional neighbour; ancestors pair
+only when every identified descendant agrees on one same-class destination,
+and ambiguous text stays unpaired. The text is compared in memory for this
+pairing only; it never becomes a finding in the certification diff.
 
 Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; live/age/clock copy (`open 102.1d`) is labeled in this section so it cannot be mistaken for a stylesheet edit; declare `liveText` when that drift must also stay off the style gate (or `liveText: { freeze: true }` to fail closed if a declared freeze did not pin it); and the certification CLI (`styleproof-diff`) is deliberately left content-blind except for that declared freeze check.
 

@@ -7,6 +7,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **An inserted or re-parented sibling no longer invents diffs (#753).** Inserting
+  a tab into a strip of same-class tabs paired later tabs with their positional
+  neighbours, so the report (and the certification diff) showed the active tab's
+  colour and border moving to the next tab, and the advisory content section
+  listed shifted tabs as relabelled. A group of sections moved into a new wrapper
+  read as "element removed" for each section, and when the wrapper shifted their
+  geometry a real restyle on a moved section was certified clean. When both
+  captures recorded own text (`captureText: true`), an element whose tag and own
+  text are unique on both sides now pairs by that identity before the positional
+  passes — in certification, report presentation, and the content layer alike.
+  Its ancestors pair only when every identified descendant agrees on one
+  destination with the same tag, class, and component, and its unidentified
+  descendants follow it. Duplicated text, disagreeing descendants, and replaced
+  hashed identities (`id`, `data-testid`, `data-style`, `href`) stay unpaired and
+  fail closed as before. The inserted tab is one advisory "element added", a
+  moved group is no longer "removed", and a real restyle on a shifted or
+  re-parented element gates at its head path. Text is compared in memory only
+  for the pairing, never emitted or diffed. Maps captured without `captureText`
+  behave exactly as before; no capture format change and no baseline
+  regeneration.
+
 ## [7.2.0] - 2026-09-28
 
 ### Changed
