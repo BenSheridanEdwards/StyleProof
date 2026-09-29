@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { PNG } from 'pngjs';
 import { captureKeysIn } from '../capture.js';
 import type { DiffCounts } from '../diff.js';
 import type { BaselineProvenance, SurfaceCaptureFailure } from '../map-store.js';
@@ -39,7 +40,46 @@ const ONE_SIDED: Record<OneSidedStatus, OneSidedText> = {
   },
 };
 
-/** A surface present on one side only: one screenshot of the captured side, no diff. */
+// Most viewport-height tiles one one-sided page gets (#756); past it the report says how much it shows.
+const MAX_ONE_SIDED_TILES = 8;
+
+type Tile = { stem: string; top: number; bottom: number };
+
+/** Viewport-height crops from the top of the captured page, covering it up to the tile cap (#756). */
+function writeOneSidedTiles(ctx: RenderCtx, png: PNG, surface: string, tileHeight: number, crop: number): Tile[] {
+  const count = Math.min(MAX_ONE_SIDED_TILES, Math.ceil(png.height / tileHeight));
+  const tiles: Tile[] = [];
+  for (let i = 0; i < count; i++) {
+    const top = i * tileHeight;
+    const h = Math.min(tileHeight, png.height - top);
+    // The first tile keeps the pre-#756 name, so single-viewport reports are unchanged.
+    const stem = cropStem(surface, `${crop}-new${i === 0 ? '' : `-${i + 1}`}`);
+    writePng(path.join(ctx.outDir, `${stem}.png`), cropPng(png, { x: 0, y: top, w: png.width, h }, png.width, h).png);
+    tiles.push({ stem, top, bottom: top + h });
+  }
+  return tiles;
+}
+
+/** Markdown for the tiles: each part numbered with its pixel range, and any unshown tail said plainly. */
+function oneSidedTileLines(ctx: RenderCtx, tiles: Tile[], capturedHeight: number, alt: string, caption: string) {
+  const md: string[] = [];
+  tiles.forEach((t, i) => {
+    const part =
+      tiles.length > 1 ? ` · part ${i + 1} of ${tiles.length} · ${t.top}–${t.bottom} of ${capturedHeight}px` : '';
+    md.push('', `![${alt}](${ctx.img(`${t.stem}.png`)})`, '', `<sub>${caption}${part}</sub>`);
+  });
+  const shown = tiles[tiles.length - 1].bottom;
+  if (shown < capturedHeight) {
+    md.push(
+      '',
+      `_⚠️ Page capped: showing ${shown} of ${capturedHeight}px — the remaining ${capturedHeight - shown}px below are ` +
+        `not shown in this report, so approving this surface accepts content not reviewed here._`,
+    );
+  }
+  return md;
+}
+
+/** A surface present on one side only: the captured side's whole page as viewport-height tiles, no diff. */
 function renderOneSided(
   ctx: RenderCtx,
   p: PreparedSurface,
@@ -63,16 +103,15 @@ function renderOneSided(
   };
   if (png) {
     seq.crop++;
-    const h = Math.min(ctx.maxHeight, png.height, map.viewport?.height ?? png.height);
-    const stem = cropStem(p.sd.surface, `${seq.crop}-new`);
-    writePng(path.join(ctx.outDir, `${stem}.png`), cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h).png);
-    md.push(
-      '',
-      `![${text.alt} — ${side}](${ctx.img(`${stem}.png`)})`,
-      '',
-      `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
-    );
-    json.image = `${stem}.png`;
+    const tileHeight = Math.max(1, Math.min(ctx.maxHeight, png.height, map.viewport?.height ?? png.height));
+    const tiles = writeOneSidedTiles(ctx, png, p.sd.surface, tileHeight, seq.crop);
+    const caption = `${side} · ${formatSurfaceWithContext(p.sd.surface, map)}`;
+    md.push(...oneSidedTileLines(ctx, tiles, png.height, `${text.alt} — ${side}`, caption));
+    json.image = `${tiles[0].stem}.png`;
+    // Additive (#756): every tile, and how much of the captured height they show.
+    json.images = tiles.map((t) => `${t.stem}.png`);
+    json.shownHeight = tiles[tiles.length - 1].bottom;
+    json.capturedHeight = png.height;
   } else {
     md.push(
       '',
