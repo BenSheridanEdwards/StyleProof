@@ -21,6 +21,7 @@ import {
   safeKey,
   formatSurfaceList,
   countCapturedSurfaceBases,
+  chromeSpanLabel,
 } from '../dist/change-groups.js';
 // Direct module imports so fallow's static coverage path reaches the split leaves
 // (re-exports alone do not create a test→src edge for CRAP / untested-risk targets).
@@ -134,9 +135,10 @@ test('classifyChrome promotes an all-chrome group, keeps a mixed group in rest',
   const surfacePaths = new Map([
     ['home@1280', new Set(['nav', 'h1'])],
     ['settings@1280', new Set(['nav'])],
+    ['reports@1280', new Set(['nav'])],
   ]);
   const groups = [
-    { surfaces: ['settings@1280'], findings: [addFinding('nav')] }, // pure nav
+    { surfaces: ['settings@1280', 'reports@1280'], findings: [addFinding('nav')] }, // pure nav
     {
       surfaces: ['home@1280'],
       findings: [addFinding('nav'), styleFinding('h1', [{ prop: 'color', before: 'a', after: 'b' }])],
@@ -144,8 +146,32 @@ test('classifyChrome promotes an all-chrome group, keeps a mixed group in rest',
   ];
   const { chrome, rest } = classifyChrome(groups, surfacePaths);
   assert.equal(chrome.length, 1, 'the pure-nav group is promoted');
-  assert.deepEqual(chrome[0].surfaces, ['settings@1280']);
+  assert.deepEqual(chrome[0].surfaces, ['settings@1280', 'reports@1280']);
   assert.equal(rest.length, 1, 'the mixed home group stays in place (content never hidden)');
+});
+
+test('classifyChrome never promotes a group confined to one surface base (#752)', () => {
+  // The tab path is chrome by path (hosted on two bases, changed on both), but each
+  // base changed it differently: neither group spans the frame on its own.
+  const surfacePaths = new Map([
+    ['settings-profile@1024', new Set(['tab'])],
+    ['settings-profile@768', new Set(['tab'])],
+    ['settings-billing@1280', new Set(['tab'])],
+  ]);
+  const recolor = (after) => [styleFinding('tab', [{ prop: 'color', before: 'a', after }])];
+  const groups = [
+    { surfaces: ['settings-profile@1024', 'settings-profile@768'], findings: recolor('b') },
+    { surfaces: ['settings-billing@1280'], findings: recolor('c') },
+  ];
+  const { chrome, rest, chromePaths: paths } = classifyChrome(groups, surfacePaths);
+  assert.ok(paths.has('tab'), 'the path itself still qualifies as chrome');
+  assert.equal(chrome.length, 0, 'two widths of one base are never a global change');
+  assert.equal(rest.length, 2);
+});
+
+test('chromeSpanLabel says "all N" only when the promoted groups touched every base (#752)', () => {
+  assert.equal(chromeSpanLabel(4, 4), 'all 4');
+  assert.equal(chromeSpanLabel(2, 63), '2 of 63');
 });
 
 test('derivedLonghandCount counts the reflow-casualty longhands the CLI folds', () => {

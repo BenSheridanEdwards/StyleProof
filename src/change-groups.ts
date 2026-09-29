@@ -18,6 +18,7 @@ export {
   renderSurfaceGroups,
   formatSurfaceList,
   countChangedSurfaceScope,
+  chromeSpanLabel,
   countCapturedSurfaceBases,
   formatChangedSurfaceScope,
 } from './surface-keys.js';

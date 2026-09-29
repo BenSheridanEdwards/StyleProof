@@ -59,7 +59,9 @@ export function chromePaths(
 /**
  * Split signature groups into the shared-chrome tier and the rest. A group is
  * promoted only when EVERY affected path is chrome, so a content change is never
- * hidden under a chrome banner.
+ * hidden under a chrome banner, and only when the group itself spans more than one
+ * surface base: widths of one base are never "global", even when another group
+ * changed the same path on the other hosting bases (#752).
  */
 export function classifyChrome<G extends { surfaces: string[]; findings: Finding[] }>(
   groups: G[],
@@ -73,7 +75,8 @@ export function classifyChrome<G extends { surfaces: string[]; findings: Finding
   const rest: G[] = [];
   for (const g of groups) {
     const affected = new Set(g.findings.map((f) => f.path));
-    const isChrome = affected.size > 0 && [...affected].every((p) => paths.has(p));
+    const bases = new Set(g.surfaces.map((s) => productSurfaceBase(s, surfaceKeyOf?.(s))));
+    const isChrome = bases.size > 1 && affected.size > 0 && [...affected].every((p) => paths.has(p));
     (isChrome ? chrome : rest).push(g);
   }
   return { chrome, rest, chromePaths: paths };

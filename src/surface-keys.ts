@@ -85,6 +85,11 @@ export function countCapturedSurfaceBases(
   return new Set([...captureKeys].map((s) => productSurfaceBase(s, surfaceKeyOf?.(s)))).size;
 }
 
+/** Global-chrome banner span: "all N" only when the promoted groups touched every captured base (#752). */
+export function chromeSpanLabel(chromeBases: number, totalBases: number): string {
+  return chromeBases >= totalBases ? `all ${totalBases}` : `${chromeBases} of ${totalBases}`;
+}
+
 /** Headline / summary phrasing for changed-surface counts (bases first; variants when wider). */
 export function formatChangedSurfaceScope(bases: number, variants: number): string {
   const baseLabel = `${bases} changed surface base${bases === 1 ? '' : 's'}`;

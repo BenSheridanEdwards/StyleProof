@@ -20,6 +20,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   unique on both sides. A pair whose siblings changed size along the gap (text
   reflow, content) is never reported. Explanation only: `report.json` carries
   it as `spacing` on the region, and counts and the verdict are unchanged. (#755)
+- **Global chrome no longer claims changes confined to one surface base (#752).**
+  A change seen only on several widths of one surface base (e.g.
+  `settings-profile @ 1024, 768`) was promoted under "🧱 Global chrome changes —
+  across all N captured surface base(s)" whenever another base changed the same
+  element differently. A change group is now promoted only when it spans more
+  than one surface base itself; the rest render as ordinary per-surface changes.
+  The report and `styleproof-diff` banner now state the real span
+  (`across X of N captured surface base(s)`, "all N" only when X equals N) and no
+  longer say the change rode a frame "every view draws".
 
 ## [7.2.0] - 2026-09-28
 
