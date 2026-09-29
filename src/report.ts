@@ -383,6 +383,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     ctx,
     out,
     chrome,
+    countChangedSurfaceScope(chrome.chrome, surfaceKeyOf).bases,
     countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf),
   );
 
