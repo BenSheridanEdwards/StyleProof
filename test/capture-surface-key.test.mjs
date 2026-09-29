@@ -171,11 +171,12 @@ test('report and diff CLI agree on captured surface base count when metadata.sur
     const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
     const expectedBases = countCapturedSurfaceBases([...surfaceElementPaths(beforeDir, afterDir).keys()], surfaceKeyOf);
     assert.equal(expectedBases, 4, 'head surfaceKey collapses dashboard + loaded to one product base');
+    // The nav rides home/settings/reports only; dashboard never renders it (#752).
 
     const reportMd = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
     assert.match(
       reportMd,
-      new RegExp(`## 🧱 Global chrome change — across all ${expectedBases} captured surface base\\(s\\)`),
+      new RegExp(`## 🧱 Global chrome change — across 3 of ${expectedBases} captured surface base\\(s\\)`),
     );
 
     const diffRun = spawnSync(process.execPath, [DIFF, beforeDir, afterDir, '--max', '50'], {
@@ -185,7 +186,7 @@ test('report and diff CLI agree on captured surface base count when metadata.sur
     assert.equal(diffRun.status, 1, diffRun.stderr);
     assert.match(
       diffRun.stdout,
-      new RegExp(`🧱 Global chrome change\\(s\\) — across all ${expectedBases} captured surface base\\(s\\)`),
+      new RegExp(`🧱 Global chrome change\\(s\\) — across 3 of ${expectedBases} captured surface base\\(s\\)`),
       diffRun.stdout,
     );
   } finally {
