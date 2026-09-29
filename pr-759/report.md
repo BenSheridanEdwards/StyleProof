@@ -1,20 +1,44 @@
 ## 🗺️ StyleProof report
 
-✓ No reviewable computed-style changes among semantically matched elements. See 1 advisory content/structure change(s) below.
+**1 change needs review**
 
----
+**1 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 
-## 📝 Content and structure changes (advisory)
+## Changes
 
-_1 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below so it cannot be mistaken for a product style regression._
+### **Panel** `main.panel` · 1 element restyled
 
-### `home@320` · 1 content/structure change(s)
+_home @ 320_
 
-**`button.action`**
+`color` `#000000` → `#ff0000`
 
-- element added
+![before ◀ │ ▶ after](crops/home-320-1-composite.png)
 
-_This element's location renders identically before and after (the change has no visible effect in the captured state), so there is no before/after crop to show._
+<sub>◀ before  ·  after ▶ — home @ 320</sub>
+
+<details>
+<summary>Show highlight overlay</summary>
+
+![highlighted before ◀ │ ▶ after](crops/home-320-1-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `main.panel`</sub>
+
+</details>
+
+- **`main.panel`** — text black (`#000000`) → red (`#ff0000`)
+
+<details>
+<summary>Show the property change</summary>
+
+**Panel** `main.panel`
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `color` | `#000000` | `#ff0000` |
+
+</details>
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
