@@ -152,3 +152,18 @@ test('a stale allowRemoved entry BLOCKS (exit 1) until pruned', () => {
   assert.match(out, /prune it/, out);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+// #754: an id-less affordance is keyed by its label. A tab newly added to one surface
+// whose label another surface already offered was hidden by the run-wide union, and
+// the CLI printed "navigable set unchanged". Surfaces are paired by capture key, so
+// the addition is reported (it still never gates: exit 0).
+test('styleproof-diff reports an id-less affordance added to a surface even when another surface offers its label', () => {
+  const { root, a, b } = fixture(['overview'], ['overview', 'activity']);
+  fs.writeFileSync(path.join(a, 'settings.json'), mapJson(['overview', 'activity']));
+  fs.writeFileSync(path.join(b, 'settings.json'), mapJson(['overview', 'activity']));
+  const { code, out } = runDiff(a, b, root);
+  assert.equal(code, 0, `an addition never gates, got ${code}\n${out}`);
+  assert.doesNotMatch(out, /navigable set unchanged/, out);
+  assert.match(out, /\+ added: nav-button:activity/, out);
+  fs.rmSync(root, { recursive: true, force: true });
+});

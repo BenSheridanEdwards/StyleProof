@@ -14,7 +14,12 @@ export type NavigableItem = {
   label: string;
   /** Resolved same-origin path, for `kind: 'link'`. */
   href?: string;
+  /** How many affordances on this surface share the key, when more than one (id-less ones key by label). */
+  count?: number;
 };
+
+/** One surface map's inventory; `surface` (its capture key) pairs base and head per surface. */
+export type SurfaceInventory = { inventory?: NavigableItem[]; surface?: string };
 
 export type InventoryDelta = {
   /** Present on head, absent on base (informational). */
@@ -111,11 +116,13 @@ function affordanceKey(role: string, c: RawAffordance): string {
   return id ? `${role}:#${id}` : `${role}:${slug(c.name)}`;
 }
 
-/** Pure: turn raw affordances into keyed, deduped, sorted navigable items. */
+/** Pure: turn raw affordances into keyed, deduped (counted), sorted navigable items. */
 export function classifyInventory(raw: RawAffordance[]): NavigableItem[] {
   const items = new Map<string, NavigableItem>();
   const add = (key: string, kind: NavigableItem['kind'], label: string, href?: string): void => {
-    if (key && !items.has(key)) items.set(key, href ? { key, kind, label, href } : { key, kind, label });
+    const seen = items.get(key);
+    if (seen) seen.count = (seen.count ?? 1) + 1;
+    else if (key) items.set(key, href ? { key, kind, label, href } : { key, kind, label });
   };
   for (const c of raw) {
     if (c.tag === 'a' && c.internalPath) {
@@ -172,12 +179,37 @@ export function auditRemovals(
   };
 }
 
+const countOf = (item: NavigableItem): number => item.count ?? 1;
+
+/**
+ * Items a surface offers that the SAME surface (same capture key) did not offer on base,
+ * or offers more of. The run-wide union alone misses them when the key already exists
+ * elsewhere — an id-less affordance keys by label, so a new tab whose label another
+ * surface already offers shares that key (#754). Order-blind: a reorder adds nothing.
+ */
+function surfaceAdditions(
+  baseMaps: Array<SurfaceInventory | undefined>,
+  headMaps: Array<SurfaceInventory | undefined>,
+): NavigableItem[] {
+  const baseBySurface = new Map<string, NavigableItem[]>();
+  for (const map of baseMaps) if (map?.surface) baseBySurface.set(map.surface, map.inventory ?? []);
+  return headMaps.flatMap((map) => {
+    const base = map?.surface ? baseBySurface.get(map.surface) : undefined;
+    if (!base) return [];
+    const baseCounts = new Map(base.map((item) => [item.key, countOf(item)]));
+    return (map?.inventory ?? []).filter((item) => countOf(item) > (baseCounts.get(item.key) ?? 0));
+  });
+}
+
 /** Run-level entry: union both sides, diff, audit removals. `unexplained` non-empty ⇒ the gate should fail. */
 export function auditRunInventory(
-  baseMaps: Array<{ inventory?: NavigableItem[] } | undefined>,
-  headMaps: Array<{ inventory?: NavigableItem[] } | undefined>,
+  baseMaps: Array<SurfaceInventory | undefined>,
+  headMaps: Array<SurfaceInventory | undefined>,
   allowed: AllowedRemovals = {},
 ): { delta: InventoryDelta; unexplained: NavigableItem[]; staleAllowances: string[] } {
-  const delta = diffInventory(unionInventory(baseMaps), unionInventory(headMaps));
+  const union = diffInventory(unionInventory(baseMaps), unionInventory(headMaps));
+  // Additions are also read per surface; removals stay run-wide, so no new removal gates.
+  const added = unionInventory([{ inventory: union.added }, { inventory: surfaceAdditions(baseMaps, headMaps) }]);
+  const delta = { added, removed: union.removed };
   return { delta, ...auditRemovals(delta, allowed) };
 }

@@ -43,7 +43,12 @@ import {
   type RenderCtx,
   type ReportConsistency,
 } from './report/shared.js';
-import { contentSurfaces, renderContentSection } from './report/content-layer.js';
+import {
+  contentSurfaces,
+  renderChromeStructureSection,
+  renderContentSection,
+  splitChromeStructure,
+} from './report/content-layer.js';
 import {
   buildMigrationGallery,
   renderMigrationGallerySections,
@@ -143,7 +148,7 @@ export type ReportResult = {
   /** Every one-sided surface: new, removed, or baseline repair debt. */
   oneSidedSurfaces: number;
   totalFindings: number;
-  /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
+  /** Content-layer changes rendered — advisory entries plus Global chrome entries (0 unless includeContent). Never gates. */
   contentChanges: number;
   /** Canonical comparison truth vs the certification differ. `rawOnlyNoReviewable` must fail closed. */
   comparison: ReportComparison;
@@ -266,6 +271,30 @@ function liveTextFreezeReceipt(liveText: LiveTextAudit): { violated: boolean; re
   return liveText.declared ? { violated: false } : null;
 }
 
+/**
+ * The opt-in content layer: advisory per-surface entries, with one-sided element changes
+ * shared by every surface base that renders their container split out into ONE Global
+ * chrome entry each (#754). Migration mode keeps its gallery and the unsplit list.
+ */
+function renderContentLayer(
+  ctx: RenderCtx,
+  mode: { includeContent: boolean; migration: boolean },
+  surfacePaths: Map<string, Set<string>>,
+  surfaceKeyOf: (captureKey: string) => string | undefined,
+) {
+  const withContent = mode.includeContent || mode.migration ? contentSurfaces(ctx) : [];
+  if (!mode.includeContent) {
+    return { withContent, contentSection: { md: [], count: 0 }, chromeMd: [], globalChrome: 0, total: 0 };
+  }
+  const split = mode.migration
+    ? { chrome: [], rest: withContent }
+    : splitChromeStructure(withContent, surfacePaths, surfaceKeyOf);
+  const contentSection = renderContentSection(ctx, split.rest);
+  const globalChrome = split.chrome.length;
+  const chromeMd = renderChromeStructureSection(ctx, split.chrome);
+  return { withContent, contentSection, chromeMd, globalChrome, total: contentSection.count + globalChrome };
+}
+
 function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: boolean): ReportResult {
   const { beforeDir, afterDir, outDir, gateMode = 'certify' } = opts;
   const includeContent = opts.includeContent === true;
@@ -291,7 +320,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     prepared.filter((s) => !s.sd.missing),
   );
   // Shared-chrome tier (#193): purely presentational — only render order and one banner differ.
-  const chrome = classifyChrome(changeGroups, surfaceElementPaths(beforeDir, afterDir), surfaceKeyOf);
+  const surfacePaths = surfaceElementPaths(beforeDir, afterDir);
+  const chrome = classifyChrome(changeGroups, surfacePaths, surfaceKeyOf);
   const shown = countShownChanges(changeGroups);
   const baseline = readBaselineInfo(beforeDir, afterDir);
   const comparison: ReportComparison = {
@@ -301,8 +331,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const reportConsistency = assessReportConsistency(comparison, changeGroups.length > 0 || missing.length > 0);
 
   // Advisory content layer: computed first so its count can colour the headline; appended last; never gates.
-  const withContent = includeContent || migration ? contentSurfaces(ctx) : [];
-  const contentSection = includeContent ? renderContentSection(ctx, withContent) : { md: [], count: 0 };
+  const content = renderContentLayer(ctx, { includeContent, migration }, surfacePaths, surfaceKeyOf);
+  const { withContent, contentSection } = content;
 
   // Confidence is resolved once and shared with report.json so badge and JSON can never disagree.
   const confidenceLedger = resolveBundleConfidence(afterDir);
@@ -322,6 +352,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseOnlyVolatile: diff.baseOnlyVolatile,
     liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
     contentCount: contentSection.count,
+    globalChromeCount: content.globalChrome,
     contentEvaluated: includeContent,
     reportConsistency,
     rawCounts: comparison.rawCounts,
@@ -356,6 +387,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf),
   );
 
+  md.detail(
+    content.chromeMd,
+    `- ${content.globalChrome} global chrome element change(s) on every surface base that renders its container`,
+  );
   const migrationGallery = migration ? buildMigrationGallery(diff.surfaces, withContent) : undefined;
   if (migrationGallery) {
     const g = migrationGallery;
@@ -392,7 +427,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   if (
     changeGroups.length > 0 &&
     missing.length === 0 &&
-    contentSection.count === 0 &&
+    content.total === 0 &&
     !migrationGallery &&
     !inventoryTouched
   ) {
@@ -411,7 +446,12 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reportConsistency,
     baselineFailures: baseline.failures,
     undeclaredOnBase: baseline.undeclaredOnBase,
-    content: { evaluated: includeContent, changes: contentSection.count, advisory: true },
+    content: {
+      evaluated: includeContent,
+      changes: content.total,
+      advisory: true,
+      ...(content.globalChrome ? { globalChrome: content.globalChrome } : {}),
+    },
     surfaces: out.json,
     confidence,
     baselineProvenance,
@@ -426,7 +466,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     newSurfaces: oneSided.greenfieldNewSurfaces,
     oneSidedSurfaces: missing.length,
     totalFindings: changed.totalFindings,
-    contentChanges: contentSection.count,
+    contentChanges: content.total,
     comparison,
     comparability: gates.comparability,
     ...(gates.legacyPairs ? { legacyPairs: gates.legacyPairs } : {}),

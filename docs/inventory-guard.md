@@ -48,7 +48,10 @@ never a hidden real removal. Give a nav item a `data-testid` (or a stable `id`)
 to key it immune to its own text. Union across a run into one reachable set, and
 diff base→head:
 
-- **added** (head-not-base) — a newly-offered affordance. Informational.
+- **added** (head-not-base) — a newly-offered affordance. Informational. Additions
+  are also read per surface (paired by capture key, counting same-key affordances),
+  so an id-less tab whose label another surface — or another strip on the same
+  surface — already offers is still reported when a surface gains it.
 - **removed** (base-not-head) — a feature the UI stopped offering. **Gates.**
 
 A removal is a _decision_, not an accident: it fails the gate unless acknowledged

@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { unionInventory, diffInventory, auditRemovals } from '../dist/inventory.js';
+import {
+  unionInventory,
+  diffInventory,
+  auditRemovals,
+  auditRunInventory,
+  classifyInventory,
+} from '../dist/inventory.js';
 
 // The exact scenario StyleProof is blind to today, modelled from a dashboard HUD:
 // the live nav offers agents / model-config / faults / fault-map / skills
@@ -73,4 +79,56 @@ test('unionInventory reduces a run of per-surface maps to one reachable set (ded
     unionInventory(maps).map((i) => i.key),
     ['nav-button:agents', 'nav-button:faults', 'nav-button:skills'],
   );
+});
+
+// #754: an affordance without a stable id is keyed by its label, so it shares that key
+// with every same-labelled affordance in the run. A new id-less tab whose label another
+// surface (or another strip on the same surface) already offered vanished into the
+// run-wide union, and the audit claimed "navigable set unchanged".
+const raw = (name, role = 'tab') => ({
+  tag: 'button',
+  role,
+  name,
+  internalPath: null,
+  testId: null,
+  domId: null,
+  controls: null,
+});
+const surfaceInventory = (surface, names, role) => ({
+  surface,
+  inventory: classifyInventory(names.map((n) => raw(n, role))),
+});
+
+test('#754: an id-less tab added to one surface is added even when another surface offers the label', () => {
+  const settings = surfaceInventory('settings@1280', ['Overview', 'Activity']);
+  const base = [settings, surfaceInventory('account@1280', ['Overview'])];
+  const head = [settings, surfaceInventory('account@1280', ['Overview', 'Activity'])];
+  const { delta } = auditRunInventory(base, head);
+  assert.deepEqual(
+    delta.added.map((i) => i.key),
+    ['tab:activity'],
+  );
+  assert.deepEqual(delta.removed, []);
+});
+
+test('#754: a second same-labelled id-less nav button on the same surface is added', () => {
+  const base = [surfaceInventory('account@1280', ['Activity'], '')];
+  const head = [surfaceInventory('account@1280', ['Activity', 'Activity'], '')];
+  assert.deepEqual(
+    auditRunInventory(base, head).delta.added.map((i) => i.key),
+    ['nav-button:activity'],
+  );
+});
+
+test('#754: a pure reorder of id-less tabs is neither an addition nor a removal', () => {
+  const base = [surfaceInventory('account@1280', ['Alpha', 'Beta', 'Beta', 'Gamma'])];
+  const head = [surfaceInventory('account@1280', ['Gamma', 'Beta', 'Alpha', 'Beta'])];
+  assert.deepEqual(auditRunInventory(base, head).delta, { added: [], removed: [] });
+});
+
+test('#754: maps without a surface identity keep the run-wide union comparison', () => {
+  const tabs = (names) => ({ inventory: classifyInventory(names.map((n) => raw(n))) });
+  const base = [tabs(['Activity']), tabs([])];
+  const head = [tabs(['Activity']), tabs(['Activity'])];
+  assert.deepEqual(auditRunInventory(base, head).delta, { added: [], removed: [] });
 });

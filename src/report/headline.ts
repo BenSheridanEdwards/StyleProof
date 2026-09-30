@@ -26,6 +26,8 @@ export type HeadlineInput = {
   baseOnlyVolatile?: BaseOnlyVolatile[];
   liveCandidateLabels: string[];
   contentCount: number;
+  /** One-sided element changes shared by every surface base that renders their container (#754). */
+  globalChromeCount?: number;
   contentEvaluated: boolean;
   /** Any raw-vs-presentation contradiction: must not claim "identical". */
   reportConsistency: ReportConsistency;
@@ -264,6 +266,19 @@ export function reportHeadline(input: HeadlineInput): string[] {
       `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
       ...baseOnly.slice(0, 20).map((v) => `- \`${v.surface}\` · \`${v.path}\``),
       ...(baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []),
+    );
+  }
+  return [...md, ...contentNoteLines(input)];
+}
+
+/** Content-layer pointers: shared chrome element changes (#754), then the advisory count. */
+function contentNoteLines(input: HeadlineInput): string[] {
+  const md: string[] = [];
+  const chrome = input.globalChromeCount ?? 0;
+  if (chrome > 0) {
+    md.push(
+      '',
+      `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below. DOM structure does not change this check's verdict.`,
     );
   }
   if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {

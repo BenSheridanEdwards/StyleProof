@@ -85,3 +85,43 @@ test('captureStyleMap({inventory:true}) stores map.inventory; auditRunInventory 
     0,
   );
 });
+
+// #754: rendered id-less tab strips. A tab without an id is keyed by its label, so a
+// new tab whose label another surface's strip already offered used to disappear into
+// the run-wide union ("navigable set unchanged"). Surfaces pair by capture key now.
+const tabStrip = (labels: string[], extra = ''): string =>
+  'data:text/html,' +
+  encodeURIComponent(
+    `<!doctype html><html><body><div role="tablist">${labels
+      .map((l) => `<button role="tab">${l}</button>`)
+      .join('')}</div>${extra}</body></html>`,
+  );
+
+test('#754: an id-less role=tab added to one surface is reported added when another surface offers its label', async ({
+  page,
+}) => {
+  const harvest = async (surface: string, labels: string[], extra = '') => {
+    await page.goto(tabStrip(labels, extra));
+    return { surface, inventory: await harvestInventory(page) };
+  };
+  const settings = await harvest('settings@1280', ['General', 'Activity']);
+  const baseAccount = await harvest('account@1280', ['Overview']);
+  const headAccount = await harvest('account@1280', ['Overview', 'Activity']);
+
+  const audit = auditRunInventory([settings, baseAccount], [settings, headAccount]);
+  expect(audit.delta.added.map((i) => i.key)).toEqual(['tab:activity']);
+  expect(audit.unexplained).toEqual([]);
+
+  // A second same-labelled id-less affordance on the SAME surface is new too.
+  const withNav = await harvest('account@1280', ['Overview', 'Activity'], '<nav><button>Activity</button></nav>');
+  const withTwoNav = await harvest(
+    'account@1280',
+    ['Overview', 'Activity'],
+    '<nav><button>Activity</button></nav><nav><button>Activity</button></nav>',
+  );
+  expect(auditRunInventory([withNav], [withTwoNav]).delta.added.map((i) => i.key)).toEqual(['nav-button:activity']);
+
+  // A pure reorder of the rendered strip is neither an addition nor a removal.
+  const reordered = await harvest('account@1280', ['Activity', 'Overview']);
+  expect(auditRunInventory([headAccount], [reordered]).delta).toEqual({ added: [], removed: [] });
+});

@@ -9,6 +9,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The inventory reports an id-less navigable affordance a surface gains.** A
+  tab or nav button without a stable id is keyed by its label, so it shared
+  that key with every same-labelled affordance in the run: a new tab whose
+  label another surface (or another strip on the same surface) already offered
+  disappeared into the run-wide union and the audit said "navigable set
+  unchanged". Additions are now also read per surface (base and head paired by
+  capture key) and captures count same-key affordances per surface
+  (`NavigableItem.count`, present only when more than one), so the addition is
+  reported. A pure reorder adds nothing. Removals and the removal gate are
+  unchanged, and additions still never gate. Keys are unchanged and old maps
+  stay readable, but captured inventory output changes: regenerate baselines
+  with this version. Until then a surface that already rendered two
+  same-labelled affordances can show one informational (non-gating) addition.
+  (#754)
+- **An element added on every surface is listed once under Global chrome.** With
+  `--include-content`, an element added (or removed) identically on every
+  captured surface base that renders its container — a new link in a
+  persistent sidebar nav — was repeated as one advisory "element added" entry
+  per surface. It is now one **🧱 Global chrome** entry above the advisory list,
+  with one crop, the surfaces it appeared on, and a headline line; `report.json`
+  adds `content.globalChrome` and `content.changes` counts each entry once.
+  Like all DOM structure outside `--migration`, it does not change the verdict.
+  (#754)
 - **The report names spacing lost when siblings leave a parent's gap.** When a
   run of siblings stops being spaced by its container (a `display: contents`
   wrapper turned into a gapless flex column, or the siblings moved into a new
@@ -2721,7 +2744,7 @@ breaking entry below carries its one-line migration.
 ### Added
 
 - **Shared-chrome tier in the report and the `styleproof-diff` CLI.** When one
-  change rides the frame every view draws — a persistent nav rail, header, or
+  change rides the frame every view draws — a persistent sidebar nav, header, or
   footer that moved on every surface that renders it — it is promoted to a single
   "🧱 Global chrome change" callout at the top, with the detail folded beneath,
   instead of repeating across a long surface list on several entries. The reviewer
