@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sibling spacing fixture (before)</title>
+  <!-- #755: the sidebar gap spaces the groups while the wrapper is display: contents. -->
+  <style>
+    body { margin: 0; font-family: sans-serif; background: rgb(255, 255, 255); }
+    .sidebar { display: flex; flex-direction: column; gap: 14px; width: 220px; height: 600px; padding: 12px; box-sizing: border-box; }
+    .brand { display: block; height: 24px; }
+    .groups { display: contents; }
+    .group { display: flex; flex-direction: column; }
+    .group-title { margin: 0; font-size: 12px; line-height: 16px; }
+    .link { display: block; padding: 4px 0; line-height: 16px; color: rgb(30, 60, 90); }
+  </style>
+</head>
+<body>
+<nav class="sidebar">
+  <a class="brand" href="/">Brand</a>
+  <div class="groups">
+    <section class="group"><h2 class="group-title">Alpha</h2><a class="link" href="/a1">One</a><a class="link" href="/a2">Two</a></section>
+    <section class="group"><h2 class="group-title">Beta</h2><a class="link" href="/b1">Three</a><a class="link" href="/b2">Four</a></section>
+    <section class="group"><h2 class="group-title">Gamma</h2><a class="link" href="/c1">Five</a><a class="link" href="/c2">Six</a></section>
+    <section class="group"><h2 class="group-title">Delta</h2><a class="link" href="/d1">Seven</a><a class="link" href="/d2">Eight</a></section>
+  </div>
+</nav>
+</body>
+</html>

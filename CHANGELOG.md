@@ -32,6 +32,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   adds `content.globalChrome` and `content.changes` counts each entry once.
   Like all DOM structure outside `--migration`, it does not change the verdict.
   (#754)
+- **The report names spacing lost when siblings leave a parent's gap.** When a
+  run of siblings stops being spaced by its container (a `display: contents`
+  wrapper turned into a gapless flex column, or the siblings moved into a new
+  one), their own computed style barely changes: the gap belongs to the parent
+  they left. The report now reads the spacing from the rendered boxes the maps
+  already carry and says so under the changed region, e.g.
+  `Spacing between section.group siblings 14px → 0px`. Runs pair by the same
+  container and sibling paths, or, when they moved, by a tag + class sequence
+  unique on both sides. A pair whose siblings changed size along the gap (text
+  reflow, content) is never reported. Explanation only: `report.json` carries
+  it as `spacing` on the region, and counts and the verdict are unchanged. (#755)
 - **An inserted or re-parented sibling no longer invents diffs (#753).** Inserting
   a tab into a strip of same-class tabs paired later tabs with their positional
   neighbours, so the report (and the certification diff) showed the active tab's
