@@ -84,7 +84,7 @@ test('#754: an addition on only some surfaces that host the sidebar stays adviso
 });
 
 // #767 / #754 residual: head-only co-host must not expand the content hosting universe.
-// FLEET #67: unpaired tall-fullpage hosts the same App rail as paired surfaces; if
+// Unpaired tall-fullpage hosts the same sidebar container as paired surfaces; if
 // chromeHosted counts that base, every(hostingBase ∈ changedBases) fails and Global
 // chrome collapse is skipped (3× advisory). Content chrome must host only over paired surfaces.
 test('#767: head-only co-host of the same container still collapses to ONE Global chrome entry', () => {
