@@ -160,7 +160,11 @@ test('$STYLEPROOF_PRODUCT_STATE overrides discovered config productState.legacyP
   }
 });
 
-test('synthetic action-dogfood clean fixtures stale-fail when the repo-root live ledger is inherited', () => {
+test('synthetic action-dogfood clean fixtures certify when the emptied live ledger is inherited', () => {
+  // After the buyer-story stamp, example/styleproof.product-state.json is {} — stamped
+  // clean fixtures no longer stale-fail on upward discovery. Isolation via
+  // $STYLEPROOF_PRODUCT_STATE remains (next test) so a future stale declaration cannot
+  // poison the synthetic suite.
   const root = mkTmp('styleproof-action-dogfood-live-ledger-');
   const baseSha = 'a'.repeat(40);
   const headSha = 'b'.repeat(40);
@@ -187,12 +191,11 @@ test('synthetic action-dogfood clean fixtures stale-fail when the repo-root live
       ],
       { cwd: ROOT, encoding: 'utf8' },
     );
-    assert.equal(inherited.status, 1, inherited.stderr || inherited.stdout);
-    assert.match(inherited.stdout, /undeclared or stale legacy product-state pair/);
+    assert.equal(inherited.status, 0, inherited.stderr || inherited.stdout);
     const receipt = JSON.parse(fs.readFileSync(json, 'utf8'));
     assert.equal(receipt.legacyPairs.armed, true);
-    assert.deepEqual(receipt.legacyPairs.staleAcknowledgements, ['home']);
-    assert.equal(receipt.certifiesFully, false);
+    assert.deepEqual(receipt.legacyPairs.staleAcknowledgements, []);
+    assert.equal(receipt.certifiesFully, true);
   } finally {
     rmTmp(root);
   }
@@ -302,27 +305,33 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
   }
 });
 
-test('live StyleProof-on-StyleProof declare file covers home@* and fails closed when emptied', () => {
+test('live StyleProof-on-StyleProof ledger stays armed empty; unstamped fails closed, stamped certifies', () => {
   const liveFile = path.join(ROOT, 'example/styleproof.product-state.json');
   assert.ok(fs.existsSync(liveFile), 'example/styleproof.product-state.json is the live dogfood ledger');
-  const capture = fixture();
-  try {
-    const declared = runDiff(capture, [], { STYLEPROOF_PRODUCT_STATE: liveFile });
-    assert.equal(declared.status, 0, declared.stderr || declared.stdout);
-    assert.equal(declared.json.certifiesFully, false);
-    assert.deepEqual(declared.json.legacyPairs.declared, ['home@1280']);
-    assert.deepEqual(declared.json.legacyPairs.undeclared, []);
+  assert.deepEqual(JSON.parse(fs.readFileSync(liveFile, 'utf8')), {}, 'live ledger pruned after productState stamp');
 
-    const empty = path.join(capture.root, 'legacy-pairs-empty.json');
-    fs.writeFileSync(empty, '{}\n');
-    const blocked = runDiff(capture, [], { STYLEPROOF_PRODUCT_STATE: empty });
+  const unstamped = fixture();
+  try {
+    const blocked = runDiff(unstamped, [], { STYLEPROOF_PRODUCT_STATE: liveFile });
     assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
     assert.equal(blocked.json.certifiesFully, false);
     assert.deepEqual(blocked.json.legacyPairs.undeclared, ['home@1280']);
-    const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
+    const audit = JSON.parse(fs.readFileSync(path.join(unstamped.root, 'styleproof-audit.json'), 'utf8'));
     assert.equal(audit.trustDecision.finalState, 'CERTIFICATION_FAILED');
   } finally {
-    rmTmp(capture.root);
+    rmTmp(unstamped.root);
+  }
+
+  const stamped = fixture({ productState: { id: 'demo-home', revision: 'fixture-v1' } });
+  try {
+    const ok = runDiff(stamped, [], { STYLEPROOF_PRODUCT_STATE: liveFile });
+    assert.equal(ok.status, 0, ok.stderr || ok.stdout);
+    assert.equal(ok.json.certifiesFully, true);
+    assert.equal(ok.json.comparison.status, 'comparable');
+    assert.deepEqual(ok.json.legacyPairs.undeclared, []);
+    assert.deepEqual(ok.json.legacyPairs.declared, []);
+  } finally {
+    rmTmp(stamped.root);
   }
 });
 

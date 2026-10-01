@@ -34,6 +34,8 @@ async function settle(page: Page) {
 const SURFACES: Surface[] = [
   {
     key: 'home',
+    // Matching productState {id, revision} is the only certifying path (legacyPairs never certify).
+    productState: { id: 'demo-home', revision: 'fixture-v1' },
     go: async (page) => {
       await page.goto('/', { waitUntil: 'networkidle' });
       await settle(page);

@@ -49,17 +49,21 @@ StyleProof 6.2 remains the stable migration line. The 6.x-compatible path is opt
 3. Run diff/report with `--require-state-identity`, or set `productState.requireIdentity: true` in `styleproof.config.ts`, or set composite Action input `require-state-identity: true`.
 4. Repair every `unproven` or `incomparable` receipt before treating the run as certifying.
 
-StyleProof-on-StyleProof (this repository) arms that ledger: root
-`styleproof.config.ts` and `styleproof.config.json` set `productState.legacyPairs` to
-`example/styleproof.product-state.json` (declares `home`; resolved from the
-discovered config directory), and
+StyleProof-on-StyleProof (this repository) stamps the buyer-story `home`
+surface with matching `productState { id: 'demo-home', revision: 'fixture-v1' }`
+(example spec + live README capture) — the only certifying path. Root
+`styleproof.config.ts` and `styleproof.config.json` still set
+`productState.legacyPairs` to `example/styleproof.product-state.json`
+(resolved from the discovered config directory); the file stays present but
+empty so the gate remains armed for new undeclared pairs. Leaving a stale
+`"home"` declaration after the stamp would fail closed.
 `.github/workflows/styleproof-dogfood.yml` sets `$STYLEPROOF_PRODUCT_STATE`
-so the live advisory Action cannot stay green over undeclared `home@*` pairs.
-The path is beside the example spec so the synthetic `action-dogfood.yml`
-suite is not auto-armed from the default cwd filename. That suite sets
+so the live advisory Action cannot stay green over undeclared pairs. The path
+is beside the example spec so the synthetic `action-dogfood.yml` suite is not
+auto-armed from the default cwd filename. That suite sets
 `$STYLEPROOF_PRODUCT_STATE` to `action-dogfood/legacy-pairs-empty.json` so
-upward config discovery cannot inherit the live `home` ledger and
-stale-fail identity-stamped contract maps. It still proves undeclared →
+upward config discovery cannot inherit a future stale live-ledger declaration
+against identity-stamped contract maps. It still proves undeclared →
 `CERTIFICATION_FAILED` and declared → advisory.
 
 To inventory known-legacy pairs **without** claiming identity yet (the large-undeclared-pair case):

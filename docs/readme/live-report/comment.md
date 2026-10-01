@@ -2,8 +2,6 @@
 
 ## 🗺️ StyleProof report
 
-⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
-
 **1 change needs review**
 
 **2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
@@ -143,13 +141,6 @@ Interactive-state changes:
 | `:active` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
 
 _Nothing else — no other element or inventory changes in this compare._
-
-<details>
-<summary>Evidence (warnings & failures)</summary>
-
-⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s).
-
-</details>
 
 - [ ] **Approve all changes**
 

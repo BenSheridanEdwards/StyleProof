@@ -112,11 +112,16 @@ jobs:
         run: |
           set -euo pipefail
           test -f example/styleproof.product-state.json
-          grep -F '"home"' example/styleproof.product-state.json
-          grep -E 'declared legacy pair' styleproof-report/report.md
-          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
+          # Empty ledger after productState stamp (stale "home" ack would fail closed).
+          node -e "const d=require('./example/styleproof.product-state.json'); if (Object.keys(d).length!==0) process.exit(1)"
           grep -F '"armed": true' styleproof-report/report.json
+          grep -F '"status": "comparable"' styleproof-report/report.json
           grep -E 'home@' styleproof-report/report.json
+          # No above-fold unproven product-state warning once identity is stamped.
+          if grep -E 'Product-state identity unproven' styleproof-report/report.md; then
+            echo 'expected comparable buyer path — above-fold unproven warning still present' >&2
+            exit 1
+          fi
 
       - name: Assert PR report was published as a workflow artifact
         env:
@@ -289,7 +294,7 @@ jobs:
 
             const notice = [
               '> [!NOTE]',
-              '> **Live StyleProof-on-StyleProof (advisory).** This report is captured from the surfaces declared in `styleproof.config.ts` (`example/demo`). The product-state ledger (`styleproof.product-state.json` / `productState.legacyPairs`) is armed: declared `home@*` pairs stay advisory; undeclared pairs fail closed. `fail-on-diff` is false; the check is not part of hosted required CI. The synthetic Action contract suite remains `action-dogfood.yml`.',
+              '> **Live StyleProof-on-StyleProof (advisory).** This report is captured from the surfaces declared in `styleproof.config.ts` (`example/demo`). `home@*` carries matching `productState {id, revision}` (comparable / certifying path); the legacy ledger file stays armed but empty so undeclared new pairs fail closed. `fail-on-diff` is false; the check is not part of hosted required CI. The synthetic Action contract suite remains `action-dogfood.yml`.',
             ].join('\n');
             const body = comment.body ?? '';
             await github.rest.issues.updateComment({
