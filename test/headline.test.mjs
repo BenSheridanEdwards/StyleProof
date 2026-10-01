@@ -1,7 +1,7 @@
 /**
  * Headline copy: lead with distinct/reviewable count, not property tally (#770).
- * FLEET #67-shaped: many computed-style diffs under one change group must not
- * bold-lead with "14 … across 1 distinct".
+ * Multi-property restyle under one change group must not bold-lead with
+ * "14 … across 1 distinct".
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -79,7 +79,7 @@ test('#770: new surface + one style group keeps verdict as reviewable sum', () =
     }),
   );
   const joined = lines.join('\n');
-  // 1 new + 1 style group = 2 reviewable (matches FLEET #67 verdict).
+  // 1 new + 1 style group = 2 reviewable (matches dogfood verdict shape).
   assert.match(joined, /\*\*2 changes need review\*\*/);
   assert.match(joined, /🆕 \*\*1 new surface\(s\)\*\*/);
   assert.match(joined, /\*\*1 distinct change\*\* \(14 computed-style difference\(s\)\)/);
