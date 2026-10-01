@@ -44,6 +44,7 @@ import {
   type ReportConsistency,
 } from './report/shared.js';
 import {
+  contentHostingSurfacePaths,
   contentSurfaces,
   renderChromeStructureSection,
   renderContentSection,
@@ -286,9 +287,15 @@ function renderContentLayer(
   if (!mode.includeContent) {
     return { withContent, contentSection: { md: [], count: 0 }, chromeMd: [], globalChrome: 0, total: 0 };
   }
+  // Content chrome hosts only over paired surfaces — unpaired co-hosts must not
+  // expand the must-hit set (#767 / #754 residual). Style classifyChrome keeps full surfacePaths.
   const split = mode.migration
     ? { chrome: [], rest: withContent }
-    : splitChromeStructure(withContent, surfacePaths, surfaceKeyOf);
+    : splitChromeStructure(
+        withContent,
+        contentHostingSurfacePaths(ctx.beforeDir, ctx.afterDir, surfacePaths),
+        surfaceKeyOf,
+      );
   const contentSection = renderContentSection(ctx, split.rest);
   const globalChrome = split.chrome.length;
   const chromeMd = renderChromeStructureSection(ctx, split.chrome);

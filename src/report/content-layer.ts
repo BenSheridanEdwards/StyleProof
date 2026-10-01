@@ -182,10 +182,28 @@ function indexOneSided(surfaces: ContentSurface[]): OneSidedIndexEntry[] {
 }
 
 /**
+ * Hosting universe for content-layer chrome (#767 / #754 residual): only surfaces
+ * present on BOTH sides (content-comparable). Unpaired head/base-only captures can
+ * co-host the same container but never appear in contentSurfaces, so counting them
+ * as hosts makes `every(hostingBase ∈ changedBases)` fail and skips Global chrome.
+ */
+export function contentHostingSurfacePaths(
+  beforeDir: string,
+  afterDir: string,
+  surfacePaths: Map<string, Set<string>>,
+): Map<string, Set<string>> {
+  const before = new Set(captureKeysIn(beforeDir));
+  const paired = new Set(captureKeysIn(afterDir).filter((k) => before.has(k)));
+  return new Map([...surfacePaths].filter(([surface]) => paired.has(surface)));
+}
+
+/**
  * Split out one-sided element changes that are shared chrome (#754): the same element
- * added (or removed) at the same path on every captured surface base that renders its
- * container, a persistent nav, header, or footer. Each is listed ONCE under Global
- * chrome instead of once per surface; everything else stays in the advisory list.
+ * added (or removed) at the same path on every *content-comparable* surface base that
+ * renders its container, a persistent nav, header, or footer. Each is listed ONCE under
+ * Global chrome instead of once per surface; everything else stays in the advisory list.
+ * Callers must pass a hosting universe limited to paired surfaces (`contentHostingSurfacePaths`);
+ * unpaired co-hosts must not expand the must-hit set (#767).
  */
 export function splitChromeStructure(
   surfaces: ContentSurface[],
