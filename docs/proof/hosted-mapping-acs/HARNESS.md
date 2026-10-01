@@ -61,6 +61,8 @@ StyleProof may later wire this to existing capture/diff/report seams. This stub 
 - [ ] Soft-pass HOLD lifted only when ACs 1–4 are evidenced on the pinned tip
 - [ ] No claim of Phase 2 mapping proved until that evidence exists
 
+See [`SOFT-PASS-LIFT-BAR.md`](./SOFT-PASS-LIFT-BAR.md) for the 1 Oct 2026 HOLD-continue (no-go on lift) decision.
+
 ## Privacy
 
 Artifacts and docs use generic consumer language only. No private project names, repos, or URLs.
