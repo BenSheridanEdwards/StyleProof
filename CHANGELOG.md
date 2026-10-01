@@ -17,7 +17,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `"home"` acknowledgement after the stamp would fail closed. Live dogfood
   asserts flip from declared-legacy greps to empty ledger + comparable.
   Matching `productState {id, revision}` remains the only certifying path;
-  `legacyPairs` never certify.
+  `legacyPairs` never certify. Unit tests unarm the live ledger via
+  `STYLEPROOF_PRODUCT_STATE=` in `scripts/run-node-test.mjs` so unstamped
+  `home@*` fixtures are not fail-closed by upward config discovery.
 
 ## [7.2.1] - 2026-10-01
 

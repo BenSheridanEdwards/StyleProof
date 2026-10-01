@@ -59,6 +59,10 @@ function fixture({ productState } = {}) {
 
 function runDiff(capture, extra = [], env = {}) {
   const json = path.join(capture.root, `diff-${extra.join('-') || 'default'}.json`);
+  const childEnv = { ...process.env, ...env };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete childEnv[key];
+  }
   const result = spawnSync(
     process.execPath,
     [
@@ -73,7 +77,7 @@ function runDiff(capture, extra = [], env = {}) {
       HEAD_SHA,
       ...extra,
     ],
-    { cwd: capture.root, encoding: 'utf8', env: { ...process.env, ...env } },
+    { cwd: capture.root, encoding: 'utf8', env: childEnv },
   );
   return {
     ...result,
@@ -140,7 +144,8 @@ test('$STYLEPROOF_PRODUCT_STATE overrides discovered config productState.legacyP
     );
     fs.writeFileSync(path.join(capture.root, 'empty.json'), '{}\n');
 
-    const inherited = runDiff(capture);
+    // Unset suite-wide STYLEPROOF_PRODUCT_STATE='' so config productState.legacyPairs is discovered.
+    const inherited = runDiff(capture, [], { STYLEPROOF_PRODUCT_STATE: undefined });
     assert.equal(inherited.status, 1, inherited.stderr || inherited.stdout);
     assert.deepEqual(inherited.json.legacyPairs.staleAcknowledgements, ['home']);
     assert.equal(inherited.json.certifiesFully, false);
@@ -162,9 +167,9 @@ test('$STYLEPROOF_PRODUCT_STATE overrides discovered config productState.legacyP
 
 test('synthetic action-dogfood clean fixtures certify when the emptied live ledger is inherited', () => {
   // After the buyer-story stamp, example/styleproof.product-state.json is {} — stamped
-  // clean fixtures no longer stale-fail on upward discovery. Isolation via
-  // $STYLEPROOF_PRODUCT_STATE remains (next test) so a future stale declaration cannot
-  // poison the synthetic suite.
+  // clean fixtures certify against the emptied live ledger (unit suite unarms by
+  // default; this test arms it explicitly). Isolation via $STYLEPROOF_PRODUCT_STATE
+  // remains (next test) so a future stale declaration cannot poison the synthetic suite.
   const root = mkTmp('styleproof-action-dogfood-live-ledger-');
   const baseSha = 'a'.repeat(40);
   const headSha = 'b'.repeat(40);
@@ -189,7 +194,11 @@ test('synthetic action-dogfood clean fixtures certify when the emptied live ledg
         '--expected-after-sha',
         headSha,
       ],
-      { cwd: ROOT, encoding: 'utf8' },
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, STYLEPROOF_PRODUCT_STATE: path.join(ROOT, 'example/styleproof.product-state.json') },
+      },
     );
     assert.equal(inherited.status, 0, inherited.stderr || inherited.stdout);
     const receipt = JSON.parse(fs.readFileSync(json, 'utf8'));

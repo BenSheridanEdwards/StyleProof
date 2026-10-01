@@ -29,7 +29,12 @@ export function nodeTestArgs({ nodeMajor = Number(process.versions.node.split('.
 export function nodeTestEnv(env = process.env, preload = NO_CONCURRENT_JOBS_PRELOAD) {
   if (/\s/.test(preload)) return { ...env }; // NODE_OPTIONS cannot quote paths
   const prefix = env.NODE_OPTIONS ? `${env.NODE_OPTIONS} ` : '';
-  return { ...env, NODE_OPTIONS: `${prefix}--require ${preload}` };
+  // Unarm the live dogfood product-state ledger for CLI children unless a test
+  // explicitly sets STYLEPROOF_PRODUCT_STATE. After the buyer-story stamp the
+  // live file is {} (fail-closed for unstamped home@*); suite fixtures must not
+  // inherit that gate via upward config discovery from the repo root cwd.
+  const productState = env.STYLEPROOF_PRODUCT_STATE !== undefined ? env.STYLEPROOF_PRODUCT_STATE : '';
+  return { ...env, NODE_OPTIONS: `${prefix}--require ${preload}`, STYLEPROOF_PRODUCT_STATE: productState };
 }
 
 function defaultTestFiles() {
