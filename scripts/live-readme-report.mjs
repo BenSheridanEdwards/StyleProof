@@ -28,6 +28,8 @@ const HEAD_CSS = `
 const CAPTURE = {
   ignore: ['.stage-organism', '.status-card'],
   captureComponent: true,
+  // Same identity as example/styleproof.spec.ts home — matching stamps certify the buyer story.
+  metadata: { productState: { id: 'demo-home', revision: 'fixture-v1' } },
 };
 
 async function captureOne(page, extraCss) {
@@ -91,6 +93,7 @@ fs.writeFileSync(res.reportMdPath, report);
 const inlined = report.replaceAll('(crops/', '(docs/readme/live-report/crops/');
 const comment = [
   '<!-- styleproof-report -->',
+  '',
   inlined.trim(),
   '',
   '- [ ] **Approve all changes**',

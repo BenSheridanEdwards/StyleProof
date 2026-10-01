@@ -32,6 +32,13 @@ test('appends the no-concurrent-jobs preload after existing NODE_OPTIONS', () =>
   assert.match(env.NODE_OPTIONS, /^--max-old-space-size=4096 --require .+no-concurrent-jobs\.cjs$/);
 });
 
+test('STYLEPROOF_PRODUCT_STATE defaults to empty so the live dogfood ledger cannot poison CLI fixtures', () => {
+  const env = nodeTestEnv({});
+  assert.equal(env.STYLEPROOF_PRODUCT_STATE, '');
+  const preserved = nodeTestEnv({ STYLEPROOF_PRODUCT_STATE: 'custom.json' });
+  assert.equal(preserved.STYLEPROOF_PRODUCT_STATE, 'custom.json');
+});
+
 test('skips the preload when its path cannot survive NODE_OPTIONS', () => {
   const env = nodeTestEnv({ NODE_OPTIONS: '--x' }, '/a path/with space/no-concurrent-jobs.cjs');
   assert.equal(env.NODE_OPTIONS, '--x');

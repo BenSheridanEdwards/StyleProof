@@ -76,18 +76,19 @@ test('live dogfood does not replace the synthetic action-dogfood contract suite'
   assert.doesNotMatch(actionDogfood, /STYLEPROOF_PRODUCT_STATE:\s*example\/styleproof\.product-state\.json/);
 });
 
-test('live StyleProof-on-StyleProof arms declare-or-fail-closed for home@* pairs', () => {
+test('live StyleProof-on-StyleProof arms declare-or-fail-closed with stamped home@* pairs', () => {
   assert.match(configTs, /productState:\s*\{/);
   assert.match(configTs, /legacyPairs:\s*'example\/styleproof\.product-state\.json'/);
   const jsonConfig = JSON.parse(fs.readFileSync(path.join(here, '..', 'styleproof.config.json'), 'utf8'));
   assert.equal(jsonConfig.productState?.legacyPairs, 'example/styleproof.product-state.json');
   assert.ok(fs.existsSync(productStateFile), 'example/styleproof.product-state.json must arm the live ledger');
   const declared = JSON.parse(fs.readFileSync(productStateFile, 'utf8'));
-  assert.equal(typeof declared.home, 'string');
-  assert.ok(declared.home.trim().length > 0, 'home must be declared with a non-empty reason');
+  // Pruned after productState stamp — file stays so the gate remains armed for new pairs.
+  assert.deepEqual(declared, {});
   assert.match(workflow, /STYLEPROOF_PRODUCT_STATE:\s*example\/styleproof\.product-state\.json/);
-  assert.match(workflow, /declared legacy pair/);
-  assert.match(workflow, /visual-only, not a certified same-state compare/);
+  assert.match(workflow, /"status": "comparable"/);
+  assert.match(workflow, /Product-state identity unproven/);
+  assert.match(workflow, /Object\.keys\(d\)\.length!==0/);
   assert.doesNotMatch(
     workflow,
     /ledger stays unarmed|does not set `productState\.legacyPairs`/,

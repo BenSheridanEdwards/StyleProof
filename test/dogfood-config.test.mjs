@@ -24,8 +24,8 @@ test('root styleproof.config.ts exists, uses defineConfig, and is advisory', () 
   assert.match(source, /legacyPairs:\s*'example\/styleproof\.product-state\.json'/);
   assert.doesNotMatch(source, /hudPassword|apiToken|password\s*:/);
   const declared = JSON.parse(fs.readFileSync(path.join(repoRoot, 'example/styleproof.product-state.json'), 'utf8'));
-  assert.equal(typeof declared.home, 'string');
-  assert.ok(declared.home.trim().length > 0);
+  // Ledger stays armed (file present) but pruned after productState stamp — stale "home" would fail closed.
+  assert.deepEqual(declared, {});
   const jsonConfig = JSON.parse(fs.readFileSync(path.join(repoRoot, 'styleproof.config.json'), 'utf8'));
   assert.equal(jsonConfig.productState?.legacyPairs, 'example/styleproof.product-state.json');
   const spec = fs.readFileSync(path.join(repoRoot, 'example/styleproof.spec.ts'), 'utf8');
@@ -33,6 +33,11 @@ test('root styleproof.config.ts exists, uses defineConfig, and is advisory', () 
     spec,
     /expected:\s*SURFACES\.map\(\(surface\) => surface\.key\)/,
     'example spec must declare expected or advisory dogfood fails as CERTIFICATION_FAILED',
+  );
+  assert.match(
+    spec,
+    /productState:\s*\{\s*id:\s*'demo-home',\s*revision:\s*'fixture-v1'\s*\}/,
+    'example home surface must stamp matching productState {id, revision} (only certifying path)',
   );
   assert.ok(fs.existsSync(path.join(repoRoot, 'example/demo/index.html')));
 });
