@@ -23,8 +23,8 @@ This is a documented **no-go on lifting**, not a product go.
 2. **HARNESS lift ticks still open** — [`HARNESS.md`](./HARNESS.md) still has unchecked:
    - Soft-pass HOLD lifted only when ACs 1–4 are evidenced on the pinned tip
    - No claim of Phase 2 mapping proved until that evidence exists
-3. **Step 2 out of Soft-pass scope** — FLEET #66 (pin-bump to 7.2.1 / `@v7`) and FLEET #67 (7.2.1 re-dogfood for #752–#756) were mandated **not** to clear Soft-pass. #67 body: evidence only — do not merge for Soft-pass AC5.
-4. **FLEET #67 Visual red** — review-gate failure (changes need review); product-state undeclared / visual-only. Bug-fix dogfood, not Soft-pass AC clearance.
+3. **Step 2 out of Soft-pass scope** — Consumer PR **#66** (pin-bump to 7.2.1 / `@v7`) and consumer PR **#67** (7.2.1 re-dogfood for StyleProof #752–#756) were mandated **not** to clear Soft-pass. #67 body: evidence only — do not merge for Soft-pass AC5.
+4. **Consumer PR #67 Visual red** — review-gate failure (changes need review); product-state undeclared / visual-only. Bug-fix dogfood, not Soft-pass AC clearance.
 5. **#754 partial** — Inventory id-less nav landed, but “one Global chrome element-added” grouping is incomplete (per-surface advisories remain). Partial fix dogfood ≠ Soft-pass green.
 
 Mandate: AC5 stays HOLD unless primary evidence says otherwise — it does not.
@@ -58,7 +58,7 @@ Only with an explicit bar met:
 
 - Do **not** invent Soft-pass green or clear AC5 in RECEIPT / marketing / buyer copy.
 - Do **not** merge Soft-pass dogfood for AC5 (#29–#31 stay closed-unmerged evidence).
-- Do **not** merge FLEET #67 *to prove Soft-pass* (#67 stays open as 7.2.1 bug-fix evidence).
+- Do **not** merge consumer PR **#67** *to prove Soft-pass* (#67 stays open as 7.2.1 bug-fix evidence).
 - Do **not** treat #66 / #67 / #752–#756 as Soft-pass clearance.
 - Do **not** soft-pass pin-skew, `CERTIFICATION_FAILED`, or product-state-unproven into green.
 
