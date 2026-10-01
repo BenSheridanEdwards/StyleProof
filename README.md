@@ -44,7 +44,7 @@ Surface-key vocabulary (`@width`, live-state / popup variants) lives in [docs/RE
 
 **1 change needs review**
 
-**2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+**1 distinct change** (2 computed-style difference(s) · 3 state-delta difference(s)) in 1 changed surface base with an existing baseline.
 
 ## Changes
 
@@ -187,7 +187,6 @@ _Nothing else — no other element or inventory changes in this compare._
 ---
 
 _Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._
-
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**
 

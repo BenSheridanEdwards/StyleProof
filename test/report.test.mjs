@@ -315,7 +315,7 @@ test('end-to-end: header counts the collapsed total, not the longhand explosion'
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // Zero counts are dropped from the headline; only the real one shows.
-  assert.match(md, /\*\*1 computed-style difference\(s\)\*\* across/);
+  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
   assert.doesNotMatch(md, /0 DOM change\(s\)/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
@@ -705,7 +705,7 @@ test('new surface details render before existing-surface change groups', () => {
   assert.ok(newIdx < changedIdx, 'new page evidence leads before existing-surface churn');
   const commentSummary = md.slice(0, md.indexOf('\n### '));
   assert.ok(
-    commentSummary.indexOf('🆕 **1 new surface(s)**') < commentSummary.indexOf('**1 computed-style difference(s)**'),
+    commentSummary.indexOf('🆕 **1 new surface(s)**') < commentSummary.indexOf('**1 distinct change**'),
     'comment summary leads with the named new surface before aggregate existing-surface churn',
   );
   assert.match(commentSummary, /`workspace @ 900`/);
@@ -843,7 +843,7 @@ test('add-only: headline counts DOM only — head-side inventory is not a restyl
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   // Presentation counts: DOM add only. Style/state rows are inventory on the new node.
   assert.deepEqual(json.counts, { dom: 1, style: 0, state: 0 });
-  assert.match(md, /\*\*1 DOM change\(s\)\*\* across/);
+  assert.match(md, /\*\*1 distinct change\*\* \(1 DOM change\(s\)\)/);
   assert.doesNotMatch(md, /computed-style difference/);
   assert.doesNotMatch(md, /state-delta difference/);
   assert.match(md, /Style inventory \(head-side — no baseline\)/);
@@ -880,7 +880,7 @@ test('matched-path restyle still counts as a computed-style difference (not inve
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
-  assert.match(md, /\*\*1 computed-style difference\(s\)\*\* across/);
+  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
   assert.match(md, /1 element restyled/);
   assert.match(md, /\| Property \| Before \| After \|/);
   assert.doesNotMatch(md, /Style inventory \(head-side/);

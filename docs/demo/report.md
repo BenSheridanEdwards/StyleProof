@@ -6,7 +6,7 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
-**3 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+**1 distinct change** (3 computed-style difference(s)) in 1 changed surface base with an existing baseline.
 
 📝 _3 advisory content change(s) below — they don't affect the check._
 

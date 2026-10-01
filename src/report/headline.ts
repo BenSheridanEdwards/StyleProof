@@ -62,7 +62,7 @@ export function readBaselineInfo(beforeDir: string, afterDir: string): BaselineI
   };
 }
 
-/** Headline counts with the zeros dropped. */
+/** Property/DOM/state tallies with the zeros dropped (secondary headline detail). */
 function changeCountLabel(shown: DiffCounts): string {
   const parts: [number, string][] = [
     [shown.dom, 'DOM change(s)'],
@@ -73,6 +73,14 @@ function changeCountLabel(shown: DiffCounts): string {
     .filter(([n]) => n)
     .map(([n, label]) => `${n} ${label}`)
     .join(' · ');
+}
+
+/** Lead with distinct/reviewable groups; property tally is parenthetical (#770). */
+function distinctChangeLine(groupCount: number, shown: DiffCounts, scope: string): string {
+  const distinct = groupCount === 1 ? '**1 distinct change**' : `**${groupCount} distinct changes**`;
+  const tallies = changeCountLabel(shown);
+  const detail = tallies ? ` (${tallies})` : '';
+  return `${distinct}${detail} in ${scope} with an existing baseline.`;
 }
 
 function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
@@ -232,7 +240,11 @@ function summaryLines(input: HeadlineInput): string[] {
   if (changeGroups.length > 0) {
     md.push(
       ...(md.length > 0 && md[md.length - 1] !== '' ? [''] : []),
-      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
+      distinctChangeLine(
+        changeGroups.length,
+        shown,
+        formatChangedSurfaceScope(changedScope.bases, changedScope.variants),
+      ),
     );
   }
   return md;
