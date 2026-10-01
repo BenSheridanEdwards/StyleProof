@@ -82,3 +82,32 @@ test('#754: an addition on only some surfaces that host the sidebar stays adviso
   assert.deepEqual(json.content, { evaluated: true, changes: 2, advisory: true });
   rmTmp(dirs.root);
 });
+
+// #767 / #754 residual: head-only co-host must not expand the content hosting universe.
+// FLEET #67: unpaired tall-fullpage hosts the same App rail as paired surfaces; if
+// chromeHosted counts that base, every(hostingBase ∈ changedBases) fails and Global
+// chrome collapse is skipped (3× advisory). Content chrome must host only over paired surfaces.
+test('#767: head-only co-host of the same container still collapses to ONE Global chrome entry', () => {
+  const dirs = tmpDirs();
+  const HEAD_ONLY = 'tall-fullpage@1280';
+  for (const surface of SURFACES) {
+    writeCapture(dirs.beforeDir, surface, sidebarMap(3), solidPng(400, 300));
+    writeCapture(dirs.afterDir, surface, sidebarMap(4), solidPng(400, 300, [150, 150, 150]));
+  }
+  // Unpaired head surface also hosts the sidebar (same container path) but is not content-comparable.
+  writeCapture(dirs.afterDir, HEAD_ONLY, sidebarMap(4), solidPng(400, 300, [150, 150, 150]));
+
+  const result = generateStyleMapReport({ ...dirs, includeContent: true });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+
+  assert.match(md, /## 🧱 Global chrome — 1 element change on every surface base that renders its container/);
+  assert.match(
+    md,
+    /\*\*`a\.side-link`\*\* — element added on all 3 surface bases that render its container \(3 captures\)/,
+  );
+  assert.equal(occurrences(md, '**`a.side-link`**'), 1, 'chrome addition listed once despite head-only co-host');
+  assert.doesNotMatch(md, /### `home@1280` · \d+ content\/structure change/);
+  const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(json.content.globalChrome, 1);
+  rmTmp(dirs.root);
+});
