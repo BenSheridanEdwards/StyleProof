@@ -49,4 +49,5 @@ Privacy-clean: consumer PR numbers, tip SHAs, Action run IDs, and
 - Design ACs: [`README.md`](./README.md)
 - Design checklist: [`CHECKLIST.md`](./CHECKLIST.md)
 - Harness stubs: [`HARNESS.md`](./HARNESS.md)
+- Soft-pass lift bar (HOLD-continue): [`SOFT-PASS-LIFT-BAR.md`](./SOFT-PASS-LIFT-BAR.md)
 - Parent issue: #720
