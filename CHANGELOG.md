@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Report headline leads with distinct changes, not property tally.** A
+  multi-property restyle (e.g. one Flex group with expanded currentColor
+  longhands) used to bold-lead with `**14 computed-style difference(s)** across
+1 distinct change(s)`, calibrating Opening severity to the property count.
+  The line now leads with `**1 distinct change** (14 computed-style
+difference(s))…` so the above-fold number matches the reviewable group
+  count; expandable "Show all N" in the body is unchanged. No gate or Soft-pass
+  change. (#770)
+
 ### Changed
 
 - **Buyer-story product-state stamp.** Example `home` and the live README capture

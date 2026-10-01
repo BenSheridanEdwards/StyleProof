@@ -27,14 +27,27 @@
 <main>
 <h2>🗺️ StyleProof report</h2>
 <p><strong>1 change needs review</strong></p>
-<p><strong>2 computed-style difference(s) · 3 state-delta difference(s)</strong> across 1 distinct change(s) in 1 changed surface base with an existing baseline.</p>
+<p><strong>1 distinct change</strong> (2 computed-style difference(s) · 3 state-delta difference(s)) in 1 changed surface base with an existing baseline.</p>
 <h2>Changes</h2>
+<h3><strong>Btn</strong> <code>button.btn</code> · 1 element restyled</h3>
+<p><em>demo-button @ 900</em></p>
+<p><code>padding</code> <code>14px 28px</code> → <code>18px 32px</code>&lt;br&gt; <code>background-color</code> <code>#14b8a6</code> → <code>#dc2626</code></p>
+<p class="shot"><img src="crops/demo-button-900-4-composite.png" alt="before ◀ │ ▶ after" loading="lazy"></p>
+<sub>◀ before · after ▶ — demo-button @ 900</sub>
+<details>
+<summary>Show highlight overlay</summary>
+<p class="shot"><img src="crops/demo-button-900-4-annotated.png" alt="highlighted before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔍 magenta boxes mark each change — changed: <code>button.btn</code></sub>
+</details>
+<p><strong>Btn</strong> <code>button.btn</code></p>
+<p>Style:</p>
+<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>padding</code></td><td><code>14px 28px</code></td><td><code>18px 32px</code></td></tr><tr><td><code>background-color</code></td><td><code>#14b8a6</code></td><td><code>#dc2626</code></td></tr></tbody></table>
 <h3><strong>Link</strong> <code>a.link</code> · 1 element restyled <code>:hover</code></h3>
 <p><em>demo-button @ 900</em></p>
 <p><em>Both sides are :hover. Left is the old :hover. Right is the new :hover.</em></p>
 <p><code>:hover</code> <code>color</code> <code>#a5f3fc</code> → <code>#fca5a5</code></p>
 <p class="shot"><img src="crops/demo-button-900-1-composite.png" alt="base :hover ◀ │ ▶ head :hover" loading="lazy"></p>
-<sub>◀ base :hover  ·  head :hover ▶ — both sides are :hover</sub>
+<sub>◀ base :hover · head :hover ▶ — both sides are :hover</sub>
 <details>
 <summary>Show highlight overlay</summary>
 <p class="shot"><img src="crops/demo-button-900-1-annotated.png" alt="highlighted base :hover ◀ │ ▶ head :hover" loading="lazy"></p>
@@ -48,7 +61,7 @@
 <p><em>Both sides are :focus. Left is the old :focus. Right is the new :focus.</em></p>
 <p><code>:focus</code> <code>outline-color</code> <code>#5eead4</code> → <code>#fca5a5</code></p>
 <p class="shot"><img src="crops/demo-button-900-2-composite.png" alt="base :focus ◀ │ ▶ head :focus" loading="lazy"></p>
-<sub>◀ base :focus  ·  head :focus ▶ — both sides are :focus</sub>
+<sub>◀ base :focus · head :focus ▶ — both sides are :focus</sub>
 <details>
 <summary>Show highlight overlay</summary>
 <p class="shot"><img src="crops/demo-button-900-2-annotated.png" alt="highlighted base :focus ◀ │ ▶ head :focus" loading="lazy"></p>
@@ -62,7 +75,7 @@
 <p><em>Both sides are :active. Left is the old :active. Right is the new :active.</em></p>
 <p><code>:active</code> <code>color</code> <code>#2dd4bf</code> → <code>#f87171</code></p>
 <p class="shot"><img src="crops/demo-button-900-3-composite.png" alt="base :active ◀ │ ▶ head :active" loading="lazy"></p>
-<sub>◀ base :active  ·  head :active ▶ — both sides are :active</sub>
+<sub>◀ base :active · head :active ▶ — both sides are :active</sub>
 <details>
 <summary>Show highlight overlay</summary>
 <p class="shot"><img src="crops/demo-button-900-3-annotated.png" alt="highlighted base :active ◀ │ ▶ head :active" loading="lazy"></p>
@@ -71,19 +84,6 @@
 <p><strong>Link</strong> <code>a.link</code></p>
 <p>Interactive-state changes:</p>
 <table><thead><tr><th>State</th><th>Property</th><th>Before → After</th></tr></thead><tbody><tr><td><code>:active</code></td><td><code>color</code></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>caret-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>outline-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>column-rule-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>row-rule-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>text-decoration-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>text-emphasis-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>-webkit-text-fill-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr><tr><td><code>:active</code></td><td>↳ <code>-webkit-text-stroke-color</code> <em>(currentColor)</em></td><td><code>#2dd4bf</code> → <code>#f87171</code></td></tr></tbody></table>
-<h3><strong>Btn</strong> <code>button.btn</code> · 1 element restyled</h3>
-<p><em>demo-button @ 900</em></p>
-<p><code>padding</code> <code>14px 28px</code> → <code>18px 32px</code>&lt;br&gt; <code>background-color</code> <code>#14b8a6</code> → <code>#dc2626</code></p>
-<p class="shot"><img src="crops/demo-button-900-4-composite.png" alt="before ◀ │ ▶ after" loading="lazy"></p>
-<sub>◀ before  ·  after ▶ — demo-button @ 900</sub>
-<details>
-<summary>Show highlight overlay</summary>
-<p class="shot"><img src="crops/demo-button-900-4-annotated.png" alt="highlighted before ◀ │ ▶ after" loading="lazy"></p>
-<sub>🔍 magenta boxes mark each change — changed: <code>button.btn</code></sub>
-</details>
-<p><strong>Btn</strong> <code>button.btn</code></p>
-<p>Style:</p>
-<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>padding</code></td><td><code>14px 28px</code></td><td><code>18px 32px</code></td></tr><tr><td><code>background-color</code></td><td><code>#14b8a6</code></td><td><code>#dc2626</code></td></tr></tbody></table>
 <p><em>Nothing else — no other element or inventory changes in this compare.</em></p>
 </main>
 </body>
