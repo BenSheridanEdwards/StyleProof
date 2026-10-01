@@ -19,12 +19,20 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   const required = ci.match(/ {2}required:[\s\S]*$/)?.[0] ?? '';
 
   assert.equal(packageJson.scripts['test:unit'], 'node scripts/run-node-test.mjs');
+  assert.equal(packageJson.scripts['test:coverage'], 'node scripts/check-coverage.mjs');
   assert.equal(packageJson.scripts.test, 'npm run build && node scripts/run-node-test.mjs');
   assert.equal(packageJson.scripts['test:watch'], 'node scripts/run-node-test.mjs --watch');
   assert.match(fs.readFileSync(path.join(here, '..', 'scripts/run-node-test.mjs'), 'utf8'), /nodeMajor >= 20/);
+  assert.match(
+    fs.readFileSync(path.join(here, '..', 'scripts/check-coverage.mjs'), 'utf8'),
+    /COVERAGE_LINE_FLOOR = 40/,
+  );
   assert.match(buildJob, /matrix:\n[\s\S]*node: \['18', '20', '22'\]/);
   assert.match(buildJob, /npm run build/);
+  assert.match(buildJob, /if: matrix\.node != '22'/);
   assert.match(buildJob, /npm run test:unit/);
+  assert.match(buildJob, /if: matrix\.node == '22'/);
+  assert.match(buildJob, /npm run test:coverage/);
   assert.doesNotMatch(buildJob, /playwright|determinism-oracle/);
   assert.doesNotMatch(buildJob, /npm test|npm run test:e2e|npm run typecheck/);
 

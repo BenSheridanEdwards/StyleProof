@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Unit coverage floor + staged e2e on pre-push.** CI (Node 22) and
+  `npm run test:coverage` enforce a measured `dist/` line floor of **40%** via
+  Node's built-in `--experimental-test-coverage` (baseline ~41.5% on tip
+  `6155b54`, minus small slack). `pre-push` still runs unit tests, and when
+  staged/pushed files touch capture/diff/report/runner it runs `test:e2e`,
+  skipping with a clear warning when Chromium is missing. Soft-pass untouched.
+  (#773)
+
 ### Fixed
 
 - **Report headline leads with distinct changes, not property tally.** A

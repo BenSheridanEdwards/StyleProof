@@ -67,7 +67,15 @@ jobs:
 
       - name: Unit tests
         # Build already emitted and typechecked this exact checkout above.
+        # Coverage thresholds need Node 22.8+; keep plain units on 18/20.
+        if: matrix.node != '22'
         run: npm run test:unit
+
+      - name: Unit tests + coverage floor
+        # Same suite as test:unit, with Node built-in coverage gated at the
+        # measured dist/ floor (see scripts/check-coverage.mjs / CONTRIBUTING).
+        if: matrix.node == '22'
+        run: npm run test:coverage
 
   # Run the complete browser and determinism path beside the Node matrix instead
   # of placing it after every Node 22 static and unit gate.

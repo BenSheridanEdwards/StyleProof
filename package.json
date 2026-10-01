@@ -79,6 +79,7 @@
     "privacy:check": "node scripts/privacy-check.mjs",
     "test": "npm run build && node scripts/run-node-test.mjs",
     "test:unit": "node scripts/run-node-test.mjs",
+    "test:coverage": "node scripts/check-coverage.mjs",
     "test:watch": "node scripts/run-node-test.mjs --watch",
     "test:e2e": "npm run build && playwright test",
     "bench": "npm run build && node bench/gate-speed.mjs",

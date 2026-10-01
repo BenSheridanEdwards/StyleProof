@@ -5,3 +5,9 @@ echo "› unit tests"
 # Git hook env leaks into the temp repos used by CLI tests.
 unset $(git rev-parse --local-env-vars)
 npm test
+
+echo "› staged e2e (capture/diff/report/engine)"
+# Path-filtered Playwright smoke when staged or pushed files touch the browser
+# capture surface. Missing Chromium skips with a warning (mirrors optional
+# gitleaks in pre-commit); CI e2e still fail-closed on every push.
+node scripts/pre-push-e2e.mjs

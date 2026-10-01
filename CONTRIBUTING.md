@@ -61,8 +61,22 @@ npm run lint          # eslint .
 npm run format:check  # prettier --check  (use `npm run format` to fix)
 npm run privacy:check # scan every git-tracked + npm-packed text file for private leaks
 npm test              # builds, then node --test over test/*.test.mjs (fast, no browser)
+npm run test:coverage # same unit suite + Node built-in coverage floor on dist/ (Node 22.8+)
 npm run test:e2e      # Playwright smoke: the page.evaluate + CDP capture path
 ```
+
+`test:coverage` uses Node's `--experimental-test-coverage` with
+`--test-coverage-include=**/dist/**` and a **line floor of 40%** (measured main
+baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
+it on the Node 22 matrix leg. Develop with Node 22.13+ so the floor flags exist;
+older Node exits non-zero with a clear message instead of silently skipping.
+
+`pre-push` always runs `npm test`. When staged or pushed files touch
+`src/capture`, `src/diff.ts`, `src/report`, or `src/runner` (the capture engine),
+it also runs `npm run test:e2e`. If Playwright Chromium is missing, that e2e
+step **warns and skips** (same optional-local pattern as gitleaks in
+`pre-commit`); CI e2e still gates every push. Install Chromium with
+`npx playwright install chromium` when you work on those paths.
 
 The unit suite imports the **built `dist/`** (the same surface the bins and consumers
 use), so a stale build can't yield a false green — `npm test` rebuilds first. Add or
