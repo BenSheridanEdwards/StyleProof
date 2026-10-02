@@ -53,11 +53,19 @@ test('#754: a link added to the sidebar on every surface is ONE Global chrome en
   // The one-surface addition keeps its advisory per-surface entry.
   assert.match(md, /### `account@1280` · 1 content\/structure change\(s\)[\s\S]*\*\*`p\.note`\*\*/);
   assert.doesNotMatch(md, /### `home@1280` · \d+ content\/structure change/);
-  // Visibility only: the computed-style verdict is unchanged.
+  // Style surfaces unchanged; navigable Global chrome add elevates reviewableCounts (#766).
   assert.equal(result.changedSurfaces, 0);
   assert.equal(result.contentChanges, 2, 'one chrome entry plus one advisory entry');
+  assert.equal(result.comparison.hasReviewableEvidence, true);
+  assert.ok(result.comparison.reviewableCounts.dom >= 1);
   const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.deepEqual(json.content, { evaluated: true, changes: 2, advisory: true, globalChrome: 1 });
+  assert.deepEqual(json.content, {
+    evaluated: true,
+    changes: 2,
+    advisory: true,
+    globalChrome: 1,
+    elevatedNavigableChromeAdds: 1,
+  });
   rmTmp(dirs.root);
 });
 
@@ -71,15 +79,23 @@ test('#754: a sidebar link removed on every surface is ONE Global chrome entry',
   rmTmp(dirs.root);
 });
 
-test('#754: an addition on only some surfaces that host the sidebar stays advisory per surface', () => {
+test('#754/#766: multi-base navigable add not chrome-collapsed stays listed per surface but elevates fail-closed', () => {
   const { dirs, result, md } = fixture({
     before: () => sidebarMap(3),
     after: (surface) => sidebarMap(surface === 'home@1280' ? 3 : 4),
   });
+  // Not every hosting base gained the link → no Global chrome collapse.
   assert.doesNotMatch(md, /Global chrome/);
   assert.equal(occurrences(md, '**`a.side-link`**'), 2, 'one advisory entry per surface that gained it');
   const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.deepEqual(json.content, { evaluated: true, changes: 2, advisory: true });
+  // #766 fail-closed: shared navigable add across ≥2 bases elevates even without chrome collapse.
+  assert.deepEqual(json.content, {
+    evaluated: true,
+    changes: 2,
+    advisory: true,
+    elevatedNavigableChromeAdds: 1,
+  });
+  assert.equal(result.comparison.hasReviewableEvidence, true);
   rmTmp(dirs.root);
 });
 

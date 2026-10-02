@@ -36,6 +36,16 @@ difference(s))…` so the above-fold number matches the reviewable group
 
 ### Changed
 
+- **Navigable Global chrome additions gate (#766 A-narrowed).** A shared navigable
+  affordance added as Global chrome (Inventory-class link/tab/nav-button that also
+  qualifies for Global chrome grouping) elevates into `reviewableCounts` /
+  `STYLE_REVIEW_REQUIRED` for certify and review-gate. Non-navigable Global chrome
+  and per-surface-only structure stay advisory; migration unchanged; advisory mode
+  stays non-blocking for style. Ambiguous multi-base navigable adds fail closed
+  toward reviewable. Report copy no longer claims DOM structure never changes the
+  verdict when elevated navigable chrome adds are present. Soft-pass HOLD — Approve
+  still clears only `STYLE_REVIEW_REQUIRED`.
+
 - **`captureText` defaults to `true`.** Unset `captureText` on `defineStyleMapCapture` /
   `defineCrawlCapture` / `captureStyleMap` now records each element's own text so
   own-text identity pairing (#753) works for cold adopters without discovering a

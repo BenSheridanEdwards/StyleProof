@@ -11,6 +11,10 @@ import { auditLiveTextDirs, diffStyleMapDirs, findingLabel, summarizeComparabili
 import { liveTextFreezeError } from '../dist/live-text.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import {
+  collectElevatedNavigableChromeAdds,
+  withElevatedChromeReviewableCounts,
+} from '../dist/chrome-navigable-gate.js';
+import {
   assessComparisonTruth,
   chromeSpanLabel,
   classifyChrome,
@@ -210,6 +214,17 @@ const truth = assessComparisonTruth(surfaces, counts, comparability, {
   requireStateIdentity,
   ...(liveTextAudit ? { liveText: liveTextAudit } : {}),
 });
+// #766 A-narrowed: navigable Global chrome additions elevate into reviewableCounts / exit 1.
+const { count: elevatedNavigableChromeAdds, elevated: elevatedChromeEntries } = migration
+  ? { count: 0, elevated: [] }
+  : collectElevatedNavigableChromeAdds({
+      beforeDir: inputs.beforeDir,
+      afterDir: inputs.afterDir,
+      surfacePaths,
+      surfaceKeyOf,
+    });
+const gateReviewableCounts = withElevatedChromeReviewableCounts(truth.reviewableCounts, elevatedNavigableChromeAdds);
+const gateHasReviewableEvidence = truth.hasReviewableEvidence || elevatedNavigableChromeAdds > 0;
 const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = surfaces
   .filter((s) => s.classification === 'baseline-repair-debt')
@@ -479,6 +494,15 @@ function printDeterminismVerdict(v) {
 }
 
 const invRemovals = printInventoryAudit(inventoryAudit);
+if (elevatedNavigableChromeAdds > 0) {
+  printSection(
+    `🧱 Global chrome navigable addition(s) — ${elevatedNavigableChromeAdds} shared navigable affordance(s) added across surface bases; reviewable (STYLE_REVIEW_REQUIRED), Approve clears with other reviewable changes (#766).`,
+  );
+  for (const entry of elevatedChromeEntries) {
+    console.log(`  + ${entry.change.path} (${entry.change.cls || 'no-class'}) on ${entry.bases} surface base(s)`);
+  }
+}
+
 const residueFails = printResidueAudit(residueAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict);
 const determinismFails = printDeterminismVerdict(determinismVerdict);
@@ -546,7 +570,7 @@ if (liveTextFreezeViolated) {
 }
 
 // ── verdict ────────────────────────────────────────────────────────────────────
-const reviewableTotal = truth.reviewableCounts.dom + truth.reviewableCounts.style + truth.reviewableCounts.state;
+const reviewableTotal = gateReviewableCounts.dom + gateReviewableCounts.style + gateReviewableCounts.state;
 // Zero the raw tally only when declared live text explains EVERY raw delta; any
 // other stripped delta (a cleaned :hover width, an offset) keeps failing closed.
 const declaredAgeOnly =
@@ -554,7 +578,7 @@ const declaredAgeOnly =
   liveTextAudit.livePaths.length > 0 &&
   !liveTextFreezeViolated &&
   reviewableTotal === 0 &&
-  !truth.hasReviewableEvidence &&
+  !gateHasReviewableEvidence &&
   rawFindingsExplainedByLiveText(
     surfaces.filter((s) => !s.missing),
     liveTextAudit,
@@ -614,6 +638,10 @@ const GATES = [
   { blocks: comparison.blocksCertification },
   { blocks: removedSurfaces > 0, note: ` + ${removedSurfaces} REMOVED surface(s)` },
   { blocks: invRemovals > 0, note: ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` },
+  {
+    blocks: elevatedNavigableChromeAdds > 0,
+    note: ` + ${elevatedNavigableChromeAdds} Global chrome navigable addition(s) (reviewable, #766)`,
+  },
   { blocks: residueFails > 0, note: ` + ${residueFails} data-residue gate failure(s) (unacknowledged or stale)` },
   { blocks: legacyPairFails > 0, note: legacyNote(), alwaysNote: true },
   { blocks: criticalFails > 0, note: criticalNote(), alwaysNote: true },
@@ -687,7 +715,8 @@ if (jsonOut) {
           sourceBinding,
           evidenceBinding,
           // Reviewable tallies after cleanFindings (what the durable report shows).
-          reviewableCounts: truth.reviewableCounts,
+          reviewableCounts: gateReviewableCounts,
+          ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
           comparison,
           comparability,
           reportConsistency: truth.rawOnlyNoReviewable
@@ -871,7 +900,8 @@ try {
       ...evidence,
       legacyPairs: legacyPairAudit,
       criticalStates: criticalAudit,
-      reviewableCounts: truth.reviewableCounts,
+      reviewableCounts: gateReviewableCounts,
+      ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
       surfaces,
       inventory: inventoryReceipt,
       dataResidue: residueAudit && {

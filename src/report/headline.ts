@@ -28,6 +28,8 @@ export type HeadlineInput = {
   contentCount: number;
   /** One-sided element changes shared by every surface base that renders their container (#754). */
   globalChromeCount?: number;
+  /** #766: Global chrome navigable additions elevated to reviewable. */
+  elevatedNavigableChromeAdds?: number;
   contentEvaluated: boolean;
   /** Any raw-vs-presentation contradiction: must not claim "identical". */
   reportConsistency: ReportConsistency;
@@ -287,10 +289,15 @@ export function reportHeadline(input: HeadlineInput): string[] {
 function contentNoteLines(input: HeadlineInput): string[] {
   const md: string[] = [];
   const chrome = input.globalChromeCount ?? 0;
+  const elevated = input.elevatedNavigableChromeAdds ?? 0;
   if (chrome > 0) {
+    const verdictNote =
+      elevated > 0
+        ? `${elevated} navigable Global chrome addition(s) need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes (#766).`
+        : `DOM structure does not change this check's verdict.`;
     md.push(
       '',
-      `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below. DOM structure does not change this check's verdict.`,
+      `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below. ${verdictNote}`,
     );
   }
   if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {

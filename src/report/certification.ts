@@ -57,12 +57,18 @@ function determinismLine(det: ReturnType<typeof auditDeterminism>): string {
 // `captured` = did any map carry an inventory; without it the audit never ran, so
 // say ⚠ not checked rather than a ✓ for a check that never happened (#478).
 // Additions never gate but are echoed so the report never contradicts the diff.
-function inventoryLine(inv: ReturnType<typeof auditRunInventory>, captured: boolean): string {
+function inventoryLine(
+  inv: ReturnType<typeof auditRunInventory>,
+  captured: boolean,
+  elevatedNavigableChromeAdds = 0,
+): string {
   if (!captured)
     return '- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)';
   const { added, removed } = inv.delta;
+  const addedGateNote =
+    elevatedNavigableChromeAdds > 0 ? 'Global chrome navigable additions also gate via #766' : "additions don't gate";
   const addedClause = added.length
-    ? `; ${added.length} navigable affordance(s) added: ${keyList(added)} (additions don't gate)`
+    ? `; ${added.length} navigable affordance(s) added: ${keyList(added)} (${addedGateNote})`
     : '';
   if (inv.unexplained.length > 0)
     return `- **Inventory** — ⚠ ${inv.unexplained.length} navigable affordance(s) removed, unacknowledged: ${keyList(inv.unexplained)}${addedClause}`;
@@ -160,6 +166,7 @@ export function certificationLines(
   beforeDir: string,
   afterDir: string,
   confidence: { ledger: ConfidenceLedgerFile | null; summary: ConfidenceSummary },
+  elevatedNavigableChromeAdds = 0,
 ): string[] {
   const baseLedger = readCoverageLedgerLenient(beforeDir);
   const headLedger = readCoverageLedgerLenient(afterDir);
@@ -182,7 +189,7 @@ export function certificationLines(
     determinismLine(
       auditDeterminism(withCaptureDeterminism(beforeDir, baseLedger), withCaptureDeterminism(afterDir, headLedger)),
     ),
-    inventoryLine(inv, hasCapturedInventory(beforeInventories, afterInventories)),
+    inventoryLine(inv, hasCapturedInventory(beforeInventories, afterInventories), elevatedNavigableChromeAdds),
     // Only with residue or an armed gate, so an ordinary bundle keeps its short block.
     ...(hasResidue ? [dataResidueLine(res)] : []),
     confidenceLine(confidence.ledger, confidence.summary, sidecarPresent),
