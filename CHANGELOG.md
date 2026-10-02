@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Selective remap greppable `cold_reason=` (observe-only).** Opt-in-off and
+  unbounded full plans now emit `cold_reason=opt_in_selective_off` /
+  `cold_reason=selective_all` on the selective decision log
+  (`styleproof: selective-remap cold_reason=…`). Soft-pass HOLD — honesty only,
+  no Soft-pass lift / RECEIPT AC5 claim. (#775)
+
 - **Unit coverage floor + staged e2e on pre-push.** CI (Node 22) and
   `npm run test:coverage` enforce a measured `dist/` line floor of **40%** via
   Node's built-in `--experimental-test-coverage` (baseline ~41.5% on tip

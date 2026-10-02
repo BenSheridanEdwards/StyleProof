@@ -63,7 +63,7 @@ test('formatMapRestoreDecisionLine: head side uses the same base_hit vocabulary'
   assert.match(line, /\bbase_hit=exact\b/);
 });
 
-test('COLD_REASONS: documents the stable enum including selective_* reserved for #733', () => {
+test('COLD_REASONS: documents the stable enum including selective_* emitted on selective full (#775)', () => {
   assert.ok(COLD_REASONS.includes('no_bundle'));
   assert.ok(COLD_REASONS.includes('compat_mismatch'));
   assert.ok(COLD_REASONS.includes('store_unreachable'));
@@ -93,6 +93,16 @@ test('extractColdReasonFromLog: reads a prior structured cold_reason token', () 
     'styleproof-map: …\nstyleproof: map-restore side=base sha=abc base_hit=miss cold_reason=compat_mismatch\n';
   assert.equal(extractColdReasonFromLog(log), 'compat_mismatch');
   assert.equal(extractColdReasonFromLog('no structured fields here'), undefined);
+});
+
+test('extractColdReasonFromLog: accepts selective observe-only tokens (#775)', () => {
+  assert.equal(
+    extractColdReasonFromLog('styleproof: selective-remap cold_reason=opt_in_selective_off'),
+    'opt_in_selective_off',
+  );
+  assert.equal(extractColdReasonFromLog('styleproof: selective-remap cold_reason=selective_all'), 'selective_all');
+  assert.ok(isColdReason('opt_in_selective_off'));
+  assert.ok(isColdReason('selective_all'));
 });
 
 test('classifyAncestorCaptureColdReason: prefers reasonCode then free-text', () => {

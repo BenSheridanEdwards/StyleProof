@@ -13,8 +13,12 @@ import path from 'node:path';
 import { affectedSurfaces, classifyStyleChange, type AffectedSurfaces } from './affected-surfaces.js';
 import { resolveStyleProofConfigPath } from './config.js';
 import type { AffectedConfig } from './config/schema.js';
+import type { ColdReason } from './map-hit-observability.js';
 
 export type SelectiveRemapMode = 'full' | 'selective';
+
+/** Reserved selective full-path cold_reason tokens (#775 observe-only). */
+export type SelectiveColdReason = Extract<ColdReason, 'opt_in_selective_off' | 'selective_all'>;
 
 export type SelectiveRemapPlan = {
   mode: SelectiveRemapMode;
@@ -26,6 +30,11 @@ export type SelectiveRemapPlan = {
   reuse: string[];
   /** Why `mode` is `full` (or empty when selective). Always set when falling closed. */
   reason: string;
+  /**
+   * Observe-only greppable cold_reason for selective full / opt-in-off paths (#775).
+   * Soft-pass HOLD: never invent Soft-pass clearance. Only the two reserved tokens.
+   */
+  coldReason?: SelectiveColdReason;
 };
 
 export type DecideSelectiveRemapInput = {
@@ -71,25 +80,42 @@ export function resolveSelectiveRemapOptIn(
   return affectedConfig?.selectiveRemap === true;
 }
 
+/**
+ * Classify observe-only selective cold_reason (#775). Soft-pass HOLD: only the two
+ * reserved tokens; selective ON and other full reasons stay free-text-only.
+ */
+export function classifySelectiveColdReason(plan: {
+  mode: SelectiveRemapMode;
+  optIn: boolean;
+  reason: string;
+  coldReason?: SelectiveColdReason;
+}): SelectiveColdReason | undefined {
+  if (plan.mode !== 'full') return undefined;
+  if (plan.coldReason) return plan.coldReason;
+  if (!plan.optIn) return 'opt_in_selective_off';
+  return undefined;
+}
+
 /** Pure decision: opt-in + base + verdict → capture plan. Wrong only in the safe direction. */
 export function decideSelectiveRemap(input: DecideSelectiveRemapInput): SelectiveRemapPlan {
   const all = [...input.allSurfaces].sort();
-  const full = (reason: string): SelectiveRemapPlan => ({
+  const full = (reason: string, coldReason?: SelectiveColdReason): SelectiveRemapPlan => ({
     mode: 'full',
     optIn: input.optIn,
     recapture: all,
     reuse: [],
     reason,
+    ...(coldReason ? { coldReason } : {}),
   });
 
-  if (!input.optIn) return full('opt-in off');
+  if (!input.optIn) return full('opt-in off', 'opt_in_selective_off');
   if (all.length === 0) return full('affected surfaces map empty or missing');
   if (!input.basePresent) return full('base missing or unusable');
   if (input.verdict == null) {
     return full(input.verdictReason?.trim() || 'affected verdict unavailable');
   }
   if (input.verdict === 'all') {
-    return full(input.verdictReason?.trim() || 'unbounded affected verdict');
+    return full(input.verdictReason?.trim() || 'unbounded affected verdict', 'selective_all');
   }
 
   const affected = input.verdict;
@@ -116,10 +142,16 @@ export function formatSelectiveRemapPlan(plan: SelectiveRemapPlan): string {
     ].join('\n');
   }
   const why = plan.reason ? ` — ${plan.reason}` : '';
-  return [
+  const lines = [
     `selective remap: OFF → re-capture all ${plan.recapture.length} surface(s)${why}`,
     ...plan.recapture.map((k) => `  ↻ ${k} (re-capture)`),
-  ].join('\n');
+  ];
+  // Observe-only greppable cold_reason (#775). Soft-pass HOLD — not Soft-pass clearance.
+  const cold = classifySelectiveColdReason(plan);
+  if (cold) {
+    lines.push(`styleproof: selective-remap cold_reason=${cold}`);
+  }
+  return lines.join('\n');
 }
 
 /** Surface key from a capture artifact name (`home@1280.json.gz` → `home`). */

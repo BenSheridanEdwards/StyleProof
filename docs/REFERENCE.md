@@ -134,12 +134,23 @@ either side (`side=base` or `side=head`). Soft-pass HOLD: these lines are
 | `ancestor_disabled`         | Ancestor reuse opted off (`STYLEPROOF_ANCESTOR_BASELINE=0` / config). |
 | `ancestor_spec_ref`         | Ancestor reuse skipped because `--spec-ref` overlays the base spec.   |
 | `ancestor_error`            | Ancestor planner / restore threw; fail-safe fell back to capture.     |
-| `opt_in_selective_off`      | Reserved for selective-remap tranche (#733).                          |
-| `selective_all`             | Reserved for selective-remap unbounded recapture (#733).              |
+| `opt_in_selective_off`      | Emitted on selective full path when opt-in is OFF (env/config fail-closed). Observe-only under Soft-pass HOLD (#775). |
+| `selective_all`             | Emitted when selective cannot narrow (`verdict === 'all'` / unbounded). Observe-only under Soft-pass HOLD (#775).     |
 | `forced_recapture`          | Explicit forced cold path.                                            |
 
 Grep examples: `base_hit=exact`, `base_hit=ancestor`, `cold_reason=`. Existing
 `$GITHUB_OUTPUT` keys (`base-hit`, `base-restored-from-ancestor`) are unchanged.
+
+Selective remap decisions also emit an adjacent observe-only line when the plan
+is full for the two reasons above (free-text `selective remap: ON/OFF` lines stay):
+
+```text
+styleproof: selective-remap cold_reason=opt_in_selective_off
+styleproof: selective-remap cold_reason=selective_all
+```
+
+Soft-pass HOLD: these do **not** clear Soft-pass, prove selective remap, or
+advance RECEIPT AC5 — greppable honesty only.
 
 ## Wire it by hand instead (optional)
 
