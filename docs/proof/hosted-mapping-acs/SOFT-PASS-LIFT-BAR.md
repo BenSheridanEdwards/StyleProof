@@ -1,9 +1,10 @@
 # Soft-pass lift bar — go / no-go decision
 
 **Decision:** **HOLD-continue** (no-go on lift).  
-**Date:** 1 Oct 2026 ~22:40 BST (UTC+1).  
+**Date:** 2 Oct 2026 ~09:00 BST (UTC+1).  
 **AC5 Soft-pass:** remains **HOLD** — this doc does not clear it.  
-**Ben escalate:** **No** (unless a later flip path below is chosen).
+**Ben escalate:** **No** (unless a later flip path below is chosen).  
+**Post-wave assess:** `research/soft-pass-ac5-post-wave-assess.md` @ tip `1104d0b` — HOLD-continue reaffirmed.
 
 PM accepted HOLD-continue. Do not reopen this decision without new buyer-promise input.
 
@@ -23,9 +24,9 @@ This is a documented **no-go on lifting**, not a product go.
 2. **HARNESS lift ticks still open** — [`HARNESS.md`](./HARNESS.md) still has unchecked:
    - Soft-pass HOLD lifted only when ACs 1–4 are evidenced on the pinned tip
    - No claim of Phase 2 mapping proved until that evidence exists
-3. **Step 2 out of Soft-pass scope** — Consumer PR **#66** (pin-bump to 7.2.1 / `@v7`) and consumer PR **#67** (7.2.1 re-dogfood for StyleProof #752–#756) were mandated **not** to clear Soft-pass. #67 body: evidence only — do not merge for Soft-pass AC5.
-4. **Consumer PR #67 Visual red** — review-gate failure (changes need review); product-state undeclared / visual-only. Bug-fix dogfood, not Soft-pass AC clearance.
-5. **Global chrome grouping (supporting-facts refresh)** — #754 Inventory id-less nav landed; tip **#768** (paired-only hosting residual from #767) + consumer PR **#68** dogfood now show **1×** Global chrome element-added (not the prior incomplete per-surface advisories). **Facts refresh ≠ Soft-pass go** — this does not lift Soft-pass, clear RECEIPT AC5, or recommend merge of #67/#68. HOLD-continue still stands on reasons 1–4, no Ben buyer-promise, and evidence-only dogfood.
+3. **Step 2 archive merges — Soft-pass still HOLD** — Consumer PR **#66** (pin-bump to 7.2.1 / `@v7`) already merged (pin). Consumer PR **#67** merged `4100838` and consumer PR **#68** merged `e2ed688` as **evidence archive only** at Action pin `StyleProof@1104d0b`; merge language keeps Soft-pass / RECEIPT AC5 HOLD. Archive ≠ Soft-pass go.
+4. **Tip-pin archive Visuals remain review-gate failure** — runs `36981209109` (#67 @ `b054949`) and `36981181737` (#68 @ `5a69c4b`) fail review-gate by design (deliberate #752–#756 diffs). #68 stamped path is comparable + Approve-honest under Soft-pass HOLD — still not Soft-pass AC clearance.
+5. **Global chrome grouping (supporting-facts refresh)** — #754 Inventory id-less nav landed; tip **#768** (paired-only hosting residual from #767) + consumer PR **#68** dogfood show **1×** Global chrome element-added. StyleProof **#779** elevates navigable Global chrome additions into reviewable counts on tip-pin reports. **Facts refresh ≠ Soft-pass go** — this does not lift Soft-pass, clear RECEIPT AC5, or treat #67/#68 archive merges as Soft-pass clearance. HOLD-continue still stands on reasons 1–4, no Ben buyer-promise, and archive-only merges.
 
 Mandate: AC5 stays HOLD unless primary evidence says otherwise — it does not.
 
@@ -58,15 +59,18 @@ Only with an explicit bar met:
 
 - Do **not** invent Soft-pass green or clear AC5 in RECEIPT / marketing / buyer copy.
 - Do **not** merge Soft-pass dogfood for AC5 (#29–#31 stay closed-unmerged evidence).
-- Do **not** merge consumer PR **#67** *to prove Soft-pass* (#67 stays open as 7.2.1 bug-fix evidence).
-- Do **not** treat #66 / #67 / #752–#756 as Soft-pass clearance.
+- Do **not** treat merged consumer PR **#67** / **#68** archive as Soft-pass AC5 clearance (merge comments already HOLD).
+- Do **not** treat #66 / #67 / #68 / #752–#756 as Soft-pass clearance.
 - Do **not** soft-pass pin-skew, `CERTIFICATION_FAILED`, or product-state-unproven into green.
 
 ---
 
 ## Related
 
+- Post-wave assess (HOLD-continue reaffirmed @ tip `1104d0b`): `research/soft-pass-ac5-post-wave-assess.md`
 - Execution receipt (AC5 HOLD): [`RECEIPT.md`](./RECEIPT.md)
 - Harness lift checklist: [`HARNESS.md`](./HARNESS.md)
 - Design ACs: [`README.md`](./README.md)
 - Receipt PR: StyleProof #750
+- Trust/Opening honesty (Soft-pass HOLD sacred): StyleProof #778 (`94aab66`), #779 (`1104d0b`)
+- Consumer archive merges (evidence only — Soft-pass HOLD): #67 → `4100838`, #68 → `e2ed688`
