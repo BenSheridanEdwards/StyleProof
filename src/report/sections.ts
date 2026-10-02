@@ -306,7 +306,13 @@ export type ReportArtifacts = Pick<
   md: string[];
   gateMode: NonNullable<ReportOptions['gateMode']>;
   counts: DiffCounts;
-  content: { evaluated: boolean; changes: number; advisory: true };
+  content: {
+    evaluated: boolean;
+    changes: number;
+    advisory: true;
+    globalChrome?: number;
+    elevatedNavigableChromeAdds?: number;
+  };
   surfaces: Array<Record<string, unknown>>;
   baselineProvenance: BaselineProvenance | null;
   liveTextFreeze: { violated: boolean; reason?: string } | null;

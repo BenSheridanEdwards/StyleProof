@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
+import { collectElevatedNavigableChromeAdds, withElevatedChromeReviewableCounts } from './chrome-navigable-gate.js';
 import { readBaselineProvenance, type BaselineFailureReceipt } from './map-store.js';
 import {
   diffStyleMapDirs,
@@ -282,6 +283,7 @@ function renderContentLayer(
   mode: { includeContent: boolean; migration: boolean },
   surfacePaths: Map<string, Set<string>>,
   surfaceKeyOf: (captureKey: string) => string | undefined,
+  elevatedNavigableChromeAdds = 0,
 ) {
   const withContent = mode.includeContent || mode.migration ? contentSurfaces(ctx) : [];
   if (!mode.includeContent) {
@@ -298,7 +300,9 @@ function renderContentLayer(
       );
   const contentSection = renderContentSection(ctx, split.rest);
   const globalChrome = split.chrome.length;
-  const chromeMd = renderChromeStructureSection(ctx, split.chrome);
+  const chromeMd = renderChromeStructureSection(ctx, split.chrome, {
+    elevatedNavigableAdds: elevatedNavigableChromeAdds,
+  });
   return { withContent, contentSection, chromeMd, globalChrome, total: contentSection.count + globalChrome };
 }
 
@@ -331,14 +335,30 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const chrome = classifyChrome(changeGroups, surfacePaths, surfaceKeyOf);
   const shown = countShownChanges(changeGroups);
   const baseline = readBaselineInfo(beforeDir, afterDir);
-  const comparison: ReportComparison = {
+  // #766 A-narrowed: navigable Global chrome additions elevate into reviewableCounts
+  // even when --include-content is off (structure is always on the maps).
+  const { count: elevatedNavigableChromeAdds } = migration
+    ? { count: 0 }
+    : collectElevatedNavigableChromeAdds({ beforeDir, afterDir, surfacePaths, surfaceKeyOf });
+  const baseComparison: ReportComparison = {
     ...comparisonForReport(rawComparison, ctx.includeNoise, prepared.length - missing.length),
     ...comparabilitySummary,
   };
+  const comparison: ReportComparison = {
+    ...baseComparison,
+    reviewableCounts: withElevatedChromeReviewableCounts(baseComparison.reviewableCounts, elevatedNavigableChromeAdds),
+    hasReviewableEvidence: baseComparison.hasReviewableEvidence || elevatedNavigableChromeAdds > 0,
+  };
   const reportConsistency = assessReportConsistency(comparison, changeGroups.length > 0 || missing.length > 0);
 
-  // Advisory content layer: computed first so its count can colour the headline; appended last; never gates.
-  const content = renderContentLayer(ctx, { includeContent, migration }, surfacePaths, surfaceKeyOf);
+  // Content layer: advisory per-surface + Global chrome display; elevated count colours copy.
+  const content = renderContentLayer(
+    ctx,
+    { includeContent, migration },
+    surfacePaths,
+    surfaceKeyOf,
+    elevatedNavigableChromeAdds,
+  );
   const { withContent, contentSection } = content;
 
   // Confidence is resolved once and shared with report.json so badge and JSON can never disagree.
@@ -360,6 +380,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
     contentCount: contentSection.count,
     globalChromeCount: content.globalChrome,
+    elevatedNavigableChromeAdds,
     contentEvaluated: includeContent,
     reportConsistency,
     rawCounts: comparison.rawCounts,
@@ -414,7 +435,12 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   }
 
   // Evidence (failures/warnings only) collapses by default under the fold.
-  const certIssues = certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence });
+  const certIssues = certificationLines(
+    beforeDir,
+    afterDir,
+    { ledger: confidenceLedger, summary: confidence },
+    elevatedNavigableChromeAdds,
+  );
   const comparabilityEvidence = (() => {
     const line = comparabilityLine(comparison, gates.legacyPairs);
     // Proven / not-required stay out of Evidence; the above-the-fold warning covers unproven cases.
@@ -458,6 +484,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       changes: content.total,
       advisory: true,
       ...(content.globalChrome ? { globalChrome: content.globalChrome } : {}),
+      ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
     },
     surfaces: out.json,
     confidence,
@@ -489,7 +516,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   };
 }
 
-/** Generate the public report. DOM structure is never part of certification. */
+/** Generate the public report. Navigable Global chrome additions elevate (#766); other DOM structure stays advisory. */
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   return generateStyleMapReportInternal(opts, false);
 }

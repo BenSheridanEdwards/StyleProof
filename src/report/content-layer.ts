@@ -250,9 +250,18 @@ function chromeStructureLines(ctx: RenderCtx, entry: ChromeStructureChange, seq:
 }
 
 /** The Global chrome section for shared one-sided element changes (visible, never advisory-scattered). */
-export function renderChromeStructureSection(ctx: RenderCtx, chrome: ChromeStructureChange[]): string[] {
+export function renderChromeStructureSection(
+  ctx: RenderCtx,
+  chrome: ChromeStructureChange[],
+  opts: { elevatedNavigableAdds?: number } = {},
+): string[] {
   if (chrome.length === 0) return [];
   const n = chrome.length;
+  const elevated = opts.elevatedNavigableAdds ?? 0;
+  const verdictBlurb =
+    elevated > 0
+      ? `Navigable Global chrome additions (${elevated}) are reviewable and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes (#766). Non-navigable chrome structure stays advisory.`
+      : `DOM structure is outside the computed-style certification, so this does not change the check's verdict.`;
   return [
     '',
     '---',
@@ -261,8 +270,7 @@ export function renderChromeStructureSection(ctx: RenderCtx, chrome: ChromeStruc
     '',
     `_Each element below was added or removed identically on every captured surface base that renders its ` +
       `container (a persistent nav, header, or footer), so it is listed once here instead of once per surface. ` +
-      `It is a visible change to the frame every view draws — review it once. DOM structure is outside the ` +
-      `computed-style certification, so this does not change the check's verdict._`,
+      `It is a visible change to the frame every view draws — review it once. ${verdictBlurb}_`,
     ...chrome.flatMap((entry, seq) => chromeStructureLines(ctx, entry, seq)),
   ];
 }
