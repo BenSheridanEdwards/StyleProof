@@ -1,16 +1,21 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { nodeTestArgs, nodeTestEnv } from './run-node-test.mjs';
+import { NODE_TEST_TIMEOUT_MS, nodeTestArgs, nodeTestEnv } from './run-node-test.mjs';
 
 /**
- * Unit coverage floor for dist/ (Node built-in `--experimental-test-coverage`).
- * Measured on tip `6155b54` / main with Node 22.20: 41.49% lines under
- * `--test-coverage-include` for dist. Floor = baseline minus ~1.5pt slack.
- * Thresholds + include globs need Node 22.8+ (CI gates on the Node 22 matrix leg).
+ * Unit coverage floor for the package dist/ tree (Node built-in
+ * `--experimental-test-coverage`). Measured on tip `6155b54` / main with
+ * Node 22.20: 41.49% lines under a dist-only include. Floor = baseline minus
+ * ~1.5pt slack. Thresholds + include globs need Node 22.8+ (CI gates on the
+ * Node 22 matrix leg).
  */
 export const COVERAGE_LINE_FLOOR = 40;
-export const COVERAGE_INCLUDE = '**/dist/**';
+/** Only the package build output — not node_modules dist trees. */
+export const COVERAGE_INCLUDE = 'dist/**';
+export const COVERAGE_EXCLUDE = '**/node_modules/**';
 export const COVERAGE_MIN_NODE = { major: 22, minor: 8 };
+/** Coverage instrumentation slows the suite; give each file 2× the unit budget. */
+export const COVERAGE_TEST_TIMEOUT_MS = NODE_TEST_TIMEOUT_MS * 2;
 
 /** True when this Node build supports coverage include + line thresholds. */
 export function coverageToolSupported(
@@ -27,9 +32,15 @@ export function coverageArgs({
   nodeMinor = Number(process.versions.node.split('.')[1] ?? 0),
   floor = COVERAGE_LINE_FLOOR,
   include = COVERAGE_INCLUDE,
+  exclude = COVERAGE_EXCLUDE,
 } = {}) {
   if (!coverageToolSupported(nodeMajor, nodeMinor)) return null;
-  return ['--experimental-test-coverage', `--test-coverage-include=${include}`, `--test-coverage-lines=${floor}`];
+  return [
+    '--experimental-test-coverage',
+    `--test-coverage-include=${include}`,
+    `--test-coverage-exclude=${exclude}`,
+    `--test-coverage-lines=${floor}`,
+  ];
 }
 
 function main() {
@@ -43,7 +54,13 @@ function main() {
     );
     process.exit(1);
   }
-  const args = [...cov, ...nodeTestArgs({ nodeMajor })];
+  // Override timeout after nodeTestArgs so coverage gets the longer budget.
+  const base = nodeTestArgs({ nodeMajor });
+  const args = [...cov];
+  for (const arg of base) {
+    if (arg.startsWith('--test-timeout=')) args.push(`--test-timeout=${COVERAGE_TEST_TIMEOUT_MS}`);
+    else args.push(arg);
+  }
   const result = spawnSync(process.execPath, args, { stdio: 'inherit', env: nodeTestEnv() });
   process.exit(result.status ?? 1);
 }

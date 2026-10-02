@@ -66,7 +66,7 @@ npm run test:e2e      # Playwright smoke: the page.evaluate + CDP capture path
 ```
 
 `test:coverage` uses Node's `--experimental-test-coverage` with
-`--test-coverage-include=**/dist/**` and a **line floor of 40%** (measured main
+`--test-coverage-include=dist/** (excluding node_modules)` and a **line floor of 40%** (measured main
 baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
 it on the Node 22 matrix leg. Develop with Node 22.13+ so the floor flags exist;
 older Node exits non-zero with a clear message instead of silently skipping.

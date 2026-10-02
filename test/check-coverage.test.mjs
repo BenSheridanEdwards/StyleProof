@@ -5,17 +5,22 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  COVERAGE_EXCLUDE,
   COVERAGE_INCLUDE,
   COVERAGE_LINE_FLOOR,
   COVERAGE_MIN_NODE,
+  COVERAGE_TEST_TIMEOUT_MS,
   coverageArgs,
   coverageToolSupported,
 } from '../scripts/check-coverage.mjs';
+import { NODE_TEST_TIMEOUT_MS } from '../scripts/run-node-test.mjs';
 
 test('coverage floor is the measured dist/ baseline minus small slack', () => {
   // Baseline measured on tip 6155b54 with Node 22.20 + dist include: 41.49% lines.
   assert.equal(COVERAGE_LINE_FLOOR, 40);
-  assert.equal(COVERAGE_INCLUDE, '**/dist/**');
+  assert.equal(COVERAGE_INCLUDE, 'dist/**');
+  assert.equal(COVERAGE_EXCLUDE, '**/node_modules/**');
+  assert.equal(COVERAGE_TEST_TIMEOUT_MS, NODE_TEST_TIMEOUT_MS * 2);
   assert.deepEqual(COVERAGE_MIN_NODE, { major: 22, minor: 8 });
 });
 
@@ -32,14 +37,19 @@ test('coverageArgs emits built-in include + line floor on supported Node', () =>
   assert.equal(coverageArgs({ nodeMajor: 20, nodeMinor: 19 }), null);
   assert.deepEqual(coverageArgs({ nodeMajor: 22, nodeMinor: 20 }), [
     '--experimental-test-coverage',
-    '--test-coverage-include=**/dist/**',
+    '--test-coverage-include=dist/**',
+    '--test-coverage-exclude=**/node_modules/**',
     '--test-coverage-lines=40',
   ]);
-  assert.deepEqual(coverageArgs({ nodeMajor: 22, nodeMinor: 20, floor: 99, include: '**/src/**' }), [
-    '--experimental-test-coverage',
-    '--test-coverage-include=**/src/**',
-    '--test-coverage-lines=99',
-  ]);
+  assert.deepEqual(
+    coverageArgs({ nodeMajor: 22, nodeMinor: 20, floor: 99, include: 'src/**', exclude: '**/vendor/**' }),
+    [
+      '--experimental-test-coverage',
+      '--test-coverage-include=src/**',
+      '--test-coverage-exclude=**/vendor/**',
+      '--test-coverage-lines=99',
+    ],
+  );
 });
 
 test('check-coverage exits non-zero when the line floor is impossible', () => {
