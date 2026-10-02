@@ -118,7 +118,7 @@ export function resolveSettings(c: CaptureConfig): Settings {
   const clockTime = c.clockTime ?? DEFAULT_CLOCK_TIME;
   reconcileSpecClock(freezeClock, clockTime);
   const liveText = validateLiveText(c.liveText) ?? null;
-  requireLiveTextCapture(liveText ?? undefined, c.captureText ?? false);
+  requireLiveTextCapture(liveText ?? undefined, c.captureText ?? true);
   const baseDir = resolveBaseDir(c.baseDir);
   const dir = c.dir as string;
   const surfaceTimeoutMs = resolveSurfaceTimeoutMs(c.surfaceTimeoutMs);
@@ -137,7 +137,7 @@ export function resolveSettings(c: CaptureConfig): Settings {
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
     surfaceTimeoutMs,
     navigateTimeoutMs,
-    captureText: c.captureText ?? false,
+    captureText: c.captureText ?? true,
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
     inventory: c.inventory ?? false,

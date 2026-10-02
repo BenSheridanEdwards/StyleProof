@@ -175,15 +175,26 @@ test('waits for every forced pseudo-state transition before reading computed sty
   }
 });
 
-test('capture persists zero own-text length without persisting rendered copy', async ({ page }) => {
+test('captureText: false keeps own-text length without persisting rendered copy', async ({ page }) => {
   const html = '<!doctype html><html><body><span class="empty"></span><span class="filled">test</span></body></html>';
-  const map = await captureFixture(page, html);
+  const map = await withPage(page, html, () => captureStyleMap(page, { captureText: false }));
   const empty = Object.values(map.elements).find((entry) => entry.cls === 'empty');
   const filled = Object.values(map.elements).find((entry) => entry.cls === 'filled');
   expect(empty?.ownTextLength).toBe(0);
   expect(filled?.ownTextLength).toBe(4);
   expect(empty?.text).toBeUndefined();
   expect(filled?.text).toBeUndefined();
+});
+
+test('captureText defaults on and persists non-empty own text (#772 A)', async ({ page }) => {
+  const html = '<!doctype html><html><body><span class="empty"></span><span class="filled">test</span></body></html>';
+  const map = await captureFixture(page, html);
+  const empty = Object.values(map.elements).find((entry) => entry.cls === 'empty');
+  const filled = Object.values(map.elements).find((entry) => entry.cls === 'filled');
+  expect(empty?.ownTextLength).toBe(0);
+  expect(filled?.ownTextLength).toBe(4);
+  expect(empty?.text).toBeUndefined(); // empty own text is never stored
+  expect(filled?.text).toBe('test');
 });
 
 test('a semantic row replacement is advisory content, not a positional restyle', async ({ page }) => {
