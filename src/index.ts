@@ -64,6 +64,7 @@ export type {
 // Affected-surface scoping for config `affected` blocks.
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export {
+  classifySelectiveColdReason,
   copyReuseSurfaceArtifacts,
   decideSelectiveRemap,
   formatSelectiveRemapPlan,
@@ -78,6 +79,7 @@ export {
 export type {
   AffectedVerdictAttempt,
   DecideSelectiveRemapInput,
+  SelectiveColdReason,
   SelectiveRemapMode,
   SelectiveRemapPlan,
 } from './selective-remap.js';

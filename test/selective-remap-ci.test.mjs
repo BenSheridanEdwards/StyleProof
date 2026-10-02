@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  classifySelectiveColdReason,
   copyReuseSurfaceArtifacts,
   decideSelectiveRemap,
   formatSelectiveRemapPlan,
@@ -12,6 +13,7 @@ import {
   surfaceMatchesOnlySet,
   tryComputeAffectedVerdict,
 } from '../dist/selective-remap.js';
+import { extractColdReasonFromLog, isColdReason } from '../dist/map-hit-observability.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 const ALL = ['dashboard', 'home', 'pricing'];
@@ -52,6 +54,7 @@ test('decideSelectiveRemap: opt-in OFF → full remap (default path unchanged)',
   assert.deepEqual(plan.recapture, [...ALL].sort());
   assert.deepEqual(plan.reuse, []);
   assert.match(plan.reason, /opt-in off/i);
+  assert.equal(plan.coldReason, 'opt_in_selective_off');
 });
 
 test('decideSelectiveRemap: opt-in + scoped + base present → selective', () => {
@@ -67,6 +70,7 @@ test('decideSelectiveRemap: opt-in + scoped + base present → selective', () =>
   assert.deepEqual(plan.recapture, ['dashboard']);
   assert.deepEqual(plan.reuse, ['home', 'pricing']);
   assert.equal(plan.reason, '');
+  assert.equal(plan.coldReason, undefined);
 });
 
 test('decideSelectiveRemap: opt-in + missing base → full remap (never silent under-capture)', () => {
@@ -78,6 +82,7 @@ test('decideSelectiveRemap: opt-in + missing base → full remap (never silent u
   });
   assert.equal(plan.mode, 'full');
   assert.match(plan.reason, /base/i);
+  assert.equal(plan.coldReason, undefined);
 });
 
 test('decideSelectiveRemap: opt-in + unbounded verdict → full remap with reason', () => {
@@ -91,6 +96,7 @@ test('decideSelectiveRemap: opt-in + unbounded verdict → full remap with reaso
   });
   assert.equal(plan.mode, 'full');
   assert.match(plan.reason, /tokens\.css|unbounded|all/i);
+  assert.equal(plan.coldReason, 'selective_all');
 });
 
 test('decideSelectiveRemap: opt-in + null verdict (missing graph/surfaces) → full remap', () => {
@@ -103,6 +109,7 @@ test('decideSelectiveRemap: opt-in + null verdict (missing graph/surfaces) → f
   });
   assert.equal(plan.mode, 'full');
   assert.match(plan.reason, /graph|unreadable|unavailable|missing/i);
+  assert.equal(plan.coldReason, undefined);
 });
 
 test('decideSelectiveRemap: opt-in + empty surfaces map → full remap', () => {
@@ -114,6 +121,7 @@ test('decideSelectiveRemap: opt-in + empty surfaces map → full remap', () => {
   });
   assert.equal(plan.mode, 'full');
   assert.match(plan.reason, /surface/i);
+  assert.equal(plan.coldReason, undefined);
 });
 
 test('decideSelectiveRemap: opt-in + scoped but base missing a reuse map → full remap', () => {
@@ -127,6 +135,7 @@ test('decideSelectiveRemap: opt-in + scoped but base missing a reuse map → ful
   });
   assert.equal(plan.mode, 'full');
   assert.match(plan.reason, /base|reuse|home/i);
+  assert.equal(plan.coldReason, undefined);
 });
 
 test('decideSelectiveRemap: empty scoped verdict (nothing affected) reuses all from base', () => {
@@ -140,6 +149,7 @@ test('decideSelectiveRemap: empty scoped verdict (nothing affected) reuses all f
   assert.equal(plan.mode, 'selective');
   assert.deepEqual(plan.recapture, []);
   assert.deepEqual(plan.reuse, [...ALL].sort());
+  assert.equal(plan.coldReason, undefined);
 });
 
 // ── formatSelectiveRemapPlan ─────────────────────────────────────────────────
@@ -151,10 +161,13 @@ test('formatSelectiveRemapPlan: OFF logs selective OFF, counts, and reason', () 
     recapture: ALL,
     reuse: [],
     reason: 'opt-in off',
+    coldReason: 'opt_in_selective_off',
   });
   assert.match(lines, /selective remap: OFF/i);
   assert.match(lines, /re-capture all 3/);
   assert.match(lines, /opt-in off/i);
+  assert.match(lines, /\bcold_reason=opt_in_selective_off\b/);
+  assert.equal(extractColdReasonFromLog(lines), 'opt_in_selective_off');
 });
 
 test('formatSelectiveRemapPlan: ON logs recapture and reuse counts', () => {
@@ -168,6 +181,7 @@ test('formatSelectiveRemapPlan: ON logs recapture and reuse counts', () => {
   assert.match(lines, /selective remap: ON/i);
   assert.match(lines, /re-capture 1/);
   assert.match(lines, /reuse 2/);
+  assert.doesNotMatch(lines, /\bcold_reason=/);
 });
 
 test('formatSelectiveRemapPlan: fail-closed full with opt-in ON still says OFF and names reason', () => {
@@ -177,9 +191,92 @@ test('formatSelectiveRemapPlan: fail-closed full with opt-in ON still says OFF a
     recapture: ALL,
     reuse: [],
     reason: 'unbounded affected verdict — src/tokens.css',
+    coldReason: 'selective_all',
   });
   assert.match(lines, /selective remap: OFF/i);
   assert.match(lines, /tokens\.css|unbounded/i);
+  assert.match(lines, /\bcold_reason=selective_all\b/);
+  assert.equal(extractColdReasonFromLog(lines), 'selective_all');
+});
+
+// ── classifySelectiveColdReason / #775 observe-only emit ─────────────────────
+
+test('classifySelectiveColdReason: opt-in off → opt_in_selective_off', () => {
+  assert.equal(
+    classifySelectiveColdReason({ mode: 'full', optIn: false, reason: 'opt-in off' }),
+    'opt_in_selective_off',
+  );
+  assert.ok(isColdReason('opt_in_selective_off'));
+});
+
+test('classifySelectiveColdReason: unbounded / selective_all-class → selective_all', () => {
+  assert.equal(
+    classifySelectiveColdReason({
+      mode: 'full',
+      optIn: true,
+      reason: 'unbounded affected verdict',
+      coldReason: 'selective_all',
+    }),
+    'selective_all',
+  );
+  assert.ok(isColdReason('selective_all'));
+});
+
+test('classifySelectiveColdReason: selective ON → no cold_reason invent', () => {
+  assert.equal(classifySelectiveColdReason({ mode: 'selective', optIn: true, reason: '' }), undefined);
+});
+
+test('classifySelectiveColdReason: other full reasons stay free-text-only (no false selective token)', () => {
+  assert.equal(
+    classifySelectiveColdReason({ mode: 'full', optIn: true, reason: 'base missing or unusable' }),
+    undefined,
+  );
+  assert.equal(
+    classifySelectiveColdReason({
+      mode: 'full',
+      optIn: true,
+      reason: 'affected surfaces map empty or missing',
+    }),
+    undefined,
+  );
+});
+
+test('formatSelectiveRemapPlan: decide(opt-in off) → greppable cold_reason=opt_in_selective_off', () => {
+  const plan = decideSelectiveRemap({
+    optIn: false,
+    basePresent: true,
+    allSurfaces: ALL,
+    verdict: new Set(['dashboard']),
+  });
+  const lines = formatSelectiveRemapPlan(plan);
+  assert.match(lines, /\bcold_reason=opt_in_selective_off\b/);
+  assert.equal(extractColdReasonFromLog(lines), 'opt_in_selective_off');
+});
+
+test('formatSelectiveRemapPlan: decide(unbounded) → greppable cold_reason=selective_all', () => {
+  const plan = decideSelectiveRemap({
+    optIn: true,
+    basePresent: true,
+    allSurfaces: ALL,
+    verdict: 'all',
+    verdictReason: 'src/tokens.css could not be proven local',
+    baseSurfaceKeys: new Set(ALL),
+  });
+  const lines = formatSelectiveRemapPlan(plan);
+  assert.match(lines, /\bcold_reason=selective_all\b/);
+  assert.equal(extractColdReasonFromLog(lines), 'selective_all');
+});
+
+test('formatSelectiveRemapPlan: decide(selective ON) → no false selective cold_reason', () => {
+  const plan = decideSelectiveRemap({
+    optIn: true,
+    basePresent: true,
+    allSurfaces: ALL,
+    verdict: new Set(['dashboard']),
+    baseSurfaceKeys: new Set(ALL),
+  });
+  const lines = formatSelectiveRemapPlan(plan);
+  assert.doesNotMatch(lines, /\bcold_reason=/);
 });
 
 // ── surface key helpers ──────────────────────────────────────────────────────

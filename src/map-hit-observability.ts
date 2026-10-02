@@ -7,8 +7,8 @@ export type MapBaseHit = 'exact' | 'ancestor' | 'miss';
 
 /**
  * Structured cold/miss reasons. Values are STABLE for grep; refine by adding new
- * snake_case tokens only (never rename). Selective-* tokens are reserved for the
- * selective-remap tranche (#733) even when that wiring is absent from this release.
+ * snake_case tokens only (never rename). Selective tokens are emitted on selective
+ * full / opt-in-off decision logs (#775 observe-only under Soft-pass HOLD).
  */
 export const COLD_REASONS = [
   'no_bundle',
@@ -22,9 +22,9 @@ export const COLD_REASONS = [
   'ancestor_disabled',
   'ancestor_spec_ref',
   'ancestor_error',
-  /** Reserved: selective remap opted off / unavailable (#733). */
+  /** Emitted when selective remap is opted off / fail-closed OFF (#775). */
   'opt_in_selective_off',
-  /** Reserved: selective remap unbounded → recapture all (#733). */
+  /** Emitted when selective remap unbounded → recapture all (#775). */
   'selective_all',
   'forced_recapture',
 ] as const;
