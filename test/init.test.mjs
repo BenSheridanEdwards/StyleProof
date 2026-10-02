@@ -65,6 +65,7 @@ test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the co
     assert.match(spec, /expected: ROUTES\.map\(\(r\) => r\.key\)/);
     assert.match(spec, /exclude: Object\.fromEntries/);
     assert.match(spec, /inventory: true/); // arms the navigable-removal gate out of the box
+    assert.match(spec, /captureText: true/); // own-text pairing ready (#772 A / #753)
     assert.match(res.stdout, /detected 3 Next\.js route\(s\)/);
     assert.match(res.stdout, /1 dynamic route\(s\) excluded/);
   } finally {
@@ -103,6 +104,7 @@ test('styleproof-init: non-Next project → crawl-by-default spec (nothing to ha
     assert.match(spec, /viewportHeight: Math\.max\(window\.innerHeight, 1\)/);
     assert.match(spec, /await page\.waitForTimeout\(60\)/); // browser timers cannot deadlock settling
     assert.match(spec, /inventory: true/); // the removal guard is on by default
+    assert.match(spec, /captureText: true/); // own-text pairing ready (#772 A / #753)
     assert.match(spec, /dir: process\.env\.STYLEMAP_DIR/);
     assert.doesNotMatch(spec, /key: 'home'/); // no hand-listed surface to maintain
     assert.match(res.stdout, /no Next\.js routes detected/);

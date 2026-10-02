@@ -56,7 +56,7 @@ export const CAPTURE_TEST_GREP = '/(?:^|\\s)styleproof capture(?:\\s|$)/';
  * with the clock frozen, so captures are deterministic with no per-repo fixtures.
  */
 export function defineStyleMapCapture(options: DefineOptions): void {
-  requireLiveTextCapture(validateLiveText(options.liveText), options.captureText ?? false);
+  requireLiveTextCapture(validateLiveText(options.liveText), options.captureText ?? true);
   const { surfaces, expected: programmaticExpected, exclude: programmaticExclude = {}, dir } = options;
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
   assertUniqueExpandedKeys(captureSurfaces);

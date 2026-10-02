@@ -15,7 +15,7 @@ export type ElementEntry = {
   pseudo?: Record<string, Props>;
   /** Length of the element's own rendered text (never the text itself) — a privacy-safe reflow signal. */
   ownTextLength?: number;
-  /** Own rendered text; only with `captureText: true`. Advisory, never fed to the certification diff. */
+  /** Own rendered text; present when `captureText` is on (default). Advisory, never fed to the certification diff. */
   text?: string;
   /** React component + sanitized primitive props; only with `captureComponent: true`. Advisory. */
   component?: { name: string; props?: Record<string, string> };
@@ -123,7 +123,7 @@ export type CaptureOptions = {
   maxForcedStateElements?: number;
   /** Maximum element reads across all controls/states (default 32000). Positive safe integer. */
   maxForcedStateScanWork?: number;
-  /** Opt-in content layer: record each element's own text on `ElementEntry.text`. Advisory. */
+  /** Record each element's own text on `ElementEntry.text` (default true). Used for own-text identity pairing (#753) and the advisory content layer. Set `false` to opt out (privacy / huge live text). */
   captureText?: boolean;
   /** Opt-in React layer: record the rendering component + primitive props. Advisory. */
   captureComponent?: boolean;

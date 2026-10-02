@@ -873,7 +873,7 @@ defineStyleMapCapture({
 });
 ```
 
-`liveText: true` (or `{ freeze: false, selectors?: [...] }`) keeps age-only text — and the size geometry that follows a longer/shorter age (`width`/`height` and their logical, min/max, and origin longhands on the live element and its ancestors, on the surface where that text drifted — never the same path on another surface; never offsets like `top`/`left`/`inset-*`, pseudo layers, or state deltas) — in the advisory content channel. It never zeroes an unrelated change: the run passes only when declared live text explains every raw delta. `{ freeze: true }` is the integrity check: you claimed the ages are pinned (fixtures + frozen clock), so any remaining drift is `CERTIFICATION_FAILED`, not a style review and not a soft-green. `liveText` requires `captureText: true` so the freeze can be verified. Selectors are optional; without them StyleProof classifies compact ages (`102.1d`), relative phrases (`2m ago`), and clock faces. A selector is matched only as far as the captured path can prove it: one compound of an optional type, whole class tokens, and an `#id` (matched only when the capture encoded that id in the element's path, i.e. no `data-styleproof-key` took precedence and the id is unique among siblings). Combinators, attribute selectors, and pseudo-classes match nothing.
+`liveText: true` (or `{ freeze: false, selectors?: [...] }`) keeps age-only text — and the size geometry that follows a longer/shorter age (`width`/`height` and their logical, min/max, and origin longhands on the live element and its ancestors, on the surface where that text drifted — never the same path on another surface; never offsets like `top`/`left`/`inset-*`, pseudo layers, or state deltas) — in the advisory content channel. It never zeroes an unrelated change: the run passes only when declared live text explains every raw delta. `{ freeze: true }` is the integrity check: you claimed the ages are pinned (fixtures + frozen clock), so any remaining drift is `CERTIFICATION_FAILED`, not a style review and not a soft-green. `liveText` requires `captureText` (on by default; set explicitly `false` fails closed) so the freeze can be verified. Selectors are optional; without them StyleProof classifies compact ages (`102.1d`), relative phrases (`2m ago`), and clock faces. A selector is matched only as far as the captured path can prove it: one compound of an optional type, whole class tokens, and an `#id` (matched only when the capture encoded that id in the element's path, i.e. no `data-styleproof-key` took precedence and the id is unique among siblings). Combinators, attribute selectors, and pseudo-classes match nothing.
 
 - **Self-check** — captures each surface twice and fails if they differ, so a replay gap or unseeded randomness surfaces as a clear _"non-deterministic capture"_ error, never as a phantom change on an unrelated PR. **On by default while recording** (where live nondeterminism shows up); off on the replay run, which renders against the recorded HAR and is deterministic by construction. `STYLEPROOF_SELFCHECK=1` forces it on for both; `selfCheck: false` opts out.
 - **Framework noise is skipped by default.** Non-visual and framework-injected elements never count as a change — `<meta>`/`<title>`/`<script>`/`<style>`/… (which Next.js streams into the body then hoists) and live regions like Next's `next-route-announcer`. A real stylesheet change still shows up in the affected elements' computed styles, not in the `<style>` tag. Add your own selectors with `ignore` — they extend this default, they don't replace it.
@@ -1136,17 +1136,22 @@ StyleProof is **computed-styles first**, and stays that way: copy and DOM
 structure can change while the stylesheet remains identical, and live text (a
 clock, "2m ago") must not read as a style regression. But content changes are
 still important review evidence: new or longer text can overflow, and inserted
-or removed elements can reflow the page. The content layer is therefore an
-explicit **opt-in**, off by default, and **advisory** — it never feeds style
-certification or the gate.
+or removed elements can reflow the page. Captures record own text by default
+(for pairing and optional copy evidence); rendering that advisory content
+section in the report (`--include-content`) remains an explicit **opt-in**, off
+by default, and **advisory** — it never feeds style certification or the gate.
 
-Turn it on in the report renderer. Enable text capture as well when copy changes
-belong in the evidence; structural additions, removals, and retags are available
-without storing text:
+Turn it on in the report renderer. Own text is recorded by default (`captureText`
+defaults to `true`) so before/after copy and own-text identity pairing (#753) are
+available without a flag; set `captureText: false` to opt out of storing text
+(privacy / huge live surfaces). Structural additions, removals, and retags are
+available either way. `--include-content` remains an explicit report opt-in and
+does not auto-enable from the capture default:
 
 ```ts
-// styleproof.spec.ts — record each element's own text alongside its computed style
-defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureText: true });
+// styleproof.spec.ts — captureText defaults on; set false to skip storing text
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
+// captureText: false, // privacy / storage opt-out
 ```
 
 ```bash
@@ -1166,10 +1171,12 @@ For the GitHub Action, set the equivalent explicit input:
 
 The report then carries a separate **📝 Content and structure changes
 (advisory)** section. Element additions, removals, and retags are available from
-every capture; set `captureText: true` to add before/after copy. Each entry gets
-a side-by-side crop. The section does **not** affect `changed`, the `StyleProof`
-status, or the diff exit code, by design. With `captureText` off, structural
-evidence still renders but text values are never stored.
+every capture; with `captureText` on (the default), before/after copy is included
+when `--include-content` is set. Each entry gets a side-by-side crop. The section
+does **not** affect `changed`, the `StyleProof` status, or the diff exit code, by
+design. With `captureText: false`, structural evidence still renders but text
+values are never stored. Maps captured without text stay positional for pairing
+until both sides are re-captured.
 
 An element added (or removed) identically — same path, same class — on every
 captured surface base that renders its container (a new link in a persistent
@@ -1474,7 +1481,8 @@ It's **asynchronous by design**: approval is a checkbox tick handled by a separa
 | `replayUrl`         | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                                                                                                                                                                                                                                                                                           |
 | `dataResidue`       | `'gate'`                    | Name data-boundary (`replayUrl`) requests that **fail** during capture (network error / 4xx/5xx — the fallback branch got captured). Always warned + recorded; `'gate'` (the default) also blocks the diff on an unacknowledged one, `'warn'` is the opt-out that records + warns without gating. See [Data residue](#failed-data-request-a-failed-api-call-is-named-not-swallowed).                                                                                   |
 | `freezeClock`       | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works. Covers the browser clock and (via `STYLEPROOF_FREEZE_SPEC_CLOCK=1`, set by `styleproof-map`) the spec process's own clock, so module-level fixture stamps are identical across runs. `false` also restores the real spec-process clock.                                                                                                                |
-| `liveText`          | _off_                       | Declare live/age/clock text (`true` or `{ freeze?, selectors? }`). Age-only drift stays advisory and is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes if captured ages still change. Requires `captureText: true`. See [Deterministic by default](#deterministic-by-default).                                                                                                                                                                            |
+| `captureText`       | `true`                      | Record each element's own text for own-text identity pairing (#753) and the advisory content layer. Explicit `false` is the privacy / storage opt-out. Does **not** enable `--include-content`. Old maps without text stay positional until both sides are re-captured. (#772)                                                                                                                                                                                          |
+| `liveText`          | _off_                       | Declare live/age/clock text (`true` or `{ freeze?, selectors? }`). Age-only drift stays advisory and is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes if captured ages still change. Requires `captureText` (default `true`; fails if explicitly `false`). See [Deterministic by default](#deterministic-by-default).                                                                                                                                       |
 | `clockTime`         | `2025-01-01T00:00:00Z`      | The frozen instant. Set `STYLEPROOF_CLOCK_TIME` to the same value on the capture command so spec-process fixture stamps (frozen at import time, before options are read) agree with it.                                                                                                                                                                                                                                                                                |
 | `parallel`          | `true`                      | Run the generated capture tests across Playwright workers, even when the project config pins `fullyParallel: false` — every capture test is independent, so a multi-surface spec speeds up ~workers×. Set `false` only for a spec file whose own sibling tests read the captured maps in file order.                                                                                                                                                                   |
 | `selfCheck`         | on while recording          | Capture each surface twice and fail on any difference — proves the capture is deterministic. Off on the replay run; `STYLEPROOF_SELFCHECK=1` forces both.                                                                                                                                                                                                                                                                                                              |
@@ -1625,7 +1633,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 | `--min-width <px>`       | `320`               | Minimum crop width, for context.                                                                                                          |
 | `--min-height <px>`      | `180`               | Minimum crop height, for context.                                                                                                         |
 | `--include-layout-noise` | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`, …) that a reflow changes up the whole ancestor chain. |
-| `--include-content`      | off                 | Render the advisory content layer; needs captures taken with `captureText: true`; never affects the check.                                |
+| `--include-content`      | off                 | Render the advisory content layer; needs captures taken with `captureText` on (the default); never affects the check.                     |
 
 `styleproof-report` exits `0` when there are no changes, `1` when a report was generated, and `2` on a usage error.
 

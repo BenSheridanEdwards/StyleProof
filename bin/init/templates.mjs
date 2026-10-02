@@ -112,6 +112,10 @@ defineStyleMapCapture({
     ROUTES.filter((r) => r.dynamic).map((r) => [r.key, \`dynamic route (\${r.path}) — add a surface with a concrete param\`]),
   ),
   inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
+  // Own-text identity pairing (#753): records each element's text so a same-class
+  // sibling insert does not invent positional style diffs. Set false to opt out
+  // (privacy / huge live text surfaces); library default is also true (#772).
+  captureText: true,
   dir: process.env.STYLEMAP_DIR,
 });
 `;
@@ -134,6 +138,10 @@ defineCrawlCapture({
   // No \`widths\` → StyleProof detects each surface's @media breakpoints and sweeps one
   // viewport per band. Pass an array (e.g. [1440, 768, 390]) to pin them.
   inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
+  // Own-text identity pairing (#753): records each element's text so a same-class
+  // sibling insert does not invent positional style diffs. Set false to opt out
+  // (privacy / huge live text surfaces); library default is also true (#772).
+  captureText: true,
   ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
   dir: process.env.STYLEMAP_DIR,
   // A single-route SPA whose views are ?tab= / client-routed? Keep only those:

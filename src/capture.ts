@@ -260,7 +260,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   const base = await page.evaluate(capturePage, {
     skipSel,
     motionOnly: false,
-    captureText: options.captureText ?? false,
+    captureText: options.captureText ?? true,
     captureComponent: options.captureComponent ?? false,
   });
   for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
@@ -297,7 +297,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const limits = resolveForcedStateLimits(options); // validates before touching the browser
   const ignore = [...FRAMEWORK_IGNORE, ...(options.ignore ?? [])];
   const skipSel = skipSelector(ignore);
-  const captureText = options.captureText ?? false;
+  const captureText = options.captureText ?? true;
   // Park the pointer over an ignored sink and blur focus: real :hover/:focus is
   // nondeterministic and would contaminate both the resting map and the forced deltas.
   await page.evaluate(installHoverSink);

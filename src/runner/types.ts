@@ -86,7 +86,7 @@ export type DefineOptions = ForcedStateLimits & {
   navigateTimeoutMs?: number;
   /** Run capture tests in parallel across workers (default true). */
   parallel?: boolean;
-  /** Opt-in content layer (advisory, never gates). */
+  /** Record own text for pairing + advisory content (default true; set false to opt out). Never gates. */
   captureText?: boolean;
   /** Opt-in React component layer (advisory, never gates). */
   captureComponent?: boolean;
@@ -96,7 +96,7 @@ export type DefineOptions = ForcedStateLimits & {
   inventory?: boolean;
   /** Data-residue guard: `'gate'` (default) blocks the diff on an unacknowledged failing endpoint; `'warn'` only records. */
   dataResidue?: 'warn' | 'gate';
-  /** Declare live/age/clock text; `{ freeze: true }` makes drift fail-closed. Requires `captureText: true`. */
+  /** Declare live/age/clock text; `{ freeze: true }` makes drift fail-closed. Requires `captureText` (default true; fails if explicitly false). */
   liveText?: LiveTextInput;
 };
 

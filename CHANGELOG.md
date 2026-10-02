@@ -36,6 +36,15 @@ difference(s))…` so the above-fold number matches the reviewable group
 
 ### Changed
 
+- **`captureText` defaults to `true`.** Unset `captureText` on `defineStyleMapCapture` /
+  `defineCrawlCapture` / `captureStyleMap` now records each element's own text so
+  own-text identity pairing (#753) works for cold adopters without discovering a
+  flag. Explicit `captureText: false` remains the privacy / storage opt-out
+  (regulated copy, huge live text surfaces). `styleproof-init` scaffolds set the
+  flag explicitly with a pairing comment. Maps captured without text stay
+  positional until both sides are re-captured; no format bump; `--include-content`
+  stays opt-in and does not auto-enable. Soft-pass untouched. (#772)
+
 - **Buyer-story product-state stamp.** Example `home` and the live README capture
   now declare matching `productState { id: 'demo-home', revision: 'fixture-v1' }`
   so the inlined report proves comparable (no above-fold unproven warning).
