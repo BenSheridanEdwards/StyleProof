@@ -25,7 +25,7 @@ This is a documented **no-go on lifting**, not a product go.
    - No claim of Phase 2 mapping proved until that evidence exists
 3. **Step 2 out of Soft-pass scope** — Consumer PR **#66** (pin-bump to 7.2.1 / `@v7`) and consumer PR **#67** (7.2.1 re-dogfood for StyleProof #752–#756) were mandated **not** to clear Soft-pass. #67 body: evidence only — do not merge for Soft-pass AC5.
 4. **Consumer PR #67 Visual red** — review-gate failure (changes need review); product-state undeclared / visual-only. Bug-fix dogfood, not Soft-pass AC clearance.
-5. **#754 partial** — Inventory id-less nav landed, but “one Global chrome element-added” grouping is incomplete (per-surface advisories remain). Partial fix dogfood ≠ Soft-pass green.
+5. **Global chrome grouping (supporting-facts refresh)** — #754 Inventory id-less nav landed; tip **#768** (paired-only hosting residual from #767) + FLEET **#68** dogfood now show **1×** Global chrome element-added (not the prior incomplete per-surface advisories). **Facts refresh ≠ Soft-pass go** — this does not lift Soft-pass, clear RECEIPT AC5, or recommend merge of #67/#68. HOLD-continue still stands on reasons 1–4, no Ben buyer-promise, and evidence-only dogfood.
 
 Mandate: AC5 stays HOLD unless primary evidence says otherwise — it does not.
 
