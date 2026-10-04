@@ -1067,7 +1067,18 @@ That last point is why this works where `pull_request_target` does not: StylePro
 
 **Fork verdicts are advisory.** The fork's own code runs in the capture job, so it controls both uploaded map sets — it could upload identical maps and read as "no changes". When the captured head lives in a fork, the Action therefore never sets `StyleProof` to success automatically, even on zero diff: it posts `pending` ("Fork PR — maps captured in an untrusted job; maintainer approval required") and the report comment carries the **Approve all changes** box. A maintainer with write access reviews the report and ticks it (via the approval workflow) to turn the check green. Same-repo PRs, including Dependabot, are unchanged.
 
-Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
+Generate the split setup rather than copying just the two workflow files:
+
+```sh
+npx styleproof-init --workflow split --storage artifact --mode review-gate \
+  --server-command 'npm run build && npm run serve'
+```
+
+Replace the server command with your framework's production build-and-serve command. This also writes the capture spec, dedicated Playwright server configuration, policy, and approval caller. The examples above match this scaffold; the capture example is generated as `.github/workflows/styleproof.yml`. Commit the generated files together. The report and approval workflows must reach your default branch before they can publish or approve a report; then require the `StyleProof` status in branch protection.
+
+The capture workflow delegates both exact-SHA captures to `styleproof-ci` and the generated Playwright server configuration, so each capture owns its production server's lifecycle. Do not leave a base server running while starting the head server on the same port: the second server can fail with `EADDRINUSE` while a URL readiness check still succeeds against the base build. Raw Playwright captures do write manifests; a manifest alone does not prove that an externally managed server serves the intended build. The report stage also consumes the capture outputs sidecar, preserving degraded-baseline reporting. None of this approves new surfaces: a genuinely head-only surface still requires review before baselining.
+
+A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
 
 ## Platform Integration
 
