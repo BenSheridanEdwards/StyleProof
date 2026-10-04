@@ -25,6 +25,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Split-workflow examples use the supported capture orchestration.** The old
+  example started the base and head production servers on the same port without
+  stopping the base server; the head readiness check could therefore succeed
+  against the wrong build. Both examples now match the generated split,
+  artifact-storage review gate, including managed server lifecycle and capture
+  outputs metadata. Setup instructions generate all companion files together.
+  A regression test prevents the examples drifting from the scaffold. New-surface
+  review and certification policy are unchanged.
+
 - **Report headline leads with distinct changes, not property tally.** A
   multi-property restyle (e.g. one Flex group with expanded currentColor
   longhands) used to bold-lead with `**14 computed-style difference(s)** across
