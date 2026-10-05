@@ -28,6 +28,7 @@ function inherited(surface: Surface, variant?: SurfaceVariant): Omit<ExpandedSur
       v.maxForcedStateElements === undefined ? surface.maxForcedStateElements : v.maxForcedStateElements,
     maxForcedStateScanWork:
       v.maxForcedStateScanWork === undefined ? surface.maxForcedStateScanWork : v.maxForcedStateScanWork,
+    forcedStateScope: v.forcedStateScope === undefined ? surface.forcedStateScope : v.forcedStateScope,
   };
 }
 

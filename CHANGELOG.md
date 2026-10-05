@@ -9,6 +9,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Stylesheet-derived forced-state read scope (opt-in).** `forcedStateScope:
+'stylesheet'` (capture, runner, surface, variant and live-state option) reads
+  each forced `:hover`/`:focus`/`:active` delta over only the elements the page's
+  state selectors can reach: the control's subtree, its parent's subtree when a
+  sibling combinator follows a state, or the whole document (warned) for
+  `:has()`, `:focus-within`, shadow selectors, `:nth-*(… of S)`, `@scope` or an
+  unreadable stylesheet. On a populated board of ~1,400 elements and ~210
+  controls, whole-document reads needed over a million element reads and did not
+  finish within the surface timeout; scoped reads complete inside the default
+  32,000 budget and certify the state layer. The default stays `'document'`, so
+  captured output is unchanged unless you opt in. Scoped reads do not record
+  layout ripple on neighbours (the control's own delta is still captured).
+
 - **Selective remap greppable `cold_reason=` (observe-only).** Opt-in-off and
   unbounded full plans now emit `cold_reason=opt_in_selective_off` /
   `cold_reason=selective_all` on the selective decision log

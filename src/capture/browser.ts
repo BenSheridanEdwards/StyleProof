@@ -336,6 +336,9 @@ export function detectOverlayCandidates({ skipSel }: SkipArgs): CapturedOverlay[
     });
 }
 
+/** Which elements one forced-state read compares: see {@link analyzeForcedStateScope}. */
+export type ForcedStateReadScope = 'subtree' | 'parent' | 'document';
+
 export type StateScopeArgs = {
   selector: string;
   skipSel: string;
@@ -343,15 +346,102 @@ export type StateScopeArgs = {
   maxElements: number;
   baselineKey: string;
   saveBaseline: boolean;
+  /** Elements beyond the target's own subtree to read (default `'document'`). */
+  scope?: ForcedStateReadScope;
 };
+
+export type ForcedStateScopeAnalysis = { scope: ForcedStateReadScope; reason: string };
+
+/**
+ * Derive the smallest sound forced-state read scope from the page's own state selectors.
+ * A forced pseudo-class on control X can only restyle elements a selector reaches FROM X:
+ * descendant/child combinators reach X's subtree (inheritance stays there too), sibling
+ * combinators reach X's following siblings (inside X's parent subtree), and `:has()`,
+ * `:focus-within`, shadow selectors, `:nth-*(… of S)` and `@scope` preludes can reach
+ * ancestors or anything, so they (and any unreadable stylesheet) fall back to the document.
+ * The UA stylesheet's state rules only restyle the control itself. Serialized into the page.
+ */
+// fallow-ignore-next-line complexity
+export function analyzeForcedStateScope(): ForcedStateScopeAnalysis {
+  const state = /:(?:hover|focus|focus-visible|active)(?![\w-])/i;
+  const focusWithin = /:focus-within(?![\w-])/i;
+  const rank: Record<ForcedStateReadScope, number> = { subtree: 0, parent: 1, document: 2 };
+  const result: ForcedStateScopeAnalysis = {
+    scope: 'subtree',
+    reason: 'every state selector restyles only the control and its descendants',
+  };
+  const widen = (scope: ForcedStateReadScope, reason: string): void => {
+    if (rank[scope] <= rank[result.scope]) return;
+    result.scope = scope;
+    result.reason = reason;
+  };
+  // Escapes, strings and attribute selectors can spell `~`, `+` or `:hover` without being syntax.
+  const syntax = (selector: string): string =>
+    selector
+      .replace(/\\[0-9a-fA-F]{1,6}\s?/g, '_')
+      .replace(/\\[\s\S]/g, '_')
+      .replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""')
+      .replace(/\[[^\]]*\]/g, '[]');
+  const classify = (selector: string): void => {
+    const text = syntax(selector);
+    if (focusWithin.test(text)) return widen('document', `\`${selector}\` uses :focus-within`);
+    if (!state.test(text)) return;
+    if (/:has\(/i.test(text)) return widen('document', `\`${selector}\` uses :has()`);
+    if (/:host|::slotted|::part/i.test(text)) return widen('document', `\`${selector}\` crosses a shadow boundary`);
+    if (/:nth-[\w-]*\([^)]*:/i.test(text)) return widen('document', `\`${selector}\` uses an :nth-*(… of S) list`);
+    if (/[~+]/.test(text.replace(/:nth-[\w-]*\([^)]*\)/gi, ':nth()')))
+      widen('parent', `\`${selector}\` restyles following siblings`);
+  };
+  const visitRules = (rules: CSSRuleList | undefined, context: string): void => {
+    for (const rule of Array.from(rules ?? [])) {
+      if (result.scope === 'document') return;
+      if (rule instanceof CSSImportRule) {
+        visitSheet(rule.styleSheet);
+      } else if (rule instanceof CSSStyleRule) {
+        // Nested rules are analysed with their parents' selectors in front (conservative for `&`).
+        const selector = context ? `${context} ${rule.selectorText}` : rule.selectorText;
+        classify(selector);
+        visitRules((rule as CSSStyleRule & { cssRules?: CSSRuleList }).cssRules, selector);
+      } else {
+        const prelude = syntax(rule.cssText.slice(0, Math.max(0, rule.cssText.indexOf('{'))));
+        if (state.test(prelude) || focusWithin.test(prelude))
+          widen('document', `\`${prelude.trim()}\` names a state outside a style rule`);
+        visitRules((rule as CSSRule & { cssRules?: CSSRuleList }).cssRules, context);
+      }
+    }
+  };
+  const visitSheet = (sheet: CSSStyleSheet | null): void => {
+    if (!sheet || result.scope === 'document') return;
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      widen('document', `stylesheet ${sheet.href ?? '(inline)'} is unreadable`);
+      return;
+    }
+    visitRules(rules, '');
+  };
+  const adopted = (document as Document & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets ?? [];
+  for (const sheet of [...Array.from(document.styleSheets), ...adopted]) visitSheet(sheet);
+  return result;
+}
 export type StateScopeResult = { delta: Record<string, Props>; truncated: boolean; scanned: number };
 
 /**
- * Read a target-first, bounded document scope; baselines stay in-page so each
- * forced read returns only its delta over CDP. Serialized via Runtime.evaluate.
+ * Read a target-first, bounded scope (the document by default, else the target's or its
+ * parent's subtree); baselines stay in-page so each forced read returns only its delta
+ * over CDP. Serialized via Runtime.evaluate.
  */
 // fallow-ignore-next-line complexity
-export function snapSubtree({ selector, skipSel, skipPaths, maxElements, baselineKey, saveBaseline }: StateScopeArgs) {
+export function snapSubtree({
+  selector,
+  skipSel,
+  skipPaths,
+  maxElements,
+  baselineKey,
+  saveBaseline,
+  scope = 'document',
+}: StateScopeArgs) {
   const target = document.querySelector(selector);
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
   const stateWindow = window as unknown as Record<string, Record<string, Record<string, string>> | undefined>;
@@ -360,9 +450,15 @@ export function snapSubtree({ selector, skipSel, skipPaths, maxElements, baselin
   const seen = new Set<Element>();
   const elements: Array<{ element: Element; path: string }> = [];
   const targetFirst = [target, ...target.querySelectorAll('*')];
-  const documentOrder = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
+  const parent = target.parentElement;
+  const wider =
+    scope === 'document'
+      ? [document.documentElement, document.body, ...document.querySelectorAll('body *')]
+      : scope === 'parent' && parent
+        ? [parent, ...parent.querySelectorAll('*')]
+        : [];
   let truncated = false;
-  for (const element of [...targetFirst, ...documentOrder]) {
+  for (const element of [...targetFirst, ...wider]) {
     if (seen.has(element)) continue;
     seen.add(element);
     const elementPath = pathOf(element);

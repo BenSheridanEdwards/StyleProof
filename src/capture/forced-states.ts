@@ -2,23 +2,26 @@
 // parent-state descendant rules still apply.
 import type { CDPSession, Page } from '@playwright/test';
 import {
+  analyzeForcedStateScope,
   clearInteractiveMarks,
   clearStateBaseline,
   markInteractiveElements,
   snapSubtree,
+  type ForcedStateReadScope,
   type MarkedInteractive,
   type StateScopeArgs,
   type StateScopeResult,
 } from './browser.js';
 import { codeLiteral } from '../util.js';
 import { isUnder, skipSelector, warn } from './shared.js';
-import type { ForcedStateLimits, StyleMap } from './types.js';
+import type { ForcedStateLimits, ForcedStateScope, StyleMap } from './types.js';
 
 const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"], [tabindex]';
 const STATE_ID_ATTR = 'data-styleproof-state-id';
 const STATE_BASELINE_KEY = '__spForcedStateBaseline';
 const MAX_FORCED_STATE_ELEMENTS = 2_000;
 const MAX_FORCED_STATE_SCAN_WORK = 32_000;
+const FORCED_STATE_SCOPES: readonly ForcedStateScope[] = ['document', 'stylesheet'];
 
 export const STATE_LAYER_NAMES = ['hover', 'focus', 'active'] as const;
 const STATE_SETS: Record<(typeof STATE_LAYER_NAMES)[number], string[]> = {
@@ -27,20 +30,23 @@ const STATE_SETS: Record<(typeof STATE_LAYER_NAMES)[number], string[]> = {
   active: ['active'],
 };
 
-/** Resolve a finite caller-owned resource budget before touching the browser. */
+/** Resolve a finite caller-owned resource budget (and read scope) before touching the browser. */
 export function resolveForcedStateLimits(options: ForcedStateLimits): Required<ForcedStateLimits> {
   // `=== undefined`, not `??`: null must fail validation, not fall back.
-  const limits = {
+  const budget = {
     maxForcedStateElements:
       options.maxForcedStateElements === undefined ? MAX_FORCED_STATE_ELEMENTS : options.maxForcedStateElements,
     maxForcedStateScanWork:
       options.maxForcedStateScanWork === undefined ? MAX_FORCED_STATE_SCAN_WORK : options.maxForcedStateScanWork,
   };
-  for (const [name, value] of Object.entries(limits)) {
+  for (const [name, value] of Object.entries(budget)) {
     if (!Number.isSafeInteger(value) || value <= 0)
       throw new TypeError(`styleproof: ${name} must be a positive safe integer`);
   }
-  return limits;
+  const forcedStateScope = options.forcedStateScope === undefined ? 'document' : options.forcedStateScope;
+  if (!FORCED_STATE_SCOPES.includes(forcedStateScope))
+    throw new TypeError(`styleproof: forcedStateScope must be 'document' or 'stylesheet'`);
+  return { ...budget, forcedStateScope };
 }
 
 type ForcedStateTarget = { selector: string; nodeId: number };
@@ -161,6 +167,8 @@ type ForcedStateCaptureContext = {
   scanWarningEmitted: boolean;
   scanWorkRemaining: number;
   limits: Required<ForcedStateLimits>;
+  /** Elements each read compares; `'document'` unless `forcedStateScope: 'stylesheet'` proved a narrower one. */
+  readScope: ForcedStateReadScope;
 };
 
 type ForcedStateCaptureFlow = 'continue' | 'next-target' | 'stop-capture';
@@ -182,6 +190,7 @@ function scopeArgs(context: ForcedStateCaptureContext, selector: string, saveBas
     maxElements: Math.min(context.limits.maxForcedStateElements, context.scanWorkRemaining),
     baselineKey: context.baselineKey,
     saveBaseline,
+    scope: context.readScope,
   };
 }
 
@@ -273,6 +282,20 @@ async function captureForcedStateTarget(
   return baseline.truncated ? 'stop-capture' : 'continue';
 }
 
+/**
+ * The read scope for this session. `'stylesheet'` asks the page which elements its state
+ * selectors can reach; anything it cannot bound falls back to whole-document reads (warned).
+ */
+async function resolveReadScope(page: Page, limits: Required<ForcedStateLimits>): Promise<ForcedStateReadScope> {
+  if (limits.forcedStateScope !== 'stylesheet') return 'document';
+  const analysis = await page.evaluate(analyzeForcedStateScope);
+  if (analysis.scope === 'document')
+    warn(
+      `styleproof: forcedStateScope 'stylesheet' fell back to whole-document forced-state reads: ${analysis.reason}.`,
+    );
+  return analysis.scope;
+}
+
 /** Forced pseudo-class deltas for every interactive element, bounded by `maxInteractive` and `limits`. */
 export async function captureForcedStates(
   page: Page,
@@ -300,6 +323,7 @@ export async function captureForcedStates(
         scanWarningEmitted: false,
         scanWorkRemaining: limits.maxForcedStateScanWork,
         limits,
+        readScope: await resolveReadScope(page, limits),
       };
       if (truncated) {
         warn(
