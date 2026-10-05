@@ -636,6 +636,45 @@ test('full-page screenshots include content inside nested overflow scrollers', a
   }
 });
 
+test('element rects line up with the full-page screenshot when an inner scroller is scrolled', async ({ page }) => {
+  // A surface's own click can scroll a nested scroller (the Fleet Access roles toggle did).
+  // The expanded screenshot draws the scroller from its top, so rects measured in the
+  // scrolled layout pointed 600px above the element and crops read "renders identically".
+  const marker: [number, number, number] = [255, 0, 128];
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-inner-scroll-rect-'));
+  const stem = path.join(output, 'board');
+  try {
+    const { map, scrollTop } = await withPage(
+      page,
+      innerScrollFixture(`rgb(${marker.join(', ')})`),
+      async () => {
+        await page.locator('.scroller').evaluate((el) => {
+          (el as HTMLElement).scrollTop = 600;
+        });
+        const captured = await captureStyleMap(page, { stabilize: false });
+        await captureSurfaceScreenshots(page, stem);
+        const top = await page.locator('.scroller').evaluate((el) => (el as HTMLElement).scrollTop);
+        return { map: captured, scrollTop: top };
+      },
+      { width: 800, height: 600 },
+    );
+    expect(scrollTop, 'capture puts the driven scroll offset back').toBe(600);
+    const entry = Object.values(map.elements).find((e) => e.cls === 'band marker');
+    expect(entry?.rect, 'the marker band is mapped with a rect').toBeTruthy();
+    const [x, y, w, h] = entry!.rect!;
+    expect(y, 'rect is in the expanded screenshot geometry (band 3 starts at 800px)').toBe(800);
+    const png = PNG.sync.read(fs.readFileSync(`${stem}.png`));
+    const cx = Math.round(x + w / 2);
+    const cy = Math.round(y + h / 2);
+    const offset = (cy * png.width + cx) * 4;
+    expect([...png.data.subarray(offset, offset + 3)], 'the screenshot shows the marker at the mapped rect').toEqual(
+      marker,
+    );
+  } finally {
+    fs.rmSync(output, { recursive: true, force: true });
+  }
+});
+
 test('full-page screenshots still cover document-scrolling pages', async ({ page }) => {
   const marker: [number, number, number] = [255, 0, 128];
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-doc-scroll-shot-'));

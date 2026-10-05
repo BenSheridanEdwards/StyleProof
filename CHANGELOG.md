@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.4.1] - 2026-10-05
+
+### Fixed
+
+- **Element rects follow the full-page screenshot geometry.** 7.4.0 expands nested
+  overflow scrollers for the screenshot, but element rects were still measured in
+  the page as driven. When a surface's own interaction scrolled an inner scroller
+  (or content sat below a clipped one), every rect pointed at the wrong pixels: on a
+  Fleet Access board scrolled 307px by a mode toggle, newly added chips were
+  reported as "renders identically before and after" with no crop. Capture now
+  re-measures rects in the same expanded layout the screenshot draws (rects only;
+  styles are not reread), and restoring the expansion puts each scroller's offset
+  back. Pages without a nested scroller keep their rects unchanged.
+
 ## [7.4.0] - 2026-10-05
 
 ### Fixed
