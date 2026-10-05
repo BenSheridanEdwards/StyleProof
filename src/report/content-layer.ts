@@ -15,6 +15,14 @@ import { screenshotPair, type RenderCtx } from './shared.js';
 const NO_PIXEL_DIFFERENCE_NOTE =
   "_This element's location renders identically before and after (the change has no visible effect in the captured state), so there is no before/after crop to show._";
 
+/** One-sided structure: identical crop pixels mean missing evidence, not "no visible effect". */
+function noStructureCropNote(change: 'added' | 'removed'): string {
+  return (
+    `_No distinct before/after crop for this element ${change} (the cropped region matches on both ` +
+    `screenshots). The element itself was ${change} — this is not a claim that the change has no visible effect._`
+  );
+}
+
 type StructureChange = Extract<ContentChange, { kind: 'structure' }>;
 
 /** The side an element exists on: an added element has no before entry, a removed one no after entry. */
@@ -77,9 +85,25 @@ function contentBox(s: Sides, c: ContentChange): Box | null {
   const leaf = ba && bb ? union(ba, bb) : (bb ?? ba);
   if (!leaf) return null;
   // One-sided structure has no opposite-side correspondence: an ancestor expansion
-  // could union an unrelated shifted sibling, so keep it leaf-centred.
+  // could union an unrelated shifted sibling, so keep it leaf-centred by default.
   if (c.kind === 'structure' && c.change !== 'retagged') return leaf;
   return sharedAncestorBox(s, c.path, leaf) ?? leaf;
+}
+
+/** Shared parent box for one-sided structure when a leaf crop is pixel-identical. */
+function parentStructureBox(s: Sides, pathKey: string, leaf: Box): Box | null {
+  const parent = containerOf(pathKey);
+  if (!parent) return null;
+  const a = s.mapA.elements[parent];
+  const b = s.mapB.elements[parent];
+  if (!a?.rect || !b?.rect || isFullPageShell(a, s.pngA) || isFullPageShell(b, s.pngB)) return null;
+  const pa = paddedRect(a, s.ctx.padBy);
+  const pb = paddedRect(b, s.ctx.padBy);
+  if (!pa || !pb) return null;
+  const parentBox = union(pa, pb);
+  if (parentBox.h > s.ctx.maxHeight || parentBox.w > Math.min(s.pngA.width, s.pngB.width)) return null;
+  if (!(parentBox.w > leaf.w || parentBox.h > leaf.h)) return null;
+  return parentBox;
 }
 
 function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
@@ -87,8 +111,13 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
   if (!box) return [];
   const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
   const rects = (entry: ElementEntry | undefined): Rect[] => (entry?.rect ? [entry.rect] : []);
+  const captions = {
+    pair: surface,
+    annotated: 'magenta boxes mark the changed content',
+    zoom: (factor: number) => `magnified ${factor}×: content change too small to read at 1:1`,
+  };
   // Identical pixels on both sides is no evidence; name the absence instead.
-  const pair = renderCropPair(s.ctx, {
+  let pair = renderCropPair(s.ctx, {
     surface,
     suffix,
     box,
@@ -96,14 +125,31 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
     pngB: s.pngB,
     rectsA: rects(entryA),
     rectsB: rects(entryB),
-    captions: {
-      pair: surface,
-      annotated: 'magenta boxes mark the changed content',
-      zoom: (factor) => `magnified ${factor}×: content change too small to read at 1:1`,
-    },
+    captions,
     skipIdentical: true,
   });
-  return pair ? pair.md : ['', NO_PIXEL_DIFFERENCE_NOTE];
+  // One-sided add/remove: if the leaf crop matches on both screenshots, try a shared
+  // parent crop so presence vs absence can still show before/after evidence.
+  if (!pair && c.kind === 'structure' && (c.change === 'added' || c.change === 'removed')) {
+    const parentBox = parentStructureBox(s, c.path, box);
+    if (parentBox) {
+      pair = renderCropPair(s.ctx, {
+        surface,
+        suffix,
+        box: parentBox,
+        pngA: s.pngA,
+        pngB: s.pngB,
+        rectsA: rects(entryA),
+        rectsB: rects(entryB),
+        captions,
+        skipIdentical: true,
+      });
+    }
+    if (pair) return pair.md;
+    return ['', noStructureCropNote(c.change)];
+  }
+  if (pair) return pair.md;
+  return ['', NO_PIXEL_DIFFERENCE_NOTE];
 }
 
 function withoutRedundantStructuralDescendants(changes: ContentChange[]): ContentChange[] {
@@ -253,14 +299,15 @@ function chromeStructureLines(ctx: RenderCtx, entry: ChromeStructureChange, seq:
 export function renderChromeStructureSection(
   ctx: RenderCtx,
   chrome: ChromeStructureChange[],
-  opts: { elevatedNavigableAdds?: number } = {},
+  opts: { elevatedNavigableAdds?: number; elevatedVisibleStructure?: number } = {},
 ): string[] {
   if (chrome.length === 0) return [];
   const n = chrome.length;
   const elevated = opts.elevatedNavigableAdds ?? 0;
+  const visibleElevated = opts.elevatedVisibleStructure ?? 0;
   const verdictBlurb =
-    elevated > 0
-      ? `Navigable Global chrome additions (${elevated}) are reviewable and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes (#766). Non-navigable chrome structure stays advisory.`
+    elevated > 0 || visibleElevated > 0
+      ? `Visible element additions/removals are reviewable and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Navigable Global chrome additions (${elevated}) elevate via #766; other invisible/zero-size chrome structure stays advisory.`
       : `DOM structure is outside the computed-style certification, so this does not change the check's verdict.`;
   return [
     '',
@@ -306,21 +353,27 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
   return { md, seq };
 }
 
-/** The advisory content section: markdown plus the change count (never feeds the gate). */
-export function renderContentSection(ctx: RenderCtx, surfaces: ContentSurface[]): { md: string[]; count: number } {
+/** Content/structure section: visible add/remove elevate to the gate; text/invisible/retags stay advisory. */
+export function renderContentSection(
+  ctx: RenderCtx,
+  surfaces: ContentSurface[],
+  opts: { elevatedVisibleStructure?: number } = {},
+): { md: string[]; count: number } {
   const count = surfaces.reduce((sum, s) => sum + s.changes.length, 0);
   if (!count) return { md: [], count: 0 };
-  const md: string[] = [
-    '',
-    '---',
-    '',
-    '## 📝 Content and structure changes (advisory)',
-    '',
-    `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
-      `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
-      `visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below ` +
-      `so it cannot be mistaken for a product style regression._`,
-  ];
+  const elevated = opts.elevatedVisibleStructure ?? 0;
+  const heading =
+    elevated > 0 ? '## 📝 Content and structure changes' : '## 📝 Content and structure changes (advisory)';
+  const blurb =
+    elevated > 0
+      ? `_${count} content/structure change(s). **Visible element additions/removals (${elevated}) are reviewable** and ` +
+        `gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, ` +
+        `invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._`
+      : `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
+        `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
+        `visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below ` +
+        `so it cannot be mistaken for a product style regression._`;
+  const md: string[] = ['', '---', '', heading, '', blurb];
   let seq = 0;
   for (const surface of surfaces) {
     const out = renderContentSurface(ctx, surface, seq);

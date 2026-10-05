@@ -829,7 +829,8 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
 
     const expectedStates = {
       clean: 'NO_REVIEWABLE_STYLE_CHANGES',
-      content: 'NO_REVIEWABLE_STYLE_CHANGES',
+      // Visible element add elevates — content fixture is no longer advisory-only.
+      content: 'STYLE_REVIEW_REQUIRED',
       changed: 'STYLE_REVIEW_REQUIRED',
       // #475: with the release-confidence layer deleted, these two fixtures reach
       // the states actually designed for them instead of being swept into the
@@ -924,7 +925,7 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       assert.equal(verdict.status, 0, `${fixture} verdict: ${verdict.stderr || verdict.stdout}`);
       const verdictReceipt = JSON.parse(fs.readFileSync(verdictOutput, 'utf8'));
       assert.equal(verdictReceipt.state, expectedState, fixture);
-      const expectedReviewableChanged = ['changed', 'new', 'degraded', 'removed'].includes(fixture);
+      const expectedReviewableChanged = ['changed', 'content', 'new', 'degraded', 'removed'].includes(fixture);
       assert.equal(verdictReceipt['reviewable-changed'], String(expectedReviewableChanged), fixture);
       assert.equal(
         JSON.parse(fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'report.json'), 'utf8')).actionTrustState,

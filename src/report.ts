@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
 import { collectElevatedNavigableChromeAdds, withElevatedChromeReviewableCounts } from './chrome-navigable-gate.js';
+import {
+  collectElevatedVisibleStructure,
+  combinedStructureElevationCount,
+  withElevatedVisibleStructureCounts,
+} from './visible-structure-gate.js';
 import { readBaselineProvenance, type BaselineFailureReceipt } from './map-store.js';
 import {
   diffStyleMapDirs,
@@ -284,6 +289,7 @@ function renderContentLayer(
   surfacePaths: Map<string, Set<string>>,
   surfaceKeyOf: (captureKey: string) => string | undefined,
   elevatedNavigableChromeAdds = 0,
+  elevatedVisibleStructure = 0,
 ) {
   const withContent = mode.includeContent || mode.migration ? contentSurfaces(ctx) : [];
   if (!mode.includeContent) {
@@ -298,10 +304,13 @@ function renderContentLayer(
         contentHostingSurfacePaths(ctx.beforeDir, ctx.afterDir, surfacePaths),
         surfaceKeyOf,
       );
-  const contentSection = renderContentSection(ctx, split.rest);
+  const contentSection = renderContentSection(ctx, split.rest, {
+    elevatedVisibleStructure,
+  });
   const globalChrome = split.chrome.length;
   const chromeMd = renderChromeStructureSection(ctx, split.chrome, {
     elevatedNavigableAdds: elevatedNavigableChromeAdds,
+    elevatedVisibleStructure,
   });
   return { withContent, contentSection, chromeMd, globalChrome, total: contentSection.count + globalChrome };
 }
@@ -335,21 +344,38 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const chrome = classifyChrome(changeGroups, surfacePaths, surfaceKeyOf);
   const shown = countShownChanges(changeGroups);
   const baseline = readBaselineInfo(beforeDir, afterDir);
-  // #766 A-narrowed: navigable Global chrome additions elevate into reviewableCounts
-  // even when --include-content is off (structure is always on the maps).
-  const { count: elevatedNavigableChromeAdds } = migration
-    ? { count: 0 }
+  // #766 navigable Global chrome + visible paired-surface add/remove elevate into
+  // reviewableCounts even when --include-content is off (structure is always on the maps).
+  const chromeElevated = migration
+    ? { count: 0, elevated: [] }
     : collectElevatedNavigableChromeAdds({ beforeDir, afterDir, surfacePaths, surfaceKeyOf });
+  const elevatedNavigableChromeAdds = chromeElevated.count;
+  const visibleElevated = migration
+    ? { count: 0, elevated: [] }
+    : collectElevatedVisibleStructure({ beforeDir, afterDir, surfacePaths, surfaceKeyOf });
+  const elevatedVisibleStructure = visibleElevated.count;
+  const elevatedStructureDom = combinedStructureElevationCount(
+    visibleElevated,
+    chromeElevated.elevated.map((e) => e.change),
+  );
   const baseComparison: ReportComparison = {
     ...comparisonForReport(rawComparison, ctx.includeNoise, prepared.length - missing.length),
     ...comparabilitySummary,
   };
   const comparison: ReportComparison = {
     ...baseComparison,
-    reviewableCounts: withElevatedChromeReviewableCounts(baseComparison.reviewableCounts, elevatedNavigableChromeAdds),
-    hasReviewableEvidence: baseComparison.hasReviewableEvidence || elevatedNavigableChromeAdds > 0,
+    reviewableCounts: withElevatedVisibleStructureCounts(
+      withElevatedChromeReviewableCounts(baseComparison.reviewableCounts, 0),
+      elevatedStructureDom,
+    ),
+    hasReviewableEvidence: baseComparison.hasReviewableEvidence || elevatedStructureDom > 0,
   };
-  const reportConsistency = assessReportConsistency(comparison, changeGroups.length > 0 || missing.length > 0);
+  // Elevated visible structure / navigable chrome is reviewable presentation evidence even
+  // when matched-element style changeGroups are empty (no restyle sections to crop).
+  const reportConsistency = assessReportConsistency(
+    comparison,
+    changeGroups.length > 0 || missing.length > 0 || elevatedStructureDom > 0,
+  );
 
   // Content layer: advisory per-surface + Global chrome display; elevated count colours copy.
   const content = renderContentLayer(
@@ -358,6 +384,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfacePaths,
     surfaceKeyOf,
     elevatedNavigableChromeAdds,
+    elevatedVisibleStructure,
   );
   const { withContent, contentSection } = content;
 
@@ -381,6 +408,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     contentCount: contentSection.count,
     globalChromeCount: content.globalChrome,
     elevatedNavigableChromeAdds,
+    elevatedVisibleStructure,
     contentEvaluated: includeContent,
     reportConsistency,
     rawCounts: comparison.rawCounts,
@@ -485,6 +513,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       advisory: true,
       ...(content.globalChrome ? { globalChrome: content.globalChrome } : {}),
       ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
+      ...(elevatedVisibleStructure ? { elevatedVisibleStructure } : {}),
     },
     surfaces: out.json,
     confidence,
@@ -516,7 +545,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   };
 }
 
-/** Generate the public report. Navigable Global chrome additions elevate (#766); other DOM structure stays advisory. */
+/** Generate the public report. Navigable Global chrome (#766) and visible paired-surface add/remove elevate; invisible structure and pure text stay advisory. */
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   return generateStyleMapReportInternal(opts, false);
 }
