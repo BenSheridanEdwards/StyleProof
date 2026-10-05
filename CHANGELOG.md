@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Full-page screenshots follow nested overflow scrollers.** Capture used Playwright
+  `fullPage`, which only covers document scroll height. Apps that put the page in a
+  fixed-height shell with an inner `overflow: auto|scroll` region (a common app-frame
+  pattern) produced viewport-tall screenshots, so below-the-fold report tiles and
+  crops were blank. Capture now temporarily expands those scrollers (and height-clipped
+  ancestors) for the screenshot, then restores layout. Document-scrolling pages are
+  unchanged.
+
 ## [7.3.0] - 2026-10-05
 
 ### Added

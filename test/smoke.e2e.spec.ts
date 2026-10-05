@@ -14,7 +14,7 @@ import {
   diffStyleMaps,
   detectViewportWidths,
 } from '../dist/index.js';
-import { captureStateLayerScreenshots } from '../dist/capture.js';
+import { captureStateLayerScreenshots, captureSurfaceScreenshots } from '../dist/capture.js';
 import { captureUrlToDir } from '../dist/capture-url.js';
 import { diffContentMaps } from '../dist/diff.js';
 import { selectCrawlLinks } from '../dist/crawl.js';
@@ -554,6 +554,106 @@ test('state-layer screenshots recover a uniquely marked replacement before forci
     expect(pixelAt(`${stem}.active.png`), 'replacement is forced to :active in its state layer').toEqual([
       70, 80, 90, 255,
     ]);
+  } finally {
+    fs.rmSync(output, { recursive: true, force: true });
+  }
+});
+
+/** Fixed-height shell with an inner overflow scroller — content below the fold is not in document scroll. */
+function innerScrollFixture(markerRgb: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    .shell { height: 800px; overflow: hidden; background: rgb(17, 17, 17); }
+    .scroller { height: 100%; overflow: auto; }
+    .band { height: 400px; }
+    .pad { background: rgb(200, 200, 200); }
+    .marker { background: ${markerRgb}; }
+  </style></head><body>
+    <div class="shell"><div class="scroller">
+      <div class="band pad"></div>
+      <div class="band pad"></div>
+      <div class="band marker" id="below-fold"></div>
+      <div class="band pad"></div>
+      <div class="band pad"></div>
+    </div></div>
+  </body></html>`;
+}
+
+function documentScrollFixture(markerRgb: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .band { height: 500px; }
+    .pad { background: rgb(200, 200, 200); }
+    .marker { background: ${markerRgb}; }
+  </style></head><body>
+    <div class="band pad"></div>
+    <div class="band pad"></div>
+    <div class="band marker" id="below-fold"></div>
+    <div class="band pad"></div>
+  </body></html>`;
+}
+
+function pngHasRgb(file: string, rgb: [number, number, number]): boolean {
+  const png = PNG.sync.read(fs.readFileSync(file));
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === rgb[0] && png.data[i + 1] === rgb[1] && png.data[i + 2] === rgb[2]) return true;
+  }
+  return false;
+}
+
+test('full-page screenshots include content inside nested overflow scrollers', async ({ page }) => {
+  const marker: [number, number, number] = [255, 0, 128];
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-inner-scroll-shot-'));
+  const stem = path.join(output, 'board');
+  try {
+    await withPage(
+      page,
+      innerScrollFixture(`rgb(${marker.join(', ')})`),
+      async () => {
+        // Without expansion Playwright fullPage is the shell (~800px) and misses the marker.
+        await page.screenshot({ path: `${stem}.raw.png`, fullPage: true, animations: 'disabled' });
+        await captureSurfaceScreenshots(page, stem);
+        // Layout is restored so the scroller still scrolls after capture.
+        const clientHeight = await page.locator('.scroller').evaluate((el) => (el as HTMLElement).clientHeight);
+        expect(clientHeight, 'inner scroller restores to the shell viewport after capture').toBe(800);
+      },
+      { width: 800, height: 600 },
+    );
+
+    const raw = PNG.sync.read(fs.readFileSync(`${stem}.raw.png`));
+    const full = PNG.sync.read(fs.readFileSync(`${stem}.png`));
+    expect(raw.height, 'unexpanded fullPage stays at the fixed shell height').toBe(800);
+    expect(pngHasRgb(`${stem}.raw.png`, marker), 'unexpanded fullPage misses below-the-fold content').toBe(false);
+    expect(full.height, 'expanded fullPage grows to the scroller content height').toBeGreaterThanOrEqual(2000);
+    expect(pngHasRgb(`${stem}.png`, marker), 'expanded fullPage includes the below-the-fold marker').toBe(true);
+    for (const state of ['hover', 'focus', 'active'] as const) {
+      const layer = PNG.sync.read(fs.readFileSync(`${stem}.${state}.png`));
+      expect(layer.height, `:${state} layer is also expanded`).toBeGreaterThanOrEqual(2000);
+      expect(pngHasRgb(`${stem}.${state}.png`, marker), `:${state} layer includes below-the-fold content`).toBe(true);
+    }
+  } finally {
+    fs.rmSync(output, { recursive: true, force: true });
+  }
+});
+
+test('full-page screenshots still cover document-scrolling pages', async ({ page }) => {
+  const marker: [number, number, number] = [255, 0, 128];
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-doc-scroll-shot-'));
+  const stem = path.join(output, 'tall');
+  try {
+    await withPage(
+      page,
+      documentScrollFixture(`rgb(${marker.join(', ')})`),
+      async () => {
+        await captureSurfaceScreenshots(page, stem);
+      },
+      { width: 800, height: 600 },
+    );
+    const png = PNG.sync.read(fs.readFileSync(`${stem}.png`));
+    expect(png.height, 'document scroll fullPage remains the full document height').toBe(2000);
+    expect(pngHasRgb(`${stem}.png`, marker), 'document scroll fullPage still includes below-the-fold content').toBe(
+      true,
+    );
   } finally {
     fs.rmSync(output, { recursive: true, force: true });
   }
