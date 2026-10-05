@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.4.0] - 2026-10-05
+
 ### Fixed
 
 - **Full-page screenshots follow nested overflow scrollers.** Capture used Playwright
@@ -4670,7 +4672,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.3.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.4.0...HEAD
+[7.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.3.0...v7.4.0
 [7.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.2.1...v7.3.0
 [7.2.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.2.0...v7.2.1
 [7.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.1.0...v7.2.0
