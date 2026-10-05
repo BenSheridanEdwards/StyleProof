@@ -1083,7 +1083,10 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.content-changes }}' = '1'/);
-  assert.match(dogfoodYml, /Content and structure changes \(advisory\)/);
+  assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
+  assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.changed }}' = 'true'/);
+  assert.match(dogfoodYml, /Content and structure changes/);
+  assert.match(dogfoodYml, /elevatedVisibleStructure/);
   assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
   assert.match(dogfoodYml, /action-dogfood\/partial-base/);
   assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'PARTIAL_BASELINE'/);
