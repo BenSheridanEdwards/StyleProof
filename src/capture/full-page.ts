@@ -18,10 +18,10 @@ type RestoreState = { shots: StyleShot[]; count: number };
  * `overflow: auto|scroll` regions are otherwise clipped to the first viewport.
  * Idempotent until {@link restoreInnerScrollContainers} runs.
  *
- * The restore key is a string literal inside this function (not a module const):
- * Playwright serializes `page.evaluate` callbacks and drops closed-over bindings.
+ * Helpers stay nested: Playwright serializes this callback via `Function#toString`
+ * and drops module-level closures.
  */
-export function expandInnerScrollContainers(): number {
+function expandInnerScrollContainers(): number {
   const restoreKey = '__spFullPageRestore';
   const w = window as unknown as Record<string, RestoreState | undefined>;
   if (w[restoreKey]) return w[restoreKey]!.count;
@@ -46,33 +46,19 @@ export function expandInnerScrollContainers(): number {
     el.style.height = height ?? 'auto';
   };
 
-  const depth = (el: Element): number => {
-    let d = 0;
-    for (let cur = el.parentElement; cur; cur = cur.parentElement) d += 1;
-    return d;
+  const depthOf = (el: Element): number => {
+    let depth = 0;
+    for (let cur = el.parentElement; cur; cur = cur.parentElement) depth += 1;
+    return depth;
   };
 
-  const scrollers: HTMLElement[] = [];
-  for (const node of document.querySelectorAll('body *')) {
-    const el = node as HTMLElement;
+  const isVerticalScroller = (el: HTMLElement): boolean => {
     const overflowY = getComputedStyle(el).overflowY;
-    if (
-      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
-      el.scrollHeight > el.clientHeight + 1
-    ) {
-      scrollers.push(el);
-    }
-  }
+    if (overflowY !== 'auto' && overflowY !== 'scroll' && overflowY !== 'overlay') return false;
+    return el.scrollHeight > el.clientHeight + 1;
+  };
 
-  if (scrollers.length === 0) {
-    w[restoreKey] = { shots, count: 0 };
-    return 0;
-  }
-
-  // Deepest first so nested scrollers reveal their content before a parent measures.
-  scrollers.sort((a, b) => depth(b) - depth(a));
-
-  for (const scroller of scrollers) {
+  const unlockScrollerChain = (scroller: HTMLElement): void => {
     unlock(scroller, `${scroller.scrollHeight}px`);
     let cur = scroller.parentElement;
     while (cur && cur !== document.documentElement) {
@@ -80,8 +66,19 @@ export function expandInnerScrollContainers(): number {
       if (cur === document.body) break;
       cur = cur.parentElement;
     }
+  };
+
+  const scrollers = [...document.querySelectorAll('body *')]
+    .map((node) => node as HTMLElement)
+    .filter(isVerticalScroller);
+
+  if (scrollers.length === 0) {
+    w[restoreKey] = { shots, count: 0 };
+    return 0;
   }
 
+  scrollers.sort((a, b) => depthOf(b) - depthOf(a));
+  for (const scroller of scrollers) unlockScrollerChain(scroller);
   for (const root of [document.documentElement, document.body]) {
     if (root) unlock(root as HTMLElement, null);
   }
@@ -91,7 +88,7 @@ export function expandInnerScrollContainers(): number {
 }
 
 /** Undo {@link expandInnerScrollContainers}. Safe when nothing was expanded. */
-export function restoreInnerScrollContainers(): void {
+function restoreInnerScrollContainers(): void {
   const restoreKey = '__spFullPageRestore';
   const w = window as unknown as Record<string, RestoreState | undefined>;
   const state = w[restoreKey];
