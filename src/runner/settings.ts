@@ -154,6 +154,7 @@ export function captureOptionsFor(surface: ExpandedSurface, s: Settings, pending
         surface.maxForcedStateElements === undefined ? s.maxForcedStateElements : surface.maxForcedStateElements,
       maxForcedStateScanWork:
         surface.maxForcedStateScanWork === undefined ? s.maxForcedStateScanWork : surface.maxForcedStateScanWork,
+      forcedStateScope: surface.forcedStateScope === undefined ? s.forcedStateScope : surface.forcedStateScope,
     }),
     ignore: surface.ignore ?? [],
     captureText: s.captureText,

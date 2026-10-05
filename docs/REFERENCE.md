@@ -121,22 +121,22 @@ either side (`side=base` or `side=head`). Soft-pass HOLD: these lines are
 
 ### `cold_reason` enum
 
-| Value                       | Meaning                                                               |
-| --------------------------- | --------------------------------------------------------------------- |
-| `no_bundle`                 | No cached bundle for this SHA (or corrupt / missing manifest).        |
-| `compat_mismatch`           | A bundle exists for the SHA but not for this compatibility key.       |
-| `store_unreachable`         | Transient map-store / network fault (restore CLI exit ≠ 4).           |
-| `branch_missing`            | The map-store branch does not exist on the remote.                    |
-| `no_store`                  | `--no-store` — restore probes skipped; both sides captured in-job.    |
-| `dirty`                     | Reserved / dirty-tree refusal path.                                   |
-| `ancestor_none_stored`      | Exact miss; no stored first-parent ancestor in the walk.              |
-| `ancestor_relevant_changes` | Nearest stored ancestor exists, but capture-relevant paths changed.   |
-| `ancestor_disabled`         | Ancestor reuse opted off (`STYLEPROOF_ANCESTOR_BASELINE=0` / config). |
-| `ancestor_spec_ref`         | Ancestor reuse skipped because `--spec-ref` overlays the base spec.   |
-| `ancestor_error`            | Ancestor planner / restore threw; fail-safe fell back to capture.     |
+| Value                       | Meaning                                                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `no_bundle`                 | No cached bundle for this SHA (or corrupt / missing manifest).                                                        |
+| `compat_mismatch`           | A bundle exists for the SHA but not for this compatibility key.                                                       |
+| `store_unreachable`         | Transient map-store / network fault (restore CLI exit ≠ 4).                                                           |
+| `branch_missing`            | The map-store branch does not exist on the remote.                                                                    |
+| `no_store`                  | `--no-store` — restore probes skipped; both sides captured in-job.                                                    |
+| `dirty`                     | Reserved / dirty-tree refusal path.                                                                                   |
+| `ancestor_none_stored`      | Exact miss; no stored first-parent ancestor in the walk.                                                              |
+| `ancestor_relevant_changes` | Nearest stored ancestor exists, but capture-relevant paths changed.                                                   |
+| `ancestor_disabled`         | Ancestor reuse opted off (`STYLEPROOF_ANCESTOR_BASELINE=0` / config).                                                 |
+| `ancestor_spec_ref`         | Ancestor reuse skipped because `--spec-ref` overlays the base spec.                                                   |
+| `ancestor_error`            | Ancestor planner / restore threw; fail-safe fell back to capture.                                                     |
 | `opt_in_selective_off`      | Emitted on selective full path when opt-in is OFF (env/config fail-closed). Observe-only under Soft-pass HOLD (#775). |
 | `selective_all`             | Emitted when selective cannot narrow (`verdict === 'all'` / unbounded). Observe-only under Soft-pass HOLD (#775).     |
-| `forced_recapture`          | Explicit forced cold path.                                            |
+| `forced_recapture`          | Explicit forced cold path.                                                                                            |
 
 Grep examples: `base_hit=exact`, `base_hit=ancestor`, `cold_reason=`. Existing
 `$GITHUB_OUTPUT` keys (`base-hit`, `base-restored-from-ancestor`) are unchanged.
@@ -1389,6 +1389,40 @@ large pages. Raising `maxInteractive` alone does not change either scan limit.
 These options do not disable states, sample controls, or certify truncated maps.
 CLI URL/crawl commands do not expose these options.
 
+### Stylesheet-derived read scope
+
+Whole-document reads keep `4 * E * T` growing with both the page and its controls,
+so a populated board (thousands of elements, hundreds of controls) can need
+millions of reads. Set `forcedStateScope: 'stylesheet'` to let each read compare
+only the elements the page's own state selectors can reach from the forced
+control:
+
+- **subtree** (the control and its descendants) when every `:hover`, `:focus`,
+  `:focus-visible` and `:active` selector reaches only descendants, for example
+  `.btn:hover`, `.btn:hover .label` or Tailwind `group-hover:`;
+- **parent subtree** when a state selector contains a sibling combinator
+  (`.btn:hover ~ .panel`, Tailwind `peer-hover:`);
+- **document**, with a warning naming the rule, when any state selector uses
+  `:has()`, `:focus-within`, `:host`/`::slotted`/`::part`, an `:nth-*(… of S)`
+  list or an `@scope` prelude, or when a stylesheet cannot be read.
+
+The scope is chosen once per capture from `document.styleSheets` and adopted
+sheets; the user-agent stylesheet's state rules only restyle the control itself.
+The default stays `'document'`. Layout ripple is the one thing the narrower read
+does not record on neighbours: if a forced state resizes the control, its own
+delta (for example `border-width`) is captured, but another element's resolved
+`width` that moved because of it is not. Budgets, truncation and `statesSkipped`
+work exactly as above, and surfaces, variants and live states inherit and
+override `forcedStateScope` like the two limits.
+
+```ts
+defineStyleMapCapture({
+  dir: process.env.STYLEPROOF_DIR,
+  forcedStateScope: 'stylesheet',
+  surfaces: [{ key: 'board', widths: [1280], go: async (page) => page.goto('/board') }],
+});
+```
+
 ## Reference
 
 **Action `BenSheridanEdwards/StyleProof@v7`** — inputs (every input declared in [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml)):
@@ -1492,8 +1526,8 @@ It's **asynchronous by design**: approval is a checkbox tick handled by a separa
 | `replayUrl`         | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                                                                                                                                                                                                                                                                                           |
 | `dataResidue`       | `'gate'`                    | Name data-boundary (`replayUrl`) requests that **fail** during capture (network error / 4xx/5xx — the fallback branch got captured). Always warned + recorded; `'gate'` (the default) also blocks the diff on an unacknowledged one, `'warn'` is the opt-out that records + warns without gating. See [Data residue](#failed-data-request-a-failed-api-call-is-named-not-swallowed).                                                                                   |
 | `freezeClock`       | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works. Covers the browser clock and (via `STYLEPROOF_FREEZE_SPEC_CLOCK=1`, set by `styleproof-map`) the spec process's own clock, so module-level fixture stamps are identical across runs. `false` also restores the real spec-process clock.                                                                                                                |
-| `captureText`       | `true`                      | Record each element's own text for own-text identity pairing (#753) and the advisory content layer. Explicit `false` is the privacy / storage opt-out. Does **not** enable `--include-content`. Old maps without text stay positional until both sides are re-captured. (#772)                                                                                                                                                                                          |
-| `liveText`          | _off_                       | Declare live/age/clock text (`true` or `{ freeze?, selectors? }`). Age-only drift stays advisory and is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes if captured ages still change. Requires `captureText` (default `true`; fails if explicitly `false`). See [Deterministic by default](#deterministic-by-default).                                                                                                                                       |
+| `captureText`       | `true`                      | Record each element's own text for own-text identity pairing (#753) and the advisory content layer. Explicit `false` is the privacy / storage opt-out. Does **not** enable `--include-content`. Old maps without text stay positional until both sides are re-captured. (#772)                                                                                                                                                                                         |
+| `liveText`          | _off_                       | Declare live/age/clock text (`true` or `{ freeze?, selectors? }`). Age-only drift stays advisory and is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes if captured ages still change. Requires `captureText` (default `true`; fails if explicitly `false`). See [Deterministic by default](#deterministic-by-default).                                                                                                                                    |
 | `clockTime`         | `2025-01-01T00:00:00Z`      | The frozen instant. Set `STYLEPROOF_CLOCK_TIME` to the same value on the capture command so spec-process fixture stamps (frozen at import time, before options are read) agree with it.                                                                                                                                                                                                                                                                                |
 | `parallel`          | `true`                      | Run the generated capture tests across Playwright workers, even when the project config pins `fullyParallel: false` — every capture test is independent, so a multi-surface spec speeds up ~workers×. Set `false` only for a spec file whose own sibling tests read the captured maps in file order.                                                                                                                                                                   |
 | `selfCheck`         | on while recording          | Capture each surface twice and fail on any difference — proves the capture is deterministic. Off on the replay run; `STYLEPROOF_SELFCHECK=1` forces both.                                                                                                                                                                                                                                                                                                              |

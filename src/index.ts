@@ -140,6 +140,7 @@ export type {
   StyleMap,
   CaptureOptions,
   ForcedStateLimits,
+  ForcedStateScope,
   CaptureMetadata,
   ProductStateIdentity,
   StateRecipeCaptureProvenance,

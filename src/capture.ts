@@ -31,6 +31,7 @@ export type {
   CapturedOverlay,
   ElementEntry,
   ForcedStateLimits,
+  ForcedStateScope,
   LiveRegionCandidate,
   ProductStateIdentity,
   Rect,

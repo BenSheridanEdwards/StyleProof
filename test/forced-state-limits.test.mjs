@@ -4,12 +4,34 @@ import { captureStyleMap, resolveForcedStateLimits } from '../dist/capture.js';
 import { expandSurfaceVariants } from '../dist/runner.js';
 
 test('forced-state resource defaults and explicit limits are resolved independently', () => {
-  assert.deepEqual(resolveForcedStateLimits({}), { maxForcedStateElements: 2000, maxForcedStateScanWork: 32000 });
-  assert.deepEqual(resolveForcedStateLimits({ maxForcedStateScanWork: 70000 }), {
+  assert.deepEqual(resolveForcedStateLimits({}), {
+    maxForcedStateElements: 2000,
+    maxForcedStateScanWork: 32000,
+    forcedStateScope: 'document',
+  });
+  assert.deepEqual(resolveForcedStateLimits({ maxForcedStateScanWork: 70000, forcedStateScope: 'stylesheet' }), {
     maxForcedStateElements: 2000,
     maxForcedStateScanWork: 70000,
+    forcedStateScope: 'stylesheet',
   });
 });
+
+for (const value of ['subtree', 'Document', '', null, 1, true]) {
+  test(`forcedStateScope rejects ${JSON.stringify(value)} before browser access`, async () => {
+    const page = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('browser was accessed');
+        },
+      },
+    );
+    await assert.rejects(captureStyleMap(page, { forcedStateScope: value }), {
+      name: 'TypeError',
+      message: "styleproof: forcedStateScope must be 'document' or 'stylesheet'",
+    });
+  });
+}
 
 for (const name of ['maxForcedStateElements', 'maxForcedStateScanWork']) {
   for (const value of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '10', null, false]) {
@@ -35,9 +57,12 @@ test('expanded variants inherit resource overrides without replacing runner defa
     key: 'example',
     go: async () => {},
     maxForcedStateElements: 100,
-    variants: [{ key: 'inherited' }, { key: 'override', maxForcedStateScanWork: 90000 }],
+    forcedStateScope: 'stylesheet',
+    variants: [{ key: 'inherited' }, { key: 'override', maxForcedStateScanWork: 90000, forcedStateScope: 'document' }],
   });
   for (const surface of [base, inherited, override]) assert.equal(surface.maxForcedStateElements, 100);
+  assert.equal(inherited.forcedStateScope, 'stylesheet');
+  assert.equal(override.forcedStateScope, 'document');
   assert.equal(inherited.maxForcedStateScanWork, undefined);
   assert.equal(override.maxForcedStateScanWork, 90000);
 });

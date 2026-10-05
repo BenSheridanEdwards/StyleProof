@@ -123,6 +123,17 @@ export type CaptureOptions = {
   maxForcedStateElements?: number;
   /** Maximum element reads across all controls/states (default 32000). Positive safe integer. */
   maxForcedStateScanWork?: number;
+  /**
+   * Which elements each forced-state read compares (default `'document'`: every element, target first).
+   * `'stylesheet'` derives the read scope from the page's own `:hover`/`:focus`/`:focus-visible`/`:active`
+   * selectors: the control's subtree when no state rule can reach past its descendants, its parent's
+   * subtree when a sibling combinator (`~`/`+`) appears in a state selector, and the whole document when
+   * any state selector uses `:has()`, `:focus-within`, shadow selectors, an `:nth-*(… of S)` list, an
+   * `@scope` prelude, or a stylesheet that cannot be read. Layout ripple (a forced state resizing the
+   * control and so another element's resolved `width`) is reported on the control itself, not on the
+   * moved neighbour. Use it for populated pages where whole-document reads exhaust the work budget.
+   */
+  forcedStateScope?: ForcedStateScope;
   /** Record each element's own text on `ElementEntry.text` (default true). Used for own-text identity pairing (#753) and the advisory content layer. Set `false` to opt out (privacy / huge live text). */
   captureText?: boolean;
   /** Opt-in React layer: record the rendering component + primitive props. Advisory. */
@@ -137,4 +148,9 @@ export type CaptureOptions = {
   metadata?: CaptureMetadata;
 };
 
-export type ForcedStateLimits = Pick<CaptureOptions, 'maxForcedStateElements' | 'maxForcedStateScanWork'>;
+export type ForcedStateScope = 'document' | 'stylesheet';
+
+export type ForcedStateLimits = Pick<
+  CaptureOptions,
+  'maxForcedStateElements' | 'maxForcedStateScanWork' | 'forcedStateScope'
+>;
