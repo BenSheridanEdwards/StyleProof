@@ -61,8 +61,7 @@ The capture workflow remains read-only and never receives report-publication cre
 The generated approval caller grants the reusable approval workflow:
 
 - `statuses: write` to flip the gate;
-- `pull-requests: read` to resolve the PR head and author;
-- `issues: write` for refusal replies;
+- `pull-requests: write` to resolve the PR head and author, edit the report comment, and post refusal replies — `issues: write` does not cover pull request comments, so a caller granting only `pull-requests: read` fails every comment write with a 403;
 - `contents: read` to verify branch-published reports at the publication commit;
 - `actions: read` to verify artifact-published reports inside the run's report artifact.
 
