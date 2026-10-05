@@ -11,7 +11,7 @@
     "state": 0
   },
   "reviewableCounts": {
-    "dom": 1,
+    "dom": 0,
     "style": 0,
     "state": 0
   },
@@ -22,7 +22,7 @@
       "state": 0
     },
     "reviewableCounts": {
-      "dom": 1,
+      "dom": 0,
       "style": 0,
       "state": 0
     },
@@ -30,7 +30,7 @@
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
@@ -65,10 +65,9 @@
   "baselineFailures": [],
   "partialBaseline": false,
   "content": {
-    "evaluated": true,
-    "changes": 1,
-    "advisory": true,
-    "elevatedVisibleStructure": 1
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
   },
   "surfaces": [],
   "confidence": {
@@ -97,8 +96,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "645531b83096ca2d74ea151464da897239b4c3c9",
-      "observed": "645531b83096ca2d74ea151464da897239b4c3c9",
+      "expected": "70794ffa14c9c60344cef6f4b83760743a52eb77",
+      "observed": "70794ffa14c9c60344cef6f4b83760743a52eb77",
       "result": "matched"
     }
   },
@@ -113,12 +112,12 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "5b690b9b4d64dbb232b8a9918bc30b539ab1084ad161687119e5cda9a0dca5d0",
+      "digest": "69ad67e13308b459a97791518d99407eceb42a72bfd2f9cb98b77f3c4e1eff46",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1555
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED",
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES",
   "untrustedCapture": false
 }

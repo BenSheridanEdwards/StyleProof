@@ -1,24 +1,6 @@
 ## 🗺️ StyleProof report
 
-**1 visible element addition/removal needs review**
-
-_Approve all changes clears STYLE_REVIEW_REQUIRED for these structure elevations (with other reviewable changes)._
-
-🧱 **1 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
-
----
-
-## 📝 Content and structure changes
-
-_1 content/structure change(s). **Visible element additions/removals (1) are reviewable** and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
-
-### `home@320` · 1 content/structure change(s)
-
-**`button.action`**
-
-- element added
-
-_No distinct before/after crop for this element added (the cropped region matches on both screenshots). The element itself was added — this is not a claim that the change has no visible effect._
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
@@ -28,4 +10,4 @@ _No distinct before/after crop for this element added (the cropped region matche
 
 </details>
 
-<!-- styleproof-receipt head-sha:645531b83096ca2d74ea151464da897239b4c3c9 run-id:37375894215 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:70794ffa14c9c60344cef6f4b83760743a52eb77 run-id:37376831930 run-attempt:1 -->
