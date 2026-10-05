@@ -13,6 +13,7 @@ import {
   type StateScopeResult,
 } from './browser.js';
 import { codeLiteral } from '../util.js';
+import { captureFullPageScreenshot } from './full-page.js';
 import { isUnder, skipSelector, warn } from './shared.js';
 import type { ForcedStateLimits, ForcedStateScope, StyleMap } from './types.js';
 
@@ -370,7 +371,7 @@ export async function captureStateLayerScreenshots(
     for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
       for (const target of targets) await forcePseudoState(session, target, forcedPseudoClasses);
       const dest = stateLayerScreenshotPath(stem, stateName);
-      await page.screenshot({ path: dest, fullPage: true, animations: 'disabled' });
+      await captureFullPageScreenshot(page, dest);
       written.push(dest);
       for (const target of [...session.applied]) await forcePseudoState(session, target, []);
     }
@@ -384,6 +385,6 @@ export async function captureSurfaceScreenshots(
   stem: string,
   options: { ignore?: string[]; maxInteractive?: number } = {},
 ): Promise<void> {
-  await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+  await captureFullPageScreenshot(page, `${stem}.png`);
   await captureStateLayerScreenshots(page, stem, options);
 }
