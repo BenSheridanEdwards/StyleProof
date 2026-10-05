@@ -65,6 +65,7 @@ test('#754: a link added to the sidebar on every surface is ONE Global chrome en
     advisory: true,
     globalChrome: 1,
     elevatedNavigableChromeAdds: 1,
+    elevatedVisibleStructure: 1,
   });
   rmTmp(dirs.root);
 });
@@ -94,6 +95,7 @@ test('#754/#766: multi-base navigable add not chrome-collapsed stays listed per 
     changes: 2,
     advisory: true,
     elevatedNavigableChromeAdds: 1,
+    elevatedVisibleStructure: 1,
   });
   assert.equal(result.comparison.hasReviewableEvidence, true);
   rmTmp(dirs.root);

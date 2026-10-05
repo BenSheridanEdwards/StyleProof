@@ -231,10 +231,11 @@ groups each distinct visual change with:
 In review-gate mode, one **Approve all changes** checkbox turns the `StyleProof`
 status green for that commit. Clean runs still leave a receipt: `No visual
 changes detected.` New surfaces are shown as new baselines and require approval;
-coverage gaps are handled by `expected`. Element additions, removals, and
-retags inside an existing surface are content/structure changes: they stay out
-of style certification by default and appear only in the opt-in advisory
-content section.
+coverage gaps are handled by `expected`. **Visible** element additions and
+removals inside an existing paired surface elevate to review-required
+(`STYLE_REVIEW_REQUIRED`) with before/after crops when content comparison is
+enabled. Invisible/zero-size DOM churn, retags, and pure text stay in the
+opt-in advisory content section.
 
 ### What a report looks like
 
@@ -244,9 +245,11 @@ annotations, a one-line summary, and exact properties under a toggle.
 
 Headline counts cover **matched-element restyles** ("N computed-style
 difference(s)") and interaction-state differences. One-sided DOM structure has
-no like-for-like style baseline, so it cannot certify a style change. Turn on
-`--include-content` when copy and element structure belong in the review; that
-section stays advisory and never changes the style verdict.
+no like-for-like style baseline for _style_ certification, but a **visible**
+added or removed element on a paired surface is review-required on its own
+(Approve clears it with other reviewable changes). Turn on `--include-content`
+to render crops for copy and structure; invisible/zero-size churn, retags, and
+pure text stay advisory.
 
 CSSOM resolves layout-dependent values to pixels. StyleProof also records the
 browser's CSS Typed OM computed value, so an `auto` margin or percentage width
@@ -1148,9 +1151,12 @@ structure can change while the stylesheet remains identical, and live text (a
 clock, "2m ago") must not read as a style regression. But content changes are
 still important review evidence: new or longer text can overflow, and inserted
 or removed elements can reflow the page. Captures record own text by default
-(for pairing and optional copy evidence); rendering that advisory content
-section in the report (`--include-content`) remains an explicit **opt-in**, off
-by default, and **advisory** — it never feeds style certification or the gate.
+(for pairing and optional copy evidence); rendering the content section in the
+report (`--include-content`) remains an explicit **opt-in**, off by default.
+**Visible** element additions/removals on paired surfaces elevate to
+`STYLE_REVIEW_REQUIRED` even when the content section is off (structure is on
+the maps). Pure text, invisible/zero-size DOM churn, retags, and live/age/clock
+text stay advisory and never alone change the style verdict.
 
 Turn it on in the report renderer. Own text is recorded by default (`captureText`
 defaults to `true`) so before/after copy and own-text identity pairing (#753) are
@@ -1192,10 +1198,10 @@ until both sides are re-captured.
 An element added (or removed) identically — same path, same class — on every
 captured surface base that renders its container (a new link in a persistent
 sidebar nav) is not repeated once per surface. It is listed once in a **🧱 Global
-chrome** section above the advisory list, with one crop from the widest capture
+chrome** section above the content list, with one crop from the widest capture
 and the surfaces it appeared on, and the headline names it. `report.json`
 records it in `content.globalChrome`; `content.changes` counts each such entry
-once. Non-navigable Global chrome stays advisory; **navigable** Global chrome additions elevate to reviewable (`STYLE_REVIEW_REQUIRED`) in certify/review-gate (#766). Other per-surface structure stays advisory.
+once. **Navigable** Global chrome additions elevate to reviewable (`STYLE_REVIEW_REQUIRED`) in certify/review-gate (#766). **Visible** per-surface (and non-navigable chrome) element additions/removals also elevate to reviewable. Invisible/zero-size structure, retags, and pure text stay advisory.
 
 The first token of a developer-authored `data-style` value participates in the
 capture's hashed semantic path when it uniquely identifies a sibling. This

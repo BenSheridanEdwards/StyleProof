@@ -312,6 +312,7 @@ export type ReportArtifacts = Pick<
     advisory: true;
     globalChrome?: number;
     elevatedNavigableChromeAdds?: number;
+    elevatedVisibleStructure?: number;
   };
   surfaces: Array<Record<string, unknown>>;
   baselineProvenance: BaselineProvenance | null;

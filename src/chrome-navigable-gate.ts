@@ -2,8 +2,9 @@
  * #766 A-narrowed: elevate Global chrome *navigable* additions into the shared
  * reviewable path (STYLE_REVIEW_REQUIRED / styleproof-diff exit 1).
  *
- * Non-navigable Global chrome and per-surface-only structure stay advisory.
- * Ambiguous multi-base navigable adds fail closed toward reviewable.
+ * Non-navigable Global chrome is not elevated by this #766 path (visible
+ * add/remove may still elevate via visible-structure-gate). Ambiguous
+ * multi-base navigable adds fail closed toward reviewable.
  * Soft-pass HOLD — Approve still clears only STYLE_REVIEW_REQUIRED.
  */
 import { mergeSurfaceKeyLookup, surfaceElementPaths, type ElementEntry } from './capture.js';
@@ -15,8 +16,7 @@ import {
   splitChromeStructure,
   type ChromeStructureChange,
 } from './report/content-layer.js';
-import { createMapLoader, type RenderCtx } from './report/shared.js';
-import { emptyLiveTextAudit } from './live-text.js';
+import { structureGateRenderCtx, type RenderCtx } from './report/shared.js';
 
 type StructureChange = Extract<ContentChange, { kind: 'structure' }>;
 
@@ -41,26 +41,6 @@ export type ElevatedNavigableChrome = {
 
 function oneSidedIdentity(c: StructureChange): string {
   return `${c.change}\0${c.path}\0${c.cls}`;
-}
-
-function gateRenderCtx(beforeDir: string, afterDir: string): RenderCtx {
-  return {
-    beforeDir,
-    afterDir,
-    outDir: afterDir,
-    img: (rel) => rel,
-    load: createMapLoader(),
-    padBy: 0,
-    minWidth: 0,
-    minHeight: 0,
-    maxHeight: 10_000,
-    zoomBelow: 0,
-    maxCrops: 0,
-    foldDetailsAt: 0,
-    liveText: emptyLiveTextAudit(),
-    includeNoise: false,
-    requireStateIdentity: false,
-  };
 }
 
 function headEntryFor(
@@ -106,7 +86,7 @@ export function collectElevatedNavigableChromeAdds(opts: {
   const { beforeDir, afterDir } = opts;
   const surfaceKeyOf = opts.surfaceKeyOf ?? mergeSurfaceKeyLookup(beforeDir, afterDir);
   const surfacePaths = opts.surfacePaths ?? surfaceElementPaths(beforeDir, afterDir);
-  const ctx = gateRenderCtx(beforeDir, afterDir);
+  const ctx = structureGateRenderCtx(beforeDir, afterDir);
 
   const withContent = contentSurfaces(ctx);
   const hosting = contentHostingSurfacePaths(beforeDir, afterDir, surfacePaths);

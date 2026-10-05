@@ -113,20 +113,29 @@ test('#766: Global chrome navigable link add elevates reviewableCounts and needs
   void result;
 });
 
-test('#766: per-surface-only structure add stays advisory (no elevation)', () => {
-  const note = { 'body > main:nth-child(2) > p:nth-child(1)': { tag: 'p', cls: 'note', text: 'Only here' } };
+test('#766: per-surface-only structure add is not Global chrome (navigable chrome count stays 0)', () => {
+  const note = {
+    'body > main:nth-child(2) > p:nth-child(1)': {
+      tag: 'p',
+      cls: 'note',
+      text: 'Only here',
+      rect: [80, 10, 200, 24],
+      style: { display: 'block' },
+    },
+  };
   const { dirs, json, md } = fixture({
     before: () => sidebarMap(3),
     after: (surface) => sidebarMap(3, surface === 'account@1280' ? note : {}),
   });
   assert.doesNotMatch(md, /Global chrome/);
   assert.equal(json.content?.elevatedNavigableChromeAdds ?? json.elevatedNavigableChromeAdds ?? 0, 0);
-  assert.equal(json.reviewableCounts?.dom ?? 0, 0);
-  assert.equal(json.comparison?.hasReviewableEvidence ?? false, false);
+  // Visible per-surface add/remove now elevates (separate from #766 chrome).
+  assert.ok((json.reviewableCounts?.dom ?? 0) >= 1);
+  assert.equal(json.comparison?.hasReviewableEvidence ?? false, true);
   rmTmp(dirs.root);
 });
 
-test('#766: non-navigable Global chrome decoration stays advisory', () => {
+test('#766: non-navigable Global chrome decoration is not a navigable-chrome elevation', () => {
   const decor = (n) => `${SIDEBAR} > span.badge:nth-child(${n})`;
   function mapWithBadges(count) {
     const elements = {
@@ -136,7 +145,13 @@ test('#766: non-navigable Global chrome decoration stays advisory', () => {
       [link(1)]: { tag: 'a', cls: 'side-link', rect: [0, 0, 80, 40], text: 'Home' },
     };
     for (let n = 1; n <= count; n++) {
-      elements[decor(n + 1)] = { tag: 'span', cls: 'badge', rect: [0, 40 * n, 80, 20], text: `${n}` };
+      elements[decor(n + 1)] = {
+        tag: 'span',
+        cls: 'badge',
+        rect: [0, 40 * n, 80, 20],
+        text: `${n}`,
+        style: { display: 'inline-block' },
+      };
     }
     return makeMap({ elements });
   }
@@ -145,9 +160,11 @@ test('#766: non-navigable Global chrome decoration stays advisory', () => {
     after: () => mapWithBadges(2),
   });
   assert.match(md, /Global chrome/);
-  assert.match(md, /does not change this check's verdict|advisory/i);
+  // Still not a #766 navigable elevation — but a visible badge add now elevates via
+  // the visible-structure gate.
   assert.equal(json.content?.elevatedNavigableChromeAdds ?? json.elevatedNavigableChromeAdds ?? 0, 0);
-  assert.equal(json.reviewableCounts?.dom ?? 0, 0);
+  assert.ok((json.reviewableCounts?.dom ?? 0) >= 1);
+  assert.match(md, /reviewable|needs review|STYLE_REVIEW_REQUIRED/i);
   rmTmp(dirs.root);
 });
 

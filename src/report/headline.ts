@@ -30,6 +30,8 @@ export type HeadlineInput = {
   globalChromeCount?: number;
   /** #766: Global chrome navigable additions elevated to reviewable. */
   elevatedNavigableChromeAdds?: number;
+  /** Visible paired-surface element add/remove elevated to reviewable. */
+  elevatedVisibleStructure?: number;
   contentEvaluated: boolean;
   /** Any raw-vs-presentation contradiction: must not claim "identical". */
   reportConsistency: ReportConsistency;
@@ -214,6 +216,26 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
       '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared. Fail closed (`CERTIFICATION_FAILED`); not a style review.',
     ];
   }
+  const elevated = elevatedStructureSummary(input);
+  if (elevated) return elevated;
+  return cleanScopeSummary(input);
+}
+
+function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {
+  const n = (input.elevatedVisibleStructure ?? 0) || (input.elevatedNavigableChromeAdds ?? 0);
+  if (n <= 0) return undefined;
+  const title =
+    n === 1
+      ? '**1 visible element addition/removal needs review**'
+      : `**${n} visible element additions/removals need review**`;
+  return [
+    title,
+    '',
+    '_Approve all changes clears STYLE_REVIEW_REQUIRED for these structure elevations (with other reviewable changes)._',
+  ];
+}
+
+function cleanScopeSummary(input: HeadlineInput): string[] {
   const scope = !input.contentEvaluated
     ? `${NO_CHANGE} Content/structure was not evaluated.`
     : input.contentCount > 0
@@ -285,23 +307,34 @@ export function reportHeadline(input: HeadlineInput): string[] {
   return [...md, ...contentNoteLines(input)];
 }
 
-/** Content-layer pointers: shared chrome element changes (#754), then the advisory count. */
+/** Content-layer pointers: shared chrome (#754), visible structure elevation, then advisory count. */
 function contentNoteLines(input: HeadlineInput): string[] {
   const md: string[] = [];
   const chrome = input.globalChromeCount ?? 0;
   const elevated = input.elevatedNavigableChromeAdds ?? 0;
+  const visibleElevated = input.elevatedVisibleStructure ?? 0;
   if (chrome > 0) {
     const verdictNote =
-      elevated > 0
-        ? `${elevated} navigable Global chrome addition(s) need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes (#766).`
+      elevated > 0 || visibleElevated > 0
+        ? `Visible additions/removals need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.`
         : `DOM structure does not change this check's verdict.`;
     md.push(
       '',
       `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below. ${verdictNote}`,
     );
   }
+  if (visibleElevated > 0 && chrome === 0) {
+    md.push(
+      '',
+      `🧱 **${visibleElevated} visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.`,
+    );
+  }
   if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {
-    md.push('', `📝 _${input.contentCount} advisory content change(s) below — they don't affect the check._`);
+    const note =
+      visibleElevated > 0
+        ? `📝 _${input.contentCount} content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._`
+        : `📝 _${input.contentCount} advisory content change(s) below — they don't affect the check._`;
+    md.push('', note);
   }
   return md;
 }

@@ -266,20 +266,35 @@ test('shift correspondence cannot be overwritten by an ambiguous displaced sibli
   rmTmp(directories.root);
 });
 
-test('structural changes render only in the opt-in advisory content section and never gate', () => {
+test('visible structural additions elevate even when content section is off; crops need includeContent', () => {
   const directories = tmpDirs();
   const image = solidPng(400, 200);
   const before = makeMap({
     elements: {
-      body: { tag: 'body', rect: [0, 0, 400, 200] },
-      'body > p:nth-child(1)': { tag: 'p', cls: 'message', rect: [20, 20, 100, 20] },
+      body: { tag: 'body', rect: [0, 0, 400, 200], style: { display: 'block' } },
+      'body > p:nth-child(1)': {
+        tag: 'p',
+        cls: 'message',
+        rect: [20, 20, 100, 20],
+        style: { display: 'block' },
+      },
     },
   });
   const after = makeMap({
     elements: {
-      body: { tag: 'body', rect: [0, 0, 400, 200] },
-      'body > p:nth-child(1)': { tag: 'p', cls: 'message', rect: [20, 20, 100, 20] },
-      'body > button:nth-child(2)': { tag: 'button', cls: 'action', rect: [20, 60, 100, 30] },
+      body: { tag: 'body', rect: [0, 0, 400, 200], style: { display: 'block' } },
+      'body > p:nth-child(1)': {
+        tag: 'p',
+        cls: 'message',
+        rect: [20, 20, 100, 20],
+        style: { display: 'block' },
+      },
+      'body > button:nth-child(2)': {
+        tag: 'button',
+        cls: 'action',
+        rect: [20, 60, 100, 30],
+        style: { display: 'inline-block' },
+      },
     },
   });
   writeCapture(directories.beforeDir, 'example@400', before, image);
@@ -303,14 +318,16 @@ test('structural changes render only in the opt-in advisory content section and 
   assert.equal(contentOff.totalFindings, 0);
   assert.equal(contentOff.contentChanges, 0);
   assert.ok(!contentOffMarkdown.includes('Content and structure changes'));
-  assert.match(contentOffMarkdown, /Content\/structure was not evaluated/);
+  // Visible add elevates without needing includeContent for the gate.
+  assert.match(contentOffMarkdown, /visible element addition|STYLE_REVIEW_REQUIRED|needs review/i);
+  assert.equal(contentOff.comparison.hasReviewableEvidence, true);
+  assert.ok((contentOff.comparison.reviewableCounts?.dom ?? 0) >= 1);
   assert.equal(contentOn.changedSurfaces, 0);
   assert.equal(contentOn.totalFindings, 0);
   assert.equal(contentOn.contentChanges, 1);
-  assert.match(contentOnMarkdown, /No reviewable computed-style changes among semantically matched elements/);
-  assert.match(contentOnMarkdown, /1 advisory content\/structure change/);
-  assert.ok(contentOnMarkdown.includes('Content and structure changes (advisory)'));
+  assert.match(contentOnMarkdown, /visible element addition|STYLE_REVIEW_REQUIRED|needs review/i);
   assert.ok(contentOnMarkdown.includes('element added'));
+  assert.match(contentOnMarkdown, /Visible element additions\/removals|reviewable/i);
 
   rmTmp(directories.root);
 });

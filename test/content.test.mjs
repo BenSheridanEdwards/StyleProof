@@ -857,7 +857,10 @@ test('content report names a pixel-identical location instead of an identical be
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.equal(result.contentChanges, 1);
   assert.ok(md.includes('element removed'));
-  assert.ok(md.includes('renders identically before and after'));
+  // Added/removed elements must never claim the location "renders identically" /
+  // has no visible effect — that wording is reserved for paired text/style crops.
+  assert.ok(!md.includes('renders identically before and after'));
+  assert.ok(md.includes('No distinct before/after crop') || md.includes('element itself was removed'));
   assert.ok(!md.includes('landing-1280-content-1-composite.png'));
   assert.deepEqual(
     fs.readdirSync(path.join(dirs.root, 'out', 'crops')),

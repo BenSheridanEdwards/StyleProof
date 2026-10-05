@@ -3,10 +3,11 @@
  * Issue #564: CLI --migration + two-SHA/two-dir wiring
  *
  * Exit code contract:
- * | Mode             | Structure changes | Exit code |
- * |------------------|-------------------|-----------|
- * | Certify (default)| advisory          | 0 if no style changes |
- * | Migration        | reviewable        | 1 if structure or style changes |
+ * | Mode             | Visible structure add/remove | Exit code |
+ * |------------------|------------------------------|-----------|
+ * | Certify (default)| reviewable (visible only)    | 1 if visible structure or style changes |
+ * | Migration        | reviewable (all structure)   | 1 if structure or style changes |
+ * Invisible/zero-size structure stays advisory in certify mode.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +34,9 @@ function runDiff(args, cwd = root) {
   return spawnSync(process.execPath, [diffCli, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env },
+    // Empty STYLEPROOF_PRODUCT_STATE unarms the repo config's legacyPairs ledger
+    // so these CLI contract tests stay about structure/style, not product-state.
+    env: { ...process.env, STYLEPROOF_PRODUCT_STATE: '' },
   });
 }
 
@@ -41,7 +44,7 @@ function runReport(args, cwd = root) {
   return spawnSync(process.execPath, [reportCli, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env },
+    env: { ...process.env, STYLEPROOF_PRODUCT_STATE: '' },
   });
 }
 
@@ -69,8 +72,8 @@ function writeManifest(dir, { sha = 'base', compatibilityKey = 'compat' } = {}) 
 }
 
 /**
- * Create a before/after pair where the only change is structure (element added/removed).
- * No style changes. Should exit 0 in certify mode, exit 1 in migration mode.
+ * Create a before/after pair where the only change is a VISIBLE structure add.
+ * No style changes on matched elements. Exits 1 in both certify and migration.
  */
 function structureOnlyFixture() {
   const tmp = mkTmp('migration-structure-');
@@ -83,21 +86,26 @@ function structureOnlyFixture() {
     'home@1280',
     makeMap({
       elements: {
-        body: { tag: 'body', style: { color: 'black' } },
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: { color: 'black', display: 'block' } },
       },
     }),
     solidPng(1280, 800),
   );
   writeManifest(beforeDir, { sha: 'base', compatibilityKey: 'compat' });
 
-  // After: body + a new element added (structure change only)
+  // After: body + a visible new element (structure change only)
   writeCapture(
     afterDir,
     'home@1280',
     makeMap({
       elements: {
-        body: { tag: 'body', style: { color: 'black' } },
-        'body > div:nth-child(1)': { tag: 'div', cls: 'new-elem', style: { color: 'blue' } },
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: { color: 'black', display: 'block' } },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'new-elem',
+          rect: [10, 10, 200, 40],
+          style: { color: 'blue', display: 'block' },
+        },
       },
     }),
     solidPng(1280, 800),
@@ -189,16 +197,15 @@ test('styleproof-report --help documents the --migration flag', () => {
 // styleproof-diff: --migration flag behavior
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('styleproof-diff: structure-only changes exit 0 in default certify mode', () => {
+test('styleproof-diff: visible structure-only changes exit 1 in default certify mode', () => {
   const { tmp, beforeDir, afterDir } = structureOnlyFixture();
   try {
-    // Use --allow-unasserted to bypass coverage/determinism checks for test fixtures
     const result = runDiff(['--allow-unasserted', beforeDir, afterDir]);
-    // In certify mode (default), structure changes are advisory, so exit 0
+    // Visible add/remove elevates in certify mode ( STYLE_REVIEW_REQUIRED ).
     assert.equal(
       result.status,
-      0,
-      `Expected exit 0 for advisory structure changes.\nstderr: ${result.stderr}\nstdout: ${result.stdout}`,
+      1,
+      `Expected exit 1 for visible structure changes.\nstderr: ${result.stderr}\nstdout: ${result.stdout}`,
     );
   } finally {
     rmTmp(tmp);
@@ -353,16 +360,11 @@ test('styleproof-report: report.json without --migration does not include migrat
 // Backward compatibility: existing behavior unchanged without --migration
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('styleproof-diff: existing behavior unchanged when --migration is not passed', () => {
+test('styleproof-diff: visible structure elevates without --migration', () => {
   const { tmp, beforeDir, afterDir } = structureOnlyFixture();
   try {
-    // Use --allow-unasserted to bypass coverage/determinism checks for test fixtures
     const result = runDiff(['--allow-unasserted', beforeDir, afterDir]);
-    // This test verifies the invariant: certify and style contracts remain
-    // fail-closed and at least as strong. Structure changes are advisory.
-    assert.equal(result.status, 0, 'Structure-only changes should not block in default certify mode');
-    // In certify mode with --allow-unasserted, DOM changes may still appear in output
-    // or may be suppressed depending on the settings. The key assertion is exit 0.
+    assert.equal(result.status, 1, 'Visible structure-only changes must block in default certify mode');
   } finally {
     rmTmp(tmp);
   }
