@@ -298,6 +298,11 @@ Existing scaffolds keep their architecture: a marker in the generated workflow
 records the chosen mode, and `styleproof-init --check` / `--upgrade` verify
 that mode's file set instead of rewriting it.
 
+In cache-first CI, ancestor baseline reuse requires no capture-relevant changes.
+Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
+including package configs; source paths retain Unicode and control characters,
+and renames check both locations. A relevant change forces a fresh base capture.
+
 ### The one CLI
 
 ```bash

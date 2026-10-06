@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ancestor baselines recapture after relevant source and config changes.**
+  Cache-first CI now treats every supported `styleproof.config.ts` / `.mjs` /
+  `.js` / `.json` as capture-relevant, including package configs. Git filenames
+  containing Unicode, quotes, tabs, or newlines retain their real paths, and
+  renames check both the old and new locations, so these changes cannot silently
+  reuse an older baseline. Docs-only changes remain eligible for reuse.
+
 ## [7.5.0] - 2026-10-05
 
 ### Changed

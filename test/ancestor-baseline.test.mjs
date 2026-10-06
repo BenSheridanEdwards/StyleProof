@@ -162,6 +162,150 @@ test('planAncestorBaselineReuse: a capture-relevant change since the stored ance
   }
 });
 
+for (const extension of ['ts', 'mjs', 'js', 'json']) {
+  for (const directory of ['', 'packages/widgets/']) {
+    const config = `${directory}styleproof.config.${extension}`;
+    test(`planAncestorBaselineReuse: changing ${config} outside source roots forces capture`, () => {
+      const root = mkTmp('styleproof-ancestor-config-');
+      try {
+        const { repo, commit } = gitFixtureRepo(root);
+        const initialConfig = { coverage: { strict: false } };
+        const changedConfig = { coverage: { strict: true } };
+        const prefix = extension === 'json' ? '' : 'export default ';
+        const stored = commit(
+          {
+            'src/app.css': 'a{}',
+            'e2e/styleproof.spec.ts': '// spec',
+            [config]: prefix + JSON.stringify(initialConfig),
+          },
+          'test: stored config',
+        );
+        const base = commit({ [config]: prefix + JSON.stringify(changedConfig) }, 'test: config change');
+        const plan = planAncestorBaselineReuse({
+          requestedSha: base,
+          availableShas: new Set([stored]),
+          spec: 'e2e/styleproof.spec.ts',
+          sourceRoots: ['src'],
+          cwd: repo,
+        });
+        assert.equal(plan.decision, 'capture');
+        assert.equal(plan.reasonCode, 'ancestor_relevant_changes');
+        assert.ok(plan.reason.includes(config));
+      } finally {
+        rmTmp(root);
+      }
+    });
+  }
+}
+
+test('planAncestorBaselineReuse: config creation, deletion, and format migration force capture', () => {
+  const root = mkTmp('styleproof-ancestor-config-lifecycle-');
+  try {
+    const { repo, commit } = gitFixtureRepo(root);
+    const first = commit({ 'src/app.css': 'a{}', 'e2e/styleproof.spec.ts': '// spec' }, 'test: no config');
+    const created = commit(
+      { 'styleproof.config.ts': 'export default { coverage: { strict: true } };' },
+      'test: create config',
+    );
+    fs.renameSync(path.join(repo, 'styleproof.config.ts'), path.join(repo, 'styleproof.config.mjs'));
+    const migrated = commit({}, 'test: migrate config');
+    fs.unlinkSync(path.join(repo, 'styleproof.config.mjs'));
+    const deleted = commit({}, 'test: delete config');
+    for (const [stored, requested] of [
+      [first, created],
+      [created, migrated],
+      [migrated, deleted],
+    ]) {
+      const plan = planAncestorBaselineReuse({
+        requestedSha: requested,
+        availableShas: new Set([stored]),
+        spec: 'e2e/styleproof.spec.ts',
+        sourceRoots: ['src'],
+        cwd: repo,
+      });
+      assert.equal(plan.decision, 'capture');
+      assert.equal(plan.reasonCode, 'ancestor_relevant_changes');
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
+// Quotes and control characters are valid POSIX filenames, but unavailable on Windows.
+const quotedSourceNames = [
+  'src/café.css',
+  ...(process.platform === 'win32' ? [] : ['src/quoted"name.css', 'src/tab\tname.css', 'src/new\nline.css']),
+];
+for (const file of quotedSourceNames) {
+  test(`planAncestorBaselineReuse: Git-quoted source ${JSON.stringify(file)} forces capture`, () => {
+    const root = mkTmp('styleproof-ancestor-quoted-');
+    try {
+      const { repo, commit } = gitFixtureRepo(root);
+      execFileSync('git', ['config', 'core.quotePath', 'true'], { cwd: repo });
+      const stored = commit({ [file]: 'body{color:black}', 'e2e/styleproof.spec.ts': '// spec' }, 'test: source');
+      const base = commit({ [file]: 'body{color:red}' }, 'test: restyle');
+      const plan = planAncestorBaselineReuse({
+        requestedSha: base,
+        availableShas: new Set([stored]),
+        spec: 'e2e/styleproof.spec.ts',
+        sourceRoots: ['src'],
+        cwd: repo,
+      });
+      assert.equal(plan.decision, 'capture', 'a real source edit must not reuse an older capture');
+      assert.equal(plan.reasonCode, 'ancestor_relevant_changes');
+      assert.deepEqual(changedPathsBetween({ ancestorSha: stored, sha: base, cwd: repo }), [file]);
+      fs.unlinkSync(path.join(repo, file));
+      const deleted = commit({}, 'test: remove source');
+      assert.equal(
+        planAncestorBaselineReuse({
+          requestedSha: deleted,
+          availableShas: new Set([base]),
+          spec: 'e2e/styleproof.spec.ts',
+          sourceRoots: ['src'],
+          cwd: repo,
+        }).decision,
+        'capture',
+        'a source deletion must remain capture-relevant',
+      );
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+test('planAncestorBaselineReuse: identical-content renames into and out of source roots force capture', () => {
+  const root = mkTmp('styleproof-ancestor-rename-');
+  try {
+    const { repo, commit } = gitFixtureRepo(root);
+    execFileSync('git', ['config', 'diff.renames', 'true'], { cwd: repo });
+    const stored = commit({ 'src/app.css': 'body{color:black}', 'e2e/styleproof.spec.ts': '// spec' }, 'test: source');
+    fs.mkdirSync(path.join(repo, 'docs'));
+    fs.renameSync(path.join(repo, 'src/app.css'), path.join(repo, 'docs/app.css'));
+    const movedOut = commit({}, 'test: move source out');
+    fs.renameSync(path.join(repo, 'docs/app.css'), path.join(repo, 'src/app.css'));
+    const movedIn = commit({}, 'test: move source back');
+    for (const [ancestorSha, sha] of [
+      [stored, movedOut],
+      [movedOut, movedIn],
+    ]) {
+      assert.equal(
+        planAncestorBaselineReuse({
+          requestedSha: sha,
+          availableShas: new Set([ancestorSha]),
+          spec: 'e2e/styleproof.spec.ts',
+          sourceRoots: ['src'],
+          cwd: repo,
+        }).decision,
+        'capture',
+        'the source side of a rename must remain capture-relevant',
+      );
+      assert.deepEqual(changedPathsBetween({ ancestorSha, sha, cwd: repo }).sort(), ['docs/app.css', 'src/app.css']);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('planAncestorBaselineReuse: no stored ancestor within the walk → full capture', () => {
   const root = mkTmp('styleproof-ancestor-none-');
   try {
