@@ -63,7 +63,9 @@ test('check-coverage exits non-zero when the line floor is impossible', () => {
     return;
   }
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cov-floor-'));
+  // Coverage reports real paths, and on macOS os.tmpdir() is a symlink, so an
+  // unresolved include matched nothing and every floor passed.
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cov-floor-')));
   try {
     const covered = path.join(dir, 'lib.js');
     const testFile = path.join(dir, 'lib.test.mjs');
