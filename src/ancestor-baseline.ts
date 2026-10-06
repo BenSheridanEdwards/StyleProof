@@ -15,6 +15,9 @@ export const DEFAULT_ANCESTOR_WALK_LIMIT = 50;
 /** File names that are relevant at any depth: harness configs plus package manifests and
  *  lockfiles (the compatibility key binds only the ROOT lockfile). */
 const ALWAYS_RELEVANT_FILE_NAMES = new Set([
+  'styleproof.config.ts',
+  'styleproof.config.mjs',
+  'styleproof.config.js',
   'styleproof.config.json',
   'package.json',
   'package-lock.json',
@@ -25,32 +28,35 @@ const ALWAYS_RELEVANT_FILE_NAMES = new Set([
 ]);
 const CAPTURE_PLAYWRIGHT_CONFIG_FILE_NAME = /^playwright(?:\.styleproof)?\.config\.[cm]?[jt]s$/;
 
-function gitLines(cwd: string, args: string[], what: string): string[] {
+function gitRecords(cwd: string, args: string[], what: string, separator: string | RegExp): string[] {
   const result = runGit(cwd, args);
   if (result.status !== 0) {
     const detail = (result.stderr ?? '').trim() || result.error?.message || `git exited ${result.status}`;
     throw new AncestorBaselineError(`${what} failed: ${detail}`);
   }
-  return result.stdout.split(/\r?\n/).filter(Boolean);
+  return result.stdout.split(separator).filter(Boolean);
 }
 
 /** First-parent ancestors of `sha`, nearest first, excluding `sha` itself, bounded to `limit`. */
 export function listFirstParentAncestors(options: { sha: string; cwd: string; limit?: number }): string[] {
   const limit = options.limit ?? DEFAULT_ANCESTOR_WALK_LIMIT;
-  const revisions = gitLines(
+  const revisions = gitRecords(
     options.cwd,
     ['rev-list', '--first-parent', `--max-count=${limit + 1}`, options.sha],
     `rev-list --first-parent ${options.sha}`,
+    /\r?\n/,
   );
   return revisions.slice(1);
 }
 
-/** Paths changed between two commits' TREES (`git diff --name-only A B`). */
+/** Actual changed paths between two trees, including both sides of a rename.
+ *  NUL records avoid Git's filename quoting; disabling renames keeps source deletions relevant. */
 export function changedPathsBetween(options: { ancestorSha: string; sha: string; cwd: string }): string[] {
-  return gitLines(
+  return gitRecords(
     options.cwd,
-    ['diff', '--name-only', options.ancestorSha, options.sha],
+    ['diff', '--name-only', '--no-renames', '-z', options.ancestorSha, options.sha],
     `git diff --name-only ${options.ancestorSha.slice(0, 12)} ${options.sha.slice(0, 12)}`,
+    '\0',
   );
 }
 
@@ -61,7 +67,7 @@ function isSameOrUnderDirectory(candidate: string, directory: string): boolean {
 const baseName = (canonical: string): string => canonical.slice(canonical.lastIndexOf('/') + 1);
 
 /** The capture-relevant subset of `changedPaths`: the spec and its directory, the Playwright
- *  capture config, `styleproof.config.json`, package manifests/lockfiles, and anything under
+ *  capture config, every supported `styleproof.config.*`, package manifests/lockfiles, and anything under
  *  a declared source root. With NO roots (or a root meaning the whole repo) every path is
  *  relevant, so reuse can never fire on an undeclared app layout. Pure and fs-free. */
 export function captureRelevantChangedPaths(options: {
