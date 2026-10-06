@@ -3,8 +3,11 @@
  * TDD failing-first: generates synthetic fixture bundles and asserts completion within
  * the budget threshold.
  *
- * Performance Budget: <5s for diffing ~500 surfaces on CI.
+ * Performance Budget: <5s of process CPU time for diffing ~500 surfaces.
  * This budget is conservative and may be tuned based on CI environment profiling.
+ * Budgets assert on CPU time, not wall-clock: the unit suite runs test files in
+ * parallel and runs again in pre-push on developer machines, where the wall
+ * clock mostly measures waiting for a free core rather than the diff itself.
  *
  * @see https://github.com/BenSheridanEdwards/StyleProof/issues/538
  */
@@ -25,6 +28,16 @@ function mkTmp(prefix = 'styleproof-benchmark-') {
 
 function rmTmp(dir) {
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/** Run `work`, returning its result with the process CPU time and wall-clock time it took. */
+function measure(work) {
+  const cpuStart = process.cpuUsage();
+  const wallStart = performance.now();
+  const result = work();
+  const wallMs = performance.now() - wallStart;
+  const { user, system } = process.cpuUsage(cpuStart);
+  return { result, cpuMs: (user + system) / 1000, wallMs };
 }
 
 /**
@@ -124,27 +137,24 @@ describe('diff large-map performance benchmark (#538)', () => {
     if (testRoot) rmTmp(testRoot);
   });
 
-  test(`diff ${SURFACE_COUNT} surfaces completes under ${PERFORMANCE_BUDGET_MS}ms budget`, async () => {
-    const startTime = performance.now();
-
-    const result = diffStyleMapDirs(beforeDir, afterDir);
-
-    const duration = performance.now() - startTime;
+  test(`diff ${SURFACE_COUNT} surfaces completes under ${PERFORMANCE_BUDGET_MS}ms CPU budget`, async () => {
+    const { result, cpuMs, wallMs } = measure(() => diffStyleMapDirs(beforeDir, afterDir));
 
     // Log performance metrics for CI profiling
     console.log(`Performance metrics:`);
     console.log(`  - Surfaces diffed: ${SURFACE_COUNT}`);
-    console.log(`  - Wall-clock time: ${Math.round(duration)}ms`);
-    console.log(`  - Budget: ${PERFORMANCE_BUDGET_MS}ms`);
-    console.log(`  - Headroom: ${Math.round(PERFORMANCE_BUDGET_MS - duration)}ms`);
-    console.log(`  - Per-surface average: ${(duration / SURFACE_COUNT).toFixed(2)}ms`);
+    console.log(`  - CPU time: ${Math.round(cpuMs)}ms`);
+    console.log(`  - Wall-clock time: ${Math.round(wallMs)}ms`);
+    console.log(`  - Budget: ${PERFORMANCE_BUDGET_MS}ms CPU`);
+    console.log(`  - Headroom: ${Math.round(PERFORMANCE_BUDGET_MS - cpuMs)}ms`);
+    console.log(`  - Per-surface average: ${(cpuMs / SURFACE_COUNT).toFixed(2)}ms CPU`);
     console.log(`  - DOM changes: ${result.counts.dom}`);
     console.log(`  - Style changes: ${result.counts.style}`);
     console.log(`  - State changes: ${result.counts.state}`);
 
     assert.ok(
-      duration < PERFORMANCE_BUDGET_MS,
-      `Diff took ${Math.round(duration)}ms, exceeding the ${PERFORMANCE_BUDGET_MS}ms budget`,
+      cpuMs < PERFORMANCE_BUDGET_MS,
+      `Diff used ${Math.round(cpuMs)}ms of CPU, exceeding the ${PERFORMANCE_BUDGET_MS}ms budget`,
     );
   });
 
@@ -183,17 +193,17 @@ describe('diff large-map performance benchmark (#538)', () => {
         writeSyntheticCapture(identicalAfter, key, map);
       }
 
-      const startTime = performance.now();
-      const result = diffStyleMapDirs(identicalBefore, identicalAfter);
-      const duration = performance.now() - startTime;
+      const { result, cpuMs, wallMs } = measure(() => diffStyleMapDirs(identicalBefore, identicalAfter));
 
-      console.log(`Identical bundle diff: ${Math.round(duration)}ms for 100 surfaces`);
+      console.log(
+        `Identical bundle diff: ${Math.round(cpuMs)}ms CPU (${Math.round(wallMs)}ms wall-clock) for 100 surfaces`,
+      );
 
       // Identical bundles should be faster and have zero changes
       assert.equal(result.counts.dom, 0, 'Identical bundles should have no DOM changes');
       assert.equal(result.counts.style, 0, 'Identical bundles should have no style changes');
       assert.equal(result.counts.state, 0, 'Identical bundles should have no state changes');
-      assert.ok(duration < PERFORMANCE_BUDGET_MS / 2, 'Identical bundles should diff faster');
+      assert.ok(cpuMs < PERFORMANCE_BUDGET_MS / 2, 'Identical bundles should diff faster');
     } finally {
       rmTmp(identicalRoot);
     }
@@ -217,12 +227,10 @@ describe('diff scalability characteristics (#538)', () => {
           writeSyntheticCapture(afterDir, key, generateSyntheticMap(30, 'after'));
         }
 
-        const startTime = performance.now();
-        diffStyleMapDirs(beforeDir, afterDir);
-        const duration = performance.now() - startTime;
+        const { cpuMs } = measure(() => diffStyleMapDirs(beforeDir, afterDir));
 
-        timings.push({ size, duration, perSurface: duration / size });
-        console.log(`  ${size} surfaces: ${Math.round(duration)}ms (${(duration / size).toFixed(2)}ms/surface)`);
+        timings.push({ size, cpuMs, perSurface: cpuMs / size });
+        console.log(`  ${size} surfaces: ${Math.round(cpuMs)}ms CPU (${(cpuMs / size).toFixed(2)}ms/surface)`);
       }
 
       // Verify that per-surface time doesn't grow significantly
