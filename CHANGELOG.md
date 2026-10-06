@@ -44,6 +44,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   change has no visible effect. A shared parent crop is tried first when the leaf
   region is pixel-identical.
 
+## [7.4.0] - 2026-10-05
+
 ### Fixed
 
 - **Full-page screenshots follow nested overflow scrollers.** Capture used Playwright
