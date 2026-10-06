@@ -28,9 +28,10 @@ on:
     secrets:
       token:
         description: >-
-          Token with statuses:write, pull-requests:read, issues:write,
-          contents:read (branch-published reports), and actions:read
-          (artifact-published reports)
+          Token with statuses:write, pull-requests:write (edits the report
+          comment and posts refusal replies; issues:write does not cover pull
+          request comments), contents:read (branch-published reports), and
+          actions:read (artifact-published reports)
         required: true
 
 jobs:
@@ -134,6 +135,21 @@ jobs:
             if (allBoxes.length !== 1) return;
             const approved = /\[[xX]\]/.test(allBoxes[0]);
 
+            // Every comment this workflow writes is on a pull request, and GitHub
+            // authorizes pull request comments with pull-requests: write — issues:
+            // write does not cover them. Name the missing permission, not a bare 403.
+            const writeComment = async (write) => {
+              try {
+                await write();
+              } catch (error) {
+                if (error?.status !== 403) throw error;
+                throw new Error(
+                  'StyleProof approval could not write the pull request comment; the approval workflow requires pull-requests: write',
+                  { cause: error },
+                );
+              }
+            };
+
             // Rebuild the box line from scratch — glyph plus one suffix — so a re-tick
             // by someone else replaces the note, an untick clears it, and a refusal can
             // put the box back to unticked to match the red status it leaves behind.
@@ -142,7 +158,9 @@ jobs:
             const renderBox = async (ticked, suffix) => {
               const next = body.replace(boxRe, (_, lead, tail) => `${lead}[${ticked ? 'x' : ' '}]${tail}${suffix}`);
               if (next === body) return;
-              await github.rest.issues.updateComment({ ...context.repo, comment_id: context.payload.comment.id, body: next });
+              await writeComment(() =>
+                github.rest.issues.updateComment({ ...context.repo, comment_id: context.payload.comment.id, body: next }),
+              );
             };
 
             // One reply per refusal kind per reviewed commit. A refusal unticks the box,
@@ -155,11 +173,13 @@ jobs:
                 per_page: 100,
               });
               if (prior.some((comment) => (comment.body || '').includes(tag))) return;
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: context.payload.issue.number,
-                body: `${text}\n\n${tag}`,
-              });
+              await writeComment(() =>
+                github.rest.issues.createComment({
+                  ...context.repo,
+                  issue_number: context.payload.issue.number,
+                  body: `${text}\n\n${tag}`,
+                }),
+              );
             };
 
             // The human who toggled the box must have write access. (`sender` on an

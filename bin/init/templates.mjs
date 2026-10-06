@@ -586,13 +586,13 @@ on:
   issue_comment:
     types: [edited]
 
-# statuses:write flips the gate; pull-requests:read resolves the PR head and
-# author; issues:write posts refusal replies; contents:read verifies
-# branch-published reports; actions:read verifies artifact-published reports.
+# statuses:write flips the gate; pull-requests:write resolves the PR head and
+# author, edits the report comment, and posts refusal replies (issues:write does
+# not cover pull request comments); contents:read verifies branch-published
+# reports; actions:read verifies artifact-published reports.
 permissions:
   statuses: write
-  pull-requests: read
-  issues: write
+  pull-requests: write
   contents: read
   actions: read
 
