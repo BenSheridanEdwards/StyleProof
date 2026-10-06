@@ -7,6 +7,7 @@
  * evaluated, or validated throws — a discovered `.ts` never falls back to sibling
  * JSON or to the default spec.
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -167,15 +168,47 @@ export function resolveStyleProofConfigFilePaths(config: StyleProofConfig, confi
   };
 }
 
+/** Import JavaScript at its original URL, preserving package semantics and module identity.
+ *  Validate before serialization so invalid functions or toJSON hooks cannot hide policy. */
+function loadJavaScriptConfigSync(found: StyleProofConfigLocation): StyleProofConfig {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { writeFileSync } from 'node:fs';
+       import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
+       const mod = await import(${JSON.stringify(pathToFileURL(found.path).href)});
+       const config = plainObject(mod.default ?? mod, 'the default export', ${JSON.stringify(found.filename)});
+       writeFileSync(3, JSON.stringify(structuredClone(parseConfigRecord(config, ${JSON.stringify(found.filename)}))));
+       await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write('', resolve))));
+       process.exit(0);`,
+    ],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe', 'pipe'] },
+  );
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.error || result.status !== 0) {
+    const reason =
+      (result.stderr || '').trim() ||
+      (result.error ? errorMessage(result.error) : `config process exited ${result.status}`);
+    throw configError(found.filename, `could not load — ${reason}`);
+  }
+  if (result.stderr) process.stderr.write(result.stderr);
+  try {
+    return parseConfigRecord(
+      plainObject(JSON.parse(String(result.output[3])), 'the default export', found.filename),
+      found.filename,
+    );
+  } catch (error) {
+    throw configError(found.filename, `could not load — ${errorMessage(error)}`);
+  }
+}
+
 function parseLoadedConfigSync(dir: string): StyleProofConfig {
   const esm = findEsmConfig(dir);
   if (esm?.filename.endsWith('.ts')) return parseConfigRecord(evaluateTypeScriptConfigSync(esm.path), esm.filename);
   if (!esm) return loadJsonConfig(dir, true);
-  process.stderr.write(
-    `styleproof: ${esm.filename} detected but sync loader called. ` +
-      `Use loadStyleProofConfigAsync() to evaluate ${esm.filename}.\n`,
-  );
-  return loadJsonConfig(dir, false);
+  return loadJavaScriptConfigSync(esm);
 }
 
 async function parseLoadedConfigAsync(dir: string): Promise<StyleProofConfig> {
@@ -212,8 +245,8 @@ export async function loadStyleProofConfigWithLocationAsync(cwd = process.cwd())
 }
 
 /**
- * Sync load. A discovered `.ts` is evaluated or fails closed; a `.mjs`/`.js`
- * warns to use the async loader; JSON-only emits a deprecation warning.
+ * Sync load. A discovered `.ts`/`.mjs`/`.js` is evaluated or fails closed;
+ * JSON-only emits a deprecation warning.
  */
 export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
   return loadStyleProofConfigWithLocation(cwd).config;

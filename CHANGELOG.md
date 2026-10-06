@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **JavaScript config policy is honored during capture and comparison.**
+  Synchronous consumers now load `styleproof.config.mjs` / `.js` instead of
+  dropping their coverage and product-state settings or reading stale sibling
+  JSON. Original module paths, CommonJS `.js` packages, relative imports,
+  top-level await, config logging, and the caller's working directory work;
+  background handles opened by config imports cannot stall a successful load.
+  Invalid policy and module errors fail closed, including values that JSON
+  serialization would otherwise omit.
+
 - **Ancestor baselines recapture after relevant source and config changes.**
   Cache-first CI now treats every supported `styleproof.config.ts` / `.mjs` /
   `.js` / `.json` as capture-relevant, including package configs. Git filenames
