@@ -61,9 +61,14 @@ npm run lint          # eslint .
 npm run format:check  # prettier --check  (use `npm run format` to fix)
 npm run privacy:check # scan every git-tracked + npm-packed text file for private leaks
 npm test              # builds, then node --test over test/*.test.mjs (fast, no browser)
+npm run test:unit -- test/<name>.test.mjs  # one file, same runner and preload (after a build)
 npm run test:coverage # same unit suite + Node built-in coverage floor on dist/ (Node 22.8+)
 npm run test:e2e      # Playwright smoke: the page.evaluate + CDP capture path
 ```
+
+Run a single unit test file with `npm run test:unit -- <file>`, not a plain
+`node --test <file>`. The runner preloads `test/no-concurrent-jobs.cjs`, and
+without it a CLI child that a test spawns can hang at exit on Node 26 (#711, #799).
 
 `test:coverage` uses Node's `--experimental-test-coverage` with
 `--test-coverage-include=dist/** (excluding node_modules)` and a **line floor of 40%** (measured main

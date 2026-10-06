@@ -4,11 +4,13 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   NODE_TEST_TIMEOUT_MS,
   fileSnapshot,
   nodeTestArgs,
   nodeTestEnv,
+  runnerOptions,
   snapshotChanges,
 } from '../scripts/run-node-test.mjs';
 
@@ -55,6 +57,41 @@ test('a spawned Node child loads the preload (#718)', () => {
   assert.equal(r.stderr, '');
   assert.equal(r.status, 0);
   assert.equal(r.stdout, '1');
+});
+
+const RUNNER = fileURLToPath(new URL('../scripts/run-node-test.mjs', import.meta.url));
+
+test('test file arguments run just those files, still with the preload (#799)', () => {
+  assert.deepEqual(runnerOptions([]), { watch: false, files: undefined });
+  assert.deepEqual(runnerOptions(['--watch']), { watch: true, files: undefined });
+  assert.deepEqual(runnerOptions(['test/a.test.mjs', '--watch']), { watch: true, files: ['test/a.test.mjs'] });
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-runner-files-'));
+  try {
+    const file = path.join(dir, 'preloaded.test.mjs');
+    const ran = path.join(dir, 'ran');
+    fs.writeFileSync(
+      file,
+      "import fs from 'node:fs';\nimport test from 'node:test';\nimport assert from 'node:assert/strict';\n" +
+        "test('preloaded', () => {\n  assert.equal(process.env.STYLEPROOF_NO_CONCURRENT_JOBS, '1');\n" +
+        `  fs.writeFileSync(${JSON.stringify(ran)}, '');\n});\n`,
+    );
+    // Drop this suite's own preload so only the runner can supply it, and the
+    // test-runner context so the nested run reports like a top-level one.
+    const env = { ...process.env };
+    delete env.NODE_OPTIONS;
+    delete env.STYLEPROOF_NO_CONCURRENT_JOBS;
+    for (const key of Object.keys(env)) {
+      if (/^(NODE_TEST|TEST_WORKER|TAP_)/i.test(key)) delete env[key];
+    }
+    const r = spawnSync(process.execPath, [RUNNER, file], { env, encoding: 'utf8', timeout: 60_000 });
+    // Exit status and a marker, not the summary text: Node 26 prints a spec
+    // summary to a pipe, while CI's Node 18–22 print TAP.
+    assert.equal(r.status, 0, `the named file must pass with the preload\n${r.stdout}${r.stderr}`);
+    assert.ok(fs.existsSync(ran), 'the named file ran');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('fileSnapshot/snapshotChanges report files added, removed, or rewritten in dist/', () => {
