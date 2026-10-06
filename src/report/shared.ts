@@ -5,7 +5,7 @@ import { loadStyleMap, type ElementEntry, type LiveRegionCandidate, type StyleMa
 import type { Finding, SurfaceDiff } from '../diff.js';
 import { isMapFile } from '../map-store.js';
 import { formatSurfaceList, pushSurfaceWidth, renderSurfaceGroups, surfaceBase } from '../change-groups.js';
-import type { LiveTextAudit } from '../live-text.js';
+import { emptyLiveTextAudit, type LiveTextAudit } from '../live-text.js';
 import { isSameOrDescendant, rectToBox, visible } from './geometry.js';
 import { readPng } from './png.js';
 import { codeValue } from './markdown.js';
@@ -135,3 +135,24 @@ export function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPa
 
 export const hasActiveModal = (...maps: StyleMap[]): boolean =>
   maps.some((m) => (m.overlays ?? []).some((o) => o.ariaModal === 'true'));
+
+/** Minimal RenderCtx for structure-elevation collectors (maps only; no crops). */
+export function structureGateRenderCtx(beforeDir: string, afterDir: string): RenderCtx {
+  return {
+    beforeDir,
+    afterDir,
+    outDir: afterDir,
+    img: (rel) => rel,
+    load: createMapLoader(),
+    padBy: 0,
+    minWidth: 0,
+    minHeight: 0,
+    maxHeight: 10_000,
+    zoomBelow: 0,
+    maxCrops: 0,
+    foldDetailsAt: 0,
+    liveText: emptyLiveTextAudit(),
+    includeNoise: false,
+    requireStateIdentity: false,
+  };
+}

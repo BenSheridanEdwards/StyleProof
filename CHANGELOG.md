@@ -7,19 +7,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [7.4.1] - 2026-10-05
+## [7.5.1] - 2026-10-06
 
 ### Fixed
 
 - **Element rects follow the full-page screenshot geometry.** 7.4.0 expands nested
   overflow scrollers for the screenshot, but element rects were still measured in
   the page as driven. When a surface's own interaction scrolled an inner scroller
-  (or content sat below a clipped one), every rect pointed at the wrong pixels: on a
-  Fleet Access board scrolled 307px by a mode toggle, newly added chips were
-  reported as "renders identically before and after" with no crop. Capture now
-  re-measures rects in the same expanded layout the screenshot draws (rects only;
-  styles are not reread), and restoring the expansion puts each scroller's offset
-  back. Pages without a nested scroller keep their rects unchanged.
+  (or content sat below a clipped one), every rect pointed at the wrong pixels: on
+  an app-shell board whose mode toggle scrolled the inner scroller about 300px,
+  newly added elements got crops of the wrong region and were reported as
+  "renders identically before and after". Capture now re-measures rects in the
+  same expanded layout the screenshot draws (rects only; styles are not reread),
+  and restoring the expansion puts each scroller's offset back. Pages without a
+  nested scroller keep their rects unchanged.
+
+## [7.5.0] - 2026-10-05
+
+### Changed
+
+- **Visible element additions/removals on paired surfaces are review-required.** A
+  visible (non-zero rendered box, not `display:none` / `visibility:hidden` /
+  `opacity: 0`, inside the captured viewport) element added or removed inside an
+  otherwise paired surface now elevates into `reviewableCounts.dom` and needs
+  **Approve all changes** (`STYLE_REVIEW_REQUIRED`), with before/after crops like
+  style diffs when content comparison is enabled. Invisible or zero-size DOM
+  churn, pure text-content changes, retags, and live/age/clock regions stay
+  advisory. Same class of gate elevation as navigable Global chrome (#766).
+
+### Fixed
+
+- **Added/removed elements no longer claim they "render identically".** When a
+  one-sided structure crop matches on both screenshots, the report now says there
+  is no distinct before/after crop for the added/removed element — not that the
+  change has no visible effect. A shared parent crop is tried first when the leaf
+  region is pixel-identical.
 
 ## [7.4.0] - 2026-10-05
 
@@ -4686,7 +4708,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.4.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.5.0...HEAD
+[7.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.4.0...v7.5.0
 [7.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.3.0...v7.4.0
 [7.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.2.1...v7.3.0
 [7.2.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.2.0...v7.2.1

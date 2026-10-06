@@ -15,6 +15,11 @@ import {
   withElevatedChromeReviewableCounts,
 } from '../dist/chrome-navigable-gate.js';
 import {
+  collectElevatedVisibleStructure,
+  combinedStructureElevationCount,
+  withElevatedVisibleStructureCounts,
+} from '../dist/visible-structure-gate.js';
+import {
   assessComparisonTruth,
   chromeSpanLabel,
   classifyChrome,
@@ -214,7 +219,7 @@ const truth = assessComparisonTruth(surfaces, counts, comparability, {
   requireStateIdentity,
   ...(liveTextAudit ? { liveText: liveTextAudit } : {}),
 });
-// #766 A-narrowed: navigable Global chrome additions elevate into reviewableCounts / exit 1.
+// #766 navigable Global chrome + visible paired-surface add/remove elevate into reviewableCounts / exit 1.
 const { count: elevatedNavigableChromeAdds, elevated: elevatedChromeEntries } = migration
   ? { count: 0, elevated: [] }
   : collectElevatedNavigableChromeAdds({
@@ -223,8 +228,24 @@ const { count: elevatedNavigableChromeAdds, elevated: elevatedChromeEntries } = 
       surfacePaths,
       surfaceKeyOf,
     });
-const gateReviewableCounts = withElevatedChromeReviewableCounts(truth.reviewableCounts, elevatedNavigableChromeAdds);
-const gateHasReviewableEvidence = truth.hasReviewableEvidence || elevatedNavigableChromeAdds > 0;
+const visibleElevated = migration
+  ? { count: 0, elevated: [] }
+  : collectElevatedVisibleStructure({
+      beforeDir: inputs.beforeDir,
+      afterDir: inputs.afterDir,
+      surfacePaths,
+      surfaceKeyOf,
+    });
+const elevatedVisibleStructure = visibleElevated.count;
+const elevatedStructureDom = combinedStructureElevationCount(
+  visibleElevated,
+  elevatedChromeEntries.map((e) => e.change),
+);
+const gateReviewableCounts = withElevatedVisibleStructureCounts(
+  withElevatedChromeReviewableCounts(truth.reviewableCounts, 0),
+  elevatedStructureDom,
+);
+const gateHasReviewableEvidence = truth.hasReviewableEvidence || elevatedStructureDom > 0;
 const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = surfaces
   .filter((s) => s.classification === 'baseline-repair-debt')
@@ -502,6 +523,16 @@ if (elevatedNavigableChromeAdds > 0) {
     console.log(`  + ${entry.change.path} (${entry.change.cls || 'no-class'}) on ${entry.bases} surface base(s)`);
   }
 }
+if (elevatedVisibleStructure > 0) {
+  printSection(
+    `🧱 Visible element addition(s)/removal(s) — ${elevatedVisibleStructure} visible DOM structure change(s) on paired surfaces; reviewable (STYLE_REVIEW_REQUIRED), Approve clears with other reviewable changes.`,
+  );
+  for (const entry of visibleElevated.elevated) {
+    console.log(
+      `  ${entry.change.change === 'added' ? '+' : '-'} ${entry.change.path} (${entry.change.cls || 'no-class'}) on ${entry.surface}`,
+    );
+  }
+}
 
 const residueFails = printResidueAudit(residueAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict);
@@ -642,6 +673,10 @@ const GATES = [
     blocks: elevatedNavigableChromeAdds > 0,
     note: ` + ${elevatedNavigableChromeAdds} Global chrome navigable addition(s) (reviewable, #766)`,
   },
+  {
+    blocks: elevatedVisibleStructure > 0,
+    note: ` + ${elevatedVisibleStructure} visible element addition(s)/removal(s) (reviewable)`,
+  },
   { blocks: residueFails > 0, note: ` + ${residueFails} data-residue gate failure(s) (unacknowledged or stale)` },
   { blocks: legacyPairFails > 0, note: legacyNote(), alwaysNote: true },
   { blocks: criticalFails > 0, note: criticalNote(), alwaysNote: true },
@@ -717,6 +752,7 @@ if (jsonOut) {
           // Reviewable tallies after cleanFindings (what the durable report shows).
           reviewableCounts: gateReviewableCounts,
           ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
+          ...(elevatedVisibleStructure ? { elevatedVisibleStructure } : {}),
           comparison,
           comparability,
           reportConsistency: truth.rawOnlyNoReviewable
@@ -902,6 +938,7 @@ try {
       criticalStates: criticalAudit,
       reviewableCounts: gateReviewableCounts,
       ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
+      ...(elevatedVisibleStructure ? { elevatedVisibleStructure } : {}),
       surfaces,
       inventory: inventoryReceipt,
       dataResidue: residueAudit && {

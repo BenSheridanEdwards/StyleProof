@@ -381,7 +381,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  test('styleproof-diff certifies a wrapper-only change as 0 reviewable changes (diagnostic compare)', async ({
+  test('styleproof-diff elevates a visible wrapper-only add as reviewable structure (diagnostic compare)', async ({
     page,
   }) => {
     const { root, base, head } = dirs();
@@ -394,8 +394,10 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     );
 
     const diff = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
-    expect(diff.status, `a no-op re-nesting is not a style change\n${diff.out}`).toBe(0);
-    expect(diff.out).toMatch(/0 reviewable computed-style changes/);
+    // Matched-element styles stay clean; the visible wrapper add elevates structure.
+    expect(diff.status, `visible wrapper add must need review\n${diff.out}`).toBe(1);
+    expect(diff.out).toMatch(/0 reviewable computed-style changes|0 computed-style difference/);
+    expect(diff.out).toMatch(/visible element addition|STYLE_REVIEW_REQUIRED/i);
     fs.rmSync(root, { recursive: true, force: true });
   });
 

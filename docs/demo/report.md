@@ -8,7 +8,9 @@
 
 **1 distinct change** (3 computed-style difference(s)) in 1 changed surface base with an existing baseline.
 
-📝 _3 advisory content change(s) below — they don't affect the check._
+🧱 **2 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
+
+📝 _3 content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._
 
 ## One-sided pages, states, or surfaces — review first
 
@@ -121,9 +123,9 @@ Style:
 
 ---
 
-## 📝 Content and structure changes (advisory)
+## 📝 Content and structure changes
 
-_3 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below so it cannot be mistaken for a product style regression._
+_3 content/structure change(s). **Visible element additions/removals (2) are reviewable** and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
 
 ### `duplicate-insertion@900` · 1 content/structure change(s)
 

@@ -1158,25 +1158,25 @@ test('correspondence: sibling reorder never reports identical while raw reviewab
   rmTmp(root);
 });
 
-test('correspondence: nesting bijection never reports identical while raw reviewable evidence remains', () => {
-  const outer = { tag: 'div', cls: 'outer', rect: [0, 0, 200, 100], ownTextLength: 0, style: {} };
+test('correspondence: nesting reparent elevates visible structure rather than reporting identical', () => {
+  const outer = { tag: 'div', cls: 'outer', rect: [0, 0, 200, 100], ownTextLength: 0, style: { display: 'block' } };
   const inner = {
     tag: 'span',
     cls: 'inner',
     rect: [10, 10, 100, 20],
     ownTextLength: 4,
-    style: { color: 'rgb(0, 0, 0)' },
+    style: { color: 'rgb(0, 0, 0)', display: 'inline' },
   };
   const before = makeMap({
     elements: {
-      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: { display: 'block' } },
       'body > div:nth-child(1)': outer,
       'body > div:nth-child(1) > span:nth-child(1)': inner,
     },
   });
   const after = makeMap({
     elements: {
-      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: { display: 'block' } },
       'body > span:nth-child(1)': inner,
       'body > span:nth-child(1) > div:nth-child(1)': outer,
     },
@@ -1188,18 +1188,17 @@ test('correspondence: nesting bijection never reports identical while raw review
     beforePng: solidPng(400, 200),
     afterPng: solidPng(400, 200),
   });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, includeContent: true });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  // Shown style counts stay clean; visible path add/remove elevates into reviewableCounts.dom.
   assert.deepEqual(json.counts, { dom: 0, style: 0, state: 0 });
   assert.equal(res.comparison.hasReviewableEvidence, true);
-  assert.deepEqual(json.reportConsistency, {
-    ok: false,
-    reason: 'presentation_collapsed_while_raw_reviewable',
-  });
-  assert.deepEqual(res.reportConsistency, json.reportConsistency);
-  assert.match(md, /Report consistency failure/);
+  assert.ok((res.comparison.reviewableCounts?.dom ?? 0) >= 1);
+  assert.deepEqual(json.reportConsistency, { ok: true, reason: 'aligned' });
+  assert.match(md, /visible element addition|needs review|STYLE_REVIEW_REQUIRED/i);
   assert.doesNotMatch(md, /✓ All surfaces identical/);
+  assert.doesNotMatch(md, /Report consistency failure/);
   rmTmp(root);
 });
 

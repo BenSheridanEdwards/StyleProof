@@ -829,7 +829,8 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
 
     const expectedStates = {
       clean: 'NO_REVIEWABLE_STYLE_CHANGES',
-      content: 'NO_REVIEWABLE_STYLE_CHANGES',
+      // Visible element add elevates — content fixture is no longer advisory-only.
+      content: 'STYLE_REVIEW_REQUIRED',
       changed: 'STYLE_REVIEW_REQUIRED',
       // #475: with the release-confidence layer deleted, these two fixtures reach
       // the states actually designed for them instead of being swept into the
@@ -924,7 +925,7 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       assert.equal(verdict.status, 0, `${fixture} verdict: ${verdict.stderr || verdict.stdout}`);
       const verdictReceipt = JSON.parse(fs.readFileSync(verdictOutput, 'utf8'));
       assert.equal(verdictReceipt.state, expectedState, fixture);
-      const expectedReviewableChanged = ['changed', 'new', 'degraded', 'removed'].includes(fixture);
+      const expectedReviewableChanged = ['changed', 'content', 'new', 'degraded', 'removed'].includes(fixture);
       assert.equal(verdictReceipt['reviewable-changed'], String(expectedReviewableChanged), fixture);
       assert.equal(
         JSON.parse(fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'report.json'), 'utf8')).actionTrustState,
@@ -1082,7 +1083,10 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.content-changes }}' = '1'/);
-  assert.match(dogfoodYml, /Content and structure changes \(advisory\)/);
+  assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
+  assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.changed }}' = 'true'/);
+  assert.match(dogfoodYml, /Content and structure changes/);
+  assert.match(dogfoodYml, /elevatedVisibleStructure/);
   assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
   assert.match(dogfoodYml, /action-dogfood\/partial-base/);
   assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'PARTIAL_BASELINE'/);

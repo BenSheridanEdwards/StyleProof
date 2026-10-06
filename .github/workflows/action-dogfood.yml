@@ -55,16 +55,18 @@ jobs:
           include-content: 'true'
           report-storage: branch
           report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
 
-      - name: Assert advisory content evidence is durable but non-gating
+      - name: Assert visible structure add elevates while pure content crops remain
         run: |
-          test '${{ steps.content-advisory.outputs.changed }}' = 'false'
-          test '${{ steps.content-advisory.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
+          test '${{ steps.content-advisory.outputs.changed }}' = 'true'
+          test '${{ steps.content-advisory.outputs.trust-state }}' = 'STYLE_REVIEW_REQUIRED'
           test '${{ steps.content-advisory.outputs.content-changes }}' = '1'
-          grep -F 'No reviewable computed-style changes among semantically matched elements' styleproof-report/report.md
-          grep -F 'Content and structure changes (advisory)' styleproof-report/report.md
+          grep -E 'visible element addition|STYLE_REVIEW_REQUIRED|needs review' styleproof-report/report.md
+          grep -F 'Content and structure changes' styleproof-report/report.md
           grep -F '"evaluated": true' styleproof-report/report.json
           grep -F '"changes": 1' styleproof-report/report.json
+          grep -F '"elevatedVisibleStructure": 1' styleproof-report/report.json
 
       - id: changed
         uses: ./
