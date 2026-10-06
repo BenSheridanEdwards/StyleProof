@@ -637,7 +637,7 @@ test('full-page screenshots include content inside nested overflow scrollers', a
 });
 
 test('element rects line up with the full-page screenshot when an inner scroller is scrolled', async ({ page }) => {
-  // A surface's own click can scroll a nested scroller (the Fleet Access roles toggle did).
+  // A surface's own click can scroll a nested scroller (e.g. a mode toggle in an app shell).
   // The expanded screenshot draws the scroller from its top, so rects measured in the
   // scrolled layout pointed 600px above the element and crops read "renders identically".
   const marker: [number, number, number] = [255, 0, 128];
