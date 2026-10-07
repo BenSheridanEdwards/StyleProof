@@ -25,6 +25,14 @@ on:
         description: 'Allow the pull request author to approve their own changes (solo repos)'
         type: boolean
         default: false
+      runs-on:
+        description: >-
+          Runner for the approve job: one label (default ubuntu-latest) or a
+          JSON array of labels, e.g. '["self-hosted", "linux"]'. Point it at
+          the self-hosted runners your CI uses when GitHub-hosted runners are
+          unavailable (no minutes, or a billing or spending-limit block).
+        type: string
+        default: 'ubuntu-latest'
     secrets:
       token:
         description: >-
@@ -45,10 +53,12 @@ jobs:
       github.event.comment.user.type == 'Bot' &&
       github.event.sender.type == 'User' &&
       contains(github.event.comment.body, '<!-- styleproof-report -->')
-    # ubuntu-latest is fine where you have GitHub-hosted Actions minutes. On a
-    # PRIVATE repo without them, this job silently fails to start — point it at
-    # the same self-hosted runner your CI uses, e.g. runs-on: [self-hosted, …].
-    runs-on: ubuntu-latest
+    # The runs-on input defaults to ubuntu-latest, which is fine where you have
+    # GitHub-hosted Actions minutes. On a PRIVATE repo without them (or behind a
+    # billing / spending-limit block) this job never starts — pass the same
+    # self-hosted runner labels your CI uses. A value starting with '[' is read
+    # as a JSON array of labels; anything else is one label.
+    runs-on: ${{ startsWith(inputs.runs-on, '[') && fromJSON(inputs.runs-on) || inputs.runs-on }}
     steps:
       - uses: actions/github-script@v9
         env:
