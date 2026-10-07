@@ -4,23 +4,23 @@ North Star for agents: **first-time-green PRs** — do not wait on gates that ca
 
 ## CI path skips
 
-| Lane | Runs when | Skips when |
-|---|---|---|
-| build / unit / coverage / lint / privacy | Always on PR + main | — |
-| cli-smoke | Always | — |
-| e2e shards + detection corpus | `E2E_PATH_GLOBS` in `scripts/ci-path-filters.mjs` | docs-only, changelog-only, pure `test/*.test.mjs` |
-| styleproof / action / store / phase1 dogfood | `DOGFOOD_PATH_GLOBS` (workflow `paths:`) | same as above |
-| required | Always; treats skipped browser lanes as success | — |
+| Lane                                         | Runs when                                         | Skips when                                        |
+| -------------------------------------------- | ------------------------------------------------- | ------------------------------------------------- |
+| build / unit / coverage / lint / privacy     | Always on PR + main                               | —                                                 |
+| cli-smoke                                    | Always                                            | —                                                 |
+| e2e shards + detection corpus                | `E2E_PATH_GLOBS` in `scripts/ci-path-filters.mjs` | docs-only, changelog-only, pure `test/*.test.mjs` |
+| styleproof / action / store / phase1 dogfood | `DOGFOOD_PATH_GLOBS` (workflow `paths:`)          | same as above                                     |
+| required                                     | Always; treats skipped browser lanes as success   | —                                                 |
 
 Shared globs live in `scripts/ci-path-filters.mjs` (mirrors `scripts/pre-push-e2e.mjs` for capture/diff/report/runner).
 
 ## Local hooks
 
-| Hook | What |
-|---|---|
+| Hook       | What                                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------------------- |
 | pre-commit | lint, format:check, optional gitleaks staged, fallow on staged — **no full build** (CI covers build/typecheck) |
-| commit-msg | commitlint |
-| pre-push | `npm test` + path-filtered Playwright e2e (`scripts/pre-push-e2e.mjs`) |
+| commit-msg | commitlint                                                                                                     |
+| pre-push   | `npm test` + path-filtered Playwright e2e (`scripts/pre-push-e2e.mjs`)                                         |
 
 ## Pattern reference
 
