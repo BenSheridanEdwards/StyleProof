@@ -15,6 +15,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Path filter
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
+        id: filter
+        with:
+          # On push to main, compare against the previous commit; on PR, against the base.
+          filters: |
+            e2e:
+              - 'src/capture/**'
+              - 'src/diff.ts'
+              - 'src/report/**'
+              - 'src/runner/**'
+              - 'src/**'
+              - 'test/**/*.e2e.spec.ts'
+              - 'test/helpers.mjs'
+              - 'test/fixtures/**'
+              - 'playwright.ci.config.ts'
+              - 'playwright.config.ts'
+              - 'bench/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+              - 'scripts/verify-e2e-shards.mjs'
+
   build:
     name: build (node ${{ matrix.node }})
     runs-on: ubuntu-latest
@@ -81,6 +112,8 @@ jobs:
   # of placing it after every Node 22 static and unit gate.
   e2e:
     name: e2e (node 22, shard ${{ matrix.shard }}/3)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -199,6 +232,8 @@ jobs:
   # browser setup (chromium only — the fixture has no firefox path).
   detection-corpus:
     name: detection corpus
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -236,16 +271,17 @@ jobs:
       - name: Detection-rate corpus
         run: node bench/detection-rate.mjs --check
 
-  # Stable branch-protection context. Internal jobs may evolve, but this check
-  # fails unless every required CI evidence lane completed successfully.
+  # Stable branch-protection context. Browser lanes may skip when no e2e
+  # paths changed (docs-only / pure unit tests); skipped counts as success.
   required:
     name: required
     if: always()
-    needs: [build, e2e, e2e-evidence, cli-smoke, detection-corpus]
+    needs: [changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required CI evidence
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
@@ -253,8 +289,17 @@ jobs:
           DETECTION_CORPUS_RESULT: ${{ needs.detection-corpus.result }}
         run: |
           set -euo pipefail
+          test "$CHANGES_RESULT" = success
           test "$BUILD_RESULT" = success
-          test "$E2E_RESULT" = success
-          test "$E2E_EVIDENCE_RESULT" = success
           test "$CLI_SMOKE_RESULT" = success
-          test "$DETECTION_CORPUS_RESULT" = success
+          # Browser lanes: success when they ran, or skipped when path-filter said no.
+          for name in E2E_RESULT E2E_EVIDENCE_RESULT DETECTION_CORPUS_RESULT; do
+            val="${!name}"
+            if [ "$val" != success ] && [ "$val" != skipped ]; then
+              echo "::error::$name was '$val' (want success or skipped)"
+              exit 1
+            fi
+          done
+          if [ "$E2E_RESULT" = skipped ]; then
+            echo "e2e/detection skipped — no browser-surface paths"
+          fi
