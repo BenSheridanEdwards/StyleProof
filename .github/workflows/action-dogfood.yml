@@ -13,14 +13,10 @@ on:
       - 'example/**'
       - 'bench/**'
       - 'styleproof.config.ts'
-      - 'scripts/action-dogfood-fixtures.mjs'
-      - 'scripts/demo-report.mjs'
       - 'package.json'
       - 'package-lock.json'
-      - '.github/workflows/styleproof-dogfood.yml'
       - '.github/workflows/action-dogfood.yml'
-      - '.github/workflows/store-dogfood.yml'
-      - '.github/workflows/phase1-advisory-dogfood.yml'
+      - 'scripts/action-dogfood-fixtures.mjs'
 
 permissions:
   contents: write

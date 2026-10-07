@@ -11,7 +11,10 @@
 /** Live capture / diff / report / runner — same idea as pre-push-e2e.mjs. */
 export const CAPTURE_ENGINE_GLOBS = ['src/capture/**', 'src/diff.ts', 'src/report/**', 'src/runner/**'];
 
-/** Paths that should schedule dogfood workflows (product / adopter surfaces). */
+/**
+ * Shared product surfaces for dogfood workflows. Each workflow YAML also lists
+ * its own path so edits to that workflow still schedule it.
+ */
 export const DOGFOOD_PATH_GLOBS = [
   ...CAPTURE_ENGINE_GLOBS,
   'src/**',
@@ -20,14 +23,8 @@ export const DOGFOOD_PATH_GLOBS = [
   'example/**',
   'bench/**',
   'styleproof.config.ts',
-  'scripts/action-dogfood-fixtures.mjs',
-  'scripts/demo-report.mjs',
   'package.json',
   'package-lock.json',
-  '.github/workflows/styleproof-dogfood.yml',
-  '.github/workflows/action-dogfood.yml',
-  '.github/workflows/store-dogfood.yml',
-  '.github/workflows/phase1-advisory-dogfood.yml',
 ];
 
 /** Paths that should schedule Playwright e2e shards + detection corpus. */
