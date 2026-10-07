@@ -9,7 +9,7 @@ import { validatePullRequest, REQUIRED_SECTIONS } from '../scripts/validate-pr-b
 const GOOD_BODY = [
   '## Why',
   '',
-  '- Moves StyleProof\'s North Star by making every PR carry a show-me reviewer view.',
+  "- Moves StyleProof's North Star by making every PR carry a show-me reviewer view.",
   '',
   '## What changed',
   '',
@@ -64,7 +64,10 @@ test('a missing required section fails', () => {
 });
 
 test('a placeholder-only section fails', () => {
-  const body = GOOD_BODY.replace('- Replaced the PR template with the eight-section shape and updated the body validator.', '-');
+  const body = GOOD_BODY.replace(
+    '- Replaced the PR template with the eight-section shape and updated the body validator.',
+    '-',
+  );
   const result = validatePullRequest({ title: GOOD_TITLE, body });
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.includes('placeholders')));

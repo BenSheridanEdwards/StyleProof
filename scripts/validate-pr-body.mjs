@@ -3,17 +3,9 @@
 // into a command, so a hostile PR body cannot inject shell. `validatePullRequest` is pure.
 import { fileURLToPath } from 'node:url';
 
-// The four template sections, in the order the template lays them out.
-export const REQUIRED_SECTIONS = [
-  'Why',
-  'What changed',
-  'Reviewer view',
-  'Proof',
-  'Behaviour changes',
-  'Not asked for',
-  'Review guide',
-  'Verification summary',
-];
+import { EIGHT_SECTION_HEADINGS } from './eight-section-pr-body.mjs';
+
+export const REQUIRED_SECTIONS = [...EIGHT_SECTION_HEADINGS];
 
 // Conventional Commits subject: type(optional-scope)!: summary.
 const CONVENTIONAL_TITLE = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?!?: .+/;
