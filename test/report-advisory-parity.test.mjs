@@ -133,7 +133,9 @@ describe('advisory content JSON/Markdown parity (#539)', () => {
         const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
 
         assert.equal(json.content.evaluated, true, 'content should be evaluated when includeContent is true');
-        assert.equal(result.contentChanges, json.content.changes, 'contentChanges in result should match JSON');
+        // The fixture changes one paragraph's text and nothing else: exactly one content change.
+        assert.equal(json.content.changes, 1, 'report.json should count the one text change');
+        assert.equal(result.contentChanges, 1, 'contentChanges in result should count the one text change');
       } finally {
         rmTmp(root);
       }
@@ -364,10 +366,9 @@ describe('advisory content JSON/Markdown parity (#539)', () => {
         const mdMatch = md.match(/_(\d+) content\/structure change\(s\)/);
         const mdCount = mdMatch ? parseInt(mdMatch[1], 10) : null;
 
-        if (jsonCount > 0) {
-          assert.ok(mdCount !== null, 'Markdown should contain content change count');
-          assert.equal(mdCount, jsonCount, `Markdown count (${mdCount}) should match JSON count (${jsonCount})`);
-        }
+        // Both paragraphs changed text, so both artifacts must count two changes.
+        assert.equal(jsonCount, 2, 'JSON should count both text changes');
+        assert.equal(mdCount, 2, `Markdown count (${mdCount}) should match JSON count (2)`);
       } finally {
         rmTmp(root);
       }
@@ -418,10 +419,13 @@ describe('advisory content JSON/Markdown parity (#539)', () => {
         // The content field indicates evaluation status
         assert.equal(json.content.evaluated, true);
 
-        // If there are content changes, the advisory section should exist
-        if (json.content.changes > 0) {
-          assert.match(md, /Content and structure changes \(advisory\)/);
-        }
+        // home@1280 changed one element's text: JSON counts it and Markdown lists the surface.
+        assert.equal(json.content.changes, 1);
+        assert.match(md, /Content and structure changes \(advisory\)/);
+        assert.ok(
+          md.includes('### `home@1280` · 1 content/structure change(s)'),
+          'the surface with the content change should be listed in Markdown',
+        );
       } finally {
         rmTmp(root);
       }
@@ -522,10 +526,17 @@ describe('advisory content JSON/Markdown parity (#539)', () => {
         const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
 
         // With no style changes but content changes, report should indicate clean for styles
-        if (json.counts.style === 0 && json.counts.dom === 0 && json.content.changes > 0) {
-          // The summary should indicate no style changes while noting content changes exist
-          assert.match(md, /advisory/i, 'Should mention advisory content');
-        }
+        assert.equal(json.counts.style, 0);
+        assert.equal(json.counts.dom, 0);
+        assert.equal(json.content.changes, 1);
+        // The summary should indicate no style changes while noting content changes exist
+        assert.ok(
+          md.includes(
+            '✓ No reviewable computed-style changes among semantically matched elements. See 1 advisory content/structure change(s) below.',
+          ),
+          'the clean headline should point at the one advisory content change',
+        );
+        assert.doesNotMatch(md, /needs? review/, 'a content-only change must not ask for review');
       } finally {
         rmTmp(root);
       }

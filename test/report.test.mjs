@@ -3682,17 +3682,12 @@ test('findings exhaustiveness: logical→physical dropped in display, raw preser
 
   // counts (summarized) should be 3: border-bottom-color, margin-bottom, margin-block-end
   // (border-block-end-color dropped as identical to physical)
-  const expectedSummarized = expectedSummarizedProps([
-    { prop: 'border-bottom-color', before: 'red', after: 'blue' },
-    { prop: 'border-block-end-color', before: 'red', after: 'blue' },
-    { prop: 'margin-bottom', before: '10px', after: '20px' },
-    { prop: 'margin-block-end', before: '15px', after: '25px' },
-  ]);
-  assert.equal(json.counts.style, expectedSummarized.length, 'counts.style should match summarized');
+  assert.equal(json.counts.style, 3, 'counts.style should match summarized');
 
-  // Markdown should show physical and divergent logical
+  // Markdown should show physical and divergent logical, but not the matching logical twin
   assert.match(md, /border-bottom-color/, 'Markdown should have border-bottom-color');
   assert.match(md, /margin-block-end/, 'Markdown should have divergent margin-block-end');
+  assert.doesNotMatch(md, /border-block-end-color/, 'Markdown should drop the logical twin of border-bottom-color');
 
   rmTmp(root);
 });

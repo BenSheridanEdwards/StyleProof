@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Eight unit tests now fail when the behaviour their titles name breaks.**
+  The tests for the advisory content count, its Markdown header count, the
+  surfaces with content changes, the clean content-only headline,
+  `styleproof-diff --max` truncation, the logical-longhand drop in report
+  counts, and the map-store restore-attempt default and override all passed
+  on broken code. They compared the code with itself, ran their assertions
+  only when the code under test already agreed, matched text the bug left in
+  place, or never called the product. Each now asserts a written-out value and
+  was checked against a planted bug.
+
 ## [7.5.1] - 2026-10-06
 
 ### Fixed
