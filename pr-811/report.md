@@ -7,8 +7,7 @@
 
 **Certification**
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Failed data request**: ✗ this page called an API that failed, so the screenshot is the fallback UI, not the real data. home called `/api/status` (HTTP 500). Fixture the API, or declare why the fallback is the intended capture.
 
 </details>
 
-<!-- styleproof-receipt head-sha:4d10c3d03fe0c8a666122ff111a7612c8be47103 run-id:37627900035 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:8bd1176411f8d71c4b0de9fbf42e70bfde40ac0e run-id:37628065814 run-attempt:1 -->
