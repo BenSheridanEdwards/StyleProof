@@ -1144,6 +1144,16 @@ never a pass. Pixel
 results never enter the computed-style counts; the two verdicts are reported
 side by side.
 
+### Captured rect coordinates
+
+`ElementEntry.rect` is the driven page's document-space box (`[x, y, width,
+height]`). Visibility, correspondence, and layout comparisons keep using this
+box. For nested overflow scrollers, optional `ElementEntry.screenshotRect` stores
+the box after full-page screenshot expansion. Report crops, annotations, and pixel
+attribution prefer this field and fall back to `rect` on older captures. Expansion
+restores inline values and CSS priorities as well as scroller offsets. Recapture
+affected nested-scroller baselines to generate aligned screenshot evidence.
+
 ## Optional: content layer (advisory)
 
 StyleProof is **computed-styles first**, and stays that way: copy and DOM
@@ -1473,7 +1483,7 @@ export default defineConfig({
 });
 ```
 
-`styleproof.config.ts` is the supported format with full IDE autocomplete. A JS-shaped `.ts` (no type syntax) is evaluated on every supported Node, including 18/20. Files that need type stripping require Node 22.18+ (or `--experimental-strip-types`) **and** a resolvable `styleproof` package from the config file's directory, nearest package root, or — for a linked probe worktree — the main working tree's matching package root. If that file is found but cannot be evaluated, StyleProof fails closed and names the path, the reason, and the package roots it searched — it does not invent `{}` or `e2e/styleproof.spec.ts`, and a sibling `styleproof.config.json` does not override the discovered `.ts` for policy or spec. Runtime formats that always load are `.json` / `.mjs` / `.js` when no `.ts` is present. Legacy `styleproof.config.json` remains supported with a deprecation warning directing migration to the typed config:
+`styleproof.config.ts` is the supported format with full IDE autocomplete. A JS-shaped `.ts` (no type syntax) is evaluated on every supported Node, including 18/20. Files that need type stripping require Node 22.18+ (or `--experimental-strip-types`) **and** a resolvable `styleproof` package from the config file's directory, nearest package root, or — for a linked probe worktree — the main working tree's matching package root. If that file is found but cannot be evaluated, StyleProof fails closed and names the path, the reason, and the package roots it searched — it does not invent `{}` or `e2e/styleproof.spec.ts`, and a sibling `styleproof.config.json` does not override the discovered `.ts` for policy or spec. When no `.ts` is present, `.mjs` / `.js` load in both synchronous consumers (capture specs, diff/report, and Action policy) and asynchronous CLIs, ahead of sibling JSON. JavaScript is imported at its original path, so relative imports, `import.meta.url`, top-level await, and the package module format for `.js` retain their Node behavior. Dynamic module code sees the caller's working directory; declared file-path fields still resolve from the config directory. Config logging does not corrupt policy loading, and background handles opened during a successful import do not hold up capture or comparison. Module errors or invalid known fields fail closed instead of falling back to JSON; policy is validated before serialization so function values or `toJSON` cannot hide an invalid field. Legacy `styleproof.config.json` remains supported with a deprecation warning directing migration to the typed config:
 
 | Key                       | Default                  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

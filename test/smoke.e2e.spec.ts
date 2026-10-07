@@ -661,7 +661,8 @@ test('element rects line up with the full-page screenshot when an inner scroller
     expect(scrollTop, 'capture puts the driven scroll offset back').toBe(600);
     const entry = Object.values(map.elements).find((e) => e.cls === 'band marker');
     expect(entry?.rect, 'the marker band is mapped with a rect').toBeTruthy();
-    const [x, y, w, h] = entry!.rect!;
+    expect(entry!.rect![1], 'driven-state geometry stays available for viewport visibility').toBe(200);
+    const [x, y, w, h] = entry!.screenshotRect!;
     expect(y, 'rect is in the expanded screenshot geometry (band 3 starts at 800px)').toBe(800);
     const png = PNG.sync.read(fs.readFileSync(`${stem}.png`));
     const cx = Math.round(x + w / 2);

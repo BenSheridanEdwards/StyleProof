@@ -3,10 +3,7 @@ import type { Page } from '@playwright/test';
 
 type StyleShot = {
   el: HTMLElement;
-  overflow: string;
-  overflowY: string;
-  height: string;
-  maxHeight: string;
+  properties: { name: string; value: string; priority: string }[];
 };
 
 /** A scroller's offset before expansion, put back on restore so the captured state is unchanged. */
@@ -37,17 +34,18 @@ function expandInnerScrollContainers(): number {
     if (!saved.has(el)) {
       shots.push({
         el,
-        overflow: el.style.overflow,
-        overflowY: el.style.overflowY,
-        height: el.style.height,
-        maxHeight: el.style.maxHeight,
+        properties: ['overflow-x', 'overflow-y', 'height', 'max-height'].map((name) => ({
+          name,
+          value: el.style.getPropertyValue(name),
+          priority: el.style.getPropertyPriority(name),
+        })),
       });
       saved.add(el);
     }
-    el.style.overflow = 'visible';
-    el.style.overflowY = 'visible';
-    el.style.maxHeight = 'none';
-    el.style.height = height ?? 'auto';
+    el.style.setProperty('overflow-x', 'visible', 'important');
+    el.style.setProperty('overflow-y', 'visible', 'important');
+    el.style.setProperty('max-height', 'none', 'important');
+    el.style.setProperty('height', height ?? 'auto', 'important');
   };
 
   const depthOf = (el: Element): number => {
@@ -100,10 +98,9 @@ function restoreInnerScrollContainers(): void {
   const state = w[restoreKey];
   if (!state) return;
   for (const shot of state.shots.slice().reverse()) {
-    shot.el.style.overflow = shot.overflow;
-    shot.el.style.overflowY = shot.overflowY;
-    shot.el.style.height = shot.height;
-    shot.el.style.maxHeight = shot.maxHeight;
+    for (const property of shot.properties) {
+      shot.el.style.setProperty(property.name, property.value, property.priority);
+    }
   }
   // Unlocking overflow drops a scroller's offset; put it back so later reads see the driven state.
   for (const s of state.scrolls ?? []) {
@@ -143,11 +140,12 @@ function measureExpandedRects(): Record<string, DocRect> {
  * scrolled (a surface's own click scrolls its target into view) or clip content below
  * it. The full-page screenshot expands those scrollers, so its pixels sit elsewhere and
  * report crops cut the wrong region (an added element reads as "renders identically").
- * Pages with no nested scroller keep their rects untouched. Rects only; styles are not reread.
+ * Preserve the driven-state `rect` used by visibility and layout comparisons. Store
+ * expanded geometry separately for screenshot consumers; styles are not reread.
  */
 export async function alignRectsToFullPageGeometry(
   page: Page,
-  elements: Record<string, { rect?: DocRect }>,
+  elements: Record<string, { rect?: DocRect; screenshotRect?: DocRect }>,
 ): Promise<void> {
   try {
     const expanded = await page.evaluate(expandInnerScrollContainers);
@@ -155,7 +153,7 @@ export async function alignRectsToFullPageGeometry(
     const rects = await page.evaluate(measureExpandedRects);
     for (const [p, entry] of Object.entries(elements)) {
       const rect = rects[p];
-      if (entry.rect && rect) entry.rect = rect;
+      if (entry.rect && rect) entry.screenshotRect = rect;
     }
   } finally {
     await page.evaluate(restoreInnerScrollContainers).catch(() => undefined);

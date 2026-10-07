@@ -4,6 +4,9 @@ import type { ElementEntry, Rect } from '../capture.js';
 export type Box = { x: number; y: number; w: number; h: number };
 
 export const rectToBox = (r: Rect): Box => ({ x: r[0], y: r[1], w: r[2], h: r[3] });
+/** Expanded screenshot geometry, with the original box as the legacy/no-scroller fallback. */
+export const screenshotRectOf = (entry: ElementEntry | undefined): Rect | undefined =>
+  entry?.screenshotRect ?? entry?.rect;
 export const pad = (b: Box, by: number): Box => ({ x: b.x - by, y: b.y - by, w: b.w + 2 * by, h: b.h + 2 * by });
 export const union = (a: Box, b: Box): Box => {
   const x = Math.min(a.x, b.x);
@@ -27,8 +30,9 @@ export function unionVisibleBoxes(left: Box | null, right: Box | null): Box | nu
 
 /** An element's padded box, or null when it has no visible rect. */
 export function paddedRect(entry: ElementEntry | undefined, padBy: number): Box | null {
-  if (!entry?.rect) return null;
-  const b = pad(rectToBox(entry.rect), padBy);
+  const rect = screenshotRectOf(entry);
+  if (!rect) return null;
+  const b = pad(rectToBox(rect), padBy);
   return visible(b) ? b : null;
 }
 

@@ -231,6 +231,12 @@ can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced
 `:hover`/`:focus`/`:active` deltas.
 
+Nested overflow scrollers are expanded for full-page report screenshots. Capture
+keeps `rect` in the driven page's document coordinates for visibility and layout
+comparisons; optional `screenshotRect` locates the element in the expanded image.
+Crops and pixel attribution use `screenshotRect`, falling back to `rect` for older
+maps. Recapture affected nested-scroller baselines to obtain aligned crop evidence.
+
 ## Quickstart
 
 ### Upgrading to 7.0.0
@@ -302,6 +308,12 @@ In cache-first CI, ancestor baseline reuse requires no capture-relevant changes.
 Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
 including package configs; source paths retain Unicode and control characters,
 and renames check both locations. A relevant change forces a fresh base capture.
+
+JavaScript config (`styleproof.config.mjs` or `.js`) also supplies coverage and
+product-state policy to capture specs, diff, and report. It takes precedence over
+sibling JSON; evaluation errors and invalid policy fail closed. A `.js` file
+follows its package's Node module format, and dynamic policy sees the caller's
+working directory.
 
 ### The one CLI
 

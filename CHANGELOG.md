@@ -11,16 +11,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **Element rects follow the full-page screenshot geometry.** 7.4.0 expands nested
-  overflow scrollers for the screenshot, but element rects were still measured in
-  the page as driven. When a surface's own interaction scrolled an inner scroller
-  (or content sat below a clipped one), every rect pointed at the wrong pixels: on
-  an app-shell board whose mode toggle scrolled the inner scroller about 300px,
-  newly added elements got crops of the wrong region and were reported as
-  "renders identically before and after". Capture now re-measures rects in the
-  same expanded layout the screenshot draws (rects only; styles are not reread),
-  and restoring the expansion puts each scroller's offset back. Pages without a
-  nested scroller keep their rects unchanged.
+- **Report crops follow the full-page screenshot geometry.** Capture preserves
+  each element's driven-state `rect` for visibility, correspondence, and layout
+  comparisons, and records a separate optional `screenshotRect` for expanded
+  nested-scroller screenshots. Report crops, annotations, and pixel attribution
+  use that screenshot box, so scrolled content points at the right pixels without
+  dropping visible added/removed elements from the review gate. Expansion restores
+  scroll offsets and inline CSS values and priorities, including `!important`,
+  before further capture reads. Recapture affected nested-scroller baselines to
+  populate the new screenshot geometry; older maps fall back to `rect`.
+- **JavaScript config policy is honored during capture and comparison.**
+  Synchronous consumers now load `styleproof.config.mjs` / `.js` instead of
+  dropping their coverage and product-state settings or reading stale sibling
+  JSON. Original module paths, CommonJS `.js` packages, relative imports,
+  top-level await, config logging, and the caller's working directory work;
+  background handles opened by config imports cannot stall a successful load.
+  Invalid policy and module errors fail closed, including values that JSON
+  serialization would otherwise omit.
+
 - **Ancestor baselines recapture after relevant source and config changes.**
   Cache-first CI now treats every supported `styleproof.config.ts` / `.mjs` /
   `.js` / `.json` as capture-relevant, including package configs. Git filenames
