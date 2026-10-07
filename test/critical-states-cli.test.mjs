@@ -138,6 +138,60 @@ test('unresolved critical obligation with no paired evidence fails closed', () =
   rmTmp(capture.root);
 });
 
+for (const extension of ['mjs', 'js']) {
+  test(`JavaScript config ${extension}: diff and report enforce configured critical obligations`, () => {
+    const capture = fixture({ productState: { id: 'home-ready', revision: 'fixture-v1' } });
+    try {
+      fs.writeFileSync(path.join(capture.root, 'package.json'), '{"type":"module"}');
+      fs.mkdirSync(path.join(capture.root, '.git'));
+      fs.writeFileSync(path.join(capture.root, 'styleproof.config.json'), '{"productState":{}}');
+      const nested = path.join(capture.root, 'packages', 'widgets');
+      fs.mkdirSync(nested, { recursive: true });
+      fs.writeFileSync(
+        path.join(capture.root, `styleproof.config.${extension}`),
+        "export default { productState: { critical: 'required.json' } };",
+      );
+      writeObligations(
+        capture.root,
+        { cart: { owner: 'payments team', reason: 'checkout must certify' } },
+        'required.json',
+      );
+      const compareArgs = [
+        capture.before,
+        capture.after,
+        '--expected-before-sha',
+        BASE_SHA,
+        '--expected-after-sha',
+        HEAD_SHA,
+      ];
+      const json = path.join(capture.root, 'diff.json');
+      const diff = spawnSync(process.execPath, [DIFF, ...compareArgs, '--json', json], {
+        cwd: nested,
+        encoding: 'utf8',
+      });
+      const report = spawnSync(process.execPath, [REPORT, ...compareArgs, '--out', path.join(capture.root, 'report')], {
+        cwd: nested,
+        encoding: 'utf8',
+      });
+      assert.deepEqual([diff.status, report.status], [1, 1], diff.stderr || report.stderr || diff.stdout);
+      const result = { ...diff, json: JSON.parse(fs.readFileSync(json, 'utf8')) };
+      assert.equal(result.json.criticalStates.armed, true);
+      assert.deepEqual(result.json.criticalStates.unresolved, ['cart']);
+      assert.equal(result.json.certifiesFully, false);
+
+      const receipt = JSON.parse(fs.readFileSync(path.join(capture.root, 'report', 'report.json'), 'utf8'));
+      assert.equal(receipt.criticalStates.armed, true);
+      assert.deepEqual(receipt.criticalStates.unresolved, ['cart']);
+      fs.unlinkSync(path.join(capture.root, 'required.json'));
+      const missing = spawnSync(process.execPath, [DIFF, ...compareArgs], { cwd: nested, encoding: 'utf8' });
+      assert.equal(missing.status, 2, missing.stderr || missing.stdout);
+      assert.match(missing.stderr, /required.json.*not readable/);
+    } finally {
+      rmTmp(capture.root);
+    }
+  });
+}
+
 test('contradictory critical obligation that is also coverage-excluded fails closed', () => {
   const capture = fixture({
     productState: { id: 'home-ready', revision: 'fixture-v1' },

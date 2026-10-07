@@ -611,6 +611,48 @@ test('defineStyleMapCapture: unset dir still keeps the static coverage guard', (
   assert.doesNotMatch(out, /styleproof capture/);
 });
 
+for (const extension of ['mjs', 'js']) {
+  test(`defineStyleMapCapture: ${extension} config coverage manifest catches an uncaptured surface without browser capture`, () => {
+    const root = mkTmp('styleproof-runner-js-coverage-');
+    try {
+      fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+      fs.mkdirSync(path.join(root, '.git'));
+      const nested = path.join(root, 'packages', 'widgets');
+      fs.mkdirSync(nested, { recursive: true });
+      fs.writeFileSync(path.join(root, 'styleproof.config.json'), '{"coverage":{"strict":false}}');
+      fs.writeFileSync(path.join(root, 'required.json'), '{"version":1,"surfaces":["home","checkout"]}');
+      fs.writeFileSync(
+        path.join(root, `styleproof.config.${extension}`),
+        "export default { coverage: { manifest: 'required.json', strict: true } };\n",
+      );
+      fs.writeFileSync(
+        path.join(root, 'styleproof.spec.mjs'),
+        `import { defineStyleMapCapture } from ${JSON.stringify(DIST_INDEX_URL)};
+         defineStyleMapCapture({ surfaces: [{ key: 'home', go: async () => {} }], dir: process.env.STYLEMAP_DIR });\n`,
+      );
+      const config = path.join(root, 'playwright.config.mjs');
+      fs.writeFileSync(config, `export default { testDir: ${JSON.stringify(root)}, workers: 1 };\n`);
+      const run = (args) =>
+        spawnSync(process.execPath, [PLAYWRIGHT_CLI, 'test', '--pass-with-no-tests', '--config', config, ...args], {
+          cwd: nested,
+          encoding: 'utf8',
+          timeout: 60_000,
+          env: { ...process.env, STYLEMAP_DIR: '' },
+        });
+      const listed = run(['--list']);
+      assert.equal(listed.status, 0, listed.stderr || listed.stdout);
+      assert.match(listed.stdout, /every expected surface is captured or explicitly excluded/);
+      assert.doesNotMatch(listed.stdout, /styleproof capture/);
+      const coverage = run(['--grep', 'styleproof coverage']);
+      assert.equal(coverage.status, 1, coverage.stderr || coverage.stdout);
+      assert.match(coverage.stdout, /StyleProof coverage gap/);
+      assert.match(coverage.stdout, /Missing: checkout/);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
 test('selfCheckErrorMessage: explains volatile root layout drift as a variant problem', () => {
   const message = selfCheckErrorMessage(
     'dashboard-live',

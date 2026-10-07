@@ -303,6 +303,12 @@ Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
 including package configs; source paths retain Unicode and control characters,
 and renames check both locations. A relevant change forces a fresh base capture.
 
+JavaScript config (`styleproof.config.mjs` or `.js`) also supplies coverage and
+product-state policy to capture specs, diff, and report. It takes precedence over
+sibling JSON; evaluation errors and invalid policy fail closed. A `.js` file
+follows its package's Node module format, and dynamic policy sees the caller's
+working directory.
+
 ### The one CLI
 
 ```bash

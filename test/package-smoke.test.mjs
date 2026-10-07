@@ -165,6 +165,39 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       assert.match(help.stdout, new RegExp(`usage: ${bin}`));
     }
 
+    // Exercise the shipped schema and extra-pipe config transport in the macOS/Windows lane.
+    const before = path.join(app, 'before');
+    const after = path.join(app, 'after');
+    fs.mkdirSync(before);
+    fs.mkdirSync(after);
+    const missingLedger = path.join(fs.realpathSync(app), 'required-ledger.json');
+    fs.writeFileSync(path.join(app, 'styleproof.config.json'), '{"productState":{}}');
+    try {
+      for (const extension of ['mjs', 'js']) {
+        const config = path.join(app, `styleproof.config.${extension}`);
+        fs.writeFileSync(config, "export default { productState: { critical: 'required-ledger.json' } };\n");
+        try {
+          for (const bin of ['styleproof-diff', 'styleproof-report']) {
+            const result = run(
+              process.execPath,
+              [path.join(app, 'node_modules/styleproof/bin', `${bin}.mjs`), before, after],
+              { cwd: app },
+            );
+            assert.equal(result.status, 2, commandFailure(result));
+            assert.ok(
+              result.stderr.includes(missingLedger),
+              `${bin} ignored ${extension} critical policy: ${result.stderr}`,
+            );
+            assert.match(result.stderr, /not readable/);
+          }
+        } finally {
+          fs.rmSync(config, { force: true });
+        }
+      }
+    } finally {
+      fs.rmSync(path.join(app, 'styleproof.config.json'), { force: true });
+    }
+
     const scaffold = path.join(tmp, 'scaffold');
     fs.mkdirSync(scaffold);
     fs.writeFileSync(path.join(scaffold, 'package.json'), JSON.stringify({ name: 'consumer', private: true }, null, 2));
