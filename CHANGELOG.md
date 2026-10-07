@@ -35,6 +35,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   containing Unicode, quotes, tabs, or newlines retain their real paths, and
   renames check both the old and new locations, so these changes cannot silently
   reuse an older baseline. Docs-only changes remain eligible for reuse.
+- **Approval callers grant `pull-requests: write`.** GitHub authorizes comments
+  on a pull request with `pull-requests`, never `issues`, so the documented
+  approval permissions (`pull-requests: read` plus `issues: write`) could not
+  edit the report comment. A reviewer's tick turned the `StyleProof` status
+  green and then failed the approval run with a bare 403; a refusal set the
+  status red but left the box ticked and posted no explanation. The
+  `styleproof-init` approval caller, this repository's caller, the example and
+  the report delivery contract now grant `pull-requests: write` and drop the
+  unused `issues: write`. The reusable workflow names the missing permission
+  instead of failing with a bare 403. Generated callers: `styleproof-init --check`
+  reports `styleproof-approve.yml` stale and `styleproof-init --upgrade`
+  refreshes it. Hand-written callers: change `pull-requests: read` to
+  `pull-requests: write`.
 
 ## [7.5.0] - 2026-10-05
 
