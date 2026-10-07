@@ -5,10 +5,14 @@ import { fileURLToPath } from 'node:url';
 
 // The four template sections, in the order the template lays them out.
 export const REQUIRED_SECTIONS = [
-  'Why does this feature exist?',
-  'What changed?',
-  'Behavioural Proof (with video and screenshots)',
-  'Verification Summary',
+  'Why',
+  'What changed',
+  'Reviewer view',
+  'Proof',
+  'Behaviour changes',
+  'Not asked for',
+  'Review guide',
+  'Verification summary',
 ];
 
 // Conventional Commits subject: type(optional-scope)!: summary.
@@ -39,8 +43,8 @@ function sectionsByHeading(body) {
   return sections;
 }
 
-const PROOF_SECTION = 'Behavioural Proof (with video and screenshots)';
-const WHY_SECTION = 'Why does this feature exist?';
+const PROOF_SECTION = 'Proof';
+const WHY_SECTION = 'Why';
 
 // Openings that read as a ticket dump rather than buyer-legible motivation.
 const TICKET_DUMP_OPENINGS = [
@@ -62,7 +66,7 @@ function ticketDumpErrors(sections) {
       .find((line) => line && !line.startsWith('<!--') && !line.endsWith('-->') && !/^-\s*$/.test(line)) ?? '';
   if (!TICKET_DUMP_OPENINGS.some((pattern) => pattern.test(firstParagraph))) return [];
   return [
-    '"Why does this feature exist?" must open with buyer-legible motivation ' +
+    '"Why" must open with buyer-legible motivation ' +
       '(what pain, why it exists, why merge it). Ticket references (#N) should ' +
       'come after the motivation paragraph.',
   ];
@@ -99,7 +103,7 @@ function proofErrors(sections) {
   if (!sections.has(PROOF_SECTION)) return [];
   const proof = sections.get(PROOF_SECTION).join('\n');
   if (proof.includes('![') || /not applicable/i.test(proof)) return [];
-  return ['Behavioural Proof must embed a screenshot with `![` or state `Not applicable` with a reason'];
+  return ['Proof must embed a screenshot with `![` or state `Not applicable` with a reason'];
 }
 
 export function validatePullRequest({ title, body }) {

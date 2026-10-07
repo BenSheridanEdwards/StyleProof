@@ -1,74 +1,88 @@
 <!--
-This PR's TITLE and BODY are machine-validated in CI ("Validate PR body",
-scripts/validate-pr-body.mjs). To pass:
-  1. Title = Conventional Commits: type(scope): summary
-     (feat, fix, docs, chore, ci, build, perf, refactor, revert, style, test).
-  2. Keep the four "#" section headings below EXACTLY as written and IN THIS ORDER.
-     Renaming or reordering a heading fails the check.
-  3. Fill every section with real content. A bare "-", an empty checkbox, or an
-     untouched placeholder counts as empty and fails.
-  4. Behavioural Proof must embed an image — ![alt](URL?raw=1) — OR say
-     "Not applicable" with a reason. Prose alone does not pass.
+Title: Conventional Commits, `type(scope): summary`. No agent prefixes.
+Keep these eight `##` headings, in this order. Reviewers and review agents look for them by name.
+Write for a reviewer who has five minutes. Prefer behaviour and named symbols over line numbers.
 -->
 
-# Why does this feature exist?
+## Why
 
 <!--
-First, answer these three questions in 2-3 plain-English sentences (no ticket numbers yet):
-1. What real pain or incident motivated this change?
-2. Why does this PR exist — what problem does it solve?
-3. Why would the project owner want this in main?
-
-After answering those, you may link related issues below the motivation paragraph.
-Replace the "-" placeholder with your answers.
+One sentence naming which North Star this moves and how.
+This repo: StyleProof's North Star (deterministic visual regression via computed CSS, not screenshot diffs).
+Link the issue as `Closes #N` or `part of #N` when there is one.
 -->
 
 -
 
-# What changed?
+## What changed
 
-<!-- The changed files and behaviour, precisely. Call out new config, deps, or public API. -->
+<!-- Tight diff summary at product-behaviour level, not a changelog. -->
 
 -
 
-# Behavioural Proof (with video and screenshots)
+## Reviewer view
 
 <!--
-Show the change WORKING — a reviewer must SEE the result here.
+Before opening a PR, run the `show-me` skill at `.claude/skills/show-me` (read
+REPOSITORY.md / BEHAVIOURPROOF.md when present).
 
-- Capture / diff / report changes: the repo ships a LIVE demo report rendered by
-  the current code at docs/demo/report.md. If you touched capture/diff/report
-  rendering, run `npm run demo:report`, commit docs/demo/, and link it here.
-- UI changes: embed screenshots inline with `![alt](https://github.com/OWNER/REPO/blob/BRANCH/docs/proof/SCOPE/file.png?raw=1)`.
-- Behaviour / guards / CLI: paste the actual command or test output (e.g. a guard
-  failing on a gap, then passing once covered).
-- If nothing renders, write `Not applicable` with the technical reason.
+Substantive PRs include one smallest source-verified view that removes review
+ambiguity. Allowed shapes: pseudocode, call tree, component tree, file tree,
+Mermaid, shape-matched diff, or a one-off HTML artifact under `.show-me/<task>/`
+only when those aren't enough.
 
-Keep pasted output privacy-clean — no private project names, repos, URLs, or PR numbers.
+Trivial PRs write `Not needed: trivial change` (or `Not applicable`) with a short reason.
+
+A view explains shape. It must not replace tests, screenshots, reports,
+StyleProof/Behavioural Proof, or the Proof Law. Name the source files, symbols,
+states, or commands that verify the view. Prefer inline Markdown over HTML; do
+not auto-open or commit HTML views.
 -->
 
-- Video:
+-
+
+## Proof
+
+<!--
+Behavioural tests that went red then green (name the test and the before/after
+result). Include a Proof Law line stating what would falsify this PR.
+Embed screenshots for every visible state the change affects, or write
+`Not applicable` with the technical reason when there is no rendered surface.
+-->
+
+- Tests:
+- Proof Law (what would falsify this PR):
 - Screenshots:
-- Behaviour tests:
 
-# Verification Summary
+## Behaviour changes
 
-<!-- Commands run AFTER the last code change, with pass/fail results. -->
+<!--
+One line per intentional change: Given ..., when ..., then ...
+Write `None` when existing behaviour is preserved.
+-->
 
-- Definition of Done: followed `.agents/project/DEFINITION_OF_DONE.md`.
+- Behaviour change:
+
+## Not asked for
+
+<!--
+Anything in the diff the issue did not ask for, or work deliberately left out.
+Write `None` when the diff only does what was asked.
+-->
+
+- Extra change:
+
+## Review guide
+
+<!-- Where to start reading and why. Riskiest change first. -->
+
+- Start here:
+
+## Verification summary
+
+<!-- Every claim pairs a command with its result. -->
+
 - Commands run:
 - Results:
+- Unrelated failures:
 - Known risks or skipped checks:
-
-## Checklist
-
-- [ ] **Proof above** — linked the regenerated `docs/demo/report.md`, or pasted the command/test output that demonstrates the change
-- [ ] If you changed capture/diff/report rendering, ran `npm run demo:report` and committed `docs/demo/`
-- [ ] `npm run build && npm run typecheck && npm run lint && npm run format:check` pass
-- [ ] `npm test` passes (and `npm run test:e2e` if the capture/engine path changed)
-- [ ] Added/updated tests for the change
-- [ ] Updated the README / CHANGELOG if behaviour or the public API changed
-- [ ] If captured output changed, noted that adopters must regenerate baselines
-- [ ] Followed `.agents/project/DEFINITION_OF_DONE.md` and `.agents/skills/pr-inline-screenshot-proof/SKILL.md`
-- [ ] Screenshots are committed and embedded inline with `![alt](...png?raw=1)`, or the proof section says `Not applicable` with the technical reason
-- [ ] The PR body has no bare screenshot links, local paths, relative paths, or proof placeholders
