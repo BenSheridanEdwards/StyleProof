@@ -10,10 +10,14 @@ const workflow = readFileSync(new URL('../.github/workflows/fallow.yml', import.
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const lock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'));
 
-test('pre-commit runs the same audit and production complexity gates as CI', () => {
+test('pre-commit runs fallow audit/health aligned with CI (lean: no full build)', () => {
   const syntax = spawnSync('sh', ['-n', '.husky/pre-commit'], { encoding: 'utf8' });
   assert.equal(syntax.status, 0, syntax.stderr);
 
+  assert.doesNotMatch(hook, /npm run build/, 'full build belongs in CI / pre-push, not every commit');
+  assert.doesNotMatch(hook, /npm run typecheck/, 'typecheck belongs in CI / pre-push, not every commit');
+  assert.match(hook, /npm run lint/);
+  assert.match(hook, /npm run format:check/);
   assert.match(hook, /git diff --cached --unified=0/);
   assert.match(hook, /npx --no-install fallow audit --base HEAD --health-baseline/);
   assert.match(hook, /npx --no-install fallow health/);

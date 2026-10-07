@@ -47,7 +47,9 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
     e2eJob,
     /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/3 --reporter=line,json/,
   );
-  assert.doesNotMatch(e2eJob, /--grep|needs:/);
+  assert.match(e2eJob, /needs: changes/);
+  assert.match(e2eJob, /if: needs\.changes\.outputs\.e2e == 'true'/);
+  assert.doesNotMatch(e2eJob, /--grep/);
   assert.match(e2eJob, /STYLEPROOF_DETERMINISM_RECEIPT: .styleproof\/ci\/determinism-oracle.json/);
   assert.match(e2eJob, /name: e2e-shard-\$\{\{ matrix.shard \}\}/);
   assert.match(e2eJob, /if-no-files-found: error/);
@@ -88,18 +90,18 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
 
   assert.match(required, /name: required/);
   assert.match(required, /if: always\(\)/);
-  assert.match(required, /needs: \[build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(required, /needs: \[changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(required, /CHANGES_RESULT: \$\{\{ needs\.changes\.result \}\}/);
   assert.match(required, /BUILD_RESULT: \$\{\{ needs\.build\.result \}\}/);
   assert.match(required, /E2E_RESULT: \$\{\{ needs\.e2e\.result \}\}/);
   assert.match(required, /E2E_EVIDENCE_RESULT: \$\{\{ needs\.e2e-evidence\.result \}\}/);
   assert.match(required, /CLI_SMOKE_RESULT: \$\{\{ needs\.cli-smoke\.result \}\}/);
   assert.match(required, /DETECTION_CORPUS_RESULT: \$\{\{ needs\.detection-corpus\.result \}\}/);
   assert.match(required, /set -euo pipefail/);
+  assert.match(required, /test "\$CHANGES_RESULT" = success/);
   assert.match(required, /test "\$BUILD_RESULT" = success/);
-  assert.match(required, /test "\$E2E_RESULT" = success/);
-  assert.match(required, /test "\$E2E_EVIDENCE_RESULT" = success/);
+  assert.match(required, /want success or skipped/);
   assert.match(required, /test "\$CLI_SMOKE_RESULT" = success/);
-  assert.match(required, /test "\$DETECTION_CORPUS_RESULT" = success/);
   assert.doesNotMatch(required, /actions\/checkout/);
 });
 

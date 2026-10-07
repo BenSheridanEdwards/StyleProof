@@ -1,0 +1,49 @@
+name: PR body (reusable)
+
+# Canonical eight-section PR body check. Call from other repos after they adopt
+# the uniform template (show-me PRs). Example:
+#
+#   jobs:
+#     validate:
+#       uses: BenSheridanEdwards/StyleProof/.github/workflows/pr-body-reusable.yml@<sha>
+#       with:
+#         checkout-ref: ${{ github.event.pull_request.head.sha }}
+
+on:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: Commit to check out (usually the PR head SHA)
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate PR body (eight-section)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Validate PR title and body
+        env:
+          PR_TITLE: ${{ toJSON(github.event.pull_request.title) }}
+          PR_BODY: ${{ toJSON(github.event.pull_request.body) }}
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/validate-pr-body.mjs ]; then
+            echo "::error::Caller must vendor scripts/validate-pr-body.mjs or check out StyleProof with that script."
+            exit 1
+          fi
+          PR_TITLE="$(node -e 'process.stdout.write(JSON.parse(process.env.PR_TITLE || "\"\""))')" \
+          PR_BODY="$(node -e 'process.stdout.write(JSON.parse(process.env.PR_BODY || "\"\""))')" \
+          node scripts/validate-pr-body.mjs

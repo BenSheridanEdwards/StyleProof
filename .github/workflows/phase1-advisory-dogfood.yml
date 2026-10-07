@@ -13,6 +13,20 @@ name: Phase 1 advisory dogfood
 
 on:
   pull_request:
+    paths:
+      - 'src/capture/**'
+      - 'src/diff.ts'
+      - 'src/report/**'
+      - 'src/runner/**'
+      - 'src/**'
+      - 'action.yml'
+      - 'bin/**'
+      - 'example/**'
+      - 'bench/**'
+      - 'styleproof.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/phase1-advisory-dogfood.yml'
 
 permissions:
   contents: read

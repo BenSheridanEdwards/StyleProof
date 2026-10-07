@@ -2,6 +2,9 @@
  * Canonical eight-section PR body contract for Ben’s repos.
  * StyleProof’s validate-pr-body.mjs (and sibling repos) should require these
  * headings in order. One-line North Star name lives inside Why prose per repo.
+ *
+ * Sections: Why, What changed, Reviewer view, Proof, Behaviour changes,
+ * Not asked for, Review guide, Verification summary.
  */
 export const EIGHT_SECTION_HEADINGS = Object.freeze([
   'Why',

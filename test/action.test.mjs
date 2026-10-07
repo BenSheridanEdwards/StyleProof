@@ -1465,9 +1465,10 @@ test('composite action requires approval for new-surface-only reports', () => {
   assert.match(diffStep[0], /echo "changed=true"/);
 });
 
-test('dogfood workflow runs on every same-repo PR', () => {
-  assert.match(dogfoodYml, /pull_request:\s*\n\npermissions:/);
-  assert.doesNotMatch(dogfoodYml, /\n\s+paths:/);
+test('dogfood workflow path-skips non-visual PRs (lean gates)', () => {
+  // Same-repo gate stays; paths filter skips docs/changelog/unit-only PRs.
+  assert.match(dogfoodYml, /pull_request:\s*\n {4}paths:/);
+  assert.match(dogfoodYml, /if: github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
 });
 
 test('composite action comment-marker defaults to the product marker and accepts a distinct dogfood marker', () => {
