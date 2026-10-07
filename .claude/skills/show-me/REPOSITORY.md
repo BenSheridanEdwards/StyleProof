@@ -9,3 +9,4 @@ These repository rules override conflicting instructions in `SKILL.md`.
 - Prefer inline text, a diff, a tree, or Mermaid. Use HTML only when those formats cannot make the point clear.
 - Write permitted HTML under `.show-me/<task>/`. Do not open it automatically. Do not publish or commit it. Open it only when the user asks.
 - Do not add a runtime dependency for a view.
+- Put the chosen view in the PR body's `## Reviewer view` section (see `.github/PULL_REQUEST_TEMPLATE.md`).

@@ -68,12 +68,16 @@ demo-report freshness, action dogfood).
 
 ## PR proof
 
-- The PR body uses `.github/PULL_REQUEST_TEMPLATE.md` and preserves its sections
-  in order: `Why does this feature exist?`, `What changed?`,
-  `Behavioural Proof (with video and screenshots)`, `Verification Summary`.
+- The PR body uses `.github/PULL_REQUEST_TEMPLATE.md` and preserves its eight
+  sections in order: `Why`, `What changed`, `Reviewer view`, `Proof`,
+  `Behaviour changes`, `Not asked for`, `Review guide`, `Verification summary`.
+- Before opening, run the `show-me` skill at `.claude/skills/show-me` and put the
+  chosen view under Reviewer view (or write `Not needed` for a trivial PR). A
+  view explains shape; it never replaces tests, screenshots, reports, or the
+  Proof Law.
 - The PR title uses Conventional Commits (`type(scope): summary`); no agent, tool,
   author, or source prefixes.
-- The Behavioural Proof section either embeds proof inline with `![alt](...png?raw=1)`
+- The Proof section either embeds proof inline with `![alt](...png?raw=1)`
   or states `Not applicable` with the technical reason.
 - Test command names and pass/fail results are listed. Skipped checks include the
   reason, risk, and owner.
