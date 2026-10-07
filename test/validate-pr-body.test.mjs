@@ -5,24 +5,40 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validatePullRequest, REQUIRED_SECTIONS } from '../scripts/validate-pr-body.mjs';
 
-// A complete, well-formed body every section filled in — the baseline "good" input.
+// A complete, well-formed body every section filled in - the baseline "good" input.
 const GOOD_BODY = [
-  '# Why does this feature exist?',
+  '## Why',
   '',
-  '- To gate PRs on a complete, proof-carrying body.',
+  "- Moves StyleProof's North Star by making every PR carry a show-me reviewer view.",
   '',
-  '# What changed?',
+  '## What changed',
   '',
-  '- Added a machine validator and a workflow that runs it.',
+  '- Replaced the PR template with the eight-section shape and updated the body validator.',
   '',
-  '# Behavioural Proof (with video and screenshots)',
+  '## Reviewer view',
   '',
-  '- Not applicable: this is a CLI/infra change with no rendered UI.',
+  '- Mermaid of the eight PR sections (see this PR body).',
   '',
-  '# Verification Summary',
+  '## Proof',
   '',
-  '- Definition of Done: followed.',
-  '- Commands run: npm test.',
+  '- Not applicable: docs and validator-only change with no rendered UI.',
+  '',
+  '## Behaviour changes',
+  '',
+  '- None - documentation and CI body rules only.',
+  '',
+  '## Not asked for',
+  '',
+  '- None.',
+  '',
+  '## Review guide',
+  '',
+  '- Start with `.github/PULL_REQUEST_TEMPLATE.md`, then `scripts/validate-pr-body.mjs`.',
+  '',
+  '## Verification summary',
+  '',
+  '- Commands run: node --test test/validate-pr-body.test.mjs',
+  '- Results: pass',
 ].join('\n');
 
 const GOOD_TITLE = 'feat(gates): add machine PR-body validation';
@@ -41,27 +57,30 @@ test('a body embedding an inline screenshot passes the proof rule', () => {
 });
 
 test('a missing required section fails', () => {
-  const body = GOOD_BODY.replace(/# What changed\?[\s\S]*?(?=# Behavioural)/, '');
+  const body = GOOD_BODY.replace(/## What changed[\s\S]*?(?=## Reviewer view)/, '');
   const result = validatePullRequest({ title: GOOD_TITLE, body });
   assert.equal(result.valid, false);
-  assert.ok(result.errors.some((error) => error.includes('What changed?')));
+  assert.ok(result.errors.some((error) => error.includes('What changed')));
 });
 
 test('a placeholder-only section fails', () => {
-  const body = GOOD_BODY.replace('- Added a machine validator and a workflow that runs it.', '-');
+  const body = GOOD_BODY.replace(
+    '- Replaced the PR template with the eight-section shape and updated the body validator.',
+    '-',
+  );
   const result = validatePullRequest({ title: GOOD_TITLE, body });
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.includes('placeholders')));
 });
 
-test('a Behavioural Proof section with no image and no "Not applicable" fails', () => {
+test('a Proof section with no image and no "Not applicable" fails', () => {
   const body = GOOD_BODY.replace(
-    '- Not applicable: this is a CLI/infra change with no rendered UI.',
+    '- Not applicable: docs and validator-only change with no rendered UI.',
     '- Some prose but no screenshot and no exemption.',
   );
   const result = validatePullRequest({ title: GOOD_TITLE, body });
   assert.equal(result.valid, false);
-  assert.ok(result.errors.some((error) => error.includes('Behavioural Proof must embed')));
+  assert.ok(result.errors.some((error) => error.includes('Proof must embed')));
 });
 
 test('a non-Conventional-Commits title fails', () => {
@@ -73,7 +92,7 @@ test('a non-Conventional-Commits title fails', () => {
 // The shipped template and the validator must never drift: every REQUIRED_SECTIONS
 // heading has to exist in the template, spelled identically and in the same order,
 // or an author who follows the template verbatim still fails CI. This locks them
-// together — rename a heading on either side and this test goes red.
+// together - rename a heading on either side and this test goes red.
 test('the shipped PR template carries every required section, verbatim and in order', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const template = fs.readFileSync(path.join(here, '..', '.github', 'PULL_REQUEST_TEMPLATE.md'), 'utf8');
@@ -89,13 +108,21 @@ test('the shipped PR template carries every required section, verbatim and in or
 
 test('sections in the wrong order fail', () => {
   const body = [
-    '# What changed?',
+    '## What changed',
     '- swapped ahead of Why.',
-    '# Why does this feature exist?',
+    '## Why',
     '- reason.',
-    '# Behavioural Proof (with video and screenshots)',
+    '## Reviewer view',
+    '- Not needed: fixture.',
+    '## Proof',
     '- Not applicable: infra change.',
-    '# Verification Summary',
+    '## Behaviour changes',
+    '- None.',
+    '## Not asked for',
+    '- None.',
+    '## Review guide',
+    '- Start here.',
+    '## Verification summary',
     '- ran the suite.',
   ].join('\n');
   const result = validatePullRequest({ title: GOOD_TITLE, body });
@@ -107,7 +134,7 @@ test('sections in the wrong order fail', () => {
 // Ticket-dump opening detection (TDD fixtures for #526)
 // ────────────────────────────────────────────────────────────────────────────────
 
-// Ticket-dump openings that MUST fail — they start with issue refs, not buyer-legible prose.
+// Ticket-dump openings that MUST fail - they start with issue refs, not buyer-legible prose.
 const BAD_OPENINGS = [
   'Fixes #517, #518, #519 in the v2 import pipeline.',
   'Implements [#520](url) - TDD fixture coverage plan.',
@@ -118,32 +145,48 @@ const BAD_OPENINGS = [
   'Resolves #100 by updating the config.',
 ];
 
-// Buyer-legible openings that MUST pass — prose motivation first, then ticket refs.
+// Buyer-legible openings that MUST pass - prose motivation first, then ticket refs.
 const GOOD_OPENINGS = [
   'Users importing oracle-proven bundles into the v2 store lost their proven status, degrading trust without warning. This broke adopters who relied on proven status for CI gating. Fixes #517.',
   'When a baseline capture fails, reviewers cannot distinguish genuine new surfaces from repair debt. This PR adds classification so reviewers know what requires action. Part of #491.',
   'The README claimed the embedded report was unmodified, but the script reorders sections and injects CSS. This PR fixes the documentation to match reality. Closes #479.',
-  'Reviewers opening a PR could not immediately understand why it mattered — they saw ticket numbers, not user pain. This change gates PR bodies on buyer-legible prose before any issue references.',
+  'Reviewers opening a PR could not immediately understand why it mattered - they saw ticket numbers, not user pain. This change gates PR bodies on buyer-legible prose before any issue references.',
 ];
 
 function makeBodyWithWhyOpening(opening) {
   return [
-    '# Why does this feature exist?',
+    '## Why',
     '',
     opening,
     '',
-    '# What changed?',
+    '## What changed',
     '',
     '- Updated the relevant files.',
     '',
-    '# Behavioural Proof (with video and screenshots)',
+    '## Reviewer view',
+    '',
+    '- Not needed: fixture for Why-opening validation.',
+    '',
+    '## Proof',
     '',
     '- Not applicable: infra change.',
     '',
-    '# Verification Summary',
+    '## Behaviour changes',
     '',
-    '- Definition of Done: followed.',
+    '- None.',
+    '',
+    '## Not asked for',
+    '',
+    '- None.',
+    '',
+    '## Review guide',
+    '',
+    '- Start here.',
+    '',
+    '## Verification summary',
+    '',
     '- Commands run: npm test.',
+    '- Results: pass.',
   ].join('\n');
 }
 
