@@ -700,7 +700,13 @@ test('diff CLI --max truncates the per-surface listing and prints a hint', () =>
   writeManifest(B, 'head-sha', 'same-env-key');
   const r = run(DIFF, [A, B, '--max', '1']);
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /more lines/);
+  // Three restyled elements make six listing lines (a path and its color row each);
+  // --max 1 keeps only the first and says how many were held back.
+  assert.match(
+    r.stdout,
+    /home@1280: 3 elements restyled\n {2}body > div:nth-child\(1\)\n {2}\.\.\. and 5 more lines \(re-run with --max 6\)\n/,
+  );
+  assert.doesNotMatch(r.stdout, /div:nth-child\(2\)/);
   rmTmp(root);
 });
 

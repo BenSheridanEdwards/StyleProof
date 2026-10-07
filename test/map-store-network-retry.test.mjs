@@ -7,6 +7,20 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { mapStoreRestoreAttempts } from '../dist/map-store/git-transport.js';
+
+/** Run `body` with STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS set to `value` (undefined unsets it), then restore it. */
+function withRestoreAttemptsEnv(value, body) {
+  const originalEnv = process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS;
+  try {
+    if (value === undefined) delete process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS;
+    else process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = value;
+    return body();
+  } finally {
+    if (originalEnv === undefined) delete process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS;
+    else process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = originalEnv;
+  }
+}
 
 describe('map-store network retry behavior (#537)', () => {
   describe('backoff timing follows exponential curve', () => {
@@ -39,29 +53,24 @@ describe('map-store network retry behavior (#537)', () => {
 
   describe('retry count configuration', () => {
     test('default retry count is 3', async () => {
-      const DEFAULT_MAP_STORE_RESTORE_ATTEMPTS = 3;
-      assert.equal(DEFAULT_MAP_STORE_RESTORE_ATTEMPTS, 3);
+      assert.equal(
+        withRestoreAttemptsEnv(undefined, () => mapStoreRestoreAttempts()),
+        3,
+      );
     });
 
     test('STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS env var overrides default', async () => {
-      const originalEnv = process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS;
-      try {
-        // Test custom value
-        process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = '5';
-        const configured = Number(process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS);
-        assert.equal(configured, 5);
+      // A positive integer overrides the default
+      assert.equal(
+        withRestoreAttemptsEnv('5', () => mapStoreRestoreAttempts()),
+        5,
+      );
 
-        // Test invalid value falls back to default
-        process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = 'invalid';
-        const invalid = Number(process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS);
-        assert.ok(Number.isNaN(invalid));
-      } finally {
-        if (originalEnv === undefined) {
-          delete process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS;
-        } else {
-          process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = originalEnv;
-        }
-      }
+      // An invalid value falls back to the default
+      assert.equal(
+        withRestoreAttemptsEnv('invalid', () => mapStoreRestoreAttempts()),
+        3,
+      );
     });
   });
 
