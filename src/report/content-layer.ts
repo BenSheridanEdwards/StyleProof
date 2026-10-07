@@ -5,7 +5,7 @@ import { isAgeOnlyDrift, isLiveTextChange } from '../live-text.js';
 import { correspondContentShiftedPaths } from '../path-correspondence.js';
 import { countCapturedSurfaceBases, formatSurfaceList, prettyLabel, safeKey, surfaceWidth } from '../change-groups.js';
 import { chromeHosted } from '../change-chrome.js';
-import { containerOf, paddedRect, union, type Box } from './geometry.js';
+import { containerOf, paddedRect, screenshotRectOf, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
 import { clipText, codeValue } from './markdown.js';
 import { screenshotPair, type RenderCtx } from './shared.js';
@@ -45,8 +45,9 @@ const sameContentIdentity = (a: ElementEntry, b: ElementEntry): boolean =>
   a.ownTextLength === b.ownTextLength;
 
 function isFullPageShell(entry: ElementEntry, png: PNG): boolean {
-  if (entry.tag.toLowerCase() === 'body' || !entry.rect) return true;
-  const [, , w, h] = entry.rect;
+  const rect = screenshotRectOf(entry);
+  if (entry.tag.toLowerCase() === 'body' || !rect) return true;
+  const [, , w, h] = rect;
   return w >= png.width * 0.9 && h >= png.height * 0.9;
 }
 
@@ -110,7 +111,10 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
   const box = contentBox(s, c);
   if (!box) return [];
   const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
-  const rects = (entry: ElementEntry | undefined): Rect[] => (entry?.rect ? [entry.rect] : []);
+  const rects = (entry: ElementEntry | undefined): Rect[] => {
+    const rect = screenshotRectOf(entry);
+    return rect ? [rect] : [];
+  };
   const captions = {
     pair: surface,
     annotated: 'magenta boxes mark the changed content',

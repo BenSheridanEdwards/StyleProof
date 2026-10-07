@@ -10,6 +10,7 @@ import {
   intersects,
   outermost,
   paddedRect,
+  screenshotRectOf,
   union,
   unionVisibleBoxes,
   visible,
@@ -160,7 +161,7 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
   // Outline the LEAF changed elements on each side, not the merged anchor container.
   const marked = annotationPaths(findings, mapA, mapB);
   const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
-    paths.map((p) => map.elements[p]?.rect).filter((r): r is Rect => !!r);
+    paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
   const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
   const changedNames = [...new Set(entries.filter((e): e is ElementEntry => !!e).map(shortElementName))].slice(0, 3);
   const changedLabel = changedNames.length ? ` — changed: ${changedNames.map(codeValue).join(', ')}` : '';

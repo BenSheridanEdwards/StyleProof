@@ -9,6 +9,8 @@ export type ElementEntry = {
   tag: string;
   cls: string;
   rect?: Rect;
+  /** Expanded full-page screenshot box; report/pixel coordinates only. Legacy maps fall back to `rect`. */
+  screenshotRect?: Rect;
   style: Props;
   /** CSS Typed OM computed values where they differ from the used value in `style`; absent on legacy captures. */
   computedValueStyle?: Props;

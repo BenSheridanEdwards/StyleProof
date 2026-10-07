@@ -14,6 +14,7 @@ import {
   type PageCapture,
 } from './capture/browser.js';
 import { captureForcedStates, resolveForcedStateLimits } from './capture/forced-states.js';
+import { alignRectsToFullPageGeometry } from './capture/full-page.js';
 import { trackInflightRequests } from './capture/network.js';
 import { isUnder, skipSelector, warn } from './capture/shared.js';
 import type {
@@ -265,6 +266,8 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     captureComponent: options.captureComponent ?? false,
   });
   for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
+  // Rects in the full-page screenshot's coordinates, so report crops land on the element.
+  await alignRectsToFullPageGeometry(page, base.elements);
   const overlays = (await page.evaluate(detectOverlayCandidates, { skipSel })).filter((o) => base.elements[o.path]);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, read.motion);

@@ -231,6 +231,12 @@ can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced
 `:hover`/`:focus`/`:active` deltas.
 
+Nested overflow scrollers are expanded for full-page report screenshots. Capture
+keeps `rect` in the driven page's document coordinates for visibility and layout
+comparisons; optional `screenshotRect` locates the element in the expanded image.
+Crops and pixel attribution use `screenshotRect`, falling back to `rect` for older
+maps. Recapture affected nested-scroller baselines to obtain aligned crop evidence.
+
 ## Quickstart
 
 ### Upgrading to 7.0.0
