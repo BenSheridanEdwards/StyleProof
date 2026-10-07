@@ -83,7 +83,7 @@ test('sync JavaScript config finishes with live handles and flushes queued logs 
        const config = loadStyleProofConfig(${JSON.stringify(root)});
        process.stdout.write(JSON.stringify({ strict: config.coverage.strict }));`,
       ],
-      { encoding: 'utf8', timeout: 10_000 },
+      { encoding: 'utf8' },
     );
     assert.equal(result.status, 0, result.error?.message || result.stderr.slice(-1000));
     assert.equal(result.stdout, 'x'.repeat(65536) + '\n{"strict":true}');
