@@ -74,11 +74,21 @@ export function snapshotChanges(before, after) {
   return [...paths].filter((rel) => before.get(rel) !== after.get(rel)).sort();
 }
 
+/**
+ * `--watch` plus any test file paths, so `npm run test:unit -- test/x.test.mjs`
+ * runs one file with the same preload as the whole suite. A plain
+ * `node --test <file>` skips the preload (#799). No paths means every file.
+ */
+export function runnerOptions(argv) {
+  const files = argv.filter((arg) => !arg.startsWith('-'));
+  return { watch: argv.includes('--watch'), files: files.length ? files : undefined };
+}
+
 function main() {
-  const watch = process.argv.includes('--watch');
+  const { watch, files } = runnerOptions(process.argv.slice(2));
   const dist = path.join(ROOT, 'dist');
   const before = watch ? null : fileSnapshot(dist);
-  const result = spawnSync(process.execPath, nodeTestArgs({ watch }), { stdio: 'inherit', env: nodeTestEnv() });
+  const result = spawnSync(process.execPath, nodeTestArgs({ watch, files }), { stdio: 'inherit', env: nodeTestEnv() });
   const changed = before ? snapshotChanges(before, fileSnapshot(dist)) : [];
   if (changed.length) {
     console.error(

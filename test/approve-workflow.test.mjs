@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { APPROVE_WORKFLOW } from '../bin/init/templates.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const approveYml = fs.readFileSync(path.join(root, 'example/styleproof-approve.yml'), 'utf8');
@@ -24,18 +25,58 @@ const RUN_ATTEMPT = '2';
 const REPORT_URL = `https://github.com/acme/app/blob/${PUBLICATION_SHA}/pr-7/report.md`;
 const AUTHOR = 'pr-author';
 const REVIEWER = 'a-reviewer';
+const GRANT_LEVELS = { none: 0, read: 1, write: 2 };
 
-/** Compile the workflow's real github-script program — never a copy of it. */
-function approveScript() {
-  const match = approveYml.match(/\n {10}script: \|\n([\s\S]*)$/);
-  assert.ok(match, 'example/styleproof-approve.yml should contain a github-script program');
-  const source = match[1]
+/** The dedented github-script program a workflow file runs. */
+function programSource(yml, file) {
+  const match = yml.match(/\n {10}script: \|\n([\s\S]*)$/);
+  assert.ok(match, `${file} should contain a github-script program`);
+  return match[1]
     .split('\n')
     .map((line) => line.replace(/^ {12}/, ''))
     .join('\n');
+}
+
+/** Compile the workflow's real github-script program — never a copy of it. */
+function approveScript() {
+  const source = programSource(approveYml, 'example/styleproof-approve.yml');
   assert.doesNotMatch(source, /\$\{\{/, 'the approve program must not interpolate workflow expressions');
   return new AsyncFunction('github', 'context', source);
 }
+
+/**
+ * Compile the reusable workflow's program — the one adopter callers run. Its one
+ * expression is the boolean allow-self-approval input, and status-context
+ * arrives through env, as the workflow passes it.
+ */
+function reusableApproveScript() {
+  const source = programSource(reusableApproveYml, '.github/workflows/styleproof-approve-reusable.yml').replace(
+    '${{ inputs.allow-self-approval }}',
+    'false',
+  );
+  assert.doesNotMatch(source, /\$\{\{/);
+  const program = new AsyncFunction('github', 'context', source);
+  return async (github, context) => {
+    const previous = process.env.STYLEPROOF_STATUS_CONTEXT;
+    process.env.STYLEPROOF_STATUS_CONTEXT = 'StyleProof';
+    try {
+      await program(github, context);
+    } finally {
+      if (previous === undefined) delete process.env.STYLEPROOF_STATUS_CONTEXT;
+      else process.env.STYLEPROOF_STATUS_CONTEXT = previous;
+    }
+  };
+}
+
+/** A caller workflow's top-level `permissions:` block as { scope: level }. */
+function callerGrants(yml, file) {
+  const block = yml.match(/^permissions:\n((?: {2}[a-z-]+: [a-z]+\n)+)/m);
+  assert.ok(block, `${file} should declare a top-level permissions block`);
+  return Object.fromEntries([...block[1].matchAll(/^ {2}([a-z-]+): ([a-z]+)$/gm)].map((m) => [m[1], m[2]]));
+}
+
+// Every approval run below holds the token the scaffolded caller grants.
+const CALLER_GRANTS = callerGrants(APPROVE_WORKFLOW, 'styleproof-init approve caller');
 
 function reportComment({ ticked = false, suffix = '', sha = REPORT_SHA } = {}) {
   return [
@@ -66,10 +107,19 @@ async function runApprove({
   headSha = REPORT_SHA,
   allowSelfApproval,
   existingComments = [],
+  grants = CALLER_GRANTS,
+  program = approveScript(),
 } = {}) {
   const statuses = [];
   const created = [];
   const updated = [];
+  // The token check GitHub applies: every comment here is on a pull request, so
+  // pull-requests authorizes it — issues: write never does.
+  const need = (scope, level) => {
+    if ((GRANT_LEVELS[grants[scope]] ?? 0) < GRANT_LEVELS[level]) {
+      throw Object.assign(new Error('Resource not accessible by integration'), { status: 403 });
+    }
+  };
   const canonicalComment = {
     id: 99,
     body,
@@ -80,6 +130,7 @@ async function runApprove({
     paginate: async (route, params) => {
       assert.equal(route, github.rest.issues.listComments);
       assert.equal(params.issue_number, 7);
+      need('pull-requests', 'read');
       return listed;
     },
     rest: {
@@ -87,37 +138,47 @@ async function runApprove({
         listComments: () => {
           throw new Error('list comments must go through github.paginate');
         },
-        getComment: async () => ({ data: canonicalComment }),
+        getComment: async () => {
+          need('pull-requests', 'read');
+          return { data: canonicalComment };
+        },
         createComment: async (input) => {
+          need('pull-requests', 'write');
           created.push(input);
           listed.push({ body: input.body });
         },
         updateComment: async (input) => {
+          need('pull-requests', 'write');
           updated.push(input);
         },
       },
       pulls: {
-        get: async () => ({
-          data: { head: { sha: headSha }, user: authorMissing ? null : { login: author } },
-        }),
+        get: async () => {
+          need('pull-requests', 'read');
+          return { data: { head: { sha: headSha }, user: authorMissing ? null : { login: author } } };
+        },
       },
       repos: {
         getCollaboratorPermissionLevel: async () => {
           if (permission === 'none') throw new Error('not a collaborator');
           return { data: { permission } };
         },
-        listCommitStatusesForRef: async () => ({
-          data: [
-            {
-              context: 'StyleProof',
-              state: 'failure',
-              description: 'StyleProof changes need sign-off — tick the box in the report comment',
-              target_url: REPORT_URL,
-              creator: { login: 'github-actions[bot]', type: 'Bot' },
-            },
-          ],
-        }),
+        listCommitStatusesForRef: async () => {
+          need('statuses', 'read');
+          return {
+            data: [
+              {
+                context: 'StyleProof',
+                state: 'failure',
+                description: 'StyleProof changes need sign-off — tick the box in the report comment',
+                target_url: REPORT_URL,
+                creator: { login: 'github-actions[bot]', type: 'Bot' },
+              },
+            ],
+          };
+        },
         getContent: async ({ path: reportPath, ref }) => {
+          need('contents', 'read');
           assert.equal(ref, PUBLICATION_SHA);
           const source = reportPath.endsWith('/report.md')
             ? `# report\n<!-- styleproof-receipt head-sha:${REPORT_SHA} run-id:${RUN_ID} run-attempt:${RUN_ATTEMPT} -->\n`
@@ -131,6 +192,7 @@ async function runApprove({
           };
         },
         createCommitStatus: async (input) => {
+          need('statuses', 'write');
           statuses.push(input);
         },
       },
@@ -145,7 +207,7 @@ async function runApprove({
   if (allowSelfApproval === undefined) delete process.env.STYLEPROOF_ALLOW_SELF_APPROVAL;
   else process.env.STYLEPROOF_ALLOW_SELF_APPROVAL = allowSelfApproval;
   try {
-    await approveScript()(github, context);
+    await program(github, context);
   } finally {
     if (previous === undefined) delete process.env.STYLEPROOF_ALLOW_SELF_APPROVAL;
     else process.env.STYLEPROOF_ALLOW_SELF_APPROVAL = previous;
@@ -408,4 +470,65 @@ test('dogfood approve stub is a thin caller of the reusable at main (#644)', () 
   assert.match(reference, /styleproof-approve-reusable\.yml@v7/);
   assert.match(reference, /pinned to `@main`/);
   assert.match(reference, /does not set `require-approval`/);
+});
+
+test('every shipped approval caller grants what its approval program calls on a pull request', async () => {
+  const callers = [
+    ['styleproof-init approve caller', APPROVE_WORKFLOW, reusableApproveScript],
+    [
+      '.github/workflows/styleproof-approve.yml',
+      fs.readFileSync(path.join(root, '.github/workflows/styleproof-approve.yml'), 'utf8'),
+      reusableApproveScript,
+    ],
+    ['example/styleproof-approve.yml', approveYml, approveScript],
+  ];
+  for (const [file, caller, program] of callers) {
+    const grants = callerGrants(caller, file);
+
+    const approval = await runApprove({ actor: REVIEWER, grants, program: program() });
+    assert.deepEqual(
+      approval.statuses.map((s) => s.state),
+      ['success'],
+      `${file}: a reviewer tick turns the gate green`,
+    );
+    assert.match(
+      approval.updated[0].body,
+      /- \[x\] \*\*Approve all changes\*\* — _approved by @a-reviewer_/,
+      `${file}: the approval is written back to the report comment`,
+    );
+
+    const refusal = await runApprove({ actor: AUTHOR, grants, program: program() });
+    assert.match(
+      refusal.updated[0].body,
+      /- \[ \] \*\*Approve all changes\*\* — _self-approval by @pr-author refused_/,
+      `${file}: a refused tick is put back so it cannot read as approved beside a red check`,
+    );
+    assert.equal(refusal.created.length, 1, `${file}: the refusal is said out loud on the pull request`);
+  }
+  assert.match(reusableApproveYml, /Token with statuses:write, pull-requests:write/);
+});
+
+test('a token without pull-requests: write names the missing permission, not a bare 403', async () => {
+  // The grants callers were told to use before: issues: write cannot edit or reply
+  // on a pull request, so the comment write is refused after the status is stamped.
+  const grants = { statuses: 'write', 'pull-requests': 'read', issues: 'write', contents: 'read', actions: 'read' };
+  for (const [file, program] of [
+    ['.github/workflows/styleproof-approve-reusable.yml', reusableApproveScript],
+    ['example/styleproof-approve.yml', approveScript],
+  ]) {
+    for (const [write, input] of [
+      ['updateComment', { actor: REVIEWER }],
+      ['createComment', { actor: REVIEWER, permission: 'read' }],
+    ]) {
+      await assert.rejects(runApprove({ ...input, grants, program: program() }), (error) => {
+        assert.match(
+          error.message,
+          /the approval workflow requires pull-requests: write$/,
+          `${file}: a refused ${write} must name the permission`,
+        );
+        assert.equal(error.cause?.status, 403, `${file}: the GitHub error stays attached`);
+        return true;
+      });
+    }
+  }
 });

@@ -28,10 +28,17 @@ const PLAYWRIGHT_BIN = path.join(root, 'node_modules/.bin');
 // keyed by Playwright's TEST_PARALLEL_INDEX and hands out sequential candidates,
 // binding each once only to skip ports held by unrelated processes. No two
 // workers ever probe the same port, so the close→rebind window cannot race.
+// The ranges also sit below every OS's ephemeral port range (Linux starts at
+// 32768, macOS and Windows at 49152). Inside it, the OS can hand a probed port to
+// any outgoing connection or listen(0) before the child server binds it (#798).
+const EPHEMERAL_PORT_FLOOR = 32768;
 const PORTS_PER_WORKER = 200;
-const WORKER_PORT_BASE = 41000 + Number(process.env.TEST_PARALLEL_INDEX ?? 0) * PORTS_PER_WORKER;
+const WORKER_PORT_BASE = 20000 + Number(process.env.TEST_PARALLEL_INDEX ?? 0) * PORTS_PER_WORKER;
 let nextPortOffset = 0;
 async function freePort(): Promise<number> {
+  if (WORKER_PORT_BASE + PORTS_PER_WORKER > EPHEMERAL_PORT_FLOOR) {
+    throw new Error(`worker port range ${WORKER_PORT_BASE}+ reaches the OS ephemeral range at ${EPHEMERAL_PORT_FLOOR}`);
+  }
   for (let attempts = 0; attempts < PORTS_PER_WORKER; attempts++) {
     const candidate = WORKER_PORT_BASE + (nextPortOffset++ % PORTS_PER_WORKER);
     const usable = await new Promise<boolean>((resolve) => {
