@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.6.0] - 2026-10-07
+
+### Added
+
+- **The approve reusable workflow takes a `runs-on` input.** The approve job
+  was fixed to `ubuntu-latest`, and GitHub-hosted runners bill the calling
+  repository. A private repository with no Actions minutes, or one behind a
+  billing or spending-limit block, never started the job, so ticking
+  **Approve all changes** did nothing. Callers can now pass one runner label
+  or a JSON array of labels, such as `'["self-hosted", "linux"]'`. The
+  default stays `ubuntu-latest`, so existing callers are unchanged.
+
 ### Fixed
 
 - **Eight unit tests now fail when the behaviour their titles name breaks.**

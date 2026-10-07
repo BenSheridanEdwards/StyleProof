@@ -389,6 +389,27 @@ test('reusable approval workflow declares required inputs (#598)', () => {
   assert.match(reusableApproveYml, /token:[\s\S]*?required: true/, 'token secret must be required');
 });
 
+test('reusable approval workflow lets callers choose the approve runner', () => {
+  // GitHub-hosted runners bill the CALLER's account, so a private consumer with no
+  // minutes (or a billing / spending-limit block) needs its own runners here.
+  const input = reusableApproveYml.match(/\n {6}runs-on:\n((?: {8}.*\n)+)/);
+  assert.ok(input, 'runs-on input must be declared under workflow_call inputs');
+  assert.match(input[1], /^ {8}type: string$/m, 'runs-on must be a string input');
+  assert.match(input[1], /^ {8}default: 'ubuntu-latest'$/m, 'runs-on must default to ubuntu-latest');
+
+  const jobRunsOn = reusableApproveYml.match(/^ {4}runs-on: (.+)$/gm);
+  assert.deepEqual(
+    jobRunsOn,
+    ["    runs-on: ${{ startsWith(inputs.runs-on, '[') && fromJSON(inputs.runs-on) || inputs.runs-on }}"],
+    'the approve job must run on the input: a JSON array of labels, else one label',
+  );
+
+  // The description's array example must be valid JSON, since callers copy it.
+  const example = input[1].match(/e\.g\. '(\[[^']*\])'/);
+  assert.ok(example, 'runs-on description must show a JSON array example');
+  assert.deepEqual(JSON.parse(example[1]), ['self-hosted', 'linux']);
+});
+
 test('reusable approval workflow has the same job guard as the reference (#598)', () => {
   // Extract the if condition (the multiline string after >-), stopping at the first non-indented line
   // that isn't part of the condition (typically a comment or the next key like runs-on)
