@@ -229,9 +229,10 @@ const intersects = ([ax, ay, aw, ah]: Rect, [bx, by, bw, bh]: Rect): boolean =>
 export function attributeRegion(map: StyleMap, rect: Rect, limit = DEFAULTS.attributionLimit): AttributedElement[] {
   const candidates: Array<{ path: string; cls: string; area: number }> = [];
   for (const [elementPath, element] of Object.entries(map.elements)) {
-    if (!element.rect || elementPath === 'html' || elementPath === 'body') continue;
-    const [, , w, h] = element.rect;
-    if (w <= 0 || h <= 0 || !intersects(element.rect, rect)) continue;
+    const screenshotRect = element.screenshotRect ?? element.rect;
+    if (!screenshotRect || elementPath === 'html' || elementPath === 'body') continue;
+    const [, , w, h] = screenshotRect;
+    if (w <= 0 || h <= 0 || !intersects(screenshotRect, rect)) continue;
     candidates.push({ path: elementPath, cls: element.cls, area: w * h });
   }
   return candidates

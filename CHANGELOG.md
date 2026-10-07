@@ -7,8 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.5.1] - 2026-10-06
+
 ### Fixed
 
+- **Report crops follow the full-page screenshot geometry.** Capture preserves
+  each element's driven-state `rect` for visibility, correspondence, and layout
+  comparisons, and records a separate optional `screenshotRect` for expanded
+  nested-scroller screenshots. Report crops, annotations, and pixel attribution
+  use that screenshot box, so scrolled content points at the right pixels without
+  dropping visible added/removed elements from the review gate. Expansion restores
+  scroll offsets and inline CSS values and priorities, including `!important`,
+  before further capture reads. Recapture affected nested-scroller baselines to
+  populate the new screenshot geometry; older maps fall back to `rect`.
 - **JavaScript config policy is honored during capture and comparison.**
   Synchronous consumers now load `styleproof.config.mjs` / `.js` instead of
   dropping their coverage and product-state settings or reading stale sibling

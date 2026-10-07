@@ -1144,6 +1144,16 @@ never a pass. Pixel
 results never enter the computed-style counts; the two verdicts are reported
 side by side.
 
+### Captured rect coordinates
+
+`ElementEntry.rect` is the driven page's document-space box (`[x, y, width,
+height]`). Visibility, correspondence, and layout comparisons keep using this
+box. For nested overflow scrollers, optional `ElementEntry.screenshotRect` stores
+the box after full-page screenshot expansion. Report crops, annotations, and pixel
+attribution prefer this field and fall back to `rect` on older captures. Expansion
+restores inline values and CSS priorities as well as scroller offsets. Recapture
+affected nested-scroller baselines to generate aligned screenshot evidence.
+
 ## Optional: content layer (advisory)
 
 StyleProof is **computed-styles first**, and stays that way: copy and DOM
