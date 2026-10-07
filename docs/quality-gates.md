@@ -25,3 +25,10 @@ Shared globs live in `scripts/ci-path-filters.mjs` (mirrors `scripts/pre-push-e2
 ## Pattern reference
 
 Fleet’s `gates.config.mjs` is the cross-repo model for path-scoped gates. CursorHalo’s `scripts/prepush-docs-only.sh` is the docs-only fast path model.
+
+## Shared PR body (eight-section)
+
+Canonical headings live in `scripts/eight-section-pr-body.mjs`. After the show-me
+template PR merges, `scripts/validate-pr-body.mjs` should require the same list.
+Other repos can call `.github/workflows/pr-body-reusable.yml` once they vendor
+or share the validator, or keep a synced copy of the eight headings.
