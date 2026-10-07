@@ -24,7 +24,7 @@ Shared globs live in `scripts/ci-path-filters.mjs` (mirrors `scripts/pre-push-e2
 
 ## Pattern reference
 
-Fleet’s `gates.config.mjs` is the cross-repo model for path-scoped gates. CursorHalo’s `scripts/prepush-docs-only.sh` is the docs-only fast path model.
+Cross-repo model: a shared `gates.config`-style map of path globs → required lanes, plus a docs-only fast path on pre-push when the staged diff is documentation-only.
 
 ## Shared PR body (eight-section)
 

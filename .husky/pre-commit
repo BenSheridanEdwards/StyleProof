@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -e
 
-# Lean pre-commit (Fleet-style): staged-relevant static checks only.
+# Lean pre-commit: staged-relevant static checks only.
 # Full build and typecheck run in CI (and on pre-push via npm test).
 # Privacy and secret scanning stay fail-closed in CI (secret-scan.yml).
 
