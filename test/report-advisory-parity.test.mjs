@@ -572,22 +572,45 @@ describe('advisory content JSON/Markdown parity (#539)', () => {
     test('order and nesting preserved between JSON and Markdown', () => {
       const { beforeDir, afterDir, outDir, root } = tmpDirs();
       try {
-        // Create multiple surfaces to test ordering
-        for (const surface of ['about@1280', 'home@1280', 'contact@1280']) {
-          const map = makeMap({
+        // Three surfaces, each with its own change, so each has its own entry in both outputs.
+        const after = { 'about@1280': 'rgb(10, 0, 0)', 'home@1280': 'rgb(20, 0, 0)', 'contact@1280': 'rgb(30, 0, 0)' };
+        const hex = { 'about@1280': '#0a0000', 'home@1280': '#140000', 'contact@1280': '#1e0000' };
+        const map = (color) =>
+          makeMap({
             elements: {
               body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+              'body > h1': { tag: 'h1', cls: 'title', rect: [0, 0, 600, 60], style: { color } },
             },
           });
-          writeCapture(beforeDir, surface, map);
-          writeCapture(afterDir, surface, map);
+        for (const [surface, color] of Object.entries(after)) {
+          writeCapture(beforeDir, surface, map('rgb(0, 0, 0)'));
+          writeCapture(afterDir, surface, map(color));
         }
 
         const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
         const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+        const md = fs.readFileSync(result.reportMdPath, 'utf8');
 
-        // Verify surfaces array exists and is ordered
-        assert.ok(Array.isArray(json.surfaces), 'surfaces should be an array');
+        // Order: the Markdown lists the surfaces in the order the JSON does.
+        const jsonOrder = json.surfaces.map((s) => s.representative);
+        assert.deepEqual([...jsonOrder].sort(), Object.keys(after).sort());
+        const mdOrder = [...md.matchAll(/^_(\w+) @ (\d+)_$/gm)].map((m) => `${m[1]}@${m[2]}`);
+        assert.deepEqual(mdOrder, jsonOrder);
+
+        // Nesting: each surface's own change sits under that surface, in both outputs.
+        for (const entry of json.surfaces) {
+          assert.deepEqual(
+            entry.findings.map((f) => f.props.map((p) => p.after)),
+            [[after[entry.representative]]],
+          );
+        }
+        const sections = md.split(/^_(?=\w+ @ \d+_$)/m).slice(1);
+        for (const [i, surface] of mdOrder.entries()) {
+          assert.match(sections[i], new RegExp(`→ \`${hex[surface]}\``));
+          for (const other of mdOrder.filter((s) => s !== surface)) {
+            assert.doesNotMatch(sections[i], new RegExp(hex[other]));
+          }
+        }
 
         // Content field should always be present with consistent structure
         assert.deepEqual(Object.keys(json.content).sort(), ['advisory', 'changes', 'evaluated'].sort());

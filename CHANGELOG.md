@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Two more report tests now fail when the behaviour their titles name
+  breaks.** "4-side padding aggregates in counts and Markdown" matched
+  `/padding/`, which the four longhands also match. It now requires the
+  `padding` shorthand row and rejects any longhand. "Order and nesting
+  preserved between JSON and Markdown" never read the Markdown. It now
+  gives three surfaces their own changes, checks that the Markdown lists
+  them in the JSON's order, and checks that each change sits under its own
+  surface. Each was checked against a planted bug.
+
 ## [7.6.0] - 2026-10-07
 
 ### Added
