@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **Forced-state capture uses fewer browser round trips.** Each forced-state
+  read combines its target-liveness check and style flush with the snapshot on
+  the same CDP session. Reset flushes remain separate, and targets and states
+  are still processed serially. Capture limits, coverage and map format are
+  unchanged.
+
 ## [7.6.0] - 2026-10-07
 
 ### Added
