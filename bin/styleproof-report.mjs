@@ -108,6 +108,9 @@ function summaryLine() {
       ? `ℹ ${newSurfaces} new surface(s) with no baseline — report written for review`
       : `⚠ ${oneSidedSurfaces} removed or baseline-repair-debt surface(s) — report written for review`;
   }
+  if (result.comparison?.hasReviewableEvidence) {
+    return `✗ ${result.comparison.reviewableCounts.dom} reviewable element addition(s)/removal(s) — report written for review`;
+  }
   if (consistencyFailed) return '⚠ no presentation changes — report consistency failure written';
   if (headOnlyVolatile.length > 0) {
     return `✗ not certified — ${headOnlyVolatile.length} subtree(s) newly volatile on head were excluded from the comparison`;
@@ -129,7 +132,11 @@ if (consistencyFailed) {
 console.log(summaryLine());
 console.log(`report: ${result.reportMdPath}`);
 if (includeContent && contentChanges > 0) {
-  console.log(`📝 ${contentChanges} advisory content change(s) — does not affect the exit code`);
+  console.log(
+    result.comparison?.reviewableCounts.dom > 0
+      ? `📝 ${contentChanges} content/structure change(s) — visible element additions/removals require review`
+      : `📝 ${contentChanges} advisory content change(s) — does not affect the exit code`,
+  );
 }
 
 // Exit 1 when there is anything to review or any evidence that cannot certify.
@@ -141,6 +148,7 @@ const clean =
   headOnlyVolatile.length === 0 &&
   baseOnlyVolatile.length === 0 &&
   result.comparison?.blocksCertification !== true &&
+  result.comparison?.hasReviewableEvidence !== true &&
   !armedFailure(result.legacyPairs, ['undeclared', 'staleAcknowledgements']) &&
   !armedFailure(result.criticalStates, ['failing', 'unresolved', 'contradictory']) &&
   !sourceBindingFailed;

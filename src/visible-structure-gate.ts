@@ -23,13 +23,25 @@ export type ElevatedVisibleStructureResult = {
   count: number;
 };
 
+function intersectsCapturedViewport(
+  rect: NonNullable<ElementEntry['rect']>,
+  viewport: NonNullable<StyleMap['viewport']>,
+): boolean {
+  const [x, y, w, h] = rect;
+  const { width, height } = viewport;
+  const scrollX = viewport.scrollX ?? 0;
+  const scrollY = viewport.scrollY ?? 0;
+  // Intersect document-space boxes with the viewport the surface actually reached.
+  return !(x >= scrollX + width || y >= scrollY + height || x + w <= scrollX || y + h <= scrollY);
+}
+
 /** True when the captured entry has a non-zero box, is not hidden, and intersects the capture viewport. */
 export function isVisibleCapturedElement(
   entry: Pick<ElementEntry, 'rect' | 'style'>,
   map?: Pick<StyleMap, 'viewport'> | null,
 ): boolean {
   if (!entry.rect) return false;
-  const [x, y, w, h] = entry.rect;
+  const [, , w, h] = entry.rect;
   if (!(w > 0 && h > 0)) return false;
   const style = entry.style ?? {};
   if (style.display === 'none') return false;
@@ -39,11 +51,11 @@ export function isVisibleCapturedElement(
     const opacity = Number.parseFloat(opacityRaw);
     if (Number.isFinite(opacity) && opacity <= 0) return false;
   }
-  const vw = map?.viewport?.width;
-  const vh = map?.viewport?.height;
+  const viewport = map?.viewport;
+  if (!viewport) return true;
+  const { width: vw, height: vh } = viewport;
   if (typeof vw === 'number' && typeof vh === 'number' && vw > 0 && vh > 0) {
-    // Intersects the captured viewport (document-space rect vs viewport origin).
-    if (x >= vw || y >= vh || x + w <= 0 || y + h <= 0) return false;
+    return intersectsCapturedViewport(entry.rect, viewport);
   }
   return true;
 }

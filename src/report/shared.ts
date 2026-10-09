@@ -117,8 +117,9 @@ function isPaintedEntry(map: StyleMap, entry: ElementEntry | undefined): boolean
   if (entry.style.display === 'none' || entry.style.visibility === 'hidden') return false;
   if (Number(entry.style.opacity ?? '1') <= 0) return false;
   const [x, y, width, height] = entry.rect;
-  if (x + width <= 0 || y + height <= 0) return false;
-  return map.viewport?.width === undefined || x < map.viewport.width;
+  const scrollX = map.viewport?.scrollX ?? 0;
+  if (x + width <= scrollX || y + height <= 0) return false;
+  return map.viewport?.width === undefined || x < scrollX + map.viewport.width;
 }
 
 /** Background behind an active modal is unsuitable as proof; content inside the modal stays eligible. */
