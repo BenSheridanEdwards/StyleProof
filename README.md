@@ -352,6 +352,15 @@ For the hand-wired Action form, the fork/Dependabot split, the map-store and
 report branches, the pre-push hook, and every config key and flag, see
 [docs/REFERENCE.md](docs/REFERENCE.md).
 
+The report Action defaults to `comparison-base: pull-request-base`: it expects
+captures from the trusted PR base tip B and captured head H, without a comparison
+API call. To compare the fork point instead, explicitly set
+`comparison-base: merge-base` on an Action ref containing this feature. It derives
+A from GitHub's immutable B...H comparison, then requires genuine A/H captures.
+This does not change the capture workflow or relabel existing maps. See
+[merge-base setup](docs/setup.md#merge-base-comparison) for producer/verifier
+agreement, private-repository permissions, stale-history limits and fork approval.
+
 ## Two modes: review or certify
 
 The scaffold's default gate is **advisory** — the evidence posts on every PR
