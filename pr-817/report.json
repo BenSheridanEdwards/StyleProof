@@ -2,34 +2,34 @@
   "gateMode": "certify",
   "counts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "rawCounts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "reviewableCounts": {
-    "dom": 1,
-    "style": 0,
+    "dom": 0,
+    "style": 1,
     "state": 0
   },
   "comparison": {
     "rawCounts": {
       "dom": 0,
-      "style": 0,
+      "style": 1,
       "state": 0
     },
     "reviewableCounts": {
-      "dom": 1,
-      "style": 0,
+      "dom": 0,
+      "style": 1,
       "state": 0
     },
     "newSurfaces": 0,
     "removedSurfaces": 0,
-    "rawChangedSurfaces": 0,
-    "reviewableChangedSurfaces": 0,
+    "rawChangedSurfaces": 1,
+    "reviewableChangedSurfaces": 1,
     "hasReviewableEvidence": true,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
@@ -65,12 +65,58 @@
   "baselineFailures": [],
   "partialBaseline": false,
   "content": {
-    "evaluated": true,
-    "changes": 1,
-    "advisory": true,
-    "elevatedVisibleStructure": 1
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
   },
-  "surfaces": [],
+  "surfaces": [
+    {
+      "surfaces": [
+        "home@320"
+      ],
+      "representative": "home@320",
+      "regions": [
+        {
+          "paths": [
+            "body > main:nth-child(1)"
+          ],
+          "before": {
+            "x": 12,
+            "y": 12,
+            "w": 204,
+            "h": 104
+          },
+          "after": {
+            "x": 12,
+            "y": 12,
+            "w": 204,
+            "h": 104
+          },
+          "images": {
+            "composite": "crops/home-320-1-composite.png",
+            "annotated": "crops/home-320-1-annotated.png"
+          }
+        }
+      ],
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1)",
+          "cls": "panel",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(255, 0, 0)"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        }
+      ],
+      "classification": "changed"
+    }
+  ],
   "confidence": {
     "counts": {
       "inaccessible": 0,
@@ -113,10 +159,10 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "ecb568a2429e9af74b94a1dd0c07e71c8b9f0d1c7ca860032d867189cd1d8337",
+      "digest": "c41b219433e23f228c7e638c84abf61ce04349a7a51e0fa4b54f9d1316a73f6f",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1555
+      "byteCount": 1527
     }
   },
   "actionTrustState": "STYLE_REVIEW_REQUIRED",
