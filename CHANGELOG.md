@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in report Action `comparison-base: merge-base` derives the fork point from
+  GitHub using trusted immutable base/head commits. The default remains
+  `pull-request-base` with no comparison request. Invalid or unavailable provenance
+  fails closed; source binding, receipt validation and fork approval stay intact.
+
 ## [7.6.0] - 2026-10-07
 
 ### Added
