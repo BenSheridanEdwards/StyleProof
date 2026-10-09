@@ -108,7 +108,7 @@ function summaryLine() {
       ? `ℹ ${newSurfaces} new surface(s) with no baseline — report written for review`
       : `⚠ ${oneSidedSurfaces} removed or baseline-repair-debt surface(s) — report written for review`;
   }
-  if (result.comparison?.hasReviewableEvidence) {
+  if (result.comparison?.reviewableCounts?.dom > 0) {
     return `✗ ${result.comparison.reviewableCounts.dom} reviewable element addition(s)/removal(s) — report written for review`;
   }
   if (consistencyFailed) return '⚠ no presentation changes — report consistency failure written';
