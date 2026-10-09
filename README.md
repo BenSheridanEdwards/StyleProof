@@ -231,6 +231,10 @@ can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced
 `:hover`/`:focus`/`:active` deltas.
 
+Forced-state reads share a browser round trip with their liveness check and
+style flush. Each reset still flushes before the next state or target; captures
+remain serial, with the same coverage and resource limits.
+
 Nested overflow scrollers are expanded for full-page report screenshots. Capture
 keeps `rect` in the driven page's document coordinates for visibility and layout
 comparisons; optional `screenshotRect` locates the element in the expanded image.
