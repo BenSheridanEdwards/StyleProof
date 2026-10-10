@@ -44,7 +44,8 @@ test('resolveActionContext reads same-repo workflow_run identity from trusted pu
     payload: {
       workflow_run: {
         head_sha: sha,
-        head_repository: { full_name: 'owner/repo' },
+        // The same repository, named in another case: GitHub repository names are case-insensitive.
+        head_repository: { full_name: 'OWNER/repo' },
         pull_requests: [{ number: 34, base: { sha: baseSha }, head: { sha } }],
       },
     },
@@ -59,7 +60,11 @@ test('resolveActionContext reads same-repo workflow_run identity from trusted pu
 test('resolveActionContext rejects a non-corresponding embedded workflow_run PR and uses exact-head lookup', async () => {
   const unrelatedHead = 'c'.repeat(40);
   const fallbackBase = 'e'.repeat(40);
-  const mock = github([{ state: 'open', number: 35, base: { sha: fallbackBase }, head: { sha } }]);
+  const mock = github([
+    // An open PR associated with the commit whose head has since moved on: not the exact head.
+    { state: 'open', number: 36, base: { sha: baseSha }, head: { sha: unrelatedHead } },
+    { state: 'open', number: 35, base: { sha: fallbackBase }, head: { sha } },
+  ]);
   const result = await resolveActionContext({
     eventName: 'workflow_run',
     payload: {
