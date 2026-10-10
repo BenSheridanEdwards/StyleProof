@@ -1,0 +1,48 @@
+{
+  "name": "demo",
+  "root": "../../example/demo",
+  "serve": { "static": "." },
+  "pages": [
+    { "key": "atom", "path": "/" },
+    { "key": "organism", "path": "/?scale=organism" }
+  ],
+  "widths": [1280],
+  "mutations": [
+    {
+      "id": "color-btn-bg",
+      "category": "color",
+      "desc": "primary button background teal → red",
+      "file": "index.html",
+      "find": "background: rgb(20, 184, 166);",
+      "replace": "background: rgb(220, 38, 38);",
+      "expect": { "selector": ".btn", "props": ["background-color"] }
+    },
+    {
+      "id": "layout-modal-padding",
+      "category": "layout",
+      "desc": "modal top padding 22px → 30px",
+      "file": "index.html",
+      "find": "padding: 22px 22px 18px;",
+      "replace": "padding: 30px 22px 18px;",
+      "expect": { "selector": ".modal", "props": ["padding-top"] }
+    },
+    {
+      "id": "text-modal-title",
+      "category": "text",
+      "desc": "modal title copy change",
+      "file": "index.html",
+      "find": "<h2 id=\"save-title\">Save changes?</h2>",
+      "replace": "<h2 id=\"save-title\">Discard changes?</h2>",
+      "expect": { "selector": "#save-title" }
+    },
+    {
+      "id": "clean-btn-bg-hex",
+      "category": "equivalent",
+      "desc": "button background rewritten as the same colour in hex",
+      "file": "index.html",
+      "find": "background: rgb(20, 184, 166);",
+      "replace": "background: #14b8a6;",
+      "expect": { "clean": true }
+    }
+  ]
+}
