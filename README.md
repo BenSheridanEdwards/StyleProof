@@ -193,8 +193,8 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
   `currentColor` are nested under the colour that drove them.
 - **Warnings appear only when something is wrong**, such as a page that was not captured or captures that may not
   show the same product state. A fully certified run keeps that evidence collapsed.
-- **Approve all changes** turns the `StyleProof` check green once a reviewer with write access ticks it. A later push
-  that changes styles reopens it.
+- **Approve all changes** turns the `StyleProof` check green once a reviewer with write access, other than the PR
+  author, ticks it. A later push that changes styles or surfaces reopens it.
 
 The check compares the browser's computed CSS, not pixels. The crops are there so a person can see the change. The
 pass or fail decision runs on the exact values in the table. Surface-key vocabulary (`@width`, live-state and popup
