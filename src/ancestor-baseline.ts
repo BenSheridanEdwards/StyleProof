@@ -3,6 +3,7 @@
 // paths changed between A and B is capture-relevant. Every uncertainty (no stored
 // ancestor, no declared source roots, any git failure) resolves to a full capture, and
 // reuse never launders provenance: the caller records a BaselineProvenance sidecar.
+import path from 'node:path';
 import { runGit } from './node-util.js';
 import { canonicalPath } from './affected-surfaces.js';
 
@@ -58,6 +59,15 @@ export function changedPathsBetween(options: { ancestorSha: string; sha: string;
     `git diff --name-only ${options.ancestorSha.slice(0, 12)} ${options.sha.slice(0, 12)}`,
     '\0',
   );
+}
+
+/** Git reports changed paths from the repository root; a spec or source root is written
+ *  relative to a checkout directory (the cwd, or the config file's directory). Re-anchor
+ *  `target` (relative to `fromDirectory`, or absolute) to the repository root at
+ *  `checkoutRoot`. A target at or outside the root becomes '' — the whole repository. */
+export function repoRelativePath(checkoutRoot: string, fromDirectory: string, target: string): string {
+  const relative = path.relative(path.resolve(checkoutRoot), path.resolve(fromDirectory, target)).replaceAll('\\', '/');
+  return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) ? '' : relative;
 }
 
 function isSameOrUnderDirectory(candidate: string, directory: string): boolean {

@@ -17,7 +17,7 @@ import {
   readCapturePlaywrightConfigText,
   resolveBrowserExecutablePath,
 } from '../dist/browser-preflight.js';
-import { loadStyleProofConfigAsync, loadStyleProofConfigWithLocationAsync } from '../dist/config.js';
+import { loadStyleProofConfigWithLocationAsync } from '../dist/config.js';
 import { ciOutputLines, detectPackageManagerPlan } from '../dist/ci.js';
 import { applySpecRefOverlay, CiSpecRefError, resolveSpecRefToSha } from '../dist/ci-spec-ref.js';
 import {
@@ -37,7 +37,7 @@ import {
   restoreMapBundle,
   writeBaselineProvenance,
 } from '../dist/map-store.js';
-import { planAncestorBaselineReuse } from '../dist/ancestor-baseline.js';
+import { planAncestorBaselineReuse, repoRelativePath } from '../dist/ancestor-baseline.js';
 import { classifyAncestorCaptureColdReason, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
 import { captureKeysIn } from '../dist/capture.js';
 import {
@@ -188,9 +188,11 @@ async function specFor(cwd) {
 // Project config is read AFTER the checkout is pinned to --head: a head commit that
 // moves the spec must govern this run.
 let projectConfig;
+let projectConfigDir = consumerCwd;
 try {
   const loadedHead = await loadStyleProofConfigWithLocationAsync(consumerCwd);
   projectConfig = loadedHead.config;
+  projectConfigDir = loadedHead.configDir;
   // An explicit --spec is used everywhere, but it still has to stay inside the repository.
   spec =
     opts.spec === undefined
@@ -418,20 +420,31 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
   }
   try {
     const probeSpec = await specFor(baseProbeCwd);
-    const configAtBase = await loadStyleProofConfigAsync(baseProbeCwd);
+    const { config: configAtBase, configDir: baseConfigDir } =
+      await loadStyleProofConfigWithLocationAsync(baseProbeCwd);
     const branch = process.env.STYLEPROOF_CACHE_BRANCH ?? configAtBase.cacheBranch;
     const remote = process.env.STYLEPROOF_REMOTE ?? configAtBase.remote;
     const envRoots = (process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS ?? '')
       .split(',')
       .map((r) => r.trim())
       .filter(Boolean);
+    // Git diffs name paths from the repository root. The spec and the default roots are
+    // relative to the cwd, and config roots to their config file. Re-anchor them so a
+    // subdirectory consumer sees its own changes. The as-written root is kept too, so
+    // this can only add captures, never remove one.
+    const probeRoot = path.resolve(baseProbeCwd, path.relative(consumerCwd, repoRoot));
+    const [rootsDir, checkoutRoot, declaredRoots] = configAtBase?.ancestorBaseline?.roots
+      ? [baseConfigDir, probeRoot, configAtBase.ancestorBaseline.roots]
+      : projectConfig?.ancestorBaseline?.roots
+        ? [projectConfigDir, repoRoot, projectConfig.ancestorBaseline.roots]
+        : [baseProbeCwd, probeRoot, ['src']];
     const sourceRoots = envRoots.length
       ? envRoots
-      : (configAtBase?.ancestorBaseline?.roots ?? projectConfig?.ancestorBaseline?.roots ?? ['src']);
+      : [...new Set(declaredRoots.flatMap((r) => [r, repoRelativePath(checkoutRoot, rootsDir, r)]))];
     const plan = planAncestorBaselineReuse({
       requestedSha: base,
       availableShas: listMapStoreBundleShas({ branch, remote, cwd: repoRoot }),
-      spec: probeSpec,
+      spec: repoRelativePath(probeRoot, baseProbeCwd, probeSpec),
       sourceRoots,
       cwd: repoRoot,
     });

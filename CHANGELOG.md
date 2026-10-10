@@ -53,6 +53,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   stayed blocked. Both workflows now start on every pull request, and a path-filter
   job skips the dogfood when no product surface changed: a skipped job counts as
   passing. The filter fails closed: if it does not run, the dogfood does.
+- **Ancestor baseline reuse sees a subdirectory consumer's own changes.** Git
+  names changed paths from the repository root, but `styleproof-ci` compared them
+  with the spec and source roots as written relative to the consumer directory.
+  For a consumer in `packages/web`, a base commit that changed only
+  `packages/web/src/app.css` matched neither, so CI reused a stale ancestor
+  baseline and recorded "none capture-relevant". The spec, the default `src`
+  root and `ancestorBaseline.roots` are now resolved to repository paths (config
+  roots from their config file's directory). Each root is also kept as written,
+  so this change can only add captures. Repository-root consumers are unchanged.
 
 - Failed API requests remain attributable after a canceled main-frame navigation
   (including downloads) followed by an SPA `pushState` transition. The armed
