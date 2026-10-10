@@ -16,8 +16,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `packages/web/src/app.css` matched neither, so CI reused a stale ancestor
   baseline and recorded "none capture-relevant". The spec, the default `src`
   root and `ancestorBaseline.roots` are now resolved to repository paths (config
-  roots from their config file's directory). Each root is also kept as written,
-  so this change can only add captures. Repository-root consumers are unchanged.
+  roots from their config file's directory), including an absolute `--spec`.
+  Each spec and root is also kept as written, so this change can only add
+  captures. Repository-root consumers are unchanged.
 
 - **A pull request from a deleted fork is an untrusted capture.** GitHub sends
   `head.repo: null` once a fork is deleted, and the PR head is still the fork's
