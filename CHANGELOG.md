@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Visible changes remain reviewable after document scrolling.** Capture records
+  the viewport's scroll origin alongside document-space element boxes. Visible
+  additions/removals now require review when a surface scrolls vertically or
+  horizontally; horizontal-scrolled style changes retain their report crops.
+  The report CLI also exits 1 and names reviewable element changes when no
+  matched-element restyle exists. Style/state-only consistency failures retain
+  their diagnostic summary instead of claiming zero element changes.
+  Existing box semantics and unscrolled captures
+  are unchanged. Legacy maps assume zero origin; recapture affected scrolled
+  baselines to obtain correct visibility evidence. (#816)
+
 ### Added
 
 - Opt-in report Action `comparison-base: merge-base` derives the fork point from

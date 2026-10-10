@@ -1209,6 +1209,55 @@ test('report CLI blocks uncertified structural-only path churn when content comp
   rmTmp(root);
 });
 
+test('report CLI names a collapsed style presentation as a consistency failure, not zero element changes', () => {
+  const root = mkTmp();
+  try {
+    const A = path.join(root, 'a');
+    const B = path.join(root, 'b');
+    const action = {
+      tag: 'button',
+      cls: 'action',
+      rect: [10, 10, 80, 24],
+      ownTextLength: 3,
+      style: { color: 'rgb(0, 0, 0)' },
+    };
+    const label = {
+      tag: 'button',
+      cls: 'label',
+      rect: [10, 50, 80, 24],
+      ownTextLength: 4,
+      style: { color: 'rgb(255, 255, 255)' },
+    };
+    // The class identities swap, but colors stay fixed at each path. Certification
+    // retains the identity-based restyles while presentation finds no path restyle.
+    for (const [dir, first, second, sha] of [
+      [A, action, label, 'base-sha'],
+      [B, { ...label, style: action.style }, { ...action, style: label.style }, 'head-sha'],
+    ]) {
+      writeCapture(
+        dir,
+        'home@400',
+        {
+          ...makeMap({ elements: { 'body > button:nth-child(1)': first, 'body > button:nth-child(2)': second } }),
+          metadata: { productState: { id: 'reordered-buttons', revision: 'fixture-v1' } },
+        },
+        null,
+      );
+      writeManifest(dir, sha, 'same-env-key');
+    }
+    const out = path.join(root, 'out');
+    const r = run(REPORT, [A, B, '--out', out, '--include-content']);
+    const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+    assert.equal(r.status, 1, r.stderr);
+    assert.deepEqual(json.reviewableCounts, { dom: 0, style: 2, state: 0 });
+    assert.deepEqual(json.reportConsistency, { ok: false, reason: 'presentation_collapsed_while_raw_reviewable' });
+    assert.match(r.stdout, /⚠ no presentation changes — report consistency failure written/);
+    assert.doesNotMatch(r.stdout, /0 reviewable element addition\(s\)\/removal\(s\)/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('report CLI exits 2 on a manifest-less pair (v4 refuses)', () => {
   const { root, A, B } = differingPair({ bare: true });
   const out = path.join(root, 'out');

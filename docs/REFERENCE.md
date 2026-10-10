@@ -1166,6 +1166,16 @@ attribution prefer this field and fall back to `rect` on older captures. Expansi
 restores inline values and CSS priorities as well as scroller offsets. Recapture
 affected nested-scroller baselines to generate aligned screenshot evidence.
 
+After document scrolling, optional `StyleMap.viewport.scrollX` / `scrollY` record
+the document origin in the same browser snapshot as the element boxes. Visible
+element additions/removals intersect that reached viewport, and horizontal report
+crop eligibility uses the captured origin. Both `styleproof-diff` and
+`styleproof-report` exit 1 when these elements require review. Unscrolled captures
+keep the width/height-only viewport shape. Missing offsets on older maps default
+to zero; the original scroll position cannot be recovered, so recapture affected
+scrolled baselines after upgrading. `rect` and `screenshotRect` retain their
+existing coordinate meanings.
+
 ## Optional: content layer (advisory)
 
 StyleProof is **computed-styles first**, and stays that way: copy and DOM

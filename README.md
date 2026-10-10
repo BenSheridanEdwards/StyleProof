@@ -241,6 +241,11 @@ comparisons; optional `screenshotRect` locates the element in the expanded image
 Crops and pixel attribution use `screenshotRect`, falling back to `rect` for older
 maps. Recapture affected nested-scroller baselines to obtain aligned crop evidence.
 
+When a surface scrolls the document, capture also records the viewport's scroll
+origin. Visible element additions/removals are checked against that reached
+viewport, and horizontal-scrolled changes retain report crops. Older maps lack
+this origin and assume zero; recapture affected scrolled baselines after upgrading.
+
 ## Quickstart
 
 ### Upgrading to 7.0.0
