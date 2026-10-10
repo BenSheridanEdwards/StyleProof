@@ -441,11 +441,20 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
     const sourceRoots = envRoots.length
       ? envRoots
       : [...new Set(declaredRoots.flatMap((r) => [r, repoRelativePath(checkoutRoot, rootsDir, r)]))];
+    // An absolute explicit --spec names the consumer checkout, not the probe worktree.
+    const repoSpec =
+      repoRelativePath(probeRoot, baseProbeCwd, probeSpec) || repoRelativePath(repoRoot, consumerCwd, probeSpec);
+    // Like the roots, the as-written relative spec and its directory stay relevant too.
+    // An empty root list already makes every path relevant, so leave it empty.
+    const writtenSpec =
+      path.isAbsolute(probeSpec) || sourceRoots.length === 0
+        ? []
+        : [probeSpec, path.dirname(probeSpec)].filter((p) => p !== '.');
     const plan = planAncestorBaselineReuse({
       requestedSha: base,
       availableShas: listMapStoreBundleShas({ branch, remote, cwd: repoRoot }),
-      spec: repoRelativePath(probeRoot, baseProbeCwd, probeSpec),
-      sourceRoots,
+      spec: repoSpec,
+      sourceRoots: [...sourceRoots, ...writtenSpec],
       cwd: repoRoot,
     });
     if (plan.decision === 'capture') {
