@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Failed API requests remain attributable after a canceled main-frame navigation
+  (including downloads) followed by an SPA `pushState` transition. The armed
+  failed-data-request gate now receives these failures instead of silently
+  losing them; genuine cross-document handoffs retain their attribution. (#821)
+
 - **Visible changes remain reviewable after document scrolling.** Capture records
   the viewport's scroll origin alongside document-space element boxes. Visible
   additions/removals now require review when a surface scrolls vertically or
