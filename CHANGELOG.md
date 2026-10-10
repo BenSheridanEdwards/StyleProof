@@ -19,6 +19,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   roots from their config file's directory). Each root is also kept as written,
   so this change can only add captures. Repository-root consumers are unchanged.
 
+- **A pull request from a deleted fork is an untrusted capture.** GitHub sends
+  `head.repo: null` once a fork is deleted, and the PR head is still the fork's
+  code. On `pull_request` and `pull_request_target` events the Action read that
+  as a same-repository PR, so a clean verdict could turn green without
+  maintainer approval. It is now untrusted, as the `workflow_run` path already
+  was.
+
+- **The approve workflow falls back to `ubuntu-latest` on an empty `runs-on`.**
+  The default applied only when a caller omitted the input. A caller passing an
+  unset variable, such as `runs-on: ${{ vars.STYLEPROOF_RUNNER }}`, sent an
+  empty runner label, so the approve job never started.
+
 - Failed API requests remain attributable after a canceled main-frame navigation
   (including downloads) followed by an SPA `pushState` transition. The armed
   failed-data-request gate now receives these failures instead of silently

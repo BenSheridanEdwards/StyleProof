@@ -146,6 +146,18 @@ test('resolveActionContext flags fork captures as untrusted and fails closed wit
     'pull_request',
   );
   assert.equal(forkPullRequest.untrustedCapture, true);
+  for (const eventName of ['pull_request', 'pull_request_target']) {
+    const deletedFork = await run(
+      { pull_request: { number: 12, base: { sha: baseSha }, head: { sha, repo: null } } },
+      eventName,
+    );
+    assert.equal(deletedFork.untrustedCapture, true, `${eventName}: a deleted fork's head is still untrusted`);
+  }
+  const sameRepoPullRequest = await run(
+    { pull_request: { number: 12, base: { sha: baseSha }, head: { sha, repo: { full_name: 'owner/repo' } } } },
+    'pull_request',
+  );
+  assert.equal(sameRepoPullRequest.untrustedCapture, false, 'a same-repo pull_request stays trusted');
 });
 
 test('decideReviewStatus never turns a fork capture green automatically', () => {

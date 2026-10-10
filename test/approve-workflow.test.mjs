@@ -400,8 +400,10 @@ test('reusable approval workflow lets callers choose the approve runner', () => 
   const jobRunsOn = reusableApproveYml.match(/^ {4}runs-on: (.+)$/gm);
   assert.deepEqual(
     jobRunsOn,
-    ["    runs-on: ${{ startsWith(inputs.runs-on, '[') && fromJSON(inputs.runs-on) || inputs.runs-on }}"],
-    'the approve job must run on the input: a JSON array of labels, else one label',
+    [
+      "    runs-on: ${{ startsWith(inputs.runs-on, '[') && fromJSON(inputs.runs-on) || inputs.runs-on || 'ubuntu-latest' }}",
+    ],
+    'the approve job must run on the input: a JSON array of labels, else one label, else ubuntu-latest when empty',
   );
 
   // The description's array example must be valid JSON, since callers copy it.
