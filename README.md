@@ -424,7 +424,9 @@ report leads with their verdicts:
   means the fallback UI was captured, not the state its responses drive.
   Gating is the default (`dataResidue: 'gate'`): an unacknowledged failing
   endpoint blocks until declared in `styleproof.data-residue.json`, and a
-  stale declaration also fails. Opt down with `dataResidue: 'warn'`. See
+  stale declaration also fails. Failures from the surviving document remain
+  attributable after a canceled navigation or download followed by SPA navigation.
+  Opt down with `dataResidue: 'warn'`. See
   [Failed data request](docs/REFERENCE.md#failed-data-request-a-failed-api-call-is-named-not-swallowed).
 - **Product-state identity** — a pair with matching `productState {id, revision}`
   is comparable and can certify (the only certifying path). Undeclared legacy
