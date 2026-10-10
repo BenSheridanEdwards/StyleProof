@@ -20,6 +20,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   are unchanged. Legacy maps assume zero origin; recapture affected scrolled
   baselines to obtain correct visibility evidence. (#816)
 
+### Added
+
+- Opt-in report Action `comparison-base: merge-base` derives the fork point from
+  GitHub using trusted immutable base/head commits. The default remains
+  `pull-request-base` with no comparison request. Invalid or unavailable provenance
+  fails closed; source binding, receipt validation and fork approval stay intact.
+
+### Changed
+
+- **Forced-state capture uses fewer browser round trips.** Each forced-state
+  read combines its target-liveness check and style flush with the snapshot on
+  the same CDP session. Reset flushes remain separate, and targets and states
+  are still processed serially. Capture limits, coverage and map format are
+  unchanged.
+
 ## [7.6.0] - 2026-10-07
 
 ### Added

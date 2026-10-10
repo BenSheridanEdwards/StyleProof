@@ -231,6 +231,10 @@ can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced
 `:hover`/`:focus`/`:active` deltas.
 
+Forced-state reads share a browser round trip with their liveness check and
+style flush. Each reset still flushes before the next state or target; captures
+remain serial, with the same coverage and resource limits.
+
 Nested overflow scrollers are expanded for full-page report screenshots. Capture
 keeps `rect` in the driven page's document coordinates for visibility and layout
 comparisons; optional `screenshotRect` locates the element in the expanded image.
@@ -352,6 +356,15 @@ branch. Nothing under `.styleproof/` belongs in a commit.
 For the hand-wired Action form, the fork/Dependabot split, the map-store and
 report branches, the pre-push hook, and every config key and flag, see
 [docs/REFERENCE.md](docs/REFERENCE.md).
+
+The report Action defaults to `comparison-base: pull-request-base`: it expects
+captures from the trusted PR base tip B and captured head H, without a comparison
+API call. To compare the fork point instead, explicitly set
+`comparison-base: merge-base` on an Action ref containing this feature. It derives
+A from GitHub's immutable B...H comparison, then requires genuine A/H captures.
+This does not change the capture workflow or relabel existing maps. See
+[merge-base setup](docs/setup.md#merge-base-comparison) for producer/verifier
+agreement, private-repository permissions, stale-history limits and fork approval.
 
 ## Two modes: review or certify
 
