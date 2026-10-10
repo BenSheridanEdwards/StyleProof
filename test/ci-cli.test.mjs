@@ -2062,6 +2062,91 @@ test(
   },
 );
 
+// Git names changed paths from the repository root; a package-subdirectory consumer's
+// spec and default ['src'] root are relative to its own cwd. Reuse must still see them.
+test("styleproof-ci: a subdirectory consumer's own source change blocks ancestor reuse", { timeout: 60_000 }, () => {
+  const root = mkTmp('styleproof-ci-ancestor-monorepo-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const web = path.join(repo, 'packages', 'web');
+  const mapRoot = path.join(root, 'maps');
+  const git = (cwd, args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    fs.mkdirSync(path.join(web, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(web, 'e2e'), { recursive: true });
+    git(root, ['init', '--bare', '-q', remote]);
+    git(repo, ['init', '-q', '-b', 'main']);
+    git(repo, ['config', 'user.email', 'styleproof@example.test']);
+    git(repo, ['config', 'user.name', 'StyleProof Test']);
+    git(repo, ['remote', 'add', 'origin', remote]);
+    fs.writeFileSync(path.join(web, 'e2e', 'styleproof.spec.ts'), '// capture fixture\n');
+    fs.writeFileSync(path.join(web, 'src', 'app.css'), 'a{}\n');
+    git(repo, ['add', '-A']);
+    git(repo, ['commit', '-qm', 'test: stored ancestor']);
+    const ancestor = git(repo, ['rev-parse', 'HEAD']);
+    // Base B restyles the consumer's own app: packages/web/src, not a repo-root src/.
+    fs.writeFileSync(path.join(web, 'src', 'app.css'), 'a{color:blue}\n');
+    git(repo, ['commit', '-qam', 'test: base restyle']);
+    const base = git(repo, ['rev-parse', 'HEAD']);
+    fs.writeFileSync(path.join(web, 'src', 'app.css'), 'a{color:red}\n');
+    git(repo, ['commit', '-qam', 'test: head']);
+    const head = git(repo, ['rev-parse', 'HEAD']);
+    git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+    const spec = 'e2e/styleproof.spec.ts';
+    const compatibilityKey = expectedCompatibilityKey({ cwd: web, spec });
+    const seed = path.join(root, 'seed');
+    git(root, ['clone', '-q', remote, seed]);
+    git(seed, ['checkout', '-q', '-b', 'styleproof-maps']);
+    git(seed, ['config', 'user.email', 'styleproof@example.test']);
+    git(seed, ['config', 'user.name', 'StyleProof Test']);
+    for (const seededSha of [ancestor, head]) {
+      const bundle = path.join(seed, seededSha, compatibilityKey);
+      fs.mkdirSync(bundle, { recursive: true });
+      fs.writeFileSync(path.join(bundle, 'home@1280.json'), `{"seeded":"${seededSha}"}\n`);
+      fs.writeFileSync(
+        path.join(bundle, MAP_MANIFEST),
+        JSON.stringify({
+          version: 1,
+          packageVersion: 'test',
+          sha: seededSha,
+          dirty: false,
+          spec,
+          specHash: '1'.repeat(64),
+          platform: process.platform,
+          arch: process.arch,
+          nodeMajor: process.versions.node.split('.')[0],
+          screenshots: false,
+          har: false,
+          compatibilityKey,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        }),
+      );
+    }
+    git(seed, ['add', '-A']);
+    git(seed, ['commit', '-qm', 'seed']);
+    git(seed, ['push', '-q', 'origin', 'styleproof-maps']);
+
+    // The cold base capture that follows cannot run in this fixture; only the decision matters.
+    const result = runCi(
+      ['--base', base, '--head', head, '--spec', spec, '--base-dir', mapRoot, '--force'],
+      { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+      web,
+    );
+    assert.doesNotMatch(result.stderr, /reused the baseline of nearest ancestor/, result.stderr);
+    assert.match(
+      result.stderr,
+      /ancestor baseline reuse: taking the full capture path — 1 of 1 path\(s\) changed since ancestor \w+ are capture-relevant \(first: packages\/web\/src\/app\.css\)/,
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
 // Legacy test: env var STYLEPROOF_ANCESTOR_BASELINE=1 still enables reuse (backward compat)
 test('styleproof-ci: legacy STYLEPROOF_ANCESTOR_BASELINE=1 env var enables ancestor reuse', { timeout: 60_000 }, () => {
   const root = mkTmp('styleproof-ci-ancestor-');

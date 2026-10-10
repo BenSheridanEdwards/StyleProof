@@ -10,6 +10,7 @@ import {
   changedPathsBetween,
   listFirstParentAncestors,
   planAncestorBaselineReuse,
+  repoRelativePath,
 } from '../dist/ancestor-baseline.js';
 import {
   BASELINE_PROVENANCE_FILE,
@@ -84,6 +85,26 @@ test('captureRelevantChangedPaths: declared source roots gate app changes; spell
     sourceRoots: ['src', './styles'],
   });
   assert.deepEqual(relevant, ['./src/pages/Home.tsx', 'styles//tokens.css']);
+});
+
+test("repoRelativePath: a subdirectory consumer's spec and roots compare against repo-root git paths", () => {
+  const repo = path.resolve('/repo');
+  const web = path.join(repo, 'packages', 'web');
+  assert.equal(repoRelativePath(repo, web, 'src'), 'packages/web/src');
+  assert.equal(repoRelativePath(repo, web, 'e2e/styleproof.spec.ts'), 'packages/web/e2e/styleproof.spec.ts');
+  assert.equal(repoRelativePath(repo, web, path.join(repo, 'e2e', 'styleproof.spec.ts')), 'e2e/styleproof.spec.ts');
+  assert.equal(repoRelativePath(repo, repo, 'src'), 'src', 'a root consumer is unchanged');
+  assert.equal(repoRelativePath(repo, web, '../..'), '', 'the repository root itself bounds nothing');
+  assert.equal(repoRelativePath(repo, web, '../../..'), '', 'outside the repository bounds nothing');
+  // The re-anchored paths now gate a subdirectory app change that git names from the root.
+  assert.deepEqual(
+    captureRelevantChangedPaths({
+      changedPaths: ['packages/web/src/app.css', 'packages/web/e2e/fixtures.ts', 'docs/notes.md'],
+      spec: repoRelativePath(repo, web, 'e2e/styleproof.spec.ts'),
+      sourceRoots: [repoRelativePath(repo, web, 'src')],
+    }),
+    ['packages/web/src/app.css', 'packages/web/e2e/fixtures.ts'],
+  );
 });
 
 test('captureRelevantChangedPaths: NO declared roots fails closed — every changed path is relevant', () => {
