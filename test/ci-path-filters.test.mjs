@@ -29,13 +29,8 @@ test('capture engine and example surfaces still schedule dogfood and e2e', () =>
   assert.equal(shouldRunDogfood(['action.yml']), true);
 });
 
-test('dogfood workflows declare pull_request paths that cover product surfaces', () => {
-  for (const name of [
-    'styleproof-dogfood.yml',
-    'action-dogfood.yml',
-    'store-dogfood.yml',
-    'phase1-advisory-dogfood.yml',
-  ]) {
+test('advisory dogfood workflows declare pull_request paths that cover product surfaces', () => {
+  for (const name of ['styleproof-dogfood.yml', 'phase1-advisory-dogfood.yml']) {
     const yml = fs.readFileSync(path.join(root, '.github/workflows', name), 'utf8');
     assert.match(yml, /pull_request:\n(?: {4}.+\n)* {4}paths:/, `${name} must use pull_request.paths`);
     assert.match(yml, /- 'src\/\*\*'/, `${name} includes src/**`);
@@ -45,6 +40,29 @@ test('dogfood workflows declare pull_request paths that cover product surfaces',
     assert.doesNotMatch(yml, /- 'docs\/\*\*'/, `${name} must not list docs/** as a trigger`);
   }
 });
+
+// action-dogfood and round-trip are required checks. A trigger-level paths filter never starts them on a
+// docs-only or test-only PR, so the check never reports and the PR can never merge. These workflows run on
+// every PR, and a `changes` job skips the dogfood when no product surface changed: a skipped job counts as
+// passing for a required check.
+for (const [name, job] of [
+  ['action-dogfood.yml', 'action-dogfood'],
+  ['store-dogfood.yml', 'round-trip'],
+]) {
+  test(`${name}: its required ${job} check reports on every PR, and dogfoods only product changes`, () => {
+    const yml = fs.readFileSync(path.join(root, '.github/workflows', name), 'utf8');
+    assert.match(yml, /\n {2}pull_request:\n(?! {4}paths:)/, `${name} must start on every pull_request`);
+    assert.match(yml, / {2}changes:\n[\s\S]*dorny\/paths-filter@/, `${name} filters paths in a changes job`);
+    for (const glob of [...DOGFOOD_PATH_GLOBS, `.github/workflows/${name}`]) {
+      assert.match(yml, new RegExp(`- '${glob.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`), `${name} filters on ${glob}`);
+    }
+    assert.doesNotMatch(yml, /- 'docs\/\*\*'/, `${name} must not dogfood docs-only changes`);
+    const gated = new RegExp(
+      ` {2}${job}:\\n(?: {4}.+\\n)* {4}needs: changes\\n {4}if: .*!cancelled\\(\\).*needs\\.changes\\.outputs\\.dogfood != 'false'`,
+    );
+    assert.match(yml, gated, `${job} waits for the filter and fails closed when it does not say false`);
+  });
+}
 
 test('CI path-filters e2e and detection; required accepts skipped browser lanes', () => {
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');

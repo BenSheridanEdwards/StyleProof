@@ -1466,9 +1466,11 @@ test('composite action requires approval for new-surface-only reports', () => {
 });
 
 test('dogfood workflow path-skips non-visual PRs (lean gates)', () => {
-  // Same-repo gate stays; paths filter skips docs/changelog/unit-only PRs.
-  assert.match(dogfoodYml, /pull_request:\s*\n {4}paths:/);
-  assert.match(dogfoodYml, /if: github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  // Same-repo gate stays. The path filter now lives in a `changes` job, not the trigger, so the required
+  // action-dogfood check still reports (as skipped) on docs/changelog/unit-only PRs.
+  assert.match(dogfoodYml, / {2}changes:\n[\s\S]*dorny\/paths-filter@/);
+  assert.match(dogfoodYml, /needs\.changes\.outputs\.dogfood != 'false'/);
+  assert.match(dogfoodYml, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
 });
 
 test('composite action comment-marker defaults to the product marker and accepts a distinct dogfood marker', () => {
