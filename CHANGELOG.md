@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Sixteen unit tests now catch the bug their titles name.** Tests in `ack-ledger`,
+  `action-bash-portability`, `action-context` and `action-merge-base` stayed green
+  when a planted bug broke what their titles promise: a padded or empty ledger value,
+  a missing `report.md`, an incomplete or malformed SHA, a lookalike fork repository,
+  and a `..` repository part, among others. Each now fails with that bug and with a
+  second one of a different form. Titles and product code are unchanged.
+
 - Failed API requests remain attributable after a canceled main-frame navigation
   (including downloads) followed by an SPA `pushState` transition. The armed
   failed-data-request gate now receives these failures instead of silently
