@@ -88,8 +88,8 @@ export type CapturedOverlay = {
 export type StyleMap = {
   /** Runner-supplied context; ignored by the certification diff. */
   metadata?: CaptureMetadata;
-  /** Report-only viewport. */
-  viewport?: { width: number; height: number };
+  /** Captured viewport and document origin. Missing scroll offsets on legacy maps mean zero. */
+  viewport?: { width: number; height: number; scrollX?: number; scrollY?: number };
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;

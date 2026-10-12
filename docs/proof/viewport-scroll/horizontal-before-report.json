@@ -1,0 +1,109 @@
+{
+  "gateMode": "certify",
+  "counts": {
+    "dom": 0,
+    "style": 1,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 1,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 1,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 1,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 1,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 1,
+    "reviewableChangedSurfaces": 1,
+    "hasReviewableEvidence": true,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "liveTextFreezeViolated": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 1,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "unproven",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 0,
+      "incomparable": 0,
+      "unproven": 1,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "horizontal@400",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "baselineFailures": [],
+  "partialBaseline": false,
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [
+    {
+      "surfaces": [
+        "horizontal@400"
+      ],
+      "representative": "horizontal@400",
+      "regions": [],
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(1)",
+          "cls": "marker",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(0, 100, 200)",
+              "after": "rgb(240, 100, 0)"
+            }
+          ]
+        }
+      ],
+      "visualEvidence": "not-rendered",
+      "reason": "The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading.",
+      "classification": "changed"
+    }
+  ],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 0
+    },
+    "completeness": "unknown"
+  }
+}

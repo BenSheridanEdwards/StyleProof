@@ -149,13 +149,26 @@ async function settleForcedState(client: CDPSession, selector: string): Promise<
   return result.value === true;
 }
 
-async function snapStateScopeInSession(client: CDPSession, args: StateScopeArgs): Promise<StateScopeResult> {
+type SessionScopeResult = StateScopeResult & { targetMissing?: true };
+
+async function snapStateScopeInSession(client: CDPSession, args: StateScopeArgs): Promise<SessionScopeResult> {
+  const snapshot = `(${snapSubtree.toString()})(${codeLiteral(args)})`;
+  // Keep force -> liveness -> style flush -> snapshot on the same CDP session.
+  // The pre-read barrier shares this evaluation; post-reset barriers stay separate.
+  const expression = args.saveBaseline
+    ? snapshot
+    : `(() => {
+        const element = document.querySelector(${codeLiteral(args.selector)});
+        if (!element) return { delta: {}, truncated: false, scanned: 0, targetMissing: true };
+        getComputedStyle(element).display;
+        return ${snapshot};
+      })()`;
   const { result, exceptionDetails } = await client.send('Runtime.evaluate', {
-    expression: `(${snapSubtree.toString()})(${codeLiteral(args)})`,
+    expression,
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
-  return (result.value ?? { delta: {}, truncated: true, scanned: 0 }) as StateScopeResult;
+  return (result.value ?? { delta: {}, truncated: true, scanned: 0 }) as SessionScopeResult;
 }
 
 type ForcedStateCaptureContext = {
@@ -195,7 +208,7 @@ function scopeArgs(context: ForcedStateCaptureContext, selector: string, saveBas
   };
 }
 
-async function readScope(context: ForcedStateCaptureContext, args: StateScopeArgs): Promise<StateScopeResult> {
+async function readScope(context: ForcedStateCaptureContext, args: StateScopeArgs): Promise<SessionScopeResult> {
   const read = await snapStateScopeInSession(context.session.client, args);
   context.scanWorkRemaining -= read.scanned;
   context.incomplete ||= read.truncated;
@@ -223,14 +236,14 @@ async function captureForcedStateVariation(
     warnDetachedForcedStateTarget(id);
     return 'next-target';
   }
-  if (!(await settleForcedState(session.client, target.selector))) {
+  const forced = await readScope(context, scopeArgs(context, target.selector, false));
+  if (forced.targetMissing) {
     await resetForcedStateTarget(context, target);
     context.incomplete = true;
     warnDetachedForcedStateTarget(id);
     return 'next-target';
   }
 
-  const forced = await readScope(context, scopeArgs(context, target.selector, false));
   await resetForcedStateTarget(context, target);
   if (!(await settleForcedState(session.client, target.selector))) {
     context.incomplete = true;

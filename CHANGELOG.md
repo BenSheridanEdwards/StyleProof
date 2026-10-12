@@ -17,6 +17,43 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   gives three surfaces their own changes, checks that the Markdown lists
   them in the JSON's order, and checks that each change sits under its own
   surface. Each was checked against a planted bug.
+- **Docs-only and test-only pull requests can merge again.** `action-dogfood` and
+  `round-trip` are required checks, but their workflows only started when product
+  paths changed, so on any other pull request the checks never reported and the PR
+  stayed blocked. Both workflows now start on every pull request, and a path-filter
+  job skips the dogfood when no product surface changed: a skipped job counts as
+  passing. The filter fails closed: if it does not run, the dogfood does.
+
+- Failed API requests remain attributable after a canceled main-frame navigation
+  (including downloads) followed by an SPA `pushState` transition. The armed
+  failed-data-request gate now receives these failures instead of silently
+  losing them; genuine cross-document handoffs retain their attribution. (#821)
+
+- **Visible changes remain reviewable after document scrolling.** Capture records
+  the viewport's scroll origin alongside document-space element boxes. Visible
+  additions/removals now require review when a surface scrolls vertically or
+  horizontally; horizontal-scrolled style changes retain their report crops.
+  The report CLI also exits 1 and names reviewable element changes when no
+  matched-element restyle exists. Style/state-only consistency failures retain
+  their diagnostic summary instead of claiming zero element changes.
+  Existing box semantics and unscrolled captures
+  are unchanged. Legacy maps assume zero origin; recapture affected scrolled
+  baselines to obtain correct visibility evidence. (#816)
+
+### Added
+
+- Opt-in report Action `comparison-base: merge-base` derives the fork point from
+  GitHub using trusted immutable base/head commits. The default remains
+  `pull-request-base` with no comparison request. Invalid or unavailable provenance
+  fails closed; source binding, receipt validation and fork approval stay intact.
+
+### Changed
+
+- **Forced-state capture uses fewer browser round trips.** Each forced-state
+  read combines its target-liveness check and style flush with the snapshot on
+  the same CDP session. Reset flushes remain separate, and targets and states
+  are still processed serially. Capture limits, coverage and map format are
+  unchanged.
 
 ## [7.6.0] - 2026-10-07
 

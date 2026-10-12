@@ -1,0 +1,127 @@
+{
+  "counts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "sourceBinding": {
+    "status": "bound",
+    "compatibility": "matched",
+    "before": {
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": "matched"
+    },
+    "after": {
+      "expected": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "result": "matched"
+    }
+  },
+  "evidenceBinding": {
+    "version": 1,
+    "before": {
+      "algorithm": "sha256",
+      "digest": "22130da8bad0d71fd3383a102ca26da8699ba47a3bd68be2161f82db0bb79d0a",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 11719
+    },
+    "after": {
+      "algorithm": "sha256",
+      "digest": "6b189588eb8956590a901453d38bda0c855a01a981f2c9c5c67e6cebd5aaf3a4",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 12367
+    }
+  },
+  "reviewableCounts": {
+    "dom": 1,
+    "style": 0,
+    "state": 0
+  },
+  "elevatedVisibleStructure": 1,
+  "comparison": {
+    "status": "comparable",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 1,
+      "incomparable": 0,
+      "unproven": 0,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@400",
+      "status": "comparable",
+      "required": true,
+      "reason": "explicit-state-match"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "surfaces": [],
+  "compared": 1,
+  "baselineFailures": [],
+  "explainedMissingBaselineSurfaces": [],
+  "partialBaseline": false,
+  "volatileExcluded": 0,
+  "volatility": {
+    "headOnly": [],
+    "baseOnly": []
+  },
+  "statesUncertified": 0,
+  "coverage": {
+    "basis": "complete",
+    "registrySize": 1,
+    "uncovered": [],
+    "staleExclusions": []
+  },
+  "determinism": {
+    "status": "proven",
+    "base": "self-checked",
+    "head": "self-checked"
+  },
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 0
+    },
+    "completeness": "unknown"
+  },
+  "pixels": null,
+  "certifiesFully": false,
+  "diagnostic": false,
+  "liveTextFreeze": {
+    "violated": false
+  },
+  "inventory": null,
+  "inventoryNote": "no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate",
+  "legacyPairs": {
+    "armed": false,
+    "legacyPairs": [],
+    "declared": [],
+    "undeclared": [],
+    "staleAcknowledgements": [],
+    "blocking": 0
+  },
+  "criticalStates": {
+    "armed": false,
+    "obligations": [],
+    "certified": [],
+    "failing": [],
+    "unresolved": [],
+    "contradictory": [],
+    "blocking": 0
+  },
+  "dataResidue": null
+}

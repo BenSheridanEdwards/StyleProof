@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StyleProof report</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; color: #1f2328; background: #fff;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  h2 { border-bottom: 1px solid #d1d9e0; padding-bottom: 6px; }
+  h3 { margin-top: 28px; }
+  img { max-width: 100%; height: auto; border: 1px solid #d1d9e0; border-radius: 6px; }
+  table { border-collapse: collapse; margin: 8px 0 16px; }
+  th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  details { margin: 8px 0; }
+  summary { cursor: pointer; color: #0969da; }
+  sub { color: #59636e; }
+  blockquote { border-left: 3px solid #d1d9e0; margin: 8px 0; padding: 0 12px; color: #59636e; }
+  hr { border: 0; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+</style>
+</head>
+<body>
+<main>
+<h2>🗺️ StyleProof report</h2>
+<p>⚠️ <strong>Product-state identity unproven</strong> (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.</p>
+<p>✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.</p>
+<details>
+<summary>Evidence (warnings &amp; failures)</summary>
+<p><strong>Certification</strong></p>
+<ul><li><strong>Coverage</strong> — ⚠ not asserted (no <code>expected</code> registry; certifies only the captured surfaces)</li><li><strong>Inventory</strong> — ⚠ not checked (no captured map carried an inventory — set <code>inventory: true</code> in the capture spec to arm the navigable-removal gate)</li><li><strong>Confidence</strong> — ⚠ unasserted (no <code>expected</code> registry — certifies only the 1 captured surface(s), not that they are all of them)</li></ul>
+<p>⚠️ <strong>Product-state comparison</strong> — unproven on 1 undeclared legacy pair(s).</p>
+</details>
+</main>
+</body>
+</html>

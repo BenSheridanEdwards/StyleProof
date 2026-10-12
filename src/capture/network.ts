@@ -50,17 +50,17 @@ export function trackDataResidue(
   const terminalEventSources = new WeakSet<Request>();
   const inBoundary = urlMatcher(url);
   let documentEpoch = 0;
-  let mainFrameDocumentRequestSeen = false;
+  let pendingMainFrameDocumentRequest: Request | undefined;
   const epochByRequest = new Map<Request, number>();
   const onRequest = (request: Request): void => {
     epochByRequest.set(request, documentEpoch);
     // `frame()` is only safe on navigation requests (service-worker requests have none).
-    if (request.isNavigationRequest() && !request.frame().parentFrame()) mainFrameDocumentRequestSeen = true;
+    if (request.isNavigationRequest() && !request.frame().parentFrame()) pendingMainFrameDocumentRequest = request;
   };
   const onFrameNavigated = (frame: Frame): void => {
     // Same-document navigations (pushState/hash) fire this too but load no document: the epoch holds.
-    if (frame.parentFrame() || !mainFrameDocumentRequestSeen) return;
-    mainFrameDocumentRequestSeen = false;
+    if (frame.parentFrame() || !pendingMainFrameDocumentRequest) return;
+    pendingMainFrameDocumentRequest = undefined;
     documentEpoch += 1;
   };
   const record = (request: Request, reason: string): void => {
@@ -71,6 +71,9 @@ export function trackDataResidue(
     if (!byRequest.has(request)) byRequest.set(request, { key, surface, endpoint, reason });
   };
   const onFailed = (request: Request): void => {
+    // Downloads/canceled navigations leave the document alive. Do not let a later
+    // pushState consume their stale marker; an older failure must not clear a newer one.
+    if (request === pendingMainFrameDocumentRequest) pendingMainFrameDocumentRequest = undefined;
     if (terminalEventSources.has(request)) return;
     record(request, request.failure()?.errorText ?? 'request failed');
   };

@@ -1166,6 +1166,16 @@ attribution prefer this field and fall back to `rect` on older captures. Expansi
 restores inline values and CSS priorities as well as scroller offsets. Recapture
 affected nested-scroller baselines to generate aligned screenshot evidence.
 
+After document scrolling, optional `StyleMap.viewport.scrollX` / `scrollY` record
+the document origin in the same browser snapshot as the element boxes. Visible
+element additions/removals intersect that reached viewport, and horizontal report
+crop eligibility uses the captured origin. Both `styleproof-diff` and
+`styleproof-report` exit 1 when these elements require review. Unscrolled captures
+keep the width/height-only viewport shape. Missing offsets on older maps default
+to zero; the original scroll position cannot be recovered, so recapture affected
+scrolled baselines after upgrading. `rect` and `screenshotRect` retain their
+existing coordinate meanings.
+
 ## Optional: content layer (advisory)
 
 StyleProof is **computed-styles first**, and stays that way: copy and DOM
@@ -1471,6 +1481,23 @@ defineStyleMapCapture({
 | `report-retention-days`  | `30`                         | Days the report artifact is kept when `report-storage` is `artifact`. Must be a positive integer in either storage mode; `0` is rejected. GitHub caps retention at 90 days unless repository settings allow more.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `report-branch`          | `styleproof-reports`         | Orphan branch that stores reports (created on first run), one `pr-<n>/` folder per PR. Used only when `report-storage` is `branch`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `github-token`           | `${{ github.token }}`        | Token used to push the report branch, post the PR comment, and set the commit status.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+**Baseline selection:** the additional Action input `comparison-base` defaults to
+`pull-request-base` (trusted PR base tip B, no comparison API call). Its only other
+accepted value is `merge-base`, deriving A from the immutable trusted B...H GitHub
+comparison in the base repository. It requires `contents: read` for private
+repositories, exact returned `base_commit.sha === B`, and a full lowercase
+`merge_base_commit.sha`. Invalid input, API failure or invalid provenance fails
+closed with no base-tip, branch-ref or artifact-identity fallback.
+
+The capture producer must actually capture A/H using the same immutable tuple and
+canonical GitHub comparison as the verifier. The input does not change capture
+workflows. Diff, report and source-binding receipts all use the same selected A/H;
+fork/manual approval, required state identity and certification gates are unchanged.
+Captured `workflow_run.head_sha` remains the status target. Later target history
+and multiple-best-ancestor ambiguity can prevent agreement with an older/local-Git
+capture and must not be repaired from artifacts. See
+[setup and limitations](setup.md#merge-base-comparison).
 
 Mode notes, from the step conditions in `action.yml`:
 

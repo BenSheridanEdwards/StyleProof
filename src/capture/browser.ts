@@ -42,8 +42,7 @@ export function injectPathOf(): void {
     const privacySafeHash = (value: string): string => {
       let hash = 2166136261;
       for (let characterIndex = 0; characterIndex < value.length; characterIndex++) {
-        hash ^= value.charCodeAt(characterIndex);
-        hash = Math.imul(hash, 16777619);
+        hash = Math.imul(hash ^ value.charCodeAt(characterIndex), 16777619);
       }
       return (hash >>> 0).toString(36);
     };
@@ -74,11 +73,16 @@ export type PageCapture = {
   elements: Record<string, ElementEntry>;
   shadowHosts: number;
   sameOriginFrames: number;
+  scrollX: number;
+  scrollY: number;
 };
 
 // Pre-existing, grandfathered in the health baseline.
 // fallow-ignore-next-line complexity
 export function capturePage({ skipSel, motionOnly, captureText, captureComponent }: CaptureArgs): PageCapture {
+  // Keep the document origin in the same browser snapshot as every bounding box.
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
@@ -205,12 +209,7 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
       }
       // Document-space box so report crops locate the element regardless of scroll position.
       const r = el.getBoundingClientRect();
-      entry.rect = [
-        Math.round(r.x + window.scrollX),
-        Math.round(r.y + window.scrollY),
-        Math.round(r.width),
-        Math.round(r.height),
-      ];
+      entry.rect = [Math.round(r.x + scrollX), Math.round(r.y + scrollY), Math.round(r.width), Math.round(r.height)];
       // Own text only (direct text nodes), so a parent and child never both report the same string.
       let ownText = '';
       for (const node of Array.prototype.slice.call(el.childNodes)) {
@@ -239,7 +238,7 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
     elements[pathOf(el)] = entry;
   }
   frame.remove();
-  return { defaults, elements, shadowHosts, sameOriginFrames };
+  return { defaults, elements, shadowHosts, sameOriginFrames, scrollX, scrollY };
 }
 
 export type SkipArgs = { skipSel: string };

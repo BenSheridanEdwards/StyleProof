@@ -295,6 +295,45 @@ test('a same-document navigation (pushState) does NOT orphan an SPA surface’s 
   residue.dispose();
 });
 
+test('a canceled navigation followed by pushState keeps the live document’s failed fetch in the armed gate', () => {
+  const page = new EventEmitter();
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+  const download = fakeNavigationRequest('https://app.test/download');
+  const ownFetch = fakeRequest('https://app.test/api/probe');
+
+  page.emit('request', download);
+  page.emit('requestfailed', download); // no document committed
+  page.emit('request', ownFetch);
+  page.emit('framenavigated', fakeMainFrame); // pushState in the surviving document
+  page.emit('response', { request: () => ownFetch, status: () => 503 });
+
+  const audit = auditRunResidue([{ dataResidue: residue.residue() }], {}, true);
+  assert.equal(audit.armed, true);
+  assert.deepEqual(
+    audit.unacknowledged.map(({ key, reason }) => [key, reason]),
+    [['dashboard·/api/probe', 'HTTP 503']],
+  );
+  residue.dispose();
+});
+
+test('an older canceled navigation cannot clear a newer pending document request', () => {
+  const page = new EventEmitter();
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+  const oldNavigation = fakeNavigationRequest('https://app.test/download');
+  const newNavigation = fakeNavigationRequest('https://app.test/next');
+  const outgoingFetch = fakeRequest('https://app.test/api/poll');
+
+  page.emit('request', outgoingFetch);
+  page.emit('request', oldNavigation);
+  page.emit('request', newNavigation);
+  page.emit('requestfailed', oldNavigation);
+  page.emit('framenavigated', fakeMainFrame); // newer document commits
+  page.emit('requestfailed', outgoingFetch);
+
+  assert.deepEqual(residue.residue(), []);
+  residue.dispose();
+});
+
 test('a failure recorded before a later commit stays recorded (self-check runs still fold)', () => {
   const page = new EventEmitter();
   const failingFetch = fakeRequest('https://app.test/api/probe', 'fetch');

@@ -231,11 +231,20 @@ can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced
 `:hover`/`:focus`/`:active` deltas.
 
+Forced-state reads share a browser round trip with their liveness check and
+style flush. Each reset still flushes before the next state or target; captures
+remain serial, with the same coverage and resource limits.
+
 Nested overflow scrollers are expanded for full-page report screenshots. Capture
 keeps `rect` in the driven page's document coordinates for visibility and layout
 comparisons; optional `screenshotRect` locates the element in the expanded image.
 Crops and pixel attribution use `screenshotRect`, falling back to `rect` for older
 maps. Recapture affected nested-scroller baselines to obtain aligned crop evidence.
+
+When a surface scrolls the document, capture also records the viewport's scroll
+origin. Visible element additions/removals are checked against that reached
+viewport, and horizontal-scrolled changes retain report crops. Older maps lack
+this origin and assume zero; recapture affected scrolled baselines after upgrading.
 
 ## Quickstart
 
@@ -348,6 +357,15 @@ For the hand-wired Action form, the fork/Dependabot split, the map-store and
 report branches, the pre-push hook, and every config key and flag, see
 [docs/REFERENCE.md](docs/REFERENCE.md).
 
+The report Action defaults to `comparison-base: pull-request-base`: it expects
+captures from the trusted PR base tip B and captured head H, without a comparison
+API call. To compare the fork point instead, explicitly set
+`comparison-base: merge-base` on an Action ref containing this feature. It derives
+A from GitHub's immutable B...H comparison, then requires genuine A/H captures.
+This does not change the capture workflow or relabel existing maps. See
+[merge-base setup](docs/setup.md#merge-base-comparison) for producer/verifier
+agreement, private-repository permissions, stale-history limits and fork approval.
+
 ## Two modes: review or certify
 
 The scaffold's default gate is **advisory** — the evidence posts on every PR
@@ -406,7 +424,9 @@ report leads with their verdicts:
   means the fallback UI was captured, not the state its responses drive.
   Gating is the default (`dataResidue: 'gate'`): an unacknowledged failing
   endpoint blocks until declared in `styleproof.data-residue.json`, and a
-  stale declaration also fails. Opt down with `dataResidue: 'warn'`. See
+  stale declaration also fails. Failures from the surviving document remain
+  attributable after a canceled navigation or download followed by SPA navigation.
+  Opt down with `dataResidue: 'warn'`. See
   [Failed data request](docs/REFERENCE.md#failed-data-request-a-failed-api-call-is-named-not-swallowed).
 - **Product-state identity** — a pair with matching `productState {id, revision}`
   is comparable and can certify (the only certifying path). Undeclared legacy

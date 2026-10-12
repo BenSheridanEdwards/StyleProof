@@ -1,0 +1,20 @@
+{
+  "armed": true,
+  "residue": [
+    {
+      "key": "dashboard·/api/probe",
+      "surface": "dashboard",
+      "endpoint": "/api/probe",
+      "reason": "HTTP 503"
+    }
+  ],
+  "unacknowledged": [
+    {
+      "key": "dashboard·/api/probe",
+      "surface": "dashboard",
+      "endpoint": "/api/probe",
+      "reason": "HTTP 503"
+    }
+  ],
+  "staleAcknowledgements": []
+}

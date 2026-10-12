@@ -16,6 +16,9 @@ inputs:
   fresh-dir:
     description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
+  comparison-base:
+    description: 'Trusted baseline selection: pull-request-base (default) or merge-base. Merge-base requires captures from the same immutable GitHub comparison and Contents: read for private repositories.'
+    default: 'pull-request-base'
   include-content:
     description: 'Render advisory content and DOM-structure evidence in the durable report. This evidence never changes the style gate verdict.'
     default: 'false'
@@ -159,12 +162,15 @@ runs:
     # without a maintainer's approval.
     - id: context
       uses: actions/github-script@v9
+      env:
+        STYLEPROOF_COMPARISON_BASE: ${{ inputs.comparison-base }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
           const { resolveActionContext } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/action-context.js`);
           const { prNumber, baseSha, headSha, untrustedCapture } = await resolveActionContext({
+            comparisonBase: process.env.STYLEPROOF_COMPARISON_BASE,
             eventName: context.eventName,
             payload: context.payload,
             repo: context.repo,

@@ -280,7 +280,14 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   const viewport = page.viewportSize();
   return {
     ...(options.metadata ? { metadata: options.metadata } : {}),
-    ...(viewport ? { viewport } : {}),
+    ...(viewport
+      ? {
+          viewport: {
+            ...viewport,
+            ...(base.scrollX || base.scrollY ? { scrollX: base.scrollX, scrollY: base.scrollY } : {}),
+          },
+        }
+      : {}),
     defaults: base.defaults,
     elements: base.elements,
     states,
