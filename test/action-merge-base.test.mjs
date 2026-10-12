@@ -164,6 +164,8 @@ for (const invalidRepo of [
   {},
   { owner: '', repo: 'demo' },
   { owner: 'example', repo: '../demo' },
+  { owner: '.', repo: 'demo' },
+  { owner: 'example', repo: '..' },
   { owner: 42, repo: 'demo' },
 ]) {
   test(`merge-base rejects invalid trusted repository: ${JSON.stringify(invalidRepo)}`, async () => {

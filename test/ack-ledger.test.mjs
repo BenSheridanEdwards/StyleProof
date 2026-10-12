@@ -19,8 +19,21 @@ test('inventory and data-residue ledgers stay lenient: a missing requested file 
     assert.deepEqual(readLedger(INVENTORY_LEDGER, missing), {});
     assert.deepEqual(readLedger(DATA_RESIDUE_LEDGER, undefined, undefined, { STYLEPROOF_DATA_RESIDUE: missing }), {});
     const file = path.join(root, 'acks.json');
-    fs.writeFileSync(file, JSON.stringify({ 'nav:foo': true, 'home·/api/x': 'fixture pending' }));
-    assert.deepEqual(readLedger(INVENTORY_LEDGER, file), { 'nav:foo': true, 'home·/api/x': 'fixture pending' });
+    const written = {
+      'nav:foo': true,
+      'home·/api/x': 'fixture pending',
+      'nav:padded': '  spaced reason  ',
+      'nav:count': 2,
+      'nav:meta': { owner: 'qa' },
+    };
+    fs.writeFileSync(file, JSON.stringify(written));
+    assert.deepEqual(readLedger(INVENTORY_LEDGER, file), {
+      'nav:foo': true,
+      'home·/api/x': 'fixture pending',
+      'nav:padded': '  spaced reason  ',
+      'nav:count': 2,
+      'nav:meta': { owner: 'qa' },
+    });
   } finally {
     rmTmp(root);
   }
@@ -31,6 +44,9 @@ test('every ledger still rejects malformed JSON', () => {
   try {
     const file = path.join(root, 'bad.json');
     fs.writeFileSync(file, '{not json');
+    assert.throws(() => readLedger(INVENTORY_LEDGER, file), /not valid JSON/);
+    assert.throws(() => readLedger(LEGACY_PAIRS_LEDGER, file), /not valid JSON/);
+    fs.writeFileSync(file, '');
     assert.throws(() => readLedger(INVENTORY_LEDGER, file), /not valid JSON/);
     assert.throws(() => readLedger(LEGACY_PAIRS_LEDGER, file), /not valid JSON/);
   } finally {
@@ -45,8 +61,17 @@ test('strict ledgers fail closed on a missing requested file and a non-string re
       () => readLedger(LEGACY_PAIRS_LEDGER, path.join(root, 'nope.json')),
       /is required when the gate is requested/,
     );
+    assert.throws(
+      () =>
+        readLedger(LEGACY_PAIRS_LEDGER, undefined, undefined, {
+          STYLEPROOF_PRODUCT_STATE: path.join(root, 'nope.json'),
+        }),
+      /is required when the gate is requested/,
+    );
     const file = path.join(root, 'legacy.json');
     fs.writeFileSync(file, JSON.stringify({ home: true }));
+    assert.throws(() => readLedger(LEGACY_PAIRS_LEDGER, file), /must be a non-empty reason string/);
+    fs.writeFileSync(file, JSON.stringify({ home: 1 }));
     assert.throws(() => readLedger(LEGACY_PAIRS_LEDGER, file), /must be a non-empty reason string/);
     fs.writeFileSync(file, JSON.stringify({ '../escape': 'why' }));
     assert.throws(() => readLedger(CRITICAL_STATES_LEDGER, file, () => 'ok'), /not a safe single path segment/);
@@ -56,6 +81,11 @@ test('strict ledgers fail closed on a missing requested file and a non-string re
 });
 
 test('reconcileLedger splits observed keys and names stale entries', () => {
-  const out = reconcileLedger(['a', 'b'], { a: 'why', c: 'stale' });
-  assert.deepEqual(out, { acknowledged: ['a'], unacknowledged: ['b'], stale: ['c'] });
+  const out = reconcileLedger(['a', 'b'], { a: 'why', c: 'stale', d: 'stale too' });
+  assert.deepEqual(out, { acknowledged: ['a'], unacknowledged: ['b'], stale: ['c', 'd'] });
+  // A custom matcher decides which ledger key acknowledges an observed key, and a key it matched is not stale.
+  const widthless = reconcileLedger(['home@1280', 'nav@375'], { home: 'why', gone: 'stale' }, (ledgerKey, observed) =>
+    observed.startsWith(`${ledgerKey}@`),
+  );
+  assert.deepEqual(widthless, { acknowledged: ['home@1280'], unacknowledged: ['nav@375'], stale: ['gone'] });
 });
