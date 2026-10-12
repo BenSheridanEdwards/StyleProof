@@ -23,6 +23,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Docs-only and test-only pull requests can merge again.** `action-dogfood` and
+  `round-trip` are required checks, but their workflows only started when product
+  paths changed, so on any other pull request the checks never reported and the PR
+  stayed blocked. Both workflows now start on every pull request, and a path-filter
+  job skips the dogfood when no product surface changed: a skipped job counts as
+  passing. The filter fails closed: if it does not run, the dogfood does.
+
 - Failed API requests remain attributable after a canceled main-frame navigation
   (including downloads) followed by an SPA `pushState` transition. The armed
   failed-data-request gate now receives these failures instead of silently

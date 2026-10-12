@@ -1,22 +1,12 @@
 name: Action dogfood
 
 on:
+  # Every pull request, not only those that touch product paths: this workflow's job
+  # is a required check, so it must always report. The `changes` job decides whether
+  # there is anything to dogfood; a job skipped by its `if:` reports success, so
+  # docs-only and test-only pull requests can merge. It fails closed: when the
+  # filter does not run or fails, the dogfood runs.
   pull_request:
-    paths:
-      - 'src/capture/**'
-      - 'src/diff.ts'
-      - 'src/report/**'
-      - 'src/runner/**'
-      - 'src/**'
-      - 'action.yml'
-      - 'bin/**'
-      - 'example/**'
-      - 'bench/**'
-      - 'styleproof.config.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/action-dogfood.yml'
-      - 'scripts/action-dogfood-fixtures.mjs'
 
 permissions:
   contents: write
@@ -28,8 +18,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Action dogfood path filter
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      dogfood: ${{ steps.filter.outputs.dogfood }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
+        id: filter
+        with:
+          filters: |
+            dogfood:
+              - 'src/capture/**'
+              - 'src/diff.ts'
+              - 'src/report/**'
+              - 'src/runner/**'
+              - 'src/**'
+              - 'action.yml'
+              - 'bin/**'
+              - 'example/**'
+              - 'bench/**'
+              - 'styleproof.config.ts'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/action-dogfood.yml'
+              - 'scripts/action-dogfood-fixtures.mjs'
+
   action-dogfood:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.dogfood != 'false' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     env:
       # Isolate synthetic fixtures from this repo's live ledger. The live file is
