@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **The browser dogfood pins eleven more UI change classes.** `test/pr-surfacing.e2e.spec.ts`
+  now proves each of these end to end:
+  - a `::marker` or `::placeholder` restyle;
+  - an `::after` added on head only, and a `::before` removed;
+  - a dropped `:hover::after` restyle, and a dropped `:hover` that hid a `::before`;
+  - a dropped `:hover` on a `<summary>`, a `[role="button"]` and a `[tabindex]` element;
+  - an `::after` transition-duration change;
+  - an input left focused by setup surfacing nothing.
+
+  For each, a planted bug in the capture or diff path had passed both the unit and
+  the browser suites; the new test fails with that bug and with a second one.
+
 ### Fixed
 
 - **Docs-only and test-only pull requests can merge again.** `action-dogfood` and
