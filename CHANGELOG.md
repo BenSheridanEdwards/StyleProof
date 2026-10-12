@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.7.0] - 2026-10-12
+
 ### Fixed
 
 - **Two more report tests now fail when the behaviour their titles name
