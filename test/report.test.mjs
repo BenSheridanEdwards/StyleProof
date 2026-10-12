@@ -3607,8 +3607,12 @@ test('findings exhaustiveness: 4-side padding aggregates in counts and Markdown,
   assert.equal(json.counts.style, 1, 'counts.style should be 1 (aggregated to padding shorthand)');
 
   // Markdown should show the shorthand, not longhands
-  assert.match(md, /padding/, 'Markdown should contain padding shorthand');
-  assert.match(md, /`10px`.*`20px`|10px.*→.*20px/, 'Markdown should show padding values');
+  assert.match(
+    md,
+    /^\| `padding` \| `10px` \| `20px` \|$/m,
+    'Markdown should list the padding shorthand with its values',
+  );
+  assert.doesNotMatch(md, /padding-(?:top|right|bottom|left)/, 'Markdown should not list the padding longhands');
 
   rmTmp(root);
 });
