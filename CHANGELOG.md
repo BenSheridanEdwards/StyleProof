@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Approving a large report now writes the sign-off status.** The approve
+  workflow read a branch-published `report.md` and `report.json` through the
+  contents API, which inlines a file only up to 1 MB. A larger file comes back
+  with `encoding: "none"` and empty content, so the approval read nothing and
+  stopped without a status: ticking **Approve all changes** left the check at
+  "needs sign-off". Both the reusable workflow and
+  `example/styleproof-approve.yml` now read such a file by its blob SHA
+  (`git.getBlob`, up to 100 MB). Every receipt and trust-state check still
+  runs on the bytes read.
+
 ## [7.7.0] - 2026-10-12
 
 ### Fixed
