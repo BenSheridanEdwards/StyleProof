@@ -9,6 +9,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The reusable approve workflow starts again.** Its github-script program
+  spliced `${{ inputs.allow-self-approval }}` into the script. One expression
+  makes the whole script an expression template, and GitHub caps a template at
+  21,000 characters. The large-report fix took the script from 20,275 to 21,086
+  characters, so every approve run failed at startup with a workflow file
+  error and no jobs. The input now arrives through the step's `env:` as
+  `STYLEPROOF_ALLOW_SELF_APPROVAL`, read with `=== 'true'` like the example
+  workflow. The script has no expression left, so its length is not capped.
+  A test fails if an approve program gains an expression, or if any shipped
+  `run:` or `script:` block that has one reaches 21,000 characters.
 - **Approving a large report now writes the sign-off status.** The approve
   workflow read a branch-published `report.md` and `report.json` through the
   contents API, which inlines a file only up to 1 MB. A larger file comes back

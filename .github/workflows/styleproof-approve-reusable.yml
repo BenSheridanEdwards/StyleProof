@@ -64,11 +64,12 @@ jobs:
         env:
           # Passed through env, never spliced into the script source.
           STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+          STYLEPROOF_ALLOW_SELF_APPROVAL: ${{ inputs.allow-self-approval }}
         with:
           github-token: ${{ secrets.token }}
           script: |
             const STATUS = process.env.STYLEPROOF_STATUS_CONTEXT;
-            const allowSelfApproval = ${{ inputs.allow-self-approval }};
+            const allowSelfApproval = process.env.STYLEPROOF_ALLOW_SELF_APPROVAL === 'true';
 
             // Minimal zip reader for artifact publications (#587): the report
             // artifact is the zip actions/upload-artifact produced for this run.
