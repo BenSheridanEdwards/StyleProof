@@ -1,22 +1,24 @@
 # StyleProof
 
-**StyleProof's job is a deterministic way to see visual regressions on the
-frontend. Here's what a report looks like.**
+**Catch visual regressions before they merge.**
 
-StyleProof opens the app states you care about in a real browser, compares the
-base and head by computed CSS, and posts the evidence to the pull request.
-Intentional changes get approved. Unexpected changes block.
+StyleProof opens the UI states you care about in a real browser, records the computed CSS of every element on the
+base branch and on the pull request, and posts what changed as a PR comment. You approve the changes you meant. The
+ones you didn't block the merge.
 
 [![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
-On a pull request, the PR comment is the same linked summary for public and private repositories.
-Reports publish as workflow artifacts by default — the comment links the artifact on the run, and nothing is written to repository git history. `report-storage: branch` opts back into the `styleproof-reports` orphan branch for an in-browser rendered report.
-Crops travel inside the published report package instead of being duplicated into the comment.
-Every report viewer needs an authenticated GitHub session — artifact downloads are never anonymous, public or private. `report-storage: branch` restores anonymous blob access on public repositories only.
-If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
-The README can carry the crops directly. The block below is a real run, not a mockup:
+## What a report looks like
+
+This is the comment StyleProof posts on a pull request. In this example the PR changed one button's padding and
+background colour, and one link's hover, focus, and active colours. [What the report tells you](#what-the-report-tells-you)
+walks through it.
+
+<details>
+<summary>How this example was made: a real run, not a mockup</summary>
+
 `scripts/live-readme-report.mjs` captures `example/demo/index.html` in Chromium twice, injecting a
 fixed CSS change between the captures, then renders the report and the PR comment it would post. The
 block is that comment, with three edits for this page: crop links repointed at
@@ -25,18 +27,7 @@ Docs hover, focus, and active states, and `report.json` left out of the committe
 finding, value, and crop is what the run produced. Both sides of each interaction-state crop are in
 that state.
 
-### Report shape
-
-A StyleProof report is built for a reviewer scanning a PR comment, not a certification checklist:
-
-1. **Verdict first** — `N change(s) need review`, then the named change cards (human label, selector, surface@width, token story).
-2. **One change = one card** — distinct restyles group together; `currentColor` follow-ons nest under the primary property.
-3. **One primary before/after** — optional highlight overlay (and zoom) sit under a collapsed toggle, not three duplicate carousels.
-4. **Product-state warning** — when identity is unproven, a plain-language warning sits above the fold next to the verdict; it is omitted when proven.
-5. **Evidence collapsed** — green certification stays hidden; only failures/warnings appear, under a default-collapsed Evidence section.
-6. **Action footer** — review-gate / migration modes keep the existing **Approve all changes** checkbox (no new GitHub APIs). Advisory mode stays non-blocking.
-
-Surface-key vocabulary (`@width`, live-state / popup variants) lives in [docs/REFERENCE.md](docs/REFERENCE.md) rather than a mid-report glossary.
+</details>
 
 <!-- styleproof-report -->
 
@@ -189,6 +180,32 @@ _Nothing else — no other element or inventory changes in this compare._
 _Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**
+
+## What the report tells you
+
+- **The headline** says how many distinct changes need review. Here that is one change, made of 2 computed-style
+  differences and 3 interaction-state differences on one page.
+- **Each card is one changed element.** It names the element (`button.btn`), the page and viewport width it was
+  captured at (`demo-button @ 900`), and the property changes in one line.
+- **The before/after crop** shows the element on the base branch and on the pull request. Cards for `:hover`,
+  `:focus`, and `:active` show both sides in that state. A highlight overlay marking the change is one click away.
+- **The table** lists every changed computed property with its old and new value. Properties that follow
+  `currentColor` are nested under the colour that drove them.
+- **Warnings appear only when something is wrong**, such as a page that was not captured or captures that may not
+  show the same product state. A fully certified run keeps that evidence collapsed.
+- **Approve all changes** turns the `StyleProof` check green once a reviewer with write access, other than the PR
+  author, ticks it. A later push that changes styles or surfaces reopens it.
+
+The check compares the browser's computed CSS, not pixels. The crops are there so a person can see the change. The
+pass or fail decision runs on the exact values in the table. Surface-key vocabulary (`@width`, live-state and popup
+variants) is in [docs/REFERENCE.md](docs/REFERENCE.md).
+
+**Where the report lives.** On a pull request, the PR comment is the same linked summary for public and private repositories.
+Reports publish as workflow artifacts by default. The comment links the artifact on the run, and nothing is written to
+repository git history. Crops travel inside the published report package instead of being duplicated into the comment.
+Every report viewer needs an authenticated GitHub session, because artifact downloads are never anonymous.
+`report-storage: branch` opts into the `styleproof-reports` orphan branch for an in-browser rendered report, with
+anonymous access on public repositories only. If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
 
 ## Why
 
