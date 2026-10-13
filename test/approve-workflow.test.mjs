@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -26,6 +27,11 @@ const REPORT_URL = `https://github.com/acme/app/blob/${PUBLICATION_SHA}/pr-7/rep
 const AUTHOR = 'pr-author';
 const REVIEWER = 'a-reviewer';
 const GRANT_LEVELS = { none: 0, read: 1, write: 2 };
+const CONTENTS_INLINE_LIMIT = 1024 * 1024;
+const blobSha = (source) =>
+  createHash('sha1')
+    .update(`blob ${Buffer.byteLength(source)}\0${source}`)
+    .digest('hex');
 
 /** The dedented github-script program a workflow file runs. */
 function programSource(yml, file) {
@@ -109,6 +115,7 @@ async function runApprove({
   existingComments = [],
   grants = CALLER_GRANTS,
   program = approveScript(),
+  reportJson = '{"surfaces":[],"actionTrustState":"STYLE_REVIEW_REQUIRED"}',
 } = {}) {
   const statuses = [];
   const created = [];
@@ -182,7 +189,20 @@ async function runApprove({
           assert.equal(ref, PUBLICATION_SHA);
           const source = reportPath.endsWith('/report.md')
             ? `# report\n<!-- styleproof-receipt head-sha:${REPORT_SHA} run-id:${RUN_ID} run-attempt:${RUN_ATTEMPT} -->\n`
-            : '{"surfaces":[],"actionTrustState":"STYLE_REVIEW_REQUIRED"}';
+            : reportJson;
+          // The contents API inlines a file only up to 1 MB; larger files come back
+          // with encoding "none", empty content, and the blob sha to fetch instead.
+          if (Buffer.byteLength(source) > CONTENTS_INLINE_LIMIT) {
+            return {
+              data: {
+                type: 'file',
+                encoding: 'none',
+                content: '',
+                size: Buffer.byteLength(source),
+                sha: blobSha(source),
+              },
+            };
+          }
           return {
             data: {
               type: 'file',
@@ -194,6 +214,13 @@ async function runApprove({
         createCommitStatus: async (input) => {
           need('statuses', 'write');
           statuses.push(input);
+        },
+      },
+      git: {
+        getBlob: async ({ file_sha: fileSha }) => {
+          need('contents', 'read');
+          assert.equal(fileSha, blobSha(reportJson), 'the blob is read by the sha the contents API named');
+          return { data: { sha: fileSha, encoding: 'base64', content: Buffer.from(reportJson).toString('base64') } };
         },
       },
     },
@@ -527,6 +554,38 @@ test('every shipped approval caller grants what its approval program calls on a 
     assert.equal(refusal.created.length, 1, `${file}: the refusal is said out loud on the pull request`);
   }
   assert.match(reusableApproveYml, /Token with statuses:write, pull-requests:write/);
+});
+
+test('a report.json over the contents API 1 MB inline limit still lets a valid tick sign off', async () => {
+  const reportJson = JSON.stringify({
+    surfaces: [],
+    actionTrustState: 'STYLE_REVIEW_REQUIRED',
+    findings: 'x'.repeat(CONTENTS_INLINE_LIMIT + 1),
+  });
+  for (const [file, program] of [
+    ['.github/workflows/styleproof-approve-reusable.yml', reusableApproveScript],
+    ['example/styleproof-approve.yml', approveScript],
+  ]) {
+    const { statuses, updated } = await runApprove({ actor: REVIEWER, reportJson, program: program() });
+    assert.deepEqual(
+      statuses.map((s) => [s.state, s.description]),
+      [['success', `Approved by @${REVIEWER}`]],
+      `${file}: a large published report must not silently drop the sign-off`,
+    );
+    assert.match(updated[0].body, /- \[x\] \*\*Approve all changes\*\* — _approved by @a-reviewer_/);
+  }
+});
+
+test('a large report.json that is not STYLE_REVIEW_REQUIRED still writes no status', async () => {
+  const reportJson = JSON.stringify({
+    surfaces: [],
+    actionTrustState: 'CERTIFICATION_FAILED',
+    findings: 'x'.repeat(CONTENTS_INLINE_LIMIT + 1),
+  });
+  for (const program of [reusableApproveScript, approveScript]) {
+    const { statuses } = await runApprove({ actor: REVIEWER, reportJson, program: program() });
+    assert.deepEqual(statuses, [], 'the blob read path keeps every trust gate');
+  }
 });
 
 test('a token without pull-requests: write names the missing permission, not a bare 403', async () => {
