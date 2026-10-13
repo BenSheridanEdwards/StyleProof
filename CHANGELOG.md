@@ -7,7 +7,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.7.0] - 2026-10-12
+
 ### Fixed
+
+- **Two more report tests now fail when the behaviour their titles name
+  breaks.** "4-side padding aggregates in counts and Markdown" matched
+  `/padding/`, which the four longhands also match. It now requires the
+  `padding` shorthand row and rejects any longhand. "Order and nesting
+  preserved between JSON and Markdown" never read the Markdown. It now
+  gives three surfaces their own changes, checks that the Markdown lists
+  them in the JSON's order, and checks that each change sits under its own
+  surface. Each was checked against a planted bug.
+- **Sixteen unit tests now catch the bug their titles name.** Tests in `ack-ledger`,
+  `action-bash-portability`, `action-context` and `action-merge-base` stayed green
+  when a planted bug broke what their titles promise: a padded or empty ledger value,
+  a missing `report.md`, an incomplete or malformed SHA, a lookalike fork repository,
+  and a `..` repository part, among others. Each now fails with that bug and with a
+  second one of a different form. Titles and product code are unchanged.
+- **Docs-only and test-only pull requests can merge again.** `action-dogfood` and
+  `round-trip` are required checks, but their workflows only started when product
+  paths changed, so on any other pull request the checks never reported and the PR
+  stayed blocked. Both workflows now start on every pull request, and a path-filter
+  job skips the dogfood when no product surface changed: a skipped job counts as
+  passing. The filter fails closed: if it does not run, the dogfood does.
 
 - Failed API requests remain attributable after a canceled main-frame navigation
   (including downloads) followed by an SPA `pushState` transition. The armed
@@ -26,6 +49,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   baselines to obtain correct visibility evidence. (#816)
 
 ### Added
+
+- **The browser dogfood pins eleven more UI change classes.** `test/pr-surfacing.e2e.spec.ts`
+  now proves each of these end to end:
+  - a `::marker` or `::placeholder` restyle;
+  - an `::after` added on head only, and a `::before` removed;
+  - a dropped `:hover::after` restyle, and a dropped `:hover` that hid a `::before`;
+  - a dropped `:hover` on a `<summary>`, a `[role="button"]` and a `[tabindex]` element;
+  - an `::after` transition-duration change;
+  - an input left focused by setup surfacing nothing.
+
+  For each, a planted bug in the capture or diff path had passed both the unit and
+  the browser suites; the new test fails with that bug and with a second one.
 
 - Opt-in report Action `comparison-base: merge-base` derives the fork point from
   GitHub using trusted immutable base/head commits. The default remains

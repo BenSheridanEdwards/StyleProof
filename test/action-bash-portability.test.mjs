@@ -236,9 +236,12 @@ for (const [headSha, expectedSha, label] of [
 
 test('the receipt step fails closed when report.md is missing (#696)', () => {
   const dir = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-receipt-'));
+  // The report directory exists (the report step created it) but report.md does not.
+  fs.mkdirSync(path.join(dir, 'styleproof-report'));
   const script = runBlockContaining('styleproof-receipt head-sha:%s').replace(/\$\{\{[^}]*\}\}/g, 'x');
   const result = spawnSync('bash', ['-u', '-c', script], { encoding: 'utf8', cwd: dir });
   assert.notEqual(result.status, 0, 'a missing report.md must not produce a receipt-only artifact');
+  assert.equal(fs.existsSync(path.join(dir, 'styleproof-report/report.md')), false, 'no receipt-only report.md');
 });
 
 // #700: the job summary mirrors report.md so the verdict is readable on the run
@@ -250,7 +253,7 @@ test('the summary step mirrors report.md minus image-only lines (#700)', () => {
   fs.mkdirSync(path.join(dir, 'styleproof-report'));
   fs.writeFileSync(
     path.join(dir, 'styleproof-report/report.md'),
-    '## StyleProof report\n\nverdict row\n\n![crop](crops/a.png)\n\n<sub>caption</sub>\n',
+    '## StyleProof report\n\nverdict row\n\n![crop](crops/a.png)\n\n<sub>caption</sub>\n! 2 surfaces changed\nsee ![badge](badge.png) inline\n',
   );
   const script = runBlockContaining('grep -v');
   const result = spawnSync('bash', ['-u', '-c', script], {
@@ -261,7 +264,7 @@ test('the summary step mirrors report.md minus image-only lines (#700)', () => {
   assert.equal(result.status, 0, `summary step output: ${result.stderr}`);
   assert.equal(
     fs.readFileSync(summaryFile, 'utf8'),
-    '## StyleProof report\n\nverdict row\n\n\n<sub>caption</sub>\n',
+    '## StyleProof report\n\nverdict row\n\n\n<sub>caption</sub>\n! 2 surfaces changed\nsee ![badge](badge.png) inline\n',
     'the summary must carry every line except relative-path images',
   );
 });
@@ -269,6 +272,8 @@ test('the summary step mirrors report.md minus image-only lines (#700)', () => {
 test('the summary step fails safe when report.md is missing (#700)', () => {
   const dir = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-summary-'));
   const summaryFile = path.join(dir, 'github-step-summary');
+  // The report directory exists but report.md does not.
+  fs.mkdirSync(path.join(dir, 'styleproof-report'));
   const script = runBlockContaining('grep -v');
   const result = spawnSync('bash', ['-u', '-c', script], {
     encoding: 'utf8',

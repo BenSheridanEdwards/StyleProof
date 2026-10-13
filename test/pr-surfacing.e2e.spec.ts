@@ -294,6 +294,104 @@ test.describe('every PR change class is surfaced in the diff', () => {
   });
 });
 
+// ── Level 1b: one dimension varied from the matrix above ────────────────────────
+// Each scenario changes exactly one thing from a class already pinned above:
+// a different pseudo-element, a pseudo on one side only, a state on a pseudo, a
+// state on a non-<button> control, a parent state, motion, and capture-time
+// pointer/focus residue that must NOT read as a change.
+test.describe('UI scenario variations are surfaced (and their twins stay silent)', () => {
+  const colorOf = (findings: ReturnType<typeof diffStyleMaps>, pseudo: string) =>
+    findings.find((x) => x.kind === 'style' && x.pseudo === pseudo && x.props.some((p) => p.prop === 'color'));
+  const hoverDrop = (findings: ReturnType<typeof diffStyleMaps>) =>
+    findings.find((x) => x.kind === 'state' && x.state === 'hover' && x.props.some((p) => p.prop === 'color'));
+
+  test('a list ::marker colour change → a style finding with pseudo="::marker"', async ({ page }) => {
+    const list = '<ul><li>One</li></ul>';
+    const base = await cap(page, 'li::marker{color:rgb(200,0,0)}', list);
+    const head = await cap(page, 'li::marker{color:rgb(0,0,200)}', list);
+    expect(colorOf(diffStyleMaps(base, head), '::marker'), 'the marker recolour is surfaced').toBeTruthy();
+  });
+
+  test('an input ::placeholder colour change → a style finding with pseudo="::placeholder"', async ({ page }) => {
+    const field = '<input name="email" placeholder="Email">';
+    const base = await cap(page, 'input::placeholder{color:rgb(200,0,0)}', field);
+    const head = await cap(page, 'input::placeholder{color:rgb(0,0,200)}', field);
+    expect(colorOf(diffStyleMaps(base, head), '::placeholder'), 'the placeholder recolour is surfaced').toBeTruthy();
+  });
+
+  test('an ::after added on head only → a style finding with pseudo="::after"', async ({ page }) => {
+    const base = await cap(page, boxCss(''), BOX);
+    const head = await cap(page, '.box::after{content:"›";color:rgb(200,0,0)}' + boxCss(''), BOX);
+    expect(colorOf(diffStyleMaps(base, head), '::after'), 'the new ::after is surfaced').toBeTruthy();
+  });
+
+  test('a ::before removed on head → a style finding with pseudo="::before"', async ({ page }) => {
+    const base = await cap(page, '.box::before{content:"•";color:rgb(200,0,0)}' + boxCss(''), BOX);
+    const head = await cap(page, boxCss(''), BOX);
+    expect(colorOf(diffStyleMaps(base, head), '::before'), 'the removed ::before is surfaced').toBeTruthy();
+  });
+
+  test('a dropped :hover::after restyle → a hover state finding on the ::after', async ({ page }) => {
+    const btn = '<button class="box">A</button>';
+    const after = '.box::after{content:"›";color:rgb(0,0,0)}' + boxCss('');
+    const base = await cap(page, after + '.box:hover::after{color:rgb(200,0,0)}', btn);
+    const head = await cap(page, after, btn);
+    const f = hoverDrop(diffStyleMaps(base, head));
+    expect(f, 'the dropped hover restyle of the ::after is surfaced').toBeTruthy();
+    expect(f!.kind === 'state' && f!.sub).toMatch(/::after$/);
+  });
+
+  test('a dropped :hover that hid a ::before → a hover state finding on the ::before', async ({ page }) => {
+    const btn = '<button class="box">A</button>';
+    const before = '.box::before{content:"•";color:rgb(0,0,0)}' + boxCss('');
+    const base = await cap(page, before + '.box:hover::before{content:none}', btn);
+    const head = await cap(page, before, btn);
+    const f = diffStyleMaps(base, head).find((x) => x.kind === 'state' && x.state === 'hover');
+    expect(f, 'the ::before no longer disappearing on hover is surfaced').toBeTruthy();
+    expect(f!.kind === 'state' && f!.sub).toMatch(/::before$/);
+  });
+
+  const dropHoverOn = async (page: import('@playwright/test').Page, markup: string) =>
+    hoverDrop(diffStyleMaps(await cap(page, '.t:hover{color:rgb(200,0,0)}', markup), await cap(page, '', markup)));
+
+  test('a dropped :hover on a <summary> disclosure → a state finding for hover', async ({ page }) => {
+    const f = await dropHoverOn(page, '<details><summary class="t">More</summary></details>');
+    expect(f, 'the <summary> hover drop is surfaced').toBeTruthy();
+  });
+
+  test('a dropped :hover on a [role="button"] div → a state finding for hover', async ({ page }) => {
+    const f = await dropHoverOn(page, '<div role="button" class="t">Act</div>');
+    expect(f, 'the role=button hover drop is surfaced').toBeTruthy();
+  });
+
+  test('a dropped :hover on a [tabindex] card → a state finding for hover', async ({ page }) => {
+    const f = await dropHoverOn(page, '<div tabindex="0" class="t">Card</div>');
+    expect(f, 'the tabindex hover drop is surfaced').toBeTruthy();
+  });
+
+  test('a changed ::after transition duration → a style finding with pseudo="::after"', async ({ page }) => {
+    const after = (ms: number) => `.box::after{content:"›";transition:color ${ms}ms ease}` + boxCss('');
+    const base = await cap(page, after(200), BOX);
+    const head = await cap(page, after(600), BOX);
+    const f = diffStyleMaps(base, head).find(
+      (x) => x.kind === 'style' && x.pseudo === '::after' && x.props.some((p) => p.prop === 'transition-duration'),
+    );
+    expect(f, 'pseudo-element motion is captured too').toBeTruthy();
+  });
+
+  // Twins: what the capture must NOT read as a change.
+  const FOCUSABLE_CSS = 'input:focus{outline:3px solid rgb(200,0,0);background:rgb(255,255,0)}';
+  const FIELD = '<input name="q">';
+
+  test('an input left focused by setup before capture surfaces NOTHING against an unfocused one', async ({ page }) => {
+    await page.setContent(doc(FOCUSABLE_CSS, FIELD), { waitUntil: 'load' });
+    await page.focus('input');
+    const focused = await captureStyleMap(page);
+    const resting = await cap(page, FOCUSABLE_CSS, FIELD);
+    expect(diffStyleMaps(focused, resting), 'a leftover real focus is not a style change').toEqual([]);
+  });
+});
+
 // ── Level 2: the real gate + report surface the change ──────────────────────────
 test.describe('the PR gate + report surface the change through the real CLIs', () => {
   function run(bin: string, args: string[], cwd: string): { status: number; out: string } {
