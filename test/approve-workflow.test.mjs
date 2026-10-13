@@ -51,16 +51,13 @@ function approveScript() {
 }
 
 /**
- * Compile the reusable workflow's program — the one adopter callers run. Its one
- * expression is the boolean allow-self-approval input, and status-context
- * arrives through env, as the workflow passes it.
+ * Compile the reusable workflow's program — the one adopter callers run. Its
+ * inputs arrive through env, as the workflow passes them: status-context here,
+ * allow-self-approval from runApprove's allowSelfApproval.
  */
 function reusableApproveScript() {
-  const source = programSource(reusableApproveYml, '.github/workflows/styleproof-approve-reusable.yml').replace(
-    '${{ inputs.allow-self-approval }}',
-    'false',
-  );
-  assert.doesNotMatch(source, /\$\{\{/);
+  const source = programSource(reusableApproveYml, '.github/workflows/styleproof-approve-reusable.yml');
+  assert.doesNotMatch(source, /\$\{\{/, 'the reusable approve program must not interpolate workflow expressions');
   const program = new AsyncFunction('github', 'context', source);
   return async (github, context) => {
     const previous = process.env.STYLEPROOF_STATUS_CONTEXT;
@@ -337,19 +334,26 @@ test('author matching is case-insensitive and an unresolvable author fails close
 });
 
 test('solo repositories opt in explicitly, and any other value refuses (#477)', async () => {
-  const optedIn = await runApprove({ actor: AUTHOR, allowSelfApproval: 'true' });
-  assert.deepEqual(
-    optedIn.statuses.map((s) => [s.state, s.description]),
-    [['success', `Approved by @${AUTHOR}`]],
-  );
-
-  for (const typo of ['TRUE', 'True', '1', 'yes', '', ' true']) {
-    const refused = await runApprove({ actor: AUTHOR, allowSelfApproval: typo });
+  for (const [file, program] of [
+    ['example/styleproof-approve.yml', approveScript],
+    ['.github/workflows/styleproof-approve-reusable.yml', reusableApproveScript],
+  ]) {
+    const optedIn = await runApprove({ actor: AUTHOR, allowSelfApproval: 'true', program: program() });
     assert.deepEqual(
-      refused.statuses.map((s) => s.state),
-      ['failure'],
-      `STYLEPROOF_ALLOW_SELF_APPROVAL=${JSON.stringify(typo)} must fail closed`,
+      optedIn.statuses.map((s) => [s.state, s.description]),
+      [['success', `Approved by @${AUTHOR}`]],
+      `${file}: STYLEPROOF_ALLOW_SELF_APPROVAL=true lets the author sign off`,
     );
+
+    // 'false' is what the boolean input renders by default; undefined is an unset env.
+    for (const typo of ['false', undefined, 'TRUE', 'True', '1', 'yes', '', ' true']) {
+      const refused = await runApprove({ actor: AUTHOR, allowSelfApproval: typo, program: program() });
+      assert.deepEqual(
+        refused.statuses.map((s) => s.state),
+        ['failure'],
+        `${file}: STYLEPROOF_ALLOW_SELF_APPROVAL=${JSON.stringify(typo)} must fail closed`,
+      );
+    }
   }
 
   assert.match(
@@ -466,11 +470,68 @@ test('reusable approval workflow uses the input status-context (#598)', () => {
 });
 
 test('reusable approval workflow uses the input allow-self-approval (#598)', () => {
+  assert.match(reusableApproveYml, /STYLEPROOF_ALLOW_SELF_APPROVAL: \$\{\{ inputs\.allow-self-approval \}\}/);
   assert.match(
     reusableApproveYml,
-    /const allowSelfApproval = \$\{\{ inputs\.allow-self-approval \}\}/,
-    'must interpolate allow-self-approval input as a boolean',
+    /const allowSelfApproval = process\.env\.STYLEPROOF_ALLOW_SELF_APPROVAL === 'true';/,
+    'the boolean input arrives through env, never spliced into the script',
   );
+});
+
+/** Every `run: |` / `script: |` block body in a YAML file, with its 1-based header line. */
+function scriptBlocks(yml) {
+  const blocks = [];
+  const lines = yml.split('\n');
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = lines[index].match(/^(\s+)(?:- )?(?:run|script): \|/);
+    if (!header) continue;
+    const line = index + 1;
+    const body = [];
+    for (index += 1; index < lines.length; index += 1) {
+      if (lines[index].trim() !== '' && !lines[index].startsWith(`${header[1]}  `)) {
+        index -= 1;
+        break;
+      }
+      body.push(lines[index].slice(header[1].length + 2));
+    }
+    blocks.push({ line, text: body.join('\n') });
+  }
+  return blocks;
+}
+
+// GitHub rejects a workflow whose expression template exceeds 21,000 characters,
+// and a single `${{ }}` makes the whole scalar a template. The run then fails at
+// startup with "workflow file issue" and no jobs, so no test of the program sees it.
+const EXPRESSION_TEMPLATE_LIMIT = 21_000;
+
+test('the approval programs carry no workflow expression, so their size is never capped', () => {
+  for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'example/styleproof-approve.yml']) {
+    const programs = scriptBlocks(fs.readFileSync(path.join(root, file), 'utf8'));
+    assert.ok(programs.length > 0, `${file} should contain a github-script program`);
+    for (const { line, text } of programs) {
+      assert.doesNotMatch(text, /\$\{\{/, `${file}:${line}: pass inputs through env:, not \${{ }} in the script`);
+    }
+  }
+});
+
+test('every shipped run or script block with an expression stays under the template limit', () => {
+  const files = [
+    'action.yml',
+    ...fs.readdirSync(path.join(root, '.github/workflows')).map((name) => `.github/workflows/${name}`),
+    ...fs.readdirSync(path.join(root, 'example')).map((name) => `example/${name}`),
+  ].filter((file) => /\.ya?ml$/.test(file));
+  let checked = 0;
+  for (const file of files) {
+    for (const { line, text } of scriptBlocks(fs.readFileSync(path.join(root, file), 'utf8'))) {
+      if (!text.includes('${{')) continue;
+      checked += 1;
+      assert.ok(
+        text.length < EXPRESSION_TEMPLATE_LIMIT,
+        `${file}:${line}: a block with \${{ }} is ${text.length} chars; GitHub caps it at ${EXPRESSION_TEMPLATE_LIMIT}`,
+      );
+    }
+  }
+  assert.ok(checked > 0, 'the scan should find expression blocks to check');
 });
 
 test('reusable approval workflow uses the token secret (#598)', () => {

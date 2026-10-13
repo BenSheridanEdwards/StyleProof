@@ -1545,8 +1545,8 @@ test('composite action never splices string inputs into run or script bodies', (
     path.join(here, '..', '.github/workflows/styleproof-approve-reusable.yml'),
     'utf8',
   );
-  // allow-self-approval is boolean-typed, so it can only render true/false.
-  assert.deepEqual(inputsInScriptBodies(reusableApprove), ['${{ inputs.allow-self-approval }}']);
+  // Every input, the boolean allow-self-approval included, arrives through env.
+  assert.deepEqual(inputsInScriptBodies(reusableApprove), []);
 });
 
 async function runGateStep(statuses) {
