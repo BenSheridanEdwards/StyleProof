@@ -30,6 +30,17 @@ export function trackInflightRequests(page: Page): { pending: () => number; disp
 }
 
 /**
+ * Whether a `requestfailed` error text is a cancellation (a download or a superseded
+ * navigation) rather than a network error, per engine, as Playwright classifies them:
+ * Chromium `net::ERR_ABORTED`, Firefox `NS_BINDING_ABORTED`, WebKit "...cancelled".
+ * A missing error text counts as a cancellation, so no document commit is assumed.
+ */
+function isCanceledRequestFailure(errorText: string | undefined): boolean {
+  if (errorText === undefined) return true;
+  return errorText === 'net::ERR_ABORTED' || errorText === 'NS_BINDING_ABORTED' || errorText.includes('cancelled');
+}
+
+/**
  * Watch the data boundary (`url`, the `replayUrl` glob) for requests that FAIL during
  * capture (network error or 4xx/5xx): the captured state then renders that endpoint's
  * FALLBACK branch. Passive listeners, never a route, so a surface's own routes still win.
@@ -50,17 +61,20 @@ export function trackDataResidue(
   const terminalEventSources = new WeakSet<Request>();
   const inBoundary = urlMatcher(url);
   let documentEpoch = 0;
-  let pendingMainFrameDocumentRequest: Request | undefined;
+  // Every main-frame document request not yet committed or canceled. One slot is not
+  // enough: a newer canceled navigation would hide an older one that still commits.
+  const pendingMainFrameDocumentRequests = new Set<Request>();
   const epochByRequest = new Map<Request, number>();
   const onRequest = (request: Request): void => {
     epochByRequest.set(request, documentEpoch);
     // `frame()` is only safe on navigation requests (service-worker requests have none).
-    if (request.isNavigationRequest() && !request.frame().parentFrame()) pendingMainFrameDocumentRequest = request;
+    if (request.isNavigationRequest() && !request.frame().parentFrame()) pendingMainFrameDocumentRequests.add(request);
   };
   const onFrameNavigated = (frame: Frame): void => {
     // Same-document navigations (pushState/hash) fire this too but load no document: the epoch holds.
-    if (frame.parentFrame() || !pendingMainFrameDocumentRequest) return;
-    pendingMainFrameDocumentRequest = undefined;
+    if (frame.parentFrame() || pendingMainFrameDocumentRequests.size === 0) return;
+    // A commit replaces the document, so every navigation pending before it is settled.
+    pendingMainFrameDocumentRequests.clear();
     documentEpoch += 1;
   };
   const record = (request: Request, reason: string): void => {
@@ -71,11 +85,13 @@ export function trackDataResidue(
     if (!byRequest.has(request)) byRequest.set(request, { key, surface, endpoint, reason });
   };
   const onFailed = (request: Request): void => {
-    // Downloads/canceled navigations leave the document alive. Do not let a later
-    // pushState consume their stale marker; an older failure must not clear a newer one.
-    if (request === pendingMainFrameDocumentRequest) pendingMainFrameDocumentRequest = undefined;
+    const errorText = request.failure()?.errorText;
+    // A download or a canceled navigation leaves the document alive, so a later
+    // pushState must not consume its marker. Any other failure (ERR_EMPTY_RESPONSE,
+    // ERR_CONNECTION_REFUSED) commits an error page, a new document: keep the marker.
+    if (isCanceledRequestFailure(errorText)) pendingMainFrameDocumentRequests.delete(request);
     if (terminalEventSources.has(request)) return;
-    record(request, request.failure()?.errorText ?? 'request failed');
+    record(request, errorText ?? 'request failed');
   };
   const onResponse = (resp: Response): void => {
     const request = resp.request();
