@@ -28,6 +28,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `example/styleproof-approve.yml` now read such a file by its blob SHA
   (`git.getBlob`, up to 100 MB). Every receipt and trust-state check still
   runs on the bytes read.
+- **Ancestor baseline reuse sees a subdirectory consumer's own changes.** Git
+  names changed paths from the repository root, but `styleproof-ci` compared them
+  with the spec and source roots as written relative to the consumer directory.
+  For a consumer in `packages/web`, a base commit that changed only
+  `packages/web/src/app.css` matched neither, so CI reused a stale ancestor
+  baseline and recorded "none capture-relevant". The spec, the default `src`
+  root and `ancestorBaseline.roots` are now resolved to repository paths (config
+  roots from their config file's directory), including an absolute `--spec`.
+  Each spec and root is also kept as written, so this change can only add
+  captures. Repository-root consumers are unchanged.
+- **A pull request from a deleted fork is an untrusted capture.** GitHub sends
+  `head.repo: null` once a fork is deleted, and the PR head is still the fork's
+  code. On `pull_request` and `pull_request_target` events the Action read that
+  as a same-repository PR, so a clean verdict could turn green without
+  maintainer approval. It is now untrusted, as the `workflow_run` path already
+  was.
+- **The approve workflow falls back to `ubuntu-latest` on an empty `runs-on`.**
+  The default applied only when a caller omitted the input. A caller passing an
+  unset variable, such as `runs-on: ${{ vars.STYLEPROOF_RUNNER }}`, sent an
+  empty runner label, so the approve job never started.
 
 ## [7.7.0] - 2026-10-12
 

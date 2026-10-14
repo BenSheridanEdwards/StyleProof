@@ -53,13 +53,15 @@ const sameRepository = (fullName: string | undefined, repo: ActionContextInput['
   typeof fullName === 'string' && fullName.toLowerCase() === `${repo.owner}/${repo.repo}`.toLowerCase();
 
 /** Fork detection from the trusted event payload. A workflow_run without a head
- *  repository fails closed (untrusted); a pull_request payload only flags a named fork. */
+ *  repository fails closed (untrusted). A pull_request payload flags a named fork, and
+ *  `head.repo: null`, which GitHub sends once the fork is deleted (its head is still fork code). */
 function isUntrustedCapture(
   eventName: string,
   payload: ActionContextInput['payload'],
   repo: ActionContextInput['repo'],
 ): boolean {
   if (eventName === 'workflow_run') return !sameRepository(payload.workflow_run?.head_repository?.full_name, repo);
+  if (payload.pull_request?.head?.repo === null) return true;
   const headRepository = payload.pull_request?.head?.repo?.full_name;
   return headRepository !== undefined && !sameRepository(headRepository, repo);
 }
