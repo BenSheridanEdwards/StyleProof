@@ -57,6 +57,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   surface. Pending navigations are now a set, and a failure removes one only when
   it is a cancellation (`net::ERR_ABORTED`, Firefox `NS_BINDING_ABORTED`, WebKit
   "cancelled"), such as a download.
+- **Two more unit tests now catch the bug their titles name.** The
+  `action-merge-base` forged-identity test passed only keys `resolveActionContext`
+  never reads, so reading the head from `payload.after`, the PR number from
+  `payload.number`, the base from `merge_commit_sha`, or identities from a
+  `workflow_run` block on a `pull_request` event stayed green. Each field now holds a
+  distinct forged value, and each of those bugs fails it. The approve-runner test
+  compared the `runs-on` line with a fixed string. It now evaluates the expression for
+  an empty, single-label, `ubuntu-latest` and JSON-array input, so a wrong expression
+  fails and an equivalent rewrite passes. Product code is unchanged.
 
 ## [7.7.0] - 2026-10-12
 

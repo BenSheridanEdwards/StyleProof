@@ -420,6 +420,105 @@ test('reusable approval workflow declares required inputs (#598)', () => {
   assert.match(reusableApproveYml, /token:[\s\S]*?required: true/, 'token secret must be required');
 });
 
+/**
+ * Evaluate the subset of GitHub Actions expression syntax a `runs-on` line uses:
+ * `inputs.*` context reads, '…' string literals, `startsWith`, `fromJSON`, `&&`, `||`
+ * and parentheses, with GitHub's semantics: `&&`/`||` return an operand, not a boolean;
+ * '' (and null, false, 0) is falsy; `startsWith` ignores case. Anything else throws,
+ * so a rewrite outside this subset fails loudly instead of passing by accident.
+ */
+function evaluateExpression(source, context) {
+  const tokens = source.match(/'(?:[^']|'')*'|&&|\|\||[(),]|[A-Za-z_][\w.-]*|\S/g) ?? [];
+  let position = 0;
+  const peek = () => tokens[position];
+  const take = (expected) => {
+    const token = tokens[position++];
+    if (expected !== undefined && token !== expected) throw new Error(`expected ${expected}, got ${token}`);
+    return token;
+  };
+  const truthy = (value) => value !== '' && value !== null && value !== undefined && value !== false && value !== 0;
+  const functions = {
+    startsWith: (value, prefix) => String(value).toLowerCase().startsWith(String(prefix).toLowerCase()),
+    fromJSON: (value) => JSON.parse(value),
+  };
+  // Each parser returns a thunk, so `&&` and `||` short-circuit as GitHub's do:
+  // `startsWith(x, '[') && fromJSON(x)` never parses a non-array x.
+  const primary = () => {
+    const token = take();
+    if (token === '(') {
+      const inner = or();
+      take(')');
+      return inner;
+    }
+    if (token?.startsWith("'")) {
+      const literal = token.slice(1, -1).replaceAll("''", "'");
+      return () => literal;
+    }
+    if (token && Object.hasOwn(functions, token)) {
+      take('(');
+      const args = [or()];
+      while (peek() === ',') {
+        take(',');
+        args.push(or());
+      }
+      take(')');
+      return () => functions[token](...args.map((arg) => arg()));
+    }
+    if (token && /^[A-Za-z_][\w-]*(\.[\w-]+)+$/.test(token)) {
+      return () => token.split('.').reduce((value, key) => value?.[key], context) ?? null;
+    }
+    throw new Error(`unsupported expression token: ${token}`);
+  };
+  const and = () => {
+    let left = primary();
+    while (peek() === '&&') {
+      take('&&');
+      const [l, r] = [left, primary()];
+      left = () => {
+        const value = l();
+        return truthy(value) ? r() : value;
+      };
+    }
+    return left;
+  };
+  const or = () => {
+    let left = and();
+    while (peek() === '||') {
+      take('||');
+      const [l, r] = [left, and()];
+      left = () => {
+        const value = l();
+        return truthy(value) ? value : r();
+      };
+    }
+    return left;
+  };
+  const expression = or();
+  if (position !== tokens.length) throw new Error(`unsupported expression token: ${peek()}`);
+  return expression();
+}
+
+/** The runner GitHub would schedule the approve job on, for one caller `runs-on` input. */
+function approveRunner(yml, runsOnInput) {
+  const jobRunsOn = yml.match(/^ {4}runs-on: (.+)$/gm);
+  assert.equal(jobRunsOn?.length, 1, 'the reusable workflow must have exactly one job-level runs-on');
+  const expression = jobRunsOn[0].match(/^ {4}runs-on: \$\{\{(.+)\}\}$/);
+  assert.ok(expression, 'the approve job runs-on must be one ${{ }} expression over the runs-on input');
+  return evaluateExpression(expression[1], { inputs: { 'runs-on': runsOnInput } });
+}
+
+test('the runs-on evaluator follows GitHub expression semantics', () => {
+  const inputs = { inputs: { a: '', b: 'x' } };
+  assert.equal(evaluateExpression("inputs.a || 'd'", inputs), 'd');
+  assert.equal(evaluateExpression('inputs.b && inputs.a', inputs), '');
+  assert.equal(evaluateExpression("inputs.a && 'never' || inputs.b", inputs), 'x');
+  assert.equal(evaluateExpression("startsWith('ABC', 'ab')", inputs), true);
+  assert.deepEqual(evaluateExpression('fromJSON(\'["l"]\')', inputs), ['l']);
+  assert.equal(evaluateExpression("('it''s')", inputs), "it's");
+  assert.equal(evaluateExpression("inputs.a && fromJSON(inputs.a) || 'short-circuit'", inputs), 'short-circuit');
+  assert.throws(() => evaluateExpression("inputs.a == ''", inputs), /unsupported expression token/);
+});
+
 test('reusable approval workflow lets callers choose the approve runner', () => {
   // GitHub-hosted runners bill the CALLER's account, so a private consumer with no
   // minutes (or a billing / spending-limit block) needs its own runners here.
@@ -428,14 +527,22 @@ test('reusable approval workflow lets callers choose the approve runner', () => 
   assert.match(input[1], /^ {8}type: string$/m, 'runs-on must be a string input');
   assert.match(input[1], /^ {8}default: 'ubuntu-latest'$/m, 'runs-on must default to ubuntu-latest');
 
-  const jobRunsOn = reusableApproveYml.match(/^ {4}runs-on: (.+)$/gm);
-  assert.deepEqual(
-    jobRunsOn,
-    [
-      "    runs-on: ${{ startsWith(inputs.runs-on, '[') && fromJSON(inputs.runs-on) || inputs.runs-on || 'ubuntu-latest' }}",
-    ],
-    'the approve job must run on the input: a JSON array of labels, else one label, else ubuntu-latest when empty',
-  );
+  // Behaviour, not text (#829): evaluate the job's runs-on expression for each kind of
+  // caller value. A JSON array is a label set, any other value is one label, and an
+  // empty value (an unset `vars.*` passed through, #825) falls back to ubuntu-latest.
+  const cases = [
+    ['', 'ubuntu-latest'],
+    ['ubuntu-latest', 'ubuntu-latest'],
+    ['self-hosted', 'self-hosted'],
+    ['["self-hosted", "linux"]', ['self-hosted', 'linux']],
+  ];
+  for (const [runsOnInput, runner] of cases) {
+    assert.deepEqual(
+      approveRunner(reusableApproveYml, runsOnInput),
+      runner,
+      `runs-on input ${JSON.stringify(runsOnInput)}`,
+    );
+  }
 
   // The description's array example must be valid JSON, since callers copy it.
   const example = input[1].match(/e\.g\. '(\[[^']*\])'/);
