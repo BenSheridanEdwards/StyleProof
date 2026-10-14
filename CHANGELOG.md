@@ -48,6 +48,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The default applied only when a caller omitted the input. A caller passing an
   unset variable, such as `runs-on: ${{ vars.STYLEPROOF_RUNNER }}`, sent an
   empty runner label, so the approve job never started.
+- **Two more unit tests now catch the bug their titles name.** The
+  `action-merge-base` forged-identity test passed only keys `resolveActionContext`
+  never reads, so reading the head from `payload.after`, the PR number from
+  `payload.number`, the base from `merge_commit_sha`, or identities from a
+  `workflow_run` block on a `pull_request` event stayed green. Each field now holds a
+  distinct forged value, and each of those bugs fails it. The approve-runner test
+  compared the `runs-on` line with a fixed string. It now evaluates the expression for
+  an empty, single-label, `ubuntu-latest` and JSON-array input, so a wrong expression
+  fails and an equivalent rewrite passes. Product code is unchanged.
 
 ## [7.7.0] - 2026-10-12
 
