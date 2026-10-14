@@ -48,6 +48,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The default applied only when a caller omitted the input. A caller passing an
   unset variable, such as `runs-on: ${{ vars.STYLEPROOF_RUNNER }}`, sent an
   empty runner label, so the approve job never started.
+- **Data-residue attribution survives a failed navigation that still commits a
+  document.** `trackDataResidue` kept one pending main-frame navigation and cleared
+  it on any `requestfailed`. A navigation that fails with a network error
+  (`net::ERR_EMPTY_RESPONSE`) still commits Chromium's error page, and an older
+  navigation can commit after a newer one was canceled. In both cases the epoch did
+  not advance, so the old document's requests could be charged to the current
+  surface. Pending navigations are now a set, and a failure removes one only when
+  it is a cancellation (`net::ERR_ABORTED`, Firefox `NS_BINDING_ABORTED`, WebKit
+  "cancelled"), such as a download.
 
 ## [7.7.0] - 2026-10-12
 

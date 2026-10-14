@@ -125,12 +125,14 @@ const fakeRequest = (url, resourceType = 'fetch', errorText = 'net::ERR_ABORTED'
   isNavigationRequest: () => false,
   failure: () => ({ errorText }),
 });
-const fakeNavigationRequest = (url) => ({
+// Like a real navigation failure, the fake carries an `errorText`: a download or a
+// canceled navigation is `net::ERR_ABORTED`; a network error commits an error page.
+const fakeNavigationRequest = (url, errorText = 'net::ERR_ABORTED') => ({
   url: () => url,
   resourceType: () => 'document',
   isNavigationRequest: () => true,
   frame: () => fakeMainFrame,
-  failure: () => null,
+  failure: () => ({ errorText }),
 });
 
 test('a failed request under a literal-bracket data boundary is recorded as residue', () => {
@@ -333,6 +335,58 @@ test('an older canceled navigation cannot clear a newer pending document request
   assert.deepEqual(residue.residue(), []);
   residue.dispose();
 });
+
+test('a navigation that fails with a network error commits an error page and orphans the old document (#827 case A)', () => {
+  const page = new EventEmitter();
+  const residue = trackDataResidue(page, '**/api/**', 'next-surface');
+  const outgoingFetch = fakeRequest('https://app.test/api/poll');
+  const brokenNavigation = fakeNavigationRequest('https://app.test/broken', 'net::ERR_CONNECTION_REFUSED');
+
+  page.emit('request', outgoingFetch);
+  page.emit('request', brokenNavigation);
+  page.emit('requestfailed', brokenNavigation); // Chromium then commits chrome-error://chromewebdata/
+  page.emit('framenavigated', fakeMainFrame); // the error page is a new document
+  page.emit('requestfailed', outgoingFetch);
+
+  assert.deepEqual(residue.residue(), []);
+  residue.dispose();
+});
+
+test('a newer canceled navigation cannot clear an older pending document request that still commits (#827 case B)', () => {
+  const page = new EventEmitter();
+  const residue = trackDataResidue(page, '**/api/**', 'next-surface');
+  const outgoingFetch = fakeRequest('https://app.test/api/poll');
+  const committing = fakeNavigationRequest('https://app.test/next');
+  const download = fakeNavigationRequest('https://app.test/download');
+
+  page.emit('request', outgoingFetch);
+  page.emit('request', committing);
+  page.emit('request', download);
+  page.emit('requestfailed', download); // the newer navigation is a download
+  page.emit('framenavigated', fakeMainFrame); // the older navigation commits
+  page.emit('requestfailed', outgoingFetch);
+
+  assert.deepEqual(residue.residue(), []);
+  residue.dispose();
+});
+
+for (const errorText of ['NS_BINDING_ABORTED', 'Load request cancelled']) {
+  test(`a canceled navigation (${errorText}) followed by pushState keeps the live document's failed fetch`, () => {
+    const page = new EventEmitter();
+    const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+    const download = fakeNavigationRequest('https://app.test/download', errorText);
+    const ownFetch = fakeRequest('https://app.test/api/probe', 'fetch', 'net::ERR_CONNECTION_REFUSED');
+
+    page.emit('request', download);
+    page.emit('requestfailed', download); // no document committed
+    page.emit('request', ownFetch);
+    page.emit('framenavigated', fakeMainFrame); // pushState in the surviving document
+    page.emit('requestfailed', ownFetch);
+
+    assert.equal(residue.residue()[0]?.key, 'dashboard·/api/probe');
+    residue.dispose();
+  });
+}
 
 test('a failure recorded before a later commit stays recorded (self-check runs still fold)', () => {
   const page = new EventEmitter();
