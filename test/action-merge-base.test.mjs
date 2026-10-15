@@ -175,30 +175,57 @@ for (const invalidRepo of [
   });
 }
 test('artifacts, caller SHAs, forged numbers and mutable refs cannot select identities or strategy', async () => {
+  // Each forged value is a well-formed SHA (or PR number) unique to its field, and the
+  // field is one a plausible bug could read: push-event SHAs, the merge commit,
+  // SHA-shaped mutable ref names, the top-level PR number, a workflow_run block on a
+  // pull_request event, an uploaded artifact, and caller-supplied SHAs. Only
+  // pull_request.{number, base.sha, head.sha} is trusted, so any other source shows up
+  // as a wrong output or a wrong compare request. (#829)
+  const forged = (digit) => String(digit).repeat(40);
   const mock = mockClient();
+  const trusted = pullRequest();
   const resolved = await resolveActionContext(
     input(mock, {
-      expectedBaseSha: X,
-      baseSha: X,
-      headSha: X,
+      expectedBaseSha: forged(1),
+      baseSha: forged(1),
+      headSha: forged(2),
       prNumber: 999,
       payload: {
-        pull_request: pullRequest(),
-        ref: 'main',
+        after: forged(3),
+        before: forged(4),
+        number: 998,
+        ref: forged(5),
+        pull_request: {
+          ...trusted,
+          merge_commit_sha: forged(6),
+          base: { ...trusted.base, ref: forged(7) },
+          head: { ...trusted.head, ref: forged(8) },
+        },
+        workflow_run: {
+          head_sha: forged(9),
+          head_repository: { full_name: 'attacker/elsewhere' },
+          pull_requests: [{ number: 997, base: { sha: X }, head: { sha: forged(9) } }],
+        },
         artifact: {
           baseSha: X,
           headSha: X,
-          prNumber: 999,
+          prNumber: 996,
           comparisonBase: 'pull-request-base',
           repo: 'attacker/elsewhere',
         },
       },
     }),
   );
-  assert.equal(resolved.baseSha, A);
-  assert.equal(resolved.headSha, H);
-  assert.equal(resolved.prNumber, '12');
+  assert.deepEqual(resolved, {
+    prNumber: '12',
+    baseSha: A,
+    baseTipSha: B,
+    comparisonBase: 'merge-base',
+    headSha: H,
+    untrustedCapture: false,
+  });
   assert.deepEqual(mock.comparisons, [exactRequest]);
+  assert.deepEqual(mock.associations, []);
 });
 for (const fullName of ['example/demo', 'contributor/demo', undefined]) {
   test(`workflow_run retains captured H and fork classification: ${fullName}`, async () => {
