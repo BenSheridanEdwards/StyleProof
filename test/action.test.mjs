@@ -1634,6 +1634,17 @@ test('composite action binds diff and report receipts to trusted GitHub base and
   assert.match(reportStep[0], /isDeepStrictEqual\(generated\.sourceBinding, diff\.sourceBinding\)/);
 });
 
+test('composite action exposes the selected comparison base to consumers (#830)', () => {
+  // Step outputs of a composite action are invisible to the caller; only top-level outputs are readable.
+  const outputs = actionYml.split('\noutputs:\n')[1].split('\nruns:\n')[0];
+  for (const name of ['base-sha', 'comparison-base', 'base-tip-sha']) {
+    const entry = outputs.match(new RegExp(`^  ${name}:\\n((?:    .*\\n|      .*\\n)+)`, 'm'));
+    assert.ok(entry, `top-level output ${name} is declared`);
+    assert.match(entry[1], /description: >-\n\s+\S/);
+    assert.match(entry[1], new RegExp(`value: \\$\\{\\{ steps\\.context\\.outputs\\.${name} \\}\\}\\n`));
+  }
+});
+
 test('composite action verdict fails closed on armed undeclared legacy pairs', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-legacy-pairs-'));
   try {

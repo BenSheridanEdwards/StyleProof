@@ -114,6 +114,23 @@ outputs:
   audit-json:
     description: 'Path to the durable audit trail JSON file (styleproof-audit.json).'
     value: ${{ steps.report.outputs.audit-json }}
+  base-sha:
+    description: >-
+      Expected "before" commit the diff and report were bound to: the PR base
+      tip under pull-request-base, the fork point under merge-base. Empty when
+      no PR context resolved.
+    value: ${{ steps.context.outputs.base-sha }}
+  comparison-base:
+    description: >-
+      Policy that selected base-sha: pull-request-base or merge-base. Empty
+      when no PR context resolved.
+    value: ${{ steps.context.outputs.comparison-base }}
+  base-tip-sha:
+    description: >-
+      Trusted PR base tip. Equals base-sha under pull-request-base; differs from
+      it under merge-base once the base branch has moved. Empty when no PR
+      context resolved.
+    value: ${{ steps.context.outputs.base-tip-sha }}
 
 runs:
   using: composite
