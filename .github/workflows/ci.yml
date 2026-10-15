@@ -272,9 +272,10 @@ jobs:
         run: node bench/detection-rate.mjs --check
 
   # Stable branch-protection context. Browser lanes skip only when the path
-  # filter succeeded AND said e2e == 'false' (docs-only / pure unit tests). Any
-  # other decision (true, empty, missing, malformed) or a failed filter requires
-  # the e2e shards, the evidence check and the detection corpus to succeed.
+  # filter succeeded AND said e2e == 'false' (docs-only / pure unit tests). A
+  # 'true' decision requires the e2e shards, the evidence check and the detection
+  # corpus to succeed. An empty, missing or malformed decision, or a failed
+  # filter, fails this check outright.
   # test/ci-required-policy.test.mjs executes this step against a table of cases.
   required:
     name: required
