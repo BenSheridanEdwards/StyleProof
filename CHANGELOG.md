@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **The Action's context step names the comparison base it used.** Next to
+  `base-sha`, the `context` step now sets `comparison-base`
+  (`pull-request-base` or `merge-base`) and `base-tip-sha` (the trusted PR base
+  tip). Before, the step dropped both values that `resolveActionContext`
+  returned, so nothing recorded whether the expected base was the fork point or
+  the base tip. Under `merge-base`, `base-tip-sha` differs from `base-sha` once
+  the base branch has moved. All three are empty when no PR context resolves.
+
 ### Fixed
 
 - **The reusable approve workflow starts again.** Its github-script program

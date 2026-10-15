@@ -1490,6 +1490,13 @@ repositories, exact returned `base_commit.sha === B`, and a full lowercase
 `merge_base_commit.sha`. Invalid input, API failure or invalid provenance fails
 closed with no base-tip, branch-ref or artifact-identity fallback.
 
+The internal `context` step records the resolved policy next to its `base-sha`
+step output: `comparison-base` (`pull-request-base` or `merge-base`) and
+`base-tip-sha` (the trusted PR base tip B). Under `pull-request-base`,
+`base-tip-sha` equals `base-sha`; under `merge-base`, `base-sha` is A and
+`base-tip-sha` is B, so the two differ once the base branch has moved. Like
+`base-sha`, both are empty when no PR context resolves.
+
 The capture producer must actually capture A/H using the same immutable tuple and
 canonical GitHub comparison as the verifier. The input does not change capture
 workflows. Diff, report and source-binding receipts all use the same selected A/H;
