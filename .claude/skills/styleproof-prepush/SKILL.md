@@ -1,15 +1,17 @@
 ---
 name: styleproof-prepush
-description: Use when setting up a local pre-push hook that captures the StyleProof map before pushing (so CI restores it and runs report-only) — the capture→publish-to-store pattern, the docs-only skip, and why maps never get committed to the PR branch.
+description: Use when setting up the opt-in local pre-push hook that captures the StyleProof map before pushing (so CI restores it and runs report-only) — the capture→publish-to-store pattern, the docs-only skip, and why maps never get committed to the PR branch.
 ---
 
 # StyleProof — capture the map at pre-push
 
 One job: build the head map **locally, before the push**, so CI's hot path is
-report-only (no build, no browser). This is the **default**: `styleproof-init`
-installs the hook out of the box (`.husky/pre-push` if husky is present, else
-`.githooks/pre-push` + `git config core.hooksPath .githooks`). This skill is
-for understanding and customizing it.
+report-only (no build, no browser). The hook is an opt-in cache:
+`styleproof-init --storage branch` installs it (`.husky/pre-push` if husky is
+present, else `.githooks/pre-push` + `git config core.hooksPath .githooks`).
+The default scaffold has no hook and captures both sides in CI. Either way,
+review happens on the pull request report. This skill is for understanding and
+customizing the hook.
 
 ## The pattern
 
@@ -26,8 +28,9 @@ git push`, or automatically when the pushed range is **docs-only**
 3. **Captures and publishes** the map (`npx styleproof-map`). Outside CI it
    auto-uploads the bundle to the dedicated `styleproof-maps` branch, keyed by
    commit SHA — CI restores it from there by the PR head SHA.
-4. **Diffs** the fresh map against the inferred base (`styleproof-diff`), so you
-   see drift before it reaches CI.
+4. **Diffs** the fresh map against the inferred base (`styleproof-diff`) as an
+   advisory preview. The diff result leaves the push alone. The PR report is
+   where reviewers approve the change.
 
 The map is **never committed to the PR branch**. Maps on the PR branch show up
 as changed files in review and — because every PR writes the same paths — force

@@ -5,9 +5,11 @@ description: Use when standing up StyleProof end-to-end in a repo or running it 
 
 # StyleProof — the full workflow
 
-StyleProof is a **PR gate for visual CSS changes**: it opens the app states you
-declare in a real browser, records the browser's _computed_ styles, diffs head
-vs base, and reports exactly which rendered styles changed. It's not a screenshot
+StyleProof is a **visual change report for pull requests**: it opens the app
+states you declare in a real browser, records the browser's _computed_ styles,
+diffs head vs base, and reports exactly which rendered styles changed. You, or
+the human reviewer, then confirm that the report shows the change the PR
+intends. It's not a screenshot
 diff — screenshots are in the report for humans; the gate compares resolved CSS,
 keyed by DOM structure so a class rewrite still lines up.
 
