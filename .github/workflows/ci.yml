@@ -271,8 +271,11 @@ jobs:
       - name: Detection-rate corpus
         run: node bench/detection-rate.mjs --check
 
-  # Stable branch-protection context. Browser lanes may skip when no e2e
-  # paths changed (docs-only / pure unit tests); skipped counts as success.
+  # Stable branch-protection context. Browser lanes skip only when the path
+  # filter succeeded AND said e2e == 'false' (docs-only / pure unit tests). Any
+  # other decision (true, empty, missing, malformed) or a failed filter requires
+  # the e2e shards, the evidence check and the detection corpus to succeed.
+  # test/ci-required-policy.test.mjs executes this step against a table of cases.
   required:
     name: required
     if: always()
@@ -282,6 +285,7 @@ jobs:
       - name: Verify required CI evidence
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
+          E2E_DECISION: ${{ needs.changes.outputs.e2e }}
           BUILD_RESULT: ${{ needs.build.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
@@ -289,17 +293,30 @@ jobs:
           DETECTION_CORPUS_RESULT: ${{ needs.detection-corpus.result }}
         run: |
           set -euo pipefail
-          test "$CHANGES_RESULT" = success
-          test "$BUILD_RESULT" = success
-          test "$CLI_SMOKE_RESULT" = success
-          # Browser lanes: success when they ran, or skipped when path-filter said no.
+          status=0
+          reject() { echo "::error::$1"; status=1; }
+          for name in CHANGES_RESULT BUILD_RESULT CLI_SMOKE_RESULT; do
+            val="${!name:-}"
+            [ "$val" = success ] || reject "$name was '$val' (want success)"
+          done
+          # Trust the filter's decision only when the filter job itself succeeded.
+          decision="${E2E_DECISION:-}"
+          [ "${CHANGES_RESULT:-}" = success ] || decision="untrusted (path filter did not succeed)"
+          case "$decision" in
+            true) echo "Path filter: browser paths changed; e2e shards, evidence and detection corpus must succeed" ;;
+            false) echo "Path filter: no browser paths changed; browser lanes may skip" ;;
+            *) reject "Path filter e2e decision was '$decision' (want true or false); browser lanes must succeed" ;;
+          esac
           for name in E2E_RESULT E2E_EVIDENCE_RESULT DETECTION_CORPUS_RESULT; do
-            val="${!name}"
-            if [ "$val" != success ] && [ "$val" != skipped ]; then
-              echo "::error::$name was '$val' (want success or skipped)"
-              exit 1
+            val="${!name:-}"
+            if [ "$val" = success ]; then
+              continue
+            elif [ "$val" = skipped ] && [ "$decision" = false ]; then
+              echo "$name skipped: no browser paths changed"
+            elif [ "$decision" = false ]; then
+              reject "$name was '$val' (want success or skipped)"
+            else
+              reject "$name was '$val' (want success)"
             fi
           done
-          if [ "$E2E_RESULT" = skipped ]; then
-            echo "e2e/detection skipped — no browser-surface paths"
-          fi
+          exit "$status"

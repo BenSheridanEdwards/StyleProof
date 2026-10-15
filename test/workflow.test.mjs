@@ -97,11 +97,9 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(required, /E2E_EVIDENCE_RESULT: \$\{\{ needs\.e2e-evidence\.result \}\}/);
   assert.match(required, /CLI_SMOKE_RESULT: \$\{\{ needs\.cli-smoke\.result \}\}/);
   assert.match(required, /DETECTION_CORPUS_RESULT: \$\{\{ needs\.detection-corpus\.result \}\}/);
+  assert.match(required, /E2E_DECISION: \$\{\{ needs\.changes\.outputs\.e2e \}\}/);
   assert.match(required, /set -euo pipefail/);
-  assert.match(required, /test "\$CHANGES_RESULT" = success/);
-  assert.match(required, /test "\$BUILD_RESULT" = success/);
-  assert.match(required, /want success or skipped/);
-  assert.match(required, /test "\$CLI_SMOKE_RESULT" = success/);
+  // The policy itself is executed case by case in test/ci-required-policy.test.mjs.
   assert.doesNotMatch(required, /actions\/checkout/);
 });
 

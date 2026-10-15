@@ -64,7 +64,7 @@ for (const [name, job] of [
   });
 }
 
-test('CI path-filters e2e and detection; required accepts skipped browser lanes', () => {
+test('CI path-filters e2e and detection; required reads the filter decision', () => {
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, / {2}changes:\n[\s\S]*dorny\/paths-filter@/);
   assert.match(ci, /outputs:\n(?: {6}.+\n)* {6}e2e: \$\{\{ steps\.filter\.outputs\.e2e \}\}/);
@@ -72,7 +72,7 @@ test('CI path-filters e2e and detection; required accepts skipped browser lanes'
   assert.match(ci, / {2}detection-corpus:\n(?: {4}.+\n)* {4}if: needs\.changes\.outputs\.e2e == 'true'/);
   assert.match(ci, / {2}required:\n(?: {4}.+\n)* {4}if: always\(\)/);
   assert.match(ci, /E2E_RESULT:/);
-  assert.match(ci, /want success or skipped/);
+  assert.match(ci, /E2E_DECISION: \$\{\{ needs\.changes\.outputs\.e2e \}\}/);
   // Pin every e2e glob from the module into the workflow filters block.
   for (const glob of E2E_PATH_GLOBS) {
     assert.match(ci, new RegExp(`- '${glob.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`), `ci.yml pins ${glob}`);
