@@ -114,6 +114,23 @@ outputs:
   audit-json:
     description: 'Path to the durable audit trail JSON file (styleproof-audit.json).'
     value: ${{ steps.report.outputs.audit-json }}
+  base-sha:
+    description: >-
+      Expected "before" commit the diff and report were bound to: the PR base
+      tip under pull-request-base, the fork point under merge-base. Empty when
+      no PR context resolved.
+    value: ${{ steps.context.outputs.base-sha }}
+  comparison-base:
+    description: >-
+      Policy that selected base-sha: pull-request-base or merge-base. Empty
+      when no PR context resolved.
+    value: ${{ steps.context.outputs.comparison-base }}
+  base-tip-sha:
+    description: >-
+      Trusted PR base tip. Equals base-sha under pull-request-base; differs from
+      it under merge-base once the base branch has moved. Empty when no PR
+      context resolved.
+    value: ${{ steps.context.outputs.base-tip-sha }}
 
 runs:
   using: composite
@@ -169,7 +186,14 @@ runs:
         retries: 3
         script: |
           const { resolveActionContext } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/action-context.js`);
-          const { prNumber, baseSha, headSha, untrustedCapture } = await resolveActionContext({
+          const {
+            prNumber,
+            baseSha,
+            headSha,
+            untrustedCapture,
+            comparisonBase = 'pull-request-base',
+            baseTipSha = baseSha,
+          } = await resolveActionContext({
             comparisonBase: process.env.STYLEPROOF_COMPARISON_BASE,
             eventName: context.eventName,
             payload: context.payload,
@@ -181,6 +205,8 @@ runs:
           core.setOutput('pr-number', resolved ? prNumber : '');
           core.setOutput('base-sha', resolved ? baseSha : '');
           core.setOutput('head-sha', resolved ? headSha : '');
+          core.setOutput('comparison-base', resolved ? comparisonBase : '');
+          core.setOutput('base-tip-sha', resolved ? baseTipSha : '');
           core.setOutput('untrusted-capture', resolved && untrustedCapture ? 'true' : 'false');
           if (resolved && untrustedCapture) {
             core.notice('StyleProof: fork PR — the maps were captured in an untrusted job, so this verdict is advisory and needs maintainer approval.');

@@ -242,6 +242,26 @@ test('comparison-base input enters github-script as data, never executable inter
   assert.doesNotMatch(script, /\$\{\{ inputs.comparison-base/);
   assert.doesNotMatch(contextStep, /continue-on-error/);
 });
+for (const [comparisonBase, policy, expectedBase] of [
+  [undefined, 'pull-request-base', B],
+  ['pull-request-base', 'pull-request-base', B],
+  ['merge-base', 'merge-base', A],
+]) {
+  test(`context step records which comparison base selected base-sha: ${comparisonBase}`, async () => {
+    const { outputs } = await context({ pull_request: pullRequest() }, 'pull_request', [], comparisonBase);
+    assert.equal(outputs['comparison-base'], policy);
+    assert.equal(outputs['base-sha'], expectedBase);
+    assert.equal(outputs['base-tip-sha'], B);
+    // Main moved past the fork point, so merge-base must expose a base tip that differs from base-sha.
+    if (policy === 'merge-base') assert.notEqual(outputs['base-tip-sha'], outputs['base-sha']);
+  });
+}
+test('unresolved context leaves comparison-base and base-tip-sha empty', async () => {
+  const { outputs } = await context({});
+  assert.equal(outputs['base-sha'], '');
+  assert.equal(outputs['comparison-base'], '');
+  assert.equal(outputs['base-tip-sha'], '');
+});
 for (const [name, strategy, options] of [
   ['unknown enum', 'main', {}],
   ['script-looking data', "'; throw Error('injected'); //", {}],

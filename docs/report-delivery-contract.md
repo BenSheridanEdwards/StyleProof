@@ -74,6 +74,7 @@ The composite Action exposes:
 - `trust-state`, the terminal machine classification, including `REPORT_PUBLICATION_FAILED`;
 - `content-changes`, the advisory content/structure count;
 - `data-residue-keys`, the unacknowledged residue identities.
+- `base-sha`, `comparison-base`, and `base-tip-sha`, the expected "before" commit, the policy that selected it, and the trusted PR base tip.
 
 `report-url` is meaningful only after the selected publication step has emitted and verified its publication receipt.
 
