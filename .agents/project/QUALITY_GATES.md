@@ -45,8 +45,12 @@ is listed here only if it exists and runs on a clean checkout.
   Node 22 shards (`playwright.ci.config.ts`, which adds a Firefox project) plus
   an `e2e-evidence` job that verifies shard coverage and prints the determinism
   receipt; CLI smoke on macOS + Windows; one stable `required` check that fails
-  unless all four jobs it needs (`build`, `e2e`, `e2e-evidence`, `cli-smoke`)
-  succeed.
+  unless the path filter, `build` and `cli-smoke` succeed. The browser lanes
+  (`e2e`, `e2e-evidence`, `detection-corpus`) must succeed too. They may skip
+  only when the path filter succeeded and its `e2e` output is exactly `false`.
+  An empty, missing or malformed decision fails closed.
+  `test/ci-required-policy.test.mjs` executes the step against a table of
+  cases.
 - **`prepublishOnly`** — clean, build, typecheck, lint, format check, privacy
   scan, `npm test`, and `npm run test:e2e` before any `npm publish`.
 - **CI (dedicated workflows)** — `secret-scan.yml`, `codeql.yml`, `pr-body.yml`,
