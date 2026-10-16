@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A capture named like an `Object.prototype` key is an ordinary surface.**
+  The directory index was a plain object, so a one-sided `constructor` capture
+  crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
+  and `auditLiveTextDirs`) instead of being reported as removed or new.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

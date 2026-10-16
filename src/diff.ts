@@ -403,11 +403,15 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOption
 }
 
 function indexDir(dir: string): Record<string, string> {
-  return Object.fromEntries(
-    fs
-      .readdirSync(dir)
-      .filter(isMapFile)
-      .map((f) => [f.replace(/\.json(\.gz)?$/, ''), path.join(dir, f)]),
+  // Null prototype: a capture named `constructor` or `toString` is just a surface key.
+  return Object.assign(
+    Object.create(null) as Record<string, string>,
+    Object.fromEntries(
+      fs
+        .readdirSync(dir)
+        .filter(isMapFile)
+        .map((f) => [f.replace(/\.json(\.gz)?$/, ''), path.join(dir, f)]),
+    ),
   );
 }
 
