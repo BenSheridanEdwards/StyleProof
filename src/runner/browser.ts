@@ -105,10 +105,14 @@ export function popupDomSnapshot({
 
 // Framework-neutral SPA route discovery: report every URL the app lands on through the
 // history API (pushState/replaceState/popstate). `hashchange` is deliberately NOT observed —
-// in-page `<a href="#section">` anchors are content, not routes.
+// in-page `<a href="#section">` anchors are content, not routes. Chromium also fires
+// `popstate` for a fragment jump, so popstate reports only a new path/query or a
+// hash-router fragment (`#/route`, `#!/route`).
 export const NAV_OBSERVER_FN = '__styleproofObservedNav';
 export const NAV_OBSERVER_SNIPPET = `(() => {
+  let lastRoute = location.pathname + location.search;
   const report = () => {
+    lastRoute = location.pathname + location.search;
     try { window.${NAV_OBSERVER_FN}(location.href); } catch { /* binding not yet installed */ }
   };
   for (const fn of ['pushState', 'replaceState']) {
@@ -119,5 +123,7 @@ export const NAV_OBSERVER_SNIPPET = `(() => {
       return ret;
     };
   };
-  addEventListener('popstate', report);
+  addEventListener('popstate', () => {
+    if (location.pathname + location.search !== lastRoute || /^#!?\\//.test(location.hash)) report();
+  });
 })();`;

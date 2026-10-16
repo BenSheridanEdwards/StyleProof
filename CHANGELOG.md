@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
+  fires `popstate` for a fragment jump, so the navigation observer re-queued the
+  current page (`docs-2`). Popstate now reports only a new path or query, or a
+  hash-router fragment (`#/…`, `#!/…`).
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
