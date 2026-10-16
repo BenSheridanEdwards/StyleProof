@@ -1277,3 +1277,31 @@ test('diffStyleMaps regression guard: detects false positive on unchanged elemen
   const falsePositive = findings.find((f) => f.path === HERO_PATH);
   assert.ok(falsePositive, 'false positive on unchanged element is detectable');
 });
+
+test('a forced-state target inside a live region never diffs, like its element layer', () => {
+  const feed = 'body > ul:nth-child(2)';
+  const btn = 'body > button:nth-child(1)';
+  const el = (tag) => ({ tag, cls: '', style: {} });
+  const a = { defaults: {}, volatile: [feed], elements: { [btn]: el('button') }, states: { [btn]: { hover: {} } } };
+  const b = {
+    defaults: {},
+    elements: { [btn]: el('button'), [feed]: el('ul'), [`${feed} > li:nth-child(1)`]: el('li') },
+    states: { [btn]: { hover: { [`${feed} > li:nth-child(1)`]: { color: 'rgb(255, 0, 0)' } } } },
+  };
+  assert.deepEqual(diffStyleMaps(a, b), []);
+});
+
+test("a forced-state change to a live region root's own ::before never diffs", () => {
+  const feed = 'body > ul:nth-child(2)';
+  const btn = 'body > button:nth-child(1)';
+  const el = (tag) => ({ tag, cls: '', style: {} });
+  for (const pseudo of ['::before', '::after']) {
+    const a = { defaults: {}, volatile: [feed], elements: { [btn]: el('button') }, states: { [btn]: { hover: {} } } };
+    const b = {
+      defaults: {},
+      elements: { [btn]: el('button'), [feed]: el('ul') },
+      states: { [btn]: { hover: { [`${feed}${pseudo}`]: { color: 'rgb(255, 0, 0)' } } } },
+    };
+    assert.deepEqual(diffStyleMaps(a, b), [], pseudo);
+  }
+});

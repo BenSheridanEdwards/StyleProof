@@ -310,7 +310,7 @@ function pairedFindings(p: string, a: StyleMap, b: StyleMap, ea: Element, eb: El
   return findings;
 }
 
-type DiffCtx = { a: StyleMap; b: StyleMap; includeStructure: boolean };
+type DiffCtx = { a: StyleMap; b: StyleMap; includeStructure: boolean; live: (p: string) => boolean };
 
 const pairedSameTag = ({ a, b }: DiffCtx, p: string): boolean =>
   !!a.elements[p] && !!b.elements[p] && a.elements[p].tag === b.elements[p].tag;
@@ -324,6 +324,9 @@ function stateTargetFindings(
 ): Finding[] {
   const findings: Finding[] = [];
   for (const sub of unionKeys(da, db)) {
+    // A target inside a live region never diffs, like its element layer. Targets are keyed
+    // `path` or `path::before` / `path::after`, so the pseudo suffix is dropped for the check.
+    if (!ctx.live(sub.replace(/::[\w-]+$/, ''))) continue;
     if (!ctx.includeStructure && !pairedSameTag(ctx, sub)) continue;
     const raw = diffProps(
       da[sub] ?? {},
@@ -387,10 +390,10 @@ function skippedLayerFindings(a: StyleMap, b: StyleMap): Finding[] {
 
 /** Diff two style maps of the same surface. */
 export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOptions = {}): Finding[] {
-  const ctx: DiffCtx = { a, b, includeStructure: options.includeStructure ?? true };
   // Live regions flagged nondeterministic on EITHER side never diff, in any layer.
   const volatile = volatilePaths(a, b);
   const live = (p: string) => !volatile.length || !isUnder(p, volatile);
+  const ctx: DiffCtx = { a, b, includeStructure: options.includeStructure ?? true, live };
   return [
     ...sortedUnionKeys(a.elements, b.elements)
       .filter(live)
