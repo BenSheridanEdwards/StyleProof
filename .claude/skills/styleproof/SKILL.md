@@ -26,7 +26,7 @@ This skill is the map. Each step has its own skill; follow them in order.
 3. **`styleproof-baseline`** — `styleproof-map` captures the commit; with
    `--upload` (the CI `publish-base` job) it publishes maps to the
    `styleproof-maps` store the gate diffs against.
-4. **`styleproof-ci-gate`** — wire `BenSheridanEdwards/StyleProof@v7` as the PR
+4. **`styleproof-ci-gate`** — wire `BenSheridanEdwards/StyleProof@v8` as the PR
    gate; pick review-gate or certify mode; add the approve workflow + fork split.
    StyleProof runs in CI; under `--storage branch` the `publish-base` job keeps
    the map store warm so pull requests restore their base map.

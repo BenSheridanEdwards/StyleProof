@@ -1,6 +1,6 @@
 # StyleProof approval gate — reusable workflow.
 #
-# Consumers call this with `uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`
+# Consumers call this with `uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v8`
 # and a thin caller workflow in their .github/workflows/styleproof-approve.yml.
 #
 # This workflow flips the `StyleProof` commit status when a write-access reviewer

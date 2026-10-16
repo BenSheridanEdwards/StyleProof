@@ -7,6 +7,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-10-16
+
+> **StyleProof 8.0.0: CI-only**
+>
+> StyleProof runs in CI. `--storage branch` keeps its map store warm from a
+> CI job on the default branch, `styleproof-init` installs no git hook, the
+> `styleproof-prepush` command is gone, and `styleproof-map` keeps a local
+> capture local. Upgrade the package and the Action to major 8 together, then
+> run `styleproof-init --upgrade`.
+
+### Migration
+
+1. Install `styleproof@^8` and run `npx styleproof-init --upgrade` with the
+   same server and spec options you used at install. It moves the generated
+   workflows to `BenSheridanEdwards/StyleProof@v8`, adds the `publish-base` job
+   under `--storage branch`, and removes the pre-push hook an earlier release
+   generated. Until then, `npx styleproof-init --check` reports the generated
+   workflows as stale; after it, `--check` confirms every generated file
+   matches the release.
+2. Run `--upgrade` in the same change as the package bump. It deletes the
+   committed hook from your checkout, so the push that carries the upgrade
+   runs without it, and teammates lose the hook when they pull. A hook from
+   6.1.0 or later prints one note and lets a push through in the meantime. A
+   hook from 4.5.0 to 6.0.x runs `styleproof-prepush` directly, so
+   `STYLEPROOF_SKIP_CAPTURE=1 git push` is the way through until the upgrade
+   lands.
+3. If your own hook or script runs StyleProof, or a hook from before 4.5.0
+   does, `--check` and `--upgrade` name the file. Delete its StyleProof lines; CI captures both sides.
+4. Add `--upload` (or `STYLEPROOF_UPLOAD=1`) to any local script that should
+   publish to `styleproof-maps`.
+
 ### Added
 
 - **CI publishes default-branch maps under `--storage branch`.** The generated
@@ -4952,7 +4983,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.5.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.0...HEAD
+[8.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.7.0...v8.0.0
 [7.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.4.0...v7.5.0
 [7.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.3.0...v7.4.0
 [7.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.2.1...v7.3.0

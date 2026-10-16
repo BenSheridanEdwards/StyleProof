@@ -1,6 +1,6 @@
 ---
 name: styleproof-ci-gate
-description: Use when wiring StyleProof as a PR gate in CI — the BenSheridanEdwards/StyleProof@v7 Action, review-gate vs certify (fail-on-diff) mode, the approve-checkbox workflow, blocking without branch protection, and the fork/Dependabot capture/report split.
+description: Use when wiring StyleProof as a PR gate in CI — the BenSheridanEdwards/StyleProof@v8 Action, review-gate vs certify (fail-on-diff) mode, the approve-checkbox workflow, blocking without branch protection, and the fork/Dependabot capture/report split.
 ---
 
 # StyleProof — wire the CI PR gate
@@ -16,7 +16,7 @@ skill is the model for tuning it or wiring it by hand.
 - uses: actions/checkout@v7
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.base.sha }}" --dir base --base-dir __stylemaps__
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.head.sha }}" --dir head --base-dir __stylemaps__
-- uses: BenSheridanEdwards/StyleProof@v7
+- uses: BenSheridanEdwards/StyleProof@v8
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -50,13 +50,13 @@ The Action-level opt-out is `"gateInventoryRemovals": false` in
 ## The approve workflow (reusable)
 
 `styleproof-init` scaffolds a **thin caller workflow** that invokes the upstream
-reusable workflow at `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`.
+reusable workflow at `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v8`.
 This keeps the approval logic up-to-date with each StyleProof release instead of
 drifting in a copied file. The caller must live **on your default branch** —
 GitHub only runs `issue_comment` workflows from the default branch, so the
 checkbox is inert until it's merged there. StyleProof dogfoods that same thin
 caller in `.github/workflows/styleproof-approve.yml` (pinned to `@main`); adopters
-keep the `@v7` pin from init. The dogfood stub does not set `require-approval`
+keep the `@v8` pin from init. The dogfood stub does not set `require-approval`
 and does not change evidence confidence.
 
 The reusable workflow accepts `status-context`, `allow-self-approval`, and

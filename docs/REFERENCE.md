@@ -171,7 +171,7 @@ against the map-store branch, then use the Action on those dirs:
 # One command: capture base and head in this job — no store, no upload.
 - id: maps
   run: npx styleproof-ci --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --base-dir __stylemaps__ --no-store
-- uses: BenSheridanEdwards/StyleProof@v7
+- uses: BenSheridanEdwards/StyleProof@v8
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -195,14 +195,14 @@ A note on the base commit, because it surprises people: `github.event.pull_reque
 
 Only for this hand-wired path: copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged). `styleproof-init` writes this file for you, so you can skip this step if you used it.
 
-The supported adopter contract is that **thin caller**: `styleproof-init` writes `.github/workflows/styleproof-approve.yml` calling `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`. StyleProof dogfoods the same shape in [`.github/workflows/styleproof-approve.yml`](../.github/workflows/styleproof-approve.yml), pinned to `@main` so self-hosting tracks the default-branch reusable. The dogfood stub does not set `require-approval` and does not change certify or advisory evidence. Reviewer ticks on StyleProof PRs stay inert until a live advisory workflow enables `require-approval`. How to approve those findings, when they exist, is in [CONTRIBUTING.md](../CONTRIBUTING.md#approving-styleproof-dogfood-findings).
+The supported adopter contract is that **thin caller**: `styleproof-init` writes `.github/workflows/styleproof-approve.yml` calling `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v8`. StyleProof dogfoods the same shape in [`.github/workflows/styleproof-approve.yml`](../.github/workflows/styleproof-approve.yml), pinned to `@main` so self-hosting tracks the default-branch reusable. The dogfood stub does not set `require-approval` and does not change certify or advisory evidence. Reviewer ticks on StyleProof PRs stay inert until a live advisory workflow enables `require-approval`. How to approve those findings, when they exist, is in [CONTRIBUTING.md](../CONTRIBUTING.md#approving-styleproof-dogfood-findings).
 
 The approve job runs on `ubuntu-latest` by default. GitHub-hosted runners bill the calling repository, so a private repository with no Actions minutes, or one behind a billing or spending-limit block, never starts the job and the tick does nothing. Pass the runner your CI already uses through the reusable workflow's `runs-on` input: one label, or a JSON array of labels.
 
 ```yaml
 jobs:
   approve:
-    uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7
+    uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v8
     with:
       runs-on: '["self-hosted", "linux"]'
     secrets:
@@ -1220,7 +1220,7 @@ styleproof-report before after --out report --include-content
 For the GitHub Action, set the equivalent explicit input:
 
 ```yaml
-- uses: BenSheridanEdwards/StyleProof@v7
+- uses: BenSheridanEdwards/StyleProof@v8
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -1471,7 +1471,7 @@ defineStyleMapCapture({
 
 ## Reference
 
-**Action `BenSheridanEdwards/StyleProof@v7`** — inputs (every input declared in [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml)):
+**Action `BenSheridanEdwards/StyleProof@v8`** — inputs (every input declared in [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml)):
 
 | Input                    | Default                      | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
