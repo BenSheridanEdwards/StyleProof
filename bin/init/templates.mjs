@@ -442,8 +442,9 @@ ${ctx.PM.setup}
           STYLEPROOF_MAP_STORE_TOKEN: \${{ github.token }}
         run: |
           set -euo pipefail
-          SPEC="$(printf '%s' "$${SPEC_PATH_ENV}" | base64 -d)"
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --sha "$GITHUB_SHA" --spec "$SPEC" --upload
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          playwright install --with-deps chromium
+          node node_modules/styleproof/bin/styleproof-map.mjs --sha "$GITHUB_SHA" --upload
 `;
 
 const VERIFY_STEP = `      - name: Verify StyleProof scaffold matches the installed release
@@ -461,7 +462,9 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 # - they therefore hold ONLY read permissions and never publish maps, comments,
 #   reviews, or statuses;
 # - captured maps are uploaded as a short-lived artifact for the trusted report stage.
-# Trusted publication lives in styleproof-report.yml (workflow_run on the default branch).
+# Trusted publication lives in styleproof-report.yml (workflow_run on the default branch)${
+  isBranch(ctx) ? ',\n# and publish-base below publishes maps on pushes to the default branch' : ''
+}.
 # Fork PR verdicts are advisory: the fork's code produces both map sets, so the
 # report stage keeps the StyleProof status pending until a maintainer approves.
 ${onPullRequest(ctx)}

@@ -466,6 +466,8 @@ const HOW = {
 console.log('\nHow the gate works:');
 for (const line of HOW[scaffold.workflow]) console.log(line);
 if (scaffold.storage === 'branch') {
+  console.log(`  publish-base publishes each commit pushed to '${scaffold.branch}' to styleproof-maps;`);
+  console.log('  to use another default branch, edit branch= in the workflow marker and run --upgrade.');
   console.log('  The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
   console.log('  Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
   console.log('  Reports publish to the styleproof-reports branch — the comment links a rendered report.');

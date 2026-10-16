@@ -47,6 +47,7 @@ import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
 import { classifyColdReasonFromMissMessage, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
 import { defineCli, errorMessage, fail, filesUnder, runBin } from './cli.mjs';
+import { decodeSpecPathEnv } from './spec-path-env.mjs';
 
 const NAME = 'styleproof-map';
 const STYLEPROOF_PLAYWRIGHT_CONFIG = 'playwright.styleproof.config.ts';
@@ -129,7 +130,14 @@ const csv = (value) =>
 const configNumber = (value) => (value != null ? String(value) : '');
 
 const specFromFlag = opts.spec !== undefined || args.length > 0;
-let spec = opts.spec ?? args[0] ?? projectConfig.spec ?? DEFAULT_STYLEPROOF_SPEC;
+// The generated workflow's encoded spec path ranks below a config spec, as in styleproof-ci.
+let specFromEnv;
+try {
+  specFromEnv = specFromFlag || projectConfig.spec !== undefined ? undefined : decodeSpecPathEnv();
+} catch (error) {
+  fail(NAME, errorMessage(error));
+}
+let spec = opts.spec ?? args[0] ?? projectConfig.spec ?? specFromEnv ?? DEFAULT_STYLEPROOF_SPEC;
 const dir = opts.dir;
 const baseDir = opts['base-dir'];
 const screenshots = opts.screenshots ? '1' : '0';
@@ -166,14 +174,17 @@ if (!dir) fail(NAME, '--dir requires a label');
 if (!baseDir) fail(NAME, '--base-dir requires a path');
 if (sha && !/^(?:[0-9a-f]{40}|uncommitted)$/.test(sha))
   fail(NAME, '--sha must be a full lowercase 40-hex commit SHA or uncommitted');
-spec = specFromFlag ? path.resolve(process.cwd(), spec) : resolveStyleProofConfigPath(spec, loadedConfig.configDir);
+spec =
+  specFromFlag || specFromEnv
+    ? path.resolve(process.cwd(), spec)
+    : resolveStyleProofConfigPath(spec, loadedConfig.configDir);
 if (!fs.existsSync(spec)) {
   console.error(
     missingSpecMessage(
       spec,
       loadedConfig.searched,
       loadedConfig.configFile ? path.join(loadedConfig.configDir, loadedConfig.configFile) : undefined,
-      specFromFlag ? undefined : (projectConfig.spec ?? DEFAULT_STYLEPROOF_SPEC),
+      specFromFlag ? undefined : (projectConfig.spec ?? specFromEnv ?? DEFAULT_STYLEPROOF_SPEC),
     ),
   );
   process.exit(2);

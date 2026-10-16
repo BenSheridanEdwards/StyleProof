@@ -240,7 +240,7 @@ for (const manager of [
       assert.match(workflow, /--no-upload/);
       assert.doesNotMatch(prJobs, /styleproof-map\.mjs/);
       assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);
-      assert.doesNotMatch(workflow, /playwright install/);
+      assert.doesNotMatch(prJobs, /playwright install/);
       assert.doesNotMatch(workflow, /echo "capture-needed/); // emitted by styleproof-ci itself now
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
@@ -715,7 +715,10 @@ test('styleproof-init: branch storage publishes the default branch map from a tr
       assert.doesNotMatch(job, /pull-requests:|statuses:|pull_request\./);
       assert.match(job, /persist-credentials: false/);
       assert.match(job, /STYLEPROOF_MAP_STORE_TOKEN: \$\{\{ github\.token \}\}/);
-      assert.match(job, /styleproof-map\.mjs --sha "\$GITHUB_SHA" --spec "\$SPEC" --upload/);
+      assert.match(
+        job,
+        /playwright install --with-deps chromium\n\s*node node_modules\/styleproof\/bin\/styleproof-map\.mjs --sha "\$GITHUB_SHA" --upload/,
+      );
       for (const prJob of ['\n  styleproof:', '\n  capture:']) {
         if (!workflow.includes(prJob)) continue;
         const body = workflow.slice(workflow.indexOf(prJob), workflow.indexOf('\n  prune:'));
@@ -748,6 +751,7 @@ test("styleproof-init: the publisher follows the remote's default branch and the
     const workflow = readFile(root, '.github/workflows/styleproof.yml');
     assert.match(workflow, /# styleproof-scaffold: workflow=single storage=branch gate=advisory branch=trunk\n/);
     assert.match(workflow, /branches: \['trunk'\]/);
+    assert.match(res.stdout, /publish-base publishes each commit pushed to 'trunk'/);
 
     // A CI checkout has no origin/HEAD: the recorded branch keeps --check stable.
     git(['symbolic-ref', '--delete', 'refs/remotes/origin/HEAD']);

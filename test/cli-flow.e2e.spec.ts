@@ -941,6 +941,15 @@ test('CI base publisher: the generated push job publishes by SHA and a fresh clo
     git(ci, ['clone', '-q', '-b', 'main', remote, 'publisher']);
     const publisher = path.join(ci, 'publisher');
     linkNodeModules(publisher);
+    // The runner installs Chromium as root; this host already has it, so record that call only.
+    const installLog = path.join(ci, 'playwright-install.log');
+    fs.mkdirSync(path.join(publisher, 'node_modules/.bin'));
+    fs.writeFileSync(
+      path.join(publisher, 'node_modules/.bin/playwright'),
+      `#!/bin/sh\nif [ "$1" = install ]; then echo "$@" > "${installLog}"; exit 0; fi\nexec "${path.join(PLAYWRIGHT_BIN, 'playwright')}" "$@"\n`,
+    );
+    fs.chmodSync(path.join(publisher, 'node_modules/.bin/playwright'), 0o755);
+    expect(git(remote, ['branch', '--list', 'styleproof-maps']).stdout, 'the pre-push hook published nothing').toBe('');
     const published = spawnSync('/bin/bash', ['-c', publishBaseScript(workflow)], {
       cwd: publisher,
       encoding: 'utf8',
@@ -950,6 +959,7 @@ test('CI base publisher: the generated push job publishes by SHA and a fresh clo
       }),
     });
     expect(published.status, published.stderr + published.stdout).toBe(0);
+    expect(fs.readFileSync(installLog, 'utf8').trim()).toBe('install --with-deps chromium');
     expect(published.stderr).toContain(`uploaded ${mergedSha.slice(0, 12)}`);
     const stored = git(remote, ['ls-tree', '-r', '--name-only', 'styleproof-maps']).stdout;
     expect(stored).toMatch(new RegExp(`${mergedSha}/[0-9a-f]{16}/index@\\d+\\.json\\.gz`));
@@ -989,7 +999,7 @@ test('CI base publisher: the generated push job publishes by SHA and a fresh clo
 });
 
 // ---------------------------------------------------------------------------
-// Pre-push hook dogfood:the ONE place the real scaffolded `.githooks/pre-push`
+// Pre-push hook dogfood: the ONE place the real scaffolded `.githooks/pre-push`
 // is executed the way git executes it (refspecs on stdin), driving the full
 // production flow — miss → capture → publish to the styleproof-maps branch keyed
 // by the PUSHED SHA, re-run → restore hit (no recapture), docs-only push → skip —
