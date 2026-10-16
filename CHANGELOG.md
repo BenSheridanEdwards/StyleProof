@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-10-16
+
 ### Added
 
 - **CI publishes default-branch maps under `--storage branch`.** The generated
