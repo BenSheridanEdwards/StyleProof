@@ -295,7 +295,8 @@ async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: strin
     pages.push(extra);
   }
   const cover = opts.stopWhenCovered && defined.length > 0 ? defined : null;
-  let prevSize = st.classes.size;
+  // -1: the first check runs even when the base surface already rendered every class.
+  let prevSize = -1;
   let covered = false;
   const converged = (): boolean => {
     if (cover && !covered && st.classes.size > prevSize) {

@@ -278,6 +278,8 @@ test('styleproof-capture --until-covered keeps discovered-but-uncaptured surface
     .base { color: rgb(1, 2, 3) }
     .panel { display: block }
     .trigger { padding: 4px }
+    /* Never rendered: coverage stays incomplete, so --until-covered keeps sweeping. */
+    .unrendered { margin: 2px }
   </style><body class="base"><main class="panel">
     <button class="trigger" type="button"
       onclick="document.querySelector('main').append(document.createElement('section'))">Open</button>

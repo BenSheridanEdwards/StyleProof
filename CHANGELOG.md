@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`--until-covered` stops when the base surface already covers every
+  class.** Coverage was re-checked only after the class set grew, so a fully
+  covered base kept sweeping and listed surfaces it never captured.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
