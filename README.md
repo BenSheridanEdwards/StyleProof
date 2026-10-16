@@ -298,8 +298,8 @@ Playwright; installs Chromium; scaffolds the capture spec, a dedicated
 production-build Playwright config, and **one GitHub workflow**; then verifies
 every machine-owned file against the installed release. The default scaffold is
 the smallest honest gate: one `pull_request` job captures base and head in the
-same run and diffs them — maps live as workflow artifacts, no map-store branch,
-no pre-push hook — and the gate runs **advisory**: it reports evidence on every
+same run and diffs them — maps live as workflow artifacts and the gate runs
+entirely in CI — and it runs **advisory**: it reports evidence on every
 PR without blocking. Preview the exact operations without writing with
 `npx styleproof setup --dry-run`. In a monorepo, target the consumer
 application explicitly:

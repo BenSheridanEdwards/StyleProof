@@ -53,7 +53,7 @@ test('pre-push runs unit tests then the staged e2e gate', () => {
 });
 
 test('pre-push still fails closed when unit tests fail before e2e', () => {
-  const fakeBin = mkdtempSync(join(tmpdir(), 'styleproof-prepush-'));
+  const fakeBin = mkdtempSync(join(tmpdir(), 'styleproof-contributor-hook-'));
   try {
     const npm = join(fakeBin, 'npm');
     writeFileSync(npm, '#!/bin/sh\necho "fake npm $*"\nexit 17\n');
