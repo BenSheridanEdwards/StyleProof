@@ -20,6 +20,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Breakpoint detection no longer misses bands silently.** It now reads
+  `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
+  stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial
+  font size) instead of the page's `html { font-size }`; detects an exact
+  `(width: V)` as its own band; and fails loudly on a width condition it cannot
+  resolve to px (`9in`, `calc()`, either end of a range). Because `@import`ed
+  sheets are now read, a page that `@import`s a cross-origin stylesheet fails
+  detection (an `@import` is fetched without CORS) unless `widths` is set.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
