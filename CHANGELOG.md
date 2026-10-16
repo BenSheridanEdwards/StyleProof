@@ -20,6 +20,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A one-sided `:hover`/`:focus` margin that a state adds or removes is no
+  longer dropped from certification.** The layout-equivalent margin filter read a state delta's
+  "state does not change it" side as an unknown px value and treated it as
+  balanced, so `button:hover { margin-left: 40px }` produced no finding. The
+  sentinel now resolves to the element's resting value; an unknown resting value
+  counts as balanced only when the opposite margin changed identically.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
