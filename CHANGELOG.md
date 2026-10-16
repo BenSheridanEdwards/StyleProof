@@ -18,6 +18,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   missing that band silently. The other bands still sweep; set `widths` on the
   surface to sweep that band too. A cross-origin `@import` it cannot read (an `@import` is
   fetched without CORS, as with Google Fonts) is skipped, as before.
+- **Element labels in report headings can't break out of their code span.**
+  The selector was wrapped in a single backtick without escaping, so a backtick
+  in a map-supplied element path closed the span and the rest rendered as
+  Markdown, including links in report.md and live links in report.html. Labels
+  now go through `codeValue`, like every other map-supplied value.
 - **CI path filters fail closed.** The browser lanes (e2e shards, e2e evidence,
   detection corpus) and the four dogfood workflows ran only when a changed path
   was on a list of product paths, so anything off the list skipped them. The e2e
