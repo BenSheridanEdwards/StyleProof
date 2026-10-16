@@ -4216,3 +4216,37 @@ test('findings exhaustiveness: invented finding in report = FAIL (#613)', () => 
 
   rmTmp(root);
 });
+
+test('a hostile element path key stays inside its code span in report.md and report.html', () => {
+  // Element path keys come from the capture map (untrusted in the fork split).
+  const hostile = 'body > p` [Approve here](javascript:alert%28document%2Edomain%29) `';
+  const map = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        [hostile]: { tag: 'p', cls: 'lede', rect: [100, 100, 400, 40], style: { color } },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: map('rgb(0, 0, 0)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800, [180, 180, 180]),
+  });
+  try {
+    // Default options: the folded plain-English bullets carry the label too.
+    generateStyleMapReport({ beforeDir, afterDir, outDir });
+    const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
+    const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
+    const headings = md.split('\n').filter((line) => line.includes('Approve here'));
+    assert.ok(headings.length >= 2, 'heading and summary bullet both render the label');
+    assert.ok(headings.length > 0, 'the hostile label is rendered somewhere');
+    for (const line of headings) {
+      assert.match(line, /``p` \[Approve here\]\(javascript:alert%28document%2Edomain%29\) `\.lede``/);
+    }
+    assert.doesNotMatch(html, /href="javascript:/);
+  } finally {
+    rmTmp(root);
+  }
+});

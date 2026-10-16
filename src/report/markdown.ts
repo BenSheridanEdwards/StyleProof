@@ -1,4 +1,5 @@
 import type { Finding, PropChange } from '../diff.js';
+import { CONTROL_CHARACTERS, codeValue } from '../code-span.js';
 import { describeChange, toHex, type DescribeCtx, type ElementChange } from '../describe.js';
 import {
   groupByPath,
@@ -10,6 +11,9 @@ import {
   summarizePropsWithFollowOns,
   type SummarizedProp,
 } from '../change-groups.js';
+
+// Existing importers keep reading the code-span escaper from here.
+export { codeValue };
 
 type StyleFinding = Extract<Finding, { kind: 'style' }>;
 type StateFinding = Extract<Finding, { kind: 'state' }>;
@@ -29,11 +33,6 @@ export function escapeMarkdownFailureReason(reason: string): string {
     .replace(/[*_[`#|]/g, '\\$&');
 }
 
-// C0/C1 controls plus the Unicode line/paragraph separators: any of them can end a
-// Markdown line, so a map-supplied string carrying one could start a new block.
-// eslint-disable-next-line no-control-regex -- intentional control-character class
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
-
 /**
  * Escape a map-supplied string for inline Markdown prose (outside code spans), so it
  * renders as literal text in the report and the PR comment: control characters and
@@ -48,17 +47,6 @@ export function escapeInlineMarkdown(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/[\\`*_[\]#!|~]/g, '\\$&')
     .replace(/@/g, '@\u200b');
-}
-
-// CSS values are author-influenced, so they get their own escaper at the render
-// boundary: `|` is escaped (it would split the table row) and the code fence is
-// widened past the value's longest backtick run (GitHub's code-span rule).
-export function codeValue(v: string): string {
-  const escaped = v.replace(CONTROL_CHARACTERS, ' ').replace(/\|/g, '\\|');
-  const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
-  const fence = '`'.repeat(longestRun + 1);
-  const pad = /^`|`$/.test(escaped) ? ' ' : '';
-  return `${fence}${pad}${escaped}${pad}${fence}`;
 }
 
 // Non-values render as an em dash; colours as `#hex` so GitHub shows its swatch.
@@ -183,8 +171,8 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
   // Human label before selector when the class humanizes to something distinct.
   const named =
     human && human.toLowerCase() !== selector.toLowerCase()
-      ? `**${escapeInlineMarkdown(human)}** \`${selector}\``
-      : `**\`${selector}\`**`;
+      ? `**${escapeInlineMarkdown(human)}** ${codeValue(selector)}`
+      : `**${codeValue(selector)}**`;
   const dom = ofKind(group, 'dom')[0];
   if (dom?.change === 'removed') return { head: `**Removed** ${named}`, body: [] };
   const added = dom?.change === 'added';
@@ -281,8 +269,8 @@ export function regionHeading(regionPaths: string[], findings: Finding[]): strin
   const human = humanLabel(anchors[0] ?? '', cls);
   const named =
     human && human.toLowerCase() !== selector.toLowerCase()
-      ? `**${escapeInlineMarkdown(human)}** \`${selector}\``
-      : `\`${selector}\``;
+      ? `**${escapeInlineMarkdown(human)}** ${codeValue(selector)}`
+      : codeValue(selector);
   const label = anchors.length > 1 ? `${named} + ${anchors.length - 1} more` : named;
   return `${label} · ${groupTitle(findings)}`;
 }

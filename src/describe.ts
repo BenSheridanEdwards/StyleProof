@@ -1,4 +1,5 @@
 import { parseColor } from './canonicalize.js';
+import { codeValue } from './code-span.js';
 import type { PropChange } from './diff.js';
 
 /**
@@ -343,7 +344,7 @@ function restyleLines(els: ElementChange[], ctx: DescribeCtx): string[] {
     const { count, labels } = byLine.get(line)!;
     if (labels.size > 1) return `${line} _(×${count})_`;
     const label = [...labels][0];
-    return `**\`${label}\`**${count > 1 ? ` ×${count}` : ''} — ${line}`;
+    return `**${codeValue(label)}**${count > 1 ? ` ×${count}` : ''} — ${line}`;
   });
 }
 

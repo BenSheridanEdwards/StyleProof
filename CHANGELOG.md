@@ -20,6 +20,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Element labels in report headings can't break out of their code span.**
+  The selector was wrapped in a single backtick without escaping, so a backtick
+  in a map-supplied element path closed the span and the rest rendered as
+  Markdown, including links in report.md and live links in report.html. Labels
+  now go through `codeValue`, like every other map-supplied value.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
