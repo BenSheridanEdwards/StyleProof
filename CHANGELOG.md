@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Named grid lines no longer count as tracks.** Chromium serialises named
+  lines in computed `grid-template-columns`, so adding line names read as
+  `columns: 2 → 6` and skewed the grouping signature.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
