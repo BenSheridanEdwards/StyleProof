@@ -20,6 +20,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Selective remap recaptures everything when the base has a surface it
+  never analysed.** A spec surface missing from `affected.surfaces` was skipped
+  by the runner and its base map published as the head map, unchecked. Base
+  surfaces are matched by their authoring key, so `about-team` is not mistaken
+  for a variant of `about`.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
