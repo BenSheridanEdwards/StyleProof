@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Query parameter order no longer captures one route twice.**
+  `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
+  did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

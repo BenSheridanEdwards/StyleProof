@@ -80,13 +80,28 @@ function toObservedLink(href: string, base: URL, keyFor: (url: URL) => string, m
   return url ? { key: keyFor(url), url: url.pathname + url.search + url.hash } : null;
 }
 
+/** `?b=2&a=1` → `?a=1&b=2`: params sorted by name (stable, so repeated names keep their order), as `defaultLinkKey` does. */
+function sortedSearch(search: string): string {
+  const name = (pair: string): string => pair.split('=')[0];
+  const pairs = search.slice(1).split('&');
+  return `?${pairs.sort((a, b) => (name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0)).join('&')}`;
+}
+
 /** Dedup identity for a navigable path+query, so two forms of one route never capture twice: a
  *  trailing slash is stripped (never from the root `/`, nor from the query) and a trailing
  *  `index.html` collapses to its directory. A real `about.html` stays distinct from `about`. */
 export function dedupIdentity(pathAndSearch: string): string {
   const q = pathAndSearch.indexOf('?');
   const path = q === -1 ? pathAndSearch : pathAndSearch.slice(0, q);
-  const search = q === -1 ? '' : pathAndSearch.slice(q);
+  // Sort only the real query; a `#fragment` (kept for hash routers) is carried through untouched.
+  const hash = pathAndSearch.indexOf('#');
+  const queryEnd = hash === -1 ? pathAndSearch.length : hash;
+  const search =
+    q === -1
+      ? ''
+      : q < queryEnd
+        ? sortedSearch(pathAndSearch.slice(q, queryEnd)) + pathAndSearch.slice(queryEnd)
+        : pathAndSearch.slice(q);
   const withoutIndex = path.replace(/(^|\/)index\.html$/, '$1');
   let end = withoutIndex.length;
   while (end > 1 && withoutIndex.charCodeAt(end - 1) === 47) end--;
