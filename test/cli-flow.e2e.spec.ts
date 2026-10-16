@@ -904,8 +904,92 @@ defineCrawlCapture({ from: '/', widths: [1280], screenshots: false, linkTimeout:
   }
 });
 
+/** The generated publish-base step's shell, as the runner would execute it. */
+function publishBaseScript(workflow: string) {
+  const job = workflow.slice(workflow.indexOf('\n  publish-base:'));
+  const script = job.match(/- name: Publish this commit's StyleProof map\n[\s\S]*?run: \|\n([\s\S]*)$/)?.[1];
+  expect(script, 'the generated workflow exposes the publish-base step').toBeTruthy();
+  return script!
+    .split('\n')
+    .map((line) => line.replace(/^ {10}/, ''))
+    .join('\n');
+}
+
+test('CI base publisher: the generated push job publishes by SHA and a fresh clone restores it', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-publisher-'));
+  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-publisher-remote-'));
+  const ci = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-publisher-ci-'));
+  const port = await freePort();
+  try {
+    writeFixtureApp(app, port);
+    fs.writeFileSync(path.join(app, '.gitignore'), 'node_modules/\n');
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+    git(remote, ['init', '--bare', '-q']);
+    git(app, ['remote', 'add', 'origin', remote]);
+    const init = run(app, process.execPath, [INIT, '--storage', 'branch', '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'app + styleproof setup']);
+    git(app, ['push', '-q', 'origin', 'main']);
+    const mergedSha = run(app, 'git', ['rev-parse', 'HEAD']).stdout.trim();
+
+    // The push to the default branch: a fresh checkout runs the generated step.
+    const workflow = fs.readFileSync(path.join(app, '.github/workflows/styleproof.yml'), 'utf8');
+    git(ci, ['clone', '-q', '-b', 'main', remote, 'publisher']);
+    const publisher = path.join(ci, 'publisher');
+    linkNodeModules(publisher);
+    const published = spawnSync('/bin/bash', ['-c', publishBaseScript(workflow)], {
+      cwd: publisher,
+      encoding: 'utf8',
+      env: commandEnv({
+        GITHUB_SHA: mergedSha,
+        STYLEPROOF_SPEC_PATH_B64: workflow.match(/STYLEPROOF_SPEC_PATH_B64: (\S+)/)![1],
+      }),
+    });
+    expect(published.status, published.stderr + published.stdout).toBe(0);
+    expect(published.stderr).toContain(`uploaded ${mergedSha.slice(0, 12)}`);
+    const stored = git(remote, ['ls-tree', '-r', '--name-only', 'styleproof-maps']).stdout;
+    expect(stored).toMatch(new RegExp(`${mergedSha}/[0-9a-f]{16}/index@\\d+\\.json\\.gz`));
+    expect(stored).toMatch(new RegExp(`${mergedSha}/[0-9a-f]{16}/styleproof-manifest\\.json`));
+
+    // A pull request's job restores the base map by SHA instead of capturing it.
+    git(ci, ['clone', '-q', '-b', 'main', remote, 'pull-request']);
+    const prCheckout = path.join(ci, 'pull-request');
+    linkNodeModules(prCheckout);
+    const mapRoot = path.join(ci, 'stylemaps');
+    const restore = run(prCheckout, process.execPath, [
+      MAP,
+      '--restore',
+      '--sha',
+      mergedSha,
+      '--dir',
+      'base',
+      '--base-dir',
+      mapRoot,
+    ]);
+    expect(restore.status, restore.stderr + restore.stdout).toBe(0);
+    expect(restore.stdout).toContain(`restored ${mergedSha.slice(0, 12)}`);
+
+    const diff = run(prCheckout, process.execPath, [
+      DIFF,
+      path.join(publisher, '.styleproof/maps/current'),
+      path.join(mapRoot, 'base'),
+      '--allow-unasserted',
+    ]);
+    expect(diff.status, diff.stderr + diff.stdout).toBe(0);
+    expect(diff.stdout).toContain('0 reviewable computed-style changes');
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+    fs.rmSync(remote, { recursive: true, force: true });
+    fs.rmSync(ci, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
-// Pre-push hook dogfood: the ONE place the real scaffolded `.githooks/pre-push`
+// Pre-push hook dogfood:the ONE place the real scaffolded `.githooks/pre-push`
 // is executed the way git executes it (refspecs on stdin), driving the full
 // production flow — miss → capture → publish to the styleproof-maps branch keyed
 // by the PUSHED SHA, re-run → restore hit (no recapture), docs-only push → skip —

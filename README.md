@@ -320,8 +320,9 @@ Opt-in flags reproduce the heavier architectures:
   fork's code produces both map sets, so a fork PR's `StyleProof` status stays
   `pending` until a maintainer ticks **Approve all changes** — never green
   automatically.
-- `--storage branch` — the SHA-keyed `styleproof-maps` store branch plus the
-  pre-push publish hook, so CI restores maps instead of recapturing them.
+- `--storage branch` — the SHA-keyed `styleproof-maps` store branch, a CI job
+  that publishes each default-branch commit's map, and the pre-push publish
+  hook, so CI restores maps instead of recapturing them.
 - `--mode certify` / `--mode review-gate` — fail on any diff, or hold the
   `StyleProof` status red until a reviewer approves (scaffolds the approval
   workflow). `split + branch + review-gate` reproduces the pre-v7 scaffold

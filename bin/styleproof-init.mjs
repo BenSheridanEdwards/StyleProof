@@ -12,7 +12,7 @@ import { validateComponentManifest } from '../dist/component-manifest.js';
 import { loadStyleProofConfig } from '../dist/config.js';
 import { decodeSpecPathEnv, encodeSpecPath, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 import { detectPackageManager } from './package-manager.mjs';
-import { defineCli, errorMessage, fail } from './cli.mjs';
+import { defineCli, errorMessage, fail, gitOutput } from './cli.mjs';
 import { ensureGitignoreLines, generatedPathState, readRegularTextFile, writeFileSafe } from './init/files.mjs';
 import { hookFilePath, installPrePushHook, reportOrActivateHook } from './init/hooks.mjs';
 import {
@@ -54,7 +54,7 @@ const cli = defineCli({
     },
     storage: {
       value: 'mode',
-      help: 'artifact (default): maps live and die in the job. branch: cache maps on the styleproof-maps branch and install the pre-push hook',
+      help: 'artifact (default): maps live and die in the job. branch: cache maps on the styleproof-maps branch, publish default-branch maps from CI, and install the pre-push hook',
     },
     mode: {
       value: 'gate',
@@ -205,14 +205,17 @@ const MARKERS = {
   hook: '# StyleProof pre-push',
 };
 const hasMarker = (file, marker) => Boolean(readRegularTextFile(file)?.includes(marker));
-const SCAFFOLD_MARKER_RE =
-  /^# styleproof-scaffold: workflow=(single|split) storage=(artifact|branch) gate=(advisory|certify|review-gate)$/m;
+const BRANCH_NAME = '[A-Za-z0-9._/-]+';
+const SCAFFOLD_MARKER_RE = new RegExp(
+  `^# styleproof-scaffold: workflow=(single|split) storage=(artifact|branch) gate=(advisory|certify|review-gate)(?: branch=(${BRANCH_NAME}))?$`,
+  'm',
+);
 const stripScaffoldMarker = (text) => text?.replace(/^# styleproof-scaffold:[^\n]*\n/m, '');
 
 function inferScaffold() {
   for (const file of [CI_PATH, REPORT_PATH]) {
     const match = readRegularTextFile(file)?.match(SCAFFOLD_MARKER_RE);
-    if (match) return { workflow: match[1], storage: match[2], gate: match[3] };
+    if (match) return { workflow: match[1], storage: match[2], gate: match[3], branch: match[4] };
   }
   return {
     workflow: hasMarker(REPORT_PATH, MARKERS.report) ? 'split' : 'single',
@@ -227,10 +230,19 @@ const axis = (name, flag) => {
   if (!AXES[name].includes(value)) fail(NAME, `--${flag} must be one of: ${AXES[name].join(', ')}`);
   return value;
 };
+// The remote's default branch, else main. Only a name safe inside YAML quotes is used.
+function defaultBranch() {
+  const remoteHead = gitOutput(['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'])?.replace(
+    /^origin\//,
+    '',
+  );
+  return remoteHead && new RegExp(`^${BRANCH_NAME}$`).test(remoteHead) ? remoteHead : 'main';
+}
 const scaffold = {
   workflow: axis('workflow', 'workflow'),
   storage: axis('storage', 'storage'),
   gate: axis('gate', 'mode'),
+  branch: inferred.branch ?? defaultBranch(),
 };
 
 const templates = {

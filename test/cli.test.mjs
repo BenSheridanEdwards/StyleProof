@@ -1454,7 +1454,8 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       'CI delegates restore/capture to the packaged styleproof-ci',
     );
     assert.match(ci, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs/);
-    assert.doesNotMatch(ci, /styleproof-map\.mjs/, 'no inlined restore/capture invocations remain');
+    const prJobs = ci.slice(0, ci.indexOf('\n  publish-base:'));
+    assert.doesNotMatch(prJobs, /styleproof-map\.mjs/, 'no inlined restore/capture invocations remain');
     assert.doesNotMatch(ci, /Capture maps in CI on cache miss/, 'the fallback lives inside styleproof-ci now');
     assert.doesNotMatch(
       ci,
