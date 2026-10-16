@@ -65,3 +65,14 @@ test('componentManifestInventory fails closed on duplicate discovered paths', ()
     /duplicate discovered component path/i,
   );
 });
+
+test('componentManifestInventory matches `./`-prefixed manifest paths to discovered files', () => {
+  const dotted = validateComponentManifest({
+    version: 1,
+    components: [{ module: './src/components/Button.tsx', export: 'Button', variants: [{ key: 'default' }] }],
+    exclusions: [{ path: './src/components/Internal.tsx', reason: 'consumer-owned debug chrome' }],
+  });
+  const result = componentManifestInventory(dotted, discovered);
+  assert.deepEqual(result.uncovered, ['src/components/Card.tsx']);
+  assert.equal(result.declared[0].path, 'src/components/Button.tsx');
+});

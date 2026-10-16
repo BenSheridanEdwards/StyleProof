@@ -2,6 +2,9 @@ import type { ComponentManifest } from './component-manifest.js';
 import type { DiscoveredComponent } from './components.js';
 import { toSlash } from './util.js';
 
+/** A manifest path as discovery spells it: `./src/a.tsx` → `src/a.tsx`. */
+const manifestPath = (p: string): string => toSlash(p).replace(/^(?:\.\/)+/, '');
+
 export type DeclaredComponentInventoryEntry = {
   path: string;
   export: string;
@@ -48,13 +51,13 @@ export function componentManifestInventory(
 ): ComponentManifestInventory {
   const declared = manifest.components
     .map((component) => ({
-      path: toSlash(component.module),
+      path: manifestPath(component.module),
       export: component.export ?? 'default',
       variants: component.variants.map((variant) => variant.key).sort((a, b) => a.localeCompare(b)),
     }))
     .sort((a, b) => a.path.localeCompare(b.path) || a.export.localeCompare(b.export));
   const excludedWithReason = (manifest.exclusions ?? [])
-    .map((entry) => ({ path: toSlash(entry.path), reason: entry.reason }))
+    .map((entry) => ({ path: manifestPath(entry.path), reason: entry.reason }))
     .sort((a, b) => a.path.localeCompare(b.path));
 
   const declaredPaths = new Set(declared.map((entry) => entry.path));

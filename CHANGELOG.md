@@ -20,6 +20,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`./`-prefixed component manifest paths match discovered files.** A
+  manifest `module` or exclusion `path` written as `./src/…` was compared as
+  written and reported as uncovered, so `styleproof-components` exited 1. Both
+  spellings now count as the same path, so declaring `./src/a.tsx` and excluding
+  `src/a.tsx` is caught as an overlap.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
