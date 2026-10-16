@@ -205,9 +205,11 @@ for (const manager of [
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
       const reportWorkflow = readFile(root, '.github/workflows/styleproof-report.yml');
+      // The trusted default-branch publisher is checked on its own below.
+      const prJobs = workflow.slice(0, workflow.indexOf('\n  publish-base:'));
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
-      for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
+      for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(prJobs, pattern);
       assert.match(reportWorkflow, /BenSheridanEdwards\/StyleProof@v7/);
       assert.match(reportWorkflow, /workflow_run:/);
       // #706: the scaffold must not emit action pins behind the majors the
@@ -236,9 +238,9 @@ for (const manager of [
         /styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec-ref-if-missing "\$HEAD_SHA" --base-dir/,
       );
       assert.match(workflow, /--no-upload/);
-      assert.doesNotMatch(workflow, /styleproof-map\.mjs/);
+      assert.doesNotMatch(prJobs, /styleproof-map\.mjs/);
       assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);
-      assert.doesNotMatch(workflow, /playwright install/);
+      assert.doesNotMatch(prJobs, /playwright install/);
       assert.doesNotMatch(workflow, /echo "capture-needed/); // emitted by styleproof-ci itself now
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
@@ -694,6 +696,67 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
     assert.doesNotMatch(report, /actions\/checkout@/);
     assert.doesNotMatch(report, /npm ci|pnpm install|yarn install|bun install/);
     assert.doesNotMatch(report, /styleproof-ci\.mjs/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: branch storage publishes the default branch map from a trusted push job', () => {
+  for (const layout of [[], SPLIT]) {
+    const root = mkTmp();
+    try {
+      const res = runInit(root, [...layout, ...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
+      assert.equal(res.status, 0, res.stderr);
+      const workflow = readFile(root, '.github/workflows/styleproof.yml');
+      assert.match(workflow, /\n {2}push:\n {4}branches: \['main'\]\n/);
+      const job = workflow.slice(workflow.indexOf('\n  publish-base:'));
+      assert.match(job, /if: github\.event_name == 'push'/);
+      assert.match(job, /permissions:\s*\n\s*contents: write #[^\n]*\n\s*env:/);
+      assert.doesNotMatch(job, /pull-requests:|statuses:|pull_request\./);
+      assert.match(job, /persist-credentials: false/);
+      assert.match(job, /STYLEPROOF_MAP_STORE_TOKEN: \$\{\{ github\.token \}\}/);
+      assert.match(
+        job,
+        /playwright install --with-deps chromium\n\s*node node_modules\/styleproof\/bin\/styleproof-map\.mjs --sha "\$GITHUB_SHA" --upload/,
+      );
+      for (const prJob of ['\n  styleproof:', '\n  capture:']) {
+        if (!workflow.includes(prJob)) continue;
+        const body = workflow.slice(workflow.indexOf(prJob), workflow.indexOf('\n  prune:'));
+        assert.doesNotMatch(body, /publish-base|GITHUB_SHA/);
+      }
+    } finally {
+      rmTmp(root);
+    }
+  }
+
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    const workflow = readFile(root, '.github/workflows/styleproof.yml');
+    assert.doesNotMatch(workflow, /\n {2}push:|publish-base/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test("styleproof-init: the publisher follows the remote's default branch and the marker keeps it", () => {
+  const root = mkTmp();
+  try {
+    const git = (args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    git(['init', '-q', '-b', 'work']);
+    git(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk']);
+    const res = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    const workflow = readFile(root, '.github/workflows/styleproof.yml');
+    assert.match(workflow, /# styleproof-scaffold: workflow=single storage=branch gate=advisory branch=trunk\n/);
+    assert.match(workflow, /branches: \['trunk'\]/);
+    assert.match(res.stdout, /publish-base publishes each commit pushed to 'trunk'/);
+
+    // A CI checkout has no origin/HEAD: the recorded branch keeps --check stable.
+    git(['symbolic-ref', '--delete', 'refs/remotes/origin/HEAD']);
+    const checked = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
   } finally {
     rmTmp(root);
   }

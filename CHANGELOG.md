@@ -9,6 +9,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **CI publishes default-branch maps under `--storage branch`.** The generated
+  workflow gains a `publish-base` job. On every push to the default branch it
+  captures that commit and publishes its map to `styleproof-maps`, so each pull
+  request based on a default-branch commit finds its base map in the store
+  instead of capturing it. With `--workflow split`, this job is the store's CI
+  writer: the pull request stage captures read-only and the report stage
+  publishes no maps. The job runs merged code
+  only, with `contents: write`. Init records the default branch in the scaffold
+  marker (`branch=<name>`, from `origin/HEAD`, else `main`), because workflow
+  triggers cannot read it from context. Branch-storage repos run
+  `styleproof-init --upgrade` to add the job; `--check` reports the workflow
+  stale until then.
+- **`styleproof-map` reads the generated spec path.** With no `--spec` and no
+  config `spec`, it uses `STYLEPROOF_SPEC_PATH_B64` from the generated workflow
+  before the default path, the same order `styleproof-ci` uses.
+
 - **The Action outputs name the comparison base it used.** New Action outputs
   `base-sha` (the expected "before" commit), `comparison-base`
   (`pull-request-base` or `merge-base`) and `base-tip-sha` (the trusted PR base

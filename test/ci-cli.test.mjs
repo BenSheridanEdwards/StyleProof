@@ -785,8 +785,8 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
       assert.match(secondOutputs, /head-hit=false/);
       assert.match(secondOutputs, /capture-needed=true/);
 
-      // The publish/restore contract still holds when upload is allowed (trusted
-      // local/pre-push or a future trusted publisher). Prove it with the same
+      // The publish/restore contract still holds when upload is allowed (the
+      // trusted publish-base job on the default branch). Prove it with the same
       // first-adoption args minus the generated --no-store flag.
       fs.rmSync(mapRoot, { recursive: true, force: true });
       const publishOutput = path.join(root, 'github-output-publish');

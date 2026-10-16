@@ -261,8 +261,11 @@ export ${SPEC_PATH_ENV}
 exec ./node_modules/.bin/styleproof-prepush
 `;
 
+// Branch storage records the default branch: workflow triggers cannot read it from context.
 export const scaffoldMarkerLine = (scaffold) =>
-  `# styleproof-scaffold: workflow=${scaffold.workflow} storage=${scaffold.storage} gate=${scaffold.gate}`;
+  `# styleproof-scaffold: workflow=${scaffold.workflow} storage=${scaffold.storage} gate=${scaffold.gate}${
+    scaffold.storage === 'branch' ? ` branch=${scaffold.branch}` : ''
+  }`;
 
 const MAP_STORE_PRUNE_STEP = `
       - name: Prune this PR's head map from the map store
@@ -395,24 +398,54 @@ const reportPermission = (ctx) =>
   isBranch(ctx)
     ? 'contents: write # publish report files to the styleproof-reports branch'
     : 'contents: read # report uploads as a workflow artifact — nothing is written to git';
-// Branch storage needs close-pruning and a scheduled sweep; artifact storage needs neither.
+// Branch storage needs close-pruning, a scheduled sweep, and the default-branch
+// publisher; artifact storage needs none of them.
 const onPullRequest = (ctx) => `on:
   pull_request:
 ${
   isBranch(ctx)
     ? `    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: ['${ctx.scaffold.branch}']
   schedule:
     # Daily report-branch sweep: retention window plus a hard size budget.
     - cron: '47 4 * * *'`
     : '    types: [opened, synchronize, reopened]'
 }`;
-const pruneJobs = (ctx) => (isBranch(ctx) ? `\n${pruneAndSweepJobs(ctx)}` : '');
+const mapStoreJobs = (ctx) => (isBranch(ctx) ? `\n${pruneAndSweepJobs(ctx)}\n${publishBaseJob(ctx)}` : '');
 const closedNote = (ctx, text) => (isBranch(ctx) ? ` ${text}` : '');
 
 const jobEnv = ({ encodedSpecPath, serverMode, encodedServerCommand }) => `    env:
       ${SPEC_PATH_ENV}: ${encodedSpecPath}
       STYLEPROOF_SERVER_MODE: ${serverMode}
       STYLEPROOF_SERVER_COMMAND_B64: ${encodedServerCommand}`;
+
+// Every pull request restores its base map from the store instead of capturing it.
+// The job runs on a push to the default branch, so it executes only merged code.
+const publishBaseJob = (ctx) => `  publish-base:
+    # A push to the default branch: capture this commit's map and publish it to the
+    # styleproof-maps branch. Pull requests based on this commit restore it by SHA.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # publish the map to the styleproof-maps branch
+${jobEnv(ctx)}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+${ctx.PM.setup}
+      - run: ${ctx.PM.install}
+      - name: Publish this commit's StyleProof map
+        shell: bash
+        env:
+          STYLEPROOF_MAP_STORE_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          playwright install --with-deps chromium
+          node node_modules/styleproof/bin/styleproof-map.mjs --sha "$GITHUB_SHA" --upload
+`;
 
 const VERIFY_STEP = `      - name: Verify StyleProof scaffold matches the installed release
         shell: bash
@@ -429,7 +462,9 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 # - they therefore hold ONLY read permissions and never publish maps, comments,
 #   reviews, or statuses;
 # - captured maps are uploaded as a short-lived artifact for the trusted report stage.
-# Trusted publication lives in styleproof-report.yml (workflow_run on the default branch).
+# Trusted publication lives in styleproof-report.yml (workflow_run on the default branch)${
+  isBranch(ctx) ? ',\n# and publish-base below publishes maps on pushes to the default branch' : ''
+}.
 # Fork PR verdicts are advisory: the fork's code produces both map sets, so the
 # report stage keeps the StyleProof status pending until a maintainer approves.
 ${onPullRequest(ctx)}
@@ -467,7 +502,7 @@ ${captureStep(ctx)}
           path: \${{ runner.temp }}/styleproof-maps
           retention-days: 3
           if-no-files-found: error
-${pruneJobs(ctx)}`;
+${mapStoreJobs(ctx)}`;
 
 // Branch storage restores/publishes maps with git; without persisted checkout
 // credentials the map store authenticates with this step-scoped token instead.
@@ -516,7 +551,7 @@ ${VERIFY_STEP}
         run: |
 ${captureStep(ctx)}
 ${actionStep(ctx, 'steps.maps.outputs.base-capture-failed')}
-${pruneJobs(ctx)}`;
+${mapStoreJobs(ctx)}`;
 
 export const ciWorkflow = (ctx) => (ctx.scaffold.workflow === 'split' ? splitWorkflow(ctx) : singleWorkflow(ctx));
 

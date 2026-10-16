@@ -1454,7 +1454,8 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       'CI delegates restore/capture to the packaged styleproof-ci',
     );
     assert.match(ci, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs/);
-    assert.doesNotMatch(ci, /styleproof-map\.mjs/, 'no inlined restore/capture invocations remain');
+    const prJobs = ci.slice(0, ci.indexOf('\n  publish-base:'));
+    assert.doesNotMatch(prJobs, /styleproof-map\.mjs/, 'no inlined restore/capture invocations remain');
     assert.doesNotMatch(ci, /Capture maps in CI on cache miss/, 'the fallback lives inside styleproof-ci now');
     assert.doesNotMatch(
       ci,
@@ -2229,4 +2230,23 @@ test('diff CLI fails closed when head confidence names inaccessible incomplete U
   assert.equal(json.confidence.counts.inaccessible, 1);
   assert.equal(json.certifiesFully, false);
   rmTmp(root);
+});
+
+test('styleproof-map reads the generated spec path env below a config spec, like styleproof-ci', () => {
+  const dir = mkTmp();
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    const env = { ...process.env, STYLEPROOF_SPEC_PATH_B64: Buffer.from('custom/visual.spec.ts').toString('base64') };
+    const fromEnv = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8', env });
+    assert.equal(fromEnv.status, 2, fromEnv.stderr);
+    assert.match(fromEnv.stderr, /custom\/visual\.spec\.ts/);
+
+    fs.writeFileSync(path.join(dir, 'styleproof.config.json'), JSON.stringify({ spec: 'configured.spec.ts' }));
+    const fromConfig = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8', env });
+    assert.equal(fromConfig.status, 2, fromConfig.stderr);
+    assert.match(fromConfig.stderr, /configured\.spec\.ts/);
+    assert.doesNotMatch(fromConfig.stderr, /custom\/visual/);
+  } finally {
+    rmTmp(dir);
+  }
 });
