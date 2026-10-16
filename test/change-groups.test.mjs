@@ -658,3 +658,98 @@ test('assessComparisonTruth: removed surfaces are reviewable; recomputes raw whe
   assert.equal(heightOnly.reviewableCounts.style, 1);
   assert.equal(heightOnly.rawOnlyNoReviewable, false);
 });
+
+test('cleanFindings keeps a :hover restyle of another element even when the owner restyled the same prop', () => {
+  const btn = 'body > button:nth-child(1)';
+  const icon = `${btn} > span:nth-child(1)`;
+  const findings = [
+    {
+      kind: 'style',
+      path: btn,
+      cls: 'cta',
+      pseudo: null,
+      props: [{ prop: 'background-color', before: 'rgb(0, 0, 0)', after: 'rgb(0, 0, 255)' }],
+    },
+    {
+      kind: 'state',
+      path: btn,
+      cls: 'cta',
+      state: 'hover',
+      sub: icon,
+      props: [{ prop: 'background-color', before: '(state does not change it)', after: 'rgb(255, 0, 0)' }],
+    },
+  ];
+  assert.deepEqual(
+    cleanFindings(findings).map((f) => f.kind),
+    ['style', 'state'],
+  );
+});
+
+test('groupBySignature keeps :hover restyles of different elements apart', () => {
+  const btn = 'body > button:nth-child(1)';
+  const state = (sub) => [
+    {
+      kind: 'state',
+      path: btn,
+      cls: 'cta',
+      state: 'hover',
+      sub,
+      props: [{ prop: 'color', before: '(state does not change it)', after: 'rgb(255, 0, 0)' }],
+    },
+  ];
+  const groups = groupBySignature([
+    { surface: 'home@1280', findings: state(`${btn} > span:nth-child(1)`) },
+    { surface: 'pricing@1280', findings: state(btn) },
+  ]);
+  assert.equal(groups.length, 2);
+});
+
+test('cleanFindings still drops a :hover row on a child that inherited the owner’s same change', () => {
+  // Base `.cta{color:black} .cta:hover{color:red}`; head `.cta{color:red}`: the hover renders the same.
+  const btn = 'body > button:nth-child(1)';
+  const icon = `${btn} > span:nth-child(1)`;
+  const restyle = (path) => ({
+    kind: 'style',
+    path,
+    cls: '',
+    pseudo: null,
+    props: [{ prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' }],
+  });
+  const echo = (sub) => ({
+    kind: 'state',
+    path: btn,
+    cls: 'cta',
+    state: 'hover',
+    sub,
+    props: [{ prop: 'color', before: 'rgb(255, 0, 0)', after: '(state no longer changes it)' }],
+  });
+  const kept = cleanFindings([restyle(btn), restyle(icon), echo(btn), echo(icon)]);
+  assert.deepEqual(
+    kept.map((f) => f.kind),
+    ['style', 'style'],
+  );
+});
+
+test('cleanFindings keeps an added element’s :hover restyle of an existing element', () => {
+  const label = 'body > span:nth-child(1)';
+  const button = 'body > button:nth-child(2)';
+  const kept = cleanFindings([
+    { kind: 'dom', path: button, cls: 'new', change: 'added' },
+    {
+      kind: 'style',
+      path: label,
+      cls: 'label',
+      pseudo: null,
+      props: [{ prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(128, 128, 128)' }],
+    },
+    {
+      kind: 'state',
+      path: button,
+      cls: 'new',
+      state: 'hover',
+      sub: label,
+      props: [{ prop: 'color', before: '(state does not change it)', after: 'rgb(0, 0, 255)' }],
+    },
+  ]);
+  assert.ok(kept.some((f) => f.kind === 'state' && f.sub === label));
+});

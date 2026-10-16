@@ -20,6 +20,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `:hover` restyle of another element is no longer hidden as an echo.**
+  The report dropped a state row whose prop the owner's resting style also
+  changed, even when the row belonged to a different element
+  (`.cta:hover .icon`), and grouping ignored that target, merging surfaces whose
+  hover restyled different elements. Both now key on the target.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

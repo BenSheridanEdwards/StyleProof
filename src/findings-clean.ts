@@ -28,6 +28,9 @@ function sigValue(c: PropChange): string {
   return `${c.prop}=${c.before}>${c.after}`;
 }
 
+const stateTarget = (f: Extract<Finding, { kind: 'state' }>): string =>
+  f.sub && f.sub !== f.path ? `${f.state}@${f.sub}` : f.state;
+
 /** Canonical signature of a surface's findings: surfaces that changed the same way share one section. */
 export function signatureOf(findings: Finding[]): string {
   return JSON.stringify(
@@ -35,7 +38,8 @@ export function signatureOf(findings: Finding[]): string {
       .map((f) => ({
         p: f.path,
         k: f.kind,
-        t: f.kind === 'dom' ? f.change : f.kind === 'state' ? f.state : (f.pseudo ?? ''),
+        // A state's target element: the same :hover restyling different elements is two changes.
+        t: f.kind === 'dom' ? f.change : f.kind === 'state' ? stateTarget(f) : (f.pseudo ?? ''),
         v: f.kind === 'dom' ? '' : summarizeProps(f.props).map(sigValue).join('|'),
       }))
       .sort((a, b) => `${a.p}|${a.k}|${a.t}`.localeCompare(`${b.p}|${b.k}|${b.t}`)),
@@ -102,27 +106,34 @@ export function derivedLonghandCount(findings: Finding[]): number {
  * a finding left with no props is removed entirely.
  */
 export function cleanFindings(findings: Finding[]): Finding[] {
+  // Each element's own resting-style changes. A state row is an echo only when the element
+  // it targets (`sub`, which may be a child or sibling of the owner) changed that prop itself.
+  const restyled = new Map<string, Set<string>>();
+  for (const f of findings) {
+    if (f.kind === 'style' && f.pseudo === null) restyled.set(f.path, new Set(f.props.map((p) => p.prop)));
+  }
+  // An ADDED element's base style is a full snapshot, not a delta, so a state
+  // value on it is never an "echo" of a base change: keep every such state row.
+  const added = new Set(findings.filter((f) => f.kind === 'dom' && f.change === 'added').map((f) => f.path));
+  const echoes = (f: Finding, p: PropChange): boolean => {
+    if (f.kind !== 'state') return false;
+    const target = f.sub ?? f.path;
+    // An added owner had no state on the base, so none of its state rows can echo one.
+    return !added.has(f.path) && !added.has(target) && !!restyled.get(target)?.has(p.prop);
+  };
   const out: Finding[] = [];
   for (const group of groupByPath(findings)) {
-    const base = group.find((f): f is StyleFinding => f.kind === 'style' && f.pseudo === null);
-    const baseChanged = new Set(base?.props.map((p) => p.prop) ?? []);
-    // An ADDED element's base style is a full snapshot, not a delta, so a state
-    // value is never an "echo" of a base change: keep every state row.
-    const isAdded = group.some((f) => f.kind === 'dom' && f.change === 'added');
     const keep: Record<Finding['kind'], (p: PropChange) => boolean> = {
       dom: () => true,
       style: (p) => !DERIVED_PROPS.has(p.prop),
-      state: (p) =>
-        !STATE_STRIP.has(p.prop) &&
-        (isAdded || !baseChanged.has(p.prop)) &&
-        !(isNonValue(p.before) && isNonValue(p.after)),
+      state: (p) => !STATE_STRIP.has(p.prop) && !(isNonValue(p.before) && isNonValue(p.after)),
     };
     for (const f of group) {
       if (f.kind === 'dom') {
         out.push(f);
         continue;
       }
-      const props = f.props.filter(keep[f.kind]);
+      const props = f.props.filter((p) => keep[f.kind](p) && !echoes(f, p));
       if (props.length) out.push({ ...f, props });
     }
   }
