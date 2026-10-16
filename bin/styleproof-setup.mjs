@@ -29,7 +29,7 @@ const cli = defineCli({
     },
     storage: {
       value: 'mode',
-      help: 'artifact (default) | branch — no map-store branch, or the styleproof-maps cache with a pre-push hook',
+      help: 'artifact (default) | branch — no map-store branch, or the styleproof-maps cache that CI publishes',
     },
     mode: { value: 'gate', help: 'advisory (default) | certify | review-gate' },
     'skip-install': { help: 'do not add StyleProof and Playwright to the project' },

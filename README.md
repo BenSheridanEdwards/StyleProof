@@ -321,8 +321,8 @@ Opt-in flags reproduce the heavier architectures:
   `pending` until a maintainer ticks **Approve all changes** — never green
   automatically.
 - `--storage branch` — the SHA-keyed `styleproof-maps` store branch, a CI job
-  that publishes each default-branch commit's map, and the pre-push publish
-  hook, so CI restores maps instead of recapturing them.
+  that publishes each default-branch commit's map, so CI restores maps instead
+  of recapturing them.
 - `--mode certify` / `--mode review-gate` — fail on any diff, or hold the
   `StyleProof` status red until a reviewer approves (scaffolds the approval
   workflow). `split + branch + review-gate` reproduces the pre-v7 scaffold
@@ -373,7 +373,7 @@ never committed to the PR branch — or via the opt-in `styleproof-maps` store
 branch. Nothing under `.styleproof/` belongs in a commit.
 
 For the hand-wired Action form, the fork/Dependabot split, the map-store and
-report branches, the pre-push hook, and every config key and flag, see
+report branches, the CI base publisher, and every config key and flag, see
 [docs/REFERENCE.md](docs/REFERENCE.md).
 
 The report Action defaults to `comparison-base: pull-request-base`: it expects

@@ -41,9 +41,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that keeps it warm. `styleproof-init --check` reports a hook an earlier
   release generated as `obsolete` and exits 1. `styleproof-init --upgrade`
   deletes it. When `.githooks/` is then empty, `--upgrade` removes the folder
-  and unsets a local or worktree `core.hooksPath=.githooks`. A repository-owned
-  hook that runs StyleProof keeps its bytes, and both commands print which
-  lines to delete. `styleproof-init --hook` exits 2 and names `--upgrade`.
+  and unsets a local or worktree `core.hooksPath` that Git resolves to it. A
+  hook counts as generated only when every command in it is one the generated
+  shim held. Any other hook that runs StyleProof keeps its bytes, and both
+  commands ask the owner to delete its StyleProof lines.
+  `styleproof-init --hook` exits 2 and names `--upgrade`.
   `--upgrade` also writes the scaffold marker into an unmarked pre-v7
   workflow, so the axes the old hook signalled stay recorded.
 

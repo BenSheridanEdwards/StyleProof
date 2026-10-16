@@ -1036,17 +1036,21 @@ test('styleproof-init: no scaffold writes a git hook or sets core.hooksPath', ()
   for (const workflow of ['single', 'split'])
     for (const storage of ['artifact', 'branch'])
       for (const gate of ['advisory', 'certify', 'review-gate']) {
-        const axes = ['--workflow', workflow, '--storage', storage, '--mode', gate];
-        const root = mkNonGitTmp();
-        try {
-          const res = runInit(root, [...axes, '--dir', 'e2e/styleproof.spec.ts']);
-          assert.equal(res.status, 0, res.stderr);
-          assert.equal(fs.existsSync(path.join(root, '.githooks')), false, axes.join(' '));
-          assert.equal(fs.existsSync(path.join(root, '.husky')), false, axes.join(' '));
-          assert.equal(gitConfigGet(root, 'core.hooksPath'), '', axes.join(' '));
-          assert.doesNotMatch(res.stdout + res.stderr, /pre-push|STYLEPROOF_SKIP_CAPTURE/, axes.join(' '));
-        } finally {
-          rmTmp(root);
+        for (const husky of [false, true]) {
+          const axes = ['--workflow', workflow, '--storage', storage, '--mode', gate];
+          const label = `${axes.join(' ')}${husky ? ' with .husky/' : ''}`;
+          const root = mkNonGitTmp();
+          try {
+            if (husky) fs.mkdirSync(path.join(root, '.husky'));
+            const res = runInit(root, [...axes, '--dir', 'e2e/styleproof.spec.ts']);
+            assert.equal(res.status, 0, res.stderr);
+            assert.equal(fs.existsSync(path.join(root, '.githooks')), false, label);
+            assert.equal(fs.existsSync(path.join(root, '.husky/pre-push')), false, label);
+            assert.equal(gitConfigGet(root, 'core.hooksPath'), '', label);
+            assert.doesNotMatch(res.stdout + res.stderr, /pre-push|STYLEPROOF_SKIP_CAPTURE/, label);
+          } finally {
+            rmTmp(root);
+          }
         }
       }
 });
@@ -1116,6 +1120,61 @@ test('styleproof-init: a repository-owned hook that runs StyleProof gets guidanc
     fs.writeFileSync(path.join(root, '.husky/pre-push'), '#!/bin/sh\nnpm test\n');
     const unrelated = runInit(root, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
     assert.doesNotMatch(unrelated.stdout, /pre-push/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init --upgrade keeps a generated hook the owner added lines to', () => {
+  const root = mkNonGitTmp();
+  try {
+    assert.equal(runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    const edited = `${GENERATED_HOOK.replace(/^exec .*$/m, 'npm run lint')}exec ./node_modules/.bin/styleproof-prepush\n`;
+    fs.mkdirSync(path.join(root, '.husky'));
+    fs.writeFileSync(path.join(root, '.husky/pre-push'), edited, { mode: 0o755 });
+
+    const upgraded = runInit(root, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(upgraded.status, 0, upgraded.stdout + upgraded.stderr);
+    assert.match(upgraded.stdout, /repository-owned \.husky\/pre-push still runs StyleProof/);
+    assert.equal(readFile(root, '.husky/pre-push'), edited);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init --upgrade retires the package-manager exec shim from 4.5', () => {
+  const root = mkNonGitTmp();
+  try {
+    assert.equal(runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    fs.mkdirSync(path.join(root, '.githooks'));
+    fs.writeFileSync(
+      path.join(root, '.githooks/pre-push'),
+      GENERATED_HOOK.replace(/^exec .*$/m, 'exec npx styleproof-prepush --spec e2e/styleproof.spec.ts'),
+    );
+    const upgraded = runInit(root, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.match(upgraded.stdout, /removed {2}\.githooks\/pre-push/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test("styleproof-init --upgrade in a subdirectory keeps the repository root's core.hooksPath", () => {
+  const root = mkNonGitTmp();
+  try {
+    fs.mkdirSync(path.join(root, '.githooks'));
+    fs.writeFileSync(path.join(root, '.githooks/pre-commit'), '#!/bin/sh\nnpm run lint\n', { mode: 0o755 });
+    spawnSync('git', ['config', '--local', 'core.hooksPath', '.githooks'], { cwd: root });
+    const pkg = path.join(root, 'pkg');
+    fs.mkdirSync(pkg);
+    assert.equal(runInit(pkg, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    writeGeneratedHook(pkg, '.githooks');
+
+    const upgraded = runInit(pkg, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(upgraded.status, 0, upgraded.stdout + upgraded.stderr);
+    assert.match(upgraded.stdout, /removed {2}\.githooks\/pre-push/);
+    assert.equal(fs.existsSync(path.join(pkg, '.githooks')), false);
+    assert.doesNotMatch(upgraded.stdout, /unset/);
+    assert.equal(gitConfigGet(root, 'core.hooksPath'), '.githooks');
   } finally {
     rmTmp(root);
   }
