@@ -55,7 +55,7 @@ export function nonLinuxUploadWarning(platform: string, suppressed = false): str
     `styleproof-map: capturing on ${platform}, but StyleProof CI (ubuntu-latest) captures on linux.`,
     "  A map's compatibility key is platform-specific, so a Linux CI will NOT restore this bundle —",
     '  it will recapture both sides instead, and this upload just adds an unused bundle to the store.',
-    '  To make the pre-push capture count, capture on Linux (e.g. a container matching CI).',
+    '  To publish a map CI restores, capture on Linux (e.g. a container matching CI).',
     '  Suppress this notice with STYLEPROOF_SUPPRESS_PLATFORM_WARNING=1.',
   ].join('\n');
 }

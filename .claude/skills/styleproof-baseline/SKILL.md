@@ -14,28 +14,31 @@ diff against. `styleproof-map` is the spec-driven capture for **your own app**
 
 ```bash
 npx styleproof-init     # once (styleproof-install skill)
-npx styleproof-map      # capture this commit → .styleproof/maps/current + upload
+npx styleproof-map      # capture this commit → .styleproof/maps/current
 npx styleproof-diff     # diff head vs base (styleproof-diff skill)
 ```
 
 `styleproof-map` captures through Playwright into `.styleproof/maps/current`,
-writes a manifest, keeps screenshots for the report, and **uploads the bundle to
-the dedicated `styleproof-maps` branch** when the working tree was clean and a
-git remote exists. That map store is how CI restores base/head without
-re-capturing. HAR recordings are stripped before upload (private API responses
-must not land in the store) — keep them only for explicit record/replay with
-`--keep-har`.
+writes a manifest, and keeps screenshots for the report. The capture stays
+local. With `--upload` (or `STYLEPROOF_UPLOAD=1`) it **publishes the bundle to
+the dedicated `styleproof-maps` branch**, which needs a clean working tree and a
+git remote. Under `--storage branch`, the generated `publish-base` CI job does
+this for every default-branch commit, and that map store is how CI restores
+base/head without re-capturing. HAR recordings are stripped before upload
+(private API responses must not land in the store) — keep them only for
+explicit record/replay with `--keep-har`.
 
-Useful flags: `--no-upload` (local only), `--restore --sha <commit>` (pull a
+Useful flags: `--upload` (publish to the map store), `--restore --sha <commit>` (pull a
 stored bundle), `--spec`, `--dir`, `--base-dir`, `--no-screenshots`,
 `--crawl-base-url` + repeated `--crawl-route` (run `styleproof-variants` first).
 
 ## Publish the base map from the base branch
 
-The gate needs the **base branch's** maps in the store. Easiest: run
-`styleproof-map` on `main` (or let the first PR/merge populate it). The best hot
-path is to run `styleproof-map` locally **after committing** so the head bundle
-exists before CI starts — then CI is report-only (no build, no browser).
+The gate needs the **base branch's** maps in the store. Under
+`--storage branch`, the generated `publish-base` job runs
+`styleproof-map --upload` on every push to the default branch, so each pull
+request restores its base map by SHA. To seed the store by hand, run
+`styleproof-map --upload` on a clean checkout of `main`.
 
 ## Determinism is built in
 
