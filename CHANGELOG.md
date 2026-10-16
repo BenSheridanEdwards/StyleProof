@@ -20,6 +20,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Affected-surface analysis fails closed on a computed `import()` it cannot
+  place.** `import('../x/' + name)` was read as a plain string literal and an
+  aliased template prefix (`` `@/x/${name}` ``) became a bogus directory, so the
+  importer's surface could be reported as unaffected. Both now mean `all`, as
+  does an `import()` with a second options argument (`import('./x.json', { with:
+… })`), since only an argument that is entirely one string literal is skipped.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

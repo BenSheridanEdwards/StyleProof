@@ -311,3 +311,27 @@ test('explain: an empty subset means every surface reuses its base map', () => {
   assert.match(out, /re-capture 0, reuse 4 from base/);
   assert.doesNotMatch(out, /↻/);
 });
+
+test('affectedSurfaces fails closed on a computed import() it cannot place', () => {
+  const run = (dashboardSrc) => {
+    const sources = {
+      'src/pages/Pricing.tsx': "import {Widget} from '../components/Widget';",
+      'src/pages/Dashboard.tsx': dashboardSrc,
+      'src/components/Widget.tsx': 'export default function Widget(){return null}',
+    };
+    return affectedSurfaces({
+      changedFiles: ['src/components/Widget.tsx'],
+      surfaces: { pricing: 'src/pages/Pricing.tsx', dashboard: 'src/pages/Dashboard.tsx' },
+      graph: [{ from: 'src/pages/Pricing.tsx', to: 'src/components/Widget.tsx' }],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    });
+  };
+  assert.equal(run("const D = lazy(() => import('../components/' + name));"), 'all', 'string concatenation');
+  assert.equal(run('const D = lazy(() => import(`@/components/${name}`));'), 'all', 'aliased template prefix');
+  assert.deepEqual(
+    [...run('const D = lazy(() => import(`../components/${name}`));')].sort(),
+    ['dashboard', 'pricing'],
+    'a relative template prefix is still recovered as a context module',
+  );
+});

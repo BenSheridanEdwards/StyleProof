@@ -115,11 +115,12 @@ function safeRead(readFile: (p: string) => string, path: string): string | undef
   }
 }
 
-/** Directory a computed `import()` argument is rooted at: null for a string literal, `'unbounded'` without a static `/` prefix. */
+/** Directory a computed `import()` argument is rooted at: null for a string literal, `'unbounded'` without a static relative prefix. */
 function contextDir(arg: string, fromDir: string): string | null | 'unbounded' {
-  if (/^['"]/.test(arg)) return null; // plain string literal
+  if (/^(['"])[^'"]*\1$/.test(arg)) return null; // the whole argument is one plain string literal
   const prefix = arg.match(/^`([^$`]*)/)?.[1]; // static head of a template literal
-  if (!prefix || !prefix.includes('/')) return 'unbounded'; // e.g. import(name)
+  // import(name), import('../x/' + name), or an alias (`@/x/${n}`) the graph cannot place: fail closed.
+  if (!prefix || !prefix.includes('/') || !/^\.\.?\//.test(prefix)) return 'unbounded';
   return normalizeDir(fromDir, prefix);
 }
 
