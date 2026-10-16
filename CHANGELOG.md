@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [8.0.1] - 2026-10-17
+
+### Fixed
+
+- **Generated workflows pin the 8.x Action.** `styleproof-init` on 8.0.0
+  still wrote `BenSheridanEdwards/StyleProof@v7` and the `@v7` reusable approve
+  workflow, so an upgraded repo ran the 7.x Action next to the 8.x package.
+  The templates, examples, reference and agent skills now pin `@v8`. Run
+  `npx styleproof-init --upgrade` after installing 8.0.1; `--check` reports
+  the generated workflows as stale until then.
+- **The 8.0.0 notes carry a summary and migration steps**, and the README
+  upgrade section covers 8.0.
+
 ## [8.0.0] - 2026-10-16
 
 > **StyleProof 8.0.0: CI-only**
@@ -4983,7 +4996,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.1...HEAD
+[8.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.0...v8.0.1
 [8.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.7.0...v8.0.0
 [7.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.4.0...v7.5.0
 [7.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.3.0...v7.4.0
