@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
+  ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
+  merged, so removing one went unseen. They now keep Unicode letters, combining
+  marks and digits in the key; existing ASCII keys are unchanged.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
