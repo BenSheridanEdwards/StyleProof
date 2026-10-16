@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`dirtyAllow` entries written as `dir/**` now match.** Allowances were
+  literal path prefixes, so the `docs/**` form used by StyleProof's own config
+  and the init template never matched and a docs edit refused the upload.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

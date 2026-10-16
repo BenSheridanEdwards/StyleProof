@@ -1828,3 +1828,24 @@ test('expectedCompatibilityKey is stable when a detached restore probe has no no
 test('DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS is 120_000 (120s)', () => {
   assert.equal(DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS, 120_000, 'default git timeout should be 120 seconds (#595)');
 });
+
+test('workingTreeDirty: a `dir/**` allowance covers everything under the directory', () => {
+  const repo = mkTmp('styleproof-dirty-glob-');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    fs.mkdirSync(path.join(repo, 'docs', 'guide'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'docs', 'guide', 'intro.md'), 'v1');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v1');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+    fs.writeFileSync(path.join(repo, 'docs', 'guide', 'intro.md'), 'v2');
+    assert.equal(workingTreeDirty(repo, ['docs/**']), false, 'docs/** allows a nested docs edit');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v2');
+    assert.equal(workingTreeDirty(repo, ['docs/**']), true, 'a source edit is still dirt');
+  } finally {
+    rmTmp(repo);
+  }
+});

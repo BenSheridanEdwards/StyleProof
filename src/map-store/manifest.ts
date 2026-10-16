@@ -220,7 +220,8 @@ export function workingTreeDirty(cwd = process.cwd(), ignore?: string | readonly
   if (!status) return false;
   const prefixes = (typeof ignore === 'string' ? [ignore] : (ignore ?? []))
     .filter(Boolean)
-    .map((p) => `${p.replace(/\/+$/, '')}/`);
+    // `docs/**` (the form config and init examples use) means everything under `docs/`.
+    .map((p) => `${p.replace(/\/\*\*$/, '').replace(/\/+$/, '')}/`);
   const allowed = (file: string): boolean =>
     GENERATED_DIRTY_ALLOWLIST.has(file) ||
     prefixes.some((prefix) => file === prefix.slice(0, -1) || file.startsWith(prefix));
