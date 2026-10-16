@@ -11,7 +11,7 @@
     "state": 0
   },
   "reviewableCounts": {
-    "dom": 1,
+    "dom": 0,
     "style": 0,
     "state": 0
   },
@@ -22,7 +22,7 @@
       "state": 0
     },
     "reviewableCounts": {
-      "dom": 1,
+      "dom": 0,
       "style": 0,
       "state": 0
     },
@@ -30,7 +30,7 @@
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
@@ -65,10 +65,9 @@
   "baselineFailures": [],
   "partialBaseline": false,
   "content": {
-    "evaluated": true,
-    "changes": 1,
-    "advisory": true,
-    "elevatedVisibleStructure": 1
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
   },
   "surfaces": [],
   "confidence": {
@@ -113,12 +112,12 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "32d3b9788e4796117bd519874487250b81cbee900810c5432f8a454a52412f79",
+      "digest": "94a56784a0ca1b5b62f3bb0f57b955b28e916ed8ff8e9fd63d83982187398daf",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1555
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED",
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES",
   "untrustedCapture": false
 }
