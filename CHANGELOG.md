@@ -20,6 +20,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Every live region is excluded, not only the last one to tick.** Settling
+  kept only the paths that changed in the latest changing poll, so two live
+  regions ticking out of phase left one in the map as if it were stable. A path
+  is now volatile when it changed within the quiet window before timeout, so
+  every region that changed in that window is excluded (one ticking slower than
+  `quietFor` may not be, as before), and content that loaded late (in any number
+  of steps) and then settled is still compared.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

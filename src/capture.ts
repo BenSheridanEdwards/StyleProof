@@ -154,7 +154,9 @@ async function stabilizePage(
   const start = realNow();
   let prev = await snap();
   let lastChangeAt = start;
-  let recent: string[] = [];
+  // Per path: when it last changed. Out-of-phase tickers never change in the same poll, so
+  // "the last poll's paths" would keep only one of them.
+  const lastChangedAt = new Map<string, number>();
   while (realNow() - start < timeout) {
     await page.waitForTimeout(interval);
     const cur = await snap();
@@ -162,7 +164,7 @@ async function stabilizePage(
     prev = cur;
     if (changed.length) {
       lastChangeAt = realNow();
-      recent = changed;
+      for (const p of changed) lastChangedAt.set(p, lastChangeAt);
     } else if (pending() > 0) {
       // Quiet DOM but data requests in flight: the lull BEFORE the response paints.
       lastChangeAt = realNow();
@@ -170,7 +172,11 @@ async function stabilizePage(
       return [];
     }
   }
-  return recent;
+  // Still changing at timeout: changed within the quiet window. Content that loaded late (in any
+  // number of steps) and then settled is compared. A region ticking slower than `quietFor` whose
+  // last tick fell outside that window is not excluded — the same limit as before.
+  const end = realNow();
+  return [...lastChangedAt].filter(([, at]) => end - at <= quietFor).map(([p]) => p);
 }
 
 /** Settle the page and return the paths of live regions to exclude. */
