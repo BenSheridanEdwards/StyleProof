@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`--spec-ref` no longer aborts on an empty file in the spec directory.**
+  A zero-byte blob (`.gitkeep`, an empty fixture) was treated as a failed read
+  and `styleproof-ci` exited 1.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

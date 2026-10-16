@@ -58,7 +58,8 @@ export function assertSpecAtRef(spec: string, specRef: string, cwd: string): voi
 
 function readSpecBlobAtRef(spec: string, specRef: string, cwd: string): Buffer {
   const r = spawnSync('git', ['show', specRevPath(specRef, spec)], { cwd, encoding: 'buffer', maxBuffer: 1 << 28 });
-  if (r.status !== 0 || !r.stdout?.length) {
+  // A zero-byte blob (`.gitkeep`, an empty fixture) is a valid read, not a failure.
+  if (r.status !== 0 || !r.stdout) {
     throw new CiSpecRefError(`styleproof-ci: could not read ${spec} at --spec-ref ${specRef}`, 1);
   }
   return r.stdout;
