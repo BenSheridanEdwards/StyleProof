@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // Scaffold StyleProof into a project: spec, Playwright config, styleproof.config.ts,
-// CI workflow(s), and (with --storage branch) the pre-push hook. User-owned files are
+// and CI workflow(s). User-owned files are
 // never overwritten without --force; machine-owned files are refreshed by --upgrade
 // and audited by --check. Exit 0 = done, 1 = --check found drift, 2 = usage error.
 import fs from 'node:fs';
-import path from 'node:path';
 // Leaf modules only: init must never load the capture graph.
 import { discoverNextRoutes } from '../dist/routes.js';
 import { discoverComponentFiles } from '../dist/components.js';
@@ -14,13 +13,12 @@ import { decodeSpecPathEnv, encodeSpecPath, validateRepoRelativeSpecPath } from 
 import { detectPackageManager } from './package-manager.mjs';
 import { defineCli, errorMessage, fail, gitOutput } from './cli.mjs';
 import { ensureGitignoreLines, generatedPathState, readRegularTextFile, writeFileSafe } from './init/files.mjs';
-import { hookFilePath, installPrePushHook, reportOrActivateHook } from './init/hooks.mjs';
+import { findStyleProofHooks, reportObsoleteHooks, retireObsoleteHooks } from './init/obsolete-hooks.mjs';
 import {
   APPROVE_WORKFLOW,
   PACKAGE_MANAGERS,
   STYLEPROOF_CONFIG_TEMPLATE,
   ciWorkflow,
-  hookTemplate,
   lintArtifactsTemplate,
   playwrightConfigTemplate,
   reportWorkflow,
@@ -54,15 +52,13 @@ const cli = defineCli({
     },
     storage: {
       value: 'mode',
-      help: 'artifact (default): maps live and die in the job. branch: cache maps on the styleproof-maps branch, publish default-branch maps from CI, and install the pre-push hook',
+      help: 'artifact (default): maps live and die in the job. branch: cache maps on the styleproof-maps branch and publish default-branch maps from CI',
     },
     mode: {
       value: 'gate',
       help: 'advisory (default): report but never block. certify: fail on any style diff. review-gate: red status until a reviewer approves (adds the approval caller workflow)',
     },
-    hook: {
-      help: '(re)write ONLY the pre-push hook, overwriting an existing one — the upgrade path after a release changes it',
-    },
+    hook: { help: 'removed in 8.0.0: StyleProof runs in CI; --upgrade removes an old hook' },
     upgrade: {
       help: "refresh every machine-owned generated file to this release's templates; never touches the spec or playwright config",
     },
@@ -78,7 +74,7 @@ const cli = defineCli({
     '  - styleproof.config.ts and .github/workflows/styleproof.yml',
     '  - with --workflow split: the trusted styleproof-report.yml stage',
     '  - with --mode review-gate: styleproof-approve.yml (active once merged to your default branch)',
-    '  - with --storage branch: .githooks/pre-push, activated when no other hook owns the slot',
+    '  - with --storage branch: a publish-base job that publishes default-branch maps',
     '  - with --manifest + --component-roots: a typed starter component manifest',
     '',
     'To capture and diff locally:',
@@ -118,7 +114,7 @@ if (manifestPath) {
   }
 }
 
-// Spec path: flag > styleproof.config > the hook-encoded env > default.
+// Spec path: flag > styleproof.config > the workflow-encoded env > default.
 function configuredSpecPath() {
   try {
     return loadStyleProofConfig().spec;
@@ -137,14 +133,16 @@ try {
   process.exit(2);
 }
 
-const hookOnly = Boolean(opts.hook);
-let PM = PACKAGE_MANAGERS.npm; // --hook is package-manager agnostic; npm is a placeholder
-if (!hookOnly) {
-  try {
-    PM = PACKAGE_MANAGERS[detectPackageManager(process.cwd(), { allowMissingManifest: true })];
-  } catch (error) {
-    fail(NAME, errorMessage(error));
-  }
+if (opts.hook)
+  fail(
+    NAME,
+    'The pre-push hook was removed in 8.0.0. StyleProof runs in CI. Run `styleproof-init --upgrade` to remove an old hook.',
+  );
+let PM;
+try {
+  PM = PACKAGE_MANAGERS[detectPackageManager(process.cwd(), { allowMissingManifest: true })];
+} catch (error) {
+  fail(NAME, errorMessage(error));
 }
 
 // Production server inference from package.json: first matching recipe wins.
@@ -190,7 +188,7 @@ if (opts['validate-server']) {
   productionServerOrExit();
   process.exit(0);
 }
-const selectedProductionServer = hookOnly ? undefined : productionServerOrExit();
+const selectedProductionServer = productionServerOrExit();
 
 // Scaffold axes: explicit flags > an existing workflow's marker line > which marker-bearing files exist.
 const CI_PATH = '.github/workflows/styleproof.yml';
@@ -202,7 +200,6 @@ const MARKERS = {
   report: '# StyleProof report workflow',
   approve: '# StyleProof approval caller',
   lint: '# StyleProof map artifact lint',
-  hook: '# StyleProof pre-push',
 };
 const hasMarker = (file, marker) => Boolean(readRegularTextFile(file)?.includes(marker));
 const BRANCH_NAME = '[A-Za-z0-9._/-]+';
@@ -219,7 +216,8 @@ function inferScaffold() {
   }
   return {
     workflow: hasMarker(REPORT_PATH, MARKERS.report) ? 'split' : 'single',
-    storage: hasMarker(hookFilePath(), MARKERS.hook) ? 'branch' : 'artifact',
+    // A hook from before 8.0.0 still marks a pre-v7 branch-storage scaffold.
+    storage: findStyleProofHooks().some((hook) => hook.kind === 'generated') ? 'branch' : 'artifact',
     gate: hasMarker(APPROVE_PATH, MARKERS.approve) ? 'review-gate' : 'advisory',
   };
 }
@@ -252,36 +250,19 @@ const templates = {
   serverMode: externalServer ? 'external' : serverCommand === undefined ? 'infer' : 'custom',
   encodedServerCommand: serverCommand === undefined ? '' : Buffer.from(serverCommand, 'utf8').toString('base64'),
 };
-const HOOK = hookTemplate(templates.encodedSpecPath);
-
-if (hookOnly) {
-  installPrePushHook(HOOK, { force: true });
-  process.exit(0);
-}
 
 // Machine-owned files are derived from this release plus init's inputs, so --upgrade may
 // rewrite them and --check can diff them. The spec and playwright config are user-owned.
 function machineOwnedFiles() {
   const lint = lintArtifactsTemplate();
   return [
-    scaffold.storage === 'branch' && { file: hookFilePath(), contents: HOOK, executable: true, marker: MARKERS.hook },
     { file: CI_PATH, contents: ciWorkflow(templates), marker: MARKERS.ci },
     scaffold.workflow === 'split' && { file: REPORT_PATH, contents: reportWorkflow(templates), marker: MARKERS.report },
     scaffold.gate === 'review-gate' && { file: APPROVE_PATH, contents: APPROVE_WORKFLOW, marker: MARKERS.approve },
     lint !== undefined && { file: LINT_ARTIFACTS_PATH, contents: lint, marker: MARKERS.lint },
   ].filter(Boolean);
 }
-// The hook has no stable ownership marker line, so it is "managed" only when byte-identical.
-const isManaged = (entry, existing) =>
-  existing !== undefined &&
-  (entry.marker === MARKERS.hook ? existing === entry.contents : existing.includes(entry.marker));
-const reportHook = (owned, activate) => {
-  const hook = owned.find((entry) => entry.marker === MARKERS.hook);
-  if (!hook) return;
-  const managed = readRegularTextFile(hook.file) === HOOK;
-  if (activate && !managed) return;
-  reportOrActivateHook(path.dirname(hook.file), hook.file, { activate, managed });
-};
+const isManaged = (entry, existing) => existing !== undefined && existing.includes(entry.marker);
 
 /** missing | unmanaged | stale | current, against this release's template. */
 function ownedFileState(entry) {
@@ -305,7 +286,7 @@ if (opts.check) {
     console.log(CHECK_LINE[state](entry.file));
     if (state === 'missing' || state === 'stale') stale++;
   }
-  reportHook(owned, false);
+  stale += reportObsoleteHooks();
   if (stale) {
     console.log(
       `\n${stale} machine-owned file(s) differ from this styleproof release — run: styleproof-init --upgrade`,
@@ -318,22 +299,23 @@ if (opts.check) {
 
 if (opts.upgrade) {
   const owned = machineOwnedFiles();
+  // Only byte-identical files count as current: rewriting an unmarked pre-v7 file
+  // records its inferred axes, which the retired hook no longer signals.
   for (const entry of owned) {
     const state = ownedFileState(entry);
     if (state === 'unmanaged') {
       console.log(
         `unmanaged ${entry.file} (left unchanged; delete it and rerun --upgrade to adopt the packaged template)`,
       );
-    } else if (state === 'current') {
+    } else if (readRegularTextFile(entry.file) === entry.contents) {
       console.log(`current   ${entry.file}`);
     } else {
       const wrote = writeFileSafe(entry.file, entry.contents, { force: true });
-      if (wrote.wrote && entry.executable) fs.chmodSync(entry.file, 0o755);
       if (wrote.wrote) console.log(`${wrote.exists ? 'refreshed' : 'created'} ${entry.file}`);
       else console.log(`unmanaged ${entry.file} (left unchanged; destination is not a regular file)`);
     }
   }
-  reportHook(owned, true);
+  retireObsoleteHooks();
   console.log('\nmachine-owned files now match this styleproof release (spec and playwright config untouched)');
   process.exit(0);
 }
@@ -430,10 +412,6 @@ if (scaffold.gate === 'review-gate')
 const lint = lintArtifactsTemplate();
 if (lint !== undefined)
   scaffoldFile(LINT_ARTIFACTS_PATH, lint, { note: 'artifact-branch guard — fails PR if maps are committed' });
-if (scaffold.storage === 'branch') {
-  const hook = installPrePushHook(HOOK);
-  if (hook.wrote) touched.push(hook.hookPath);
-}
 
 if (touched.length) {
   console.log(`\nstyleproof-init wrote only: ${touched.join(', ')}`);
@@ -468,8 +446,6 @@ for (const line of HOW[scaffold.workflow]) console.log(line);
 if (scaffold.storage === 'branch') {
   console.log(`  publish-base publishes each commit pushed to '${scaffold.branch}' to styleproof-maps;`);
   console.log('  to use another default branch, edit branch= in the workflow marker and run --upgrade.');
-  console.log('  The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
-  console.log('  Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
   console.log('  Reports publish to the styleproof-reports branch — the comment links a rendered report.');
 } else {
   console.log('  Reports upload as bounded-retention workflow artifacts — nothing enters git history.');
