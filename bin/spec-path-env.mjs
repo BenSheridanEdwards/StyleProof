@@ -1,4 +1,4 @@
-// The spec path travels from styleproof-init into the generated hook/workflow as
+// The spec path travels from styleproof-init into the generated workflow as
 // canonical base64, so a path with spaces or unicode survives shell quoting.
 export const SPEC_PATH_ENV = 'STYLEPROOF_SPEC_PATH_B64';
 export const PLAYWRIGHT_CONFIG_PATH = 'playwright.styleproof.config.ts';
