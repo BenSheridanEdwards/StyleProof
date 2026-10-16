@@ -19,7 +19,6 @@ import {
   DEFAULT_REMOTE,
   CAPTURE_OUTCOMES_ENV,
   DETERMINISM_RECEIPT,
-  MapStoreError,
   MapStoreNotFoundError,
   MapStorePreconditionError,
   clearCaptureOutput,
@@ -78,7 +77,7 @@ const cli = defineCli({
       default: env.STYLEPROOF_SHA,
     },
     upload: {
-      help: 'require upload to the map store branch after capture (--no-upload: capture locally only; default: auto — upload outside CI)',
+      help: 'publish the capture to the map store branch (default: off; STYLEPROOF_UPLOAD=1 also enables it)',
       negate: true,
     },
     restore: { help: 'restore a map from the map store instead of capturing' },
@@ -146,9 +145,8 @@ let sha = opts.sha ?? '';
 const cacheBranch =
   opts['cache-branch'] ?? env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
 const remote = opts.remote ?? env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
-// Flag > env > 'auto' (upload outside CI only).
-const uploadMode =
-  { true: 'required', false: 'off' }[opts.upload] ?? { 1: 'required', 0: 'off' }[env.STYLEPROOF_UPLOAD] ?? 'auto';
+// Flag > env > off: a capture stays local unless a publisher asks to upload.
+const uploadRequested = opts.upload ?? env.STYLEPROOF_UPLOAD === '1';
 const crawl = {
   baseUrl: opts['crawl-base-url'] ?? env.STYLEPROOF_CRAWL_BASE_URL ?? projectConfig.crawl?.baseUrl ?? '',
   routes: [...(projectConfig.crawl?.routes ?? []), ...csv(env.STYLEPROOF_CRAWL_ROUTES), ...opts['crawl-route']],
@@ -229,7 +227,7 @@ function suppressPlatformWarning() {
 }
 
 async function upload(dirPath) {
-  if (uploadMode === 'off' || (uploadMode === 'auto' && env.CI)) return;
+  if (!uploadRequested) return;
   const warning = nonLinuxUploadWarning(process.platform, suppressPlatformWarning());
   if (warning) console.error(warning);
   try {
@@ -238,11 +236,7 @@ async function upload(dirPath) {
   } catch (error) {
     const message = errorMessage(error);
     // A user-fixable precondition keeps the usage code 2; everything else is the retryable class (5).
-    if (uploadMode === 'required')
-      fail(NAME, `upload failed\n${message}`, error instanceof MapStorePreconditionError ? 2 : 5);
-    console.error(
-      `${NAME}: map captured locally; upload skipped${error instanceof MapStoreError ? ` (${message})` : ''}`,
-    );
+    fail(NAME, `upload failed\n${message}`, error instanceof MapStorePreconditionError ? 2 : 5);
   }
 }
 

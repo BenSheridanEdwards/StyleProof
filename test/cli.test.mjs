@@ -2237,3 +2237,52 @@ test('styleproof-map reads the generated spec path env below a config spec, like
     rmTmp(dir);
   }
 });
+
+test('styleproof-map keeps a local capture local unless upload is requested', () => {
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    const remote = addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const env = cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}` });
+    delete env.CI;
+    delete env.STYLEPROOF_UPLOAD;
+    const storeBranch = () =>
+      spawnSync('git', ['branch', '--list', 'styleproof-maps'], { cwd: remote, encoding: 'utf8' }).stdout.trim();
+
+    const local = spawnSync(process.execPath, [MAP, '--sha', headSha], { cwd: root, encoding: 'utf8', env });
+    assert.equal(local.status, 0, local.stderr);
+    assert.doesNotMatch(local.stderr, /uploaded/);
+    assert.equal(storeBranch(), '', 'a local capture leaves the map store untouched');
+
+    const requested = spawnSync(process.execPath, [MAP, '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...env, STYLEPROOF_UPLOAD: '1' },
+    });
+    assert.equal(requested.status, 0, requested.stderr);
+    assert.match(requested.stderr, new RegExp(`uploaded ${headSha.slice(0, 12)}`));
+    assert.equal(storeBranch(), 'styleproof-maps');
+
+    const declined = spawnSync(process.execPath, [MAP, '--sha', headSha, '--no-upload'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...env, STYLEPROOF_UPLOAD: '1' },
+    });
+    assert.equal(declined.status, 0, declined.stderr);
+    assert.doesNotMatch(declined.stderr, /uploaded/, '--no-upload wins over STYLEPROOF_UPLOAD=1');
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});

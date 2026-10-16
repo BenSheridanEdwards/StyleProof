@@ -34,6 +34,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   tip. Under `merge-base`, `base-tip-sha` differs from `base-sha` once the base
   branch has moved. All three are empty when no PR context resolves.
 
+### Changed
+
+- **BREAKING: `styleproof-map` keeps a local capture local by default.** It
+  publishes to `styleproof-maps` only when asked, with `--upload` or
+  `STYLEPROOF_UPLOAD=1`. Before, it uploaded whenever `CI` was unset, so any
+  local run published. As before, a requested upload that fails exits non-zero
+  (2 for a fixable precondition, 5 otherwise). `styleproof-ci` and the
+  generated `publish-base` job already pass the flag explicitly, so CI is
+  unchanged. A local script that relied on the old default adds `--upload`.
+
 ### Removed
 
 - **BREAKING: `styleproof-init` installs no pre-push hook.** StyleProof runs in
