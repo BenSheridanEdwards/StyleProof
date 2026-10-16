@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Pixel diff reports both one-sided strips when width and height change.**
+  Only the bottom band was emitted, so the right-hand strip present on one side
+  only was never reported, and `changedPixels` counted a corner that exists on
+  neither screenshot.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

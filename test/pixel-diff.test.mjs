@@ -79,6 +79,24 @@ test('comparePngs: a taller after-screenshot reports the extra band as a region'
   assert.deepEqual(c.regions, [{ rect: [0, 100, 100, 40], changedPixels: 4000, elements: [] }]);
 });
 
+test('comparePngs: a screenshot both wider and taller reports both one-sided strips', () => {
+  const c = comparePngs(canvas(100, 100), canvas(120, 140));
+  assert.deepEqual(c.regions, [
+    { rect: [100, 0, 20, 100], changedPixels: 2000, elements: [] },
+    { rect: [0, 100, 120, 40], changedPixels: 4800, elements: [] },
+  ]);
+  assert.equal(c.changedPixels, 120 * 140 - 100 * 100);
+});
+
+test('comparePngs: one side wider, the other taller counts only pixels present on one side', () => {
+  const c = comparePngs(canvas(120, 100), canvas(100, 140));
+  assert.deepEqual(c.regions, [
+    { rect: [100, 0, 20, 100], changedPixels: 2000, elements: [] },
+    { rect: [0, 100, 100, 40], changedPixels: 4000, elements: [] },
+  ]);
+  assert.equal(c.changedPixels, 120 * 100 + 100 * 140 - 2 * 100 * 100);
+});
+
 test('attributeRegion names the smallest captured box under the region, never html/body', () => {
   const map = makeMap({
     elements: {

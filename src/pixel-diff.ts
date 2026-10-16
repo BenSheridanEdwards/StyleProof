@@ -173,16 +173,27 @@ function countChangedCells(
   return { cols, rows, cellCounts, changedPixels };
 }
 
-/** The band present on one side only (a page that grew or shrank) is one whole region. */
-function sizeMismatchRegion(before: PNG, after: PNG, width: number, height: number): PixelRegion {
-  const bandWidth = Math.max(before.width, after.width);
-  const bandHeight = Math.max(before.height, after.height);
-  const changedPixels = bandWidth * bandHeight - width * height;
-  const rect: Rect =
-    after.height !== before.height
-      ? [0, height, bandWidth, bandHeight - height]
-      : [width, 0, bandWidth - width, bandHeight];
-  return { rect, changedPixels, elements: [] };
+/**
+ * The strips present on one side only (a page that grew, shrank, or changed width):
+ * a right strip beside the shared area and a bottom strip below it, each counting
+ * only pixels that exist on one side.
+ */
+function sizeMismatchRegions(before: PNG, after: PNG, width: number, height: number): PixelRegion[] {
+  const regions: PixelRegion[] = [];
+  const wider = before.width >= after.width ? before : after;
+  const taller = before.height >= after.height ? before : after;
+  if (wider.width > width) {
+    regions.push({
+      rect: [width, 0, wider.width - width, height],
+      changedPixels: (wider.width - width) * height,
+      elements: [],
+    });
+  }
+  if (taller.height > height) {
+    const band = taller.height - height;
+    regions.push({ rect: [0, height, taller.width, band], changedPixels: taller.width * band, elements: [] });
+  }
+  return regions;
 }
 
 /** Compare two decoded PNGs. Regions carry no element attribution yet. */
@@ -201,9 +212,10 @@ export function comparePngs(before: PNG, after: PNG, options: PixelOptions = {})
   let changedPixels = counted.changedPixels;
   const mismatched = before.width !== after.width || before.height !== after.height;
   if (mismatched) {
-    const band = sizeMismatchRegion(before, after, width, height);
-    changedPixels += band.changedPixels;
-    regions.push(band);
+    for (const band of sizeMismatchRegions(before, after, width, height)) {
+      changedPixels += band.changedPixels;
+      regions.push(band);
+    }
   }
   return {
     width,
