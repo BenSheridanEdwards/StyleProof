@@ -22,7 +22,6 @@ const GROUPS = {
   ],
   automation: [
     ['ci', 'ci', 'run the cache-aware CI capture and comparison flow'],
-    ['prepush', 'prepush', 'run the render-affecting pre-push capture guard'],
     ['publish-report', 'publish-report', 'publish a generated report for PR review'],
   ],
   maintenance: [

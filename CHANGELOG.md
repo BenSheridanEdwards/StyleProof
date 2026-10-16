@@ -48,6 +48,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof-init --hook` exits 2 and names `--upgrade`.
   `--upgrade` also writes the scaffold marker into an unmarked pre-v7
   workflow, so the axes the old hook signalled stay recorded.
+- **BREAKING: the `styleproof-prepush` command is gone.** The package no longer
+  ships the `styleproof-prepush` bin or the `styleproof prepush` subcommand.
+  Run `styleproof-init --upgrade` with the package upgrade: it removes the
+  hook earlier releases generated. A hook from 6.1.0 or later checks for the
+  bin first, so until then it prints one note and lets the push through. A
+  hook from 4.5.0 to 6.0.x runs the bin directly, so pushes from that repo
+  stop at the hook until `--upgrade` removes it; `STYLEPROOF_SKIP_CAPTURE=1
+git push` lets a single push through in the meantime. A script that calls
+  `styleproof-prepush` directly now fails with "command not found".
+  StyleProof itself no longer reads `STYLEPROOF_SKIP_CAPTURE`.
 
 ### Fixed
 
