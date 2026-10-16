@@ -1,10 +1,11 @@
 # StyleProof
 
-**Catch visual regressions before they merge.**
+**See every visual change a pull request makes, and confirm it is the change you meant.**
 
 StyleProof opens the UI states you care about in a real browser, records the computed CSS of every element on the
-base branch and on the pull request, and posts what changed as a PR comment. You approve the changes you meant. The
-ones you didn't block the merge.
+base branch and on the pull request, and posts what changed as a PR comment. The reviewer, a person or a coding agent,
+reads the report and confirms that it shows the visual change the pull request set out to make. Approve the changes
+you meant. In review-gate mode, the `StyleProof` check stays red until a reviewer approves them.
 
 [![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)

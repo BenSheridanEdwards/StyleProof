@@ -1,11 +1,12 @@
 # AGENTS.md
 
-StyleProof is a public, MIT-licensed npm package and GitHub Action that gates
-visual CSS changes on a pull request. You declare which app states matter; it
-opens them in a real browser, records the browser's computed styles, compares
-the PR head against the base branch, and posts a reviewable report. Intentional
-visual changes get approved; unexpected ones block. It is framework-agnostic and
-must stay backward-compatible and privacy-clean.
+StyleProof is a public, MIT-licensed npm package and GitHub Action that reports
+the visual CSS changes a pull request makes. You declare which app states matter;
+it opens them in a real browser, records the browser's computed styles, compares
+the PR head against the base branch, and posts a report on the pull request. The
+reviewer, a person or an agent, checks that the report shows the visual change
+the PR intends, then approves it. It is framework-agnostic and must stay
+backward-compatible and privacy-clean.
 
 This file is the tool-agnostic entry point for every agent and human. Vendor
 adapters (e.g. `CLAUDE.md`) defer here and add only vendor-specific content.
