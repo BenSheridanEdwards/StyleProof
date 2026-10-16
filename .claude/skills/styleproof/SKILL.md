@@ -28,8 +28,8 @@ This skill is the map. Each step has its own skill; follow them in order.
    `styleproof-maps` store the gate diffs against.
 4. **`styleproof-ci-gate`** — wire `BenSheridanEdwards/StyleProof@v7` as the PR
    gate; pick review-gate or certify mode; add the approve workflow + fork split.
-5. **`styleproof-prepush`** _(optional)_ — capture locally at pre-push so CI is
-   report-only.
+   StyleProof runs in CI; under `--storage branch` the `publish-base` job keeps
+   the map store warm so pull requests restore their base map.
 
 ## Use it (every PR / every check)
 

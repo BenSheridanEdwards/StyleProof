@@ -43,6 +43,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (2 for a fixable precondition, 5 otherwise). `styleproof-ci` and the
   generated `publish-base` job already pass the flag explicitly, so CI is
   unchanged. A local script that relied on the old default adds `--upload`.
+- **The docs and agent skills describe StyleProof as CI-only.** The
+  `styleproof-prepush` skill is gone, the reference drops the hook recipe and
+  flags, and the selective-remap example runs as a CI step.
 
 ### Removed
 

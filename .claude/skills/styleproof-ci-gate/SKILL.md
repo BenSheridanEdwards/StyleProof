@@ -123,5 +123,5 @@ unmeasured.
 
 ## Next
 
-`styleproof-prepush` makes CI report-only by capturing locally; `styleproof-diff`
-/ `styleproof-report` are what the gate runs.
+`styleproof-baseline` covers the map store the `publish-base` job fills;
+`styleproof-diff` / `styleproof-report` are what the gate runs.
