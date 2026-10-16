@@ -1417,7 +1417,7 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
   }
 });
 
-test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + pre-push publish hook', () => {
+test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + CI base publisher', () => {
   const dir = makeInitProject();
   try {
     // Legacy architecture is opt-in since #480: split + branch + review-gate.
@@ -1428,16 +1428,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     );
     assert.equal(r.status, 0, r.stderr);
 
-    const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
-    // Default spec path → no baked --spec: styleproof-prepush resolves the spec
-    // at run time (flag > env > styleproof.config.json > built-in).
-    assert.match(
-      hook,
-      /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
-      'hook delegates to the installed packaged pre-push command',
-    );
-    assert.doesNotMatch(hook, /styleproof-map --/, 'no inlined capture invocation to drift');
-    assert.doesNotMatch(hook, /git add/, 'maps never get committed to the PR branch');
+    assert.equal(fs.existsSync(path.join(dir, '.githooks')), false, 'StyleProof installs no git hook');
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
@@ -1472,11 +1463,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.doesNotMatch(ci, /core\.hooksPath/);
 
     assert.match(r.stdout, /Merge this scaffold PR first/, 'guidance states default-branch report activation');
-    assert.match(
-      r.stdout,
-      /pre-push hook can still restore or publish exact-SHA maps/,
-      'the least-work hook is the default',
-    );
+    assert.match(r.stdout, /publish-base publishes each commit pushed to 'main'/, 'CI keeps the map store warm');
   } finally {
     rmTmp(dir);
   }

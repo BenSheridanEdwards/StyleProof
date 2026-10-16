@@ -2,7 +2,6 @@
 // overwrite unless told to, never touch non-regular files.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 export function pathState(file) {
   try {
@@ -41,23 +40,6 @@ export function pathStateWithin(file, trustedRoot) {
 
 /** Classify a repository-generated destination relative to the current directory. */
 export const generatedPathState = (file) => pathStateWithin(file, '.');
-
-/** Classify a path under git's common dir (where default hooks live). */
-export function defaultHookPathState(file) {
-  const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { encoding: 'utf8' });
-  const commonPath = common.status === 0 ? common.stdout.trim() : '';
-  if (!commonPath || /[\r\n]/.test(commonPath)) return { kind: 'unreadable-parent' };
-  return pathStateWithin(file, commonPath);
-}
-
-export function isExecutableFile(file) {
-  try {
-    const stat = fs.lstatSync(file);
-    return stat.isFile() && (process.platform === 'win32' || (stat.mode & 0o111) !== 0);
-  } catch {
-    return false;
-  }
-}
 
 export function readRegularTextFile(file) {
   try {
