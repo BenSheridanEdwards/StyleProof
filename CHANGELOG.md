@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Breakpoint detection no longer misses bands silently.** It now reads
+  `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
+  stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial
+  font size) instead of the page's `html { font-size }`; detects an exact
+  `(width: V)` as its own band; and fails loudly on a width condition it cannot
+  resolve to px (`9in`, `calc()`, either end of a range). Because `@import`ed
+  sheets are now read, a page that `@import`s a cross-origin stylesheet fails
+  detection (an `@import` is fetched without CORS) unless `widths` is set.
 - **CI path filters fail closed.** The browser lanes (e2e shards, e2e evidence,
   detection corpus) and the four dogfood workflows ran only when a changed path
   was on a list of product paths, so anything off the list skipped them. The e2e
