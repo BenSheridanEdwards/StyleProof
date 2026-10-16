@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A surface named like an `Object.prototype` key no longer counts as
+  acknowledged incomplete UI.** `exclude[surface]` read an inherited value for
+  `constructor`, so a blocked continuation on that surface skipped the
+  fail-closed exit 6 without any exclusion file.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
