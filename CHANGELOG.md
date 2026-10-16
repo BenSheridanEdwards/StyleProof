@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The headline counts every elevated structure change.** It showed the
+  visible count or the navigable-chrome count, whichever was non-zero, while
+  the gate counted both: "1 … needs review" when 2 gated. The headline and its
+  🧱 note now use the same de-duplicated total as `reviewableCounts.dom`.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

@@ -32,6 +32,8 @@ export type HeadlineInput = {
   elevatedNavigableChromeAdds?: number;
   /** Visible paired-surface element add/remove elevated to reviewable. */
   elevatedVisibleStructure?: number;
+  /** Both elevations de-duplicated — the count that gates (`reviewableCounts.dom`). */
+  elevatedStructureDom?: number;
   contentEvaluated: boolean;
   /** Any raw-vs-presentation contradiction: must not claim "identical". */
   reportConsistency: ReportConsistency;
@@ -222,7 +224,8 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
 }
 
 function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {
-  const n = (input.elevatedVisibleStructure ?? 0) || (input.elevatedNavigableChromeAdds ?? 0);
+  const n =
+    input.elevatedStructureDom ?? ((input.elevatedVisibleStructure ?? 0) || (input.elevatedNavigableChromeAdds ?? 0));
   if (n <= 0) return undefined;
   const title =
     n === 1
@@ -313,6 +316,8 @@ function contentNoteLines(input: HeadlineInput): string[] {
   const chrome = input.globalChromeCount ?? 0;
   const elevated = input.elevatedNavigableChromeAdds ?? 0;
   const visibleElevated = input.elevatedVisibleStructure ?? 0;
+  // The gating total (visible + navigable chrome, de-duplicated), so the 🧱 note agrees with the headline.
+  const structureElevated = input.elevatedStructureDom ?? visibleElevated;
   if (chrome > 0) {
     const verdictNote =
       elevated > 0 || visibleElevated > 0
@@ -323,13 +328,14 @@ function contentNoteLines(input: HeadlineInput): string[] {
       `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below. ${verdictNote}`,
     );
   }
-  if (visibleElevated > 0 && chrome === 0) {
+  if (structureElevated > 0 && chrome === 0) {
     md.push(
       '',
-      `🧱 **${visibleElevated} visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.`,
+      `🧱 **${structureElevated} visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.`,
     );
   }
   if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {
+    // The section below lists visible add/remove as gating; its own count is visible-only.
     const note =
       visibleElevated > 0
         ? `📝 _${input.contentCount} content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._`
