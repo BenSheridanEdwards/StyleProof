@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The map-store byte budget prunes oldest-first.** A bundle that did not fit
+  was skipped and older, smaller bundles kept, so a newer bundle could be pruned
+  while an older one survived.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

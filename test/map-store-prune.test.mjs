@@ -73,6 +73,17 @@ test('budget constraint prunes oldest bundles that exceed the budget', () => {
   assert.equal(result.retainedSizeBytes, 400);
 });
 
+test('budget constraint never keeps an older bundle in place of a newer one', () => {
+  const result = selection({
+    bundles: ['oldest', 'middle', 'newest'],
+    publishedDaysAgo: { oldest: 3, middle: 2, newest: 1 },
+    budgetBytes: 500,
+    sizeBytes: { newest: 400, middle: 200, oldest: 100 },
+  });
+  assert.deepEqual(result.retainedDirectoryNames, ['newest']);
+  assert.deepEqual(result.prunedDirectoryNames, ['middle', 'oldest']);
+});
+
 test('budget constraint works with retention window', () => {
   const result = selection({
     bundles: ['aaa', 'bbb', 'ccc'],

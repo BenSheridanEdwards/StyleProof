@@ -57,11 +57,16 @@ export function selectMapBundlesToRetain(options: {
   const newestFirst = [...options.bundleDirectoryNames].sort(
     (a, b) => publishedAt(b) - publishedAt(a) || a.localeCompare(b),
   );
+  // Once a bundle overflows the budget it and everything older go (oldest pruned first):
+  // never keep an older, smaller bundle in place of a newer one.
+  let budgetExhausted = false;
   for (const name of newestFirst) {
+    const fitsBudget = budget === undefined || (!budgetExhausted && retainedSizeBytes + sizeOf(name) <= budget);
+    if (!fitsBudget) budgetExhausted = true;
     const keep =
       publishedAt(name) > options.retentionCutoffEpochSeconds &&
       retainedDirectoryNames.length < options.maximumBundleCount &&
-      (budget === undefined || retainedSizeBytes + sizeOf(name) <= budget);
+      fitsBudget;
     (keep ? retainedDirectoryNames : prunedDirectoryNames).push(name);
     if (keep) retainedSizeBytes += sizeOf(name);
   }
