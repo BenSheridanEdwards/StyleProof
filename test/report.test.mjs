@@ -4250,3 +4250,10 @@ test('a hostile element path key stays inside its code span in report.md and rep
     rmTmp(root);
   }
 });
+
+test('codeValue escapes only the pipe, leaving backslashes for cmark-gfm to render as written', () => {
+  // GitHub's table parser splits at a `|` without a backslash directly before it and unescapes
+  // `\|` alone, so the cell below renders as `content: "a\|b" | x\\|y` exactly as captured.
+  const value = String.raw`content: "a\|b" | x\\|y`;
+  assert.equal(reportMarkdown.codeValue(value), '`' + String.raw`content: "a\\|b" \| x\\\|y` + '`');
+});
