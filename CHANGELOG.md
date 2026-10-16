@@ -20,6 +20,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The pre-push hook restores maps with your environment.** `restoreMap` ran
+  `styleproof-map --restore` with only one variable set when the caller passed
+  no env (the pre-push hook), dropping `PATH`, `HOME`, `STYLEPROOF_CACHE_BRANCH`
+  and git credentials: a custom cache branch was ignored, and a plain cache miss
+  could read as a network fault that blocked the push. It now defaults to the
+  consumer's environment.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at

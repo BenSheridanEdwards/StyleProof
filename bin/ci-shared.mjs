@@ -5,7 +5,7 @@ import { classifyRestoreExit } from '../dist/ci.js';
 import { classifyColdReasonFromMissMessage, extractColdReasonFromLog } from '../dist/map-hit-observability.js';
 import { resolveStyleProofConfigPath, specPathForCwd } from '../dist/config.js';
 import { decodeSpecPathEnv, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
-import { runBin } from './cli.mjs';
+import { childEnv, runBin } from './cli.mjs';
 
 export const DEFAULT_SPEC = 'e2e/styleproof.spec.ts';
 
@@ -36,7 +36,8 @@ export function restoreMap(mapArgs, { cwd, env, dir = '', next } = {}) {
   // Pipe so we can read cold_reason= from the map CLI, then forward streams unchanged.
   const r = runBin('styleproof-map', ['--restore', ...mapArgs], {
     cwd,
-    env: { ...env, STYLEPROOF_SUPPRESS_MAP_RESTORE_OBSERVE: '1' },
+    // No env from the caller (the pre-push hook) means the consumer's own env, never an empty one.
+    env: { ...(env ?? childEnv(cwd)), STYLEPROOF_SUPPRESS_MAP_RESTORE_OBSERVE: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const stdout = r.stdout?.toString?.('utf8') ?? (typeof r.stdout === 'string' ? r.stdout : '');

@@ -161,3 +161,59 @@ test('styleproof-prepush: a map-store fault fails loudly instead of recapturing'
     rmTmp(root);
   }
 });
+
+test('restoreMap without an env (the pre-push call) keeps the consumer env, e.g. a custom cache branch', async () => {
+  const { restoreMap } = await import('../bin/ci-shared.mjs');
+  const root = mkTmp();
+  const saved = {
+    branch: process.env.STYLEPROOF_CACHE_BRANCH,
+    attempts: process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS,
+  };
+  const silenced = { out: process.stdout.write, err: process.stderr.write };
+  try {
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'repo');
+    const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' }).stdout.trim();
+    git(root, 'init', '-q', '--bare', remote);
+    fs.mkdirSync(path.join(repo, 'e2e'), { recursive: true });
+    git(repo, 'init', '-q');
+    git(repo, 'config', 'user.email', 'test@example.com');
+    git(repo, 'config', 'user.name', 'test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'e2e', 'styleproof.spec.ts'), '//');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-qm', 'init');
+    // Only the custom map-store branch exists on the remote.
+    git(repo, 'push', '-q', 'origin', 'HEAD:refs/heads/custom-maps');
+    const sha = git(repo, 'rev-parse', 'HEAD');
+    process.env.STYLEPROOF_CACHE_BRANCH = 'custom-maps';
+    process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = '1';
+    process.stdout.write = process.stderr.write = () => true;
+    const args = [
+      '--sha',
+      sha,
+      '--dir',
+      'current',
+      '--base-dir',
+      path.join(root, 'maps'),
+      '--spec',
+      'e2e/styleproof.spec.ts',
+    ];
+    const result = restoreMap(args, { cwd: repo, next: 'Retry the push.' });
+    process.stdout.write = silenced.out;
+    process.stderr.write = silenced.err;
+    assert.equal(result.hit, false);
+    assert.notEqual(result.coldReason, 'branch_missing', 'the restore probed the custom branch, not styleproof-maps');
+  } finally {
+    process.stdout.write = silenced.out;
+    process.stderr.write = silenced.err;
+    for (const [key, value] of [
+      ['STYLEPROOF_CACHE_BRANCH', saved.branch],
+      ['STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS', saved.attempts],
+    ]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmTmp(root);
+  }
+});
