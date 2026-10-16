@@ -20,6 +20,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Crop pairs show the same page rectangle on both sides.** When the change
+  grew or shrank the page, each side's crop was clamped to its own screenshot,
+  so a box near the bottom showed different page regions left and right — a
+  spurious shift, and identical content reported as a changed pair. When the
+  box lies in the area both screenshots cover, the pair now clamps one origin to
+  the smaller screenshot; a change past the shorter page's end keeps per-side
+  cropping so it stays visible.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
