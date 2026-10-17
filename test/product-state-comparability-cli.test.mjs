@@ -358,6 +358,29 @@ test('unbound diff CLI lists the changed properties of an undeclared legacy pair
   }
 });
 
+test('unbound report lists an undeclared legacy pair advisory-only, never as reviewable evidence', () => {
+  const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
+  armUndeclaredLedger(capture);
+  try {
+    const out = path.join(capture.root, 'report-advisory');
+    const result = spawnSync(
+      process.execPath,
+      [REPORT, capture.before, capture.after, '--out', out, '--include-layout-noise'],
+      { cwd: capture.root, encoding: 'utf8' },
+    );
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+    assert.match(markdown, /Product-state identity unproven\*\* \(undeclared legacy pair\)/);
+    assert.match(markdown, /\| `color` \| `#d6e4e8` \| `#c8e4e8` \|/);
+    const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+    assert.equal(reportJson.comparison.blocksCertification, true);
+    assert.equal(reportJson.comparison.hasReviewableEvidence, false);
+    assert.deepEqual(reportJson.reportConsistency, { ok: true, reason: 'aligned' });
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
 test('--require-state-identity keeps an unbound undeclared legacy pair non-certifying with exit 1', () => {
   const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
   armUndeclaredLedger(capture);
