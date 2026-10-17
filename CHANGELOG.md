@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A forced-state target inside a live region no longer diffs.** The state
+  layer filtered only the owner path, so a `:hover` delta on an element under a
+  volatile root was still compared and counted.
 - **A capture named like an `Object.prototype` key is an ordinary surface.**
   The directory index was a plain object, so a one-sided `constructor` capture
   crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
