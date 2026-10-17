@@ -436,7 +436,7 @@ test('scopedBaseAuthoringKeys parses base maps only for a scoped verdict', () =>
     // A full remap never reads authoring keys, so it must not parse (or trip on) a base map.
     assert.equal(scopedBaseAuthoringKeys('all', dir), null);
     assert.equal(scopedBaseAuthoringKeys(null, dir), null);
-    assert.throws(() => scopedBaseAuthoringKeys(new Set(['dashboard']), dir));
+    assert.throws(() => scopedBaseAuthoringKeys(new Set(['dashboard']), dir), /broken@1280\.json is corrupt/);
     fs.rmSync(path.join(dir, 'broken@1280.json'));
     assert.deepEqual([...scopedBaseAuthoringKeys(new Set(['dashboard']), dir)], ['dashboard']);
   } finally {
