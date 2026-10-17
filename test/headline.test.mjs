@@ -16,6 +16,7 @@ function baseInput(overrides = {}) {
     volatileCount: 0,
     liveCandidateLabels: [],
     contentCount: 0,
+    elevatedStructureDom: 0,
     contentEvaluated: true,
     reportConsistency: { ok: true, reason: 'aligned' },
     baseline: { surfaceFailures: [], failures: [], undeclaredOnBase: [] },

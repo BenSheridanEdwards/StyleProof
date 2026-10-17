@@ -33,7 +33,7 @@ export type HeadlineInput = {
   /** Visible paired-surface element add/remove elevated to reviewable. */
   elevatedVisibleStructure?: number;
   /** Both elevations de-duplicated — the count that gates (`reviewableCounts.dom`). */
-  elevatedStructureDom?: number;
+  elevatedStructureDom: number;
   contentEvaluated: boolean;
   /** Any raw-vs-presentation contradiction: must not claim "identical". */
   reportConsistency: ReportConsistency;
@@ -224,8 +224,7 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
 }
 
 function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {
-  const n =
-    input.elevatedStructureDom ?? ((input.elevatedVisibleStructure ?? 0) || (input.elevatedNavigableChromeAdds ?? 0));
+  const n = input.elevatedStructureDom;
   if (n <= 0) return undefined;
   const title =
     n === 1
@@ -317,7 +316,7 @@ function contentNoteLines(input: HeadlineInput): string[] {
   const elevated = input.elevatedNavigableChromeAdds ?? 0;
   const visibleElevated = input.elevatedVisibleStructure ?? 0;
   // The gating total (visible + navigable chrome, de-duplicated), so the 🧱 note agrees with the headline.
-  const structureElevated = input.elevatedStructureDom ?? visibleElevated;
+  const structureElevated = input.elevatedStructureDom;
   if (chrome > 0) {
     const verdictNote =
       elevated > 0 || visibleElevated > 0
