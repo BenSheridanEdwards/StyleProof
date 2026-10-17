@@ -1,24 +1,44 @@
 ## 🗺️ StyleProof report
 
-**1 visible element addition/removal needs review**
+**1 change needs review**
 
-_Approve all changes clears STYLE_REVIEW_REQUIRED for these structure elevations (with other reviewable changes)._
+**1 distinct change** (1 computed-style difference(s)) in 1 changed surface base with an existing baseline.
 
-🧱 **1 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
+## Changes
 
----
+### **Panel** `main.panel` · 1 element restyled
 
-## 📝 Content and structure changes
+_home @ 320_
 
-_1 content/structure change(s). **Visible element additions/removals (1) are reviewable** and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
+`color` `#000000` → `#ff0000`
 
-### `home@320` · 1 content/structure change(s)
+![before ◀ │ ▶ after](crops/home-320-1-composite.png)
 
-**`button.action`**
+<sub>◀ before  ·  after ▶ — home @ 320</sub>
 
-- element added
+<details>
+<summary>Show highlight overlay</summary>
 
-_No distinct before/after crop for this element added (the cropped region matches on both screenshots). The element itself was added — this is not a claim that the change has no visible effect._
+![highlighted before ◀ │ ▶ after](crops/home-320-1-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `main.panel`</sub>
+
+</details>
+
+- **`main.panel`** — text black (`#000000`) → red (`#ff0000`)
+
+<details>
+<summary>Show the property change</summary>
+
+**Panel** `main.panel`
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `color` | `#000000` | `#ff0000` |
+
+</details>
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
