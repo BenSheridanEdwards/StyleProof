@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Selective remap recaptures everything when the base has a surface it
+  never analysed.** A spec surface missing from `affected.surfaces` was skipped
+  by the runner and its base map published as the head map, unchecked. Base
+  surfaces are matched by their authoring key, so `about-team` is not mistaken
+  for a variant of `about`.
 - **Named grid lines no longer count as tracks.** Chromium serialises named
   lines in computed `grid-template-columns`, so adding line names read as
   `columns: 2 → 6` and skewed the grouping signature.

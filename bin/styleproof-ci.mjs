@@ -44,6 +44,7 @@ import {
   decideSelectiveRemap,
   formatSelectiveRemapPlan,
   resolveSelectiveRemapOptIn,
+  scopedBaseAuthoringKeys,
   selectiveCaptureEnv,
   surfaceKeysInMapDir,
   tryComputeAffectedVerdict,
@@ -519,6 +520,7 @@ function planHeadSelectiveRemap(baseMapsDir, consumerRoot, loaded) {
     verdict: attempt.verdict,
     verdictReason: attempt.reason,
     baseSurfaceKeys: baseKeys,
+    baseAuthoringKeys: scopedBaseAuthoringKeys(attempt.verdict, baseMapsDir),
   });
 }
 
