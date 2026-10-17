@@ -133,7 +133,11 @@ export function trackCount(v: string): number {
   if (v === 'none' || !v) return 0;
   const rep = v.match(/×(\d+)/); // summarizeProps collapses "8px 8px 8px" → "8px ×3"
   if (rep) return Number(rep[1]);
-  return v.split(/\s+/).filter((t) => t && t !== '0px' && t !== '0').length;
+  // Named grid lines (`[content-start] 100px [content-end]`) are not tracks.
+  return v
+    .replace(/\[[^\]]*\]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t && t !== '0px' && t !== '0').length;
 }
 
 // Per-element phrase building: one small rule per visual category.

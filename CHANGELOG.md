@@ -19,6 +19,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   compared. **Upgrade note:** a base map captured under the old rule can flag
   the second ticker as head-only volatile (not certified) until the base is
   re-captured with this version.
+- **Crop pairs show the same page rectangle on both sides.** When the change
+  grew or shrank the page, each side's crop was clamped to its own screenshot,
+  so a box near the bottom showed different page regions left and right — a
+  spurious shift, and identical content reported as a changed pair. When the
+  box lies in the area both screenshots cover, the pair now clamps one origin to
+  the smaller screenshot; a change past the shorter page's end keeps per-side
+  cropping so it stays visible.
+- **report.html no longer turns a CSS value into a live link.** A value
+  carrying `|` is written as `\|` so the report.md table row survives on
+  GitHub, but report.html split the row on every pipe. Text after the pipe left
+  its code span and a `[label](javascript:…)` in it became a live link. The
+  table renderer now splits only on unescaped pipes; inline text renders
+  Markdown backslash escapes and entities once (no more `&amp;lt;` or stray
+  `\_`); and links and images only render for http(s) or relative targets.
+- **Named grid lines no longer count as tracks.** Chromium serialises named
+  lines in computed `grid-template-columns`, so adding line names read as
+  `columns: 2 → 6` and skewed the grouping signature.
+- **A forced-state target inside a live region no longer diffs.** The state
+  layer filtered only the owner path, so a `:hover` delta on an element under a
+  volatile root was still compared and counted.
 - **A capture named like an `Object.prototype` key is an ordinary surface.**
   The directory index was a plain object, so a one-sided `constructor` capture
   crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
