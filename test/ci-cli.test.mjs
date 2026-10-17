@@ -2464,3 +2464,32 @@ exit 0
     }
   },
 );
+
+test('applySpecRefOverlay: an empty file in the spec directory overlays as an empty file', () => {
+  const root = mkTmp('styleproof-ci-spec-ref-empty-');
+  const git = (args) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.email', 'styleproof@example.test']);
+    git(['config', 'user.name', 'StyleProof Test']);
+    fs.mkdirSync(path.join(root, 'e2e'));
+    fs.writeFileSync(path.join(root, 'e2e', 'styleproof.spec.ts'), '// base spec\n');
+    fs.writeFileSync(path.join(root, 'e2e', '.gitkeep'), '');
+    git(['add', '-A']);
+    git(['commit', '-qm', 'base']);
+    fs.writeFileSync(path.join(root, 'e2e', 'styleproof.spec.ts'), '// head spec\n');
+    git(['add', '-A']);
+    git(['commit', '-qm', 'head']);
+    const head = git(['rev-parse', 'HEAD']);
+    git(['checkout', '-q', 'HEAD~1']);
+    applySpecRefOverlay({ spec: 'e2e/styleproof.spec.ts', specRef: head, cwd: root });
+    assert.equal(fs.readFileSync(path.join(root, 'e2e', 'styleproof.spec.ts'), 'utf8'), '// head spec\n');
+    assert.equal(fs.readFileSync(path.join(root, 'e2e', '.gitkeep'), 'utf8'), '');
+  } finally {
+    rmTmp(root);
+  }
+});

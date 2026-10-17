@@ -43,7 +43,7 @@ export function aggregateIncompleteUi(
     .map(([surface, reasons]) => ({
       surface,
       reasons: [...reasons].sort(),
-      ...(exclude[surface] ? { acknowledgedReason: exclude[surface] } : {}),
+      ...(Object.hasOwn(exclude, surface) && exclude[surface] ? { acknowledgedReason: exclude[surface] } : {}),
     }));
 }
 
