@@ -17,6 +17,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   as they already did for a declared pair. The verdict, exit code and
   certification receipts are unchanged. Source-bound runs (the Action),
   `--require-state-identity` and failing critical obligations still hide them.
+- **A surface named like an `Object.prototype` key no longer counts as
+  acknowledged incomplete UI.** `exclude[surface]` read an inherited value for
+  `constructor`, so a blocked continuation on that surface skipped the
+  fail-closed exit 6 without any exclusion file.
 - **In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
   fires `popstate` for a fragment jump, so the navigation observer re-queued the
   current page (`docs-2`). Popstate now reports only a new path or query, or a
