@@ -13,7 +13,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The selector was wrapped in a single backtick without escaping, so a backtick
   in a map-supplied element path closed the span and the rest rendered as
   Markdown, including links in report.md and live links in report.html. Labels
-  now go through `codeValue`, like every other map-supplied value.
+  now go through `codeValue`, like every other map-supplied value. The same
+  holds for the paths in the headline's newly-volatile and base-only-volatile
+  subtree lists, and their surface keys go through `safeKey`.
 
 ## [8.0.1] - 2026-10-17
 
