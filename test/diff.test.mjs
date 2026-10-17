@@ -1311,3 +1311,28 @@ test('a :hover margin resolves its sentinel side to the resting value before the
     [['margin-left', 'margin-right']],
   );
 });
+
+test('diffStyleMapDirs treats a capture named like an Object.prototype key as a surface', () => {
+  const dirs = { a: mkTmp(), b: mkTmp() };
+  try {
+    writeCapture(dirs.a, 'home@1280', makeMap({}), null);
+    writeCapture(dirs.b, 'home@1280', makeMap({}), null);
+    writeCapture(dirs.a, 'constructor', makeMap({}), null);
+    const removed = diffStyleMapDirs(dirs.a, dirs.b).surfaces.filter((s) => s.missing);
+    assert.deepEqual(
+      removed.map((s) => [s.surface, s.missing]),
+      [['constructor', 'after']],
+    );
+    // Mirror: only on the head side.
+    fs.rmSync(path.join(dirs.a, 'constructor.json.gz'));
+    writeCapture(dirs.b, 'constructor', makeMap({}), null);
+    const added = diffStyleMapDirs(dirs.a, dirs.b).surfaces.filter((s) => s.missing);
+    assert.deepEqual(
+      added.map((s) => [s.surface, s.missing, s.isNew]),
+      [['constructor', 'before', true]],
+    );
+  } finally {
+    rmTmp(dirs.a);
+    rmTmp(dirs.b);
+  }
+});

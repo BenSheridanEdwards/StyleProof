@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A capture named like an `Object.prototype` key is an ordinary surface.**
+  The directory index was a plain object, so a one-sided `constructor` capture
+  crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
+  and `auditLiveTextDirs`) instead of being reported as removed or new.
 - **A one-sided `:hover`/`:focus` margin that a state adds or removes is no
   longer dropped from certification.** The layout-equivalent margin filter read a state delta's
   "state does not change it" side as an unknown px value and treated it as
