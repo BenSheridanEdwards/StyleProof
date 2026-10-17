@@ -19,6 +19,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Google Fonts) is skipped, as before. **Behaviour change:** a page with a
   width query detection cannot resolve to px now fails detection instead of
   silently missing that band; set `widths` on the surface to skip detection.
+- **In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
+  fires `popstate` for a fragment jump, so the navigation observer re-queued the
+  current page (`docs-2`). Popstate now reports only a new path or query, or a
+  hash-router fragment (`#/…`, `#!/…`).
 - **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
   ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
   merged, so removing one went unseen. They now keep Unicode letters, combining
