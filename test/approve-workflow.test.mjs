@@ -652,7 +652,7 @@ test('example approval workflow is marked as deprecated (#598)', () => {
   assert.match(approveYml, /prefer the reusable workflow/i, 'example file should point to the reusable workflow');
   assert.match(
     approveYml,
-    /BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v7/,
+    /BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v8/,
     'example file should show the reusable workflow reference',
   );
 });
@@ -685,7 +685,7 @@ test('dogfood approve stub is a thin caller of the reusable at main (#644)', () 
   assert.doesNotMatch(executable, /require-approval/, 'must not enable require-approval; that is the Action input');
   assert.doesNotMatch(executable, /fail-on-diff/, 'must not change certify or advisory evidence');
   assert.match(reference, /thin caller/);
-  assert.match(reference, /styleproof-approve-reusable\.yml@v7/);
+  assert.match(reference, /styleproof-approve-reusable\.yml@v8/);
   assert.match(reference, /pinned to `@main`/);
   assert.match(reference, /does not set `require-approval`/);
 });
