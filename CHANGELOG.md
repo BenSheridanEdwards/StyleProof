@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Named grid lines no longer count as tracks.** Chromium serialises named
+  lines in computed `grid-template-columns`, so adding line names read as
+  `columns: 2 → 6` and skewed the grouping signature.
 - **A forced-state target inside a live region no longer diffs.** The state
   layer filtered only the owner path, so a `:hover` delta on an element under a
   volatile root was still compared and counted.
