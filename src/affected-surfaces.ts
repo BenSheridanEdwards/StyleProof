@@ -235,9 +235,9 @@ function reverseReach(file: string, rev: Map<string, Set<string>>): Set<string> 
 }
 
 /**
- * Render an {@link affectedSurfaces} verdict as lines a pre-push hook or CI log
- * can print. `allSurfaces` names what is reused from base; `reason` optionally
- * explains an `'all'` verdict.
+ * Render an {@link affectedSurfaces} verdict as lines a CI log can print.
+ * `allSurfaces` names what is reused from base; `reason` optionally explains an
+ * `'all'` verdict.
  */
 export function explainAffectedSurfaces(
   result: AffectedSurfaces,
