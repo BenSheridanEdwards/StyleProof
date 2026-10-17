@@ -161,3 +161,49 @@ test('report.html escapes map-supplied text on caption, summary, and comment lin
   assert.match(html, /<sub>before · home @ 1280 · popup <code>&lt;img src=x onerror=alert\(1\)&gt;<\/code><\/sub>/);
   assert.match(html, /<summary>&lt;img src=x onerror=alert\(1\)&gt;<\/summary>/);
 });
+
+test('report.html keeps an escaped `\\|` inside its table cell and code span (no cell split, no live link)', () => {
+  const html = renderReportHtml(
+    [
+      '| Property | Before | After |',
+      '| --- | --- | --- |',
+      '| `font-family` | `serif` | `"\\|[Open full diff](javascript:alert%28document.domain%29)\\|"` |',
+    ].join('\n'),
+  );
+  assert.match(
+    html,
+    /<tr><td><code>font-family<\/code><\/td><td><code>serif<\/code><\/td><td><code>&quot;\|\[Open full diff\]\(javascript:alert%28document.domain%29\)\|&quot;<\/code><\/td><\/tr>/,
+  );
+  assert.doesNotMatch(html, /href="javascript:/);
+});
+
+test('report.html renders Markdown backslash escapes and entities once, never as live links', () => {
+  // escapeInlineMarkdown output for `[Open](javascript:x)`, `a<b`, `news_ticker`, `R&D`.
+  const html = renderReportHtml('Candidates: div.\\[Open\\](javascript:x); div.a&lt;b; div.news\\_ticker; R&amp;D');
+  assert.match(html, /div\.\[Open\]\(javascript:x\); div\.a&lt;b; div\.news_ticker; R&amp;D/);
+  assert.doesNotMatch(html, /<a /);
+  assert.doesNotMatch(html, /&amp;lt;|&amp;amp;/);
+});
+
+test('report.html only links http(s) and relative URLs', () => {
+  const html = renderReportHtml(
+    [
+      '[ok](https://example.com/run) [rel](crops/a.png) [bad](javascript:alert%281%29) [bad2](data:text/html,x)',
+      '',
+      '![shot](crops/a-composite.png) ![bad](javascript:alert%281%29)',
+    ].join('\n'),
+  );
+  assert.match(html, /<a href="https:\/\/example\.com\/run">ok<\/a>/);
+  assert.match(html, /<a href="crops\/a\.png">rel<\/a>/);
+  assert.match(html, /<img src="crops\/a-composite\.png"/);
+  assert.doesNotMatch(html, /href="(?:javascript|data):|src="javascript:/);
+});
+
+test('report.html refuses a non-http(s) link hidden behind a leading control character', () => {
+  // Browsers strip leading C0 controls from a URL, so `\u0001javascript:` would still run.
+  assert.doesNotMatch(renderReportHtml('[c](\u0001javascript:alert%281%29)'), /<a /);
+});
+
+test('report.html does not open a code span at a backslash-escaped backtick', () => {
+  assert.match(renderReportHtml('**x\\`y** `sel`'), /<strong>x`y<\/strong> <code>sel<\/code>/);
+});

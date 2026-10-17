@@ -1277,3 +1277,90 @@ test('diffStyleMaps regression guard: detects false positive on unchanged elemen
   const falsePositive = findings.find((f) => f.path === HERO_PATH);
   assert.ok(falsePositive, 'false positive on unchanged element is detectable');
 });
+
+test('a forced-state target inside a live region never diffs, like its element layer', () => {
+  const feed = 'body > ul:nth-child(2)';
+  const btn = 'body > button:nth-child(1)';
+  const el = (tag) => ({ tag, cls: '', style: {} });
+  const a = { defaults: {}, volatile: [feed], elements: { [btn]: el('button') }, states: { [btn]: { hover: {} } } };
+  const b = {
+    defaults: {},
+    elements: { [btn]: el('button'), [feed]: el('ul'), [`${feed} > li:nth-child(1)`]: el('li') },
+    states: { [btn]: { hover: { [`${feed} > li:nth-child(1)`]: { color: 'rgb(255, 0, 0)' } } } },
+  };
+  assert.deepEqual(diffStyleMaps(a, b), []);
+});
+
+test("a forced-state change to a live region root's own ::before never diffs", () => {
+  const feed = 'body > ul:nth-child(2)';
+  const btn = 'body > button:nth-child(1)';
+  const el = (tag) => ({ tag, cls: '', style: {} });
+  for (const pseudo of ['::before', '::after']) {
+    const a = { defaults: {}, volatile: [feed], elements: { [btn]: el('button') }, states: { [btn]: { hover: {} } } };
+    const b = {
+      defaults: {},
+      elements: { [btn]: el('button'), [feed]: el('ul') },
+      states: { [btn]: { hover: { [`${feed}${pseudo}`]: { color: 'rgb(255, 0, 0)' } } } },
+    };
+    assert.deepEqual(diffStyleMaps(a, b), [], pseudo);
+  }
+});
+
+test('a new one-sided :hover margin is a state finding, even when certification omits structure', () => {
+  const btn = 'body > button:nth-child(1)';
+  const el = { tag: 'button', cls: '', rect: [0, 0, 100, 40], style: {} };
+  const base = { defaults: {}, elements: { [btn]: el }, states: {} };
+  const head = {
+    defaults: {},
+    elements: { [btn]: el },
+    states: { [btn]: { hover: { [btn]: { 'margin-left': '40px' } } } },
+  };
+  for (const includeStructure of [true, false]) {
+    assert.deepEqual(
+      diffStyleMaps(base, head, { includeStructure }).map((f) => f.props.map((p) => p.prop)),
+      [['margin-left']],
+    );
+  }
+});
+
+test('a :hover margin resolves its sentinel side to the resting value before the balance check', () => {
+  // Resting margins 0 / 20px; the hover sets both to 40px: a 40px and a 20px move, not an echo.
+  const btn = 'body > button:nth-child(1)';
+  const el = { tag: 'button', cls: '', rect: [0, 0, 100, 40], style: { 'margin-right': '20px' } };
+  const defaults = { button: { 'margin-left': '0px', 'margin-right': '0px' } };
+  const base = { defaults, elements: { [btn]: el }, states: {} };
+  const head = {
+    defaults,
+    elements: { [btn]: el },
+    states: { [btn]: { hover: { [btn]: { 'margin-left': '40px', 'margin-right': '40px' } } } },
+  };
+  assert.deepEqual(
+    diffStyleMaps(base, head, { includeStructure: false }).map((f) => f.props.map((p) => p.prop)),
+    [['margin-left', 'margin-right']],
+  );
+});
+
+test('diffStyleMapDirs treats a capture named like an Object.prototype key as a surface', () => {
+  const dirs = { a: mkTmp(), b: mkTmp() };
+  try {
+    writeCapture(dirs.a, 'home@1280', makeMap({}), null);
+    writeCapture(dirs.b, 'home@1280', makeMap({}), null);
+    writeCapture(dirs.a, 'constructor', makeMap({}), null);
+    const removed = diffStyleMapDirs(dirs.a, dirs.b).surfaces.filter((s) => s.missing);
+    assert.deepEqual(
+      removed.map((s) => [s.surface, s.missing]),
+      [['constructor', 'after']],
+    );
+    // Mirror: only on the head side.
+    fs.rmSync(path.join(dirs.a, 'constructor.json.gz'));
+    writeCapture(dirs.b, 'constructor', makeMap({}), null);
+    const added = diffStyleMapDirs(dirs.a, dirs.b).surfaces.filter((s) => s.missing);
+    assert.deepEqual(
+      added.map((s) => [s.surface, s.missing, s.isNew]),
+      [['constructor', 'before', true]],
+    );
+  } finally {
+    rmTmp(dirs.a);
+    rmTmp(dirs.b);
+  }
+});
