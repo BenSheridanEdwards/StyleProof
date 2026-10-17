@@ -24,22 +24,22 @@ evidence the older package never wrote.
 Do not soft-pass a Visual / StyleProof failure to “get past” a pin skew. Fix the
 pins (or restore a known-good pair) first.
 
-## SHA pin vs `@v7`
+## SHA pin vs `@v8`
 
-| Target | When to use |
-| --- | --- |
-| **Commit SHA** (full or unambiguous short SHA of StyleProof `main`) | Prefer while the published major tag (`@v7`) **lags tip**. Example tip at time of writing: `3fd7d089`. |
-| **`@v7` / `styleproof@^7`** | Prefer **after** a release moves `@v7` (and the npm major) onto that tip. |
+| Target                                                              | When to use                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Commit SHA** (full or unambiguous short SHA of StyleProof `main`) | Prefer while the published major tag (`@v8`) **lags tip**. Pin the tip SHA you need. |
+| **`@v8` / `styleproof@^8`**                                         | Prefer **after** a release moves `@v8` (and the npm major) onto that tip.            |
 
 Practical rule:
 
-- If `npm view styleproof version` / the Action’s `@v7` still resolves to an older
-  commit than the tip you need (for example tip `3fd7d089` while `@v7` still
-  points at an earlier SHA such as `e8291d19`), **pin the tip SHA** for both
+- If `npm view styleproof version` / the Action’s `@v8` still resolves to an older
+  commit than the tip you need (for example a fix merged to `main` after the
+  last release), **pin the tip SHA** for both
   Action and package until a release lands.
-- After that release, you may switch both pins to `@v7` / `^7` together.
+- After that release, you may switch both pins to `@v8` / `^8` together.
 
-Never leave Action on `@v7` and package on a tip SHA (or the reverse) for a
+Never leave Action on `@v8` and package on a tip SHA (or the reverse) for a
 production Visual path.
 
 ## `workflow_run` consumers: main-first Action bump
@@ -65,8 +65,8 @@ they do not require the main-first step.
 
 Copy into the consumer PR description:
 
-- [ ] StyleProof **package** pin updated to tip SHA _or_ to `@v7`/`^7` after release
-- [ ] StyleProof **Action** `uses:` pin updated to the **same** tip SHA _or_ `@v7`
+- [ ] StyleProof **package** pin updated to tip SHA _or_ to `@v8`/`^8` after release
+- [ ] StyleProof **Action** `uses:` pin updated to the **same** tip SHA _or_ `@v8`
 - [ ] Pins match (no Action/package skew)
 - [ ] If the classify job is `workflow_run`: Action bump is on **consumer `main`**
       (or already merged there) before relying on tip classify behavior
