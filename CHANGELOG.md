@@ -9,6 +9,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Breakpoint detection no longer misses bands silently.** It now reads
+  `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
+  stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial
+  font size) instead of the page's `html { font-size }`; detects an exact
+  `(width: V)` as its own band; and fails loudly on a width condition it cannot
+  resolve to px (`9in`, `calc()`, either end of a range). A cross-origin
+  `@import` it cannot read (an `@import` is fetched without CORS, as with
+  Google Fonts) is skipped, as before. **Behaviour change:** a page with a
+  width query detection cannot resolve to px now fails detection instead of
+  silently missing that band; set `widths` on the surface to skip detection.
 - **Crop pairs show the same page rectangle on both sides.** When the change
   grew or shrank the page, each side's crop was clamped to its own screenshot,
   so a box near the bottom showed different page regions left and right — a

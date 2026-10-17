@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mediaTextWidthBoundaries, widthsFromBoundaries } from '../dist/breakpoints.js';
+import { hasUnparsedWidthCondition, mediaTextWidthBoundaries, widthsFromBoundaries } from '../dist/breakpoints.js';
 import { performance } from 'node:perf_hooks';
 
 // ----------------------------------------- mediaTextWidthBoundaries (parsing real @media text)
@@ -29,10 +29,44 @@ test('range syntax mirrored: V <op> width', () => {
   assert.deepEqual(mediaTextWidthBoundaries('(600px > width)'), [600]); // == width < 600
 });
 
-test('em/rem resolved against the root font size', () => {
-  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 40em)', 16), [640]);
-  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 48rem)', 16), [768]);
-  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 40em)', 10), [400]); // non-default root
+test('em/rem resolve against 16px, the Media Queries initial font size', () => {
+  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 40em)'), [640]);
+  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 48rem)'), [768]);
+  // The exported helper still honours an explicit base; detection never passes one.
+  assert.deepEqual(mediaTextWidthBoundaries('(min-width: 40em)', 10), [400]);
+});
+
+test('exact width opens bands at V and V+1', () => {
+  assert.deepEqual(mediaTextWidthBoundaries('(width: 600px)'), [600, 601]);
+  assert.deepEqual(mediaTextWidthBoundaries('(width = 600px)'), [600, 601]);
+  assert.deepEqual(mediaTextWidthBoundaries('(600px = width)'), [600, 601]);
+});
+
+test('hasUnparsedWidthCondition flags width conditions detection cannot resolve', () => {
+  for (const unresolved of [
+    '(min-width: 9in)',
+    '(min-width: 40ch)',
+    '(width >= calc(900px))',
+    '(400px <= width <= 9in)',
+    '(9in <= width <= 700px)',
+  ]) {
+    assert.equal(hasUnparsedWidthCondition(unresolved), true, unresolved);
+  }
+  for (const resolved of [
+    '(min-width: 768px)',
+    '(min-width: 40em)',
+    '(400px <= width <= 900px)',
+    '(width: 600px)',
+    '(600px = width)',
+    '(min-width: 0)',
+    '(width >= 0)',
+    '(width)',
+    '(min-device-width: 500px)',
+    'screen and ((min-width: 600px) and (max-width: 900px))',
+    '(prefers-color-scheme: dark)',
+  ]) {
+    assert.equal(hasUnparsedWidthCondition(resolved), false, resolved);
+  }
 });
 
 test('non-width conditions yield nothing', () => {
