@@ -4216,3 +4216,56 @@ test('findings exhaustiveness: invented finding in report = FAIL (#613)', () => 
 
   rmTmp(root);
 });
+
+test('a hostile element path key stays inside its code span in report.md and report.html', () => {
+  // Element path keys come from the capture map (untrusted in the fork split).
+  const hostile = 'body > p` [Approve here](javascript:alert%28document%2Edomain%29) `';
+  // Volatile subtree paths come from the same maps and print in the headline's lists.
+  const headVolatile = 'main` [Head link](javascript:alert%281%29) `';
+  const baseVolatile = 'aside` [Base link](javascript:alert%282%29) `';
+  const map = (color, volatile) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        [hostile]: { tag: 'p', cls: 'lede', rect: [100, 100, 400, 40], style: { color } },
+      },
+    }),
+    volatile: [volatile],
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: map('rgb(0, 0, 0)', baseVolatile),
+    after: map('rgb(255, 0, 0)', headVolatile),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800, [180, 180, 180]),
+  });
+  try {
+    // Default options: the folded plain-English bullets carry the label too.
+    generateStyleMapReport({ beforeDir, afterDir, outDir });
+    const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
+    const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
+    const headings = md.split('\n').filter((line) => line.includes('Approve here'));
+    assert.ok(headings.length >= 2, 'heading and summary bullet both render the label');
+    for (const line of headings) {
+      assert.match(line, /``p` \[Approve here\]\(javascript:alert%28document%2Edomain%29\) `\.lede``/);
+    }
+    assert.ok(
+      md.includes('- `home@1280` · `` main` [Head link](javascript:alert%281%29) ` ``'),
+      'head-only volatile path',
+    );
+    assert.ok(
+      md.includes('- `home@1280` · `` aside` [Base link](javascript:alert%282%29) ` ``'),
+      'base-only volatile path',
+    );
+    assert.doesNotMatch(html, /href="javascript:/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('codeValue escapes only the pipe, leaving backslashes for cmark-gfm to render as written', () => {
+  // GitHub's table parser splits at a `|` without a backslash directly before it and unescapes
+  // `\|` alone, so the cell below renders as `content: "a\|b" | x\\|y` exactly as captured.
+  const value = String.raw`content: "a\|b" | x\\|y`;
+  assert.equal(reportMarkdown.codeValue(value), '`' + String.raw`content: "a\\|b" \| x\\\|y` + '`');
+});
