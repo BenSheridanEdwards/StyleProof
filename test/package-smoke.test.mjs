@@ -150,7 +150,6 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       'styleproof-report',
       'styleproof-components',
       'styleproof-variants',
-      'styleproof-prepush',
       'styleproof-affected',
       'styleproof-ci',
       'styleproof-publish-report',
@@ -164,6 +163,11 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       assert.equal(help.status, 0, `${bin}\nstdout:\n${help.stdout}\nstderr:\n${help.stderr}`);
       assert.match(help.stdout, new RegExp(`usage: ${bin}`));
     }
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules', '.bin', 'styleproof-prepush')),
+      false,
+      'the installed package ships no pre-push command',
+    );
 
     // Exercise the shipped schema and extra-pipe config transport in the macOS/Windows lane.
     const before = path.join(app, 'before');
