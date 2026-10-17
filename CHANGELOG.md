@@ -13,6 +13,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   fires `popstate` for a fragment jump, so the navigation observer re-queued the
   current page (`docs-2`). Popstate now reports only a new path or query, or a
   hash-router fragment (`#/…`, `#!/…`).
+- **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
+  ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
+  merged, so removing one went unseen. They now keep Unicode letters, combining
+  marks and digits in the key; existing ASCII keys are unchanged.
+- **Affected-surface analysis fails closed on a computed `import()` it cannot
+  place.** `import('../x/' + name)` was read as a plain string literal and an
+  aliased template prefix (`` `@/x/${name}` ``) became a bogus directory, so the
+  importer's surface could be reported as unaffected. Both now mean `all`, as
+  does an `import()` with a second options argument (`import('./x.json', { with:
+… })`), since only an argument that is entirely one string literal is skipped.
+- **`dirtyAllow` entries written as `dir/**` now match.** Allowances were
+  literal path prefixes, so the `docs/**` form used by StyleProof's own config
+  and the init template never matched and a docs edit refused the upload.
+- **`--spec-ref` no longer aborts on an empty file in the spec directory.**
+  A zero-byte blob (`.gitkeep`, an empty fixture) was treated as a failed read
+  and `styleproof-ci` exited 1.
 
 ## [8.0.1] - 2026-10-17
 
