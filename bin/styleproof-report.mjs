@@ -51,7 +51,7 @@ const numeric = (flag) => number(NAME, flag, opts[flag]);
 const migration = Boolean(opts.migration);
 const includeContent = Boolean(opts['include-content']);
 
-const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs, () => ({
+const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs, (binding) => ({
   result: generateStyleMapReport({
     beforeDir: inputs.beforeDir,
     afterDir: inputs.afterDir,
@@ -65,6 +65,7 @@ const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs,
     includeLayoutNoise: Boolean(opts['include-layout-noise']),
     includeContent,
     requireStateIdentity: inputs.requireStateIdentity,
+    diagnostic: binding.status !== 'bound',
     migration,
     legacyPairDeclarations: inputs.legacyPairDeclarations,
     legacyPairsArmed: inputs.legacyPairsArmed,

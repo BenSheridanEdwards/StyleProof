@@ -262,6 +262,40 @@ test('styleproof-capture --crawl --require-full-coverage: exit 0 when covered, e
   }
 });
 
+test('styleproof-report two-directory diagnostic shows a demo colour change without a legacy-pairs file', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const REPORT = path.join(root, 'bin/styleproof-report.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-two-dir-report-'));
+  const page = path.join(dir, 'index.html');
+  const demo = fs.readFileSync(path.join(root, 'example/demo/index.html'), 'utf8');
+  const bodyColor = 'color: rgb(214, 228, 232);';
+  expect(demo).toContain(bodyColor);
+  // The empty ledger arms the legacy-pair gate, as a consumer's committed one does.
+  fs.writeFileSync(path.join(dir, 'styleproof.product-state.json'), '{}\n');
+  try {
+    const capture = (out: string) =>
+      run(dir, 'node', [CAPTURE, 'file://' + page, '--widths', '1280', '--out', path.join(dir, out)]);
+    fs.writeFileSync(page, demo);
+    const base = capture('base');
+    expect(base.status, base.stderr).toBe(0);
+    fs.writeFileSync(page, demo.replace(bodyColor, 'color: rgb(200, 228, 232);'));
+    const head = capture('head');
+    expect(head.status, head.stderr).toBe(0);
+
+    const out = path.join(dir, 'report');
+    const report = run(dir, 'node', [REPORT, 'base', 'head', '--out', out]);
+    expect(report.status, report.stderr).toBe(1);
+    const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+    expect(markdown).toContain('UNVERIFIED DIAGNOSTIC');
+    expect(markdown).toContain('Product-state identity unproven');
+    expect(markdown).toContain('`color`');
+    expect(markdown).toContain('#c8e4e8');
+    expect(fs.readdirSync(path.join(out, 'crops')).length).toBeGreaterThan(0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // A page whose ONLY stylesheet is served cross-origin with no CORS header: the
 // browser applies it but the CSSOM can't read it (`sheet.cssRules` throws). This
 // is the exact condition the fail-loud contract is about — the crawl must not

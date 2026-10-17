@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A two-directory report shows changes on undeclared product-state pairs.**
+  With a product-state ledger armed, `styleproof report <before> <after>` said
+  there were no reviewable changes and wrote no crops when a pair was not in the
+  ledger, and `styleproof diff` printed only totals. Without `--expected-*-sha`
+  both commands now list those changes under the existing non-certifying banner,
+  as they already did for a declared pair. The verdict, exit code and
+  certification receipts are unchanged. Source-bound runs (the Action),
+  `--require-state-identity` and failing critical obligations still hide them.
 - **Query parameter order no longer captures one route twice.**
   `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
   did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.
