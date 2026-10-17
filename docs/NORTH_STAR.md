@@ -10,7 +10,7 @@ StyleProof is **not a screenshot diff**. Screenshots appear in the report so hum
 
 ## Who it's for
 
-Developers and CI. A reviewer scanning a PR comment, not a certification checklist. The report is built for the person who has to decide: approve this change, or investigate it.
+Developers, coding agents, and CI. A reviewer scanning a PR comment, not a certification checklist. The report is built for the reviewer, a person or an agent, who checks that the visual changes match what the pull request set out to do, then decides: approve this change, or investigate it.
 
 ## The end state
 
