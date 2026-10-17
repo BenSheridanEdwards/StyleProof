@@ -97,6 +97,16 @@ const slug = (s: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 
+/** Fallback for names with no ASCII letters or digits (`設定`, `Настройки`, `खोलें`): keep Unicode letters, combining marks
+ *  (vowel signs in Devanagari, Thai, …) and digits so they stay distinct. */
+const unicodeSlug = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[\uFE00-\uFE0F]/g, '') // emoji variation selectors are marks but carry no text
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+
 /** Whether an `id` / `aria-controls` is a STABLE identity, vs a framework-generated one that wobbles across builds. */
 export function isStableId(id: string | null | undefined): id is string {
   if (!id) return false;
@@ -113,7 +123,7 @@ export function isStableId(id: string | null | undefined): id is string {
 function affordanceKey(role: string, c: RawAffordance): string {
   const id =
     c.testId?.trim() || (isStableId(c.domId) && c.domId.trim()) || (isStableId(c.controls) && c.controls.trim());
-  return id ? `${role}:#${id}` : `${role}:${slug(c.name)}`;
+  return id ? `${role}:#${id}` : `${role}:${slug(c.name) || unicodeSlug(c.name)}`;
 }
 
 /** Pure: turn raw affordances into keyed, deduped (counted), sorted navigable items. */

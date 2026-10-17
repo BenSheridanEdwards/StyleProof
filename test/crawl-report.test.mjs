@@ -154,3 +154,13 @@ test('captureGaps names failed and never-captured surfaces, then the page-level 
     { surface: 'page:about', reason: 'linked page was discovered but could not be crawled' },
   ]);
 });
+
+test('aggregateIncompleteUi: a surface named like an Object.prototype key is not acknowledged without an exclusion', () => {
+  const reports = [{ incompleteUi: [{ surface: 'constructor', diagnostics: [{ reason: 'disabled-submit' }] }] }];
+  const entries = aggregateIncompleteUi(reports, {});
+  assert.equal(entries[0].acknowledgedReason, undefined);
+  assert.ok(
+    entries.some((entry) => !entry.acknowledgedReason),
+    'the blocked continuation still fails closed',
+  );
+});
