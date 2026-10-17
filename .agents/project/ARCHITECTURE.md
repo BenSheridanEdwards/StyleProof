@@ -72,10 +72,10 @@ resolves the capture spec path). Shared helpers: `util.ts` (pure),
 - **CLIs** (`bin/*.mjs`): `styleproof` dispatches to the `styleproof-*`
   commands. Every command declares its flags through `bin/cli.mjs`;
   `styleproof-diff` and `styleproof-report` share `bin/compare.mjs`;
-  `styleproof-ci` and `styleproof-prepush` share `bin/ci-shared.mjs`;
-  `styleproof-init` keeps its generated files in `bin/init/templates.mjs`
-  and its safe writes / hook activation in `bin/init/files.mjs` and
-  `bin/init/hooks.mjs`.
+  `styleproof-ci` keeps its restore and capture helpers in `bin/ci-shared.mjs`;
+  `styleproof-init` keeps its generated files in `bin/init/templates.mjs`,
+  its safe writes in `bin/init/files.mjs`, and the retirement of pre-push
+  hooks earlier releases generated in `bin/init/obsolete-hooks.mjs`.
 - **Action:** `action.yml` composes the CLIs into a PR gate that posts a report
   comment and can fail on diff or unacknowledged removals.
 
