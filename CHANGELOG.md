@@ -14,6 +14,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   by the runner and its base map published as the head map, unchecked. Base
   surfaces are matched by their authoring key, so `about-team` is not mistaken
   for a variant of `about`.
+- **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
+  ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
+  merged, so removing one went unseen. They now keep Unicode letters, combining
+  marks and digits in the key; existing ASCII keys are unchanged.
+- **Affected-surface analysis fails closed on a computed `import()` it cannot
+  place.** `import('../x/' + name)` was read as a plain string literal and an
+  aliased template prefix (`` `@/x/${name}` ``) became a bogus directory, so the
+  importer's surface could be reported as unaffected. Both now mean `all`, as
+  does an `import()` with a second options argument (`import('./x.json', { with:
+… })`), since only an argument that is entirely one string literal is skipped.
 - **`dirtyAllow` entries written as `dir/**` now match.** Allowances were
   literal path prefixes, so the `docs/**` form used by StyleProof's own config
   and the init template never matched and a docs edit refused the upload.
