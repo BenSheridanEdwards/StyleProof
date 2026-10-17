@@ -49,7 +49,6 @@ test('styleproof help presents the complete workflow instead of implementation b
     'variants',
     'affected',
     'ci',
-    'prepush',
     'publish-report',
     'prune-reports',
     'prune-maps',
@@ -71,7 +70,6 @@ test('styleproof routes public command names to existing implementation CLIs', (
     ['variants', 'usage: styleproof-variants'],
     ['affected', 'usage: styleproof-affected'],
     ['ci', 'usage: styleproof-ci'],
-    ['prepush', 'usage: styleproof-prepush'],
     ['publish-report', 'usage: styleproof-publish-report'],
     ['prune-reports', 'usage: styleproof-prune-reports'],
     ['prune-maps', 'usage: styleproof-prune-maps'],
@@ -284,6 +282,13 @@ test('styleproof rejects unknown commands with discoverable help', () => {
   assert.equal(result.status, 2);
   assert.match(result.stderr, /unknown command: warp-drive/);
   assert.match(result.stderr, /styleproof --help/);
+});
+
+test('styleproof has no prepush command: StyleProof runs in CI', () => {
+  const result = run(['prepush']);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /unknown command: prepush/);
+  assert.doesNotMatch(run(['--help']).stdout, /prepush/);
 });
 
 test('styleproof setup refuses an unknown app before install or scaffold work in normal and dry-run modes', () => {
