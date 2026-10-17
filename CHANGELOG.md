@@ -19,6 +19,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   compared. **Upgrade note:** a base map captured under the old rule can flag
   the second ticker as head-only volatile (not certified) until the base is
   re-captured with this version.
+- **`--spec-ref` no longer aborts on an empty file in the spec directory.**
+  A zero-byte blob (`.gitkeep`, an empty fixture) was treated as a failed read
+  and `styleproof-ci` exited 1.
 
 ## [8.0.1] - 2026-10-17
 
