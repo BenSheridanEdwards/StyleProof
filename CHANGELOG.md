@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Query parameter order no longer captures one route twice.**
+  `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
+  did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.
 - **A surface named like an `Object.prototype` key no longer counts as
   acknowledged incomplete UI.** `exclude[surface]` read an inherited value for
   `constructor`, so a blocked continuation on that surface skipped the
