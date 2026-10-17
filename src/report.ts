@@ -409,6 +409,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     globalChromeCount: content.globalChrome,
     elevatedNavigableChromeAdds,
     elevatedVisibleStructure,
+    elevatedStructureDom,
     contentEvaluated: includeContent,
     reportConsistency,
     rawCounts: comparison.rawCounts,

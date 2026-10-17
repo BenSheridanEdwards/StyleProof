@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The headline counts every elevated structure change.** It showed the
+  visible count or the navigable-chrome count, whichever was non-zero, while
+  the gate counted both: "1 … needs review" when 2 gated. The headline and its
+  🧱 note now use the same de-duplicated total as `reviewableCounts.dom`.
 - **Crop pairs show the same page rectangle on both sides.** When the change
   grew or shrank the page, each side's crop was clamped to its own screenshot,
   so a box near the bottom showed different page regions left and right — a
