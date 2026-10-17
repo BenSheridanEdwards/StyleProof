@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
+  ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
+  merged, so removing one went unseen. They now keep Unicode letters, combining
+  marks and digits in the key; existing ASCII keys are unchanged.
 - **Affected-surface analysis fails closed on a computed `import()` it cannot
   place.** `import('../x/' + name)` was read as a plain string literal and an
   aliased template prefix (`` `@/x/${name}` ``) became a bogus directory, so the
