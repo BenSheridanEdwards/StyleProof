@@ -17,6 +17,36 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   as they already did for a declared pair. The verdict, exit code and
   certification receipts are unchanged. Source-bound runs (the Action),
   `--require-state-identity` and failing critical obligations still hide them.
+- **Crop pairs show the same page rectangle on both sides.** When the change
+  grew or shrank the page, each side's crop was clamped to its own screenshot,
+  so a box near the bottom showed different page regions left and right — a
+  spurious shift, and identical content reported as a changed pair. When the
+  box lies in the area both screenshots cover, the pair now clamps one origin to
+  the smaller screenshot; a change past the shorter page's end keeps per-side
+  cropping so it stays visible.
+- **report.html no longer turns a CSS value into a live link.** A value
+  carrying `|` is written as `\|` so the report.md table row survives on
+  GitHub, but report.html split the row on every pipe. Text after the pipe left
+  its code span and a `[label](javascript:…)` in it became a live link. The
+  table renderer now splits only on unescaped pipes; inline text renders
+  Markdown backslash escapes and entities once (no more `&amp;lt;` or stray
+  `\_`); and links and images only render for http(s) or relative targets.
+- **Named grid lines no longer count as tracks.** Chromium serialises named
+  lines in computed `grid-template-columns`, so adding line names read as
+  `columns: 2 → 6` and skewed the grouping signature.
+- **A forced-state target inside a live region no longer diffs.** The state
+  layer filtered only the owner path, so a `:hover` delta on an element under a
+  volatile root was still compared and counted.
+- **A capture named like an `Object.prototype` key is an ordinary surface.**
+  The directory index was a plain object, so a one-sided `constructor` capture
+  crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
+  and `auditLiveTextDirs`) instead of being reported as removed or new.
+- **A one-sided `:hover`/`:focus` margin that a state adds or removes is no
+  longer dropped from certification.** The layout-equivalent margin filter read a state delta's
+  "state does not change it" side as an unknown px value and treated it as
+  balanced, so `button:hover { margin-left: 40px }` produced no finding. The
+  sentinel now resolves to the element's resting value; an unknown resting value
+  counts as balanced only when the opposite margin changed identically.
 - **Query parameter order no longer captures one route twice.**
   `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
   did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.

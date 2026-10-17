@@ -54,8 +54,21 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
   const right = spec.labels?.right ?? 'after';
   const w = Math.max(ctx.minWidth, box.w);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
-  const before = cropPng(pngA, box, w, h);
-  const after = cropPng(pngB, box, w, h);
+  // When the box lies in the area both screenshots cover, crop one origin clamped to the
+  // smaller screenshot so both sides show the SAME page rectangle even when the change grew
+  // or shrank the page. A box past the shorter page's end (content added at the bottom)
+  // keeps per-side clamping, so the side that has it still shows it.
+  const commonW = Math.min(pngA.width, pngB.width);
+  const commonH = Math.min(pngA.height, pngB.height);
+  const inCommon = box.x + box.w <= commonW && box.y + box.h <= commonH;
+  const aligned: Box = {
+    x: Math.max(0, Math.min(Math.round(box.x + box.w / 2 - w / 2), commonW - w)),
+    y: Math.max(0, Math.min(Math.round(box.y + box.h / 2 - h / 2), commonH - h)),
+    w,
+    h,
+  };
+  const before = cropPng(pngA, inCommon ? aligned : box, w, h);
+  const after = cropPng(pngB, inCommon ? aligned : box, w, h);
   if (spec.skipIdentical && before.png.data.equals(after.png.data)) return null;
   const stem = cropStem(spec.surface, spec.suffix);
   const images: CropImages = { composite: `${stem}-composite.png` };
