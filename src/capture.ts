@@ -172,11 +172,12 @@ async function stabilizePage(
       return [];
     }
   }
-  // Still changing at timeout: changed within the quiet window. Content that loaded late (in any
-  // number of steps) and then settled is compared. A region ticking slower than `quietFor` whose
-  // last tick fell outside that window is not excluded — the same limit as before.
+  // Still changing at timeout: changed within the quiet window, or in the last poll that changed
+  // (in-flight requests can hold the loop open past a region ticking slower than `quietFor`).
+  // Content that loaded late (in any number of steps) and then settled is compared.
   const end = realNow();
-  return [...lastChangedAt].filter(([, at]) => end - at <= quietFor).map(([p]) => p);
+  const lastPoll = Math.max(...lastChangedAt.values());
+  return [...lastChangedAt].filter(([, at]) => at === lastPoll || end - at <= quietFor).map(([p]) => p);
 }
 
 /** Settle the page and return the paths of live regions to exclude. */

@@ -12,10 +12,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Every live region is excluded, not only the last one to tick.** Settling
   kept only the paths that changed in the latest changing poll, so two live
   regions ticking out of phase left one in the map as if it were stable. A path
-  is now volatile when it changed within the quiet window before timeout, so
-  every region that changed in that window is excluded (one ticking slower than
-  `quietFor` may not be, as before), and content that loaded late (in any number
-  of steps) and then settled is still compared.
+  is now volatile when it changed within the quiet window before timeout or in
+  the last poll that changed, so every region that changed in that window is
+  excluded, a slower region held open by in-flight requests still is, and
+  content that loaded late (in any number of steps) and then settled is still
+  compared.
 
 ## [8.0.1] - 2026-10-17
 

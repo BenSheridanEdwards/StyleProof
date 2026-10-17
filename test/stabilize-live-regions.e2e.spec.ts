@@ -43,3 +43,18 @@ test('stabilize still compares content that loaded in three steps while another 
   expect(Object.keys(map.elements).some((p) => p.startsWith('body > section'))).toBe(true);
   expect((map.volatile ?? []).some((p) => p.startsWith('body > section'))).toBe(false);
 });
+
+test('stabilize still excludes a slow ticker while a request is in flight', async ({ page }) => {
+  await page.route('https://styleproof.test/**', () => {});
+  await page.setContent(`<body><div id="clock">0</div><p id="still">static</p>
+<script>
+  let a = 0;
+  setInterval(() => fetch('https://styleproof.test/poll').catch(() => {}), 200);
+  setInterval(() => { clock.textContent = ++a; }, 2000);
+</script></body>`);
+  // The 2000ms tick lands outside the final 600ms window, so only "last poll that changed" catches it.
+  const map = await captureStyleMap(page, { captureStates: false, stabilize: { interval: 50, timeout: 3000 } });
+  expect(map.volatile ?? []).toHaveLength(1);
+  expect(Object.keys(map.elements).some((p) => p.startsWith('body > div'))).toBe(false);
+  expect(Object.keys(map.elements).some((p) => p.startsWith('body > p'))).toBe(true);
+});
