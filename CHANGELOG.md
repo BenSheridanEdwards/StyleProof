@@ -17,6 +17,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   as they already did for a declared pair. The verdict, exit code and
   certification receipts are unchanged. Source-bound runs (the Action),
   `--require-state-identity` and failing critical obligations still hide them.
+- **In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
+  fires `popstate` for a fragment jump, so the navigation observer re-queued the
+  current page (`docs-2`). Popstate now reports only a new path or query, or a
+  hash-router fragment (`#/…`, `#!/…`).
+- **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
+  ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
+  merged, so removing one went unseen. They now keep Unicode letters, combining
+  marks and digits in the key; existing ASCII keys are unchanged.
 - **Affected-surface analysis fails closed on a computed `import()` it cannot
   place.** `import('../x/' + name)` was read as a plain string literal and an
   aliased template prefix (`` `@/x/${name}` ``) became a bogus directory, so the
