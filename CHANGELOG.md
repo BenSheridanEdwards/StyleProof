@@ -14,8 +14,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   there were no reviewable changes and wrote no crops when a pair was not in the
   ledger, and `styleproof diff` printed only totals. Without `--expected-*-sha`
   both commands now list those changes under the existing non-certifying banner,
-  as they already did for a declared pair. The verdict, exit code and receipts
-  are unchanged, and source-bound runs (the Action) still hide them.
+  as they already did for a declared pair. The verdict, exit code and
+  certification receipts are unchanged. Source-bound runs (the Action),
+  `--require-state-identity` and failing critical obligations still hide them.
 
 ## [8.0.1] - 2026-10-17
 

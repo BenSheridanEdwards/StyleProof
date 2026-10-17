@@ -262,8 +262,6 @@ test('styleproof-capture --crawl --require-full-coverage: exit 0 when covered, e
   }
 });
 
-// Two-directory report on a real capture pair: an undeclared legacy pair under an armed
-// product-state ledger must still show its change and crops in diagnostic mode.
 test('styleproof-report two-directory diagnostic shows a demo colour change without a legacy-pairs file', async () => {
   const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
   const REPORT = path.join(root, 'bin/styleproof-report.mjs');
@@ -272,6 +270,7 @@ test('styleproof-report two-directory diagnostic shows a demo colour change with
   const demo = fs.readFileSync(path.join(root, 'example/demo/index.html'), 'utf8');
   const bodyColor = 'color: rgb(214, 228, 232);';
   expect(demo).toContain(bodyColor);
+  // The empty ledger arms the legacy-pair gate, as a consumer's committed one does.
   fs.writeFileSync(path.join(dir, 'styleproof.product-state.json'), '{}\n');
   try {
     const capture = (out: string) =>

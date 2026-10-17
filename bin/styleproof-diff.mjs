@@ -199,7 +199,6 @@ const pixelSurfaces = result.pixels ?? [];
 
 // ── declared ledgers: legacy pairs and critical obligations ────────────────────
 let { comparability } = result;
-const rawComparability = comparability;
 const legacyPairAudit = auditLegacyPairs(comparability, inputs.legacyPairDeclarations, inputs.legacyPairsArmed);
 comparability = applyLegacyPairReceipts(comparability, legacyPairAudit);
 const legacyPairFails = legacyPairAudit.armed
@@ -215,7 +214,9 @@ const criticalAudit = auditCriticalObligations(
 comparability = applyCriticalObligationReceipts(comparability, criticalAudit);
 // Unbound diagnostic compares list undeclared legacy pairs as advisory, like declared ones; gates keep `comparability`.
 const displayComparability =
-  sourceBinding.status === 'bound' ? comparability : applyCriticalObligationReceipts(rawComparability, criticalAudit);
+  sourceBinding.status === 'bound'
+    ? comparability
+    : applyCriticalObligationReceipts(result.comparability, criticalAudit);
 const criticalFails = criticalAudit.armed ? criticalAudit.unresolved.length + criticalAudit.contradictory.length : 0;
 
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned) findings.

@@ -401,7 +401,31 @@ test('--require-state-identity keeps an unbound undeclared legacy pair non-certi
     assert.equal(report.status, 1, report.stderr || report.stdout);
     const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
     assert.equal(reportJson.comparison.blocksCertification, true);
-    assert.equal(reportJson.sourceBinding.status === 'bound', false);
+    assert.notEqual(reportJson.sourceBinding.status, 'bound');
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('unbound diff and report keep an undeclared legacy pair hidden when it is a failing critical obligation', () => {
+  const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
+  armUndeclaredLedger(capture);
+  fs.writeFileSync(
+    path.join(capture.root, 'styleproof.critical-states.json'),
+    JSON.stringify({ home: { owner: 'checkout team', reason: 'release-blocking state' } }),
+  );
+  try {
+    const diff = runDiffRaw(capture);
+    assert.equal(diff.status, 1, diff.stderr || diff.stdout);
+    assert.doesNotMatch(diff.stdout, /rgb\(200, 228, 232\)/);
+
+    const out = path.join(capture.root, 'report-critical');
+    const report = spawnSync(process.execPath, [REPORT, capture.before, capture.after, '--out', out], {
+      cwd: capture.root,
+      encoding: 'utf8',
+    });
+    assert.equal(report.status, 1, report.stderr || report.stdout);
+    assert.doesNotMatch(fs.readFileSync(path.join(out, 'report.md'), 'utf8'), /#c8e4e8/);
   } finally {
     rmTmp(capture.root);
   }
