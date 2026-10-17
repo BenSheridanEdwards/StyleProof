@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A one-sided `:hover`/`:focus` margin that a state adds or removes is no
+  longer dropped from certification.** The layout-equivalent margin filter read a state delta's
+  "state does not change it" side as an unknown px value and treated it as
+  balanced, so `button:hover { margin-left: 40px }` produced no finding. The
+  sentinel now resolves to the element's resting value; an unknown resting value
+  counts as balanced only when the opposite margin changed identically.
 - **Query parameter order no longer captures one route twice.**
   `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
   did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.
