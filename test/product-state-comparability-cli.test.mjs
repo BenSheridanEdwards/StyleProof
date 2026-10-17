@@ -333,3 +333,86 @@ test('diff CLI makes asymmetric identity required-unproven even without the glob
   assert.equal(result.json.certifiesFully, false);
   rmTmp(capture.root);
 });
+
+// An empty ledger in the working directory arms the legacy-pair gate, as a consumer's
+// committed `styleproof.product-state.json` does; the pair below is on no record.
+function armUndeclaredLedger(capture) {
+  fs.writeFileSync(path.join(capture.root, 'styleproof.product-state.json'), '{}\n');
+}
+
+test('unbound diff CLI lists the changed properties of an undeclared legacy pair under the non-certifying banner', () => {
+  const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
+  armUndeclaredLedger(capture);
+  try {
+    const json = path.join(capture.root, 'diagnostic.json');
+    const result = runDiffRaw(capture, ['--json', json]);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stdout, /undeclared legacy pair: home@1280/);
+    assert.match(result.stdout, /color: rgb\(214, 228, 232\) → rgb\(200, 228, 232\)/);
+    const receipt = JSON.parse(fs.readFileSync(json, 'utf8'));
+    assert.equal(receipt.certifiesFully, false);
+    assert.equal(receipt.comparison.blocksCertification, true);
+    assert.equal(receipt.reviewableCounts.style, 0, 'advisory listing is not reviewable approval evidence');
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('--require-state-identity keeps an unbound undeclared legacy pair non-certifying with exit 1', () => {
+  const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
+  armUndeclaredLedger(capture);
+  try {
+    const json = path.join(capture.root, 'strict.json');
+    const diff = runDiffRaw(capture, ['--require-state-identity', '--json', json]);
+    assert.equal(diff.status, 1, diff.stderr || diff.stdout);
+    const receipt = JSON.parse(fs.readFileSync(json, 'utf8'));
+    assert.equal(receipt.certifiesFully, false);
+    assert.equal(receipt.comparison.blocksCertification, true);
+
+    const out = path.join(capture.root, 'report-strict');
+    const report = spawnSync(
+      process.execPath,
+      [REPORT, capture.before, capture.after, '--out', out, '--require-state-identity'],
+      { cwd: capture.root, encoding: 'utf8' },
+    );
+    assert.equal(report.status, 1, report.stderr || report.stdout);
+    const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+    assert.equal(reportJson.comparison.blocksCertification, true);
+    assert.equal(reportJson.sourceBinding.status === 'bound', false);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('source-bound diff and report keep an undeclared legacy pair fail-closed and unlisted', () => {
+  const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
+  armUndeclaredLedger(capture);
+  try {
+    const diff = runDiff(capture);
+    assert.equal(diff.status, 1, diff.stderr || diff.stdout);
+    assert.doesNotMatch(diff.stdout, /body > button/);
+    assert.equal(diff.json.certifiesFully, false);
+
+    const out = path.join(capture.root, 'report-bound');
+    const report = spawnSync(
+      process.execPath,
+      [
+        REPORT,
+        capture.before,
+        capture.after,
+        '--out',
+        out,
+        '--expected-before-sha',
+        BASE_SHA,
+        '--expected-after-sha',
+        HEAD_SHA,
+      ],
+      { cwd: capture.root, encoding: 'utf8' },
+    );
+    assert.equal(report.status, 1, report.stderr || report.stdout);
+    const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+    assert.doesNotMatch(markdown, /rgb\(200, 228, 232\)|#c8e4e8/);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
