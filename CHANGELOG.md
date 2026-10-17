@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **A two-directory report shows changes on undeclared product-state pairs.**
+  With a product-state ledger armed, `styleproof report <before> <after>` said
+  there were no reviewable changes and wrote no crops when a pair was not in the
+  ledger, and `styleproof diff` printed only totals. Without `--expected-*-sha`
+  both commands now list those changes under the existing non-certifying banner,
+  as they already did for a declared pair. The verdict, exit code and receipts
+  are unchanged, and source-bound runs (the Action) still hide them.
+
 ## [8.0.1] - 2026-10-17
 
 ### Fixed
