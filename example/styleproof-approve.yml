@@ -12,7 +12,7 @@
 # │       types: [edited]                                                       │
 # │   jobs:                                                                     │
 # │     approve:                                                                │
-# │       uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7  │
+# │       uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v8  │
 # │       with:                                                                 │
 # │         status-context: StyleProof                                          │
 # │         allow-self-approval: false                                          │

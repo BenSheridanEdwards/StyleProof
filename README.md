@@ -1,10 +1,11 @@
 # StyleProof
 
-**Catch visual regressions before they merge.**
+**See every visual change a pull request makes, and confirm it is the change you meant.**
 
 StyleProof opens the UI states you care about in a real browser, records the computed CSS of every element on the
-base branch and on the pull request, and posts what changed as a PR comment. You approve the changes you meant. The
-ones you didn't block the merge.
+base branch and on the pull request, and posts what changed as a PR comment. The reviewer, a person or a coding agent,
+reads the report and confirms that it shows the visual change the pull request set out to make. Approve the changes
+you meant. In review-gate mode, the `StyleProof` check stays red until a reviewer approves them.
 
 [![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
@@ -265,26 +266,24 @@ this origin and assume zero; recapture affected scrolled baselines after upgradi
 
 ## Quickstart
 
-### Upgrading to 7.0.0
+### Upgrading to 8.0.0
 
-Version 6.4.0 removed the Phase 0 and Release Confidence public interfaces. Version
-7.0.0 establishes the SemVer-correct major line for that contract. Upgrade the npm
-package and report Action to major 7 together, then refresh and verify generated
-workflows with the same server/spec options you used at install:
+StyleProof 8 runs in CI. Upgrade the npm package and the report Action to
+major 8 together, then refresh and verify the generated workflows with the same
+server/spec options you used at install:
 
 ```bash
-npm install --save-dev styleproof@^7
+npm install --save-dev styleproof@^8
 npx styleproof-init --upgrade
 npx styleproof-init --check
 ```
 
-Regenerate baselines so base and head use the same expanded forced-state evidence.
-Remove integrations with the deleted `phase0*` / `releaseConfidence*` exports,
-`report.json.releaseConfidence`, `styleproof-release-confidence.json`,
-`styleproof-publish-report --manifest-digest`, and the Action's
-`release-confidence-digest` output. Source binding, coverage, determinism,
-product-state comparability, and all other retained gates still fail closed. See the
-[7.0.0 changelog](CHANGELOG.md#700---2026-09-14).
+`--upgrade` moves the generated workflows to `@v8` and removes the pre-push hook
+an earlier release generated. Under `--storage branch` it also adds the
+`publish-base` job, which publishes each default-branch commit's map from CI.
+`styleproof-map` keeps a local capture local; pass `--upload` when a script of
+yours publishes to the map store. See the
+[8.0.0 changelog](CHANGELOG.md#800---2026-10-16).
 
 ### Set up everything
 
@@ -297,8 +296,8 @@ Playwright; installs Chromium; scaffolds the capture spec, a dedicated
 production-build Playwright config, and **one GitHub workflow**; then verifies
 every machine-owned file against the installed release. The default scaffold is
 the smallest honest gate: one `pull_request` job captures base and head in the
-same run and diffs them — maps live as workflow artifacts, no map-store branch,
-no pre-push hook — and the gate runs **advisory**: it reports evidence on every
+same run and diffs them — maps live as workflow artifacts and the gate runs
+entirely in CI — and it runs **advisory**: it reports evidence on every
 PR without blocking. Preview the exact operations without writing with
 `npx styleproof setup --dry-run`. In a monorepo, target the consumer
 application explicitly:
@@ -319,8 +318,9 @@ Opt-in flags reproduce the heavier architectures:
   fork's code produces both map sets, so a fork PR's `StyleProof` status stays
   `pending` until a maintainer ticks **Approve all changes** — never green
   automatically.
-- `--storage branch` — the SHA-keyed `styleproof-maps` store branch plus the
-  pre-push publish hook, so CI restores maps instead of recapturing them.
+- `--storage branch` — the SHA-keyed `styleproof-maps` store branch, a CI job
+  that publishes each default-branch commit's map, so CI restores maps instead
+  of recapturing them.
 - `--mode certify` / `--mode review-gate` — fail on any diff, or hold the
   `StyleProof` status red until a reviewer approves (scaffolds the approval
   workflow). `split + branch + review-gate` reproduces the pre-v7 scaffold
@@ -371,7 +371,7 @@ never committed to the PR branch — or via the opt-in `styleproof-maps` store
 branch. Nothing under `.styleproof/` belongs in a commit.
 
 For the hand-wired Action form, the fork/Dependabot split, the map-store and
-report branches, the pre-push hook, and every config key and flag, see
+report branches, the CI base publisher, and every config key and flag, see
 [docs/REFERENCE.md](docs/REFERENCE.md).
 
 The report Action defaults to `comparison-base: pull-request-base`: it expects
