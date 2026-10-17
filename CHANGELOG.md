@@ -17,6 +17,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   another element is dropped as an echo only when its values show the hover
   renders the same on both sides. **Behaviour change:** certify mode can now
   fail on a hover restyle it used to drop.
+- **report.html no longer turns a CSS value into a live link.** A value
+  carrying `|` is written as `\|` so the report.md table row survives on
+  GitHub, but report.html split the row on every pipe. Text after the pipe left
+  its code span and a `[label](javascript:…)` in it became a live link. The
+  table renderer now splits only on unescaped pipes; inline text renders
+  Markdown backslash escapes and entities once (no more `&amp;lt;` or stray
+  `\_`); and links and images only render for http(s) or relative targets.
 - **Named grid lines no longer count as tracks.** Chromium serialises named
   lines in computed `grid-template-columns`, so adding line names read as
   `columns: 2 → 6` and skewed the grouping signature.
