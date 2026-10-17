@@ -19,6 +19,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Google Fonts) is skipped, as before. **Behaviour change:** a page with a
   width query detection cannot resolve to px now fails detection instead of
   silently missing that band; set `widths` on the surface to skip detection.
+- **Crop pairs show the same page rectangle on both sides.** When the change
+  grew or shrank the page, each side's crop was clamped to its own screenshot,
+  so a box near the bottom showed different page regions left and right — a
+  spurious shift, and identical content reported as a changed pair. When the
+  box lies in the area both screenshots cover, the pair now clamps one origin to
+  the smaller screenshot; a change past the shorter page's end keeps per-side
+  cropping so it stays visible.
 - **report.html no longer turns a CSS value into a live link.** A value
   carrying `|` is written as `\|` so the report.md table row survives on
   GitHub, but report.html split the row on every pipe. Text after the pipe left
