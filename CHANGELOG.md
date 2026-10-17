@@ -17,6 +17,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   as they already did for a declared pair. The verdict, exit code and
   certification receipts are unchanged. Source-bound runs (the Action),
   `--require-state-identity` and failing critical obligations still hide them.
+- **`dirtyAllow` entries written as `dir/**` now match.** Allowances were
+  literal path prefixes, so the `docs/**` form used by StyleProof's own config
+  and the init template never matched and a docs edit refused the upload.
 - **`--spec-ref` no longer aborts on an empty file in the spec directory.**
   A zero-byte blob (`.gitkeep`, an empty fixture) was treated as a failed read
   and `styleproof-ci` exited 1.
