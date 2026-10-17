@@ -309,3 +309,13 @@ test('selectObservedNavs: repeated drains stay deduped across passes', () => {
   const second = observe(['https://app.test/one', 'https://app.test/two'], { seen, usedKeys });
   assert.deepEqual(second.links, [{ key: 'two', url: '/two' }], 'pass-one route is not re-emitted');
 });
+
+test('dedupIdentity: query parameter order does not create a second surface', () => {
+  assert.equal(dedupIdentity('/shop?cat=shoes&page=2'), dedupIdentity('/shop?page=2&cat=shoes'));
+  assert.equal(dedupIdentity('/list?tag=b&tag=a'), '/list?tag=b&tag=a', 'repeated names keep their order');
+  assert.notEqual(dedupIdentity('/list?tag=b&tag=a'), dedupIdentity('/list?tag=a&tag=b'));
+  // Only the query is sorted: a hash-router fragment (with its own `?…&…`) is kept as-is.
+  assert.equal(dedupIdentity('/s?b=1&a=2#/x'), dedupIdentity('/s?a=2&b=1#/x'));
+  assert.notEqual(dedupIdentity('/?lang=en#/search?q=x&page=2'), dedupIdentity('/?page=2&lang=en#/search?q=x'));
+  assert.equal(dedupIdentity('/p#/route?b=1&a=2'), '/p#/route?b=1&a=2');
+});
