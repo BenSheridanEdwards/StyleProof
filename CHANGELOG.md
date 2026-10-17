@@ -12,6 +12,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **`dirtyAllow` entries written as `dir/**` now match.** Allowances were
   literal path prefixes, so the `docs/**` form used by StyleProof's own config
   and the init template never matched and a docs edit refused the upload.
+- **`--spec-ref` no longer aborts on an empty file in the spec directory.**
+  A zero-byte blob (`.gitkeep`, an empty fixture) was treated as a failed read
+  and `styleproof-ci` exited 1.
 
 ## [8.0.1] - 2026-10-17
 
