@@ -266,26 +266,24 @@ this origin and assume zero; recapture affected scrolled baselines after upgradi
 
 ## Quickstart
 
-### Upgrading to 7.0.0
+### Upgrading to 8.0.0
 
-Version 6.4.0 removed the Phase 0 and Release Confidence public interfaces. Version
-7.0.0 establishes the SemVer-correct major line for that contract. Upgrade the npm
-package and report Action to major 7 together, then refresh and verify generated
-workflows with the same server/spec options you used at install:
+StyleProof 8 runs in CI. Upgrade the npm package and the report Action to
+major 8 together, then refresh and verify the generated workflows with the same
+server/spec options you used at install:
 
 ```bash
-npm install --save-dev styleproof@^7
+npm install --save-dev styleproof@^8
 npx styleproof-init --upgrade
 npx styleproof-init --check
 ```
 
-Regenerate baselines so base and head use the same expanded forced-state evidence.
-Remove integrations with the deleted `phase0*` / `releaseConfidence*` exports,
-`report.json.releaseConfidence`, `styleproof-release-confidence.json`,
-`styleproof-publish-report --manifest-digest`, and the Action's
-`release-confidence-digest` output. Source binding, coverage, determinism,
-product-state comparability, and all other retained gates still fail closed. See the
-[7.0.0 changelog](CHANGELOG.md#700---2026-09-14).
+`--upgrade` moves the generated workflows to `@v8` and removes the pre-push hook
+an earlier release generated. Under `--storage branch` it also adds the
+`publish-base` job, which publishes each default-branch commit's map from CI.
+`styleproof-map` keeps a local capture local; pass `--upload` when a script of
+yours publishes to the map store. See the
+[8.0.0 changelog](CHANGELOG.md#800---2026-10-16).
 
 ### Set up everything
 

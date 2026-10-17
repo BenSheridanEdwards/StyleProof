@@ -139,7 +139,7 @@ for (const manager of [
       /--no-upload/,
       /path: \$\{\{ runner\.temp \}\}\/styleproof-maps/,
     ],
-    workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v7/],
+    workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v8/],
   },
   {
     name: 'Yarn v1 lockfile',
@@ -156,7 +156,7 @@ for (const manager of [
     workflowAbsent: [
       /npx -y yarn@1\.22\.22 styleproof-map/,
       /STYLEPROOF_MAP_STORE_TOKEN/,
-      /BenSheridanEdwards\/StyleProof@v7/,
+      /BenSheridanEdwards\/StyleProof@v8/,
     ],
   },
   {
@@ -172,7 +172,7 @@ for (const manager of [
       /--no-upload/,
     ],
     absent: [/npm ci/],
-    workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v7/],
+    workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v8/],
   },
   {
     name: 'Bun lockfile',
@@ -181,7 +181,7 @@ for (const manager of [
     config: /bun run build && bun run start/,
     workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /actions\/upload-artifact@/, /--no-upload/],
     absent: [/npm ci/],
-    workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v7/],
+    workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v8/],
   },
 ]) {
   test(`styleproof-init: generated commands follow ${manager.name}`, () => {
@@ -207,7 +207,7 @@ for (const manager of [
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(prJobs, pattern);
-      assert.match(reportWorkflow, /BenSheridanEdwards\/StyleProof@v7/);
+      assert.match(reportWorkflow, /BenSheridanEdwards\/StyleProof@v8/);
       assert.match(reportWorkflow, /workflow_run:/);
       // #706: the scaffold must not emit action pins behind the majors the
       // repository itself runs (checkout@v7, artifacts@v6, github-script@v9).
@@ -298,7 +298,7 @@ test('styleproof-init: default scaffold is one workflow, no map-store branch, ad
     // and publishes in place. Advisory mode never blocks the PR.
     assert.match(workflow, /--no-store/);
     assert.doesNotMatch(workflow, /--no-upload/);
-    assert.match(workflow, /BenSheridanEdwards\/StyleProof@v7/);
+    assert.match(workflow, /BenSheridanEdwards\/StyleProof@v8/);
     assert.match(workflow, /mode: advisory/);
     assert.doesNotMatch(workflow, /require-approval/);
     assert.doesNotMatch(workflow, /fail-on-diff/);
@@ -677,7 +677,7 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
     assert.doesNotMatch(captureJob, /statuses:\s*write/);
     assert.match(captureJob, /persist-credentials:\s*false/);
     assert.match(captureJob, /styleproof-ci\.mjs[\s\S]*--no-upload/);
-    assert.doesNotMatch(captureJob, /BenSheridanEdwards\/StyleProof@v7/);
+    assert.doesNotMatch(captureJob, /BenSheridanEdwards\/StyleProof@v8/);
     assert.match(captureJob, /actions\/upload-artifact@/);
     assert.match(captureJob, /name: styleproof-stylemaps/);
 
@@ -695,7 +695,7 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
     assert.match(report, /statuses:\s*write/);
     assert.match(report, /actions:\s*read/);
     assert.match(report, /actions\/download-artifact@/);
-    assert.match(report, /BenSheridanEdwards\/StyleProof@v7/);
+    assert.match(report, /BenSheridanEdwards\/StyleProof@v8/);
     assert.match(report, /base-capture-failed:/);
     assert.match(report, /styleproof-ci-outputs\.json/);
     assert.doesNotMatch(report, /actions\/checkout@/);
@@ -837,7 +837,7 @@ test('styleproof-init: installs the approval workflow so require-approval is not
     assert.match(approve, /types: \[edited\]/);
     assert.match(
       approve,
-      /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v7/,
+      /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v8/,
     );
     assert.match(approve, /status-context: StyleProof/);
     assert.match(approve, /allow-self-approval: false/);

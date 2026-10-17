@@ -112,7 +112,7 @@ test.describe('styleproof-init scaffold drift E2E (#536)', () => {
         expect(generatedApprove).toMatch(/issue_comment:/);
         expect(generatedApprove).toMatch(/types: \[edited\]/);
         expect(generatedApprove).toMatch(
-          /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v7/,
+          /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v8/,
         );
         expect(generatedApprove).toMatch(/status-context: StyleProof/);
         expect(generatedApprove).toMatch(/allow-self-approval: false/);
