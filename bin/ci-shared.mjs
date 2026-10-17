@@ -1,5 +1,4 @@
-// Pieces shared by the two commands that restore-then-capture through
-// styleproof-map: styleproof-ci (the runner) and styleproof-prepush (the hook).
+// Pieces styleproof-ci uses to restore-then-capture through styleproof-map.
 import path from 'node:path';
 import { classifyRestoreExit } from '../dist/ci.js';
 import { classifyColdReasonFromMissMessage, extractColdReasonFromLog } from '../dist/map-hit-observability.js';
@@ -18,7 +17,7 @@ export class ExitError extends Error {
 }
 
 /** The spec governing one checkout: its config's spec (made relative to `cwd`), else
- *  `fallback`, else the hook-encoded env, else the default. Repo-relative unless absolute. */
+ *  `fallback`, else the workflow-encoded env, else the default. Repo-relative unless absolute. */
 export function checkoutSpec(loaded, cwd, fallback) {
   const declared = loaded.config.spec ?? fallback ?? decodeSpecPathEnv() ?? DEFAULT_SPEC;
   const chosen = loaded.configFile

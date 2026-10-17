@@ -18,7 +18,6 @@ together and links the rest.
 | `styleproof-surfaces` | Declare which UI states to certify (+ the coverage guard, auto-discovery) |
 | `styleproof-baseline` | Capture + publish the base maps (`styleproof-map`, the map store) |
 | `styleproof-ci-gate` | Wire the PR gate (the Action, modes, approve, fork/Dependabot split) |
-| `styleproof-prepush` | Local pre-push capture so CI runs report-only |
 | `styleproof-capture` | One-shot capture of any URL you point at |
 | `styleproof-diff` | Diff two captures; certify 0-change; exit codes |
 | `styleproof-report` | The before/after visual review report |
