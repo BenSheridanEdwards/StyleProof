@@ -277,7 +277,7 @@ test('an unplaceable surface entry (in neither files nor any edge) → all (fail
 });
 
 // ---------------------------------------------------------------------------
-// explainAffectedSurfaces: pure formatter a pre-push hook can print. It names
+// explainAffectedSurfaces: pure formatter a CI step can print. It names
 // which surfaces reuse the base map and which re-capture, so a reviewer can
 // sanity-check the skip list before trusting it.
 // ---------------------------------------------------------------------------

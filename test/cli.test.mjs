@@ -1417,7 +1417,7 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
   }
 });
 
-test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + pre-push publish hook', () => {
+test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + CI base publisher', () => {
   const dir = makeInitProject();
   try {
     // Legacy architecture is opt-in since #480: split + branch + review-gate.
@@ -1428,16 +1428,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     );
     assert.equal(r.status, 0, r.stderr);
 
-    const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
-    // Default spec path → no baked --spec: styleproof-prepush resolves the spec
-    // at run time (flag > env > styleproof.config.json > built-in).
-    assert.match(
-      hook,
-      /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
-      'hook delegates to the installed packaged pre-push command',
-    );
-    assert.doesNotMatch(hook, /styleproof-map --/, 'no inlined capture invocation to drift');
-    assert.doesNotMatch(hook, /git add/, 'maps never get committed to the PR branch');
+    assert.equal(fs.existsSync(path.join(dir, '.githooks')), false, 'StyleProof installs no git hook');
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
@@ -1454,28 +1445,25 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       'CI delegates restore/capture to the packaged styleproof-ci',
     );
     assert.match(ci, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs/);
-    assert.doesNotMatch(ci, /styleproof-map\.mjs/, 'no inlined restore/capture invocations remain');
+    const prJobs = ci.slice(0, ci.indexOf('\n  publish-base:'));
+    assert.doesNotMatch(prJobs, /styleproof-map\.mjs/, 'no inlined restore/capture invocations remain');
     assert.doesNotMatch(ci, /Capture maps in CI on cache miss/, 'the fallback lives inside styleproof-ci now');
     assert.doesNotMatch(
       ci,
       /"styleproof@\$STYLEPROOF_VERSION"/,
       'the exact-release pin lives inside styleproof-ci now',
     );
-    assert.doesNotMatch(ci, /BenSheridanEdwards\/StyleProof@v7/, 'capture workflow never holds the report action');
+    assert.doesNotMatch(ci, /BenSheridanEdwards\/StyleProof@v8/, 'capture workflow never holds the report action');
     assert.doesNotMatch(ci, /require-approval: true/, 'approval gate lives on the trusted report workflow');
     const report = fs.readFileSync(path.join(dir, '.github/workflows/styleproof-report.yml'), 'utf8');
-    assert.match(report, /BenSheridanEdwards\/StyleProof@v7/, 'report workflow uses the current report action');
+    assert.match(report, /BenSheridanEdwards\/StyleProof@v8/, 'report workflow uses the current report action');
     assert.match(report, /require-approval: true/, 'report workflow enables the approval report gate');
     assert.match(report, /base-capture-failed:/, 'report workflow forwards the durable base-capture-failed sidecar');
     assert.doesNotMatch(ci, /git add stylemaps/);
     assert.doesNotMatch(ci, /core\.hooksPath/);
 
     assert.match(r.stdout, /Merge this scaffold PR first/, 'guidance states default-branch report activation');
-    assert.match(
-      r.stdout,
-      /pre-push hook can still restore or publish exact-SHA maps/,
-      'the least-work hook is the default',
-    );
+    assert.match(r.stdout, /publish-base publishes each commit pushed to 'main'/, 'CI keeps the map store warm');
   } finally {
     rmTmp(dir);
   }
@@ -2229,4 +2217,72 @@ test('diff CLI fails closed when head confidence names inaccessible incomplete U
   assert.equal(json.confidence.counts.inaccessible, 1);
   assert.equal(json.certifiesFully, false);
   rmTmp(root);
+});
+
+test('styleproof-map reads the generated spec path env below a config spec, like styleproof-ci', () => {
+  const dir = mkTmp();
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    const env = { ...process.env, STYLEPROOF_SPEC_PATH_B64: Buffer.from('custom/visual.spec.ts').toString('base64') };
+    const fromEnv = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8', env });
+    assert.equal(fromEnv.status, 2, fromEnv.stderr);
+    assert.match(fromEnv.stderr, /custom\/visual\.spec\.ts/);
+
+    fs.writeFileSync(path.join(dir, 'styleproof.config.json'), JSON.stringify({ spec: 'configured.spec.ts' }));
+    const fromConfig = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8', env });
+    assert.equal(fromConfig.status, 2, fromConfig.stderr);
+    assert.match(fromConfig.stderr, /configured\.spec\.ts/);
+    assert.doesNotMatch(fromConfig.stderr, /custom\/visual/);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('styleproof-map keeps a local capture local unless upload is requested', () => {
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    const remote = addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const env = cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}` });
+    delete env.CI;
+    delete env.STYLEPROOF_UPLOAD;
+    const storeBranch = () =>
+      spawnSync('git', ['branch', '--list', 'styleproof-maps'], { cwd: remote, encoding: 'utf8' }).stdout.trim();
+
+    const local = spawnSync(process.execPath, [MAP, '--sha', headSha], { cwd: root, encoding: 'utf8', env });
+    assert.equal(local.status, 0, local.stderr);
+    assert.doesNotMatch(local.stderr, /uploaded/);
+    assert.equal(storeBranch(), '', 'a local capture leaves the map store untouched');
+
+    const requested = spawnSync(process.execPath, [MAP, '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...env, STYLEPROOF_UPLOAD: '1' },
+    });
+    assert.equal(requested.status, 0, requested.stderr);
+    assert.match(requested.stderr, new RegExp(`uploaded ${headSha.slice(0, 12)}`));
+    assert.equal(storeBranch(), 'styleproof-maps');
+
+    const declined = spawnSync(process.execPath, [MAP, '--sha', headSha, '--no-upload'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...env, STYLEPROOF_UPLOAD: '1' },
+    });
+    assert.equal(declined.status, 0, declined.stderr);
+    assert.doesNotMatch(declined.stderr, /uploaded/, '--no-upload wins over STYLEPROOF_UPLOAD=1');
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
 });
