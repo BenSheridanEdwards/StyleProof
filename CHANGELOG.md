@@ -14,9 +14,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial
   font size) instead of the page's `html { font-size }`; detects an exact
   `(width: V)` as its own band; and fails loudly on a width condition it cannot
-  resolve to px (`9in`, `calc()`, either end of a range). Because `@import`ed
-  sheets are now read, a page that `@import`s a cross-origin stylesheet fails
-  detection (an `@import` is fetched without CORS) unless `widths` is set.
+  resolve to px (`9in`, `calc()`, either end of a range). A cross-origin
+  `@import` it cannot read (an `@import` is fetched without CORS, as with
+  Google Fonts) is skipped, as before. **Behaviour change:** a page with a
+  width query detection cannot resolve to px now fails detection instead of
+  silently missing that band; set `widths` on the surface to skip detection.
 - **CI path filters fail closed.** The browser lanes (e2e shards, e2e evidence,
   detection corpus) and the four dogfood workflows ran only when a changed path
   was on a list of product paths, so anything off the list skipped them. The e2e
