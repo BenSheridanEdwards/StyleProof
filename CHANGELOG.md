@@ -17,6 +17,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   another element is dropped as an echo only when its values show the hover
   renders the same on both sides. **Behaviour change:** certify mode can now
   fail on a hover restyle it used to drop.
+- **Named grid lines no longer count as tracks.** Chromium serialises named
+  lines in computed `grid-template-columns`, so adding line names read as
+  `columns: 2 → 6` and skewed the grouping signature.
+- **A forced-state target inside a live region no longer diffs.** The state
+  layer filtered only the owner path, so a `:hover` delta on an element under a
+  volatile root was still compared and counted.
+- **A capture named like an `Object.prototype` key is an ordinary surface.**
+  The directory index was a plain object, so a one-sided `constructor` capture
+  crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
+  and `auditLiveTextDirs`) instead of being reported as removed or new.
+- **A one-sided `:hover`/`:focus` margin that a state adds or removes is no
+  longer dropped from certification.** The layout-equivalent margin filter read a state delta's
+  "state does not change it" side as an unknown px value and treated it as
+  balanced, so `button:hover { margin-left: 40px }` produced no finding. The
+  sentinel now resolves to the element's resting value; an unknown resting value
+  counts as balanced only when the opposite margin changed identically.
+- **Query parameter order no longer captures one route twice.**
+  `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
+  did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.
+- **A surface named like an `Object.prototype` key no longer counts as
+  acknowledged incomplete UI.** `exclude[surface]` read an inherited value for
+  `constructor`, so a blocked continuation on that surface skipped the
+  fail-closed exit 6 without any exclusion file.
+- **In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
+  fires `popstate` for a fragment jump, so the navigation observer re-queued the
+  current page (`docs-2`). Popstate now reports only a new path or query, or a
+  hash-router fragment (`#/…`, `#!/…`).
 - **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
   ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
   merged, so removing one went unseen. They now keep Unicode letters, combining
