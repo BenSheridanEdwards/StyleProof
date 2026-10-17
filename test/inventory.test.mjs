@@ -132,3 +132,41 @@ test('#754: maps without a surface identity keep the run-wide union comparison',
   const head = [tabs(['Activity']), tabs(['Activity'])];
   assert.deepEqual(auditRunInventory(base, head).delta, { added: [], removed: [] });
 });
+
+test('classifyInventory: id-less non-Latin labels keep distinct keys, so a removal is seen', () => {
+  const tab = (name) => ({
+    tag: 'button',
+    role: 'tab',
+    name,
+    internalPath: null,
+    testId: null,
+    domId: null,
+    controls: null,
+  });
+  const base = classifyInventory([tab('ホーム'), tab('設定'), tab('請求')]);
+  const head = classifyInventory([tab('ホーム')]);
+  assert.deepEqual(
+    base.map((item) => item.key),
+    ['tab:ホーム', 'tab:設定', 'tab:請求'].sort((a, b) => a.localeCompare(b)),
+  );
+  assert.deepEqual(
+    diffInventory(base, head)
+      .removed.map((item) => item.key)
+      .sort(),
+    ['tab:設定', 'tab:請求'].sort(),
+  );
+  assert.equal(classifyInventory([tab('Settings')])[0].key, 'tab:settings', 'ASCII keys are unchanged');
+  // Scripts that write vowels as combining marks: labels differing only in a vowel sign stay distinct.
+  const hindi = classifyInventory([tab('खोलें'), tab('खेलें')]);
+  assert.equal(hindi.length, 2);
+  assert.deepEqual(
+    diffInventory(hindi, classifyInventory([tab('खोलें')])).removed.map((item) => item.label),
+    ['खेलें'],
+  );
+  assert.equal(classifyInventory([tab('หน้าแรก')])[0].key, 'tab:หน้าแรก', 'a Thai word is not split at its marks');
+  // Icon-only labels: an invisible variation selector (U+FE0F) never makes a key of its own.
+  assert.deepEqual(
+    classifyInventory([tab('⚙\uFE0F'), tab('★')]).map((item) => item.key),
+    ['tab:'],
+  );
+});
