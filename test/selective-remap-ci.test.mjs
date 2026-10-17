@@ -9,6 +9,7 @@ import {
   decideSelectiveRemap,
   formatSelectiveRemapPlan,
   resolveSelectiveRemapOptIn,
+  scopedBaseAuthoringKeys,
   selectiveCaptureEnv,
   surfaceKeyFromArtifactName,
   surfaceMatchesOnlySet,
@@ -422,6 +423,22 @@ test('authoringSurfaceKeysInMapDir reads metadata.surfaceKey and falls back to t
     writeCapture(dir, 'about-team@1280', { ...makeMap({}), metadata: { surfaceKey: 'about-team' } }, null);
     writeCapture(dir, 'legacy@1280', makeMap({}), null);
     assert.deepEqual([...authoringSurfaceKeysInMapDir(dir)].sort(), ['about-team', 'dashboard', 'legacy']);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('scopedBaseAuthoringKeys parses base maps only for a scoped verdict', () => {
+  const dir = mkTmp();
+  try {
+    writeCapture(dir, 'dashboard-loading@1280', { ...makeMap({}), metadata: { surfaceKey: 'dashboard' } }, null);
+    fs.writeFileSync(path.join(dir, 'broken@1280.json'), '{ not a map');
+    // A full remap never reads authoring keys, so it must not parse (or trip on) a base map.
+    assert.equal(scopedBaseAuthoringKeys('all', dir), null);
+    assert.equal(scopedBaseAuthoringKeys(null, dir), null);
+    assert.throws(() => scopedBaseAuthoringKeys(new Set(['dashboard']), dir));
+    fs.rmSync(path.join(dir, 'broken@1280.json'));
+    assert.deepEqual([...scopedBaseAuthoringKeys(new Set(['dashboard']), dir)], ['dashboard']);
   } finally {
     rmTmp(dir);
   }
