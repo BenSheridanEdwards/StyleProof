@@ -9,9 +9,9 @@ import {
   type BaselineFailureReceipt,
   type SurfaceCaptureFailure,
 } from '../map-store.js';
-import { formatChangedSurfaceScope, formatSurfaceList, surfaceBase } from '../change-groups.js';
+import { formatChangedSurfaceScope, formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
 import type { ChangeGroup, PreparedSurface, ReportConsistency } from './shared.js';
-import { escapeInlineMarkdown } from './markdown.js';
+import { codeValue, escapeInlineMarkdown } from './markdown.js';
 
 /** Everything the headline prose between the certification block and the detail needs. */
 export type HeadlineInput = {
@@ -293,7 +293,7 @@ export function reportHeadline(input: HeadlineInput): string[] {
     md.push(
       '',
       `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
-      ...headOnly.slice(0, 20).map((v) => `- \`${v.surface}\` · \`${v.path}\``),
+      ...headOnly.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
       ...(headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []),
     );
   }
@@ -302,7 +302,7 @@ export function reportHeadline(input: HeadlineInput): string[] {
     md.push(
       '',
       `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
-      ...baseOnly.slice(0, 20).map((v) => `- \`${v.surface}\` · \`${v.path}\``),
+      ...baseOnly.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
       ...(baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []),
     );
   }
