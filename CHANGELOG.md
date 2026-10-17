@@ -13,6 +13,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   visible count or the navigable-chrome count, whichever was non-zero, while
   the gate counted both: "1 … needs review" when 2 gated. The headline and its
   🧱 note now use the same de-duplicated total as `reviewableCounts.dom`.
+- **Affected-surface analysis fails closed on a computed `import()` it cannot
+  place.** `import('../x/' + name)` was read as a plain string literal and an
+  aliased template prefix (`` `@/x/${name}` ``) became a bogus directory, so the
+  importer's surface could be reported as unaffected. Both now mean `all`, as
+  does an `import()` with a second options argument (`import('./x.json', { with:
+… })`), since only an argument that is entirely one string literal is skipped.
 - **`dirtyAllow` entries written as `dir/**` now match.** Allowances were
   literal path prefixes, so the `docs/**` form used by StyleProof's own config
   and the init template never matched and a docs edit refused the upload.
