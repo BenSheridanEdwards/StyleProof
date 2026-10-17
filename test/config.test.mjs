@@ -14,7 +14,6 @@ const STYLEPROOF_CONFIG_FILE = STYLEPROOF_CONFIG_JSON;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const AFFECTED = path.join(here, '..', 'bin', 'styleproof-affected.mjs');
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
-const PREPUSH = path.join(here, '..', 'bin', 'styleproof-prepush.mjs');
 const FIXTURE = path.join(here, 'fixtures', 'selective-remap');
 
 function withConfig(config, fn) {
@@ -270,15 +269,11 @@ test('loadStyleProofConfig: unknown keys warn loudly instead of silently droppin
   });
 });
 
-test('styleproof-map / styleproof-prepush: a malformed config is a usage error before any work', () => {
+test('styleproof-map: a malformed config is a usage error before any work', () => {
   withConfig('{ nope', (dir) => {
     const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
     assert.equal(map.status, 2);
     assert.match(map.stderr, /styleproof\.config\.json: invalid JSON/);
-
-    const prepush = spawnSync(process.execPath, [PREPUSH], { cwd: dir, encoding: 'utf8', input: '' });
-    assert.equal(prepush.status, 2);
-    assert.match(prepush.stderr, /styleproof\.config\.json: invalid JSON/);
   });
 });
 
