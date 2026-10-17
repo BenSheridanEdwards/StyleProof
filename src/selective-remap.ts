@@ -214,8 +214,8 @@ export function copyReuseSurfaceArtifacts(options: { fromDir: string; toDir: str
   fs.mkdirSync(options.toDir, { recursive: true });
   let copied = 0;
   for (const name of fs.readdirSync(options.fromDir)) {
-    // Only @width capture artifacts (maps/screenshots) — avoid importing map-store
-    // here so CI selective-remap cannot enter a capture/map-store ESM cycle on load.
+    // Only @width capture artifacts (maps/screenshots), matched by name: no map is parsed.
+    // The map-io import above does load map-store, but neither imports this module, so no cycle.
     const key = surfaceKeyFromArtifactName(name);
     if (!key || !surfaceMatchesOnlySet(key, reuse)) continue;
     fs.copyFileSync(path.join(options.fromDir, name), path.join(options.toDir, name));
@@ -246,6 +246,11 @@ export function authoringSurfaceKeysInMapDir(dir: string): Set<string> {
     keys.add(surfaceKey ?? captureKey.replace(/@\d+$/, ''));
   }
   return keys;
+}
+
+/** Base authoring keys for a scoped verdict; `null` otherwise, since only a scoped plan reads them. */
+export function scopedBaseAuthoringKeys(verdict: AffectedSurfaces | null, dir: string): Set<string> | null {
+  return verdict instanceof Set ? authoringSurfaceKeysInMapDir(dir) : null;
 }
 
 /** Env vars styleproof-map honors for a selective head capture. Empty when mode is full. */
