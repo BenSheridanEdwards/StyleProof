@@ -48,8 +48,8 @@ test('breakpoint detection fails loudly on a width condition it cannot resolve',
 });
 
 test('breakpoint detection skips a cross-origin @import it cannot read, as before', async ({ page }) => {
-  // A font stylesheet on another origin (Google Fonts shape): an @import is fetched without CORS,
-  // so its rules are unreadable. It carries no width query, so skipping it misses no band.
+  // A font stylesheet on another origin (Google Fonts shape). An @import is fetched without CORS,
+  // so its rules stay unreadable even though this server allows CORS. It has no width query.
   const fonts = http.createServer((_req, res) => {
     res.setHeader('content-type', 'text/css');
     res.setHeader('access-control-allow-origin', '*');
