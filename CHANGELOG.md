@@ -16,7 +16,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the last poll that changed, so every region that changed in that window is
   excluded, a slower region held open by in-flight requests still is, and
   content that loaded late (in any number of steps) and then settled is still
-  compared.
+  compared. **Upgrade note:** a base map captured under the old rule can flag
+  the second ticker as head-only volatile (not certified) until the base is
+  re-captured with this version.
 
 ## [8.0.1] - 2026-10-17
 
