@@ -17,7 +17,9 @@ function collectMediaTexts(): { mediaTexts: string[]; unreadable: string[] } {
       const rules = sheet.cssRules; // throws for a cross-origin sheet with no CORS
       if (rules) walk(rules);
     } catch {
-      unreadable.push(`${sheet.href ?? '<inline>'}${viaImport ? ' (@import)' : ''}`);
+      // An @import is fetched without CORS, so a cross-origin one (often a font sheet) is never
+      // readable: skip it, as detection did before it read @import sheets.
+      if (!viaImport) unreadable.push(sheet.href ?? '<inline>');
     }
   };
   const walk = (rules: CSSRuleList): void => {
@@ -138,15 +140,11 @@ export async function detectViewportWidths(
 ): Promise<number[]> {
   const { mediaTexts, unreadable } = await page.evaluate(collectMediaTexts);
   if (unreadable.length > 0) {
-    const viaImport = unreadable.some((u) => u.endsWith(' (@import)'));
     throw new Error(
       `styleproof: can't detect breakpoints — ${unreadable.length} stylesheet(s) are unreadable ` +
         `(cross-origin, no CORS): ${unreadable.join(', ')}. Detection reads every stylesheet to stay ` +
         `100% accurate, so it fails rather than guess. Make them same-origin / CORS-readable, or set ` +
-        `\`widths\` on the surface to skip detection.` +
-        (viaImport
-          ? ' An @import is fetched without CORS, so headers cannot make it readable: inline or self-host it.'
-          : ''),
+        `\`widths\` on the surface to skip detection.`,
     );
   }
   const unparsed = [...new Set(mediaTexts.filter(hasUnparsedWidthCondition))];

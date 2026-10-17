@@ -46,3 +46,29 @@ test('breakpoint detection fails loudly on a width condition it cannot resolve',
   await page.setContent('<style>@media (400px <= width <= 9in) { body { color: red } }</style><body>x</body>');
   await expect(detectViewportWidths(page)).rejects.toThrow(/can't detect breakpoints/);
 });
+
+test('breakpoint detection skips a cross-origin @import it cannot read, as before', async ({ page }) => {
+  // A font stylesheet on another origin (Google Fonts shape): an @import is fetched without CORS,
+  // so its rules are unreadable. It carries no width query, so skipping it misses no band.
+  const fonts = http.createServer((_req, res) => {
+    res.setHeader('content-type', 'text/css');
+    res.setHeader('access-control-allow-origin', '*');
+    res.end("@font-face { font-family: 'Brand'; src: local('Arial') }");
+  });
+  await new Promise<void>((resolve) => fonts.listen(0, '127.0.0.1', resolve));
+  const fontsUrl = `http://127.0.0.1:${(fonts.address() as AddressInfo).port}/css`;
+  const site = http.createServer((_req, res) => {
+    res.setHeader('content-type', 'text/html');
+    res.end(
+      `<!doctype html><style>@import url(${fontsUrl}); @media (min-width: 900px) { body { color: red } }</style><body>x</body>`,
+    );
+  });
+  await new Promise<void>((resolve) => site.listen(0, '127.0.0.1', resolve));
+  try {
+    await page.goto(`http://127.0.0.1:${(site.address() as AddressInfo).port}/`);
+    expect(await detectViewportWidths(page)).toEqual([360, 900]);
+  } finally {
+    site.close();
+    fonts.close();
+  }
+});
