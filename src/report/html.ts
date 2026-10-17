@@ -28,8 +28,20 @@ const STYLEPROOF_COMMENT = /<!-- styleproof-[^<>]*? -->/g;
  * value's backticks), per the CommonMark rule: the closing run matches the
  * opening run exactly. One pad space on each side is stripped.
  */
-const CODE_SPAN = /(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)/g;
+const CODE_SPAN = /(?<!(?<!\\)(?:\\\\)*\\)(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)/g;
 const unpad = (code: string) => (/^ .* $/.test(code) && code.trim() ? code.slice(1, -1) : code);
+
+/** A Markdown backslash escape (`escapeInlineMarkdown` emits these): the character renders literally. */
+const BACKSLASH_ESCAPE = /\\([!-/:-@[-`{-~])/g;
+
+/** The entities `escapeInlineMarkdown` emits; GitHub renders them once, so must we. */
+const NAMED_ENTITY = /&(?:amp|lt|gt|quot);/g;
+
+/** Link and image targets: http(s) or scheme-less (relative crops, anchors) only — never `javascript:`. */
+const isSafeUrl = (url: string) => {
+  const probe = url.replace(/[\u0000- \u007f-\u009f]/g, ''); // eslint-disable-line no-control-regex -- browsers strip these from a scheme
+  return !/^[a-z][a-z0-9+.-]*:/i.test(probe) || /^https?:/i.test(probe);
+};
 
 /**
  * Inline markup. Code spans are staged out first, then StyleProof's own
@@ -43,15 +55,27 @@ function inline(text: string): string {
     staged.push(html);
     return `\uE000${staged.length - 1}\uE000`;
   };
+  const restore = (html: string) => html.replace(/\uE000(\d+)\uE000/g, (_m, index) => staged[Number(index)]);
   const protectedText = text
     .replace(CODE_SPAN, (_m, _fence, code) => stage(`<code>${escapeHtml(unpad(code))}</code>`))
-    .replace(STYLEPROOF_COMMENT, (comment) => stage(comment));
+    .replace(STYLEPROOF_COMMENT, (comment) => stage(comment))
+    .replace(BACKSLASH_ESCAPE, (_m, char: string) => stage(escapeHtml(char)))
+    .replace(NAMED_ENTITY, (entity) => stage(entity));
+  // A link whose resolved target is not http(s) or relative stays literal text.
+  const link = (markup: (label: string, url: string) => string) => (match: string, label: string, url: string) =>
+    isSafeUrl(restore(url)) ? markup(label, url) : match;
   const html = escapeHtml(protectedText)
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" loading="lazy">')
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
+    .replace(
+      /!\[([^\]]*)\]\(([^)\s]+)\)/g,
+      link((alt, src) => `<img src="${src}" alt="${alt}" loading="lazy">`),
+    )
+    .replace(
+      /\[([^\]]+)\]\(([^)\s]+)\)/g,
+      link((label, href) => `<a href="${href}">${label}</a>`),
+    )
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[\s(>"'])_(\S(?:[^_]*\S)?)_(?=[\s).,;:!?"'<]|$)/g, '$1<em>$2</em>');
-  return html.replace(/\uE000(\d+)\uE000/g, (_m, index) => staged[Number(index)]);
+  return restore(html);
 }
 
 const RAW_LINE = /^<(?:sub|details|summary|\/details|!--)/;
@@ -91,11 +115,12 @@ const takeWhile = (lines: string[], start: number, predicate: (line: string) => 
 };
 
 function renderTable(rows: string[]): string {
+  // GFM: `\|` is a literal pipe inside the cell (code spans included), never a column break.
   const cellsOf = (row: string) =>
     row
-      .split('|')
+      .split(/(?<!\\)\|/)
       .slice(1, -1)
-      .map((cell) => cell.trim());
+      .map((cell) => cell.trim().replace(/\\\|/g, '|'));
   const isSeparator = (cells: string[]) => cells.length > 0 && cells.every((cell) => TABLE_SEPARATOR_CELL.test(cell));
   const [header, ...rest] = rows.map(cellsOf);
   const body = rest.filter((cells) => !isSeparator(cells));
