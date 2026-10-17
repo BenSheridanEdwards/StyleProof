@@ -5,7 +5,8 @@
 //
 // It measures two real costs and projects them to a sample app:
 //   - capture: one in-browser captureStyleMap of a representative fixture — the
-//     cost the committed-map model moves to pre-push and skips in CI (×2 sides);
+//     cost the committed-map model pays once in the default-branch publish-base job
+//     and skips in the PR gate (×2 sides);
 //   - diff: one diffStyleMaps of two maps — the committed-map model's whole CI cost.
 //
 // The numbers are for THIS fixture on THIS machine; real apps vary. The point is

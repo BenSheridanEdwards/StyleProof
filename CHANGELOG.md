@@ -7,7 +7,74 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Pixel diff reports both one-sided strips when width and height change.**
+  Only the bottom band was emitted, so the right-hand strip present on one side
+  only was never reported, and `changedPixels` counted a corner that exists on
+  neither screenshot.
+
+## [8.0.1] - 2026-10-17
+
+### Fixed
+
+- **Generated workflows pin the 8.x Action.** `styleproof-init` on 8.0.0
+  still wrote `BenSheridanEdwards/StyleProof@v7` and the `@v7` reusable approve
+  workflow, so an upgraded repo ran the 7.x Action next to the 8.x package.
+  The templates, examples, reference and agent skills now pin `@v8`. Run
+  `npx styleproof-init --upgrade` after installing 8.0.1; `--check` reports
+  the generated workflows as stale until then.
+- **The 8.0.0 notes carry a summary and migration steps**, and the README
+  upgrade section covers 8.0.
+
+## [8.0.0] - 2026-10-16
+
+> **StyleProof 8.0.0: CI-only**
+>
+> StyleProof runs in CI. `--storage branch` keeps its map store warm from a
+> CI job on the default branch, `styleproof-init` installs no git hook, the
+> `styleproof-prepush` command is gone, and `styleproof-map` keeps a local
+> capture local. Upgrade the package and the Action to major 8 together, then
+> run `styleproof-init --upgrade`.
+
+### Migration
+
+1. Install `styleproof@^8` and run `npx styleproof-init --upgrade` with the
+   same server and spec options you used at install. It moves the generated
+   workflows to `BenSheridanEdwards/StyleProof@v8`, adds the `publish-base` job
+   under `--storage branch`, and removes the pre-push hook an earlier release
+   generated. Until then, `npx styleproof-init --check` reports the generated
+   workflows as stale; after it, `--check` confirms every generated file
+   matches the release.
+2. Run `--upgrade` in the same change as the package bump. It deletes the
+   committed hook from your checkout, so the push that carries the upgrade
+   runs without it, and teammates lose the hook when they pull. A hook from
+   6.1.0 or later prints one note and lets a push through in the meantime. A
+   hook from 4.5.0 to 6.0.x runs `styleproof-prepush` directly, so
+   `STYLEPROOF_SKIP_CAPTURE=1 git push` is the way through until the upgrade
+   lands.
+3. If your own hook or script runs StyleProof, or a hook from before 4.5.0
+   does, `--check` and `--upgrade` name the file. Delete its StyleProof lines; CI captures both sides.
+4. Add `--upload` (or `STYLEPROOF_UPLOAD=1`) to any local script that should
+   publish to `styleproof-maps`.
+
 ### Added
+
+- **CI publishes default-branch maps under `--storage branch`.** The generated
+  workflow gains a `publish-base` job. On every push to the default branch it
+  captures that commit and publishes its map to `styleproof-maps`, so each pull
+  request based on a default-branch commit finds its base map in the store
+  instead of capturing it. With `--workflow split`, this job is the store's CI
+  writer: the pull request stage captures read-only and the report stage
+  publishes no maps. The job runs merged code
+  only, with `contents: write`. Init records the default branch in the scaffold
+  marker (`branch=<name>`, from `origin/HEAD`, else `main`), because workflow
+  triggers cannot read it from context. Branch-storage repos run
+  `styleproof-init --upgrade` to add the job; `--check` reports the workflow
+  stale until then.
+- **`styleproof-map` reads the generated spec path.** With no `--spec` and no
+  config `spec`, it uses `STYLEPROOF_SPEC_PATH_B64` from the generated workflow
+  before the default path, the same order `styleproof-ci` uses.
 
 - **The Action outputs name the comparison base it used.** New Action outputs
   `base-sha` (the expected "before" commit), `comparison-base`
@@ -18,12 +85,46 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   tip. Under `merge-base`, `base-tip-sha` differs from `base-sha` once the base
   branch has moved. All three are empty when no PR context resolves.
 
+### Changed
+
+- **BREAKING: `styleproof-map` keeps a local capture local by default.** It
+  publishes to `styleproof-maps` only when asked, with `--upload` or
+  `STYLEPROOF_UPLOAD=1`. Before, it uploaded whenever `CI` was unset, so any
+  local run published. As before, a requested upload that fails exits non-zero
+  (2 for a fixable precondition, 5 otherwise). `styleproof-ci` and the
+  generated `publish-base` job already pass the flag explicitly, so CI is
+  unchanged. A local script that relied on the old default adds `--upload`.
+- **The docs and agent skills describe StyleProof as CI-only.** The
+  `styleproof-prepush` skill is gone, the reference drops the hook recipe and
+  flags, and the selective-remap example runs as a CI step.
+
+### Removed
+
+- **BREAKING: `styleproof-init` installs no pre-push hook.** StyleProof runs in
+  CI. `--storage branch` scaffolds the map store and the `publish-base` job
+  that keeps it warm. `styleproof-init --check` reports a hook an earlier
+  release generated as `obsolete` and exits 1. `styleproof-init --upgrade`
+  deletes it. When `.githooks/` is then empty, `--upgrade` removes the folder
+  and unsets a local or worktree `core.hooksPath` that Git resolves to it. A
+  hook counts as generated only when every command in it is one the generated
+  shim held. Any other hook that runs StyleProof keeps its bytes, and both
+  commands ask the owner to delete its StyleProof lines.
+  `styleproof-init --hook` exits 2 and names `--upgrade`.
+  `--upgrade` also writes the scaffold marker into an unmarked pre-v7
+  workflow, so the axes the old hook signalled stay recorded.
+- **BREAKING: the `styleproof-prepush` command is gone.** The package no longer
+  ships the `styleproof-prepush` bin or the `styleproof prepush` subcommand.
+  Run `styleproof-init --upgrade` with the package upgrade: it removes the
+  hook earlier releases generated. A hook from 6.1.0 or later checks for the
+  bin first, so until then it prints one note and lets the push through. A
+  hook from 4.5.0 to 6.0.x runs the bin directly, so pushes from that repo
+  stop at the hook until `--upgrade` removes it; `STYLEPROOF_SKIP_CAPTURE=1
+git push` lets a single push through in the meantime. A script that calls
+  `styleproof-prepush` directly now fails with "command not found".
+  StyleProof itself no longer reads `STYLEPROOF_SKIP_CAPTURE`.
+
 ### Fixed
 
-- **Pixel diff reports both one-sided strips when width and height change.**
-  Only the bottom band was emitted, so the right-hand strip present on one side
-  only was never reported, and `changedPixels` counted a corner that exists on
-  neither screenshot.
 - **The reusable approve workflow starts again.** Its github-script program
   spliced `${{ inputs.allow-self-approval }}` into the script. One expression
   makes the whole script an expression template, and GitHub caps a template at
@@ -4902,7 +5003,9 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.5.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.1...HEAD
+[8.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.0...v8.0.1
+[8.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.7.0...v8.0.0
 [7.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.4.0...v7.5.0
 [7.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.3.0...v7.4.0
 [7.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.2.1...v7.3.0
