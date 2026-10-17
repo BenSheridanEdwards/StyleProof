@@ -753,3 +753,37 @@ test('cleanFindings keeps an added element’s :hover restyle of an existing ele
   ]);
   assert.ok(kept.some((f) => f.kind === 'state' && f.sub === label));
 });
+
+test('cleanFindings keeps a new .cta:hover .icon colour even though the icon’s resting colour also changed', () => {
+  // Head: `.icon{color:gray} .cta:hover .icon{color:blue}`; base: `.icon{color:black}`, no hover rule.
+  // The hover renders blue on head and black on base, so it is a real change, not an echo.
+  // The label's hover renders black on both sides (head `.label{color:gray} .cta:hover .label{color:black}`): an echo.
+  const btn = 'body > button:nth-child(1)';
+  const icon = `${btn} > span:nth-child(1)`;
+  const label = `${btn} > span:nth-child(2)`;
+  const restyle = (path) => ({
+    kind: 'style',
+    path,
+    cls: '',
+    pseudo: null,
+    props: [{ prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(128, 128, 128)' }],
+  });
+  const hover = (sub, after) => ({
+    kind: 'state',
+    path: btn,
+    cls: 'cta',
+    state: 'hover',
+    sub,
+    props: [{ prop: 'color', before: '(state does not change it)', after }],
+  });
+  const kept = cleanFindings([
+    restyle(icon),
+    restyle(label),
+    hover(icon, 'rgb(0, 0, 255)'),
+    hover(label, 'rgb(0, 0, 0)'),
+  ]);
+  assert.deepEqual(
+    kept.filter((f) => f.kind === 'state').map((f) => f.sub),
+    [icon],
+  );
+});

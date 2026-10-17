@@ -13,7 +13,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The report dropped a state row whose prop the owner's resting style also
   changed, even when the row belonged to a different element
   (`.cta:hover .icon`), and grouping ignored that target, merging surfaces whose
-  hover restyled different elements. Both now key on the target.
+  hover restyled different elements. Both now key on the target. A row on
+  another element is dropped as an echo only when its values show the hover
+  renders the same on both sides. **Behaviour change:** certify mode can now
+  fail on a hover restyle it used to drop.
 
 ## [8.0.1] - 2026-10-17
 

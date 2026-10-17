@@ -106,11 +106,12 @@ export function derivedLonghandCount(findings: Finding[]): number {
  * a finding left with no props is removed entirely.
  */
 export function cleanFindings(findings: Finding[]): Finding[] {
-  // Each element's own resting-style changes. A state row is an echo only when the element
-  // it targets (`sub`, which may be a child or sibling of the owner) changed that prop itself.
-  const restyled = new Map<string, Set<string>>();
+  // Each element's own resting-style changes, by prop. A state row on the owner is an echo when
+  // the owner changed that prop. On another element (`sub`) it is an echo only when the values
+  // show the hover renders the same on both sides.
+  const restyled = new Map<string, Map<string, PropChange>>();
   for (const f of findings) {
-    if (f.kind === 'style' && f.pseudo === null) restyled.set(f.path, new Set(f.props.map((p) => p.prop)));
+    if (f.kind === 'style' && f.pseudo === null) restyled.set(f.path, new Map(f.props.map((p) => [p.prop, p])));
   }
   // An ADDED element's base style is a full snapshot, not a delta, so a state
   // value on it is never an "echo" of a base change: keep every such state row.
@@ -119,7 +120,14 @@ export function cleanFindings(findings: Finding[]): Finding[] {
     if (f.kind !== 'state') return false;
     const target = f.sub ?? f.path;
     // An added owner had no state on the base, so none of its state rows can echo one.
-    return !added.has(f.path) && !added.has(target) && !!restyled.get(target)?.has(p.prop);
+    if (added.has(f.path) || added.has(target)) return false;
+    const rest = restyled.get(target)?.get(p.prop);
+    if (!rest) return false;
+    if (target === f.path) return true;
+    return (
+      (p.after === '(state no longer changes it)' && p.before === rest.after) ||
+      (p.before === '(state does not change it)' && p.after === rest.before)
+    );
   };
   const out: Finding[] = [];
   for (const group of groupByPath(findings)) {
