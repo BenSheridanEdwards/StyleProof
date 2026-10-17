@@ -59,7 +59,7 @@ function seedBaseMaps(dir) {
  * Run the recipe against a map dir: every surface NOT in the affected set reuses
  * its committed base map; every surface in it (or all, on 'all') is "re-captured".
  * Returns, per surface, whether it was reused or re-captured — the exact decision a
- * pre-push hook makes. Fails loudly if a surface has neither a base nor a capture.
+ * selective-remap CI step makes. Fails loudly if a surface has neither a base nor a capture.
  */
 function applyRecipe(baseDir, affected) {
   const keys = Object.keys(SURFACES);
