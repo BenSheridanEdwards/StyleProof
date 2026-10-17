@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`--spec-ref` no longer aborts on an empty file in the spec directory.**
+  A zero-byte blob (`.gitkeep`, an empty fixture) was treated as a failed read
+  and `styleproof-ci` exited 1.
+
 ## [8.0.1] - 2026-10-17
 
 ### Fixed
