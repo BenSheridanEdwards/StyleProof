@@ -17,6 +17,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   another element is dropped as an echo only when its values show the hover
   renders the same on both sides. **Behaviour change:** certify mode can now
   fail on a hover restyle it used to drop.
+- **Every live region is excluded, not only the last one to tick.** Settling
+  kept only the paths that changed in the latest changing poll, so two live
+  regions ticking out of phase left one in the map as if it were stable. A path
+  is now volatile when it changed within the quiet window before timeout or in
+  the last poll that changed, so every region that changed in that window is
+  excluded, a slower region held open by in-flight requests still is, and
+  content that loaded late (in any number of steps) and then settled is still
+  compared. **Upgrade note:** a base map captured under the old rule can flag
+  the second ticker as head-only volatile (not certified) until the base is
+  re-captured with this version.
 - **Crop pairs show the same page rectangle on both sides.** When the change
   grew or shrank the page, each side's crop was clamped to its own screenshot,
   so a box near the bottom showed different page regions left and right — a
