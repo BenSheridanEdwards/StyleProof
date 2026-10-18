@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `:hover` restyle of another element is no longer hidden as an echo.**
+  The report dropped a state row whose prop the owner's resting style also
+  changed, even when the row belonged to a different element
+  (`.cta:hover .icon`), and grouping ignored that target, merging surfaces whose
+  hover restyled different elements. Both now key on the target. A row on
+  another element is dropped as an echo only when its values show the hover
+  renders the same on both sides. **Behaviour change:** certify mode can now
+  fail on a hover restyle it used to drop.
 - **Every live region is excluded, not only the last one to tick.** Settling
   kept only the paths that changed in the latest changing poll, so two live
   regions ticking out of phase left one in the map as if it were stable. A path
