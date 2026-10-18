@@ -212,6 +212,11 @@ const criticalAudit = auditCriticalObligations(
   inputs.criticalStatesArmed,
 );
 comparability = applyCriticalObligationReceipts(comparability, criticalAudit);
+// Unbound diagnostic compares list undeclared legacy pairs as advisory, like declared ones; gates keep `comparability`.
+const displayComparability =
+  sourceBinding.status === 'bound'
+    ? comparability
+    : applyCriticalObligationReceipts(result.comparability, criticalAudit);
 const criticalFails = criticalAudit.armed ? criticalAudit.unresolved.length + criticalAudit.contradictory.length : 0;
 
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned) findings.
@@ -374,7 +379,7 @@ for (const sd of surfaces) {
 const nonCertifying = (receipt) =>
   receipt?.status === 'incomparable' || (receipt?.status === 'unproven' && (receipt.required || requireStateIdentity));
 const preparedForGrouping = surfaces
-  .filter((sd) => !sd.missing && !nonCertifying(comparability.find((entry) => entry.surface === sd.surface)))
+  .filter((sd) => !sd.missing && !nonCertifying(displayComparability.find((entry) => entry.surface === sd.surface)))
   .map((sd) => ({ surface: sd.surface, findings: cleanFindingsForDisplay(sd.findings), raw: sd.findings }))
   .filter((p) => p.findings.length > 0);
 

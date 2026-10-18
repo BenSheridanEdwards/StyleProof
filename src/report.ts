@@ -127,6 +127,8 @@ export type ReportOptions = {
   includeContent?: boolean;
   /** Require explicit matching productState identity on every paired capture. */
   requireStateIdentity?: boolean;
+  /** Unbound compare (no trusted SHAs): undeclared legacy pairs render as advisory, like declared ones. Gates unchanged. */
+  diagnostic?: boolean;
   /** Declare gates: a precomputed audit wins; otherwise the declarations are audited when armed. */
   legacyPairs?: LegacyPairAudit;
   legacyPairDeclarations?: DeclaredLegacyPairs;
@@ -205,6 +207,8 @@ type Gates = {
   legacyPairs?: LegacyPairAudit;
   criticalStates?: CriticalObligationAudit;
   comparability: SurfaceComparability[];
+  /** What the presentation may render; certification always reads `comparability`. */
+  displayComparability: SurfaceComparability[];
 };
 
 /** The declare gates: precomputed audits win; otherwise audit when armed. Receipts tighten comparability. */
@@ -218,7 +222,14 @@ function auditGates(opts: ReportOptions, raw: SurfaceComparability[]): Gates {
       ? auditCriticalObligations(raw, opts.criticalObligations ?? {}, opts.coverageExclusions ?? [], true)
       : undefined);
   const comparability = applyCriticalObligationReceipts(applyLegacyPairReceipts(raw, legacyPairs), criticalStates);
-  return { legacyPairs, criticalStates, comparability };
+  const displayComparability = opts.diagnostic ? applyCriticalObligationReceipts(raw, criticalStates) : comparability;
+  return { legacyPairs, criticalStates, comparability, displayComparability };
+}
+
+function nonCertifying(receipt: SurfaceComparability | undefined, requireStateIdentity: boolean): boolean {
+  return (
+    receipt?.status === 'incomparable' || (receipt?.status === 'unproven' && (receipt.required || requireStateIdentity))
+  );
 }
 
 /**
@@ -234,10 +245,7 @@ function prepareReportSurfaces(
   includeStructure: boolean,
 ): PreparedSurface[] {
   const receipts = new Map(comparability.map((entry) => [entry.surface, entry]));
-  const blocked = (sd: SurfaceDiff): boolean => {
-    const r = receipts.get(sd.surface);
-    return r?.status === 'incomparable' || (r?.status === 'unproven' && (r.required || ctx.requireStateIdentity));
-  };
+  const blocked = (sd: SurfaceDiff): boolean => nonCertifying(receipts.get(sd.surface), ctx.requireStateIdentity);
   return surfaces
     .map((sd): PreparedSurface => {
       if (sd.missing) return { sd, findings: sd.findings };
@@ -333,8 +341,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const comparabilitySummary = summarizeComparability(gates.comparability, requireStateIdentity);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
-  const prepared = prepareReportSurfaces(ctx, diff.surfaces, gates.comparability, includeStructure);
+  const prepared = prepareReportSurfaces(ctx, diff.surfaces, gates.displayComparability, includeStructure);
   const missing = prepared.filter((s) => s.sd.missing);
+  // Advisory-only surfaces (diagnostic display) are not presentation evidence for the consistency receipt.
+  const certifyingReceipts = new Map(gates.comparability.map((entry) => [entry.surface, entry]));
+  const certifyingShown = prepared.filter(
+    (s) => !s.sd.missing && !nonCertifying(certifyingReceipts.get(s.sd.surface), requireStateIdentity),
+  ).length;
   const changeGroups = groupBySignature(
     ctx,
     prepared.filter((s) => !s.sd.missing),
@@ -359,7 +372,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     chromeElevated.elevated.map((e) => e.change),
   );
   const baseComparison: ReportComparison = {
-    ...comparisonForReport(rawComparison, ctx.includeNoise, prepared.length - missing.length),
+    ...comparisonForReport(rawComparison, ctx.includeNoise, certifyingShown),
     ...comparabilitySummary,
   };
   const comparison: ReportComparison = {
@@ -374,7 +387,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // when matched-element style changeGroups are empty (no restyle sections to crop).
   const reportConsistency = assessReportConsistency(
     comparison,
-    changeGroups.length > 0 || missing.length > 0 || elevatedStructureDom > 0,
+    certifyingShown > 0 || missing.length > 0 || elevatedStructureDom > 0,
   );
 
   // Content layer: advisory per-surface + Global chrome display; elevated count colours copy.

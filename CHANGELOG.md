@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A two-directory report shows changes on undeclared product-state pairs.**
+  With a product-state ledger armed, `styleproof report <before> <after>` said
+  there were no reviewable changes and wrote no crops when a pair was not in the
+  ledger, and `styleproof diff` printed only totals. Without `--expected-*-sha`
+  both commands now list those changes under the existing non-certifying banner,
+  as they already did for a declared pair. The verdict, exit code and
+  certification receipts are unchanged. Source-bound runs (the Action),
+  `--require-state-identity` and failing critical obligations still hide them.
 - **A `:hover` restyle of another element is no longer hidden as an echo.**
   The report dropped a state row whose prop the owner's resting style also
   changed, even when the row belonged to a different element
