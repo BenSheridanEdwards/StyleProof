@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   lives in one file, `.github/path-filters.yml`, which all five workflows pass to
   dorny.
 
+- **The headline counts every elevated structure change.** It showed the
+  visible count or the navigable-chrome count, whichever was non-zero, while
+  the gate counted both: "1 … needs review" when 2 gated. The headline and its
+  🧱 note now use the same de-duplicated total as `reviewableCounts.dom`.
 - **A two-directory report shows changes on undeclared product-state pairs.**
   With a product-state ledger armed, `styleproof report <before> <after>` said
   there were no reviewable changes and wrote no crops when a pair was not in the
