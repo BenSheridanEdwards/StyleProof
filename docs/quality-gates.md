@@ -16,8 +16,9 @@ North Star for agents: **first-time-green PRs** — do not wait on gates that ca
 pass it to dorny/paths-filter (`'**'` plus one negation per safe path,
 `predicate-quantifier: every`), and `scripts/ci-path-filters.mjs` reads the same
 file for tests and analysis. It is fail-closed: an unlisted path (new directory,
-workflow, `bin/`, `src/`, config, lockfile) runs every lane, and so does a
-missing or malformed filter file. `src/**` is never safe: `bin/styleproof.mjs`
+workflow, `bin/`, `src/`, config, lockfile) runs every lane. A missing or
+malformed filter file fails the `changes` job: `required` then fails in
+`ci.yml`, and the dogfood lanes run. `src/**` is never safe: `bin/styleproof.mjs`
 spawns every CLI by computed name, so the e2e lane can reach all of `src/`.
 
 ## Local hooks

@@ -40,6 +40,7 @@ const cases = [
   ['unknown new top-level path', ['newdir/thing.txt'], true],
   ['unknown new script', ['scripts/new-helper.mjs'], true],
   ['path-filter classifier itself', ['scripts/ci-path-filters.mjs'], true],
+  ['path-filter file itself', ['.github/path-filters.yml'], true],
   ['mixed docs and src', ['docs/setup.md', 'src/util.ts'], true],
 ];
 
