@@ -13,20 +13,6 @@ name: Phase 1 advisory dogfood
 
 on:
   pull_request:
-    paths:
-      - 'src/capture/**'
-      - 'src/diff.ts'
-      - 'src/report/**'
-      - 'src/runner/**'
-      - 'src/**'
-      - 'action.yml'
-      - 'bin/**'
-      - 'example/**'
-      - 'bench/**'
-      - 'styleproof.config.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/phase1-advisory-dogfood.yml'
 
 permissions:
   contents: read
@@ -36,8 +22,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Phase 1 dogfood path filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      dogfood: ${{ steps.filter.outputs.dogfood }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            dogfood:
+              - '**'
+              - '!*.md'
+              - '!LICENSE'
+              - '!docs/**'
+              - '!.agents/**'
+              - '!.claude/**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/PULL_REQUEST_TEMPLATE.md'
+              - '!.fallow/**'
+              - '!.fallowrc.jsonc'
+              - '!.mcp.json'
+              - '!skills-lock.json'
+              - '!eslint.config.js'
+              - '!commitlint.config.js'
+              - '!.prettierrc.json'
+              - '!.prettierignore'
+              - '!test/*.test.mjs'
+              - '!scripts/check-coverage.mjs'
+              - '!scripts/privacy-check.mjs'
+              - '!scripts/validate-pr-body.mjs'
+              - '!scripts/eight-section-pr-body.mjs'
+              - '!scripts/release-notes.mjs'
+
   phase1-mapping:
     name: Phase 1 mapping (advisory)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.dogfood != 'false' }}
     runs-on: ubuntu-latest
     env:
       PHASE1_MAPPING_SPECS: test/phase1-foundation-harness.e2e.spec.ts test/phase1-structure-harness.e2e.spec.ts

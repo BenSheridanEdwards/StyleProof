@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **CI path filters fail closed.** The browser lanes (e2e shards, e2e evidence,
+  detection corpus) and the four dogfood workflows ran only when a changed path
+  was on a list of product paths, so anything off the list skipped them: a `bin/`
+  change, `action.yml`, `tsconfig.json`, a workflow, or a helper that an e2e spec
+  imports. They now run unless every changed file is on a short list of paths
+  that no lane loads, such as docs, top-level Markdown, agent tooling, lint
+  configs and Node unit tests. `scripts/ci-path-filters.mjs` holds that list, and
+  a test pins the same dorny filter into all five workflows.
+
 - **A two-directory report shows changes on undeclared product-state pairs.**
   With a product-state ledger armed, `styleproof report <before> <after>` said
   there were no reviewable changes and wrote no crops when a pair was not in the

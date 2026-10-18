@@ -1,46 +1,34 @@
 /**
- * Path filters for StyleProof CI lean gates.
- * Mirror scripts/pre-push-e2e.mjs for capture surfaces, then broaden for
- * dogfood (example/, action.yml) and shrink e2e/detection when those
- * surfaces are untouched.
+ * The one CI path classifier. Every workflow that can skip a browser or dogfood
+ * lane embeds dornyFilterLines(); test/ci-path-filters.test.mjs pins each copy.
  *
- * Docs-only / changelog-only / pure unit-test PRs (#788, #790, #800, #809)
- * should skip dogfood and browser e2e while keeping build + unit + pr-body.
+ * Fail-closed: a path runs every lane unless it matches a SAFE_PATHS entry. An
+ * entry earns its place only when nothing a browser or dogfood lane executes or
+ * reads can load it. src/** never qualifies: bin/styleproof.mjs spawns every CLI
+ * by computed name, so the e2e lane can reach all of src.
  */
-
-/** Live capture / diff / report / runner — same idea as pre-push-e2e.mjs. */
-export const CAPTURE_ENGINE_GLOBS = ['src/capture/**', 'src/diff.ts', 'src/report/**', 'src/runner/**'];
-
-/**
- * Shared product surfaces for dogfood workflows. Each workflow YAML also lists
- * its own path so edits to that workflow still schedule it.
- */
-export const DOGFOOD_PATH_GLOBS = [
-  ...CAPTURE_ENGINE_GLOBS,
-  'src/**',
-  'action.yml',
-  'bin/**',
-  'example/**',
-  'bench/**',
-  'styleproof.config.ts',
-  'package.json',
-  'package-lock.json',
-];
-
-/** Paths that should schedule Playwright e2e shards + detection corpus. */
-export const E2E_PATH_GLOBS = [
-  ...CAPTURE_ENGINE_GLOBS,
-  'src/**',
-  'test/**/*.e2e.spec.ts',
-  'test/helpers.mjs',
-  'test/fixtures/**',
-  'playwright.ci.config.ts',
-  'playwright.config.ts',
-  'bench/**',
-  'package.json',
-  'package-lock.json',
-  '.github/workflows/ci.yml',
-  'scripts/verify-e2e-shards.mjs',
+export const SAFE_PATHS = [
+  { glob: '*.md', why: 'Top-level prose (README, CHANGELOG, AGENTS); no CLI or lane reads it.' },
+  { glob: 'LICENSE', why: 'License text; shipped in the package, read by nothing.' },
+  { glob: 'docs/**', why: 'Documentation and committed proof assets; the build job checks docs/demo freshness.' },
+  { glob: '.agents/**', why: 'Agent context documents; nothing in CI loads them.' },
+  { glob: '.claude/**', why: 'Local agent tooling (skills, hooks, settings); never run in CI.' },
+  { glob: '.github/ISSUE_TEMPLATE/**', why: 'Issue forms rendered by GitHub only.' },
+  { glob: '.github/PULL_REQUEST_TEMPLATE.md', why: 'PR body template rendered by GitHub only.' },
+  { glob: '.fallow/**', why: 'Fallow health baseline read only by fallow.yml.' },
+  { glob: '.fallowrc.jsonc', why: 'Fallow configuration read only by fallow.yml.' },
+  { glob: '.mcp.json', why: 'Local MCP server list for agent sessions.' },
+  { glob: 'skills-lock.json', why: 'Pin file for vendored agent skills under .claude/.' },
+  { glob: 'eslint.config.js', why: 'Lint rules; the build job runs lint and they never reach dist/.' },
+  { glob: 'commitlint.config.js', why: 'Commit message rules for the local hook.' },
+  { glob: '.prettierrc.json', why: 'Formatter settings; the build job runs format:check.' },
+  { glob: '.prettierignore', why: 'Formatter ignore list; the build job runs format:check.' },
+  { glob: 'test/*.test.mjs', why: 'Node unit tests; the build job runs them and no browser lane imports one.' },
+  { glob: 'scripts/check-coverage.mjs', why: 'Unit coverage floor for the build job.' },
+  { glob: 'scripts/privacy-check.mjs', why: 'Privacy scan run by the build job.' },
+  { glob: 'scripts/validate-pr-body.mjs', why: 'PR body validator run by pr-body.yml.' },
+  { glob: 'scripts/eight-section-pr-body.mjs', why: 'PR body headings shared with the PR body validator.' },
+  { glob: 'scripts/release-notes.mjs', why: 'Release note extraction run by release.yml.' },
 ];
 
 function normalizePath(file) {
@@ -84,16 +72,17 @@ function matchesOneGlob(normalized, glob) {
   return normalized === glob;
 }
 
-/** True when dorny-style globs should treat a changed path as matching. */
-export function pathMatchesGlobs(file, globs) {
+export function isSafePath(file) {
   const normalized = normalizePath(file);
-  return globs.some((glob) => matchesOneGlob(normalized, glob));
+  return SAFE_PATHS.some(({ glob }) => matchesOneGlob(normalized, glob));
 }
 
-export function shouldRunDogfood(files) {
-  return files.some((f) => pathMatchesGlobs(f, DOGFOOD_PATH_GLOBS));
+/** dorny's verdict for the same file list: true when any changed file is not safe. */
+export function needsBrowserLanes(files) {
+  return files.some((file) => !isSafePath(file));
 }
 
-export function shouldRunE2e(files) {
-  return files.some((f) => pathMatchesGlobs(f, E2E_PATH_GLOBS));
+/** The dorny filter body (with predicate-quantifier `every`) each workflow embeds. */
+export function dornyFilterLines(output) {
+  return [`${output}:`, "  - '**'", ...SAFE_PATHS.map(({ glob }) => `  - '!${glob}'`)];
 }

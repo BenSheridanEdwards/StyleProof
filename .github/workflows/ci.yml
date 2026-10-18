@@ -28,23 +28,31 @@ jobs:
         id: filter
         with:
           # On push to main, compare against the previous commit; on PR, against the base.
+          predicate-quantifier: every
           filters: |
             e2e:
-              - 'src/capture/**'
-              - 'src/diff.ts'
-              - 'src/report/**'
-              - 'src/runner/**'
-              - 'src/**'
-              - 'test/**/*.e2e.spec.ts'
-              - 'test/helpers.mjs'
-              - 'test/fixtures/**'
-              - 'playwright.ci.config.ts'
-              - 'playwright.config.ts'
-              - 'bench/**'
-              - 'package.json'
-              - 'package-lock.json'
-              - '.github/workflows/ci.yml'
-              - 'scripts/verify-e2e-shards.mjs'
+              - '**'
+              - '!*.md'
+              - '!LICENSE'
+              - '!docs/**'
+              - '!.agents/**'
+              - '!.claude/**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/PULL_REQUEST_TEMPLATE.md'
+              - '!.fallow/**'
+              - '!.fallowrc.jsonc'
+              - '!.mcp.json'
+              - '!skills-lock.json'
+              - '!eslint.config.js'
+              - '!commitlint.config.js'
+              - '!.prettierrc.json'
+              - '!.prettierignore'
+              - '!test/*.test.mjs'
+              - '!scripts/check-coverage.mjs'
+              - '!scripts/privacy-check.mjs'
+              - '!scripts/validate-pr-body.mjs'
+              - '!scripts/eight-section-pr-body.mjs'
+              - '!scripts/release-notes.mjs'
 
   build:
     name: build (node ${{ matrix.node }})
