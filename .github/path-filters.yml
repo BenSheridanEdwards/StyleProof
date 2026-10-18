@@ -1,0 +1,53 @@
+# The only list of paths that may skip the browser lanes (e2e shards, e2e evidence,
+# detection corpus) and the four dogfood workflows. Each of those workflows passes
+# this file to dorny/paths-filter with predicate-quantifier: every, so a changed
+# file runs every lane unless it matches one of the negations below.
+#
+# Fail-closed: add a path only when nothing a browser or dogfood lane executes or
+# reads can load it, and say why. src/** never qualifies: bin/styleproof.mjs spawns
+# every CLI by computed name, so the e2e lane can reach all of src.
+# scripts/ci-path-filters.mjs reads this file; test/ci-path-filters.test.mjs pins it.
+lanes:
+  - '**'
+  # Top-level prose (README, CHANGELOG, AGENTS); no CLI or lane reads it.
+  - '!*.md'
+  # License text; shipped in the package, read by nothing.
+  - '!LICENSE'
+  # Documentation and committed proof assets; the build job checks docs/demo freshness.
+  - '!docs/**'
+  # Agent context documents; nothing in CI loads them.
+  - '!.agents/**'
+  # Local agent tooling (skills, hooks, settings); never run in CI.
+  - '!.claude/**'
+  # Issue forms rendered by GitHub only.
+  - '!.github/ISSUE_TEMPLATE/**'
+  # PR body template rendered by GitHub only.
+  - '!.github/PULL_REQUEST_TEMPLATE.md'
+  # Fallow health baseline read only by fallow.yml.
+  - '!.fallow/**'
+  # Fallow configuration read only by fallow.yml.
+  - '!.fallowrc.jsonc'
+  # Local MCP server list for agent sessions.
+  - '!.mcp.json'
+  # Pin file for vendored agent skills under .claude/.
+  - '!skills-lock.json'
+  # Lint rules; the build job runs lint and they never reach dist/.
+  - '!eslint.config.js'
+  # Commit message rules for the local hook.
+  - '!commitlint.config.js'
+  # Formatter settings; the build job runs format:check.
+  - '!.prettierrc.json'
+  # Formatter ignore list; the build job runs format:check.
+  - '!.prettierignore'
+  # Node unit tests; the build job runs them and no browser lane imports one.
+  - '!test/*.test.mjs'
+  # Unit coverage floor for the build job.
+  - '!scripts/check-coverage.mjs'
+  # Privacy scan run by the build job.
+  - '!scripts/privacy-check.mjs'
+  # PR body validator run by pr-body.yml.
+  - '!scripts/validate-pr-body.mjs'
+  # PR body headings shared with the PR body validator.
+  - '!scripts/eight-section-pr-body.mjs'
+  # Release note extraction run by release.yml.
+  - '!scripts/release-notes.mjs'

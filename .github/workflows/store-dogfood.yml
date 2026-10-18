@@ -41,27 +41,14 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      dogfood: ${{ steps.filter.outputs.dogfood }}
+      dogfood: ${{ steps.filter.outputs.lanes }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
         id: filter
         with:
-          filters: |
-            dogfood:
-              - 'src/capture/**'
-              - 'src/diff.ts'
-              - 'src/report/**'
-              - 'src/runner/**'
-              - 'src/**'
-              - 'action.yml'
-              - 'bin/**'
-              - 'example/**'
-              - 'bench/**'
-              - 'styleproof.config.ts'
-              - 'package.json'
-              - 'package-lock.json'
-              - '.github/workflows/store-dogfood.yml'
+          predicate-quantifier: every
+          filters: .github/path-filters.yml
 
   round-trip:
     # Forks lack write permission for the scratch branch; same-repo PRs only. A manual run

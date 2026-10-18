@@ -21,30 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      e2e: ${{ steps.filter.outputs.e2e }}
+      e2e: ${{ steps.filter.outputs.lanes }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
         id: filter
         with:
+          predicate-quantifier: every
           # On push to main, compare against the previous commit; on PR, against the base.
-          filters: |
-            e2e:
-              - 'src/capture/**'
-              - 'src/diff.ts'
-              - 'src/report/**'
-              - 'src/runner/**'
-              - 'src/**'
-              - 'test/**/*.e2e.spec.ts'
-              - 'test/helpers.mjs'
-              - 'test/fixtures/**'
-              - 'playwright.ci.config.ts'
-              - 'playwright.config.ts'
-              - 'bench/**'
-              - 'package.json'
-              - 'package-lock.json'
-              - '.github/workflows/ci.yml'
-              - 'scripts/verify-e2e-shards.mjs'
+          filters: .github/path-filters.yml
 
   build:
     name: build (node ${{ matrix.node }})

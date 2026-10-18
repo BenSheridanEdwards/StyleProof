@@ -1,47 +1,26 @@
-/**
- * Path filters for StyleProof CI lean gates.
- * Mirror scripts/pre-push-e2e.mjs for capture surfaces, then broaden for
- * dogfood (example/, action.yml) and shrink e2e/detection when those
- * surfaces are untouched.
- *
- * Docs-only / changelog-only / pure unit-test PRs (#788, #790, #800, #809)
- * should skip dogfood and browser e2e while keeping build + unit + pr-body.
- */
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-/** Live capture / diff / report / runner — same idea as pre-push-e2e.mjs. */
-export const CAPTURE_ENGINE_GLOBS = ['src/capture/**', 'src/diff.ts', 'src/report/**', 'src/runner/**'];
+/** The dorny filter file every browser and dogfood workflow passes to dorny/paths-filter. */
+export const PATH_FILTERS_FILE = '.github/path-filters.yml';
 
 /**
- * Shared product surfaces for dogfood workflows. Each workflow YAML also lists
- * its own path so edits to that workflow still schedule it.
+ * Safe-path globs parsed from PATH_FILTERS_FILE. The file must be exactly one
+ * `lanes:` filter whose first pattern is '**' and whose other patterns are
+ * negations; anything else throws rather than guessing.
  */
-export const DOGFOOD_PATH_GLOBS = [
-  ...CAPTURE_ENGINE_GLOBS,
-  'src/**',
-  'action.yml',
-  'bin/**',
-  'example/**',
-  'bench/**',
-  'styleproof.config.ts',
-  'package.json',
-  'package-lock.json',
-];
+export function readSafeGlobs(
+  text = fs.readFileSync(fileURLToPath(new URL(`../${PATH_FILTERS_FILE}`, import.meta.url)), 'utf8'),
+) {
+  const lines = text.split('\n').filter((line) => line.trim() !== '' && !line.trimStart().startsWith('#'));
+  const patterns = lines.slice(1).map((line) => line.match(/^ {2}- '([^']+)'$/)?.[1]);
+  if (lines[0] !== 'lanes:' || patterns[0] !== '**' || patterns.slice(1).some((p) => !p?.startsWith('!'))) {
+    throw new Error(`${PATH_FILTERS_FILE} must be one 'lanes:' filter: '**' then '!<safe glob>' lines`);
+  }
+  return patterns.slice(1).map((p) => p.slice(1));
+}
 
-/** Paths that should schedule Playwright e2e shards + detection corpus. */
-export const E2E_PATH_GLOBS = [
-  ...CAPTURE_ENGINE_GLOBS,
-  'src/**',
-  'test/**/*.e2e.spec.ts',
-  'test/helpers.mjs',
-  'test/fixtures/**',
-  'playwright.ci.config.ts',
-  'playwright.config.ts',
-  'bench/**',
-  'package.json',
-  'package-lock.json',
-  '.github/workflows/ci.yml',
-  'scripts/verify-e2e-shards.mjs',
-];
+const SAFE_GLOBS = readSafeGlobs();
 
 function normalizePath(file) {
   return String(file).split('\\').join('/');
@@ -84,16 +63,12 @@ function matchesOneGlob(normalized, glob) {
   return normalized === glob;
 }
 
-/** True when dorny-style globs should treat a changed path as matching. */
-export function pathMatchesGlobs(file, globs) {
+export function isSafePath(file) {
   const normalized = normalizePath(file);
-  return globs.some((glob) => matchesOneGlob(normalized, glob));
+  return SAFE_GLOBS.some((glob) => matchesOneGlob(normalized, glob));
 }
 
-export function shouldRunDogfood(files) {
-  return files.some((f) => pathMatchesGlobs(f, DOGFOOD_PATH_GLOBS));
-}
-
-export function shouldRunE2e(files) {
-  return files.some((f) => pathMatchesGlobs(f, E2E_PATH_GLOBS));
+/** True when any changed file is not safe: the `lanes` verdict dorny computes from PATH_FILTERS_FILE. */
+export function needsBrowserLanes(files) {
+  return files.some((file) => !isSafePath(file));
 }

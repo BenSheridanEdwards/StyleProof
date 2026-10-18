@@ -9,6 +9,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **CI path filters fail closed.** The browser lanes (e2e shards, e2e evidence,
+  detection corpus) and the four dogfood workflows ran only when a changed path
+  was on a list of product paths, so anything off the list skipped them. The e2e
+  lanes skipped `bin/`, `action.yml`, `tsconfig.json`, workflow changes and a
+  helper that e2e specs import; the dogfood workflows skipped `tsconfig.json`,
+  workflow changes and their own e2e specs. Every lane now runs unless each
+  changed file is on a short list of paths that no lane loads, such as docs,
+  top-level Markdown, agent tooling, lint configs and Node unit tests. That list
+  lives in one file, `.github/path-filters.yml`, which all five workflows pass to
+  dorny.
+
 - **The headline counts every elevated structure change.** It showed the
   visible count or the navigable-chrome count, whichever was non-zero, while
   the gate counted both: "1 … needs review" when 2 gated. The headline and its
