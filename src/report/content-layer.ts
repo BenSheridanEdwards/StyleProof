@@ -7,7 +7,8 @@ import { countCapturedSurfaceBases, formatSurfaceList, prettyLabel, safeKey, sur
 import { chromeHosted } from '../change-chrome.js';
 import { containerOf, paddedRect, screenshotRectOf, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
-import { clipText, codeValue } from './markdown.js';
+import { codeValue } from '../code-span.js';
+import { clipText } from './markdown.js';
 import { screenshotPair, type RenderCtx } from './shared.js';
 
 /** The opt-in ADVISORY content layer: text and structure changes with before/after crops. */

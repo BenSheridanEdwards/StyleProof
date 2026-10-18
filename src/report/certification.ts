@@ -18,7 +18,8 @@ import {
   type ConfidenceSummary,
 } from '../confidence-ledger.js';
 import { safeKey } from '../change-groups.js';
-import { codeValue, escapeInlineMarkdown, escapeMarkdownFailureReason } from './markdown.js';
+import { codeValue } from '../code-span.js';
+import { escapeInlineMarkdown, escapeMarkdownFailureReason } from './markdown.js';
 
 /** The certification block a reviewer reads FIRST: the source-of-truth gates, one line each. */
 

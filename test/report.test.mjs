@@ -13,6 +13,7 @@ import {
   toHex,
   propertyGlanceLine,
 } from '../dist/report.js';
+import { codeValue } from '../dist/code-span.js';
 import * as reportMarkdown from '../dist/report/markdown.js';
 import * as reportShared from '../dist/report/shared.js';
 import { safeKey } from '../dist/surface-keys.js';
@@ -4308,5 +4309,5 @@ test('codeValue escapes only the pipe, leaving backslashes for cmark-gfm to rend
   // GitHub's table parser splits at a `|` without a backslash directly before it and unescapes
   // `\|` alone, so the cell below renders as `content: "a\|b" | x\\|y` exactly as captured.
   const value = String.raw`content: "a\|b" | x\\|y`;
-  assert.equal(reportMarkdown.codeValue(value), '`' + String.raw`content: "a\\|b" \| x\\\|y` + '`');
+  assert.equal(codeValue(value), '`' + String.raw`content: "a\\|b" \| x\\\|y` + '`');
 });

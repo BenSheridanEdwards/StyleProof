@@ -11,7 +11,8 @@ import {
 } from '../map-store.js';
 import { formatChangedSurfaceScope, formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
 import type { ChangeGroup, PreparedSurface, ReportConsistency } from './shared.js';
-import { codeValue, escapeInlineMarkdown } from './markdown.js';
+import { codeValue } from '../code-span.js';
+import { escapeInlineMarkdown } from './markdown.js';
 
 /** Everything the headline prose between the certification block and the detail needs. */
 export type HeadlineInput = {

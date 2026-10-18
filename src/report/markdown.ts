@@ -12,9 +12,6 @@ import {
   type SummarizedProp,
 } from '../change-groups.js';
 
-// Existing importers keep reading the code-span escaper from here.
-export { codeValue };
-
 type StyleFinding = Extract<Finding, { kind: 'style' }>;
 type StateFinding = Extract<Finding, { kind: 'state' }>;
 type DomFinding = Extract<Finding, { kind: 'dom' }>;
