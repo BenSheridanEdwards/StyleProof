@@ -2,6 +2,8 @@
 // in captured text. A `liveText` declaration makes that drift advisory, or fail-closed
 // when `freeze` is set. The certification differ stays exact; this only classifies.
 
+import { codeValue } from './code-span.js';
+
 export class LiveTextError extends Error {
   constructor(message: string) {
     super(`styleproof: invalid liveText — ${message}`);
@@ -231,7 +233,7 @@ export function isLiveTextGeometryPath(path: string, livePaths: readonly string[
 export function liveTextFreezeError(audit: LiveTextAudit): string {
   const sample = audit.violations
     .slice(0, 3)
-    .map((item) => `\`${item.before}\` → \`${item.after}\` on ${item.surface}`)
+    .map((item) => `${codeValue(item.before)} → ${codeValue(item.after)} on ${item.surface}`)
     .join('; ');
   return (
     `styleproof: live/age text drifted after a freeze was declared — captured text is not pinned. ` +

@@ -111,12 +111,13 @@ function describeColor(value: string, idx?: Map<string, string>): ColorParts {
   const token = idx?.get(key) ?? null;
   const hex = toHex(value);
   const word = colorName(value);
-  const full = token ? `\`${token}\` (\`${hex}\`)` : `${word} (\`${hex}\`)`;
+  const full = token ? `${codeValue(token)} (${codeValue(hex)})` : `${word} (${codeValue(hex)})`;
   return { token, word, full, hex };
 }
 
 // One side's rendering: hex-only when it's a word-level no-op, else token/word + hex.
-const sidePart = (c: ColorParts, noop: boolean): string => (noop && c.hex !== 'transparent' ? `\`${c.hex}\`` : c.full);
+const sidePart = (c: ColorParts, noop: boolean): string =>
+  noop && c.hex !== 'transparent' ? codeValue(c.hex) : c.full;
 
 /** `red-100 (#fee2e2) → red-200 (#fecaca)`. When neither side has a token and the
  *  colour WORD is unchanged (two near-whites), show just the hex so a subtle change

@@ -4263,6 +4263,47 @@ test('a hostile element path key stays inside its code span in report.md and rep
   }
 });
 
+test('a hostile colour-token name or pseudo-element stays inside its code span in report.md and report.html', () => {
+  // Token names are page-controlled `:root` custom properties; CSS escapes let them carry a full URL.
+  const token = 'tok`[Approve](https://evil.example/approve)`';
+  const pseudo = '::before` [Pseudo link](https://evil.example/pseudo) `';
+  const map = (color) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > button': {
+          tag: 'button',
+          cls: 'cta',
+          rect: [100, 100, 200, 40],
+          style: { 'background-color': color },
+          pseudo: { [pseudo]: { color } },
+        },
+      },
+    }),
+    tokens: { [`--${token}`]: 'rgb(26, 127, 55)' },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: map('rgb(26, 127, 55)'),
+    after: map('rgb(180, 35, 42)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800, [180, 180, 180]),
+  });
+  try {
+    generateStyleMapReport({ beforeDir, afterDir, outDir });
+    const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
+    const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
+    assert.ok(md.includes('`` tok`[Approve](https://evil.example/approve)` ``'), 'token name keeps one code span');
+    assert.ok(
+      md.includes('On `` ::before` [Pseudo link](https://evil.example/pseudo) ` ``:'),
+      'pseudo keeps one code span',
+    );
+    assert.doesNotMatch(html, /href="https:\/\/evil\.example/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('codeValue escapes only the pipe, leaving backslashes for cmark-gfm to render as written', () => {
   // GitHub's table parser splits at a `|` without a backslash directly before it and unescapes
   // `\|` alone, so the cell below renders as `content: "a\|b" | x\\|y` exactly as captured.

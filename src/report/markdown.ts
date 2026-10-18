@@ -128,7 +128,7 @@ function styleSection(styles: StyleFinding[], added: boolean): string[] {
     const rows = summarizePropsWithFollowOns(s.props);
     if (!rows.length) continue;
     const heading = s.pseudo
-      ? `On \`${s.pseudo}\`${added ? ' (head-side inventory — no baseline)' : ''}:`
+      ? `On ${codeValue(s.pseudo)}${added ? ' (head-side inventory — no baseline)' : ''}:`
       : added
         ? 'Style inventory (head-side — no baseline):'
         : 'Style:';
