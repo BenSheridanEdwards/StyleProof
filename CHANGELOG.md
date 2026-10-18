@@ -59,6 +59,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   compared. **Upgrade note:** a base map captured under the old rule can flag
   the second ticker as head-only volatile (not certified) until the base is
   re-captured with this version.
+- **Selective remap recaptures everything when the base has a surface it
+  never analysed.** A spec surface missing from `affected.surfaces` was skipped
+  by the runner and its base map published as the head map, unchecked. Base
+  surfaces are matched by their authoring key, so `about-team` is not mistaken
+  for a variant of `about`. The CI log counts and names the unlisted surfaces it
+  recaptures. Reading the keys parses one base map at a time, so a scoped run on
+  300 large base maps spends about 7 s here instead of about 3 minutes.
 - **Crop pairs show the same page rectangle on both sides.** When the change
   grew or shrank the page, each side's crop was clamped to its own screenshot,
   so a box near the bottom showed different page regions left and right — a
