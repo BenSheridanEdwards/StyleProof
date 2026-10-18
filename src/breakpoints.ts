@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { warn } from './capture/shared.js';
 
 /**
  * Authoritative viewport-breakpoint detection: read every `@media` width condition the browser
@@ -111,7 +112,7 @@ function resolvableFeature(feature: string): boolean {
 
 /** A width condition detection cannot turn into exact px boundaries — another unit (`9in`, `40ch`),
  *  a function (`calc()`, `min()`, `env()`), or any operand of a range that is not px/em/rem. Detection
- *  must fail rather than miss that band. */
+ *  warns rather than miss that band silently. */
 export function hasUnparsedWidthCondition(mediaText: string): boolean {
   const t = mediaText.toLowerCase();
   if (!WIDTH_FEATURE.test(t)) return false;
@@ -132,8 +133,8 @@ export function widthsFromBoundaries(
 }
 
 /** Detect the widths to sweep for the loaded page — one per `@media` band. Throws if any
- *  stylesheet is unreadable or any width condition cannot be resolved to px: detection is
- *  authoritative or it fails; it never guesses. */
+ *  stylesheet is unreadable: detection is authoritative or it fails; it never guesses. A width
+ *  condition it cannot resolve to px is skipped with a warning; the other bands still sweep. */
 export async function detectViewportWidths(
   page: Page,
   opts: { baseWidth?: number; noQueryWidth?: number } = {},
@@ -149,11 +150,10 @@ export async function detectViewportWidths(
   }
   const unparsed = [...new Set(mediaTexts.filter(hasUnparsedWidthCondition))];
   if (unparsed.length > 0) {
-    throw new Error(
-      `styleproof: can't detect breakpoints — ${unparsed.length} @media width condition(s) detection ` +
-        `cannot resolve to exact px: ${unparsed.join('; ')}. Detection fails rather than guess. Write ` +
-        `the width as px/em/rem without calc() or other functions, or set \`widths\` on the surface to ` +
-        `skip detection.`,
+    warn(
+      `styleproof: breakpoint detection skipped ${unparsed.length} @media width condition(s) it cannot ` +
+        `resolve to exact px: ${unparsed.join('; ')}. Their bands are not swept. Write the width as ` +
+        `px/em/rem without calc() or other functions, or set \`widths\` on the surface to sweep them.`,
     );
   }
   return widthsFromBoundaries(

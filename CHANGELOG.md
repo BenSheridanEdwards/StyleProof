@@ -13,12 +13,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
   stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial
   font size) instead of the page's `html { font-size }`; detects an exact
-  `(width: V)` as its own band; and fails loudly on a width condition it cannot
-  resolve to px (`9in`, `calc()`, either end of a range). A cross-origin
-  `@import` it cannot read (an `@import` is fetched without CORS, as with
-  Google Fonts) is skipped, as before. **Behaviour change:** a page with a
-  width query detection cannot resolve to px now fails detection instead of
-  silently missing that band; set `widths` on the surface to skip detection.
+  `(width: V)` as its own band; and warns about a width condition it cannot
+  resolve to px (`9in`, `calc()`, either end of a range) instead of skipping it
+  silently. The other bands still sweep; set `widths` on the surface to sweep
+  that band too. A cross-origin `@import` it cannot read (an `@import` is
+  fetched without CORS, as with Google Fonts) is skipped, as before.
 - **CI path filters fail closed.** The browser lanes (e2e shards, e2e evidence,
   detection corpus) and the four dogfood workflows ran only when a changed path
   was on a list of product paths, so anything off the list skipped them. The e2e

@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- a test spies on the detection warning */
 import { test, expect } from '@playwright/test';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -40,11 +41,22 @@ test('breakpoint detection resolves em against 16px whatever the root font size'
   expect(await detectViewportWidths(page)).toEqual([360, 640]);
 });
 
-test('breakpoint detection fails loudly on a width condition it cannot resolve', async ({ page }) => {
-  await page.setContent('<style>@media (min-width: 9in) { body { color: red } }</style><body>x</body>');
-  await expect(detectViewportWidths(page)).rejects.toThrow(/can't detect breakpoints.*min-width: 9in/);
-  await page.setContent('<style>@media (400px <= width <= 9in) { body { color: red } }</style><body>x</body>');
-  await expect(detectViewportWidths(page)).rejects.toThrow(/can't detect breakpoints/);
+test('breakpoint detection warns on a width condition it cannot resolve and keeps the other bands', async ({
+  page,
+}) => {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (message: string) => warnings.push(message);
+  try {
+    await page.setContent(
+      '<style>@media (min-width: 640px) { body { color: blue } } @media (min-width: 9in) { body { color: red } } @media (max-width: calc(768px - 1px)) { body { color: green } }</style><body>x</body>',
+    );
+    expect(await detectViewportWidths(page)).toEqual([360, 640]);
+  } finally {
+    console.warn = original;
+  }
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toMatch(/2 @media width condition\(s\).*min-width: 9in.*calc\(/);
 });
 
 test('breakpoint detection skips a cross-origin @import it cannot read, as before', async ({ page }) => {
