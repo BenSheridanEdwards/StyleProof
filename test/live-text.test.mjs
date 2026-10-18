@@ -12,6 +12,7 @@ import {
   auditLiveTextChanges,
   isLiveTextGeometryPath,
   liveTextFreezeError,
+  emptyLiveTextAudit,
 } from '../dist/live-text.js';
 import { diffContentMaps, diffStyleMaps } from '../dist/diff.js';
 import { assessComparisonTruth, isGeometryOnlyGroup } from '../dist/change-groups.js';
@@ -177,6 +178,20 @@ test('auditLiveTextChanges: freeze declared + age drift is a named violation', (
   assert.equal(audit.violations[0].before, 'open 102.1d');
   assert.match(liveTextFreezeError(audit), /drifted after a freeze was declared/);
   assert.match(liveTextFreezeError(audit), /open 102\.1d/);
+});
+
+test('liveTextFreezeError keeps page text with backticks inside its code span', () => {
+  const audit = {
+    ...emptyLiveTextAudit(),
+    freeze: true,
+    violations: [
+      { surface: 'dashboard@1280', path: AGE_PATH, before: 'open `1d', after: 'open 2d` [x](https://evil.example)' },
+    ],
+  };
+  assert.match(
+    liveTextFreezeError(audit),
+    /``open `1d`` → ``open 2d` \[x\]\(https:\/\/evil\.example\)`` on dashboard@1280/,
+  );
 });
 
 // ── gate: declared advisory age drift is not STYLE_REVIEW_REQUIRED ──────────

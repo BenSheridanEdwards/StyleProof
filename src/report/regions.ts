@@ -18,7 +18,8 @@ import {
   type Box,
 } from './geometry.js';
 import { cropNote, MISLEADING_CROP_REASON, renderCropPair, type CropImages } from './crop-pair.js';
-import { codeValue, oneSidedDomPaths, propertyGlanceLine, regionHeading, renderCropChanges } from './markdown.js';
+import { codeValue } from '../code-span.js';
+import { oneSidedDomPaths, propertyGlanceLine, regionHeading, renderCropChanges } from './markdown.js';
 import {
   formatSurfaceListWithContext,
   formatSurfaceWithContext,

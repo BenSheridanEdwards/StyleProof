@@ -8,7 +8,7 @@ import { formatSurfaceList, pushSurfaceWidth, renderSurfaceGroups, surfaceBase }
 import { emptyLiveTextAudit, type LiveTextAudit } from '../live-text.js';
 import { isSameOrDescendant, rectToBox, visible } from './geometry.js';
 import { readPng } from './png.js';
-import { codeValue } from './markdown.js';
+import { codeValue } from '../code-span.js';
 
 /** Loads a surface's style map from a capture dir, cached for the run. */
 export type MapLoader = (dir: string, surface: string) => StyleMap;

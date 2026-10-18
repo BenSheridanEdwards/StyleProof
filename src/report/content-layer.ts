@@ -7,7 +7,8 @@ import { countCapturedSurfaceBases, formatSurfaceList, prettyLabel, safeKey, sur
 import { chromeHosted } from '../change-chrome.js';
 import { containerOf, paddedRect, screenshotRectOf, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
-import { clipText, codeValue } from './markdown.js';
+import { codeValue } from '../code-span.js';
+import { clipText } from './markdown.js';
 import { screenshotPair, type RenderCtx } from './shared.js';
 
 /** The opt-in ADVISORY content layer: text and structure changes with before/after crops. */
@@ -291,7 +292,7 @@ function chromeStructureLines(ctx: RenderCtx, entry: ChromeStructureChange, seq:
   const crop = sides && seq < ctx.maxCrops ? contentCropLines(sides, surface, c, `chrome-${seq + 1}`) : [];
   return [
     '',
-    `**\`${prettyLabel(c.path, c.cls)}\`** — element ${c.change} on all ${bases} surface base${bases === 1 ? '' : 's'} ` +
+    `**${codeValue(prettyLabel(c.path, c.cls))}** — element ${c.change} on all ${bases} surface base${bases === 1 ? '' : 's'} ` +
       `that render its container (${surfaces.length} capture${surfaces.length === 1 ? '' : 's'})`,
     '',
     `<sub>${formatSurfaceList(surfaces)}</sub>`,
@@ -352,7 +353,7 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
     const sides = pngA && pngB ? { ctx, mapA, mapB, pngA, pngB } : null;
     const cropLines = sides && seq < ctx.maxCrops ? contentCropLines(sides, surface, c, `content-${seq + 1}`) : [];
     if (cropLines.some((line) => line.startsWith('!['))) seq++;
-    md.push('', `**\`${prettyLabel(c.path, c.cls)}\`**`, '', ...changeLines(ctx, c), ...cropLines);
+    md.push('', `**${codeValue(prettyLabel(c.path, c.cls))}**`, '', ...changeLines(ctx, c), ...cropLines);
   }
   return { md, seq };
 }

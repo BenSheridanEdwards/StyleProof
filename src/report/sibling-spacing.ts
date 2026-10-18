@@ -1,6 +1,6 @@
 import { isUnder, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
 import { containerOf, isSameOrDescendant } from './geometry.js';
-import { codeValue } from './markdown.js';
+import { codeValue } from '../code-span.js';
 import { shortElementName } from './shared.js';
 
 /**
