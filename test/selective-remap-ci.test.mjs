@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  authoringSurfaceKeysInMapDir,
   classifySelectiveColdReason,
   copyReuseSurfaceArtifacts,
   decideSelectiveRemap,
@@ -14,7 +15,7 @@ import {
   tryComputeAffectedVerdict,
 } from '../dist/selective-remap.js';
 import { extractColdReasonFromLog, isColdReason } from '../dist/map-hit-observability.js';
-import { mkTmp, rmTmp } from './helpers.mjs';
+import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 const ALL = ['dashboard', 'home', 'pricing'];
 
@@ -55,6 +56,18 @@ test('decideSelectiveRemap: opt-in OFF → full remap (default path unchanged)',
   assert.deepEqual(plan.reuse, []);
   assert.match(plan.reason, /opt-in off/i);
   assert.equal(plan.coldReason, 'opt_in_selective_off');
+});
+
+test('decideSelectiveRemap: a base surface outside affected.surfaces forces a full remap', () => {
+  const plan = decideSelectiveRemap({
+    optIn: true,
+    basePresent: true,
+    allSurfaces: ALL,
+    verdict: new Set(['dashboard']),
+    baseSurfaceKeys: new Set([...ALL, 'dashboard-loading', 'settings']),
+  });
+  assert.equal(plan.mode, 'full');
+  assert.match(plan.reason, /outside affected\.surfaces: settings$/);
 });
 
 test('decideSelectiveRemap: opt-in + scoped + base present → selective', () => {
@@ -374,5 +387,42 @@ test('tryComputeAffectedVerdict: missing surfaces/graph fails closed with null v
     assert.match(missingGraph.reason, /graph/i);
   } finally {
     rmTmp(root);
+  }
+});
+
+test('decideSelectiveRemap: a hyphenated surface is not mistaken for a variant of a listed one', () => {
+  const plan = decideSelectiveRemap({
+    optIn: true,
+    basePresent: true,
+    allSurfaces: ['about', 'pricing'],
+    verdict: new Set(['pricing']),
+    baseSurfaceKeys: new Set(['about', 'about-team', 'pricing']),
+    baseAuthoringKeys: new Set(['about', 'about-team', 'pricing']),
+  });
+  assert.equal(plan.mode, 'full');
+  assert.match(plan.reason, /outside affected\.surfaces: about-team$/);
+});
+
+test('decideSelectiveRemap: a variant recorded under its parent authoring key stays selective', () => {
+  const plan = decideSelectiveRemap({
+    optIn: true,
+    basePresent: true,
+    allSurfaces: ALL,
+    verdict: new Set(['dashboard']),
+    baseSurfaceKeys: new Set([...ALL, 'dashboard-loading']),
+    baseAuthoringKeys: new Set(ALL),
+  });
+  assert.equal(plan.mode, 'selective');
+});
+
+test('authoringSurfaceKeysInMapDir reads metadata.surfaceKey and falls back to the capture key', () => {
+  const dir = mkTmp();
+  try {
+    writeCapture(dir, 'dashboard-loading@1280', { ...makeMap({}), metadata: { surfaceKey: 'dashboard' } }, null);
+    writeCapture(dir, 'about-team@1280', { ...makeMap({}), metadata: { surfaceKey: 'about-team' } }, null);
+    writeCapture(dir, 'legacy@1280', makeMap({}), null);
+    assert.deepEqual([...authoringSurfaceKeysInMapDir(dir)].sort(), ['about-team', 'dashboard', 'legacy']);
+  } finally {
+    rmTmp(dir);
   }
 });

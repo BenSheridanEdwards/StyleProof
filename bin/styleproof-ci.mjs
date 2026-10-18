@@ -46,6 +46,7 @@ import {
   resolveSelectiveRemapOptIn,
   selectiveCaptureEnv,
   surfaceKeysInMapDir,
+  authoringSurfaceKeysInMapDir,
   tryComputeAffectedVerdict,
 } from '../dist/selective-remap.js';
 import { harnessMissingAtRef } from './spec-path-env.mjs';
@@ -519,6 +520,7 @@ function planHeadSelectiveRemap(baseMapsDir, consumerRoot, loaded) {
     verdict: attempt.verdict,
     verdictReason: attempt.reason,
     baseSurfaceKeys: baseKeys,
+    baseAuthoringKeys: authoringSurfaceKeysInMapDir(baseMapsDir),
   });
 }
 

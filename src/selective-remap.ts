@@ -10,6 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { surfaceKeyByCaptureKey } from './capture/map-io.js';
 import { affectedSurfaces, classifyStyleChange, type AffectedSurfaces } from './affected-surfaces.js';
 import { resolveStyleProofConfigPath } from './config.js';
 import type { AffectedConfig } from './config/schema.js';
@@ -55,6 +56,12 @@ export type DecideSelectiveRemapInput = {
    * on a scoped verdict, any reuse key absent from base fails closed to full remap.
    */
   baseSurfaceKeys?: ReadonlySet<string> | null;
+  /**
+   * Authoring surface keys of the base captures (`authoringSurfaceKeysInMapDir`). When given,
+   * every one must be an exact `affected.surfaces` key, so `about-team` is never read as a
+   * variant of `about`.
+   */
+  baseAuthoringKeys?: ReadonlySet<string> | null;
 };
 
 /** Env truthy values for STYLEPROOF_SELECTIVE_REMAP. */
@@ -126,6 +133,17 @@ export function decideSelectiveRemap(input: DecideSelectiveRemapInput): Selectiv
     const missing = reuse.filter((k) => !input.baseSurfaceKeys!.has(k));
     if (missing.length > 0) {
       return full(`base missing maps for reuse surface(s): ${missing.join(', ')}`);
+    }
+    // A base surface the verdict never analysed would be skipped by the runner and copied
+    // from base as the head map, unchecked: recapture everything instead.
+    const known = new Set(all);
+    const unanalysed = (
+      input.baseAuthoringKeys
+        ? [...input.baseAuthoringKeys].filter((k) => !known.has(k))
+        : [...input.baseSurfaceKeys].filter((k) => !surfaceMatchesOnlySet(k, known))
+    ).sort();
+    if (unanalysed.length > 0) {
+      return full(`base surface(s) outside affected.surfaces: ${unanalysed.join(', ')}`);
     }
   }
 
@@ -213,6 +231,19 @@ export function surfaceKeysInMapDir(dir: string): Set<string> {
   for (const name of fs.readdirSync(dir)) {
     const key = surfaceKeyFromArtifactName(name);
     if (key) keys.add(key);
+  }
+  return keys;
+}
+
+/**
+ * Authoring surface key of every capture in `dir`: its `metadata.surfaceKey` (a variant records
+ * its parent's key), else the capture's own surface key, which fails safe to a full remap.
+ */
+export function authoringSurfaceKeysInMapDir(dir: string): Set<string> {
+  const keys = new Set<string>();
+  if (!fs.existsSync(dir)) return keys;
+  for (const [captureKey, surfaceKey] of surfaceKeyByCaptureKey(dir)) {
+    keys.add(surfaceKey ?? captureKey.replace(/@\d+$/, ''));
   }
   return keys;
 }
