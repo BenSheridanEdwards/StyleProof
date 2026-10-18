@@ -56,7 +56,7 @@ test('breakpoint detection warns on a width condition it cannot resolve and keep
     console.warn = original;
   }
   expect(warnings).toHaveLength(1);
-  expect(warnings[0]).toMatch(/2 @media width condition\(s\).*min-width: 9in.*calc\(/);
+  expect(warnings[0]).toMatch(/cannot resolve 2 @media width condition\(s\).*min-width: 9in.*calc\(/);
 });
 
 test('breakpoint detection skips a cross-origin @import it cannot read, as before', async ({ page }) => {

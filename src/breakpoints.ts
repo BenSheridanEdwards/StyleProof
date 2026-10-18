@@ -3,8 +3,9 @@ import { warn } from './capture/shared.js';
 
 /**
  * Authoritative viewport-breakpoint detection: read every `@media` width condition the browser
- * ACTUALLY parsed (the loaded CSSOM). It is 100% accurate or it FAILS — an unreadable cross-origin
- * sheet throws rather than silently missing a band. A pure `matchMedia` breakpoint needs explicit `widths`.
+ * ACTUALLY parsed (the loaded CSSOM). It never guesses: an unreadable cross-origin sheet throws, and a
+ * width condition it cannot resolve to px is named in a warning. A pure `matchMedia` breakpoint needs
+ * explicit `widths`.
  */
 
 /** Serialized into the browser by page.evaluate; cannot call module helpers. */
@@ -151,9 +152,9 @@ export async function detectViewportWidths(
   const unparsed = [...new Set(mediaTexts.filter(hasUnparsedWidthCondition))];
   if (unparsed.length > 0) {
     warn(
-      `styleproof: breakpoint detection skipped ${unparsed.length} @media width condition(s) it cannot ` +
-        `resolve to exact px: ${unparsed.join('; ')}. Their bands are not swept. Write the width as ` +
-        `px/em/rem without calc() or other functions, or set \`widths\` on the surface to sweep them.`,
+      `styleproof: breakpoint detection cannot resolve ${unparsed.length} @media width condition(s) to ` +
+        `exact px: ${unparsed.join('; ')}. A band only those parts open is not swept. Write the width as ` +
+        `px/em/rem without calc() or other functions, or set \`widths\` on the surface to sweep it.`,
     );
   }
   return widthsFromBoundaries(
