@@ -213,3 +213,41 @@ test('#766: collectElevatedNavigableChromeAdds fail-closes multi-base navigable 
     rmTmp(dirs.root);
   }
 });
+
+test('the headline counts a visible add plus a navigable chrome add as the gate does', () => {
+  const surfaces = ['home@1280', 'settings@1280', 'account@1280'];
+  const nav = 'body > nav:nth-child(1)';
+  const link = (n, size) => ({
+    tag: 'a',
+    cls: 'side-link',
+    rect: [0, (n - 1) * 40, size, size ? 40 : 0],
+    text: `Item ${n}`,
+  });
+  const map = (after, surface) => {
+    const elements = {
+      body: { tag: 'body', rect: [0, 0, 400, 300] },
+      [nav]: { tag: 'nav', cls: 'sidebar', rect: [0, 0, 80, 300] },
+      'body > main:nth-child(2)': { tag: 'main', cls: 'page', rect: [80, 0, 320, 300] },
+      [`${nav} > a:nth-child(1)`]: link(1, 80),
+    };
+    if (after) elements[`${nav} > a:nth-child(2)`] = link(2, 0); // zero-size navigable chrome add
+    if (after && surface === 'home@1280') {
+      elements['body > main:nth-child(2) > span:nth-child(1)'] = { tag: 'span', cls: 'badge', rect: [100, 10, 50, 20] };
+    }
+    return { ...makeMap({ elements }), viewport: { width: 400, height: 300 } };
+  };
+  const dirs = tmpDirs();
+  try {
+    for (const s of surfaces) {
+      writeCapture(dirs.beforeDir, s, map(false, s), solidPng(400, 300));
+      writeCapture(dirs.afterDir, s, map(true, s), solidPng(400, 300, [150, 150, 150]));
+    }
+    const result = generateStyleMapReport({ ...dirs });
+    const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.equal(json.reviewableCounts.dom, 2);
+    assert.match(md, /\*\*2 visible element additions\/removals need review\*\*/);
+  } finally {
+    rmTmp(dirs.root);
+  }
+});

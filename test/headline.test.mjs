@@ -16,6 +16,7 @@ function baseInput(overrides = {}) {
     volatileCount: 0,
     liveCandidateLabels: [],
     contentCount: 0,
+    elevatedStructureDom: 0,
     contentEvaluated: true,
     reportConsistency: { ok: true, reason: 'aligned' },
     baseline: { surfaceFailures: [], failures: [], undeclaredOnBase: [] },
@@ -83,4 +84,12 @@ test('#770: new surface + one style group keeps verdict as reviewable sum', () =
   assert.match(joined, /\*\*2 changes need review\*\*/);
   assert.match(joined, /🆕 \*\*1 new surface\(s\)\*\*/);
   assert.match(joined, /\*\*1 distinct change\*\* \(14 computed-style difference\(s\)\)/);
+});
+
+test('elevated structure headline counts visible and navigable-chrome elevations together', () => {
+  const md = reportHeadline(
+    baseInput({ elevatedVisibleStructure: 1, elevatedNavigableChromeAdds: 1, elevatedStructureDom: 2 }),
+  ).join('\n');
+  assert.match(md, /\*\*2 visible element additions\/removals need review\*\*/);
+  assert.match(md, /🧱 \*\*2 visible element addition\(s\)\/removal\(s\)\*\* need review/, 'the note agrees');
 });
