@@ -71,6 +71,19 @@ test('decideSelectiveRemap: a base surface outside affected.surfaces forces a fu
   assert.match(plan.reason, /outside affected\.surfaces: settings$/);
 });
 
+test('formatSelectiveRemapPlan: a full remap forced by unlisted base surfaces counts them', () => {
+  const plan = decideSelectiveRemap({
+    optIn: true,
+    basePresent: true,
+    allSurfaces: ['dashboard'],
+    verdict: new Set(['dashboard']),
+    baseSurfaceKeys: new Set(['dashboard', 'settings']),
+    baseAuthoringKeys: new Set(['dashboard', 'settings']),
+  });
+  assert.deepEqual(plan.recapture, ['dashboard', 'settings']);
+  assert.match(formatSelectiveRemapPlan(plan), /^selective remap: OFF → re-capture all 2 surface\(s\)/);
+});
+
 test('decideSelectiveRemap: opt-in + scoped + base present → selective', () => {
   const plan = decideSelectiveRemap({
     optIn: true,
