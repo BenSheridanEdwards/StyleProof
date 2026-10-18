@@ -10,9 +10,10 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { surfaceKeyByCaptureKey } from './capture/map-io.js';
+import { captureKeyFromMapFile, loadStyleMap } from './capture/map-io.js';
 import { affectedSurfaces, classifyStyleChange, type AffectedSurfaces } from './affected-surfaces.js';
 import { resolveStyleProofConfigPath } from './config.js';
+import { isMapFile } from './map-store.js';
 import type { AffectedConfig } from './config/schema.js';
 import type { ColdReason } from './map-hit-observability.js';
 
@@ -143,7 +144,10 @@ export function decideSelectiveRemap(input: DecideSelectiveRemapInput): Selectiv
         : [...input.baseSurfaceKeys].filter((k) => !surfaceMatchesOnlySet(k, known))
     ).sort();
     if (unanalysed.length > 0) {
-      return full(`base surface(s) outside affected.surfaces: ${unanalysed.join(', ')}`);
+      return {
+        ...full(`base surface(s) outside affected.surfaces: ${unanalysed.join(', ')}`),
+        recapture: [...all, ...unanalysed].sort(),
+      };
     }
   }
 
@@ -242,8 +246,11 @@ export function surfaceKeysInMapDir(dir: string): Set<string> {
 export function authoringSurfaceKeysInMapDir(dir: string): Set<string> {
   const keys = new Set<string>();
   if (!fs.existsSync(dir)) return keys;
-  for (const [captureKey, surfaceKey] of surfaceKeyByCaptureKey(dir)) {
-    keys.add(surfaceKey ?? captureKey.replace(/@\d+$/, ''));
+  // One map at a time, dropped after its key is read: holding every parsed base map makes each
+  // further read's GC walk them all, which turns a 300-map base into minutes.
+  for (const file of fs.readdirSync(dir).filter(isMapFile)) {
+    const surfaceKey = loadStyleMap(path.join(dir, file)).metadata?.surfaceKey;
+    keys.add(surfaceKey ?? captureKeyFromMapFile(file).replace(/@\d+$/, ''));
   }
   return keys;
 }
