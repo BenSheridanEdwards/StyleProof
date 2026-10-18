@@ -4,21 +4,21 @@ North Star for agents: **first-time-green PRs** — do not wait on gates that ca
 
 ## CI path skips
 
-| Lane                                         | Runs when                                                                                      | Skips when                            |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------- |
-| build / unit / coverage / lint / privacy     | Always on PR + main                                                                            | —                                     |
-| cli-smoke                                    | Always                                                                                         | —                                     |
-| e2e shards, e2e evidence, detection corpus   | Any changed file is not in `SAFE_PATHS`                                                        | Every changed file is in `SAFE_PATHS` |
-| action / store / styleproof / phase1 dogfood | Same decision                                                                                  | Same decision                         |
-| required                                     | Always; accepts skipped browser lanes only when the path filter succeeded with `e2e` = `false` | —                                     |
+| Lane                                         | Runs when                                                                                      | Skips when                 |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------- |
+| build / unit / coverage / lint / privacy     | Always on PR + main                                                                            | —                          |
+| cli-smoke                                    | Always                                                                                         | —                          |
+| e2e shards, e2e evidence, detection corpus   | Any changed file is not safe in `.github/path-filters.yml`                                     | Every changed file is safe |
+| action / store / styleproof / phase1 dogfood | Same decision                                                                                  | Same decision              |
+| required                                     | Always; accepts skipped browser lanes only when the path filter succeeded with `e2e` = `false` | —                          |
 
-`SAFE_PATHS` in `scripts/ci-path-filters.mjs` is the only list. It is fail-closed:
-an unlisted path (new directory, workflow, `bin/`, `src/`, config, lockfile)
-runs every lane. Each workflow embeds the same dorny filter (`'**'` plus one
-negation per safe path, `predicate-quantifier: every`), and
-`test/ci-path-filters.test.mjs` fails when a copy drifts. `src/**` is never safe:
-`bin/styleproof.mjs` spawns every CLI by computed name, so the e2e lane can reach
-all of `src/`.
+`.github/path-filters.yml` is the only list of safe paths. All five workflows
+pass it to dorny/paths-filter (`'**'` plus one negation per safe path,
+`predicate-quantifier: every`), and `scripts/ci-path-filters.mjs` reads the same
+file for tests and analysis. It is fail-closed: an unlisted path (new directory,
+workflow, `bin/`, `src/`, config, lockfile) runs every lane, and so does a
+missing or malformed filter file. `src/**` is never safe: `bin/styleproof.mjs`
+spawns every CLI by computed name, so the e2e lane can reach all of `src/`.
 
 ## Local hooks
 

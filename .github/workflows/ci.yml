@@ -21,38 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      e2e: ${{ steps.filter.outputs.e2e }}
+      e2e: ${{ steps.filter.outputs.lanes }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
         id: filter
         with:
-          # On push to main, compare against the previous commit; on PR, against the base.
           predicate-quantifier: every
-          filters: |
-            e2e:
-              - '**'
-              - '!*.md'
-              - '!LICENSE'
-              - '!docs/**'
-              - '!.agents/**'
-              - '!.claude/**'
-              - '!.github/ISSUE_TEMPLATE/**'
-              - '!.github/PULL_REQUEST_TEMPLATE.md'
-              - '!.fallow/**'
-              - '!.fallowrc.jsonc'
-              - '!.mcp.json'
-              - '!skills-lock.json'
-              - '!eslint.config.js'
-              - '!commitlint.config.js'
-              - '!.prettierrc.json'
-              - '!.prettierignore'
-              - '!test/*.test.mjs'
-              - '!scripts/check-coverage.mjs'
-              - '!scripts/privacy-check.mjs'
-              - '!scripts/validate-pr-body.mjs'
-              - '!scripts/eight-section-pr-body.mjs'
-              - '!scripts/release-notes.mjs'
+          # On push to main, compare against the previous commit; on PR, against the base.
+          filters: .github/path-filters.yml
 
   build:
     name: build (node ${{ matrix.node }})

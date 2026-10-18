@@ -30,37 +30,14 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      dogfood: ${{ steps.filter.outputs.dogfood }}
+      dogfood: ${{ steps.filter.outputs.lanes }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
         id: filter
         with:
           predicate-quantifier: every
-          filters: |
-            dogfood:
-              - '**'
-              - '!*.md'
-              - '!LICENSE'
-              - '!docs/**'
-              - '!.agents/**'
-              - '!.claude/**'
-              - '!.github/ISSUE_TEMPLATE/**'
-              - '!.github/PULL_REQUEST_TEMPLATE.md'
-              - '!.fallow/**'
-              - '!.fallowrc.jsonc'
-              - '!.mcp.json'
-              - '!skills-lock.json'
-              - '!eslint.config.js'
-              - '!commitlint.config.js'
-              - '!.prettierrc.json'
-              - '!.prettierignore'
-              - '!test/*.test.mjs'
-              - '!scripts/check-coverage.mjs'
-              - '!scripts/privacy-check.mjs'
-              - '!scripts/validate-pr-body.mjs'
-              - '!scripts/eight-section-pr-body.mjs'
-              - '!scripts/release-notes.mjs'
+          filters: .github/path-filters.yml
 
   phase1-mapping:
     name: Phase 1 mapping (advisory)
