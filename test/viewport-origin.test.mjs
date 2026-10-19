@@ -59,6 +59,31 @@ test('horizontal-scrolled style evidence remains eligible for report crops', () 
   assert.equal(hasExposedChangedEntry(map, map, ['marker']), true);
 });
 
+test('report crop eligibility reads the screenshot box, not the driven box', () => {
+  const at = (rect, screenshotRect, style = {}) => ({
+    ...entry(rect),
+    ...(screenshotRect && { screenshotRect }),
+    style,
+  });
+  const map = {
+    viewport: { width: 800, height: 600 },
+    elements: {
+      topScroller: at([0, -500, 800, 100], [0, 100, 800, 100]),
+      lowerScroller: at([0, 1500, 800, 100], [0, 2100, 800, 100]),
+      legacy: at([0, -500, 800, 100]),
+      hidden: at([0, -500, 800, 100], [0, 100, 800, 100], { display: 'none' }),
+      invisible: at([0, -500, 800, 100], [0, 100, 800, 100], { visibility: 'hidden' }),
+      transparent: at([0, -500, 800, 100], [0, 100, 800, 100], { opacity: '0' }),
+      collapsed: at([0, 100, 800, 100], [0, 100, 800, 0]),
+    },
+  };
+  const exposed = (p) => hasExposedChangedEntry(map, map, [p]);
+  assert.equal(exposed('topScroller'), true, 'scrolled out of a top-of-page inner scroller');
+  assert.equal(exposed('lowerScroller'), true, 'scrolled out of a lower-page inner scroller');
+  assert.equal(exposed('legacy'), false, 'legacy map without a screenshot box');
+  for (const p of ['hidden', 'invisible', 'transparent', 'collapsed']) assert.equal(exposed(p), false, p);
+});
+
 test('viewport origin survives stored maps and participates in determinism receipts', () => {
   const root = mkTmp('styleproof-viewport-origin-');
   try {

@@ -6,7 +6,7 @@ import type { Finding, SurfaceDiff } from '../diff.js';
 import { isMapFile } from '../map-store.js';
 import { formatSurfaceList, pushSurfaceWidth, renderSurfaceGroups, surfaceBase } from '../change-groups.js';
 import { emptyLiveTextAudit, type LiveTextAudit } from '../live-text.js';
-import { isSameOrDescendant, rectToBox, visible } from './geometry.js';
+import { isSameOrDescendant, rectToBox, screenshotRectOf, visible } from './geometry.js';
 import { readPng } from './png.js';
 import { codeValue } from '../code-span.js';
 
@@ -113,10 +113,11 @@ export function collectLiveCandidateLabels(beforeDir: string, afterDir: string):
 
 /** A changed element can anchor visual proof only when the captured page can show it. */
 function isPaintedEntry(map: StyleMap, entry: ElementEntry | undefined): boolean {
-  if (!entry?.rect || !visible(rectToBox(entry.rect))) return false;
+  const rect = screenshotRectOf(entry);
+  if (!entry || !rect || !visible(rectToBox(rect))) return false;
   if (entry.style.display === 'none' || entry.style.visibility === 'hidden') return false;
   if (Number(entry.style.opacity ?? '1') <= 0) return false;
-  const [x, y, width, height] = entry.rect;
+  const [x, y, width, height] = rect;
   const scrollX = map.viewport?.scrollX ?? 0;
   if (x + width <= scrollX || y + height <= 0) return false;
   return map.viewport?.width === undefined || x < scrollX + map.viewport.width;
