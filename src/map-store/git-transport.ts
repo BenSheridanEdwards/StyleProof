@@ -29,13 +29,19 @@ export const gitStdout = (cwd: string, args: string[]): string => gitOutput(cwd,
 /** Default git operation timeout for map-store operations (120s). Exported for test assertions. */
 export const DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS = 120_000;
 
+/** Env `STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS` > config `mapStore.gitTimeoutMs` > default. Rounds
+ *  up because `spawnSync` reads a timeout of 0 as unbounded. */
+function mapStoreGitTimeout(configured: number | undefined): number {
+  for (const value of [Number(process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS), configured ?? NaN]) {
+    if (Number.isFinite(value) && value > 0) return Math.ceil(value);
+  }
+  return DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS;
+}
+
 /** A git call that may touch the network: bounded by the timeout and never prompts. */
-export function networkGit(cwd: string, args: string[], maxBuffer = 1 << 20): GitResult {
-  const configured = Number(process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS);
-  const timeout =
-    Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS;
+export function networkGit(cwd: string, args: string[], timeout: number): GitResult {
   const env = { ...gitEnvironment(), GIT_TERMINAL_PROMPT: '0' };
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, timeout, env });
+  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 20, timeout, env });
 }
 
 export function gitFailureMessage(result: GitResult, fallback: string): string {
@@ -127,13 +133,16 @@ export function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] 
 export const configArguments = (headers: GitHttpExtraHeader[]): string[] =>
   headers.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
 
-export type StoreTarget = { cwd: string; branch: string; remote: string };
+export type StoreTarget = { cwd: string; branch: string; remote: string; gitTimeoutMs: number };
 
-export function storeTarget(options: { cwd?: string; branch?: string; remote?: string }): StoreTarget {
+export type StoreOptions = { cwd?: string; branch?: string; remote?: string; gitTimeoutMs?: number };
+
+export function storeTarget(options: StoreOptions): StoreTarget {
   return {
     cwd: options.cwd ?? process.cwd(),
     branch: options.branch ?? DEFAULT_MAP_STORE_BRANCH,
     remote: options.remote ?? DEFAULT_REMOTE,
+    gitTimeoutMs: mapStoreGitTimeout(options.gitTimeoutMs),
   };
 }
 
@@ -148,11 +157,11 @@ export function assertRemote({ cwd, remote }: StoreTarget): void {
  *  probe carries the same auth as the clone it precedes — a private remote answers an
  *  unauthenticated ls-remote with a credential prompt, which reads as an infrastructure
  *  fault and fails the restore before the clone is even attempted. */
-export function lookupBranch({ cwd, remote, branch }: StoreTarget): boolean {
+export function lookupBranch({ cwd, remote, branch, gitTimeoutMs }: StoreTarget): boolean {
   const lookup = networkGit(
     cwd,
     [...configArguments(effectiveGitHttpExtraHeaders(cwd)), 'ls-remote', '--exit-code', '--heads', remote, branch],
-    1 << 20,
+    gitTimeoutMs,
   );
   if (lookup.status === 0) return true;
   if (lookup.status === 2) return false;
@@ -194,7 +203,7 @@ export function checkoutMapStore(
   target: StoreTarget,
   options: { filter?: string; sparseSegment?: string; branchExists?: boolean } = {},
 ): string {
-  const { cwd, remote, branch } = target;
+  const { cwd, remote, branch, gitTimeoutMs } = target;
   assertRemote(target);
   const remoteUrl = gitStdout(cwd, ['remote', 'get-url', remote]);
   const headers = effectiveGitHttpExtraHeaders(cwd);
@@ -203,16 +212,11 @@ export function checkoutMapStore(
   try {
     if (branchExists) {
       const shape = options.filter ? `--filter=${options.filter} --no-checkout --depth 1 --single-branch` : '--depth 1';
-      const clone = networkGit(cwd, [
-        ...configArguments(headers),
-        'clone',
-        '-q',
-        ...shape.split(' '),
-        '--branch',
-        branch,
-        remoteUrl,
-        tmp,
-      ]);
+      const clone = networkGit(
+        cwd,
+        [...configArguments(headers), 'clone', '-q', ...shape.split(' '), '--branch', branch, remoteUrl, tmp],
+        gitTimeoutMs,
+      );
       if (clone.status !== 0) throw new MapStoreError(gitFailureMessage(clone, 'could not clone map store branch'));
     } else {
       git(tmp, ['init', '-q', '-b', branch]);

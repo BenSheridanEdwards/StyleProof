@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING: `mapStore.token` is removed from the config schema and the
+  exported `MapStoreConfig` type.** Nothing ever read it. A typed
+  `styleproof.config.ts` that sets `mapStore.token` now fails type-check
+  (`TS2353: Object literal may only specify known properties`). Delete the
+  key. At runtime a config that still sets it loads with the standard
+  unknown-key warning. Map-store auth comes from `STYLEPROOF_MAP_STORE_TOKEN`
+  or the checkout's credentials, as before.
+
 ### Fixed
 
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
@@ -19,6 +29,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   keeps its key, so its baseline does not change. A project that already had both
   `/blog/[slug]` and `/blog/slug` sees `blog-slug` reported once as a removed
   surface and the suffixed key as a new surface. Re-capture the baseline.
+- **`mapStore.gitTimeoutMs` now bounds map-store git calls.** The key was
+  validated and documented but never read, so only the
+  `STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS` env var set the timeout. Publish,
+  restore, cached compares and ancestor-baseline listing now use the config
+  value; the env var still wins over it, and the default stays 120000 ms. A
+  sub-millisecond timeout from either source now rounds up to 1 ms instead of
+  down to 0, which `spawnSync` treats as no timeout. An env value that is set
+  but not a positive number (`STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS=abc`) now
+  falls through to the config value instead of the 120000 ms default.
 - **A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
   from certification.** The layout-equivalent margin filter dropped a forced-state
   delta's matching left/right margin change whenever the element's rectangle was

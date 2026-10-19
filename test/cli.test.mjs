@@ -1096,6 +1096,58 @@ test('styleproof-map --restore exits 4 when the map store branch does not exist'
   rmTmp(repo);
 });
 
+/** A local origin whose upload-pack stalls, so every networked map-store git call hangs. */
+function stallingOriginRepo(config) {
+  const repo = mkTmp();
+  gitInit(repo);
+  addBareOrigin(repo);
+  spawnSync('git', ['config', 'remote.origin.uploadpack', 'sleep 5; git-upload-pack'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeSpec(repo);
+  fs.writeFileSync(path.join(repo, 'styleproof.config.json'), JSON.stringify(config));
+  commitAll(repo, 'base');
+  return repo;
+}
+
+const restoreFromStallingOrigin = (repo, env) =>
+  runIn(repo, MAP, ['--restore', '--sha', 'a'.repeat(40), '--dir', 'head', '--base-dir', path.join(repo, 'out')], {
+    env: { STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1', ...env },
+  });
+
+test('styleproof-map --restore bounds map-store git by mapStore.gitTimeoutMs', () => {
+  const repo = stallingOriginRepo({ mapStore: { gitTimeoutMs: 500 } });
+  const r = restoreFromStallingOrigin(repo, { STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS: '' });
+  assert.equal(r.status, 5, `expected the stalled lookup to time out (exit 5), got ${r.status}: ${r.stderr}`);
+  assert.match(r.stderr, /ETIMEDOUT/);
+  rmTmp(repo);
+});
+
+test('a sub-millisecond mapStore.gitTimeoutMs still bounds map-store git', () => {
+  const repo = stallingOriginRepo({ mapStore: { gitTimeoutMs: 0.5 } });
+  const r = restoreFromStallingOrigin(repo, { STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS: '' });
+  assert.equal(r.status, 5, `expected a bounded lookup (exit 5), got ${r.status}: ${r.stderr}`);
+  assert.match(r.stderr, /ETIMEDOUT/);
+  rmTmp(repo);
+});
+
+test('styleproof-diff cached compare bounds map-store git by mapStore.gitTimeoutMs', () => {
+  const repo = stallingOriginRepo({ mapStore: { gitTimeoutMs: 500 } });
+  const r = runIn(repo, DIFF, ['main'], {
+    env: { STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1', STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS: '' },
+  });
+  assert.equal(r.status, 2, `expected cached maps unavailable (exit 2), got ${r.status}: ${r.stderr}`);
+  assert.match(r.stdout + r.stderr, /ETIMEDOUT/);
+  rmTmp(repo);
+});
+
+test('STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS overrides mapStore.gitTimeoutMs', () => {
+  const repo = stallingOriginRepo({ mapStore: { gitTimeoutMs: 60_000 } });
+  const r = restoreFromStallingOrigin(repo, { STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS: '500' });
+  assert.equal(r.status, 5, `expected the env timeout to win (exit 5), got ${r.status}: ${r.stderr}`);
+  assert.match(r.stderr, /ETIMEDOUT/);
+  rmTmp(repo);
+});
+
 test('diff default flow explains how to recover when cached maps are missing', () => {
   const repo = mkTmp();
   gitInit(repo);

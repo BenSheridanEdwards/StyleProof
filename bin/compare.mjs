@@ -80,6 +80,7 @@ function captureSource(name, opts) {
     branch:
       opts['cache-branch'] ?? process.env.STYLEPROOF_CACHE_BRANCH ?? config.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH,
     remote: opts.remote ?? process.env.STYLEPROOF_REMOTE ?? config.remote ?? DEFAULT_REMOTE,
+    gitTimeoutMs: config.mapStore?.gitTimeoutMs,
   };
 }
 

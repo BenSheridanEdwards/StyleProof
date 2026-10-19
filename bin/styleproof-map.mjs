@@ -231,7 +231,12 @@ async function upload(dirPath) {
   const warning = nonLinuxUploadWarning(process.platform, suppressPlatformWarning());
   if (warning) console.error(warning);
   try {
-    const res = await publishMapBundle({ dir: dirPath, branch: cacheBranch, remote });
+    const res = await publishMapBundle({
+      dir: dirPath,
+      branch: cacheBranch,
+      remote,
+      gitTimeoutMs: projectConfig.mapStore?.gitTimeoutMs,
+    });
     console.error(`${NAME}: uploaded ${res.sha.slice(0, 12)} (${res.compatibilityKey}) to ${res.branch}`);
   } catch (error) {
     const message = errorMessage(error);
@@ -272,6 +277,7 @@ if (opts.restore) {
       outDir: targetDir,
       branch: cacheBranch,
       remote,
+      gitTimeoutMs: projectConfig.mapStore?.gitTimeoutMs,
       compatibilityKey: expectedCompatibilityKey({ spec }),
     });
     // Greppable exact-hit line for consumer Visual / CI watchers (#734). Soft-pass HOLD: observe only.

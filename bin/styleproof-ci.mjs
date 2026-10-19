@@ -425,6 +425,7 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
       await loadStyleProofConfigWithLocationAsync(baseProbeCwd);
     const branch = process.env.STYLEPROOF_CACHE_BRANCH ?? configAtBase.cacheBranch;
     const remote = process.env.STYLEPROOF_REMOTE ?? configAtBase.remote;
+    const gitTimeoutMs = configAtBase.mapStore?.gitTimeoutMs;
     const envRoots = (process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS ?? '')
       .split(',')
       .map((r) => r.trim())
@@ -453,7 +454,7 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
         : [probeSpec, path.dirname(probeSpec)].filter((p) => p !== '.');
     const plan = planAncestorBaselineReuse({
       requestedSha: base,
-      availableShas: listMapStoreBundleShas({ branch, remote, cwd: repoRoot }),
+      availableShas: listMapStoreBundleShas({ branch, remote, gitTimeoutMs, cwd: repoRoot }),
       spec: repoSpec,
       sourceRoots: [...sourceRoots, ...writtenSpec],
       cwd: repoRoot,
@@ -471,6 +472,7 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
       outDir: path.join(root, 'base'),
       branch,
       remote,
+      gitTimeoutMs,
       cwd: baseProbeCwd,
       compatibilityKey: expectedCompatibilityKey({ cwd: baseProbeCwd, spec: probeSpec }),
     });
