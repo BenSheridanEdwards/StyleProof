@@ -29,6 +29,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Maps captured before this release have no `documentHeight`, so the gate
   treats additions or removals below their first window as visible rather than
   passing them (#913).
+- **Hash-router surfaces keep their key when a route is added.** The default
+  crawl key ignored the URL fragment, so every route the navigation observer
+  found at `/#/settings` or `/#!/settings` keyed as `index` plus a
+  discovery-order suffix (`index-2`, `index-3`, …). A route added earlier in
+  the nav shifted every later key, and a change on one route was diffed
+  against a different route. The key now includes the hash route:
+  `/#/settings` keys as `settings` and `/app#/billing/plans` as
+  `app-billing-plans`. A plain `#anchor` stays out of the key, and URLs
+  without a hash route key exactly as before. `styleproof-variants --route
+/#/settings` gets the same key. **One-time key rename:** the first run after
+  upgrading shows each hash-router surface as removed under its old `index-N`
+  key and added under its new key, so the run needs review and nothing is
+  skipped. Re-capture the baseline, and replace `index-N` keys for hash
+  routes in your crawl `expected` / `exclude` lists and in committed
+  acknowledgement files (such as `styleproof.product-state.json`).
 - **Breakpoint detection no longer misses bands silently.** It now reads
   `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
   stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial

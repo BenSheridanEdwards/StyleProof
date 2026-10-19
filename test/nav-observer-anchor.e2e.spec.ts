@@ -36,6 +36,8 @@ test('the nav observer ignores an in-page anchor but still reports a hash-router
     await page.click('#route');
     await page.waitForTimeout(200);
     expect(observed.some((href) => href.endsWith('/docs#/settings'))).toBe(true);
+    const routes = selectObservedNavs(observed, { base: page.url(), seen: new Set(), usedKeys: new Set(['docs']) });
+    expect(routes).toEqual([{ key: 'docs-settings', url: '/docs#/settings' }]);
   } finally {
     site.close();
   }

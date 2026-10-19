@@ -479,7 +479,7 @@ defineCrawlCapture({
 });
 ```
 
-Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`; pass `key` for a different scheme). Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
+Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`, hash-router `/#/settings` → `settings`; pass `key` for a different scheme). Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
 
 **Client-routed views (no `<a href>`):** the crawl also observes programmatic navigation — `history.pushState`, `replaceState`, and `popstate`, the APIs every client router funnels through — and adds each newly observed same-origin route to the surface set. A route the app lands on during hydration (a router's default redirect, a `settle` hook that clicks a client-routed tab) is discovered and captured without a router-specific adapter. In-page `<a href="#section">` anchors never call the history API, so anchor noise cannot become surfaces. Discovery is bounded (up to 64 observed routes over up to 3 passes) and each addition is logged (`navigation observer discovered N route(s)`); observed routes join the `expected`/`exclude` reconciliation below. Set `observeNavigation: false` to crawl rendered links only. One boundary stands: a nav that neither links nor navigates during the crawl still exposes nothing.
 
