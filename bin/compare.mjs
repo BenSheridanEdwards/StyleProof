@@ -48,11 +48,11 @@ export function compareFlags() {
     },
     'legacy-pairs': {
       value: 'file',
-      help: 'declare known-legacy product-state pairs ({"<surface>":"<why>"}); undeclared unproven pairs fail closed, declared pairs stay advisory. Flag and $STYLEPROOF_PRODUCT_STATE override config; an empty env unarms it',
+      help: 'declare known-legacy product-state pairs ({"<surface>":"<why>"}); undeclared unproven pairs fail closed, declared pairs stay advisory. Flag and $STYLEPROOF_PRODUCT_STATE override config; an empty env value drops the config path, but a default file in cwd still arms the gate',
     },
     'critical-states': {
       value: 'file',
-      help: 'declare obligations that must produce certifying evidence ({"<surface>":{"owner":"...","reason":"..."}}); unproven, unresolved, or coverage-excluded obligations fail closed. Flag and $STYLEPROOF_CRITICAL_STATES override config; an empty env unarms it',
+      help: 'declare obligations that must produce certifying evidence ({"<surface>":{"owner":"...","reason":"..."}}); unproven, unresolved, or coverage-excluded obligations fail closed. Flag and $STYLEPROOF_CRITICAL_STATES override config; an empty env value drops the config path, but a default file in cwd still arms the gate',
     },
     'expected-before-sha': {
       value: 'sha',

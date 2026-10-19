@@ -7,8 +7,10 @@ import {
   DATA_RESIDUE_LEDGER,
   INVENTORY_LEDGER,
   LEGACY_PAIRS_LEDGER,
+  ledgerArmed,
   readLedger,
   reconcileLedger,
+  resolveLedgerPath,
 } from '../dist/ack-ledger.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
@@ -88,4 +90,30 @@ test('reconcileLedger splits observed keys and names stale entries', () => {
     observed.startsWith(`${ledgerKey}@`),
   );
   assert.deepEqual(widthless, { acknowledged: ['home@1280'], unacknowledged: ['nav@375'], stale: ['gone'] });
+});
+
+test('an empty env value drops a config path but a default file in cwd still arms the gate', () => {
+  const root = mkTmp();
+  const previous = process.cwd();
+  try {
+    process.chdir(root);
+    const obligation = { owner: 'qa', reason: 'checkout must certify' };
+    for (const [spec, parse] of [
+      [CRITICAL_STATES_LEDGER, (_spec, value) => value],
+      [LEGACY_PAIRS_LEDGER, undefined],
+    ]) {
+      const env = { [spec.env]: '' };
+      fs.writeFileSync('configured.json', JSON.stringify({ configured: parse ? obligation : 'why' }));
+      const resolved = resolveLedgerPath(spec, undefined, 'configured.json', env);
+      assert.equal(resolved, undefined, `${spec.env}="" must ignore the config path`);
+      assert.equal(ledgerArmed(spec, resolved, env), false, `${spec.env}="" with no default file is unarmed`);
+
+      fs.writeFileSync(spec.file, JSON.stringify({ home: parse ? obligation : 'legacy shell' }));
+      assert.equal(ledgerArmed(spec, resolved, env), true, `${spec.env}="" must not unarm ${spec.file}`);
+      assert.deepEqual(Object.keys(readLedger(spec, resolved, parse, env)), ['home']);
+    }
+  } finally {
+    process.chdir(previous);
+    rmTmp(root);
+  }
 });

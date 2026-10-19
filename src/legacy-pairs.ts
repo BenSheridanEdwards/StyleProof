@@ -23,7 +23,7 @@ export type LegacyPairAudit = {
   staleAcknowledgements: string[];
 };
 
-/** Flag > `$STYLEPROOF_PRODUCT_STATE` (empty unarms) > config `productState.legacyPairs`. */
+/** Flag > `$STYLEPROOF_PRODUCT_STATE` (empty drops config) > config `productState.legacyPairs`. */
 export function resolveConfiguredLegacyPairsPath(
   flagPath: string | undefined,
   configPath: string | undefined,

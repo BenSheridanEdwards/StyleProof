@@ -11,7 +11,7 @@ export type LedgerSpec = {
   label: string;
   /** Default file name, resolved from cwd. */
   file: string;
-  /** Environment variable that overrides the path. An empty value explicitly unarms it. */
+  /** Environment variable that overrides the path. An empty value drops the config path, but a default file in cwd still arms the gate. */
   env: string;
   /** When set, keys must be safe single path segments (surface or capture keys). */
   keyLabel?: string;
@@ -50,7 +50,7 @@ function envPath(spec: LedgerSpec, env: NodeJS.ProcessEnv): string | undefined {
   return Object.hasOwn(env, spec.env) && env[spec.env] ? env[spec.env] : undefined;
 }
 
-/** Flag > env (an empty env value explicitly unarms a discovered config path) > config. */
+/** Flag > env (an empty value drops the config path; `ledgerArmed` still sees the default file) > config. */
 export function resolveLedgerPath(
   spec: LedgerSpec,
   flagPath: string | undefined,
