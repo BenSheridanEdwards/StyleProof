@@ -44,6 +44,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   skipped. Re-capture the baseline, and replace `index-N` keys for hash
   routes in your crawl `expected` / `exclude` lists and in committed
   acknowledgement files (such as `styleproof.product-state.json`).
+- **A relative `replayUrl` no longer hides failed data requests.** Playwright
+  resolves a relative glob such as `/api/**` against the project `baseURL`
+  before it records or replays, but the data-residue watcher matched the raw
+  glob, so a failing `/api/users` was never named and the residue gate passed.
+  The watcher now resolves `replayUrl` against the same `baseURL` and matches
+  each request exactly as Playwright's routes do. A glob-free `replayUrl` such as
+  `/graphql` is now an anchored match, not a substring match. **Behaviour
+  change:** a relative `replayUrl` with no `baseURL` now fails the capture with
+  a clear error. Before, it silently matched nothing, and Playwright's
+  record/replay matched nothing too. Set `use.baseURL`, or start the glob with
+  `**`.
+  ([#872](https://github.com/BenSheridanEdwards/StyleProof/issues/872))
 - **Breakpoint detection no longer misses bands silently.** It now reads
   `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
   stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial

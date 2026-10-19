@@ -43,7 +43,12 @@ async function discoverCrawlLinks(
 }
 
 /** Capture every discovered surface, aggregating per-surface failures so one bad surface does not hide the rest. */
-async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[], settings: Settings): Promise<void> {
+async function sweepCrawlSurfaces(
+  page: Page,
+  captureSurfaces: ExpandedSurface[],
+  settings: Settings,
+  baseURL: string | undefined,
+): Promise<void> {
   const failures: string[] = [];
   const aggregate = (line: string): void => {
     failures.push(line);
@@ -70,7 +75,7 @@ async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[]
       await withSurfaceFailureTolerance(
         settings,
         `${surface.key}@${width}`,
-        () => captureSurface(page, surface, width, settings, ordinal),
+        () => captureSurface(page, surface, width, settings, ordinal, baseURL),
         aggregate,
       );
     }
@@ -161,7 +166,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     recordCaptureTestOutcomes();
     writeCoverageLedgerTest(settings, expected ?? null, exclude, ledgerSurfaces);
     writeBrowserBuildTest(settings);
-    test('discover surfaces by crawling links, then capture each', async ({ page }) => {
+    test('discover surfaces by crawling links, then capture each', async ({ page, baseURL, contextOptions }) => {
       const testStart = Date.now();
       const observed = new Set<string>();
       if (observeNavigation) await installNavObserver(page, observed);
@@ -200,7 +205,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
         // from test start; a breach is still reported by the NAMED per-surface timeout.
         const units = captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0);
         test.setTimeout(Date.now() - testStart + captureTestBudgetMs(settings.surfaceTimeoutMs, units));
-        await sweepCrawlSurfaces(page, captureSurfaces, settings);
+        await sweepCrawlSurfaces(page, captureSurfaces, settings, baseURL ?? contextOptions.baseURL);
         frontier = observer.merge();
       }
       observer.finish();

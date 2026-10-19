@@ -1,6 +1,7 @@
 // Playwright-style URL globs (the `page.route` / `replayUrl` micro-syntax), replicated
 // because Playwright exposes no public matcher: `**` spans `/`, `*` stays within a
-// segment, `?` is literal, `{a,b}` alternates, and a glob-char-free string is a substring match.
+// segment, `?` is literal, `{a,b}` alternates, and every glob is anchored. A glob not
+// starting with `*` is first resolved against the context's baseURL, as Playwright does.
 
 const REGEX_CHARS = new Set('$^+.*()|\\?{}[]');
 const literal = (char: string): string => (REGEX_CHARS.has(char) ? `\\${char}` : char);
@@ -48,8 +49,61 @@ function compileUrlGlob(glob: string): RegExp {
   return new RegExp(tokens.join('') + '$');
 }
 
-export function urlMatcher(glob: string): (url: string) => boolean {
-  if (!/[*?{}[\]\\]/.test(glob)) return (url) => url.includes(glob);
-  const compiled = compileUrlGlob(glob);
+const PASSTHROUGH_SCHEMES = ['about:', 'data:', 'chrome:', 'edge:', 'file:'];
+
+// Port of Playwright 1.61 `resolveGlobBase`: each path token is swapped for a placeholder,
+// the path is resolved with `new URL`, then the originals are restored (host lowercased).
+function resolveGlobBase(glob: string, baseURL: string | undefined): string {
+  if (glob.startsWith('*')) return glob;
+  const match = glob.replaceAll(/\\\\\?/g, '?');
+  if (PASSTHROUGH_SCHEMES.some((scheme) => match.startsWith(scheme))) return match;
+  const tokenMap = new Map<string, string>();
+  const mapToken = (original: string, replacement: string): string => {
+    if (original.length === 0) return '';
+    tokenMap.set(replacement, original);
+    return replacement;
+  };
+  const relativePath = match
+    .split('/')
+    .map((token, index) => {
+      if (token === '.' || token === '..' || token === '') return token;
+      if (index === 0 && token.endsWith(':')) {
+        if (token.includes('*') || token.includes('{')) return mapToken(token, 'http:');
+        return token;
+      }
+      const questionIndex = token.indexOf('?');
+      if (questionIndex === -1) return mapToken(token, `$_${index}_$`);
+      return (
+        mapToken(token.substring(0, questionIndex), `$_${index}_$`) +
+        mapToken(token.substring(questionIndex), `?$_${index}_$`)
+      );
+    })
+    .join('/');
+  let url: URL;
+  try {
+    url = new URL(relativePath, baseURL);
+  } catch {
+    if (baseURL === undefined) {
+      throw new Error(
+        `URL glob ${JSON.stringify(glob)} is relative but no baseURL is set, so it matches no request ` +
+          `(Playwright's routes resolve it the same way). Set \`use.baseURL\` in the Playwright config, ` +
+          `or start the glob with \`**\` (e.g. "**/api/**") or an absolute origin.`,
+      );
+    }
+    return match;
+  }
+  let resolved = url.toString();
+  for (const [token, original] of tokenMap) {
+    resolved = resolved.replace(token, url.origin.includes(token) ? original.toLowerCase() : original);
+  }
+  return resolved;
+}
+
+/**
+ * Match URLs exactly as Playwright's `page.route` / `routeFromHAR` match `glob` in a context
+ * with this `baseURL`. Throws when the glob is relative and there is no `baseURL`.
+ */
+export function urlMatcher(glob: string, baseURL?: string): (url: string) => boolean {
+  const compiled = compileUrlGlob(resolveGlobBase(glob, baseURL));
   return (url) => compiled.test(url);
 }

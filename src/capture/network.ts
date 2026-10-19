@@ -41,7 +41,8 @@ function isCanceledRequestFailure(errorText: string | undefined): boolean {
 }
 
 /**
- * Watch the data boundary (`url`, the `replayUrl` glob) for requests that FAIL during
+ * Watch the data boundary (`url`, the `replayUrl` glob resolved against `baseURL` exactly as
+ * the page's routes resolve it) for requests that FAIL during
  * capture (network error or 4xx/5xx): the captured state then renders that endpoint's
  * FALLBACK branch. Passive listeners, never a route, so a surface's own routes still win.
  * Only failures are recorded — a live 2xx is legitimate in recording mode.
@@ -54,12 +55,13 @@ export function trackDataResidue(
   page: Page,
   url: string,
   surface: string,
+  baseURL?: string,
 ): { residue: () => DataResidueEntry[]; dispose: () => void } {
   // Keyed per request so EventSource's `response(204)` + `requestfailed(ERR_ABORTED)`
   // pair cancels only that false failure.
   const byRequest = new Map<Request, DataResidueEntry>();
   const terminalEventSources = new WeakSet<Request>();
-  const inBoundary = urlMatcher(url);
+  const inBoundary = urlMatcher(url, baseURL);
   let documentEpoch = 0;
   // Every main-frame document request not yet committed or canceled. One slot is not
   // enough: a newer canceled navigation would hide an older one that still commits.
