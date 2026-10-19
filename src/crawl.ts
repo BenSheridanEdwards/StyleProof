@@ -26,18 +26,27 @@ export type ObservedNavOptions = Pick<SelectLinksOptions, 'base' | 'match' | 'ke
   usedKeys: Set<string>;
 };
 
+/** Path segments, then query-param values sorted by param name. */
+function routeParts(pathname: string, params: URLSearchParams): string[] {
+  const values = [...params]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([, v]) => v)
+    .filter(Boolean);
+  return [...pathname.split('/').filter(Boolean), ...values];
+}
+
 /**
  * Filename-safe key from a link URL: path segments plus query-param VALUES (the discriminator
  * for a tab SPA — `/?tab=overview` → `overview`; `/blog/post` → `blog-post`). Params are sorted
  * by name first, so the same logical route keys identically whatever order the nav rendered.
+ * A hash-router fragment (`#/route`, `#!/route`) adds its route the same way (`/#/settings` →
+ * `settings`), so a hash route keeps its key whatever order it was discovered in. A plain
+ * `#anchor` is not a route and stays out of the key.
  */
 export function defaultLinkKey(url: URL): string {
-  const segs = url.pathname.split('/').filter(Boolean);
-  const values = [...url.searchParams]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([, v]) => v)
-    .filter(Boolean);
-  const slug = [...segs, ...values]
+  const hashRoute = /^#!?(\/[^?]*)(\?.*)?$/s.exec(url.hash);
+  const hashParts = hashRoute ? routeParts(hashRoute[1], new URLSearchParams(hashRoute[2])) : [];
+  const slug = [...routeParts(url.pathname, url.searchParams), ...hashParts]
     .join('-')
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
