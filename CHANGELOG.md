@@ -47,6 +47,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the box the crop is cut from, and falls back to `rect` for older maps. Hidden,
   `visibility: hidden` and zero-opacity elements still never anchor a crop. The
   visible-structure gate is unchanged.
+- **The docs now say what an empty `STYLEPROOF_CRITICAL_STATES` or
+  `STYLEPROOF_PRODUCT_STATE` does.** `REFERENCE.md`, the `styleproof-diff` help
+  and the `LedgerSpec.env` comment said an empty value unarms the ledger. It only
+  drops a config-declared path. A default `styleproof.critical-states.json` or
+  `styleproof.product-state.json` in cwd still arms the gate, so a CI env var
+  cannot silently drop committed obligations. To disarm, delete or rename the
+  file. A unit test pins both cases. No runtime change (#875).
 - **A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
   from certification.** The layout-equivalent margin filter dropped a forced-state
   delta's matching left/right margin change whenever the element's rectangle was

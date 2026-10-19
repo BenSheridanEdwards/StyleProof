@@ -52,7 +52,7 @@ function parseObligation(_spec: LedgerSpec, value: unknown, key: string, source:
   };
 }
 
-/** Flag > `$STYLEPROOF_CRITICAL_STATES` (empty unarms) > config `productState.critical`. */
+/** Flag > `$STYLEPROOF_CRITICAL_STATES` (empty drops config) > config `productState.critical`. */
 export function resolveConfiguredCriticalStatesPath(
   flagPath: string | undefined,
   configPath: string | undefined,
