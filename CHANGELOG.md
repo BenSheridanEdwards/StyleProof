@@ -9,6 +9,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
+  gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
+  threw `capture key 'about-us' is produced by two surfaces` and did not load. A
+  dynamic `/blog/[slug]` and a static `/blog/slug` also shared `blog-slug`, so the
+  generated `exclude` entry named the static surface. Routes whose keys would
+  collide now each get a suffix hashed from their own path (`about-us-57424c1f`).
+  Adding another route does not change these keys. A route with no collision
+  keeps its key, so its baseline does not change. A project that already had both
+  `/blog/[slug]` and `/blog/slug` sees `blog-slug` reported once as a removed
+  surface and the suffixed key as a new surface. Re-capture the baseline.
 - **A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
   from certification.** The layout-equivalent margin filter dropped a forced-state
   delta's matching left/right margin change whenever the element's rectangle was

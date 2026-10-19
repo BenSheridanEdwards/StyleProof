@@ -462,7 +462,7 @@ defineStyleMapCapture({
 });
 ```
 
-`discoverNextRoutes(cwd?)` reads the filesystem only (route groups `(group)` and `@slots` stripped, `[param]`/`[...catchall]` flagged `dynamic`) — a heuristic, not a router; edit the generated spec for exotic routing. For any other framework, point `expected` at your own route registry as above.
+`discoverNextRoutes(cwd?)` reads the filesystem only (route groups `(group)` and `@slots` stripped, `[param]`/`[...catchall]` flagged `dynamic`); routes whose keys would collide (`/about-us` and `/about_us`, or `/blog/[slug]` and `/blog/slug`) each get a suffix hashed from their own path, so every key is unique and doesn't depend on which other routes exist — a heuristic, not a router; edit the generated spec for exotic routing. For any other framework, point `expected` at your own route registry as above.
 
 ### Single-route SPAs: crawl the nav
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { discoverNextRoutes } from '../dist/routes.js';
+import { assertUniqueExpandedKeys } from '../dist/runner/variants.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 /** Write an empty file, creating parent dirs. */
@@ -84,6 +85,56 @@ test('discoverNextRoutes: Pages Router — index collapses, _app/_document/api e
   } finally {
     rmTmp(root);
   }
+});
+
+// ------------------------------------------------------- key collisions (#874)
+
+/** Keys by path for a temp App Router tree holding exactly these route dirs. */
+function appKeys(routeDirs) {
+  const root = mkTmp();
+  try {
+    for (const d of routeDirs) touch(root, path.join('app', d, 'page.tsx'));
+    return Object.fromEntries(discoverNextRoutes(root).map((r) => [r.path, r.key]));
+  } finally {
+    rmTmp(root);
+  }
+}
+
+test('discoverNextRoutes: routes whose keys collide get distinct keys, and the generated spec loads', () => {
+  const root = mkTmp();
+  try {
+    for (const d of ['', 'about-us', 'about_us', 'blog/[slug]', 'blog/slug'])
+      touch(root, path.join('app', d, 'page.tsx'));
+    const routes = discoverNextRoutes(root);
+    const keys = routes.map((r) => r.key);
+    assert.equal(new Set(keys).size, keys.length, `keys must be distinct: ${keys}`);
+    const staticRoutes = routes.filter((r) => !r.dynamic);
+    assert.doesNotThrow(() => assertUniqueExpandedKeys(staticRoutes.map((r) => ({ key: r.key }))));
+    const staticKeys = new Set(staticRoutes.map((r) => r.key));
+    for (const r of routes.filter((x) => x.dynamic))
+      assert.ok(!staticKeys.has(r.key), `exclude key '${r.key}' names a surface`);
+    assert.equal(keyOf(routes, '/'), 'index');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test("discoverNextRoutes: adding a route to a collision does not change the existing colliders' keys", () => {
+  const before = appKeys(['about-us', 'about_us']);
+  const after = appKeys(['about-us', 'about_us', 'about--us']);
+  assert.equal(after['/about-us'], before['/about-us']);
+  assert.equal(after['/about_us'], before['/about_us']);
+  assert.equal(new Set(Object.values(after)).size, 3);
+});
+
+test('discoverNextRoutes: keys without a collision are unchanged', () => {
+  assert.deepEqual(appKeys(['', 'about', 'blog/[slug]', 'docs/[...path]', 'About_Us/Team']), {
+    '/': 'index',
+    '/about': 'about',
+    '/blog/[slug]': 'blog-slug',
+    '/docs/[...path]': 'docs-all-path',
+    '/About_Us/Team': 'about-us-team',
+  });
 });
 
 // ------------------------------------------------------- mixed / empty
