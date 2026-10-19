@@ -183,6 +183,18 @@ test('defaultLinkKey: param order does not flap the key — values join in sorte
   );
 });
 
+test('defaultLinkKey: a hash-router route keys by the route, not by discovery position', () => {
+  assert.equal(defaultLinkKey(new URL('https://app.test/#/settings')), 'settings');
+  assert.equal(defaultLinkKey(new URL('https://app.test/#!/settings')), 'settings');
+  assert.equal(defaultLinkKey(new URL('https://app.test/app#/billing/plans')), 'app-billing-plans');
+  assert.equal(defaultLinkKey(new URL('https://app.test/#/search?q=shoes')), 'search-shoes');
+});
+
+test('defaultLinkKey: a plain fragment stays out of the key', () => {
+  assert.equal(defaultLinkKey(new URL('https://app.test/docs#intro')), 'docs');
+  assert.equal(defaultLinkKey(new URL('https://app.test/#top')), 'index');
+});
+
 // ------------------------------------------------------- crawlCoverageGaps
 
 test('crawlCoverageGaps: rendered nav reconciles clean against a matching expected', () => {
@@ -295,6 +307,15 @@ test('selectObservedNavs: keeps the fragment — a pushState hash route is a dis
   const { links } = observe(['https://app.test/#/dashboard']);
   assert.deepEqual(links.length, 1);
   assert.equal(links[0].url, '/#/dashboard', 'hash kept so the route navigates to its content');
+});
+
+test('selectObservedNavs: hash routes pair by route on base and head, whatever the discovery order', () => {
+  const crawl = (hrefs) => observe(hrefs, { usedKeys: new Set(['index']) }).links;
+  const base = crawl(['https://app.test/#/settings', 'https://app.test/#/billing']);
+  const head = crawl(['https://app.test/#/new', 'https://app.test/#/settings', 'https://app.test/#/billing']);
+  const byUrl = (links) => Object.fromEntries(links.map((l) => [l.url, l.key]));
+  assert.deepEqual(byUrl(base), { '/#/settings': 'settings', '/#/billing': 'billing' });
+  assert.deepEqual(byUrl(head), { '/#/new': 'new', '/#/settings': 'settings', '/#/billing': 'billing' });
 });
 
 test('selectObservedNavs: match filter applies to observed URLs the same as links', () => {
