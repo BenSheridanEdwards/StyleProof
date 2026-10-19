@@ -23,7 +23,7 @@ export type ElevatedVisibleStructureResult = {
   count: number;
 };
 
-function intersectsCapturedViewport(
+function intersectsCapturedArea(
   rect: NonNullable<ElementEntry['rect']>,
   viewport: NonNullable<StyleMap['viewport']>,
 ): boolean {
@@ -31,11 +31,14 @@ function intersectsCapturedViewport(
   const { width, height } = viewport;
   const scrollX = viewport.scrollX ?? 0;
   const scrollY = viewport.scrollY ?? 0;
-  // Intersect document-space boxes with the viewport the surface actually reached.
-  return !(x >= scrollX + width || y >= scrollY + height || x + w <= scrollX || y + h <= scrollY);
+  // Review screenshots are full-page: the viewport width horizontally, the whole document
+  // vertically. Legacy maps without a document height fail closed (unbounded below).
+  const top = Math.min(0, scrollY);
+  const bottom = Math.max(scrollY + height, viewport.documentHeight ?? Infinity);
+  return !(x >= scrollX + width || x + w <= scrollX || y >= bottom || y + h <= top);
 }
 
-/** True when the captured entry has a non-zero box, is not hidden, and intersects the capture viewport. */
+/** True when the captured entry has a non-zero box, is not hidden, and intersects the captured page area. */
 export function isVisibleCapturedElement(
   entry: Pick<ElementEntry, 'rect' | 'style'>,
   map?: Pick<StyleMap, 'viewport'> | null,
@@ -55,7 +58,7 @@ export function isVisibleCapturedElement(
   if (!viewport) return true;
   const { width: vw, height: vh } = viewport;
   if (typeof vw === 'number' && typeof vh === 'number' && vw > 0 && vh > 0) {
-    return intersectsCapturedViewport(entry.rect, viewport);
+    return intersectsCapturedArea(entry.rect, viewport);
   }
   return true;
 }
