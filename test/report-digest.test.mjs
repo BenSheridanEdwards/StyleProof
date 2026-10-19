@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { generateStructuralStyleMapReportForTesting, generateStyleMapReport } from '../dist/report.js';
+import { describeChange, generateStructuralStyleMapReportForTesting, generateStyleMapReport } from '../dist/report.js';
 import { makeMap, pairFixture, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
 
 const BUTTON = 'body > div:nth-child(1) > button:nth-child(1)';
@@ -205,5 +205,10 @@ test('an element whose phrase would flood the comment is still named, as restyle
       after: pageMap({ button: { opacity: long } }),
     }),
   );
-  assert.deepEqual(json.digest[0].elements, [{ name: 'button.cta', phrase: 'restyled' }]);
+  assert.deepEqual(json.digest[0].elements, [{ name: 'button.cta', phrase: 'restyled (too long to summarise here)' }]);
+});
+
+test('plain-English phrases escape map-supplied CSS values below the cut too', () => {
+  const [line] = describeChange([{ label: 'div.box', props: [{ prop: 'opacity', before: '1', after: '0*5 @team' }] }]);
+  assert.equal(line, '**`div.box`** — opacity 1 → 0\\*5 @\u200bteam');
 });

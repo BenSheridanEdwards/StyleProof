@@ -47,7 +47,10 @@ function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow
   const els = buildElementChanges(findings);
   const elements = els.slice(0, MAX_ELEMENTS).map((el) => {
     const phrase = describeElement({ ...el, states: el.states?.map(safeState) }, describeCtx);
-    return { name: safeName(el.label), phrase: phrase.length > MAX_PHRASE ? 'restyled' : phrase };
+    return {
+      name: safeName(el.label),
+      phrase: phrase.length > MAX_PHRASE ? 'restyled (too long to summarise here)' : phrase,
+    };
   });
   return {
     surface: sd.surface,

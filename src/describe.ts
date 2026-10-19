@@ -1,5 +1,5 @@
 import { parseColor } from './canonicalize.js';
-import { codeValue, escapeInlineMarkdown as esc } from './code-span.js';
+import { codeValue, escapeInlineMarkdown } from './code-span.js';
 import type { PropChange } from './diff.js';
 
 /**
@@ -107,7 +107,7 @@ type ColorParts = { token: string | null; word: string | null; full: string; hex
 function describeColor(value: string, idx?: Map<string, string>): ColorParts {
   if (value === 'transparent') return { token: null, word: 'transparent', full: 'transparent', hex: 'transparent' };
   const key = colorKey(value);
-  if (!key) return { token: null, word: null, full: esc(value), hex: value }; // not a colour
+  if (!key) return { token: null, word: null, full: escapeInlineMarkdown(value), hex: value }; // not a colour
   const token = idx?.get(key) ?? null;
   const hex = toHex(value);
   const word = colorName(value);
@@ -125,7 +125,7 @@ const sidePart = (c: ColorParts, noop: boolean): string =>
 const shift = (before: string, after: string, idxB?: Map<string, string>, idxA?: Map<string, string>): string => {
   const b = describeColor(before, idxB);
   const a = describeColor(after, idxA);
-  if (b.word === null && a.word === null) return `${esc(before)} → ${esc(after)}`; // neither is a colour
+  if (b.word === null && a.word === null) return `${escapeInlineMarkdown(before)} → ${escapeInlineMarkdown(after)}`; // neither is a colour
   const noop = !b.token && !a.token && b.word !== null && b.word === a.word;
   return `${sidePart(b, noop)} → ${sidePart(a, noop)}`;
 };
@@ -163,7 +163,7 @@ const single =
 const flexPhrase = (m: Vals, before: string): string => {
   const col = m.get('flex-direction')?.after?.startsWith('column') ? 'vertical ' : '';
   const centered = m.get('justify-content')?.after === 'center' || m.get('align-items')?.after === 'center';
-  return `becomes a${centered ? ' centered' : ''} ${col}flex layout (was ${esc(before)})`;
+  return `becomes a${centered ? ' centered' : ''} ${col}flex layout (was ${escapeInlineMarkdown(before)})`;
 };
 const layoutRule = single(
   'display',
@@ -171,8 +171,8 @@ const layoutRule = single(
     if (d.after === 'none') return '**hidden**';
     if (d.before === 'none') return '**shown**';
     if (/flex/.test(d.after)) return flexPhrase(m, d.before);
-    if (/grid/.test(d.after)) return `becomes a grid (was ${esc(d.before)})`;
-    return `display ${esc(d.before)} → ${esc(d.after)}`;
+    if (/grid/.test(d.after)) return `becomes a grid (was ${escapeInlineMarkdown(d.before)})`;
+    return `display ${escapeInlineMarkdown(d.before)} → ${escapeInlineMarkdown(d.after)}`;
   },
   ['justify-content', 'align-items', 'flex-direction'],
 );
@@ -203,15 +203,20 @@ const borderWidthRule = single(
   'border-width',
   ({ before, after }) => {
     const [wasZero, isZero] = [noBorder(before), noBorder(after)];
-    if (wasZero && !isZero) return `gains a ${esc(after)} border`;
-    return !wasZero && isZero ? 'loses its border' : `border ${esc(before)} → ${esc(after)}`;
+    if (wasZero && !isZero) return `gains a ${escapeInlineMarkdown(after)} border`;
+    return !wasZero && isZero
+      ? 'loses its border'
+      : `border ${escapeInlineMarkdown(before)} → ${escapeInlineMarkdown(after)}`;
   },
   ['border-style', 'border-color'],
 );
 
 const borderRadiusRule = single('border-radius', ({ before, after }) => {
-  if (round(before) && !round(after)) return `corners squared off (${esc(before)} → ${esc(after)})`;
-  return !round(before) && round(after) ? 'corners fully rounded' : `corner radius ${esc(before)} → ${esc(after)}`;
+  if (round(before) && !round(after))
+    return `corners squared off (${escapeInlineMarkdown(before)} → ${escapeInlineMarkdown(after)})`;
+  return !round(before) && round(after)
+    ? 'corners fully rounded'
+    : `corner radius ${escapeInlineMarkdown(before)} → ${escapeInlineMarkdown(after)}`;
 });
 
 const colorRule: Rule = (m, mark, ctx) => {
@@ -233,7 +238,7 @@ const colorRule: Rule = (m, mark, ctx) => {
 };
 
 const fillKind = (v: string) =>
-  /gradient/.test(v) ? 'a gradient' : /url\(/.test(v) ? 'an image' : v === 'none' ? 'no fill' : esc(v);
+  /gradient/.test(v) ? 'a gradient' : /url\(/.test(v) ? 'an image' : v === 'none' ? 'no fill' : escapeInlineMarkdown(v);
 const fillRule = single(
   'background-image',
   ({ before, after }) => `fill → ${fillKind(after)} (was ${fillKind(before)})`,
@@ -241,12 +246,22 @@ const fillRule = single(
 const shadowRule = single('box-shadow', ({ before, after }) =>
   before === 'none' ? 'gains a shadow' : after === 'none' ? 'loses its shadow' : 'shadow changes',
 );
-const opacityRule = single('opacity', ({ before, after }) => `opacity ${esc(before)} → ${esc(after)}`);
-const fontSizeRule = single('font-size', ({ before, after }) => `text size ${esc(before)} → ${esc(after)}`);
+const opacityRule = single(
+  'opacity',
+  ({ before, after }) => `opacity ${escapeInlineMarkdown(before)} → ${escapeInlineMarkdown(after)}`,
+);
+const fontSizeRule = single(
+  'font-size',
+  ({ before, after }) => `text size ${escapeInlineMarkdown(before)} → ${escapeInlineMarkdown(after)}`,
+);
 const weight = (v: string): number => Number(v) || (v === 'bold' ? 700 : v === 'normal' ? 400 : NaN);
 const fontWeightRule = single('font-weight', ({ before, after }) => {
   const d = weight(after) - weight(before);
-  return Number.isNaN(d) ? `weight ${esc(before)} → ${esc(after)}` : d > 0 ? 'bolder text' : 'lighter text';
+  return Number.isNaN(d)
+    ? `weight ${escapeInlineMarkdown(before)} → ${escapeInlineMarkdown(after)}`
+    : d > 0
+      ? 'bolder text'
+      : 'lighter text';
 });
 
 const spacingRule: Rule = (m, mark) => {

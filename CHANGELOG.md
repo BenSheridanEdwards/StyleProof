@@ -21,6 +21,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   marker, or a mention. `report.json` mirrors the rows in a new `digest` key,
   present only when the block is. A clean report's bytes, the counts, the
   verdict, and exit codes are unchanged.
+  The plain-English bullets under each crop escape the same values, so a CSS
+  value carrying Markdown characters now renders literally there too.
 
 ### Removed
 
