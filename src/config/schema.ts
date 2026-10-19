@@ -36,11 +36,9 @@ export type CrawlConfig = {
   height?: number;
 };
 
-/** Map store git auth, timeouts, and prune defaults. */
+/** Map store git timeout and prune defaults. */
 export type MapStoreConfig = {
-  /** Auth token for git operations. 'inherit' (default) uses GITHUB_TOKEN. */
-  token?: 'inherit' | string;
-  /** Git operation timeout in ms. Default 120_000. */
+  /** Network git timeout in ms. Default 120_000; env `STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS` overrides. */
   gitTimeoutMs?: number;
   pruneRetentionDays?: number;
   pruneBudgetBytes?: number;
@@ -199,7 +197,6 @@ const SCHEMA: Fields = {
     true,
   ),
   mapStore: block({
-    token: string,
     gitTimeoutMs: positiveNumber,
     pruneRetentionDays: positiveNumber,
     pruneBudgetBytes: positiveNumber,

@@ -18,6 +18,7 @@ import {
 import {
   type GitResult,
   GITHUB_EXTRA_HEADER_KEY,
+  type StoreOptions,
   type StoreTarget,
   assertRemote,
   checkoutMapStore,
@@ -48,17 +49,17 @@ const describeFailure = (label: string, result: GitResult): string =>
 const withFailures = (result: GitResult, failures: string[]): GitResult => ({ ...result, stderr: failures.join('\n') });
 
 /** Retry through Git's credential lookup after clearing the rejected header. */
-function pushWithWorkflowToken(checkout: string, branch: string): GitResult {
+function pushWithWorkflowToken({ branch, gitTimeoutMs }: StoreTarget, checkout: string): GitResult {
   git(checkout, ['config', '--local', '--unset-all', GITHUB_EXTRA_HEADER_KEY], 1 << 20);
   const credential = ['-c', `${GITHUB_EXTRA_HEADER_KEY}=`, ...workflowTokenCredentialArguments()];
-  return networkGit(checkout, [...credential, 'push', '-q', 'origin', `HEAD:${branch}`]);
+  return networkGit(checkout, [...credential, 'push', '-q', 'origin', `HEAD:${branch}`], gitTimeoutMs);
 }
 
 /** The temporary checkout is a blob:none partial clone that upload-pack cannot lazy-fetch
  *  from, so fetch the branch tip through the consumer's own credentials first; negotiation
  *  then narrows the import to the newly committed objects. A missing branch is fine. */
 function pushViaConsumerCheckout(
-  { cwd, remote, branch }: StoreTarget,
+  { cwd, remote, branch, gitTimeoutMs }: StoreTarget,
   checkout: string,
   failures: string[],
 ): GitResult {
@@ -68,21 +69,22 @@ function pushViaConsumerCheckout(
   // (the scaffolded default) or `-c`-scoped checkout auth there is no ambient credential
   // for a private remote, so a bare fetch/push would hit a credential prompt.
   const consumerAuth = configArguments(effectiveGitHttpExtraHeaders(cwd));
-  const importTip = networkGit(cwd, [
-    ...consumerAuth,
-    'fetch',
-    '-q',
-    '--no-write-fetch-head',
-    remote,
-    `+refs/heads/${branch}:${tipRef}`,
-  ]);
+  const importTip = networkGit(
+    cwd,
+    [...consumerAuth, 'fetch', '-q', '--no-write-fetch-head', remote, `+refs/heads/${branch}:${tipRef}`],
+    gitTimeoutMs,
+  );
   if (importTip.status !== 0) failures.push(describeFailure('consumer tip fetch', importTip));
   try {
     const importCommit = git(cwd, ['fetch', '-q', '--no-write-fetch-head', checkout, commit], 1 << 20);
     if (importCommit.status !== 0) {
       return withFailures(importCommit, [...failures, describeFailure('consumer checkout import', importCommit)]);
     }
-    const push = networkGit(cwd, [...consumerAuth, 'push', '-q', remote, `${commit}:refs/heads/${branch}`]);
+    const push = networkGit(
+      cwd,
+      [...consumerAuth, 'push', '-q', remote, `${commit}:refs/heads/${branch}`],
+      gitTimeoutMs,
+    );
     return push.status === 0
       ? push
       : withFailures(push, [...failures, describeFailure('consumer checkout push', push)]);
@@ -93,11 +95,15 @@ function pushViaConsumerCheckout(
 
 function pushMapStoreCommit(target: StoreTarget, checkout: string, authenticationArguments: string[]): GitResult {
   const failures: string[] = [];
-  const isolated = networkGit(checkout, [...authenticationArguments, 'push', '-q', 'origin', `HEAD:${target.branch}`]);
+  const isolated = networkGit(
+    checkout,
+    [...authenticationArguments, 'push', '-q', 'origin', `HEAD:${target.branch}`],
+    target.gitTimeoutMs,
+  );
   if (isolated.status === 0) return isolated;
   failures.push(describeFailure('isolated map-store push', isolated));
   if (process.env.STYLEPROOF_MAP_STORE_TOKEN) {
-    const viaToken = pushWithWorkflowToken(checkout, target.branch);
+    const viaToken = pushWithWorkflowToken(target, checkout);
     if (viaToken.status === 0) return viaToken;
     failures.push(describeFailure('workflow-token credential push', viaToken));
   }
@@ -139,13 +145,12 @@ function publishMapStoreAttempt(options: PublishAttempt): { ok: boolean; phase: 
   }
 }
 
-export async function publishMapBundle(options: {
-  dir: string;
-  branch?: string;
-  remote?: string;
-  cwd?: string;
-  includeHar?: boolean;
-}): Promise<{ sha: string; compatibilityKey: string; branch: string }> {
+export async function publishMapBundle(
+  options: StoreOptions & {
+    dir: string;
+    includeHar?: boolean;
+  },
+): Promise<{ sha: string; compatibilityKey: string; branch: string }> {
   const target = storeTarget(options);
   const manifest = readMapManifest(options.dir);
   if (!manifest) throw new MapStorePreconditionError(`no ${MAP_MANIFEST} in ${options.dir}`);
@@ -236,14 +241,13 @@ function restoreMapStoreAttempt(request: RestoreRequest): RestoreAttempt {
   }
 }
 
-export function restoreMapBundle(options: {
-  sha: string;
-  outDir: string;
-  branch?: string;
-  remote?: string;
-  cwd?: string;
-  compatibilityKey?: string;
-}): MapManifest {
+export function restoreMapBundle(
+  options: StoreOptions & {
+    sha: string;
+    outDir: string;
+    compatibilityKey?: string;
+  },
+): MapManifest {
   const target = storeTarget(options);
   const sha = safeSegment(options.sha, 'sha');
   const compatibilityKey = options.compatibilityKey && safeSegment(options.compatibilityKey, 'compatibility key');
@@ -271,13 +275,13 @@ export function restoreMapBundle(options: {
 /** The commit SHAs with at least one stored bundle (the branch tip's top-level directories),
  *  via one `tree:0` no-checkout clone plus a root `ls-tree`. A missing branch is an EMPTY
  *  set; any network failure throws so the caller falls back rather than trust a partial listing. */
-export function listMapStoreBundleShas(options: { branch?: string; remote?: string; cwd?: string } = {}): Set<string> {
+export function listMapStoreBundleShas(options: StoreOptions = {}): Set<string> {
   const target = storeTarget(options);
   assertRemote(target);
   if (!lookupBranch(target)) return new Set();
   const tmp = checkoutMapStore(target, { filter: 'tree:0', branchExists: true });
   try {
-    const listing = networkGit(tmp, ['ls-tree', '--name-only', 'HEAD'], 1 << 20);
+    const listing = networkGit(tmp, ['ls-tree', '--name-only', 'HEAD'], target.gitTimeoutMs);
     if (listing.status !== 0) throw new MapStoreError(gitFailureMessage(listing, 'could not list map store bundles'));
     const names = listing.stdout.split('\n').map((name) => name.trim());
     return new Set(names.filter((name) => /^[0-9a-f]{7,40}$/i.test(name)));
@@ -288,16 +292,15 @@ export function listMapStoreBundleShas(options: { branch?: string; remote?: stri
 
 /** Restore the base and head bundles for a cached compare into a fresh temp root. The base
  *  key is computed from a detached base worktree so its spec/lockfile match what was published. */
-export function resolveCachedCaptureDirs(options: {
-  command: string;
-  args: string[];
-  spec: string;
-  branch?: string;
-  remote?: string;
-  cwd?: string;
-  baseUrl?: string;
-  usage: string;
-}): CachedCaptureDirs {
+export function resolveCachedCaptureDirs(
+  options: StoreOptions & {
+    command: string;
+    args: string[];
+    spec: string;
+    baseUrl?: string;
+    usage: string;
+  },
+): CachedCaptureDirs {
   const cwd = options.cwd ?? process.cwd();
   if (options.args.length > 1) throw new MapStoreError(options.usage);
   if (!fs.existsSync(path.resolve(cwd, options.spec))) {
@@ -311,7 +314,15 @@ export function resolveCachedCaptureDirs(options: {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const dirs = { beforeDir: path.join(tmpRoot, 'base'), afterDir: path.join(tmpRoot, 'head') };
   const restore = (sha: string, outDir: string, key: string) =>
-    restoreMapBundle({ sha, outDir, branch: options.branch, remote: options.remote, cwd, compatibilityKey: key });
+    restoreMapBundle({
+      sha,
+      outDir,
+      branch: options.branch,
+      remote: options.remote,
+      gitTimeoutMs: options.gitTimeoutMs,
+      cwd,
+      compatibilityKey: key,
+    });
   let worktrees: CiWorktreeSession | undefined;
   try {
     const repoRoot = gitRepoRoot(cwd);
