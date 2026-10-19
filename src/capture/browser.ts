@@ -75,6 +75,7 @@ export type PageCapture = {
   sameOriginFrames: number;
   scrollX: number;
   scrollY: number;
+  documentHeight: number;
 };
 
 // Pre-existing, grandfathered in the health baseline.
@@ -83,6 +84,7 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   // Keep the document origin in the same browser snapshot as every bounding box.
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
+  const documentHeight = document.documentElement.scrollHeight;
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
@@ -238,7 +240,7 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
     elements[pathOf(el)] = entry;
   }
   frame.remove();
-  return { defaults, elements, shadowHosts, sameOriginFrames, scrollX, scrollY };
+  return { defaults, elements, shadowHosts, sameOriginFrames, scrollX, scrollY, documentHeight };
 }
 
 export type SkipArgs = { skipSel: string };

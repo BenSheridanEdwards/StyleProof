@@ -135,7 +135,52 @@ for (const axis of ['vertical', 'horizontal'] as const) {
         expect(withContent.stdout).toContain('visible element additions/removals require review');
         expect(withContent.stdout).not.toContain('does not affect the exit code');
       }
-      for (const map of maps) expect(map.viewport).toEqual({ width: 400, height: 300, scrollX, scrollY });
+      for (const map of maps) {
+        expect(map.viewport).toEqual({ width: 400, height: 300, scrollX, scrollY, documentHeight: 2400 });
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const top of [300, 2000]) {
+  test(`a visible element added at top ${top}px of a tall page requires review`, async ({ page }) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-below-fold-'));
+    try {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      for (const present of [false, true]) {
+        await page.setContent(
+          `<style>html,body{margin:0}.page{position:relative;height:3000px}.banner{position:absolute;left:0;top:${top}px;width:1280px;height:80px;background:rgb(255,0,0)}</style><div class="page">${present ? '<div class="banner"></div>' : ''}</div>`,
+        );
+        const map = await captureStyleMap(page, { stabilize: false });
+        const stem = path.join(root, present ? 'head-shot' : 'base-shot');
+        await captureSurfaceScreenshots(page, stem);
+        stampPair(
+          path.join(root, present ? 'head' : 'base'),
+          map,
+          present ? HEAD_SHA : BASE_SHA,
+          fs.readFileSync(`${stem}.png`),
+        );
+      }
+      const json = path.join(root, 'diff.json');
+      const diff = spawnSync(
+        process.execPath,
+        [
+          path.join(ROOT, 'bin/styleproof-diff.mjs'),
+          path.join(root, 'base'),
+          path.join(root, 'head'),
+          '--expected-before-sha',
+          BASE_SHA,
+          '--expected-after-sha',
+          HEAD_SHA,
+          '--json',
+          json,
+        ],
+        { cwd: root, encoding: 'utf8', timeout: 30_000 },
+      );
+      expect(diff.status, diff.stderr || diff.stdout).toBe(1);
+      expect(JSON.parse(fs.readFileSync(json, 'utf8')).reviewableCounts.dom).toBe(1);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -184,10 +229,10 @@ test('horizontal-scrolled style changes retain real screenshot crops', async ({ 
   }
 });
 
-test('unscrolled captures retain the legacy width/height viewport shape', async ({ page }) => {
+test('unscrolled captures record the viewport size and document height', async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 300 });
   await page.setContent('<style>html,body{margin:0}</style><div>fixture</div>');
   const map = await captureStyleMap(page, { stabilize: false });
-  expect(map.viewport).toEqual({ width: 400, height: 300 });
+  expect(map.viewport).toEqual({ width: 400, height: 300, documentHeight: 300 });
   expect(map.statesSkipped).toBeUndefined();
 });

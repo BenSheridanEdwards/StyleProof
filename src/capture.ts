@@ -292,6 +292,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
           viewport: {
             ...viewport,
             ...(base.scrollX || base.scrollY ? { scrollX: base.scrollX, scrollY: base.scrollY } : {}),
+            documentHeight: base.documentHeight,
           },
         }
       : {}),

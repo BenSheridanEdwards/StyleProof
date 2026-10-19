@@ -1179,13 +1179,17 @@ restores inline values and CSS priorities as well as scroller offsets. Recapture
 affected nested-scroller baselines to generate aligned screenshot evidence.
 
 After document scrolling, optional `StyleMap.viewport.scrollX` / `scrollY` record
-the document origin in the same browser snapshot as the element boxes. Visible
-element additions/removals intersect that reached viewport, and horizontal report
+the document origin in the same browser snapshot as the element boxes, and
+`StyleMap.viewport.documentHeight` records the document's scroll height. Visible
+element additions/removals count when they intersect the reached viewport's width
+and the full document height that full-page screenshots cover. Content clipped
+inside a nested scroller is judged by its driven-state `rect`. Horizontal report
 crop eligibility uses the captured origin. Both `styleproof-diff` and
 `styleproof-report` exit 1 when these elements require review. Unscrolled captures
-keep the width/height-only viewport shape. Missing offsets on older maps default
-to zero; the original scroll position cannot be recovered, so recapture affected
-scrolled baselines after upgrading. `rect` and `screenshotRect` retain their
+omit `scrollX` / `scrollY`. Missing offsets on older maps default to zero; the
+original scroll position cannot be recovered, so recapture affected scrolled
+baselines after upgrading. Older maps without `documentHeight` fail closed: their
+additions/removals below the first window count as visible. `rect` and `screenshotRect` retain their
 existing coordinate meanings.
 
 ## Optional: content layer (advisory)
