@@ -79,6 +79,8 @@ function attachDataResidue(map: StyleMap, residue: DataResidueEntry[]): void {
 
 /**
  * Drive one surface at one width to a settled state and save its style map (+ screenshots).
+ * `baseURL` is the page context's (the `baseURL` fixture, else `contextOptions.baseURL`), so
+ * the residue watcher resolves `replayUrl` exactly as the page's routes do.
  * The per-surface ceiling enforced HERE names the surface and phase when one hangs; each
  * completed capture logs one heartbeat line. The caller owns the Playwright test timeout.
  */
@@ -88,6 +90,7 @@ export async function captureSurface(
   width: number,
   s: Settings,
   ordinal: HeartbeatOrdinal,
+  baseURL?: string,
 ): Promise<void> {
   // Declared BEFORE go(): JS animation libraries read prefers-reduced-motion at mount.
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -99,7 +102,7 @@ export async function captureSurface(
   // Both trackers are armed BEFORE go() so the surface's own load requests are seen. Residue
   // is keyed on the BASE surface key so liveStates splits and widths dedupe to one entry.
   const requests = trackInflightRequests(page);
-  const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key);
+  const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key, baseURL);
   const captureKey = `${surface.key}@${width}`;
   const startedAtMs = realNow(); // realNow: the spec-process clock may be frozen
   let phase: CapturePhase = 'navigate';

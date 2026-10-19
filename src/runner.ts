@@ -123,26 +123,31 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     const total = heartbeatUnitCount(surfacesToCapture);
     let unit = 0;
     for (const surface of surfacesToCapture) {
-      const capture = (page: Page, width: number, ordinal: HeartbeatOrdinal): Promise<void> =>
+      const capture = (
+        page: Page,
+        width: number,
+        ordinal: HeartbeatOrdinal,
+        baseURL: string | undefined,
+      ): Promise<void> =>
         withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
-          captureSurface(page, surface, width, settings, ordinal),
+          captureSurface(page, surface, width, settings, ordinal, baseURL),
         );
       if (surface.widths?.length) {
         for (const width of surface.widths) {
           const ordinal: HeartbeatOrdinal = { index: ++unit, total };
-          test(`${surface.key} @ ${width}`, ({ page }) => {
+          test(`${surface.key} @ ${width}`, ({ page, baseURL, contextOptions }) => {
             test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs));
-            return capture(page, width, ordinal);
+            return capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);
           });
         }
       } else {
         // Auto widths: load once, detect the breakpoints, then sweep each band in one test.
         const ordinal: HeartbeatOrdinal = { index: ++unit, total };
-        test(`${surface.key} @ auto`, async ({ page }) => {
+        test(`${surface.key} @ auto`, async ({ page, baseURL, contextOptions }) => {
           await surface.go(page);
           const widths = await detectViewportWidths(page);
           test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs, widths.length));
-          for (const width of widths) await capture(page, width, ordinal);
+          for (const width of widths) await capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);
         });
       }
     }

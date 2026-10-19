@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { createRequire } from 'node:module';
 import { endpointOf, residueKey, unionResidue, auditResidue, auditRunResidue } from '../dist/data-residue.js';
 import { trackDataResidue, urlMatcher } from '../dist/capture.js';
 
@@ -17,10 +18,74 @@ test('urlMatcher reproduces Playwright URL-glob semantics for the data boundary'
   const seg = urlMatcher('http://app.test/api/*');
   assert.equal(seg('http://app.test/api/users'), true);
   assert.equal(seg('http://app.test/api/users/1'), false); // `/` not crossed by single `*`
-  // A glob-char-free string is a substring match (Playwright's non-glob fallback).
-  const sub = urlMatcher('/graphql');
-  assert.equal(sub('http://app.test/graphql?q=1'), true);
-  assert.equal(sub('http://app.test/api/x'), false);
+  // A glob-char-free string is anchored and base-resolved, never a substring match.
+  const exact = urlMatcher('/graphql', 'http://app.test/');
+  assert.equal(exact('http://app.test/graphql'), true);
+  assert.equal(exact('http://app.test/graphql?q=1'), false);
+  assert.equal(exact('https://evil.example/x/graphql/y'), false);
+});
+
+test('urlMatcher resolves a relative glob against baseURL as Playwright does', () => {
+  const m = urlMatcher('/api/**', 'http://app.test/');
+  assert.equal(m('http://app.test/api/users'), true);
+  assert.equal(m('http://other.test/api/users'), false);
+  assert.equal(urlMatcher('**/api/**', 'http://app.test/')('http://other.test/api/users'), true);
+});
+
+test('urlMatcher refuses a relative glob with no baseURL instead of matching nothing', () => {
+  assert.throws(() => urlMatcher('/api/**'), /URL glob "\/api\/\*\*" is relative but no baseURL is set/);
+  assert.throws(() => urlMatcher('/graphql'), /is relative but no baseURL is set/);
+  assert.equal(urlMatcher('**/api/**')('http://app.test/api/x'), true);
+  assert.equal(urlMatcher('http://app.test/api/*')('http://app.test/api/x'), true);
+});
+
+// Oracle: Playwright's own matcher (the one page.route and routeFromHAR call), so a drift in
+// either implementation fails here.
+test('urlMatcher agrees with Playwright urlMatches on relative and absolute globs', () => {
+  const { urlMatches } = createRequire(import.meta.url)('playwright-core/lib/coreBundle').iso;
+  const bases = [undefined, 'http://app.test/', 'http://App.Test:8080/v1/'];
+  const globs = [
+    '**/api/**',
+    '/api/**',
+    'api/*',
+    '/graphql',
+    '../x/**',
+    'http://app.test/api/*',
+    'HTTP://APP.TEST/api/**',
+    '*://app.test/**',
+    '/api/{users,teams}',
+    '/search?q=*',
+    '**/api/\\*',
+    'about:blank',
+  ];
+  const urls = [
+    'http://app.test/api/users',
+    'http://app.test/api/users/1',
+    'http://app.test/api/teams',
+    'http://app.test/graphql',
+    'https://evil.example/x/graphql/y',
+    'http://app.test:8080/api/users',
+    'http://app.test:8080/v1/api/users',
+    'http://app.test:8080/x/a',
+    'http://app.test/search?q=1',
+    'http://app.test/api/*',
+    'about:blank',
+  ];
+  for (const base of bases) {
+    for (const glob of globs) {
+      let ours;
+      try {
+        ours = urlMatcher(glob, base);
+      } catch (error) {
+        assert.equal(base, undefined, `${glob} threw with base ${base}: ${error}`);
+        for (const url of urls) assert.equal(urlMatches(base, url, glob), false, `${glob} without a base`);
+        continue;
+      }
+      for (const url of urls) {
+        assert.equal(ours(url), urlMatches(base, url, glob), `glob ${glob} base ${base} url ${url}`);
+      }
+    }
+  }
 });
 
 test('urlMatcher keeps Playwright glob punctuation literal and validates brace groups', () => {

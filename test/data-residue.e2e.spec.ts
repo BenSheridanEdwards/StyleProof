@@ -201,3 +201,27 @@ test('an EventSource terminal HTTP 204 captures CLEAN — no false stream residu
     stop();
   }
 });
+
+test('a relative replayUrl resolves against the context baseURL, as Playwright routes it', async ({ browser }) => {
+  const { url, stop } = await serveIncidentPage();
+  const context = await browser.newContext({ baseURL: url });
+  try {
+    const page = await context.newPage();
+    const routed: string[] = [];
+    await page.route('/api/**', (route) => {
+      routed.push(new URL(route.request().url()).pathname);
+      return route.fallback();
+    });
+    const residue = trackDataResidue(page, '/api/**', 'dashboard', url);
+    await page.goto('/', { waitUntil: 'load' });
+    await expect(page.locator('#view')).toHaveText('fallback');
+    const named = residue.residue();
+    residue.dispose();
+
+    expect(routed).toEqual(['/api/probe']);
+    expect(named.map((entry) => [entry.key, entry.reason])).toEqual([['dashboard·/api/probe', 'HTTP 503']]);
+  } finally {
+    await context.close();
+    stop();
+  }
+});
