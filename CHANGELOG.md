@@ -38,6 +38,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   down to 0, which `spawnSync` treats as no timeout. An env value that is set
   but not a positive number (`STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS=abc`) now
   falls through to the config value instead of the 120000 ms default.
+- **Report crops no longer drop elements scrolled out of a top-of-page inner
+  scroller.** The report decided whether a changed element could anchor a crop
+  from its driven-state box, so an element scrolled above an inner scroller near
+  the top of the page got a negative `y` and was marked `not-rendered`, even
+  though the expanded screenshot showed it. The same element under a scroller
+  lower on the page counted as painted. The check now reads `screenshotRect`,
+  the box the crop is cut from, and falls back to `rect` for older maps. Hidden,
+  `visibility: hidden` and zero-opacity elements still never anchor a crop. The
+  visible-structure gate is unchanged.
 - **A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
   from certification.** The layout-equivalent margin filter dropped a forced-state
   delta's matching left/right margin change whenever the element's rectangle was

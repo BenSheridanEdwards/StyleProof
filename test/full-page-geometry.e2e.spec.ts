@@ -5,6 +5,7 @@ import path from 'node:path';
 import { captureStyleMap } from '../dist/index.js';
 import { captureSurfaceScreenshots } from '../dist/capture.js';
 import { isVisibleCapturedElement } from '../dist/visible-structure-gate.js';
+import { hasExposedChangedEntry } from '../dist/report/shared.js';
 import { PNG } from 'pngjs';
 
 // A marker visible in the driven inner scroller is below the viewport in the
@@ -37,6 +38,12 @@ test('full-page rect alignment preserves driven-state visible element gating', a
     expect(isVisibleCapturedElement(entry!, map), 'on-screen marker remains reviewable').toBe(true);
     expect(entry!.rect, 'layout and gating retain the driven-state box').toEqual([0, 200, 800, 400]);
     expect(entry!.screenshotRect, 'report crops use the expanded screenshot box').toEqual([0, 800, 800, 400]);
+    const [topPath, top] = Object.entries(map.elements).find(([, e]) => e.cls === 'band')!;
+    expect([top.rect, top.screenshotRect]).toEqual([
+      [0, -600, 800, 400],
+      [0, 0, 800, 400],
+    ]);
+    expect(hasExposedChangedEntry(map, map, [topPath]), 'scrolled-out band still anchors a report crop').toBe(true);
     await captureSurfaceScreenshots(page, path.join(output, 'board'));
     const png = PNG.sync.read(fs.readFileSync(path.join(output, 'board.png')));
     const pixel = (1000 * png.width + 400) * 4;
