@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { sha256 } from './node-util.js';
 
 /**
  * Best-effort Next.js route discovery from the filesystem (App Router `app/` / `src/app/` page
@@ -8,7 +9,9 @@ import path from 'node:path';
  */
 
 export type DiscoveredRoute = {
-  /** Filename-safe surface key (`/` → `index`, `/blog/[slug]` → `blog-slug`). */
+  /** Filename-safe surface key (`/` → `index`, `/blog/[slug]` → `blog-slug`). Routes that would share
+   *  a key (`/about-us`, `/about_us`) each get a suffix hashed from their own path, so the key is
+   *  unique and does not depend on which other routes exist. */
   key: string;
   /** URL path to navigate (`/`, `/about`, `/blog/[slug]`). */
   path: string;
@@ -96,5 +99,9 @@ export function discoverNextRoutes(cwd: string = process.cwd()): DiscoveredRoute
   const found = [...(appDir ? appRoutes(appDir) : []), ...(pagesDir ? pagesRoutes(pagesDir) : [])];
   const byPath = new Map<string, DiscoveredRoute>();
   for (const r of found) if (!byPath.has(r.path)) byPath.set(r.path, r);
-  return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
+  const keyCount = new Map<string, number>();
+  for (const r of byPath.values()) keyCount.set(r.key, (keyCount.get(r.key) ?? 0) + 1);
+  return [...byPath.values()]
+    .map((r) => (keyCount.get(r.key)! > 1 ? { ...r, key: `${r.key}-${sha256(r.path).slice(0, 8)}` } : r))
+    .sort((a, b) => a.path.localeCompare(b.path));
 }
