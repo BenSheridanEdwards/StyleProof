@@ -1189,8 +1189,12 @@ crop eligibility uses the captured origin. Both `styleproof-diff` and
 omit `scrollX` / `scrollY`. Missing offsets on older maps default to zero; the
 original scroll position cannot be recovered, so recapture affected scrolled
 baselines after upgrading. Older maps without `documentHeight` fail closed: their
-additions/removals below the first window count as visible. `rect` and `screenshotRect` retain their
-existing coordinate meanings.
+additions/removals below the first window count as visible. `rect` and
+`screenshotRect` retain their existing coordinate meanings. `documentHeight` is
+part of the map, so `--prove-determinism` hashes it: a scroll height that varies
+between repeat captures fails the oracle, even when an excluded or volatile region
+causes the variation. The default capture self-check compares elements only and
+does not read `viewport`.
 
 ## Optional: content layer (advisory)
 
