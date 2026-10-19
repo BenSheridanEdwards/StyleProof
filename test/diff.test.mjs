@@ -534,6 +534,7 @@ test('reports a forced-state (hover) delta change', () => {
 
 test('reports balanced margin drift inside forced-state deltas until the capture can prove an auto echo', () => {
   // The resting rect never moves under a forced state, so it cannot prove this is an echo.
+  // #917 restores the no-finding expectation once the capture can prove `auto` on both sides.
   const a = makeMap({
     elements: {
       'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
