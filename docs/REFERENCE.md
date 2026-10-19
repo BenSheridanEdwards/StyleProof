@@ -56,6 +56,14 @@ visual changes and kept the check red. A reviewer ticks **Approve all changes**
 to sign off that commit. Any later push that changes the evidence reopens the
 gate.
 
+Below the headline count, the comment lists **What changed**. Each one-sided
+surface gets a row with its status. Each change gets a row that names up to
+three elements and what happened to them, and counts the rest as
+`+N more element(s)`. After ten rows, `…and N more changes` counts what is left.
+`report.json` records the same rows under `digest`, as
+`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more }`.
+The key is present only when there is at least one row.
+
 ### A safety policy blocks
 
 [![A real StyleProof GitHub comment blocking an unacknowledged navigation removal](readme/check-blocked.png)](https://github.com/BenSheridanEdwards/StyleProof/pull/284#issuecomment-4984031529)

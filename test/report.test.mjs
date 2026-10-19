@@ -13,8 +13,7 @@ import {
   toHex,
   propertyGlanceLine,
 } from '../dist/report.js';
-import { codeValue } from '../dist/code-span.js';
-import * as reportMarkdown from '../dist/report/markdown.js';
+import { codeValue, escapeInlineMarkdown } from '../dist/code-span.js';
 import * as reportShared from '../dist/report/shared.js';
 import { safeKey } from '../dist/surface-keys.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
@@ -1617,7 +1616,6 @@ test('map-supplied labels cannot inject lines, approval boxes, receipts, or ment
 });
 
 test('escapeInlineMarkdown and safeKey neutralise control characters without changing normal keys', () => {
-  const { escapeInlineMarkdown } = reportMarkdown;
   assert.equal(escapeInlineMarkdown('a\r\nb\tc'), 'a b c');
   assert.equal(escapeInlineMarkdown('<!-- x -->'), '&lt;\\!-- x --&gt;');
   assert.equal(escapeInlineMarkdown('[x](y) *b* _i_ `c` | #'), '\\[x\\](y) \\*b\\* \\_i\\_ \\`c\\` \\| \\#');

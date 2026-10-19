@@ -8,6 +8,11 @@
 
 **1 distinct change** (3 computed-style difference(s)) in 1 changed surface base with an existing baseline.
 
+**What changed**
+
+- `pricing @ 900` — 🆕 new surface, no baseline
+- `home @ 900` — **`aside.off-canvas-status`** opacity 0.85 → 1 · **`span.caret`** text gray (`#9ca3af`) → blue (`#2563eb`) · **`button.cta`** background blue (`#2563eb`) → red (`#dc2626`)
+
 🧱 **2 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
 
 📝 _3 content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._

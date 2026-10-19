@@ -1,5 +1,5 @@
 import type { Finding, PropChange } from '../diff.js';
-import { CONTROL_CHARACTERS, codeValue } from '../code-span.js';
+import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import { describeChange, toHex, type DescribeCtx, type ElementChange } from '../describe.js';
 import {
   groupByPath,
@@ -28,22 +28,6 @@ export function escapeMarkdownFailureReason(reason: string): string {
     .replace(/>/g, '&gt;')
     .replace(/\\/g, '\\\\')
     .replace(/[*_[`#|]/g, '\\$&');
-}
-
-/**
- * Escape a map-supplied string for inline Markdown prose (outside code spans), so it
- * renders as literal text in the report and the PR comment: control characters and
- * newlines collapse to one space (no injected lines, checkboxes, or receipt markers),
- * HTML and Markdown metacharacters are escaped, and `@` mentions are neutralised.
- */
-export function escapeInlineMarkdown(text: string): string {
-  return text
-    .replace(CONTROL_CHARACTERS, ' ')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/[\\`*_[\]#!|~]/g, '\\$&')
-    .replace(/@/g, '@\u200b');
 }
 
 // Non-values render as an em dash; colours as `#hex` so GitHub shows its swatch.
@@ -232,7 +216,7 @@ function foldSummary(findings: Finding[]): string {
 }
 
 /** Per-element view for the plain-English summariser. */
-function buildElementChanges(findings: Finding[]): ElementChange[] {
+export function buildElementChanges(findings: Finding[]): ElementChange[] {
   return groupByPath(findings).map((group) => {
     const dom = ofKind(group, 'dom')[0];
     return {

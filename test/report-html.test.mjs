@@ -106,6 +106,7 @@ test('writeReportArtifacts emits report.html beside report.md and report.json (#
     content: { evaluated: false, changes: 0, advisory: true },
     surfaces: [],
     confidence: {},
+    digest: [],
   });
   assert.equal(paths.reportHtmlPath, path.join(outDir, 'report.html'));
   assert.ok(fs.existsSync(paths.reportHtmlPath));
