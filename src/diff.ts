@@ -318,39 +318,6 @@ const pairedSameTag = ({ a, b }: DiffCtx, p: string): boolean =>
 const STATE_ADDS = '(state does not change it)';
 const STATE_DROPS = '(state no longer changes it)';
 
-/** An element's resting value for a prop (its pruned style, else its tag's UA default). */
-function restingValue(map: StyleMap, sub: string, prop: string): string | undefined {
-  const el = map.elements[sub];
-  return el ? (el.style[prop] ?? map.defaults[el.tag]?.[prop]) : undefined;
-}
-
-/**
- * The margin balance check needs px on both sides. A state delta's sentinel side means
- * "the resting value", so a new `:hover { margin-left: 40px }` is 0 → 40, a real move.
- */
-function resolveStateMarginSentinels(ctx: DiffCtx, sub: string, props: PropChange[]): PropChange[] {
-  return props.map((p) => {
-    if (!LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop)) return p;
-    const before = p.before === STATE_ADDS ? restingValue(ctx.a, sub, p.prop) : p.before;
-    const after = p.after === STATE_DROPS ? restingValue(ctx.b, sub, p.prop) : p.after;
-    return { ...p, before: before ?? p.before, after: after ?? p.after };
-  });
-}
-
-/**
- * A sentinel with no known resting value is balanced only when its opposite side changed
- * the same way (both margins echo a width change); a lone side is a real move.
- */
-function unresolvedMarginImbalance(props: PropChange[]): boolean {
-  const open = (p?: PropChange) => !!p && (p.before === STATE_ADDS || p.after === STATE_DROPS);
-  return HORIZONTAL_MARGIN_PAIRS.some(([start, end]) => {
-    const ps = props.find((p) => p.prop === start);
-    const pe = props.find((p) => p.prop === end);
-    if (!open(ps) && !open(pe)) return false;
-    return !ps || !pe || ps.before !== pe.before || ps.after !== pe.after;
-  });
-}
-
 /** One forced state's deltas against every target element it touched. */
 function stateTargetFindings(
   ctx: DiffCtx,
@@ -364,15 +331,9 @@ function stateTargetFindings(
     // `path` or `path::before` / `path::after`, so the pseudo suffix is dropped for the check.
     if (!ctx.live(sub.replace(/::[\w-]+$/, ''))) continue;
     if (!ctx.includeStructure && !pairedSameTag(ctx, sub)) continue;
-    const raw = diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, STATE_ADDS, STATE_DROPS);
-    const resolved = resolveStateMarginSentinels(ctx, sub, raw);
-    const kept = new Set(
-      unresolvedMarginImbalance(resolved)
-        ? resolved
-        : dropLayoutEquivalentMarginProps(resolved, ctx.a.elements[sub], ctx.b.elements[sub]),
-    );
-    // Report the original rows (sentinels intact); only the drop decision uses resolved px.
-    const props = dropSubpixelOriginProps(raw.filter((_p, i) => kept.has(resolved[i])));
+    // No layout-equivalent margin drop here: a forced state never moves the resting rect, so
+    // an unchanged rect cannot prove a balanced margin change is an echo (#877).
+    const props = dropSubpixelOriginProps(diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, STATE_ADDS, STATE_DROPS));
     if (props.length) findings.push({ kind: 'state', ...owner, sub, props });
   }
   return findings;

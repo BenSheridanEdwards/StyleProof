@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
+  from certification.** The layout-equivalent margin filter dropped a forced-state
+  delta's matching left/right margin change whenever the element's rectangle was
+  unchanged. That rectangle is the resting one, which a forced state never moves,
+  so `a:hover { margin: 0 40px }` on an inline link or a fixed-width block
+  produced no finding. Forced-state deltas now keep every horizontal margin row.
+  An `auto`-centred child whose margins only follow a width change under hover
+  now also reports its margin rows until the capture can prove that echo.
 - **Breakpoint detection no longer misses bands silently.** It now reads
   `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
   stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial

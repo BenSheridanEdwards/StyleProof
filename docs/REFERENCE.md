@@ -904,12 +904,15 @@ defineStyleMapCapture({
 - **Layout-equivalent margin noise is normalised.** If the browser reports
   horizontal auto-centering margins (`margin-left`/`margin-right` and logical
   equivalents) differently but the captured document-space rectangle is
-  identical, StyleProof treats that as the same rendered layout, including in
-  forced `:hover`/`:focus`/`:active` deltas. The suppression only fires when the
-  sides drift **together** (no demonstrable px imbalance between a side and its
-  opposite): a one-sided change like `margin-left: 0 → 40px` still reports even
-  when something else compensates and the box doesn't move, and if the box moves
-  or resizes, any margin change reports.
+  identical, StyleProof treats that as the same rendered layout. The suppression
+  only fires when the sides drift **together** (no demonstrable px imbalance
+  between a side and its opposite): a one-sided change like
+  `margin-left: 0 → 40px` still reports even when something else compensates and
+  the box doesn't move, and if the box moves or resizes, any margin change
+  reports. Forced `:hover`/`:focus`/`:active` deltas never use this suppression:
+  the captured rectangle is the resting one, so it cannot prove a state's margin
+  change left the box in place, and every horizontal margin change in a state
+  delta reports.
 
 > Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
 
@@ -925,7 +928,7 @@ Anything still moving on its own after that is detected as a volatile region and
 | Animations, transitions, real hover/focus, caret            | frozen / neutralised before the map is read; forced states are captured separately                                              |
 | Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                                                           |
 | Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                                                              |
-| Layout-equivalent horizontal auto margins                   | ignored only when the rectangle is unchanged **and** the sides drift together — a one-sided change still reports                |
+| Layout-equivalent horizontal auto margins                   | element layer only, when the rectangle is unchanged **and** the sides drift together; a one-sided change reports                |
 | Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                                                                  |
 | Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison; head-only volatility blocks; base-only is reviewable |
 | Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                                                       |

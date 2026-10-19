@@ -532,7 +532,8 @@ test('reports a forced-state (hover) delta change', () => {
   assert.deepEqual(f[0].props, [{ prop: 'color', before: 'rgb(0, 0, 255)', after: '(state no longer changes it)' }]);
 });
 
-test('ignores layout-equivalent margin drift inside forced-state deltas', () => {
+test('reports balanced margin drift inside forced-state deltas until the capture can prove an auto echo', () => {
+  // The resting rect never moves under a forced state, so it cannot prove this is an echo.
   const a = makeMap({
     elements: {
       'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
@@ -565,7 +566,10 @@ test('ignores layout-equivalent margin drift inside forced-state deltas', () => 
     states: { 'body > button:nth-child(1)': { hover: {} } },
   });
 
-  assert.deepEqual(diffStyleMaps(a, b), []);
+  assert.deepEqual(
+    diffStyleMaps(a, b).map((f) => [f.kind, f.state, f.props.map((p) => p.prop)]),
+    [['state', 'hover', ['margin-left', 'margin-right']]],
+  );
 });
 
 test('findings are sorted by structural path', () => {
