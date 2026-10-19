@@ -18,3 +18,19 @@ export function codeValue(v: string): string {
   const pad = /^`|`$/.test(escaped) ? ' ' : '';
   return `${fence}${pad}${escaped}${pad}${fence}`;
 }
+
+/**
+ * Escape a map-supplied string for inline Markdown prose (outside code spans), so it
+ * renders as literal text in the report and the PR comment: control characters and
+ * newlines collapse to one space (no injected lines, checkboxes, or receipt markers),
+ * HTML and Markdown metacharacters are escaped, and `@` mentions are neutralised.
+ */
+export function escapeInlineMarkdown(text: string): string {
+  return text
+    .replace(CONTROL_CHARACTERS, ' ')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/[\\`*_[\]#!|~]/g, '\\$&')
+    .replace(/@/g, '@\u200b');
+}

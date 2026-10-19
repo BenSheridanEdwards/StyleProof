@@ -11,8 +11,7 @@ import {
 } from '../map-store.js';
 import { formatChangedSurfaceScope, formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
 import type { ChangeGroup, PreparedSurface, ReportConsistency } from './shared.js';
-import { codeValue } from '../code-span.js';
-import { escapeInlineMarkdown } from './markdown.js';
+import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 
 /** Everything the headline prose between the certification block and the detail needs. */
 export type HeadlineInput = {
@@ -20,6 +19,8 @@ export type HeadlineInput = {
   missing: PreparedSurface[];
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
+  /** The "What changed" block, placed right after the count sentence so the PR comment carries it. */
+  whatChanged: string[];
   volatileCount: number;
   /** Subtrees volatile on the head only: excluded, never certified. */
   headOnlyVolatile?: HeadOnlyVolatile[];
@@ -280,6 +281,7 @@ function summaryLines(input: HeadlineInput): string[] {
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
+  if (input.whatChanged.length > 0) md.push(...(md[md.length - 1] === '' ? [] : ['']), ...input.whatChanged);
   if (input.volatileCount > 0) {
     const candidates = input.liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`

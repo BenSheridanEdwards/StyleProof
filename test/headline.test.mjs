@@ -13,6 +13,7 @@ function baseInput(overrides = {}) {
     missing: [],
     shown: { dom: 0, style: 0, state: 0 },
     changedScope: { bases: 0, variants: 0 },
+    whatChanged: [],
     volatileCount: 0,
     liveCandidateLabels: [],
     contentCount: 0,

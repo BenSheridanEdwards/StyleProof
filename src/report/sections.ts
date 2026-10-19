@@ -9,6 +9,7 @@ import { chromeSpanLabel, safeKey, surfaceBase } from '../change-groups.js';
 import { cropPng, cropStem, readPng, writePng } from './png.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
 import { renderReportHtml } from './html.js';
+import type { DigestRow } from './digest.js';
 import { renderChangeGroup } from './regions.js';
 import { formatSurfaceWithContext, type ChangeGroup, type PreparedSurface, type RenderCtx } from './shared.js';
 
@@ -321,6 +322,7 @@ export type ReportArtifacts = Pick<
   baseOnlyVolatile?: ReportResult['baseOnlyVolatile'];
   /** Base capture failures set aside because the base never declared the surface. */
   undeclaredOnBase?: string[];
+  digest: DigestRow[];
 };
 
 /** Write report.md, report.json, and report.html. The JSON key order is a byte-stable contract. */
@@ -366,6 +368,8 @@ export function writeReportArtifacts(a: ReportArtifacts): {
       : {}),
     ...(a.legacyPairs ? { legacyPairs: a.legacyPairs } : {}),
     ...(a.criticalStates ? { criticalStates: a.criticalStates } : {}),
+    // Additive (#831), only when non-empty, so a clean report's bytes are unchanged.
+    ...(a.digest.length ? { digest: a.digest } : {}),
   };
   fs.writeFileSync(reportJsonPath, JSON.stringify(json, null, 2));
   return { reportMdPath, reportJsonPath, reportHtmlPath };

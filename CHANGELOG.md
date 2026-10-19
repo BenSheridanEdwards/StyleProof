@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **The PR comment names what changed, not just how much (#831).** A **What
+  changed** block now follows the headline count. It has one row per one-sided
+  surface with its status, and one row per change that names up to three
+  elements with their plain-English change, for example
+  ``**`button.cta`** background blue (`#2563eb`) → red (`#dc2626`)``. The
+  remaining elements are counted as `+N more element(s)`. Past ten rows the
+  block ends with `…and N more changes`. A shared-chrome row says it touched
+  every surface base that renders the element. Every map-derived value in the
+  block is escaped, so a hostile map cannot inject an approval box, a receipt
+  marker, or a mention. `report.json` mirrors the rows in a new `digest` key,
+  present only when the block is. A clean report's bytes, the counts, the
+  verdict, and exit codes are unchanged.
+  The plain-English bullets under each crop escape the same values, so a CSS
+  value carrying Markdown characters now renders literally there too.
+
 ### Removed
 
 - **BREAKING: `mapStore.token` is removed from the config schema and the

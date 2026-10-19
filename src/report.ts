@@ -70,7 +70,8 @@ import {
   liveTextFreezeLines,
   productStateWarningLines,
 } from './report/certification.js';
-import { baselineFailureDetailLines, readBaselineInfo, reportHeadline } from './report/headline.js';
+import { buildDigest, digestLines } from './report/digest.js';
+import { baselineFailureDetailLines, oneSidedStatus, readBaselineInfo, reportHeadline } from './report/headline.js';
 import { countShownChanges, groupBySignature } from './report/regions.js';
 import {
   ReportMarkdown,
@@ -406,6 +407,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const confidence = summarizeConfidence(confidenceLedger);
   const baselineProvenance = readBaselineProvenance(beforeDir);
   const provenanceLine = baselineProvenanceLine(baselineProvenance);
+  const digest = buildDigest(
+    ctx,
+    missing.map((p) => ({ surface: p.sd.surface, status: oneSidedStatus(p, baseline.surfaceFailures) })),
+    chrome,
+  );
   const md = new ReportMarkdown(opts.maxReportBytes ?? 400_000);
   // Verdict first (above the fold), then the product-state warning when it fires —
   // never certification checklist first, and never a green product-state peer card.
@@ -414,6 +420,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     missing,
     shown,
     changedScope: countChangedSurfaceScope(changeGroups, surfaceKeyOf),
+    whatChanged: digestLines(digest),
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
@@ -537,6 +544,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseOnlyVolatile: diff.baseOnlyVolatile,
     legacyPairs: gates.legacyPairs,
     criticalStates: gates.criticalStates,
+    digest,
   });
   return {
     changedSurfaces: prepared.length - missing.length,
