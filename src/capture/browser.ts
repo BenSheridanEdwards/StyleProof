@@ -84,7 +84,7 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   // Keep the document origin in the same browser snapshot as every bounding box.
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
-  const documentHeight = document.documentElement.scrollHeight;
+  const documentHeight = (document.scrollingElement ?? document.documentElement).scrollHeight;
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;

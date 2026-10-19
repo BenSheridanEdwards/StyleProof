@@ -144,15 +144,27 @@ for (const axis of ['vertical', 'horizontal'] as const) {
   });
 }
 
-for (const top of [300, 2000]) {
-  test(`a visible element added at top ${top}px of a tall page requires review`, async ({ page }) => {
+const banner = 'position:absolute;left:0;width:1280px;height:80px;background:rgb(255,0,0)';
+for (const { title, page: fixture } of [
+  ...[300, 2000].map((top) => ({
+    title: `a visible element added at top ${top}px of a tall page requires review`,
+    page: (present: boolean) =>
+      `<style>html,body{margin:0}.page{position:relative;height:3000px}.banner{${banner};top:${top}px}</style><div class="page">${present ? '<div class="banner"></div>' : ''}</div>`,
+  })),
+  {
+    // Quirks mode puts the viewport's scroll height on body, not documentElement.
+    title: 'a quirks-mode short page with a visible element added at top 5000px requires review',
+    page: (present: boolean) =>
+      `<style>html,body{margin:0}.banner{${banner};top:5000px}</style><div>short</div>${present ? '<div class="banner"></div>' : ''}`,
+  },
+]) {
+  test(title, async ({ page }) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-below-fold-'));
     try {
       await page.setViewportSize({ width: 1280, height: 720 });
       for (const present of [false, true]) {
-        await page.setContent(
-          `<style>html,body{margin:0}.page{position:relative;height:3000px}.banner{position:absolute;left:0;top:${top}px;width:1280px;height:80px;background:rgb(255,0,0)}</style><div class="page">${present ? '<div class="banner"></div>' : ''}</div>`,
-        );
+        await page.setContent(fixture(present));
+        expect(await page.evaluate(() => document.compatMode), 'fixtures have no doctype').toBe('BackCompat');
         const map = await captureStyleMap(page, { stabilize: false });
         const stem = path.join(root, present ? 'head-shot' : 'base-shot');
         await captureSurfaceScreenshots(page, stem);

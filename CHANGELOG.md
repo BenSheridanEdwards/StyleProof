@@ -22,11 +22,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   window-sized viewport, so a visible element added further down a tall page
   passed as no change and `styleproof-diff` exited 0. Captures now record the
   document's scroll height as `viewport.documentHeight`, and an element counts
-  as visible anywhere in the captured page that the full-page screenshot covers.
-  Horizontal clipping to the viewport width is unchanged, and content clipped
-  inside a nested scroller stays advisory as before. Maps captured before this
-  release have no `documentHeight`, so the gate treats additions or removals
-  below their first window as visible rather than passing them (#913).
+  as visible anywhere in the document's scroll height. In quirks mode the height
+  is read from `document.scrollingElement`, so out-of-flow content there counts
+  too. Horizontal clipping to the viewport width is unchanged, and content
+  clipped inside a nested scroller stays advisory as before (tracked in #920).
+  Maps captured before this release have no `documentHeight`, so the gate
+  treats additions or removals below their first window as visible rather than
+  passing them (#913).
 - **Breakpoint detection no longer misses bands silently.** It now reads
   `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
   stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial
