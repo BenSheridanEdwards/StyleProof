@@ -393,13 +393,53 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // compiler/transpiler configs (tsconfig.json, tsconfig.*.json, jsconfig.json:
 // path aliases and JSX settings; babel.config.*, .babelrc*; .browserslistrc:
 // autoprefixed CSS), root stylesheets, and a Vite-style index.html. Roots match a directory prefix or an exact
-// file path, so config files work as roots. Roots decide baseline correctness, so a
-// workspace monorepo, whose shared packages init cannot bound, gets no roots: every
-// changed path counts. Markers are searched from the cwd up to the git repository root
-// (the filesystem root outside git), so init inside a workspace package finds them.
+// file path, so config files work as roots. Roots decide baseline correctness, so init
+// fails safe and writes no roots (every changed path counts) when it cannot bound the
+// render inputs: in a workspace monorepo, whose shared packages it cannot bound, or when
+// any top-level entry is neither a detected root nor known not to affect rendering.
+// Markers are searched from the cwd up to the git repository root (the filesystem root
+// outside git), so init inside a workspace package finds them.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
 const ANCESTOR_ROOT_FILE =
   /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?[jt]s|json)|\.babelrc(?:\.(?:[cm]?[jt]s|json))?|\.browserslistrc|.+\.(?:css|scss|sass|less)|index\.html)$/s;
+// Top-level entries known not to affect rendering. Keep this conservative: a name left
+// out only costs reuse, a wrong name here lets a stale baseline through. .env* is
+// deliberately absent: env can change rendering.
+const NON_RENDER_DIRS = new Set([
+  // VCS, CI, editor and release tooling
+  '.git',
+  '.github',
+  '.gitlab',
+  '.vscode',
+  '.idea',
+  '.husky',
+  '.changeset',
+  // docs, tests and their reports
+  'docs',
+  'test',
+  'tests',
+  '__tests__',
+  'e2e',
+  'cypress',
+  'playwright-report',
+  'test-results',
+  'coverage',
+  // StyleProof's own output
+  '.styleproof',
+]);
+const NON_RENDER_FILE =
+  /^(?:styleproof\.config\..+|playwright(?:\.styleproof)?\.config\..+|package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|(?:README|LICENSE|CHANGELOG|CONTRIBUTING).*|.+\.md|\.gitignore|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|\.npmrc|\.eslintrc.*|eslint\.config\..+|\.eslintignore|\.prettierrc.*|prettier\.config\..+|\.prettierignore|\.stylelintrc.*|stylelint\.config\..+|commitlint\.config\..+|\.lintstagedrc.*|next-env\.d\.ts|(?:vitest|jest)\.config\..+|Dockerfile|\.dockerignore)$/;
+// The spec's top-level entry: its own directory (always capture-relevant) or the spec file.
+const specEntry = specPath.split('/').length <= 2 ? specPath.split('/')[0] : undefined;
+// The entries git would see (tracked plus untracked-not-ignored), else the directory listing.
+function topLevelEntries() {
+  const listed = gitOutput(['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
+  const names =
+    listed === undefined
+      ? fs.readdirSync('.').filter((name) => name !== 'node_modules' && name !== '.git')
+      : listed.split('\0').map((file) => file.split('/')[0]);
+  return [...new Set(names)].filter(Boolean).sort();
+}
 const WORKSPACE_MARKERS = ['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'];
 const isDirectory = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
 function workspaceMarkerIn(dir) {
@@ -422,7 +462,7 @@ function workspaceMarker() {
   }
 }
 const ancestorWorkspace = workspaceMarker();
-const ancestorRoots = ancestorWorkspace
+const detectedRoots = ancestorWorkspace
   ? []
   : [
       ...ANCESTOR_ROOT_DIRS.filter(isDirectory),
@@ -432,7 +472,16 @@ const ancestorRoots = ancestorWorkspace
         .map((entry) => entry.name)
         .sort(),
     ];
-scaffoldFile('styleproof.config.ts', styleproofConfigTemplate(ancestorRoots, ancestorWorkspace), {
+const unclassifiedEntries = ancestorWorkspace
+  ? []
+  : topLevelEntries().filter(
+      (name) =>
+        !detectedRoots.includes(name) &&
+        name !== specEntry &&
+        !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name)),
+    );
+const ancestorRoots = unclassifiedEntries.length ? [] : detectedRoots;
+scaffoldFile('styleproof.config.ts', styleproofConfigTemplate(ancestorRoots, ancestorWorkspace, unclassifiedEntries), {
   note: 'typed config with defineConfig()',
 });
 

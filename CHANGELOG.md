@@ -41,10 +41,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `vite`, `svelte`, `astro`, `nuxt`, `remix` and `webpack` `.config.*` files,
   root `tsconfig.json`, `tsconfig.*.json`, `jsconfig.json`, `babel.config.*`,
   `.babelrc` / `.babelrc.*` and `.browserslistrc`, root `*.css` / `*.scss` / `*.sass` / `*.less` stylesheets, `index.html`), or
-  a comment when it detects none. In a workspace monorepo (`package.json`
-  `workspaces`, `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`)
-  it writes no roots, with a comment saying why, since shared packages can
-  change rendering outside any root it could detect. Only
+  a comment when it detects none. It fails safe: roots are written only when
+  every top-level entry (tracked or untracked-not-ignored inside git) is either
+  a detected root or on a short list known not to affect rendering (VCS/CI and
+  editor dirs, docs and test dirs, Markdown, lint/format/test configs,
+  manifests and lockfiles, StyleProof's own files). Otherwise, such as an
+  imported `main.js` next to `index.html`, or an `assets/` dir, it writes no
+  roots and the comment names the entries it could not classify. In a
+  workspace monorepo (`package.json` `workspaces`, `pnpm-workspace.yaml`,
+  `lerna.json`, `nx.json`, `turbo.json`) it also writes no roots, with a
+  comment saying why, since shared packages can change rendering outside any
+  root it could detect. Only
   branch-storage runs are affected; `--no-store` never reuses an ancestor.
   **Migration:** to keep the old reuse behaviour, declare
   `ancestorBaseline: { roots: ['src'] }` in `styleproof.config`, or set

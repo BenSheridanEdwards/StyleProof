@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captureRelevantChangedPaths } from '../dist/ancestor-baseline.js';
 import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -1331,7 +1332,7 @@ for (const [name, files, expected] of [
   ],
   [
     'a Next.js app with a root framework config and root stylesheets',
-    ['app/page.tsx', 'next.config.mjs', 'global.css', 'theme.scss', 'notes.txt'],
+    ['app/page.tsx', 'next.config.mjs', 'global.css', 'theme.scss', 'notes.md'],
     "'app', 'global.css', 'next.config.mjs', 'theme.scss'",
   ],
   [
@@ -1350,9 +1351,50 @@ for (const [name, files, expected] of [
       'babel.config.js',
       'babel.config.ts',
       '.babelrc.cts',
-      'tsconfig.json.bak',
     ],
     "'src', '.babelrc.cts', '.browserslistrc', 'babel.config.js', 'babel.config.ts', 'jsconfig.json', 'tsconfig.app.json', 'tsconfig.json'",
+  ],
+  // Every top-level entry of a realistic app is either a root or known not to render.
+  [
+    'a realistic Next.js app',
+    [
+      'app/page.tsx',
+      'app/layout.tsx',
+      'app/globals.css',
+      'public/next.svg',
+      'next.config.mjs',
+      'tsconfig.json',
+      'next-env.d.ts',
+      'postcss.config.mjs',
+      'tailwind.config.ts',
+      'package.json',
+      'package-lock.json',
+      'README.md',
+      '.gitignore',
+      'eslint.config.mjs',
+      'e2e/home.spec.ts',
+    ],
+    "'app', 'public', 'next.config.mjs', 'postcss.config.mjs', 'tailwind.config.ts', 'tsconfig.json'",
+  ],
+  [
+    'a realistic Vite app',
+    [
+      'src/main.tsx',
+      'src/App.tsx',
+      'src/index.css',
+      'public/vite.svg',
+      'index.html',
+      'vite.config.ts',
+      'tsconfig.json',
+      'tsconfig.app.json',
+      'tsconfig.node.json',
+      'package.json',
+      'package-lock.json',
+      'README.md',
+      '.gitignore',
+      'eslint.config.js',
+    ],
+    "'src', 'public', 'index.html', 'tsconfig.app.json', 'tsconfig.json', 'tsconfig.node.json', 'vite.config.ts'",
   ],
 ]) {
   test(`styleproof-init: writes explicit ancestorBaseline.roots for ${name} (#826)`, () => {
@@ -1360,7 +1402,15 @@ for (const [name, files, expected] of [
       const root = mkTmp();
       try {
         for (const file of files) touch(root, file);
-        const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', storage]);
+        if (files.includes('package.json')) fs.writeFileSync(path.join(root, 'package.json'), '{}\n');
+        const res = runInit(root, [
+          '--dir',
+          'e2e/styleproof.spec.ts',
+          '--storage',
+          storage,
+          '--server-command',
+          'npm run build && npm run start',
+        ]);
         assert.equal(res.status, 0, res.stderr);
         assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), expected, storage);
       } finally {
@@ -1412,6 +1462,78 @@ test('styleproof-init: writes no ancestorBaseline.roots when it detects none, an
   } finally {
     rmTmp(root);
   }
+});
+
+// A top-level entry init cannot classify may be a render input (an imported script or
+// asset, Next middleware), so roots that omit it would let a stale baseline through.
+for (const [name, files, named] of [
+  ['a flat app whose index.html imports main.js', ['index.html', 'main.js'], "'main.js'"],
+  ['an app with src and an imported assets stylesheet', ['src/main.ts', 'assets/theme.css'], "'assets'"],
+  ['a Next.js app with root middleware', ['app/page.tsx', 'next.config.mjs', 'middleware.ts'], "'middleware.ts'"],
+  ['an app with a near-miss config name', ['src/main.ts', 'tsconfig.json.bak'], "'tsconfig.json.bak'"],
+  ['an app with root .env files', ['src/main.ts', '.env', '.env.example'], "'.env', '.env.example'"],
+  ['many unclassified entries', ['src/main.ts', 'a.js', 'b.js', 'c.js', 'd.js'], "'a.js', 'b.js', 'c.js' and 1 more"],
+  ['an unclassified name with a line terminator', ['src/main.ts', 'x\ny.js'], "'x\\ny.js'"],
+]) {
+  test(`styleproof-init: writes no ancestorBaseline.roots for ${name}, and names the entries (#826)`, () => {
+    const root = mkTmp();
+    try {
+      for (const file of files) touch(root, file);
+      const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+      assert.equal(res.status, 0, res.stderr);
+      const config = readFile(root, 'styleproof.config.ts');
+      assert.equal(ancestorRootsLine(config), undefined, config);
+      assert.ok(
+        config.includes(`found top-level entries\n  // it cannot classify (${named}), so it declared no roots`),
+        config,
+      );
+      assert.match(config, /every\n {2}\/\/ changed path invalidates the ancestor baseline/);
+      assert.match(config, /^ {2}\/\/ ancestorBaseline: \{ roots: \['src'\] \},$/m);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+// Inside git, init classifies what git would see: ignored build output does not block roots.
+test('styleproof-init: ignores gitignored top-level entries when classifying (#826)', () => {
+  const root = mkTmp();
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), 'dist/\n.next/\n');
+    for (const file of ['src/main.ts', 'dist/main.js', '.next/server/app.js']) touch(root, file);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src'");
+  } finally {
+    rmTmp(root);
+  }
+});
+
+// The generated roots feed the reuse decision: a change to an entry init could not
+// classify must count as capture-relevant, while explicit roots still bound the rest.
+test('styleproof-init: generated roots make an unclassified entry change block ancestor reuse (#826)', () => {
+  const generatedRoots = (files) => {
+    const root = mkTmp();
+    try {
+      for (const file of files) touch(root, file);
+      const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+      assert.equal(res.status, 0, res.stderr);
+      const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+      return line === undefined ? [] : new Function(`return [${line}];`)();
+    } finally {
+      rmTmp(root);
+    }
+  };
+  const relevant = (sourceRoots, changedPaths) =>
+    captureRelevantChangedPaths({ changedPaths, spec: 'e2e/styleproof.spec.ts', sourceRoots });
+
+  const flat = generatedRoots(['index.html', 'main.js']);
+  assert.deepEqual(relevant(flat, ['main.js']), ['main.js']);
+  const assets = generatedRoots(['src/main.ts', 'assets/theme.css']);
+  assert.deepEqual(relevant(assets, ['assets/theme.css']), ['assets/theme.css']);
+  const next = generatedRoots(['app/page.tsx', 'next.config.mjs', 'README.md']);
+  assert.deepEqual(relevant(next, ['app/page.tsx', 'README.md']), ['app/page.tsx']);
 });
 
 // A workspace package (packages/ui) can change rendering outside any root init could
