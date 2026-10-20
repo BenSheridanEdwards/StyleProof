@@ -1329,6 +1329,16 @@ for (const [name, files, expected] of [
     ['src/main.ts', 'styles/base.css', 'tailwind.config.ts', 'postcss.config.mjs', 'index.html', 'README.md'],
     "'src', 'styles', 'index.html', 'postcss.config.mjs', 'tailwind.config.ts'",
   ],
+  [
+    'a Next.js app with a root framework config and root stylesheets',
+    ['app/page.tsx', 'next.config.mjs', 'global.css', 'theme.scss', 'notes.txt'],
+    "'app', 'global.css', 'next.config.mjs', 'theme.scss'",
+  ],
+  [
+    'a Vite app with a root bundler config',
+    ['src/main.ts', 'vite.config.ts', 'index.html', 'tsconfig.json'],
+    "'src', 'index.html', 'vite.config.ts'",
+  ],
 ]) {
   test(`styleproof-init: writes explicit ancestorBaseline.roots for ${name} (#826)`, () => {
     for (const storage of ['artifact', 'branch']) {
@@ -1358,6 +1368,47 @@ test('styleproof-init: writes no ancestorBaseline.roots when it detects none, an
     rmTmp(root);
   }
 });
+
+// A workspace package (packages/ui) can change rendering outside any root init could
+// detect, so a monorepo gets no roots — the every-change-counts default — and a reason.
+for (const [marker, write, named] of [
+  [
+    'package.json workspaces',
+    (root) => fs.writeFileSync(path.join(root, 'package.json'), '{"workspaces":["packages/*"]}\n'),
+    'package.json "workspaces"',
+  ],
+  ...['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'].map((file) => [
+    file,
+    (root) => touch(root, file),
+    file,
+  ]),
+]) {
+  test(`styleproof-init: writes no ancestorBaseline.roots in a ${marker} monorepo, and says why (#826)`, () => {
+    const root = mkTmp();
+    try {
+      for (const file of ['app/page.tsx', 'next.config.mjs', 'packages/ui/Button.tsx']) touch(root, file);
+      write(root);
+      const res = runInit(root, [
+        '--dir',
+        'e2e/styleproof.spec.ts',
+        '--storage',
+        'branch',
+        '--server-command',
+        'npm run build && npm run start',
+      ]);
+      assert.equal(res.status, 0, res.stderr);
+      const config = readFile(root, 'styleproof.config.ts');
+      assert.equal(ancestorRootsLine(config), undefined, config);
+      assert.ok(
+        config.includes(`found a workspace\n  // monorepo (${named}) whose shared packages it cannot bound`),
+        config,
+      );
+      assert.match(config, /every changed path invalidates the ancestor baseline/);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
 
 test('styleproof-init: --check without --dir does not require a sibling JSON after a typed scaffold', () => {
   const root = mkTmp();

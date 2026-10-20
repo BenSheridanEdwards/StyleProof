@@ -388,20 +388,36 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // storage, but the config is user-owned and never re-scaffolded, so a later switch to
 // --storage branch keeps accurate roots. Source dirs (app/pages: Next.js routers;
 // components/lib: root-level UI code; styles/public: global CSS and rendered assets),
-// root CSS-tool configs, and a Vite-style index.html. Roots match a directory prefix
-// or an exact file path, so config files work as roots.
+// root CSS-tool and framework/bundler configs (they change compiled output), root
+// stylesheets, and a Vite-style index.html. Roots match a directory prefix or an exact
+// file path, so config files work as roots. Roots decide baseline correctness, so a
+// workspace monorepo, whose shared packages init cannot bound, gets no roots: every
+// changed path counts.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
-const ANCESTOR_ROOT_FILE = /^(?:(?:tailwind|postcss)\.config\.[cm]?[jt]s|index\.html)$/;
+const ANCESTOR_ROOT_FILE =
+  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|.+\.(?:css|scss|sass|less)|index\.html)$/;
+const WORKSPACE_MARKERS = ['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'];
 const isDirectory = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
-const ancestorRoots = [
-  ...ANCESTOR_ROOT_DIRS.filter(isDirectory),
-  ...fs
-    .readdirSync('.', { withFileTypes: true })
-    .filter((entry) => entry.isFile() && ANCESTOR_ROOT_FILE.test(entry.name))
-    .map((entry) => entry.name)
-    .sort(),
-];
-scaffoldFile('styleproof.config.ts', styleproofConfigTemplate(ancestorRoots), {
+function workspaceMarker() {
+  try {
+    if (JSON.parse(fs.readFileSync('package.json', 'utf8')).workspaces) return 'package.json "workspaces"';
+  } catch {
+    /* no or unreadable manifest: fall through to the marker files */
+  }
+  return WORKSPACE_MARKERS.find((file) => fs.existsSync(file));
+}
+const ancestorWorkspace = workspaceMarker();
+const ancestorRoots = ancestorWorkspace
+  ? []
+  : [
+      ...ANCESTOR_ROOT_DIRS.filter(isDirectory),
+      ...fs
+        .readdirSync('.', { withFileTypes: true })
+        .filter((entry) => entry.isFile() && ANCESTOR_ROOT_FILE.test(entry.name))
+        .map((entry) => entry.name)
+        .sort(),
+    ];
+scaffoldFile('styleproof.config.ts', styleproofConfigTemplate(ancestorRoots, ancestorWorkspace), {
   note: 'typed config with defineConfig()',
 });
 
