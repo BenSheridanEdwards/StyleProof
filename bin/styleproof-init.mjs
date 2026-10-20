@@ -17,12 +17,12 @@ import { findStyleProofHooks, reportObsoleteHooks, retireObsoleteHooks } from '.
 import {
   APPROVE_WORKFLOW,
   PACKAGE_MANAGERS,
-  STYLEPROOF_CONFIG_TEMPLATE,
   ciWorkflow,
   lintArtifactsTemplate,
   playwrightConfigTemplate,
   reportWorkflow,
   specTemplate,
+  styleproofConfigTemplate,
 } from './init/templates.mjs';
 
 const NAME = 'styleproof-init';
@@ -384,7 +384,26 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
   console.log(
     'app playwright.config exists — left untouched; styleproof-map uses playwright.styleproof.config.ts by default',
   );
-scaffoldFile('styleproof.config.ts', STYLEPROOF_CONFIG_TEMPLATE, { note: 'typed config with defineConfig()' });
+// Ancestor-reuse roots, written for both storage modes: reuse only runs with branch
+// storage, but the config is user-owned and never re-scaffolded, so a later switch to
+// --storage branch keeps accurate roots. Source dirs (app/pages: Next.js routers;
+// components/lib: root-level UI code; styles/public: global CSS and rendered assets),
+// root CSS-tool configs, and a Vite-style index.html. Roots match a directory prefix
+// or an exact file path, so config files work as roots.
+const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
+const ANCESTOR_ROOT_FILE = /^(?:(?:tailwind|postcss)\.config\.[cm]?[jt]s|index\.html)$/;
+const isDirectory = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
+const ancestorRoots = [
+  ...ANCESTOR_ROOT_DIRS.filter(isDirectory),
+  ...fs
+    .readdirSync('.', { withFileTypes: true })
+    .filter((entry) => entry.isFile() && ANCESTOR_ROOT_FILE.test(entry.name))
+    .map((entry) => entry.name)
+    .sort(),
+];
+scaffoldFile('styleproof.config.ts', styleproofConfigTemplate(ancestorRoots), {
+  note: 'typed config with defineConfig()',
+});
 
 // Current (.styleproof/) plus legacy map artifact patterns.
 const gitignore = ensureGitignoreLines([

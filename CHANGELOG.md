@@ -24,6 +24,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The plain-English bullets under each crop escape the same values, so a CSS
   value carrying Markdown characters now renders literally there too.
 
+### Changed
+
+- **BREAKING: ancestor baseline reuse no longer assumes `src` is the only
+  source root (#826).** With no `ancestorBaseline.roots` and no
+  `STYLEPROOF_ANCESTOR_BASELINE_ROOTS`, `styleproof-ci` treated only `src` as
+  capture-relevant. A base-branch change in `app/`, `pages/`, `styles/`,
+  `public/`, `index.html` or a root Tailwind or PostCSS config did not block
+  reuse, so the PR was diffed against a stale ancestor baseline. Now, with no
+  roots declared, every changed path is capture-relevant: reuse fires only when
+  nothing changed since the ancestor. The run logs one line,
+  `ancestor baseline reuse: no source roots declared`, that names both
+  settings. `styleproof-init` now writes `ancestorBaseline.roots` into a new
+  `styleproof.config.ts` for the layout it detects (`src`, `app`, `pages`,
+  `styles`, `public`, `components`, `lib`, root `tailwind.config.*` /
+  `postcss.config.*`, `index.html`), or a comment when it detects none. Only
+  branch-storage runs are affected; `--no-store` never reuses an ancestor.
+  **Migration:** to keep the old reuse behaviour, declare
+  `ancestorBaseline: { roots: ['src'] }` in `styleproof.config`, or set
+  `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`. Add any other directory or file
+  that changes how your app renders.
+
 ### Removed
 
 - **BREAKING: `mapStore.token` is removed from the config schema and the

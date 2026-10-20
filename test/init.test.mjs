@@ -1318,6 +1318,47 @@ test('styleproof-init: scaffolds styleproof.config.ts with blocking: advisory by
   }
 });
 
+// #826: with no roots declared every changed path invalidates the ancestor baseline, so
+// init writes explicit roots for the layout it detects (and none when it detects none).
+const ancestorRootsLine = (config) => config.match(/^ {2}ancestorBaseline: \{ roots: \[(.*)\] \},$/m)?.[1];
+
+for (const [name, files, expected] of [
+  ['a Next.js app', ['app/page.tsx', 'app/about/page.tsx', 'public/logo.svg'], "'app', 'public'"],
+  [
+    'a plain app with src and root CSS-tool configs',
+    ['src/main.ts', 'styles/base.css', 'tailwind.config.ts', 'postcss.config.mjs', 'index.html', 'README.md'],
+    "'src', 'styles', 'index.html', 'postcss.config.mjs', 'tailwind.config.ts'",
+  ],
+]) {
+  test(`styleproof-init: writes explicit ancestorBaseline.roots for ${name} (#826)`, () => {
+    for (const storage of ['artifact', 'branch']) {
+      const root = mkTmp();
+      try {
+        for (const file of files) touch(root, file);
+        const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', storage]);
+        assert.equal(res.status, 0, res.stderr);
+        assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), expected, storage);
+      } finally {
+        rmTmp(root);
+      }
+    }
+  });
+}
+
+test('styleproof-init: writes no ancestorBaseline.roots when it detects none, and says so (#826)', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const config = readFile(root, 'styleproof.config.ts');
+    assert.equal(ancestorRootsLine(config), undefined, config);
+    assert.match(config, /detected no source roots,\n {2}\/\/ so every changed path invalidates the ancestor baseline/);
+    assert.match(config, /^ {2}\/\/ ancestorBaseline: \{ roots: \['src'\] \},$/m);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: --check without --dir does not require a sibling JSON after a typed scaffold', () => {
   const root = mkTmp();
   try {
