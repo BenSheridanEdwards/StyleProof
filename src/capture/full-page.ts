@@ -70,7 +70,8 @@ function expandInnerScrollContainers(): number {
     }
   };
 
-  const scrollers = [...document.querySelectorAll('body *')]
+  const scrollers = [document.body, ...document.querySelectorAll('body *')]
+    .filter((node) => node !== null)
     .map((node) => node as HTMLElement)
     .filter(isVerticalScroller);
 
@@ -116,10 +117,19 @@ type DocRect = [number, number, number, number];
  * Document-space rects for every element, keyed by the capture path, measured in the
  * expanded layout. Nested helpers only: Playwright serializes this via `Function#toString`.
  */
-function measureExpandedRects(): Record<string, DocRect> {
+function measureExpandedRects(expanded: boolean): { rects: Record<string, DocRect>; screenshotHeight: number } {
   const pathOf = (window as unknown as { __spPathOf?: (el: Element) => string }).__spPathOf;
   const out: Record<string, DocRect> = {};
-  if (!pathOf) return out;
+  // Match Playwright's full-page height calculation in this expanded state.
+  const screenshotHeight = Math.max(
+    document.documentElement.scrollHeight,
+    document.body?.scrollHeight ?? 0,
+    document.documentElement.offsetHeight,
+    document.body?.offsetHeight ?? 0,
+    document.documentElement.clientHeight,
+    document.body?.clientHeight ?? 0,
+  );
+  if (!expanded || !pathOf) return { rects: out, screenshotHeight };
   for (const el of [document.documentElement, document.body, ...document.querySelectorAll('body *')]) {
     if (!el) continue;
     const r = el.getBoundingClientRect();
@@ -130,7 +140,7 @@ function measureExpandedRects(): Record<string, DocRect> {
       Math.round(r.height),
     ];
   }
-  return out;
+  return { rects: out, screenshotHeight };
 }
 
 /**
@@ -140,21 +150,22 @@ function measureExpandedRects(): Record<string, DocRect> {
  * scrolled (a surface's own click scrolls its target into view) or clip content below
  * it. The full-page screenshot expands those scrollers, so its pixels sit elsewhere and
  * report crops cut the wrong region (an added element reads as "renders identically").
- * Preserve the driven-state `rect` used by visibility and layout comparisons. Store
- * expanded geometry separately for screenshot consumers; styles are not reread.
+ * Preserve the driven-state `rect` for layout comparisons. Store expanded geometry
+ * and height for screenshots and visible-structure gating; styles are not reread.
+ * Without expansion, entries keep `rect` and are judged against the recorded height.
  */
 export async function alignRectsToFullPageGeometry(
   page: Page,
   elements: Record<string, { rect?: DocRect; screenshotRect?: DocRect }>,
-): Promise<void> {
+): Promise<number> {
   try {
     const expanded = await page.evaluate(expandInnerScrollContainers);
-    if (!expanded) return;
-    const rects = await page.evaluate(measureExpandedRects);
+    const { rects, screenshotHeight } = await page.evaluate(measureExpandedRects, expanded > 0);
     for (const [p, entry] of Object.entries(elements)) {
       const rect = rects[p];
       if (entry.rect && rect) entry.screenshotRect = rect;
     }
+    return screenshotHeight;
   } finally {
     await page.evaluate(restoreInnerScrollContainers).catch(() => undefined);
   }

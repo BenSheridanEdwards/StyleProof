@@ -36,6 +36,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **BREAKING: nested-scroller additions/removals visible in full-page screenshots
+  now require review (#920, targeting 9.0.0).** The visible-structure gate uses
+  `screenshotRect ?? rect` against `viewport.screenshotHeight`, measured with
+  screenshot scrollers expanded, including body-as-scroller layouts. This reverses
+  7.5.1's decision to gate exclusively on driven-state `rect`; correspondence and
+  layout comparisons still use `rect`. Both CLIs now exit 1 with reviewable DOM
+  findings for these changes, where they previously passed. Scrollers that capture
+  does not expand keep `rect` and use the same recorded height bound; the gate does
+  not infer per-ancestor clipping. Maps missing `screenshotHeight` fail closed
+  below the first window, even when they record `documentHeight`. Hidden,
+  zero-size, and zero-opacity additions remain advisory. Recapture affected
+  baselines to record expanded geometry and height. See
+  [ADR 0006](.agents/decisions/0006-screenshot-geometry-visible-structure.md).
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A
@@ -63,7 +76,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   lower on the page counted as painted. The check now reads `screenshotRect`,
   the box the crop is cut from, and falls back to `rect` for older maps. Hidden,
   `visibility: hidden` and zero-opacity elements still never anchor a crop. The
-  visible-structure gate is unchanged.
+  visible-structure gate now follows expanded geometry too (see #920 above).
 - **The docs now say what an empty `STYLEPROOF_CRITICAL_STATES` or
   `STYLEPROOF_PRODUCT_STATE` does.** `REFERENCE.md`, the `styleproof-diff` help
   and the `LedgerSpec.env` comment said an empty value unarms the ledger. It only
@@ -84,11 +97,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   window-sized viewport, so a visible element added further down a tall page
   passed as no change and `styleproof-diff` exited 0. Captures now record the
   document's scroll height as `viewport.documentHeight`, and an element counts
-  as visible anywhere in the document's scroll height. In quirks mode the height
+  as visible below the first window. In quirks mode the document height
   is read from `document.scrollingElement`, so out-of-flow content there counts
-  too. Horizontal clipping to the viewport width is unchanged, and content
-  clipped inside a nested scroller stays advisory as before (tracked in #920).
-  Maps captured before this release have no `documentHeight`, so the gate
+  too. Horizontal clipping to the viewport width is unchanged. Nested-scroller
+  visibility now follows screenshot geometry and height (see #920 above).
+  Maps captured before this release have no `screenshotHeight`, so the gate
   treats additions or removals below their first window as visible rather than
   passing them (#913).
 - **Hash-router surfaces keep their key when a route is added.** The default

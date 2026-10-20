@@ -254,18 +254,21 @@ style flush. Each reset still flushes before the next state or target; captures
 remain serial, with the same coverage and resource limits.
 
 Nested overflow scrollers are expanded for full-page report screenshots. Capture
-keeps `rect` in the driven page's document coordinates for visibility and layout
+keeps `rect` in the driven page's document coordinates for correspondence and layout
 comparisons; optional `screenshotRect` locates the element in the expanded image.
-Crops and pixel attribution use `screenshotRect`, falling back to `rect` for older
-maps. Recapture affected nested-scroller baselines to obtain aligned crop evidence.
+Crops, pixel attribution, and visible-structure gating prefer `screenshotRect`,
+falling back to `rect`. Recapture nested-scroller baselines for aligned evidence.
 
 When a surface scrolls the document, capture also records the viewport's scroll
-origin, and every capture records the document's scroll height. A visible element
-addition or removal requires review anywhere in that document height, within the
-reached viewport's width, and horizontal-scrolled changes retain report crops.
+origin, the driven document's scroll height, and `viewport.screenshotHeight` measured
+with screenshot scrollers expanded. A visible element addition or removal requires
+review within that screenshot height and the reached viewport's width. Scrollers
+that are not expanded keep `rect`, judged against the recorded screenshot height.
+Older maps without `screenshotHeight` fail closed below the first window, even if
+they record `documentHeight`. Hidden, zero-size, and zero-opacity additions stay
+advisory. Horizontal-scrolled changes retain report crops.
 Older maps lack the origin and assume zero; recapture affected scrolled baselines
-after upgrading. Older maps also lack the document height, so additions and
-removals below their first window count as visible.
+after upgrading.
 
 ## Quickstart
 
