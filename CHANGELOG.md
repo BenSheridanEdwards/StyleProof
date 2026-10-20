@@ -39,7 +39,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof.config.ts` for the layout it detects (`src`, `app`, `pages`,
   `styles`, `public`, `components`, `lib`, root `tailwind`, `postcss`, `next`,
   `vite`, `svelte`, `astro`, `nuxt`, `remix` and `webpack` `.config.*` files,
-  root `*.css` / `*.scss` / `*.sass` / `*.less` stylesheets, `index.html`), or
+  root `tsconfig.json`, `tsconfig.*.json`, `jsconfig.json`, `babel.config.*`,
+  `.babelrc` / `.babelrc.*` and `.browserslistrc`, root `*.css` / `*.scss` / `*.sass` / `*.less` stylesheets, `index.html`), or
   a comment when it detects none. In a workspace monorepo (`package.json`
   `workspaces`, `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`)
   it writes no roots, with a comment saying why, since shared packages can
