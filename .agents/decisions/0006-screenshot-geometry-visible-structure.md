@@ -59,7 +59,9 @@ enforced.
 - The recorded height participates in existing serialized-map determinism hashes.
 - `screenshotHeight`/`screenshotRect` are measured in a separate evaluate from the
   screenshot's own expansion, so page observers reacting to expansion can make
-  them drift; drift fails closed because determinism proof hashes `screenshotHeight`.
+  them drift. Drift that differs between runs fails the determinism proof, which
+  hashes `screenshotHeight`. Drift that repeats can only shift the screenshot
+  check, never the driven check kept from 7.5.1.
 - Standards and quirks mode body/app-shell fixtures cover capture, PNG height,
   both CLI exits with unchanged negative controls, restoration, and the exact DOM
   review count; pure unit tests cover the either-box rule, height bounds,
