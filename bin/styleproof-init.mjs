@@ -395,8 +395,10 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // autoprefixed CSS), root stylesheets, and a Vite-style index.html. Roots match a directory prefix or an exact
 // file path, so config files work as roots. Roots decide baseline correctness, so init
 // fails safe and writes no roots (every changed path counts) when it cannot bound the
-// render inputs: in a workspace monorepo, whose shared packages it cannot bound, or when
+// render inputs: in a workspace monorepo, whose shared packages it cannot bound; below the
+// git repository root, where sibling inputs outside the cwd cannot be bounded; or when
 // any top-level entry is neither a detected root nor known not to affect rendering.
+// Symlinks and submodules are never classified: their content lives elsewhere.
 // Markers are searched from the cwd up to the git repository root (the filesystem root
 // outside git), so init inside a workspace package finds them.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
@@ -404,7 +406,9 @@ const ANCESTOR_ROOT_FILE =
   /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?[jt]s|json)|\.babelrc(?:\.(?:[cm]?[jt]s|json))?|\.browserslistrc|.+\.(?:css|scss|sass|less)|index\.html)$/s;
 // Top-level entries known not to affect rendering. Keep this conservative: a name left
 // out only costs reuse, a wrong name here lets a stale baseline through. .env* is
-// deliberately absent: env can change rendering.
+// deliberately absent: env can change rendering. So are docs/test dirs and Markdown: an
+// app can import a stylesheet from docs/ or e2e/, or render a README. Every manifest and
+// lockfile here is one the runtime counts as always relevant (src/ancestor-baseline.ts).
 const NON_RENDER_DIRS = new Set([
   // VCS, CI, editor and release tooling
   '.git',
@@ -414,13 +418,7 @@ const NON_RENDER_DIRS = new Set([
   '.idea',
   '.husky',
   '.changeset',
-  // docs, tests and their reports
-  'docs',
-  'test',
-  'tests',
-  '__tests__',
-  'e2e',
-  'cypress',
+  // test reports
   'playwright-report',
   'test-results',
   'coverage',
@@ -428,7 +426,7 @@ const NON_RENDER_DIRS = new Set([
   '.styleproof',
 ]);
 const NON_RENDER_FILE =
-  /^(?:styleproof\.config\..+|playwright(?:\.styleproof)?\.config\..+|package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|(?:README|LICENSE|CHANGELOG|CONTRIBUTING).*|.+\.md|\.gitignore|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|\.npmrc|\.eslintrc.*|eslint\.config\..+|\.eslintignore|\.prettierrc.*|prettier\.config\..+|\.prettierignore|\.stylelintrc.*|stylelint\.config\..+|commitlint\.config\..+|\.lintstagedrc.*|next-env\.d\.ts|(?:vitest|jest)\.config\..+|Dockerfile|\.dockerignore)$/;
+  /^(?:styleproof\.config\..+|playwright(?:\.styleproof)?\.config\..+|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|\.gitignore|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|\.npmrc|\.eslintrc.*|eslint\.config\..+|\.eslintignore|\.prettierrc.*|prettier\.config\..+|\.prettierignore|\.stylelintrc.*|stylelint\.config\..+|commitlint\.config\..+|\.lintstagedrc.*|next-env\.d\.ts|(?:vitest|jest)\.config\..+|Dockerfile|\.dockerignore)$/;
 // The spec's top-level entry: its own directory (always capture-relevant) or the spec file.
 const specEntry = specPath.split('/').length <= 2 ? specPath.split('/')[0] : undefined;
 // The entries git would see (tracked plus untracked-not-ignored), else the directory listing.
@@ -451,18 +449,33 @@ function workspaceMarkerIn(dir) {
   }
   return WORKSPACE_MARKERS.find((file) => fs.existsSync(path.join(dir, file)));
 }
+const realCwd = fs.realpathSync(process.cwd());
+const gitRoot = gitOutput(['rev-parse', '--show-toplevel']);
+const realGitRoot = gitRoot === undefined ? undefined : fs.realpathSync(gitRoot);
 function workspaceMarker() {
-  const cwd = fs.realpathSync(process.cwd());
-  const gitRoot = gitOutput(['rev-parse', '--show-toplevel']);
-  const stop = gitRoot === undefined ? undefined : fs.realpathSync(gitRoot);
-  for (let dir = cwd; ; dir = path.dirname(dir)) {
+  for (let dir = realCwd; ; dir = path.dirname(dir)) {
     const marker = workspaceMarkerIn(dir);
-    if (marker) return dir === cwd ? marker : `${marker} at ${path.relative(cwd, dir)}`;
-    if (dir === stop || dir === path.dirname(dir)) return undefined;
+    if (marker) return dir === realCwd ? marker : `${marker} at ${path.relative(realCwd, dir)}`;
+    if (dir === realGitRoot || dir === path.dirname(dir)) return undefined;
   }
 }
 const ancestorWorkspace = workspaceMarker();
-const detectedRoots = ancestorWorkspace
+const belowGitRoot = realGitRoot !== undefined && realGitRoot !== realCwd;
+const skipRoots = Boolean(ancestorWorkspace) || belowGitRoot;
+// Gitlinks (submodules, mode 160000) in the index, whether or not they are checked out.
+const gitlinks = new Set(
+  (gitOutput(['ls-files', '-s', '-z']) ?? '')
+    .split('\0')
+    .filter((record) => record.startsWith('160000 '))
+    .map((record) => record.slice(record.indexOf('\t') + 1).split('/')[0]),
+);
+// A symlink or submodule (gitlink, or a directory holding its own .git) points at content
+// outside this tree, so it is never a detected root nor known not to render.
+const isOpaque = (name) =>
+  fs.lstatSync(name, { throwIfNoEntry: false })?.isSymbolicLink() ||
+  gitlinks.has(name) ||
+  (isDirectory(name) && fs.lstatSync(path.join(name, '.git'), { throwIfNoEntry: false }) !== undefined);
+const detectedRoots = skipRoots
   ? []
   : [
       ...ANCESTOR_ROOT_DIRS.filter(isDirectory),
@@ -471,19 +484,24 @@ const detectedRoots = ancestorWorkspace
         .filter((entry) => entry.isFile() && ANCESTOR_ROOT_FILE.test(entry.name))
         .map((entry) => entry.name)
         .sort(),
-    ];
-const unclassifiedEntries = ancestorWorkspace
+    ].filter((name) => !isOpaque(name));
+const unclassifiedEntries = skipRoots
   ? []
   : topLevelEntries().filter(
       (name) =>
-        !detectedRoots.includes(name) &&
-        name !== specEntry &&
-        !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name)),
+        isOpaque(name) ||
+        (!detectedRoots.includes(name) &&
+          name !== specEntry &&
+          !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name))),
     );
 const ancestorRoots = unclassifiedEntries.length ? [] : detectedRoots;
-scaffoldFile('styleproof.config.ts', styleproofConfigTemplate(ancestorRoots, ancestorWorkspace, unclassifiedEntries), {
-  note: 'typed config with defineConfig()',
-});
+scaffoldFile(
+  'styleproof.config.ts',
+  styleproofConfigTemplate(ancestorRoots, ancestorWorkspace, unclassifiedEntries, belowGitRoot),
+  {
+    note: 'typed config with defineConfig()',
+  },
+);
 
 // Current (.styleproof/) plus legacy map artifact patterns.
 const gitignore = ensureGitignoreLines([
