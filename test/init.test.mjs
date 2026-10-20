@@ -1348,9 +1348,11 @@ for (const [name, files, expected] of [
       'tsconfig.app.json',
       '.browserslistrc',
       'babel.config.js',
+      'babel.config.ts',
+      '.babelrc.cts',
       'tsconfig.json.bak',
     ],
-    "'src', '.browserslistrc', 'babel.config.js', 'jsconfig.json', 'tsconfig.app.json', 'tsconfig.json'",
+    "'src', '.babelrc.cts', '.browserslistrc', 'babel.config.js', 'babel.config.ts', 'jsconfig.json', 'tsconfig.app.json', 'tsconfig.json'",
   ],
 ]) {
   test(`styleproof-init: writes explicit ancestorBaseline.roots for ${name} (#826)`, () => {
