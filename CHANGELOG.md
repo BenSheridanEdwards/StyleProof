@@ -96,8 +96,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `scrollX` to `scrollX + width` and vertical top `min(0, scrollY)`; the driven
   bottom is `max(scrollY + height, documentHeight ?? Infinity)` and the screenshot
   bottom is `viewport.screenshotHeight`, measured with scrollers expanded,
-  including body-as-scroller layouts. This extends 7.5.1's driven-only gate and is
-  never laxer: more additions/removals become reviewable. Correspondence and layout
+  with `<body>` a candidate only when it scrolls itself (root `overflow-y` is not
+  `visible`). This extends 7.5.1's driven-only gate and is never laxer: more
+  additions/removals become reviewable. Correspondence and layout
   comparisons still use `rect`. Both CLIs exit 1 with reviewable DOM findings for
   these changes, where they previously passed. Elements inside unexpanded scrollers
   can also receive `screenshotRect` when another scroller was expanded; the gate
@@ -156,10 +157,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   window-sized viewport, so a visible element added further down a tall page
   passed as no change and `styleproof-diff` exited 0. Captures now record the
   document's scroll height as `viewport.documentHeight`, and an element counts
-  as visible below the first window. In quirks mode the document height
-  is read from `document.scrollingElement`, so out-of-flow content there counts
-  too. Horizontal clipping to the viewport width is unchanged. Nested-scroller
-  visibility now follows screenshot geometry and height (see #920 above).
+  as visible anywhere in the document's scroll height. In quirks mode the
+  document height is read from `document.scrollingElement`, so out-of-flow content
+  there counts too. Horizontal clipping to the viewport width is unchanged.
+  Nested-scroller visibility now follows screenshot geometry and height
+  (see #920 above).
   Maps captured before this release have no `screenshotHeight`, so the gate
   treats additions or removals below their first window as visible rather than
   passing them (#913).

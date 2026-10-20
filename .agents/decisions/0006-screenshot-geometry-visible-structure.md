@@ -35,8 +35,10 @@ differences do not determine visibility.
 
 Capture records optional `viewport.screenshotHeight`, measured in the same
 expanded document state used for screenshots, before restoration. Include `body`
-when identifying vertical overflow scrollers. Preserve `rect` and `documentHeight`
-in driven coordinates for their existing consumers. When any scroller is
+as a vertical overflow scroller candidate only when it scrolls itself: the root's
+computed `overflow-y` must not be `visible`, which would propagate body overflow
+to the viewport. Preserve `rect` and `documentHeight` in driven coordinates for
+their existing consumers. When any scroller is
 expanded, all measured entries with `rect` can receive `screenshotRect`, including
 elements inside unexpanded scrollers. Without expansion, the screenshot check
 falls back to `rect`.
@@ -55,6 +57,9 @@ enforced.
   Old maps remain readable and conservatively reviewable below the first window.
 - Correspondence and layout comparisons retain driven-state rectangles.
 - The recorded height participates in existing serialized-map determinism hashes.
+- `screenshotHeight`/`screenshotRect` are measured in a separate evaluate from the
+  screenshot's own expansion, so page observers reacting to expansion can make
+  them drift; drift fails closed because determinism proof hashes `screenshotHeight`.
 - Standards and quirks mode body/app-shell fixtures cover capture, PNG height,
   both CLI exits with unchanged negative controls, restoration, and the exact DOM
   review count; pure unit tests cover the either-box rule, height bounds,

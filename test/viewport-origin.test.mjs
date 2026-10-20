@@ -64,13 +64,13 @@ test('legacy captures without screenshot height fail closed even with a short do
   }
 });
 
-test('either driven or screenshot geometry keeps structure reviewable (F1/F2/F3 and #920)', () => {
+test('either driven or screenshot geometry keeps structure reviewable (#920)', () => {
   const map = { viewport: { width: 1280, height: 720, documentHeight: 720, screenshotHeight: 720 } };
   const at = (rect, screenshotRect, style = {}) => ({ ...entry(rect), screenshotRect, style });
   for (const [name, rect, screenshotRect] of [
-    ['F1: horizontally scrolled grid', [100, 50, 200, 80], [1600, 50, 200, 80]],
-    ['F2: fixed drawer', [980, 200, 200, 80], [980, 2000, 200, 80]],
-    ['F3: collapsed percent-height header', [0, 0, 1280, 144], [0, 0, 1280, 0]],
+    ['horizontally scrolled grid', [100, 50, 200, 80], [1600, 50, 200, 80]],
+    ['fixed drawer', [980, 200, 200, 80], [980, 2000, 200, 80]],
+    ['collapsed percent-height header', [0, 0, 1280, 144], [0, 0, 1280, 0]],
     ['zero driven box', [30, 30, 0, 0], [30, 30, 40, 40]],
   ]) {
     assert.equal(isVisibleCapturedElement(at(rect, screenshotRect), map), true, name);
@@ -101,7 +101,7 @@ test('driven document bound is preserved even when the screenshot is shorter', (
   );
 });
 
-test('invalid screenshot heights fail closed like missing heights (F7)', () => {
+test('invalid screenshot heights fail closed like missing heights', () => {
   for (const screenshotHeight of [undefined, 0, NaN, -1, Infinity, -Infinity]) {
     const map = { viewport: { width: 400, height: 300, documentHeight: 300, screenshotHeight } };
     assert.equal(isVisibleCapturedElement(entry([30, 2000, 40, 40]), map), true, String(screenshotHeight));

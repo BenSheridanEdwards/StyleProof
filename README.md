@@ -253,7 +253,9 @@ Forced-state reads share a browser round trip with their liveness check and
 style flush. Each reset still flushes before the next state or target; captures
 remain serial, with the same coverage and resource limits.
 
-Nested overflow scrollers are expanded for full-page report screenshots. Capture
+Nested overflow scrollers are expanded for full-page report screenshots. `<body>`
+is a candidate only when it scrolls itself: the root's computed `overflow-y` must
+not be `visible`, which would propagate body overflow to the viewport. Capture
 keeps `rect` in the driven page's document coordinates for correspondence and layout
 comparisons; optional `screenshotRect` locates the element in the expanded image.
 Crops and pixel attribution prefer `screenshotRect`, falling back to `rect`.
