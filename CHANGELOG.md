@@ -44,7 +44,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   a comment when it detects none. It fails safe: roots are written only when
   every top-level entry (tracked or untracked-not-ignored inside git) is either
   a detected root or on a short list known not to affect rendering (VCS/CI and
-  editor dirs, test report and coverage dirs, lint/format/test configs, the
+  editor dirs, exactly named lint/format/test configs, the
   manifests and lockfiles the reuse check always counts, StyleProof's own
   files). Docs and test dirs and Markdown are not on it, since an app can
   import or render them. Symlinks and submodules are never classified.

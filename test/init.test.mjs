@@ -1529,6 +1529,22 @@ for (const [name, setup, named, spec = 'e2e/styleproof.spec.ts'] of [
     "'src'",
   ],
   ['a src directory holding its own .git', (root) => fs.mkdirSync(path.join(root, 'src/.git')), "'src'"],
+  [
+    'an imported styleproof.config.tokens.json',
+    (root) => touch(root, 'styleproof.config.tokens.json'),
+    "'styleproof.config.tokens.json'",
+  ],
+  [
+    'an imported eslint.config.tokens.json',
+    (root) => touch(root, 'eslint.config.tokens.json'),
+    "'eslint.config.tokens.json'",
+  ],
+  [
+    'an imported .prettierrc.tokens.json',
+    (root) => touch(root, '.prettierrc.tokens.json'),
+    "'.prettierrc.tokens.json'",
+  ],
+  ['an imported, non-ignored coverage/theme.css', (root) => touch(root, 'coverage/theme.css'), "'coverage'"],
 ]) {
   test(`styleproof-init: writes no ancestorBaseline.roots for ${name} (#826)`, () => {
     const root = mkTmp();
@@ -1569,8 +1585,9 @@ test('styleproof-init: ignores gitignored top-level entries when classifying (#8
   const root = mkTmp();
   try {
     spawnSync('git', ['init', '-q'], { cwd: root });
-    fs.writeFileSync(path.join(root, '.gitignore'), 'dist/\n.next/\n');
-    for (const file of ['src/main.ts', 'dist/main.js', '.next/server/app.js']) touch(root, file);
+    fs.writeFileSync(path.join(root, '.gitignore'), 'dist/\n.next/\ncoverage/\nplaywright-report/\n');
+    const ignored = ['dist/main.js', '.next/server/app.js', 'coverage/theme.css', 'playwright-report/index.html'];
+    for (const file of ['src/main.ts', ...ignored]) touch(root, file);
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
     assert.equal(res.status, 0, res.stderr);
     assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src'");
