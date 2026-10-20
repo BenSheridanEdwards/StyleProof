@@ -104,7 +104,7 @@ const cli = defineCli({
     '',
     'Nearest-ancestor baseline reuse (enabled by default): on a base miss, reuse the nearest',
     "first-parent ancestor's bundle when no capture-relevant path changed. Config keys",
-    "ancestorBaseline.enabled / ancestorBaseline.roots (default ['src']); env",
+    'ancestorBaseline.enabled / ancestorBaseline.roots (default none: every changed path is relevant); env',
     'STYLEPROOF_ANCESTOR_BASELINE=0 disables, STYLEPROOF_ANCESTOR_BASELINE_ROOTS overrides roots.',
     'Reuse is recorded in the log, in base-restored-from-ancestor=<sha>, and in a',
     'styleproof-baseline-provenance.json sidecar.',
@@ -430,8 +430,8 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
       .split(',')
       .map((r) => r.trim())
       .filter(Boolean);
-    // Git diffs name paths from the repository root. The spec and the default roots are
-    // relative to the cwd, and config roots to their config file. Re-anchor them so a
+    // Git diffs name paths from the repository root. The spec is relative to the cwd,
+    // and config roots to their config file. With no roots declared, every path is relevant. Re-anchor them so a
     // subdirectory consumer sees its own changes. The as-written root is kept too, so
     // this can only add captures, never remove one.
     const probeRoot = path.resolve(baseProbeCwd, path.relative(consumerCwd, repoRoot));
@@ -439,10 +439,14 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
       ? [baseConfigDir, probeRoot, configAtBase.ancestorBaseline.roots]
       : projectConfig?.ancestorBaseline?.roots
         ? [projectConfigDir, repoRoot, projectConfig.ancestorBaseline.roots]
-        : [baseProbeCwd, probeRoot, ['src']];
+        : [baseProbeCwd, probeRoot, []];
     const sourceRoots = envRoots.length
       ? envRoots
       : [...new Set(declaredRoots.flatMap((r) => [r, repoRelativePath(checkoutRoot, rootsDir, r)]))];
+    if (sourceRoots.length === 0)
+      log(
+        'ancestor baseline reuse: no source roots declared — every changed path invalidates the ancestor baseline; declare ancestorBaseline.roots in styleproof.config or set STYLEPROOF_ANCESTOR_BASELINE_ROOTS',
+      );
     // An absolute explicit --spec names the consumer checkout, not the probe worktree.
     const repoSpec =
       repoRelativePath(probeRoot, baseProbeCwd, probeSpec) || repoRelativePath(repoRoot, consumerCwd, probeSpec);
