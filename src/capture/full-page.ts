@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 
 type StyleShot = {
   el: HTMLElement;
+  hadStyleAttribute: boolean;
   properties: { name: string; value: string; priority: string }[];
 };
 
@@ -34,6 +35,7 @@ function expandInnerScrollContainers(): number {
     if (!saved.has(el)) {
       shots.push({
         el,
+        hadStyleAttribute: el.hasAttribute('style'),
         properties: ['overflow-x', 'overflow-y', 'height', 'max-height'].map((name) => ({
           name,
           value: el.style.getPropertyValue(name),
@@ -102,6 +104,11 @@ function restoreInnerScrollContainers(): void {
     for (const property of shot.properties) {
       shot.el.style.setProperty(property.name, property.value, property.priority);
     }
+    if (!shot.hadStyleAttribute) {
+      // Flush Chromium's lazy style attribute sync before removing the empty attribute.
+      void shot.el.getAttribute('style');
+      if (shot.el.style.length === 0) shot.el.removeAttribute('style');
+    }
   }
   // Unlocking overflow drops a scroller's offset; put it back so later reads see the driven state.
   for (const s of state.scrolls ?? []) {
@@ -152,7 +159,7 @@ function measureExpandedRects(expanded: boolean): { rects: Record<string, DocRec
  * report crops cut the wrong region (an added element reads as "renders identically").
  * Preserve the driven-state `rect` for layout comparisons. Store expanded geometry
  * and height for screenshots and visible-structure gating; styles are not reread.
- * Without expansion, entries keep `rect` and are judged against the recorded height.
+ * Without expansion, screenshot geometry falls back to `rect`.
  */
 export async function alignRectsToFullPageGeometry(
   page: Page,

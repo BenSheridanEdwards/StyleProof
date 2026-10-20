@@ -38,16 +38,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **BREAKING: nested-scroller additions/removals visible in full-page screenshots
   now require review (#920, targeting 9.0.0).** The visible-structure gate uses
-  `screenshotRect ?? rect` against `viewport.screenshotHeight`, measured with
-  screenshot scrollers expanded, including body-as-scroller layouts. This reverses
-  7.5.1's decision to gate exclusively on driven-state `rect`; correspondence and
-  layout comparisons still use `rect`. Both CLIs now exit 1 with reviewable DOM
-  findings for these changes, where they previously passed. Scrollers that capture
-  does not expand keep `rect` and use the same recorded height bound; the gate does
-  not infer per-ancestor clipping. Maps missing `screenshotHeight` fail closed
-  below the first window, even when they record `documentHeight`. Hidden,
-  zero-size, and zero-opacity additions remain advisory. Recapture affected
-  baselines to record expanded geometry and height. See
+  either non-zero `rect` against the original driven bounds, or non-zero
+  `screenshotRect ?? rect` against the screenshot bounds. Both use horizontal
+  `scrollX` to `scrollX + width` and vertical top `min(0, scrollY)`; the driven
+  bottom is `max(scrollY + height, documentHeight ?? Infinity)` and the screenshot
+  bottom is `viewport.screenshotHeight`, measured with scrollers expanded,
+  including body-as-scroller layouts. This extends 7.5.1's driven-only gate and is
+  never laxer: more additions/removals become reviewable. Correspondence and layout
+  comparisons still use `rect`. Both CLIs exit 1 with reviewable DOM findings for
+  these changes, where they previously passed. Elements inside unexpanded scrollers
+  can also receive `screenshotRect` when another scroller was expanded; the gate
+  does not infer per-ancestor clipping. Missing or invalid (non-finite or
+  non-positive) `screenshotHeight` fails closed with an unbounded bottom, even with
+  `documentHeight`. Hidden and zero-opacity additions remain advisory, as do
+  additions whose boxes both have zero size. Recapture affected baselines to record
+  expanded geometry and height. Expansion restores an absent inline style attribute
+  as well as inline values, priorities, and scroll offsets. See
   [ADR 0006](.agents/decisions/0006-screenshot-geometry-visible-structure.md).
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`

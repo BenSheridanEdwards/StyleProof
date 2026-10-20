@@ -23,31 +23,30 @@ export type ElevatedVisibleStructureResult = {
   count: number;
 };
 
-function intersectsCapturedArea(
-  rect: NonNullable<ElementEntry['rect']>,
-  viewport: NonNullable<StyleMap['viewport']>,
-): boolean {
+function intersectsCapturedArea(rect: ElementEntry['rect'], viewport: StyleMap['viewport'], bottom: number): boolean {
+  if (!rect) return false;
   const [x, y, w, h] = rect;
+  if (!(w > 0 && h > 0)) return false;
+  if (!viewport) return true;
+  if (!(
+    typeof viewport.width === 'number' &&
+    typeof viewport.height === 'number' &&
+    viewport.width > 0 &&
+    viewport.height > 0
+  ))
+    return true;
   const { width } = viewport;
   const scrollX = viewport.scrollX ?? 0;
   const scrollY = viewport.scrollY ?? 0;
-  // Review screenshots are full-page: the viewport width horizontally, the whole document
-  // vertically, after scroller expansion. Legacy maps without a screenshot height
-  // fail closed (unbounded below), even if they recorded a driven document height.
   const top = Math.min(0, scrollY);
-  const bottom = viewport.screenshotHeight ?? Infinity;
   return !(x >= scrollX + width || x + w <= scrollX || y >= bottom || y + h <= top);
 }
 
-/** True when the captured entry has a non-zero box, is not hidden, and intersects the captured page area. */
+/** True when a non-hidden entry's driven or screenshot box intersects its captured area. */
 export function isVisibleCapturedElement(
   entry: Pick<ElementEntry, 'rect' | 'screenshotRect' | 'style'>,
   map?: Pick<StyleMap, 'viewport'> | null,
 ): boolean {
-  const rect = entry.screenshotRect ?? entry.rect;
-  if (!rect) return false;
-  const [, , w, h] = rect;
-  if (!(w > 0 && h > 0)) return false;
   const style = entry.style ?? {};
   if (style.display === 'none') return false;
   if (style.visibility === 'hidden') return false;
@@ -57,12 +56,21 @@ export function isVisibleCapturedElement(
     if (Number.isFinite(opacity) && opacity <= 0) return false;
   }
   const viewport = map?.viewport;
-  if (!viewport) return true;
-  const { width: vw, height: vh } = viewport;
-  if (typeof vw === 'number' && typeof vh === 'number' && vw > 0 && vh > 0) {
-    return intersectsCapturedArea(rect, viewport);
-  }
-  return true;
+  // Preserve the original driven check: expansion must never make the gate laxer.
+  const drivenBottom = Math.max(
+    (viewport?.scrollY ?? 0) + (viewport?.height ?? 0),
+    viewport?.documentHeight ?? Infinity,
+  );
+  // Missing or invalid screenshot heights fail closed, even with a driven document height.
+  const screenshotHeight = viewport?.screenshotHeight;
+  const screenshotBottom =
+    typeof screenshotHeight === 'number' && Number.isFinite(screenshotHeight) && screenshotHeight > 0
+      ? screenshotHeight
+      : Infinity;
+  return (
+    intersectsCapturedArea(entry.rect, viewport, drivenBottom) ||
+    intersectsCapturedArea(entry.screenshotRect ?? entry.rect, viewport, screenshotBottom)
+  );
 }
 
 export function structureChangeIdentity(change: Pick<StructureChange, 'change' | 'path' | 'cls'>): string {
