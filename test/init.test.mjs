@@ -1355,6 +1355,20 @@ for (const [name, files, expected] of [
   });
 }
 
+test('styleproof-init: writes ancestorBaseline.roots as valid string literals for quoted names (#826)', () => {
+  const root = mkTmp();
+  try {
+    for (const file of ["theme'dark.css", 'a\\b.css']) touch(root, file);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+    assert.equal(line, "'a\\\\b.css', 'theme\\'dark.css'");
+    assert.deepEqual(new Function(`return [${line}];`)(), ['a\\b.css', "theme'dark.css"]);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: writes no ancestorBaseline.roots when it detects none, and says so (#826)', () => {
   const root = mkTmp();
   try {
@@ -1408,7 +1422,38 @@ for (const [marker, write, named] of [
       rmTmp(root);
     }
   });
+
+  test(`styleproof-init: writes no ancestorBaseline.roots in a package of a ${marker} monorepo (#826)`, () => {
+    const root = mkNonGitTmp();
+    try {
+      for (const file of ['packages/web/app/page.tsx', 'packages/ui/Button.tsx']) touch(root, file);
+      write(root);
+      const res = runInit(path.join(root, 'packages/web'), ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+      assert.equal(res.status, 0, res.stderr);
+      const config = readFile(path.join(root, 'packages/web'), 'styleproof.config.ts');
+      assert.equal(ancestorRootsLine(config), undefined, config);
+      assert.ok(config.includes(`found a workspace\n  // monorepo (${named} at ../..) whose`), config);
+    } finally {
+      rmTmp(root);
+    }
+  });
 }
+
+// The walk stops at the git repository root: a marker above it belongs to another project.
+test('styleproof-init: ignores a workspace marker above the git repository root (#826)', () => {
+  const outer = mkTmp();
+  try {
+    touch(outer, 'turbo.json');
+    const root = path.join(outer, 'app');
+    touch(root, 'src/main.ts');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src'");
+  } finally {
+    rmTmp(outer);
+  }
+});
 
 test('styleproof-init: --check without --dir does not require a sibling JSON after a typed scaffold', () => {
   const root = mkTmp();
