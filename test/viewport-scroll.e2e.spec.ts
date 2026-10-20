@@ -136,7 +136,14 @@ for (const axis of ['vertical', 'horizontal'] as const) {
         expect(withContent.stdout).not.toContain('does not affect the exit code');
       }
       for (const map of maps) {
-        expect(map.viewport).toEqual({ width: 400, height: 300, scrollX, scrollY, documentHeight: 2400 });
+        expect(map.viewport).toEqual({
+          width: 400,
+          height: 300,
+          scrollX,
+          scrollY,
+          documentHeight: 2400,
+          screenshotHeight: 2400,
+        });
       }
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -245,6 +252,6 @@ test('unscrolled captures record the viewport size and document height', async (
   await page.setViewportSize({ width: 400, height: 300 });
   await page.setContent('<style>html,body{margin:0}</style><div>fixture</div>');
   const map = await captureStyleMap(page, { stabilize: false });
-  expect(map.viewport).toEqual({ width: 400, height: 300, documentHeight: 300 });
+  expect(map.viewport).toEqual({ width: 400, height: 300, documentHeight: 300, screenshotHeight: 300 });
   expect(map.statesSkipped).toBeUndefined();
 });

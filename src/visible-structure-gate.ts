@@ -28,23 +28,25 @@ function intersectsCapturedArea(
   viewport: NonNullable<StyleMap['viewport']>,
 ): boolean {
   const [x, y, w, h] = rect;
-  const { width, height } = viewport;
+  const { width } = viewport;
   const scrollX = viewport.scrollX ?? 0;
   const scrollY = viewport.scrollY ?? 0;
   // Review screenshots are full-page: the viewport width horizontally, the whole document
-  // vertically. Legacy maps without a document height fail closed (unbounded below).
+  // vertically, after scroller expansion. Legacy maps without a screenshot height
+  // fail closed (unbounded below), even if they recorded a driven document height.
   const top = Math.min(0, scrollY);
-  const bottom = Math.max(scrollY + height, viewport.documentHeight ?? Infinity);
+  const bottom = viewport.screenshotHeight ?? Infinity;
   return !(x >= scrollX + width || x + w <= scrollX || y >= bottom || y + h <= top);
 }
 
 /** True when the captured entry has a non-zero box, is not hidden, and intersects the captured page area. */
 export function isVisibleCapturedElement(
-  entry: Pick<ElementEntry, 'rect' | 'style'>,
+  entry: Pick<ElementEntry, 'rect' | 'screenshotRect' | 'style'>,
   map?: Pick<StyleMap, 'viewport'> | null,
 ): boolean {
-  if (!entry.rect) return false;
-  const [, , w, h] = entry.rect;
+  const rect = entry.screenshotRect ?? entry.rect;
+  if (!rect) return false;
+  const [, , w, h] = rect;
   if (!(w > 0 && h > 0)) return false;
   const style = entry.style ?? {};
   if (style.display === 'none') return false;
@@ -58,7 +60,7 @@ export function isVisibleCapturedElement(
   if (!viewport) return true;
   const { width: vw, height: vh } = viewport;
   if (typeof vw === 'number' && typeof vh === 'number' && vw > 0 && vh > 0) {
-    return intersectsCapturedArea(entry.rect, viewport);
+    return intersectsCapturedArea(rect, viewport);
   }
   return true;
 }

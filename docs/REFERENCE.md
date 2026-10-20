@@ -1179,27 +1179,34 @@ side by side.
 ### Captured rect coordinates
 
 `ElementEntry.rect` is the driven page's document-space box (`[x, y, width,
-height]`). Visibility, correspondence, and layout comparisons keep using this
+height]`). Correspondence and layout comparisons keep using this
 box. For nested overflow scrollers, optional `ElementEntry.screenshotRect` stores
 the box after full-page screenshot expansion. Report crops, annotations, and pixel
-attribution prefer this field and fall back to `rect` on older captures. Expansion
+attribution, plus visible-structure gating, prefer this field and fall back to `rect`. Expansion
 restores inline values and CSS priorities as well as scroller offsets. Recapture
 affected nested-scroller baselines to generate aligned screenshot evidence.
 
 After document scrolling, optional `StyleMap.viewport.scrollX` / `scrollY` record
 the document origin in the same browser snapshot as the element boxes, and
-`StyleMap.viewport.documentHeight` records the document's scroll height. Visible
-element additions/removals count when they intersect the reached viewport's width
-and the full document height that full-page screenshots cover. Content clipped
-inside a nested scroller is judged by its driven-state `rect`. Horizontal report
+`StyleMap.viewport.documentHeight` records the driven document's scroll height.
+`StyleMap.viewport.screenshotHeight` records the document height measured in the
+same expanded state used for full-page screenshots, including body scrollers.
+Visible element additions/removals use `screenshotRect ?? rect` and count when
+they intersect the reached viewport's width and that recorded screenshot height.
+If capture does not expand a scroller, its entries keep `rect` (`screenshotRect`
+is absent); the gate intersects that box with the recorded screenshot height.
+This rule does not infer clipping by individual unexpanded ancestors. Hidden,
+zero-size, and zero-opacity entries remain advisory. Horizontal report
 crop eligibility uses the captured origin. Both `styleproof-diff` and
 `styleproof-report` exit 1 when these elements require review. Unscrolled captures
 omit `scrollX` / `scrollY`. Missing offsets on older maps default to zero; the
 original scroll position cannot be recovered, so recapture affected scrolled
-baselines after upgrading. Older maps without `documentHeight` fail closed: their
-additions/removals below the first window count as visible. `rect` and
-`screenshotRect` retain their existing coordinate meanings. `documentHeight` is
-part of the map, so `--prove-determinism` hashes it: a scroll height that varies
+baselines after upgrading. Older maps without `screenshotHeight` fail closed: their
+additions/removals below the first window count as visible, even if a shorter
+`documentHeight` exists. `rect` and `screenshotRect` retain their coordinate meanings.
+This reverses the 7.5.1 gate-coordinate decision; see
+[ADR 0006](../.agents/decisions/0006-screenshot-geometry-visible-structure.md).
+Both heights are part of the map, so `--prove-determinism` hashes them: a height that varies
 between repeat captures fails the oracle, even when an excluded or volatile region
 causes the variation. The default capture self-check compares elements only and
 does not read `viewport`.

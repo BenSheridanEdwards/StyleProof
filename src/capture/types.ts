@@ -9,7 +9,7 @@ export type ElementEntry = {
   tag: string;
   cls: string;
   rect?: Rect;
-  /** Expanded full-page screenshot box; report/pixel coordinates only. Legacy maps fall back to `rect`. */
+  /** Expanded full-page box for report/pixel coordinates and visible-structure gating; falls back to `rect`. */
   screenshotRect?: Rect;
   style: Props;
   /** CSS Typed OM computed values where they differ from the used value in `style`; absent on legacy captures. */
@@ -89,10 +89,18 @@ export type StyleMap = {
   /** Runner-supplied context; ignored by the certification diff. */
   metadata?: CaptureMetadata;
   /**
-   * Captured viewport, document origin, and document scroll height. Missing scroll offsets on
-   * legacy maps mean zero; a missing `documentHeight` leaves the page extent unbounded below.
+   * Captured viewport, document origin, driven document height, and full-page height
+   * measured with screenshot scrollers expanded. Missing scroll offsets mean zero;
+   * a missing `screenshotHeight` leaves the gate's page extent unbounded below.
    */
-  viewport?: { width: number; height: number; scrollX?: number; scrollY?: number; documentHeight?: number };
+  viewport?: {
+    width: number;
+    height: number;
+    scrollX?: number;
+    scrollY?: number;
+    documentHeight?: number;
+    screenshotHeight?: number;
+  };
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;

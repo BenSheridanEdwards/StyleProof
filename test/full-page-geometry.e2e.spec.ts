@@ -2,15 +2,19 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { captureStyleMap } from '../dist/index.js';
-import { captureSurfaceScreenshots } from '../dist/capture.js';
+import { captureSurfaceScreenshots, saveStyleMap } from '../dist/capture.js';
 import { isVisibleCapturedElement } from '../dist/visible-structure-gate.js';
 import { hasExposedChangedEntry } from '../dist/report/shared.js';
 import { PNG } from 'pngjs';
 
-// A marker visible in the driven inner scroller is below the viewport in the
-// expanded screenshot. Screenshot coordinates must not decide viewport visibility.
-test('full-page rect alignment preserves driven-state visible element gating', async ({ page }) => {
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// The gate now follows the expanded screenshot: below-fold content requires review
+// even when the driven inner scroller clips it (reverses the 7.5.1 gate rule).
+test('full-page rect alignment gates below-fold content while preserving driven layout boxes', async ({ page }) => {
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-rect-visibility-'));
   const file = path.join(output, 'fixture.html');
   fs.writeFileSync(
@@ -36,7 +40,7 @@ test('full-page rect alignment preserves driven-state visible element gating', a
     const entry = Object.values(map.elements).find((e) => e.cls === 'band marker');
     expect(entry, 'marker was captured').toBeTruthy();
     expect(isVisibleCapturedElement(entry!, map), 'on-screen marker remains reviewable').toBe(true);
-    expect(entry!.rect, 'layout and gating retain the driven-state box').toEqual([0, 200, 800, 400]);
+    expect(entry!.rect, 'layout comparisons retain the driven-state box').toEqual([0, 200, 800, 400]);
     expect(entry!.screenshotRect, 'report crops use the expanded screenshot box').toEqual([0, 800, 800, 400]);
     const [topPath, top] = Object.entries(map.elements).find(([, e]) => e.cls === 'band')!;
     expect([top.rect, top.screenshotRect]).toEqual([
@@ -46,6 +50,7 @@ test('full-page rect alignment preserves driven-state visible element gating', a
     expect(hasExposedChangedEntry(map, map, [topPath]), 'scrolled-out band still anchors a report crop').toBe(true);
     await captureSurfaceScreenshots(page, path.join(output, 'board'));
     const png = PNG.sync.read(fs.readFileSync(path.join(output, 'board.png')));
+    expect(map.viewport!.screenshotHeight, 'recorded expanded height matches the screenshot').toBe(png.height);
     const pixel = (1000 * png.width + 400) * 4;
     expect([...png.data.subarray(pixel, pixel + 3)]).toEqual([255, 0, 128]);
     expect(await page.locator('.scroller').evaluate((el) => el.scrollTop)).toBe(600);
@@ -54,7 +59,10 @@ test('full-page rect alignment preserves driven-state visible element gating', a
     });
     const offscreen = await captureStyleMap(page, { stabilize: false, captureStates: false });
     const offscreenEntry = Object.values(offscreen.elements).find((e) => e.cls === 'band marker');
-    expect(isVisibleCapturedElement(offscreenEntry!, offscreen), 'below-fold marker stays advisory').toBe(false);
+    expect(
+      isVisibleCapturedElement(offscreenEntry!, offscreen),
+      'below-fold marker in screenshot requires review',
+    ).toBe(true);
   } finally {
     fs.rmSync(output, { recursive: true, force: true });
   }
@@ -87,3 +95,79 @@ test('full-page rect alignment restores inline CSS priorities before later captu
   const second = await captureStyleMap(page, options);
   expect(second, 'a repeated capture has the same geometry and computed styles').toEqual(first);
 });
+
+for (const mode of ['standards', 'quirks']) {
+  for (const scroller of ['body', 'main']) {
+    test(`${mode} ${scroller} scroller: expanded below-fold banner requires review in diff and report`, async ({
+      page,
+    }) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-nested-structure-'));
+      try {
+        await page.setViewportSize({ width: 1280, height: 720 });
+        for (const present of [false, true]) {
+          const content = `<div class="content">${present ? '<div class="banner"></div>' : ''}</div>`;
+          await page.setContent(`${mode === 'standards' ? '<!doctype html>' : ''}<html><head><style>
+            html,body{margin:0;height:100%}html{overflow:hidden}
+            body{overflow:${scroller === 'body' ? 'auto' : 'hidden'}}
+            main{height:100%;overflow:auto}.content{position:relative;height:3000px}
+            .banner{position:absolute;left:0;top:2000px;width:1280px;height:80px;background:rgb(255,0,128)}
+          </style></head><body>${scroller === 'main' ? `<main>${content}</main>` : content}</body></html>`);
+          expect(await page.evaluate(() => document.compatMode)).toBe(
+            mode === 'standards' ? 'CSS1Compat' : 'BackCompat',
+          );
+          const map = await captureStyleMap(page, { stabilize: false });
+          expect(map.viewport!.documentHeight, 'driven document does not expose the scroller content').toBe(720);
+          expect(map.viewport!.screenshotHeight).toBe(3000);
+          const dir = path.join(root, present ? 'head' : 'base');
+          saveStyleMap(path.join(dir, 'nested@1280.json.gz'), map);
+          await captureSurfaceScreenshots(page, path.join(dir, 'nested@1280'));
+          const png = PNG.sync.read(fs.readFileSync(path.join(dir, 'nested@1280.png')));
+          expect(png.height).toBe(map.viewport!.screenshotHeight);
+          const pixel = (2040 * png.width + 640) * 4;
+          expect([...png.data.subarray(pixel, pixel + 3)]).toEqual(present ? [255, 0, 128] : [255, 255, 255]);
+          fs.writeFileSync(
+            path.join(dir, 'styleproof-manifest.json'),
+            JSON.stringify({
+              version: 1,
+              packageVersion: 'test',
+              sha: (present ? 'b' : 'a').repeat(40),
+              dirty: false,
+              spec: 'e2e/styleproof.spec.ts',
+              specHash: '0'.repeat(64),
+              platform: process.platform,
+              arch: process.arch,
+              nodeMajor: process.versions.node.split('.')[0],
+              screenshots: true,
+              har: false,
+              compatibilityKey: '0'.repeat(16),
+              createdAt: '2026-01-01T00:00:00.000Z',
+            }),
+          );
+        }
+        const json = path.join(root, 'diff.json');
+        const out = path.join(root, 'report');
+        for (const [bin, args, receipt] of [
+          ['styleproof-diff', ['--json', json], json],
+          ['styleproof-report', ['--out', out], path.join(out, 'report.json')],
+        ] as const) {
+          const result = spawnSync(
+            process.execPath,
+            [path.join(ROOT, 'bin', `${bin}.mjs`), path.join(root, 'base'), path.join(root, 'head'), ...args],
+            { cwd: root, encoding: 'utf8', timeout: 30_000 },
+          );
+          expect(result.status, `${bin}: ${result.stderr || result.stdout}`).toBe(1);
+          expect(JSON.parse(fs.readFileSync(receipt, 'utf8')).reviewableCounts.dom).toBe(1);
+        }
+        for (const style of ['display:none', 'visibility:hidden', 'opacity:0', 'width:0', 'height:0']) {
+          await page.locator('.banner').evaluate((el, value) => el.setAttribute('style', value), style);
+          const map = await captureStyleMap(page, { stabilize: false });
+          const banner = Object.values(map.elements).find((e) => e.cls === 'banner');
+          expect(banner, 'hidden additions are still captured').toBeTruthy();
+          expect(isVisibleCapturedElement(banner!, map), `${style} stays advisory inside the scroller`).toBe(false);
+        }
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
+}
