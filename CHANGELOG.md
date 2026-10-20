@@ -40,14 +40,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styles`, `public`, `components`, `lib`, root `tailwind`, `postcss`, `next`,
   `vite`, `svelte`, `astro`, `nuxt`, `remix` and `webpack` `.config.*` files,
   root `tsconfig.json`, `tsconfig.*.json`, `jsconfig.json`, `babel.config.*`,
-  `.babelrc` / `.babelrc.*` and `.browserslistrc`, root `*.css` / `*.scss` / `*.sass` / `*.less` stylesheets, `index.html`), or
-  a comment when it detects none. It fails safe: roots are written only when
+  `.babelrc` / `.babelrc.*` and `.browserslistrc`, root `.gitignore`, `.npmrc`,
+  `Dockerfile` and `.dockerignore` (build inputs), root `*.css` / `*.scss` / `*.sass` / `*.less` stylesheets, `index.html`), always
+  including `.gitignore` since init itself creates or updates it, or a comment
+  when it detects none. It fails safe: roots are written only when
   every top-level entry (tracked or untracked-not-ignored inside git) is either
   a detected root or on a short list known not to affect rendering (VCS/CI and
   editor dirs, exactly named lint/format/test configs, the
   manifests and lockfiles the reuse check always counts, StyleProof's own
   files). Docs and test dirs and Markdown are not on it, since an app can
-  import or render them. Symlinks and submodules are never classified.
+  import or render them. Symlinks and submodules are never classified, and a
+  symlink or `.git` entry anywhere under a detected root directory means no
+  roots.
   Otherwise, such as an imported `main.js` next to `index.html`, an `assets/`
   dir or a `README.md`, it writes no roots and the comment names the entries it
   could not classify. In a workspace monorepo (`package.json` `workspaces`,
