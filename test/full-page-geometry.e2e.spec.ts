@@ -12,7 +12,7 @@ import { PNG } from 'pngjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-test('horizontally scrolled grid keeps an on-screen addition reviewable after expansion (F1)', async ({ page }) => {
+test('horizontally scrolled grid keeps an on-screen addition reviewable after expansion', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.setContent(`<!doctype html><html><head><style>
     body{margin:0}.grid{height:300px;width:1280px;overflow:auto}
@@ -29,6 +29,50 @@ test('horizontally scrolled grid keeps an on-screen addition reviewable after ex
   expect(mark!.screenshotRect).toEqual([1600, 50, 200, 80]);
   expect(isVisibleCapturedElement(mark!, map), 'the driven box preserves reviewability').toBe(true);
   expect(await page.locator('.grid').evaluate((el) => el.scrollLeft)).toBe(1500);
+});
+
+test('body overflow propagated to the viewport preserves percent-height layout without expansion', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setContent(`<!doctype html><html><head><style>
+    html,body{margin:0;height:100%}body{overflow-x:hidden}
+    .hero{height:100%}.content{height:3000px}
+  </style></head><body><div class="hero"><div class="content"></div></div></body></html>`);
+  const height = await page.locator('.hero').evaluate((el) => el.getBoundingClientRect().height);
+  expect(height).toBe(720);
+  const map = await captureStyleMap(page, { stabilize: false, captureStates: false });
+  expect(Object.values(map.elements).every((entry) => entry.screenshotRect === undefined)).toBe(true);
+  const hero = Object.values(map.elements).find((entry) => entry.cls === 'hero');
+  expect(hero!.rect![3], 'driven percent-height box matches the viewport').toBe(height);
+  expect(await page.locator('.hero').evaluate((el) => el.getBoundingClientRect().height)).toBe(height);
+  expect(await page.locator('html').getAttribute('style')).toBeNull();
+  expect(await page.locator('body').getAttribute('style')).toBeNull();
+});
+
+test('body that scrolls itself aligns the banner with screenshot pixels and restores its offset', async ({ page }) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-body-scroll-'));
+  try {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.setContent(`<!doctype html><html><head><style>
+      html,body{margin:0;height:100%}html{overflow:hidden}body{overflow:auto}
+      .content{position:relative;height:3000px}
+      .banner{position:absolute;left:0;top:2000px;width:1280px;height:80px;background:rgb(255,0,128)}
+    </style></head><body><div class="content"><div class="banner"></div></div></body></html>`);
+    await page.locator('body').evaluate((el) => {
+      el.scrollTop = 1500;
+    });
+    const map = await captureStyleMap(page, { stabilize: false, captureStates: false });
+    const banner = Object.values(map.elements).find((entry) => entry.cls === 'banner');
+    expect(banner!.rect).toEqual([0, 500, 1280, 80]);
+    expect(banner!.screenshotRect).toEqual([0, 2000, 1280, 80]);
+    expect(await page.locator('body').evaluate((el) => el.scrollTop)).toBe(1500);
+    await captureSurfaceScreenshots(page, path.join(root, 'body-scroll'));
+    const png = PNG.sync.read(fs.readFileSync(path.join(root, 'body-scroll.png')));
+    const pixel = (2040 * png.width + 640) * 4;
+    expect([...png.data.subarray(pixel, pixel + 3)]).toEqual([255, 0, 128]);
+    expect(await page.locator('body').evaluate((el) => el.scrollTop)).toBe(1500);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 // The gate also checks the expanded screenshot: below-fold content requires review
@@ -94,6 +138,7 @@ test('full-page rect alignment restores inline CSS priorities before later captu
   </style></head><body><div class="scroller" style="height:200px!important;overflow-x:hidden!important">
     <div style="height:1000px;width:2000px">content</div>
   </div></body></html>`);
+  expect(await page.locator('html').getAttribute('style')).toBeNull();
   expect(await page.locator('body').getAttribute('style')).toBeNull();
   const before = await page.locator('.scroller').evaluate((el) => ({
     height: getComputedStyle(el).height,
@@ -112,9 +157,15 @@ test('full-page rect alignment restores inline CSS priorities before later captu
     })),
     'capture preserves inline values and priorities',
   ).toEqual(before);
+  expect(await page.locator('html').getAttribute('style'), 'restore removes the added html style attribute').toBeNull();
   expect(await page.locator('body').getAttribute('style'), 'restore removes the added body style attribute').toBeNull();
   const second = await captureStyleMap(page, options);
   expect(second, 'a repeated capture has the same geometry and computed styles').toEqual(first);
+  expect(await page.locator('html').getAttribute('style')).toBeNull();
+  const htmlStyle = 'color: rgb(12, 34, 56);';
+  await page.locator('html').evaluate((el, value) => el.setAttribute('style', value), htmlStyle);
+  await captureStyleMap(page, options);
+  expect(await page.locator('html').getAttribute('style'), 'pre-existing html style is byte-identical').toBe(htmlStyle);
 });
 
 for (const mode of ['standards', 'quirks']) {
@@ -137,14 +188,17 @@ for (const mode of ['standards', 'quirks']) {
             mode === 'standards' ? 'CSS1Compat' : 'BackCompat',
           );
           const bodyStyle = await page.locator('body').getAttribute('style');
+          expect(await page.locator('html').getAttribute('style')).toBeNull();
           const map = await captureStyleMap(page, { stabilize: false });
           expect(await page.locator('body').getAttribute('style')).toBe(bodyStyle);
+          expect(await page.locator('html').getAttribute('style')).toBeNull();
           expect(map.viewport!.documentHeight, 'driven document does not expose the scroller content').toBe(720);
           expect(map.viewport!.screenshotHeight).toBe(3000);
           const dir = path.join(root, present ? 'head' : 'base');
           saveStyleMap(path.join(dir, 'nested@1280.json.gz'), map);
           await captureSurfaceScreenshots(page, path.join(dir, 'nested@1280'));
           expect(await page.locator('body').getAttribute('style')).toBe(bodyStyle);
+          expect(await page.locator('html').getAttribute('style')).toBeNull();
           const png = PNG.sync.read(fs.readFileSync(path.join(dir, 'nested@1280.png')));
           expect(png.height).toBe(map.viewport!.screenshotHeight);
           const pixel = (2040 * png.width + 640) * 4;

@@ -1190,7 +1190,9 @@ After document scrolling, optional `StyleMap.viewport.scrollX` / `scrollY` recor
 the document origin in the same browser snapshot as the element boxes, and
 `StyleMap.viewport.documentHeight` records the driven document's scroll height.
 `StyleMap.viewport.screenshotHeight` records the document height measured in the
-same expanded state used for full-page screenshots, including body scrollers.
+same expanded state used for full-page screenshots. `<body>` is a scroller
+candidate only when it scrolls itself: the root's computed `overflow-y` must not be
+`visible`, which would propagate body overflow to the viewport.
 Visible element additions/removals count if either of these checks passes:
 
 - The driven `rect` has non-zero size and intersects the original driven bounds:

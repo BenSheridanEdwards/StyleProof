@@ -57,6 +57,8 @@ function expandInnerScrollContainers(): number {
   };
 
   const isVerticalScroller = (el: HTMLElement): boolean => {
+    // Body overflow propagates to the viewport while root overflow-y is visible.
+    if (el === document.body && getComputedStyle(document.documentElement).overflowY === 'visible') return false;
     const overflowY = getComputedStyle(el).overflowY;
     if (overflowY !== 'auto' && overflowY !== 'scroll' && overflowY !== 'overlay') return false;
     return el.scrollHeight > el.clientHeight + 1;
@@ -105,7 +107,7 @@ function restoreInnerScrollContainers(): void {
       shot.el.style.setProperty(property.name, property.value, property.priority);
     }
     if (!shot.hadStyleAttribute) {
-      // Flush Chromium's lazy style attribute sync before removing the empty attribute.
+      // In Chromium, setProperty then removeAttribute can leave style="" without this read.
       void shot.el.getAttribute('style');
       if (shot.el.style.length === 0) shot.el.removeAttribute('style');
     }
