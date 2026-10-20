@@ -162,8 +162,14 @@ export const specTemplate = (isNext) => (isNext ? NEXT_SPEC : GENERIC_SPEC);
 
 // Roots are repo paths (directories or exact files) relative to this config file.
 // A workspace marker means shared packages can change rendering, so no roots are written.
-// JSON escaping plus an escaped quote makes any file name a valid single-quoted TS string.
-const tsString = (value) => `'${JSON.stringify(value).slice(1, -1).replace(/'/g, "\\'")}'`;
+// JSON escaping plus an escaped quote and line/paragraph separators (JSON leaves those
+// raw) makes any file name a valid single-quoted TS string on one line.
+const tsString = (value) =>
+  `'${JSON.stringify(value)
+    .slice(1, -1)
+    .replace(/'/g, "\\'")
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')}'`;
 const ancestorBaselineBlock = (roots, workspaceMarker) =>
   workspaceMarker
     ? `  // Ancestor baseline reuse (--storage branch): styleproof-init found a workspace
