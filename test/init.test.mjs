@@ -1324,21 +1324,21 @@ test('styleproof-init: scaffolds styleproof.config.ts with blocking: advisory by
 const ancestorRootsLine = (config) => config.match(/^ {2}ancestorBaseline: \{ roots: \[(.*)\] \},$/m)?.[1];
 
 for (const [name, files, expected] of [
-  ['a Next.js app', ['app/page.tsx', 'app/about/page.tsx', 'public/logo.svg'], "'app', 'public'"],
+  ['a Next.js app', ['app/page.tsx', 'app/about/page.tsx', 'public/logo.svg'], "'app', 'public', '.gitignore'"],
   [
     'a plain app with src and root CSS-tool configs',
     ['src/main.ts', 'styles/base.css', 'tailwind.config.ts', 'postcss.config.mjs', 'index.html'],
-    "'src', 'styles', 'index.html', 'postcss.config.mjs', 'tailwind.config.ts'",
+    "'src', 'styles', 'index.html', 'postcss.config.mjs', 'tailwind.config.ts', '.gitignore'",
   ],
   [
     'a Next.js app with a root framework config and root stylesheets',
     ['app/page.tsx', 'next.config.mjs', 'global.css', 'theme.scss'],
-    "'app', 'global.css', 'next.config.mjs', 'theme.scss'",
+    "'app', 'global.css', 'next.config.mjs', 'theme.scss', '.gitignore'",
   ],
   [
     'a Vite app with a root bundler config',
     ['src/main.ts', 'vite.config.ts', 'index.html', 'tsconfig.json'],
-    "'src', 'index.html', 'tsconfig.json', 'vite.config.ts'",
+    "'src', 'index.html', 'tsconfig.json', 'vite.config.ts', '.gitignore'",
   ],
   [
     'an app with root compiler/transpiler configs',
@@ -1352,7 +1352,7 @@ for (const [name, files, expected] of [
       'babel.config.ts',
       '.babelrc.cts',
     ],
-    "'src', '.babelrc.cts', '.browserslistrc', 'babel.config.js', 'babel.config.ts', 'jsconfig.json', 'tsconfig.app.json', 'tsconfig.json'",
+    "'src', '.babelrc.cts', '.browserslistrc', 'babel.config.js', 'babel.config.ts', 'jsconfig.json', 'tsconfig.app.json', 'tsconfig.json', '.gitignore'",
   ],
   // Every top-level entry of a realistic app is either a root or known not to render.
   [
@@ -1373,7 +1373,7 @@ for (const [name, files, expected] of [
       'eslint.config.mjs',
       'e2e/home.spec.ts',
     ],
-    "'app', 'public', 'next.config.mjs', 'postcss.config.mjs', 'tailwind.config.ts', 'tsconfig.json'",
+    "'app', 'public', '.gitignore', 'next.config.mjs', 'postcss.config.mjs', 'tailwind.config.ts', 'tsconfig.json'",
   ],
   [
     'a realistic Vite app',
@@ -1392,7 +1392,13 @@ for (const [name, files, expected] of [
       '.gitignore',
       'eslint.config.js',
     ],
-    "'src', 'public', 'index.html', 'tsconfig.app.json', 'tsconfig.json', 'tsconfig.node.json', 'vite.config.ts'",
+    "'src', 'public', '.gitignore', 'index.html', 'tsconfig.app.json', 'tsconfig.json', 'tsconfig.node.json', 'vite.config.ts'",
+  ],
+  // Build inputs: Tailwind v4 reads .gitignore for class sources; .npmrc and Docker files change the build.
+  [
+    'an app with root build-input files',
+    ['src/main.ts', '.gitignore', '.npmrc', 'Dockerfile', '.dockerignore'],
+    "'src', '.dockerignore', '.gitignore', '.npmrc', 'Dockerfile'",
   ],
 ]) {
   test(`styleproof-init: writes explicit ancestorBaseline.roots for ${name} (#826)`, () => {
@@ -1425,8 +1431,8 @@ test('styleproof-init: writes ancestorBaseline.roots as valid string literals fo
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
     assert.equal(res.status, 0, res.stderr);
     const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
-    assert.equal(line, "'a\\\\b.css', 'theme\\'dark.css'");
-    assert.deepEqual(new Function(`return [${line}];`)(), ['a\\b.css', "theme'dark.css"]);
+    assert.equal(line, "'a\\\\b.css', 'theme\\'dark.css', '.gitignore'");
+    assert.deepEqual(new Function(`return [${line}];`)(), ['a\\b.css', "theme'dark.css", '.gitignore']);
   } finally {
     rmTmp(root);
   }
@@ -1442,7 +1448,7 @@ test('styleproof-init: writes ancestorBaseline.roots for root stylesheets with l
     assert.equal(res.status, 0, res.stderr);
     const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
     assert.ok(line, 'roots written on one line');
-    assert.deepEqual(new Function(`return [${line}];`)(), ['src', ...names]);
+    assert.deepEqual(new Function(`return [${line}];`)(), ['src', ...names, '.gitignore']);
   } finally {
     rmTmp(root);
   }
@@ -1530,6 +1536,19 @@ for (const [name, setup, named, spec = 'e2e/styleproof.spec.ts'] of [
   ],
   ['a src directory holding its own .git', (root) => fs.mkdirSync(path.join(root, 'src/.git')), "'src'"],
   [
+    'a src/theme.css symlink to a file outside the root',
+    (root) => {
+      touch(root, '.github/theme.css');
+      fs.symlinkSync('../.github/theme.css', path.join(root, 'src/theme.css'));
+    },
+    "'src/theme.css'",
+  ],
+  [
+    'a nested src/vendor/.git repository',
+    (root) => fs.mkdirSync(path.join(root, 'src/vendor/.git'), { recursive: true }),
+    "'src/vendor/.git'",
+  ],
+  [
     'an imported styleproof.config.tokens.json',
     (root) => touch(root, 'styleproof.config.tokens.json'),
     "'styleproof.config.tokens.json'",
@@ -1590,7 +1609,23 @@ test('styleproof-init: ignores gitignored top-level entries when classifying (#8
     for (const file of ['src/main.ts', ...ignored]) touch(root, file);
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
     assert.equal(res.status, 0, res.stderr);
-    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src'");
+    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src', '.gitignore'");
+  } finally {
+    rmTmp(root);
+  }
+});
+
+// Init creates .gitignore after choosing roots, so roots include it even when it did not exist yet.
+test('styleproof-init: includes the .gitignore it creates in ancestorBaseline.roots (#826)', () => {
+  const root = mkTmp();
+  try {
+    touch(root, 'src/main.ts');
+    assert.equal(fs.existsSync(path.join(root, '.gitignore')), false);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+    assert.deepEqual(new Function(`return [${line}];`)(), ['src', '.gitignore']);
+    assert.equal(fs.existsSync(path.join(root, '.gitignore')), true);
   } finally {
     rmTmp(root);
   }
@@ -1688,7 +1723,7 @@ test('styleproof-init: ignores a workspace marker above the git repository root 
     spawnSync('git', ['init', '-q'], { cwd: root });
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
     assert.equal(res.status, 0, res.stderr);
-    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src'");
+    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src', '.gitignore'");
   } finally {
     rmTmp(outer);
   }

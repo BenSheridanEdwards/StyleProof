@@ -392,18 +392,21 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // root CSS-tool and framework/bundler configs (they change compiled output), root
 // compiler/transpiler configs (tsconfig.json, tsconfig.*.json, jsconfig.json:
 // path aliases and JSX settings; babel.config.*, .babelrc*; .browserslistrc:
-// autoprefixed CSS), root stylesheets, and a Vite-style index.html. Roots match a directory prefix or an exact
-// file path, so config files work as roots. Roots decide baseline correctness, so init
+// autoprefixed CSS), root build inputs (.gitignore: Tailwind v4 class sources; .npmrc,
+// Dockerfile, .dockerignore: install and build), root stylesheets, and a Vite-style
+// index.html. Roots match a directory prefix or an exact file path, so config files
+// work as roots. Roots decide baseline correctness, so init
 // fails safe and writes no roots (every changed path counts) when it cannot bound the
 // render inputs: in a workspace monorepo, whose shared packages it cannot bound; below the
 // git repository root, where sibling inputs outside the cwd cannot be bounded; or when
 // any top-level entry is neither a detected root nor known not to affect rendering.
-// Symlinks and submodules are never classified: their content lives elsewhere.
+// Symlinks and submodules are never classified: their content lives elsewhere. One
+// anywhere below a detected root directory (a symlink or a .git entry) also means no roots.
 // Markers are searched from the cwd up to the git repository root (the filesystem root
 // outside git), so init inside a workspace package finds them.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
 const ANCESTOR_ROOT_FILE =
-  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?[jt]s|json)|\.babelrc(?:\.(?:[cm]?[jt]s|json))?|\.browserslistrc|.+\.(?:css|scss|sass|less)|index\.html)$/s;
+  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?[jt]s|json)|\.babelrc(?:\.(?:[cm]?[jt]s|json))?|\.browserslistrc|\.gitignore|\.npmrc|Dockerfile|\.dockerignore|.+\.(?:css|scss|sass|less)|index\.html)$/s;
 // Top-level entries known not to affect rendering. Keep this conservative: a name left
 // out only costs reuse, a wrong name here lets a stale baseline through. .env* is
 // deliberately absent: env can change rendering. So are docs/test dirs and Markdown: an
@@ -416,7 +419,7 @@ const ANCESTOR_ROOT_FILE =
 // Assumed: the app never imports from these VCS/CI/editor tooling dirs.
 const NON_RENDER_DIRS = new Set(['.git', '.github', '.gitlab', '.vscode', '.idea', '.husky', '.changeset']);
 const NON_RENDER_FILE =
-  /^(?:styleproof\.config\.(?:ts|mjs|js|json)|playwright(?:\.styleproof)?\.config\.[cm]?[jt]s|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|\.gitignore|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|\.npmrc|(?:eslint|prettier|stylelint|commitlint|vitest|jest)\.config\.[cm]?[jt]s|\.(?:eslintrc|stylelintrc|lintstagedrc)(?:\.(?:json|ya?ml|[cm]?js))?|\.prettierrc(?:\.(?:json5?|ya?ml|[cm]?js|toml))?|\.eslintignore|\.prettierignore|next-env\.d\.ts|Dockerfile|\.dockerignore)$/;
+  /^(?:styleproof\.config\.(?:ts|mjs|js|json)|playwright(?:\.styleproof)?\.config\.[cm]?[jt]s|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|(?:eslint|prettier|stylelint|commitlint|vitest|jest)\.config\.[cm]?[jt]s|\.(?:eslintrc|stylelintrc|lintstagedrc)(?:\.(?:json|ya?ml|[cm]?js))?|\.prettierrc(?:\.(?:json5?|ya?ml|[cm]?js|toml))?|\.eslintignore|\.prettierignore|next-env\.d\.ts)$/;
 // The spec's top-level entry: its own directory (always capture-relevant) or the spec file.
 const specEntry = specPath.split('/').length <= 2 ? specPath.split('/')[0] : undefined;
 // The entries git would see (tracked plus untracked-not-ignored), else the directory listing.
@@ -475,16 +478,32 @@ const detectedRoots = skipRoots
         .map((entry) => entry.name)
         .sort(),
     ].filter((name) => !isOpaque(name));
+// The first symlink or .git entry below a root directory (Dirents are lstat-based, so links
+// are never followed): its content lives elsewhere, so the root does not bound it.
+function opaqueDescendant(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const child = `${dir}/${entry.name}`;
+    if (entry.isSymbolicLink() || entry.name === '.git') return child;
+    const found = entry.isDirectory() ? opaqueDescendant(child) : undefined;
+    if (found) return found;
+  }
+  return undefined;
+}
 const unclassifiedEntries = skipRoots
   ? []
-  : topLevelEntries().filter(
-      (name) =>
-        isOpaque(name) ||
-        (!detectedRoots.includes(name) &&
-          name !== specEntry &&
-          !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name))),
-    );
-const ancestorRoots = unclassifiedEntries.length ? [] : detectedRoots;
+  : [
+      ...topLevelEntries().filter(
+        (name) =>
+          isOpaque(name) ||
+          (!detectedRoots.includes(name) &&
+            name !== specEntry &&
+            !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name))),
+      ),
+      ...detectedRoots.filter(isDirectory).map(opaqueDescendant).filter(Boolean),
+    ];
+// Init writes .gitignore below even when none exists yet, so it is always a root.
+const ancestorRoots =
+  unclassifiedEntries.length || !detectedRoots.length ? [] : [...new Set([...detectedRoots, '.gitignore'])];
 scaffoldFile(
   'styleproof.config.ts',
   styleproofConfigTemplate(ancestorRoots, ancestorWorkspace, unclassifiedEntries, belowGitRoot),
