@@ -36,9 +36,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **Main CI runs no longer cancel each other.** CI, CodeQL, secret scanning and
-  map-store dogfood preserve in-progress runs on `main`, including scheduled and
-  manually dispatched runs. Superseded runs on other refs still cancel.
+- **Main commits keep their CI runs, whether running or queued.** Pushes to
+  `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
+  because each main commit gets its own concurrency group. Manually dispatched
+  map-store dogfood runs no longer cancel or queue behind each other.
+  Superseded pull-request runs still cancel.
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A

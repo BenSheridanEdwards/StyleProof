@@ -9,9 +9,9 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded runs on the same ref outside main to save runner time.
+# Cancel superseded PR runs; each main commit gets its own group so queued main runs are never dropped.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
