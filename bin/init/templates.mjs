@@ -173,25 +173,31 @@ const tsString = (value) =>
 // Unclassified top-level entries also mean no roots: init cannot bound the render inputs.
 const namedEntries = (names, shown = 3) =>
   names.slice(0, shown).map(tsString).join(', ') + (names.length > shown ? ` and ${names.length - shown} more` : '');
-const ancestorBaselineBlock = (roots, workspaceMarker, unclassified = []) =>
+const ancestorBaselineBlock = (roots, workspaceMarker, unclassified = [], belowGitRoot = false) =>
   workspaceMarker
     ? `  // Ancestor baseline reuse (--storage branch): styleproof-init found a workspace
   // monorepo (${workspaceMarker}) whose shared packages it cannot bound, so it declared no
   // roots and every changed path invalidates the ancestor baseline. Declare the directories
   // and files that change how your app renders to allow reuse, e.g.:
   // ancestorBaseline: { roots: ['src'] },`
-    : unclassified.length
-      ? `  // Ancestor baseline reuse (--storage branch): styleproof-init found top-level entries
+    : belowGitRoot
+      ? `  // Ancestor baseline reuse (--storage branch): styleproof-init ran below the repository
+  // root, where inputs outside this directory cannot be bounded, so it declared no roots
+  // and every changed path invalidates the ancestor baseline. Declare the directories and
+  // files that change how your app renders to allow reuse, e.g.:
+  // ancestorBaseline: { roots: ['src'] },`
+      : unclassified.length
+        ? `  // Ancestor baseline reuse (--storage branch): styleproof-init found top-level entries
   // it cannot classify (${namedEntries(unclassified)}), so it declared no roots and every
   // changed path invalidates the ancestor baseline. Declare the directories and files that
   // change how your app renders to allow reuse, e.g.:
   // ancestorBaseline: { roots: ['src'] },`
-      : roots.length
-        ? `  // Ancestor baseline reuse (--storage branch): on a base cache miss, CI reuses the
+        : roots.length
+          ? `  // Ancestor baseline reuse (--storage branch): on a base cache miss, CI reuses the
   // nearest ancestor's maps only when nothing under these roots changed. Detected by
   // styleproof-init; add any other directory or file that changes how your app renders.
   ancestorBaseline: { roots: [${roots.map(tsString).join(', ')}] },`
-        : `  // Ancestor baseline reuse (--storage branch): styleproof-init detected no source roots,
+          : `  // Ancestor baseline reuse (--storage branch): styleproof-init detected no source roots,
   // so every changed path invalidates the ancestor baseline. Declare the directories and
   // files that change how your app renders to allow reuse, e.g.:
   // ancestorBaseline: { roots: ['src'] },`;
@@ -200,6 +206,7 @@ export const styleproofConfigTemplate = (
   ancestorRoots,
   workspaceMarker,
   unclassifiedEntries,
+  belowGitRoot,
 ) => `import { defineConfig } from 'styleproof';
 
 /**
@@ -225,7 +232,7 @@ export default defineConfig({
   // Tracked files/dirs whose changes never mark a capture dirty
   // dirtyAllow: ['docs/**', '.github/**'],
 
-${ancestorBaselineBlock(ancestorRoots, workspaceMarker, unclassifiedEntries)}
+${ancestorBaselineBlock(ancestorRoots, workspaceMarker, unclassifiedEntries, belowGitRoot)}
 });
 `;
 
