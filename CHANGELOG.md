@@ -41,6 +41,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   because each main commit gets its own concurrency group. Manually dispatched
   map-store dogfood runs no longer cancel or queue behind each other.
   Superseded pull-request runs still cancel.
+- **CLI unit fixtures no longer depend on ancestor Playwright installs.** Eight
+  `styleproof-ci` tests with fake capture binaries now skip browser preflight so
+  an ancestor `node_modules/playwright-core` cannot make them require a real
+  browser build. The browser-preflight test keeps its existing coverage.
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A
