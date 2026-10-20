@@ -400,8 +400,9 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // render inputs: in a workspace monorepo, whose shared packages it cannot bound; below the
 // git repository root, where sibling inputs outside the cwd cannot be bounded; or when
 // any top-level entry is neither a detected root nor known not to affect rendering.
-// Symlinks and submodules are never classified: their content lives elsewhere. One
-// anywhere below a detected root directory (a symlink or a .git entry) also means no roots.
+// Symlinks and submodules are never classified, even when git ignores them: their content
+// lives elsewhere. One anywhere below a detected root directory (a symlink or a .git
+// entry) also means no roots.
 // Markers are searched from the cwd up to the git repository root (the filesystem root
 // outside git), so init inside a workspace package finds them.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
@@ -468,16 +469,20 @@ const isOpaque = (name) =>
   fs.lstatSync(name, { throwIfNoEntry: false })?.isSymbolicLink() ||
   gitlinks.has(name) ||
   (isDirectory(name) && fs.lstatSync(path.join(name, '.git'), { throwIfNoEntry: false }) !== undefined);
-const detectedRoots = skipRoots
+// Recognised root names, opaque or not: an opaque one means no roots even when git ignores it.
+const rootCandidates = skipRoots
   ? []
   : [
-      ...ANCESTOR_ROOT_DIRS.filter(isDirectory),
+      ...ANCESTOR_ROOT_DIRS.filter((name) => isDirectory(name) || isOpaque(name)),
       ...fs
         .readdirSync('.', { withFileTypes: true })
-        .filter((entry) => entry.isFile() && ANCESTOR_ROOT_FILE.test(entry.name))
+        .filter((entry) => ANCESTOR_ROOT_FILE.test(entry.name))
         .map((entry) => entry.name)
         .sort(),
-    ].filter((name) => !isOpaque(name));
+    ];
+const detectedRoots = rootCandidates.filter(
+  (name) => !isOpaque(name) && (ANCESTOR_ROOT_DIRS.includes(name) || fs.lstatSync(name).isFile()),
+);
 // The first symlink or .git entry below a root directory (Dirents are lstat-based, so links
 // are never followed): its content lives elsewhere, so the root does not bound it.
 function opaqueDescendant(dir) {
@@ -492,14 +497,17 @@ function opaqueDescendant(dir) {
 const unclassifiedEntries = skipRoots
   ? []
   : [
-      ...topLevelEntries().filter(
-        (name) =>
-          isOpaque(name) ||
-          (!detectedRoots.includes(name) &&
-            name !== specEntry &&
-            !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name))),
-      ),
-      ...detectedRoots.filter(isDirectory).map(opaqueDescendant).filter(Boolean),
+      ...new Set([
+        ...topLevelEntries().filter(
+          (name) =>
+            isOpaque(name) ||
+            (!detectedRoots.includes(name) &&
+              name !== specEntry &&
+              !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name))),
+        ),
+        ...rootCandidates.filter(isOpaque),
+        ...detectedRoots.filter(isDirectory).map(opaqueDescendant).filter(Boolean),
+      ]),
     ];
 // Init writes .gitignore below even when none exists yet, so it is always a root.
 const ancestorRoots =
