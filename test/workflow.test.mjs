@@ -111,6 +111,27 @@ test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
   assert.doesNotMatch(ci.match(/cli-smoke:[\s\S]*$/)?.[0] ?? '', /npm run test:e2e/);
 });
 
+test('workflows that can run on main never unconditionally cancel in-progress runs', () => {
+  const dir = path.join(here, '..', '.github/workflows');
+  for (const file of fs.readdirSync(dir).filter((name) => /\.ya?ml$/.test(name))) {
+    const text = fs.readFileSync(path.join(dir, file), 'utf8');
+    const triggers = text.match(/^on:\n(?:[ \t].*\n|\n)*/m)?.[0] ?? '';
+    if (!/^ {2}(?:schedule|workflow_dispatch):|^ {2}push:\n {4}branches: \[main\]/m.test(triggers)) continue;
+    assert.doesNotMatch(text, /^\s*cancel-in-progress: true\s*(?:#.*)?$/m, `${file} must preserve main runs`);
+  }
+});
+
+test('main-capable CI and dogfood workflows cancel superseded runs only outside main', () => {
+  for (const file of ['ci.yml', 'codeql.yml', 'secret-scan.yml', 'store-dogfood.yml']) {
+    const text = fs.readFileSync(path.join(here, '..', '.github/workflows', file), 'utf8');
+    assert.match(
+      text,
+      /^ {2}cancel-in-progress: \$\{\{ github\.ref != 'refs\/heads\/main' \}\}$/m,
+      `${file} must keep main runs while cancelling superseded branch runs`,
+    );
+  }
+});
+
 test('release runs serialize without cancelling an in-flight publish', () => {
   assert.match(
     release,
