@@ -256,16 +256,27 @@ for (const scroller of ['body', 'body > main:nth-child(1)']) {
       writePairManifests(dirs);
       const jsonPath = path.join(dirs.root, 'diff.json');
       for (const [bin, args, receipt] of [
-        [DIFF, ['--json', jsonPath], jsonPath],
+        [DIFF, ['--allow-unasserted', '--json', jsonPath], jsonPath],
         [REPORT, ['--out', dirs.outDir], path.join(dirs.outDir, 'report.json')],
       ]) {
-        const result = spawnSync(process.execPath, [bin, dirs.beforeDir, dirs.afterDir, ...args], {
-          cwd: dirs.root,
-          encoding: 'utf8',
-          timeout: 60_000,
-        });
-        assert.equal(result.status, 1, `${path.basename(bin)}: ${result.stderr || result.stdout}`);
-        assert.equal(JSON.parse(fs.readFileSync(receipt, 'utf8')).reviewableCounts.dom, 1);
+        for (const [afterDir, expected] of [
+          [dirs.beforeDir, 0],
+          [dirs.afterDir, 1],
+        ]) {
+          const sourceArgs = [
+            '--expected-before-sha',
+            'a'.repeat(40),
+            '--expected-after-sha',
+            (expected ? 'b' : 'a').repeat(40),
+          ];
+          const result = spawnSync(process.execPath, [bin, dirs.beforeDir, afterDir, ...args, ...sourceArgs], {
+            cwd: dirs.root,
+            encoding: 'utf8',
+            timeout: 60_000,
+          });
+          assert.equal(result.status, expected, `${path.basename(bin)}: ${result.stderr || result.stdout}`);
+          assert.equal(JSON.parse(fs.readFileSync(receipt, 'utf8')).reviewableCounts.dom, expected);
+        }
       }
     } finally {
       rmTmp(dirs.root);

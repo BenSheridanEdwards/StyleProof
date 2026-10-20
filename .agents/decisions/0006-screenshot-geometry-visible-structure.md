@@ -15,24 +15,37 @@ content. An added banner at y=2000 appears in the screenshot yet passes the gate
 
 ## Decision
 
-Reverse the 7.5.1 visibility-coordinate decision. Visible-structure additions and
-removals use `screenshotRect ?? rect`, intersected horizontally with the captured
-viewport origin and width and vertically with the full-page screenshot height.
-Capture records that height as optional `viewport.screenshotHeight`, measured in
-the same expanded document state used for screenshots, before restoration.
-Include `body` when identifying vertical overflow scrollers. Preserve `rect` and
-`documentHeight` in driven coordinates for their existing layout consumers.
+Extend the 7.5.1 driven-only gate with an either-box rule. After the existing
+hidden/opacity checks, an addition/removal is visible if either:
 
-If capture does not expand a scroller, its entries keep `rect` and have no
-`screenshotRect`; judge that box against the recorded screenshot height. This is
-a page-area intersection rule, not an inference of each ancestor's clipping.
-Hidden (`display:none` or `visibility:hidden`), zero-size, and zero-opacity
-entries remain advisory. Pixel differences do not determine visibility.
+- Its non-zero driven `rect` intersects the original driven bounds: horizontal
+  `scrollX` to `scrollX + width`, vertical `min(0, scrollY)` to
+  `max(scrollY + height, documentHeight ?? Infinity)`.
+- Its non-zero `screenshotRect ?? rect` intersects the same horizontal bounds and
+  vertical top, with bottom `screenshotHeight`.
 
-If `screenshotHeight` is absent, fail closed with an unbounded lower extent,
-including maps that record only `documentHeight`. An old driven height cannot
-prove an addition was outside expanded screenshot evidence. Missing scroll
-offsets still mean zero; horizontal and above-page clipping remain enforced.
+Preserving the driven check makes the gate never laxer than before. Expansion can
+move an on-screen box outside screenshot bounds or collapse its size; neither
+may turn a previously reviewable addition/removal advisory. The screenshot check
+also catches below-fold content exposed by expansion. This is a page-area
+intersection rule, not an inference of each ancestor's clipping or PNG width.
+Hidden (`display:none` or `visibility:hidden`) and zero-opacity entries remain
+advisory. Entries with neither box of non-zero size remain advisory. Pixel
+differences do not determine visibility.
+
+Capture records optional `viewport.screenshotHeight`, measured in the same
+expanded document state used for screenshots, before restoration. Include `body`
+when identifying vertical overflow scrollers. Preserve `rect` and `documentHeight`
+in driven coordinates for their existing consumers. When any scroller is
+expanded, all measured entries with `rect` can receive `screenshotRect`, including
+elements inside unexpanded scrollers. Without expansion, the screenshot check
+falls back to `rect`.
+
+If `screenshotHeight` is missing, non-finite, or non-positive, fail closed with an
+unbounded lower extent, including maps that record only `documentHeight`. An old
+driven height cannot prove an addition was outside expanded screenshot evidence.
+Missing scroll offsets still mean zero; horizontal and above-page clipping remain
+enforced.
 
 ## Consequences
 
@@ -43,5 +56,6 @@ offsets still mean zero; horizontal and above-page clipping remain enforced.
 - Correspondence and layout comparisons retain driven-state rectangles.
 - The recorded height participates in existing serialized-map determinism hashes.
 - Standards and quirks mode body/app-shell fixtures cover capture, PNG height,
-  both CLI exits, and the exact DOM review count; pure unit tests cover coordinate
-  preference, the height bound, legacy fallback, and invisible entries.
+  both CLI exits with unchanged negative controls, restoration, and the exact DOM
+  review count; pure unit tests cover the either-box rule, height bounds,
+  invalid/legacy height fallback, and invisible entries.

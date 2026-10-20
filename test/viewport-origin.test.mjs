@@ -15,7 +15,16 @@ for (const [name, scrollX, scrollY] of [
   ['negative horizontal origin', -1800, 0],
 ]) {
   test(`visible structure uses the captured ${name} viewport origin`, () => {
-    const map = { viewport: { width: 400, height: 300, scrollX, scrollY, screenshotHeight: scrollY + 300 } };
+    const map = {
+      viewport: {
+        width: 400,
+        height: 300,
+        scrollX,
+        scrollY,
+        documentHeight: scrollY + 300,
+        screenshotHeight: scrollY + 300,
+      },
+    };
     assert.equal(isVisibleCapturedElement(entry([scrollX + 30, scrollY + 30, 40, 40]), map), true);
     assert.equal(isVisibleCapturedElement(entry([scrollX + 400, scrollY + 30, 40, 40]), map), false);
     assert.equal(isVisibleCapturedElement(entry([scrollX + 30, scrollY + 300, 40, 40]), map), false);
@@ -55,29 +64,50 @@ test('legacy captures without screenshot height fail closed even with a short do
   }
 });
 
-test('visible structure prefers screenshotRect for intersections and size', () => {
-  const map = { viewport: { width: 400, height: 300, documentHeight: 300, screenshotHeight: 2400 } };
+test('either driven or screenshot geometry keeps structure reviewable (F1/F2/F3 and #920)', () => {
+  const map = { viewport: { width: 1280, height: 720, documentHeight: 720, screenshotHeight: 720 } };
   const at = (rect, screenshotRect, style = {}) => ({ ...entry(rect), screenshotRect, style });
-  assert.equal(isVisibleCapturedElement(at([30, -600, 40, 40], [30, 1900, 40, 40]), map), true);
-  assert.equal(isVisibleCapturedElement(at([30, 30, 40, 40], [30, 2400, 40, 40]), map), false);
-  assert.equal(isVisibleCapturedElement(at([30, 30, 40, 40], [400, 30, 40, 40]), map), false);
-  assert.equal(isVisibleCapturedElement(at([30, 1900, 0, 0], [30, 1900, 40, 40]), map), true);
-  for (const box of [
-    [30, 1900, 0, 40],
-    [30, 1900, 40, 0],
+  for (const [name, rect, screenshotRect] of [
+    ['F1: horizontally scrolled grid', [100, 50, 200, 80], [1600, 50, 200, 80]],
+    ['F2: fixed drawer', [980, 200, 200, 80], [980, 2000, 200, 80]],
+    ['F3: collapsed percent-height header', [0, 0, 1280, 144], [0, 0, 1280, 0]],
+    ['zero driven box', [30, 30, 0, 0], [30, 30, 40, 40]],
   ]) {
-    assert.equal(isVisibleCapturedElement(at([30, 30, 40, 40], box), map), false);
+    assert.equal(isVisibleCapturedElement(at(rect, screenshotRect), map), true, name);
   }
+  const expanded = { viewport: { ...map.viewport, screenshotHeight: 3000 } };
+  assert.equal(
+    isVisibleCapturedElement(at([0, 2000, 1280, 80], [0, 2000, 1280, 80]), expanded),
+    true,
+    '#920: below driven document but inside expanded screenshot',
+  );
   for (const style of [{ display: 'none' }, { visibility: 'hidden' }, { opacity: '0' }]) {
-    assert.equal(isVisibleCapturedElement(at([30, 30, 40, 40], [30, 1900, 40, 40], style), map), false);
+    assert.equal(isVisibleCapturedElement(at([30, 30, 40, 40], [30, 30, 40, 40], style), map), false);
   }
+  assert.equal(isVisibleCapturedElement(at([30, 30, 0, 40], [30, 30, 40, 0]), map), false);
 });
 
-test('unexpanded scrollers fall back to rect against the recorded screenshot height', () => {
+test('driven document bound is preserved even when the screenshot is shorter', () => {
   const map = { viewport: { width: 400, height: 300, documentHeight: 2400, screenshotHeight: 720 } };
-  assert.equal(isVisibleCapturedElement(entry([30, 700, 40, 40]), map), true, 'partially inside screenshot');
-  assert.equal(isVisibleCapturedElement(entry([30, 720, 40, 40]), map), false, 'exact lower boundary');
-  assert.equal(isVisibleCapturedElement(entry([30, 1900, 40, 40]), map), false, 'driven height is not the bound');
+  assert.equal(isVisibleCapturedElement(entry([30, 700, 40, 40]), map), true);
+  assert.equal(isVisibleCapturedElement(entry([30, 720, 40, 40]), map), true);
+  assert.equal(isVisibleCapturedElement(entry([30, 1900, 40, 40]), map), true);
+  assert.equal(isVisibleCapturedElement(entry([30, 2400, 40, 40]), map), false);
+  const legacy = { viewport: { width: 400, height: 300, screenshotHeight: 720 } };
+  assert.equal(
+    isVisibleCapturedElement(entry([30, 1900, 40, 40]), legacy),
+    true,
+    'missing driven height stays unbounded',
+  );
+});
+
+test('invalid screenshot heights fail closed like missing heights (F7)', () => {
+  for (const screenshotHeight of [undefined, 0, NaN, -1, Infinity, -Infinity]) {
+    const map = { viewport: { width: 400, height: 300, documentHeight: 300, screenshotHeight } };
+    assert.equal(isVisibleCapturedElement(entry([30, 2000, 40, 40]), map), true, String(screenshotHeight));
+    assert.equal(isVisibleCapturedElement(entry([400, 2000, 40, 40]), map), false, 'horizontal bound still applies');
+    assert.equal(isVisibleCapturedElement(entry([30, -40, 40, 40]), map), false, 'above-page bound still applies');
+  }
 });
 
 test('horizontal-scrolled style evidence remains eligible for report crops', () => {

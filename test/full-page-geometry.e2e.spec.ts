@@ -12,8 +12,27 @@ import { PNG } from 'pngjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// The gate now follows the expanded screenshot: below-fold content requires review
-// even when the driven inner scroller clips it (reverses the 7.5.1 gate rule).
+test('horizontally scrolled grid keeps an on-screen addition reviewable after expansion (F1)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setContent(`<!doctype html><html><head><style>
+    body{margin:0}.grid{height:300px;width:1280px;overflow:auto}
+    .inner{position:relative;width:4000px;height:1000px}
+    .mark{position:absolute;left:1600px;top:50px;width:200px;height:80px}
+  </style></head><body><div class="grid"><div class="inner"><div class="mark"></div></div></div></body></html>`);
+  await page.locator('.grid').evaluate((el) => {
+    el.scrollLeft = 1500;
+  });
+  const map = await captureStyleMap(page, { stabilize: false, captureStates: false });
+  const mark = Object.values(map.elements).find((e) => e.cls === 'mark');
+  expect(mark).toBeTruthy();
+  expect(mark!.rect).toEqual([100, 50, 200, 80]);
+  expect(mark!.screenshotRect).toEqual([1600, 50, 200, 80]);
+  expect(isVisibleCapturedElement(mark!, map), 'the driven box preserves reviewability').toBe(true);
+  expect(await page.locator('.grid').evaluate((el) => el.scrollLeft)).toBe(1500);
+});
+
+// The gate also checks the expanded screenshot: below-fold content requires review
+// even when the driven inner scroller clips it (extends the 7.5.1 gate rule).
 test('full-page rect alignment gates below-fold content while preserving driven layout boxes', async ({ page }) => {
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-rect-visibility-'));
   const file = path.join(output, 'fixture.html');
@@ -75,6 +94,7 @@ test('full-page rect alignment restores inline CSS priorities before later captu
   </style></head><body><div class="scroller" style="height:200px!important;overflow-x:hidden!important">
     <div style="height:1000px;width:2000px">content</div>
   </div></body></html>`);
+  expect(await page.locator('body').getAttribute('style')).toBeNull();
   const before = await page.locator('.scroller').evaluate((el) => ({
     height: getComputedStyle(el).height,
     priority: (el as HTMLElement).style.getPropertyPriority('height'),
@@ -92,6 +112,7 @@ test('full-page rect alignment restores inline CSS priorities before later captu
     })),
     'capture preserves inline values and priorities',
   ).toEqual(before);
+  expect(await page.locator('body').getAttribute('style'), 'restore removes the added body style attribute').toBeNull();
   const second = await captureStyleMap(page, options);
   expect(second, 'a repeated capture has the same geometry and computed styles').toEqual(first);
 });
@@ -115,12 +136,15 @@ for (const mode of ['standards', 'quirks']) {
           expect(await page.evaluate(() => document.compatMode)).toBe(
             mode === 'standards' ? 'CSS1Compat' : 'BackCompat',
           );
+          const bodyStyle = await page.locator('body').getAttribute('style');
           const map = await captureStyleMap(page, { stabilize: false });
+          expect(await page.locator('body').getAttribute('style')).toBe(bodyStyle);
           expect(map.viewport!.documentHeight, 'driven document does not expose the scroller content').toBe(720);
           expect(map.viewport!.screenshotHeight).toBe(3000);
           const dir = path.join(root, present ? 'head' : 'base');
           saveStyleMap(path.join(dir, 'nested@1280.json.gz'), map);
           await captureSurfaceScreenshots(page, path.join(dir, 'nested@1280'));
+          expect(await page.locator('body').getAttribute('style')).toBe(bodyStyle);
           const png = PNG.sync.read(fs.readFileSync(path.join(dir, 'nested@1280.png')));
           expect(png.height).toBe(map.viewport!.screenshotHeight);
           const pixel = (2040 * png.width + 640) * 4;
@@ -147,16 +171,35 @@ for (const mode of ['standards', 'quirks']) {
         const json = path.join(root, 'diff.json');
         const out = path.join(root, 'report');
         for (const [bin, args, receipt] of [
-          ['styleproof-diff', ['--json', json], json],
+          ['styleproof-diff', ['--allow-unasserted', '--json', json], json],
           ['styleproof-report', ['--out', out], path.join(out, 'report.json')],
         ] as const) {
-          const result = spawnSync(
-            process.execPath,
-            [path.join(ROOT, 'bin', `${bin}.mjs`), path.join(root, 'base'), path.join(root, 'head'), ...args],
-            { cwd: root, encoding: 'utf8', timeout: 30_000 },
-          );
-          expect(result.status, `${bin}: ${result.stderr || result.stdout}`).toBe(1);
-          expect(JSON.parse(fs.readFileSync(receipt, 'utf8')).reviewableCounts.dom).toBe(1);
+          // Diagnostic diff mode permits these bundles without a coverage/determinism ledger.
+          // The unchanged control proves exit 1 is caused by the banner finding.
+          for (const [after, expected] of [
+            ['base', 0],
+            ['head', 1],
+          ] as const) {
+            const sourceArgs = [
+              '--expected-before-sha',
+              'a'.repeat(40),
+              '--expected-after-sha',
+              (expected ? 'b' : 'a').repeat(40),
+            ];
+            const result = spawnSync(
+              process.execPath,
+              [
+                path.join(ROOT, 'bin', `${bin}.mjs`),
+                path.join(root, 'base'),
+                path.join(root, after),
+                ...args,
+                ...sourceArgs,
+              ],
+              { cwd: root, encoding: 'utf8', timeout: 30_000 },
+            );
+            expect(result.status, `${bin} ${after}: ${result.stderr || result.stdout}`).toBe(expected);
+            expect(JSON.parse(fs.readFileSync(receipt, 'utf8')).reviewableCounts.dom).toBe(expected);
+          }
         }
         for (const style of ['display:none', 'visibility:hidden', 'opacity:0', 'width:0', 'height:0']) {
           await page.locator('.banner').evaluate((el, value) => el.setAttribute('style', value), style);
