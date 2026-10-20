@@ -1369,6 +1369,22 @@ test('styleproof-init: writes ancestorBaseline.roots as valid string literals fo
   }
 });
 
+test('styleproof-init: writes ancestorBaseline.roots for root stylesheets with line terminators in their names (#826)', () => {
+  const root = mkTmp();
+  try {
+    const names = ['cr\rbreak.css', 'lf\nbreak.css', 'ls\u2028break.css', 'ps\u2029break.css'];
+    touch(root, 'src/main.ts');
+    for (const file of names) touch(root, file);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+    assert.ok(line, 'roots written on one line');
+    assert.deepEqual(new Function(`return [${line}];`)(), ['src', ...names]);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: writes no ancestorBaseline.roots when it detects none, and says so (#826)', () => {
   const root = mkTmp();
   try {
