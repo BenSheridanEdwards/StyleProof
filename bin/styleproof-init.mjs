@@ -399,7 +399,7 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // (the filesystem root outside git), so init inside a workspace package finds them.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
 const ANCESTOR_ROOT_FILE =
-  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?js|json)|\.babelrc(?:\.(?:[cm]?js|json))?|\.browserslistrc|.+\.(?:css|scss|sass|less)|index\.html)$/s;
+  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?[jt]s|json)|\.babelrc(?:\.(?:[cm]?[jt]s|json))?|\.browserslistrc|.+\.(?:css|scss|sass|less)|index\.html)$/s;
 const WORKSPACE_MARKERS = ['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'];
 const isDirectory = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
 function workspaceMarkerIn(dir) {
