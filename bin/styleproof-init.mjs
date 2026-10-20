@@ -409,24 +409,14 @@ const ANCESTOR_ROOT_FILE =
 // deliberately absent: env can change rendering. So are docs/test dirs and Markdown: an
 // app can import a stylesheet from docs/ or e2e/, or render a README. Every manifest and
 // lockfile here is one the runtime counts as always relevant (src/ancestor-baseline.ts).
-const NON_RENDER_DIRS = new Set([
-  // VCS, CI, editor and release tooling
-  '.git',
-  '.github',
-  '.gitlab',
-  '.vscode',
-  '.idea',
-  '.husky',
-  '.changeset',
-  // test reports
-  'playwright-report',
-  'test-results',
-  'coverage',
-  // StyleProof's own output
-  '.styleproof',
-]);
+// Generated output dirs (coverage, test reports, .styleproof) are absent too: when not
+// gitignored they can hold an imported file, and when gitignored they are never classified.
+// File names are exact (no wildcard suffix), so an importable near-miss such as
+// styleproof.config.tokens.json stays unclassified.
+// Assumed: the app never imports from these VCS/CI/editor tooling dirs.
+const NON_RENDER_DIRS = new Set(['.git', '.github', '.gitlab', '.vscode', '.idea', '.husky', '.changeset']);
 const NON_RENDER_FILE =
-  /^(?:styleproof\.config\..+|playwright(?:\.styleproof)?\.config\..+|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|\.gitignore|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|\.npmrc|\.eslintrc.*|eslint\.config\..+|\.eslintignore|\.prettierrc.*|prettier\.config\..+|\.prettierignore|\.stylelintrc.*|stylelint\.config\..+|commitlint\.config\..+|\.lintstagedrc.*|next-env\.d\.ts|(?:vitest|jest)\.config\..+|Dockerfile|\.dockerignore)$/;
+  /^(?:styleproof\.config\.(?:ts|mjs|js|json)|playwright(?:\.styleproof)?\.config\.[cm]?[jt]s|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|\.gitignore|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|\.npmrc|(?:eslint|prettier|stylelint|commitlint|vitest|jest)\.config\.[cm]?[jt]s|\.(?:eslintrc|stylelintrc|lintstagedrc)(?:\.(?:json|ya?ml|[cm]?js))?|\.prettierrc(?:\.(?:json5?|ya?ml|[cm]?js|toml))?|\.eslintignore|\.prettierignore|next-env\.d\.ts|Dockerfile|\.dockerignore)$/;
 // The spec's top-level entry: its own directory (always capture-relevant) or the spec file.
 const specEntry = specPath.split('/').length <= 2 ? specPath.split('/')[0] : undefined;
 // The entries git would see (tracked plus untracked-not-ignored), else the directory listing.
