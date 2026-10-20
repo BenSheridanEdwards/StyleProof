@@ -187,7 +187,8 @@ time), not via git — don't commit it. A manual `npm publish` works too but shi
 Semver: a change to captured/serialized map structure, an exported type, a CLI flag, or
 an Action input is at least a minor; anything that would make an existing committed
 baseline diff against an unchanged page is a major (it forces every consumer to
-regenerate baselines).
+regenerate baselines). Breaking changes ship only in a major release, with migration
+notes in the CHANGELOG.
 
 ## Reporting bugs
 

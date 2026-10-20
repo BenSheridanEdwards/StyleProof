@@ -7,6 +7,65 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+> **StyleProof 9.0.0: stable keys and stricter gates**
+>
+> This is the 9.0.0 major. Surface, width and nav keys that collided or
+> shifted now stay stable, the visible-structure gate covers the whole
+> document, a relative `replayUrl` without a `baseURL` fails the capture, and
+> the unread `mapStore.token` key is gone. Several of these change what an
+> existing baseline holds, so an unchanged page can need review against an 8.x
+> baseline. Upgrade, re-capture the baseline once, then update any committed
+> keys named below.
+
+### Migration
+
+1. Re-capture the baseline with 9.0.0. Under `--storage branch`, the
+   `publish-base` job does this when the upgrade merges to the default branch.
+   Until then, an 8.x base map can make an unchanged page need review for the
+   reasons in steps 2 to 8.
+2. **Colliding Next.js route keys (#919).** A project with both
+   `/blog/[slug]` and `/blog/slug` sees `blog-slug` removed and a suffixed key
+   added. Re-capture, and replace `blog-slug` wherever a committed list or
+   acknowledgement file names it.
+3. **Hash-router surface keys (#916).** A crawled `/#/settings` surface moves
+   from `index-N` to `settings`. Re-capture, and replace `index-N` keys for
+   hash routes in crawl `expected` / `exclude` lists and in acknowledgement
+   files such as `styleproof.product-state.json`.
+4. **Crawl surfaces that were duplicates (#880, #884).** A crawl no longer
+   captures an in-page `#anchor` jump (`docs-2`) or a reordered query string
+   as its own surface, so those keys show as removed. Re-capture, and delete
+   those keys from crawl `expected` lists.
+5. **Non-Latin nav labels (#883).** Id-less nav labels with no ASCII letters
+   or digits no longer merge under one key such as `tab:`; each keeps its own.
+   Re-capture, and replace the merged key in committed inventory
+   acknowledgements.
+6. **Detected breakpoints (#888).** Breakpoint detection now reads more media
+   sources and resolves `em`/`rem` at 16px, so a surface without `widths` can
+   gain or move a `@width` capture. Re-capture, or set `widths` on the surface
+   to keep the old sweep.
+7. **Live regions (#903).** A base map captured under the old rule can flag a
+   second, out-of-phase live region as head-only volatile. Re-capture.
+8. **Visible structure below the first screen (#915).** A visible element
+   added or removed anywhere in the document's scroll height now needs review.
+   Maps without `viewport.documentHeight` treat changes below their first
+   window as visible. Re-capture so the maps record it.
+9. **Relative `replayUrl` (#918).** A relative `replayUrl` with no `baseURL`
+   now fails the capture. Set `use.baseURL` in the Playwright config, or start
+   the glob with `**`.
+10. **`mapStore.token` (#921).** A typed `styleproof.config.ts` that sets
+    `mapStore.token` fails type-check. Delete the key; map-store auth comes from
+    `STYLEPROOF_MAP_STORE_TOKEN` or the checkout's credentials.
+11. **Ancestor baseline roots (#826, PR #927; drop this step if #927 does not
+    ship in 9.0.0).** With no roots declared, every changed path now counts as
+    capture-relevant, so ancestor baseline reuse fires less often. To keep the
+    old behaviour, declare `ancestorBaseline: { roots: ['src'] }` in
+    `styleproof.config`, or set `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`.
+12. **Nested-scroller visibility (#920, PR #928; drop this step if #928 does
+    not ship in 9.0.0).** The visible-structure gate judges nested-scroller
+    additions and removals by `screenshotRect ?? rect` against
+    `viewport.screenshotHeight`, so more of them need review, and a map without
+    `screenshotHeight` fails closed. Re-capture the baseline.
+
 ### Added
 
 - **The PR comment names what changed, not just how much (#831).** A **What
@@ -36,7 +95,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
+- **BREAKING: Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A
   dynamic `/blog/[slug]` and a static `/blog/slug` also shared `blog-slug`, so the
@@ -79,7 +138,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   produced no finding. Forced-state deltas now keep every horizontal margin row.
   An `auto`-centred child whose margins only follow a width change under hover
   now also reports its margin rows until the capture can prove that echo.
-- **Visible elements added below the first screen now require review.** The
+- **BREAKING: Visible elements added below the first screen now require review.** The
   visible-structure gate intersected each added or removed element with the
   window-sized viewport, so a visible element added further down a tall page
   passed as no change and `styleproof-diff` exited 0. Captures now record the
@@ -90,8 +149,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   clipped inside a nested scroller stays advisory as before (tracked in #920).
   Maps captured before this release have no `documentHeight`, so the gate
   treats additions or removals below their first window as visible rather than
-  passing them (#913).
-- **Hash-router surfaces keep their key when a route is added.** The default
+  passing them (#913). **Migration:** re-capture the baseline so its maps
+  record `documentHeight`.
+- **BREAKING: Hash-router surfaces keep their key when a route is added.** The default
   crawl key ignored the URL fragment, so every route the navigation observer
   found at `/#/settings` or `/#!/settings` keyed as `index` plus a
   discovery-order suffix (`index-2`, `index-3`, …). A route added earlier in
@@ -106,7 +166,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   skipped. Re-capture the baseline, and replace `index-N` keys for hash
   routes in your crawl `expected` / `exclude` lists and in committed
   acknowledgement files (such as `styleproof.product-state.json`).
-- **A relative `replayUrl` no longer hides failed data requests.** Playwright
+- **BREAKING: A relative `replayUrl` no longer hides failed data requests.** Playwright
   resolves a relative glob such as `/api/**` against the project `baseURL`
   before it records or replays, but the data-residue watcher matched the raw
   glob, so a failing `/api/users` was never named and the residue gate passed.
@@ -118,7 +178,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   record/replay matched nothing too. Set `use.baseURL`, or start the glob with
   `**`.
   ([#872](https://github.com/BenSheridanEdwards/StyleProof/issues/872))
-- **Breakpoint detection no longer misses bands silently.** It now reads
+- **BREAKING: Breakpoint detection no longer misses bands silently.** It now reads
   `@import`ed sheets, `<style media>` / `<link media>` conditions and adopted
   stylesheets; resolves `em`/`rem` in a query against 16px (the spec's initial
   font size) instead of the page's `html { font-size }`; detects an exact
@@ -127,6 +187,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   missing that band silently. The other bands still sweep; set `widths` on the
   surface to sweep that band too. A cross-origin `@import` it cannot read (an `@import` is
   fetched without CORS, as with Google Fonts) is skipped, as before.
+  **Migration:** a surface without `widths` can gain or move a `@width`
+  capture; re-capture the baseline, or set `widths` to keep the old sweep.
 - **Element labels in report headings can't break out of their code span.**
   The selector was wrapped in a single backtick without escaping, so a backtick
   in a map-supplied element path closed the span and the rest rendered as
@@ -169,7 +231,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   another element is dropped as an echo only when its values show the hover
   renders the same on both sides. **Behaviour change:** certify mode can now
   fail on a hover restyle it used to drop.
-- **Every live region is excluded, not only the last one to tick.** Settling
+- **BREAKING: Every live region is excluded, not only the last one to tick.** Settling
   kept only the paths that changed in the latest changing poll, so two live
   regions ticking out of phase left one in the map as if it were stable. A path
   is now volatile when it changed within the quiet window before timeout or in
@@ -216,21 +278,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   balanced, so `button:hover { margin-left: 40px }` produced no finding. The
   sentinel now resolves to the element's resting value; an unknown resting value
   counts as balanced only when the opposite margin changed identically.
-- **Query parameter order no longer captures one route twice.**
+- **BREAKING: Query parameter order no longer captures one route twice.**
   `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
   did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.
+  **Migration:** the first crawl after upgrading shows the duplicate surface as
+  removed; re-capture the baseline and delete its key from crawl `expected`
+  lists.
 - **A surface named like an `Object.prototype` key no longer counts as
   acknowledged incomplete UI.** `exclude[surface]` read an inherited value for
   `constructor`, so a blocked continuation on that surface skipped the
   fail-closed exit 6 without any exclusion file.
-- **In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
+- **BREAKING: In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
   fires `popstate` for a fragment jump, so the navigation observer re-queued the
   current page (`docs-2`). Popstate now reports only a new path or query, or a
-  hash-router fragment (`#/…`, `#!/…`).
-- **Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
+  hash-router fragment (`#/…`, `#!/…`). **Migration:** the first crawl after
+  upgrading shows those surfaces as removed; re-capture the baseline and delete
+  their keys from crawl `expected` lists.
+- **BREAKING: Removing a nav label written entirely in a non-Latin script is detected.** Id-less nav labels with no
   ASCII letters or digits (`設定`, `Настройки`, `खोलें`) all keyed as `tab:` and
   merged, so removing one went unseen. They now keep Unicode letters, combining
   marks and digits in the key; existing ASCII keys are unchanged.
+  **Migration:** the first run after upgrading shows the merged key as removed
+  and each label's key as added; re-capture the baseline and replace the merged
+  key in committed inventory acknowledgements.
 - **Affected-surface analysis fails closed on a computed `import()` it cannot
   place.** `import('../x/' + name)` was read as a plain string literal and an
   aliased template prefix (`` `@/x/${name}` ``) became a bogus directory, so the

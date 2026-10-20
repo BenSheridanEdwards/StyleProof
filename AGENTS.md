@@ -6,7 +6,8 @@ it opens them in a real browser, records the browser's computed styles, compares
 the PR head against the base branch, and posts a report on the pull request. The
 reviewer, a person or an agent, checks that the report shows the visual change
 the PR intends, then approves it. It is framework-agnostic and must stay
-backward-compatible and privacy-clean.
+privacy-clean. Breaking changes ship only in a major release, with migration
+notes in the CHANGELOG.
 
 This file is the tool-agnostic entry point for every agent and human. Vendor
 adapters (e.g. `CLAUDE.md`) defer here and add only vendor-specific content.
