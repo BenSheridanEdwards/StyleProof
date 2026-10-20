@@ -162,6 +162,8 @@ export const specTemplate = (isNext) => (isNext ? NEXT_SPEC : GENERIC_SPEC);
 
 // Roots are repo paths (directories or exact files) relative to this config file.
 // A workspace marker means shared packages can change rendering, so no roots are written.
+// JSON escaping plus an escaped quote makes any file name a valid single-quoted TS string.
+const tsString = (value) => `'${JSON.stringify(value).slice(1, -1).replace(/'/g, "\\'")}'`;
 const ancestorBaselineBlock = (roots, workspaceMarker) =>
   workspaceMarker
     ? `  // Ancestor baseline reuse (--storage branch): styleproof-init found a workspace
@@ -173,7 +175,7 @@ const ancestorBaselineBlock = (roots, workspaceMarker) =>
       ? `  // Ancestor baseline reuse (--storage branch): on a base cache miss, CI reuses the
   // nearest ancestor's maps only when nothing under these roots changed. Detected by
   // styleproof-init; add any other directory or file that changes how your app renders.
-  ancestorBaseline: { roots: [${roots.map((root) => `'${root}'`).join(', ')}] },`
+  ancestorBaseline: { roots: [${roots.map(tsString).join(', ')}] },`
       : `  // Ancestor baseline reuse (--storage branch): styleproof-init detected no source roots,
   // so every changed path invalidates the ancestor baseline. Declare the directories and
   // files that change how your app renders to allow reuse, e.g.:

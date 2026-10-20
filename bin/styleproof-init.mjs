@@ -4,6 +4,7 @@
 // never overwritten without --force; machine-owned files are refreshed by --upgrade
 // and audited by --check. Exit 0 = done, 1 = --check found drift, 2 = usage error.
 import fs from 'node:fs';
+import path from 'node:path';
 // Leaf modules only: init must never load the capture graph.
 import { discoverNextRoutes } from '../dist/routes.js';
 import { discoverComponentFiles } from '../dist/components.js';
@@ -392,19 +393,31 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // stylesheets, and a Vite-style index.html. Roots match a directory prefix or an exact
 // file path, so config files work as roots. Roots decide baseline correctness, so a
 // workspace monorepo, whose shared packages init cannot bound, gets no roots: every
-// changed path counts.
+// changed path counts. Markers are searched from the cwd up to the git repository root
+// (the filesystem root outside git), so init inside a workspace package finds them.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
 const ANCESTOR_ROOT_FILE =
   /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|.+\.(?:css|scss|sass|less)|index\.html)$/;
 const WORKSPACE_MARKERS = ['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'];
 const isDirectory = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
-function workspaceMarker() {
+function workspaceMarkerIn(dir) {
   try {
-    if (JSON.parse(fs.readFileSync('package.json', 'utf8')).workspaces) return 'package.json "workspaces"';
+    if (JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).workspaces)
+      return 'package.json "workspaces"';
   } catch {
     /* no or unreadable manifest: fall through to the marker files */
   }
-  return WORKSPACE_MARKERS.find((file) => fs.existsSync(file));
+  return WORKSPACE_MARKERS.find((file) => fs.existsSync(path.join(dir, file)));
+}
+function workspaceMarker() {
+  const cwd = fs.realpathSync(process.cwd());
+  const gitRoot = gitOutput(['rev-parse', '--show-toplevel']);
+  const stop = gitRoot === undefined ? undefined : fs.realpathSync(gitRoot);
+  for (let dir = cwd; ; dir = path.dirname(dir)) {
+    const marker = workspaceMarkerIn(dir);
+    if (marker) return dir === cwd ? marker : `${marker} at ${path.relative(cwd, dir)}`;
+    if (dir === stop || dir === path.dirname(dir)) return undefined;
+  }
 }
 const ancestorWorkspace = workspaceMarker();
 const ancestorRoots = ancestorWorkspace
