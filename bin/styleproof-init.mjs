@@ -390,14 +390,16 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 // --storage branch keeps accurate roots. Source dirs (app/pages: Next.js routers;
 // components/lib: root-level UI code; styles/public: global CSS and rendered assets),
 // root CSS-tool and framework/bundler configs (they change compiled output), root
-// stylesheets, and a Vite-style index.html. Roots match a directory prefix or an exact
+// compiler/transpiler configs (tsconfig.json, tsconfig.*.json, jsconfig.json:
+// path aliases and JSX settings; babel.config.*, .babelrc*; .browserslistrc:
+// autoprefixed CSS), root stylesheets, and a Vite-style index.html. Roots match a directory prefix or an exact
 // file path, so config files work as roots. Roots decide baseline correctness, so a
 // workspace monorepo, whose shared packages init cannot bound, gets no roots: every
 // changed path counts. Markers are searched from the cwd up to the git repository root
 // (the filesystem root outside git), so init inside a workspace package finds them.
 const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
 const ANCESTOR_ROOT_FILE =
-  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|.+\.(?:css|scss|sass|less)|index\.html)$/s;
+  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?js|json)|\.babelrc(?:\.(?:[cm]?js|json))?|\.browserslistrc|.+\.(?:css|scss|sass|less)|index\.html)$/s;
 const WORKSPACE_MARKERS = ['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'];
 const isDirectory = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
 function workspaceMarkerIn(dir) {
