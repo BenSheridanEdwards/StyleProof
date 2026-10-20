@@ -161,18 +161,25 @@ defineCrawlCapture({
 export const specTemplate = (isNext) => (isNext ? NEXT_SPEC : GENERIC_SPEC);
 
 // Roots are repo paths (directories or exact files) relative to this config file.
-const ancestorBaselineBlock = (roots) =>
-  roots.length
-    ? `  // Ancestor baseline reuse (--storage branch): on a base cache miss, CI reuses the
+// A workspace marker means shared packages can change rendering, so no roots are written.
+const ancestorBaselineBlock = (roots, workspaceMarker) =>
+  workspaceMarker
+    ? `  // Ancestor baseline reuse (--storage branch): styleproof-init found a workspace
+  // monorepo (${workspaceMarker}) whose shared packages it cannot bound, so it declared no
+  // roots and every changed path invalidates the ancestor baseline. Declare the directories
+  // and files that change how your app renders to allow reuse, e.g.:
+  // ancestorBaseline: { roots: ['src'] },`
+    : roots.length
+      ? `  // Ancestor baseline reuse (--storage branch): on a base cache miss, CI reuses the
   // nearest ancestor's maps only when nothing under these roots changed. Detected by
   // styleproof-init; add any other directory or file that changes how your app renders.
   ancestorBaseline: { roots: [${roots.map((root) => `'${root}'`).join(', ')}] },`
-    : `  // Ancestor baseline reuse (--storage branch): styleproof-init detected no source roots,
+      : `  // Ancestor baseline reuse (--storage branch): styleproof-init detected no source roots,
   // so every changed path invalidates the ancestor baseline. Declare the directories and
   // files that change how your app renders to allow reuse, e.g.:
   // ancestorBaseline: { roots: ['src'] },`;
 
-export const styleproofConfigTemplate = (ancestorRoots) => `import { defineConfig } from 'styleproof';
+export const styleproofConfigTemplate = (ancestorRoots, workspaceMarker) => `import { defineConfig } from 'styleproof';
 
 /**
  * StyleProof configuration — typed, IDE-autocompleted.
@@ -197,7 +204,7 @@ export default defineConfig({
   // Tracked files/dirs whose changes never mark a capture dirty
   // dirtyAllow: ['docs/**', '.github/**'],
 
-${ancestorBaselineBlock(ancestorRoots)}
+${ancestorBaselineBlock(ancestorRoots, workspaceMarker)}
 });
 `;
 

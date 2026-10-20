@@ -2245,6 +2245,22 @@ test(
   },
 );
 
+test(
+  'styleproof-ci: a change to an exact-file root like next.config.mjs blocks ancestor reuse (#826)',
+  { timeout: 60_000 },
+  () => {
+    // The roots styleproof-init writes for an app/ layout with a root next.config.mjs.
+    const changed = 'packages/web/next.config.mjs';
+    const stderr = runSubdirectoryAncestorReuse({
+      changed,
+      config: { ancestorBaseline: { roots: ['app', 'next.config.mjs'] } },
+    });
+    assert.doesNotMatch(stderr, /reused the baseline of nearest ancestor/, stderr);
+    assert.match(stderr, reuseBlocked(changed), stderr);
+    assert.doesNotMatch(stderr, NO_ROOTS_LINE, stderr);
+  },
+);
+
 test('styleproof-ci: STYLEPROOF_ANCESTOR_BASELINE_ROOTS wins over config roots (#826)', { timeout: 60_000 }, () => {
   const changed = 'packages/web/app/page.tsx';
   const stderr = runSubdirectoryAncestorReuse({
