@@ -1534,6 +1534,30 @@ for (const [name, setup, named, spec = 'e2e/styleproof.spec.ts'] of [
     },
     "'src'",
   ],
+  [
+    'a gitignored src symlink to .github',
+    (root) => {
+      spawnSync('git', ['init', '-q'], { cwd: root });
+      fs.rmSync(path.join(root, 'src'), { recursive: true });
+      touch(root, '.github/main.ts');
+      touch(root, '.github/theme.css');
+      fs.symlinkSync('.github', path.join(root, 'src'));
+      fs.writeFileSync(path.join(root, '.gitignore'), 'src\n');
+      const res = spawnSync('git', ['add', '-A'], { cwd: root });
+      assert.equal(res.status, 0, String(res.stderr));
+    },
+    "'src'",
+  ],
+  [
+    'a gitignored theme.css symlink to .github/theme.css',
+    (root) => {
+      spawnSync('git', ['init', '-q'], { cwd: root });
+      touch(root, '.github/theme.css');
+      fs.symlinkSync('.github/theme.css', path.join(root, 'theme.css'));
+      fs.writeFileSync(path.join(root, '.gitignore'), 'theme.css\n');
+    },
+    "'theme.css'",
+  ],
   ['a src directory holding its own .git', (root) => fs.mkdirSync(path.join(root, 'src/.git')), "'src'"],
   [
     'a src/theme.css symlink to a file outside the root',
