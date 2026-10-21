@@ -42,6 +42,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Keep global forced-state and pseudo-element rules reached when their extra candidates are the head subtree or framework-ignored elements.
 
 - Restore full-page scroller declarations through CSSOM before restoring exact style attribute text, so strict style CSP cannot leave expansion overrides applied.
+## [9.0.0] - 2026-10-21
 
 > **StyleProof 9.0.0: stable keys and stricter gates**
 >
@@ -152,6 +153,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     forced-state reads now include `::placeholder` and `::marker`. Against an
     8.x baseline, a page that styles one of these shows it once as a change.
     Re-capture the baseline. Older maps still load and diff.
+13. **Forced-state margins (#914, #886).** A `:hover`/`:focus`/`:active`
+    margin change the old filter dropped is now reported, so a run that passed
+    can now need review. Review the change; no re-capture is needed.
+14. **Ancestor baseline roots (#826, PR #927).** With no roots declared, every
+    changed path now counts as capture-relevant, so ancestor baseline reuse
+    fires less often. To keep the old behaviour, declare
+    `ancestorBaseline: { roots: ['src'] }` in `styleproof.config`, or set
+    `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`. Add every other directory or file
+    that changes how your app renders, not only `src`.
+15. **Nested-scroller visibility (#920, PR #928).** An added or removed element
+    now counts as visible if its driven `rect` is visible against the driven
+    bounds, or its `screenshotRect ?? rect` is visible against the screenshot
+    bounds, so the gate is never laxer than before and more of them need
+    review. A map with missing or invalid `viewport.screenshotHeight` treats
+    the screenshot bottom as unbounded (fails closed). Re-capture the baseline.
+16. **Non-PR report paths (#878, PR #930).** Non-PR runs publish their branch
+    report under `run-<run_id>/` instead of `pr-<run_id>/`. Update anything
+    that reads non-PR report paths on the report branch; PR paths
+    (`pr-<number>/`) and artifact names are unchanged.
+17. **Node 22.13+ (PR #933).** Node 18 and 20 are no longer supported. Move
+    local and CI Node to 22.13 or later, then run `npx styleproof-init --upgrade`
+    to refresh the generated capture workflow.
 
 ### Added
 
@@ -6214,7 +6237,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.1...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v9.0.0...HEAD
+[9.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.1...v9.0.0
 [8.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.0...v8.0.1
 [8.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.7.0...v8.0.0
 [7.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.4.0...v7.5.0
