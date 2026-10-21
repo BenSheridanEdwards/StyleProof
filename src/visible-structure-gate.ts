@@ -5,9 +5,9 @@
  * Invisible or zero-size DOM churn, pure text-content changes, retags, and
  * live/age/clock regions keep their existing advisory handling.
  */
-import { type ElementEntry, type StyleMap } from './capture.js';
+import { isUnder, type ElementEntry, type StyleMap } from './capture.js';
 import type { ContentChange } from './diff.js';
-import { contentSurfaces, type ContentSurface } from './report/content-layer.js';
+import { concreteContentChanges, contentSurfaces, type ContentSurface } from './report/content-layer.js';
 import { structureGateRenderCtx } from './report/shared.js';
 
 type StructureChange = Extract<ContentChange, { kind: 'structure' }>;
@@ -86,16 +86,31 @@ function entryForChange(
   return { entry: mapA.elements[change.path], map: mapA };
 }
 
+function isOneSided(change: ContentChange): change is StructureChange {
+  return change.kind === 'structure' && (change.change === 'added' || change.change === 'removed');
+}
+
+function isVisibleOneSided(change: StructureChange, mapA: StyleMap, mapB: StyleMap): boolean {
+  const { entry, map } = entryForChange(change, mapA, mapB);
+  return !!entry && isVisibleCapturedElement(entry, map);
+}
+
+/**
+ * A root with no box of its own (display:contents, a wrapper around a fixed child)
+ * still elevates when a same-direction change folded into it is visible (#950).
+ */
 function isElevatableVisibleStructure(
   change: ContentChange,
   mapA: StyleMap,
   mapB: StyleMap,
+  concrete: () => ContentChange[],
 ): change is StructureChange {
-  if (change.kind !== 'structure') return false;
-  if (change.change !== 'added' && change.change !== 'removed') return false;
-  const { entry, map } = entryForChange(change, mapA, mapB);
-  if (!entry) return false;
-  return isVisibleCapturedElement(entry, map);
+  if (!isOneSided(change)) return false;
+  if (isVisibleOneSided(change, mapA, mapB)) return true;
+  return concrete().some(
+    (c) =>
+      isOneSided(c) && c.change === change.change && isUnder(c.path, [change.path]) && isVisibleOneSided(c, mapA, mapB),
+  );
 }
 
 /**
@@ -126,8 +141,11 @@ export function collectElevatedVisibleStructure(opts: {
     } catch {
       continue;
     }
+    // contentSurfaces folds one-sided descendants into their root; unfold only on demand.
+    let concrete: ContentChange[] | undefined;
+    const unfolded = (): ContentChange[] => (concrete ??= concreteContentChanges(mapA, mapB));
     for (const c of changes) {
-      if (!isElevatableVisibleStructure(c, mapA, mapB)) continue;
+      if (!isElevatableVisibleStructure(c, mapA, mapB, unfolded)) continue;
       const id = structureChangeIdentity(c);
       if (seen.has(id)) continue;
       seen.add(id);

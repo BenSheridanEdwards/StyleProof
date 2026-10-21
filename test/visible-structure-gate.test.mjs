@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
 import {
@@ -172,6 +173,101 @@ test('invisible / zero-size structure add stays advisory (does not elevate)', ()
   assert.equal(json.reviewableCounts?.dom ?? 0, 0);
   assert.equal(json.comparison?.hasReviewableEvidence ?? false, false);
   rmTmp(dirs.root);
+});
+
+// #950: the report folds a one-sided subtree into its root; a root with no box of its own
+// must not hide the visible elements folded into it from the gate.
+const WRAP = 'body > div.wrap:nth-child(2)';
+const DOCK = 'body > div.dock:nth-child(2)';
+const contentsWrap = { tag: 'div', cls: 'wrap', rect: [0, 0, 0, 0], style: { display: 'contents' } };
+const pill = { tag: 'span', cls: 'pill', rect: [20, 50, 69, 38], style: { display: 'inline-block' }, text: 'Go' };
+const ZERO_SIZE_WRAPPERS = {
+  'a display:contents wrapper around a visible element': {
+    [WRAP]: contentsWrap,
+    [`${WRAP} > span.pill:nth-child(1)`]: pill,
+  },
+  'a zero-height wrapper around a visible position:fixed element': {
+    [DOCK]: { tag: 'div', cls: 'dock', rect: [0, 50, 400, 0], style: { display: 'block' } },
+    [`${DOCK} > div.toast:nth-child(1)`]: {
+      tag: 'div',
+      cls: 'toast',
+      rect: [20, 230, 300, 50],
+      style: { display: 'block', position: 'fixed' },
+    },
+  },
+};
+
+/** styleproof-diff and report verdicts for a bound, complete, self-checked pair (so exit 0 certifies). */
+function gateVerdicts(before, after) {
+  const dirs = tmpDirs();
+  const productState = { id: 'fixture', revision: '1' };
+  writeCapture(dirs.beforeDir, 'access@1280', { ...before, metadata: { productState } }, solidPng(400, 300));
+  writeCapture(dirs.afterDir, 'access@1280', { ...after, metadata: { productState } }, solidPng(400, 300, [9, 9, 9]));
+  writePairManifests(dirs);
+  const ledger = { version: 1, expected: ['access'], exclude: {}, determinism: 'self-checked' };
+  for (const dir of [dirs.beforeDir, dirs.afterDir]) {
+    fs.writeFileSync(path.join(dir, COVERAGE_LEDGER), JSON.stringify(ledger));
+  }
+  const jsonPath = path.join(dirs.root, 'out.json');
+  const shas = ['--expected-before-sha', 'a'.repeat(40), '--expected-after-sha', 'b'.repeat(40)];
+  const diff = spawnSync(process.execPath, [DIFF, dirs.beforeDir, dirs.afterDir, '--json', jsonPath, ...shas], {
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  const report = generateStyleMapReport({ ...dirs, includeContent: true });
+  const verdicts = {
+    diffExit: diff.status,
+    certifiesFully: json.certifiesFully,
+    diffDom: json.reviewableCounts?.dom ?? 0,
+    reportDom: JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8')).reviewableCounts?.dom ?? 0,
+  };
+  rmTmp(dirs.root);
+  return verdicts;
+}
+
+const ELEVATED = { diffExit: 1, certifiesFully: false, diffDom: 1, reportDom: 1 };
+const CERTIFIED = { diffExit: 0, certifiesFully: true, diffDom: 0, reportDom: 0 };
+
+for (const [name, subtree] of Object.entries(ZERO_SIZE_WRAPPERS)) {
+  for (const [direction, before, after] of [
+    ['added', baseBoard(), baseBoard(subtree)],
+    ['removed', baseBoard(subtree), baseBoard()],
+  ]) {
+    test(`${name} ${direction} needs review in both CLIs (#950)`, () => {
+      assert.deepEqual(gateVerdicts(before, after), ELEVATED);
+    });
+  }
+}
+
+test('a zero-size wrapper whose children are hidden or zero-size stays advisory (#950)', () => {
+  const ghosts = baseBoard({
+    [WRAP]: contentsWrap,
+    [`${WRAP} > i.none:nth-child(1)`]: { tag: 'i', cls: 'none', rect: [0, 0, 0, 0], style: { display: 'none' } },
+    [`${WRAP} > i.flat:nth-child(2)`]: { tag: 'i', cls: 'flat', rect: [20, 50, 69, 0], style: { display: 'block' } },
+    [`${WRAP} > i.hidden:nth-child(3)`]: {
+      tag: 'i',
+      cls: 'hidden',
+      rect: [20, 50, 69, 38],
+      style: { display: 'block', visibility: 'hidden' },
+    },
+  });
+  assert.deepEqual(gateVerdicts(baseBoard(), ghosts), CERTIFIED);
+  assert.deepEqual(gateVerdicts(ghosts, baseBoard()), CERTIFIED);
+});
+
+test('wrapping an existing element in a display:contents wrapper stays advisory (#950)', () => {
+  // Own-text identity pairs the moved element, so only the boxless wrapper is one-sided.
+  const bare = baseBoard({ 'body > span.pill:nth-child(2)': pill });
+  const wrapped = baseBoard({ [WRAP]: contentsWrap, [`${WRAP} > span.pill:nth-child(1)`]: pill });
+  for (const [before, after] of [
+    [bare, wrapped],
+    [wrapped, bare],
+  ]) {
+    const { dirs } = fixture({ before, after });
+    assert.equal(collectElevatedVisibleStructure(dirs).count, 0);
+    rmTmp(dirs.root);
+  }
 });
 
 test('pure text content change stays advisory (no elevation)', () => {

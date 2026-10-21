@@ -184,16 +184,20 @@ function isShiftCollision(c: ContentChange, mapA: StyleMap, mapB: StyleMap): boo
   return matches.length === 1;
 }
 
-function contentChanges(mapA: StyleMap, mapB: StyleMap): ContentChange[] {
+/** Every content change on a surface, before one-sided descendants fold into their added/removed root. */
+export function concreteContentChanges(mapA: StyleMap, mapB: StyleMap): ContentChange[] {
   const retained = new Set(Object.values(correspondContentShiftedPaths(mapA, mapB).elements));
   const volatile = [...new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])])];
   const displacedRemovals: ContentChange[] = Object.entries(mapA.elements)
     .filter(([p, entry]) => !retained.has(entry) && !isUnder(p, volatile))
     .map(([p, entry]) => ({ kind: 'structure', change: 'removed', path: p, cls: entry.cls }));
-  const concrete = [...displacedRemovals, ...diffContentMaps(mapA, mapB)].filter(
-    (c) => !isShiftCollision(c, mapA, mapB),
+  return [...displacedRemovals, ...diffContentMaps(mapA, mapB)].filter((c) => !isShiftCollision(c, mapA, mapB));
+}
+
+function contentChanges(mapA: StyleMap, mapB: StyleMap): ContentChange[] {
+  return withoutRedundantStructuralDescendants(concreteContentChanges(mapA, mapB)).sort((l, r) =>
+    l.path.localeCompare(r.path),
   );
-  return withoutRedundantStructuralDescendants(concrete).sort((l, r) => l.path.localeCompare(r.path));
 }
 
 export type ContentSurface = { surface: string; changes: ContentChange[] };

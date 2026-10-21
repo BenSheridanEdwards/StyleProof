@@ -294,6 +294,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   "StyleProof changes approved", counts. Such a run stays red until a reviewer
   ticks the box. In advisory mode it stays green but says the changes need
   sign-off.
+- **A visible element added or removed inside a zero-size wrapper now needs
+  review (#950).** The report folds a one-sided subtree into its added or
+  removed root, and the visible-structure gate checked only that root's box. A
+  `display: contents` wrapper, or a wrapper whose only child is
+  `position: fixed`, has no box of its own, so `styleproof-diff` and
+  `styleproof-report` certified the change with exit 0. Such a root now
+  elevates when a same-direction change folded into it is visible. It still
+  counts once in `reviewableCounts.dom`. A wrapper whose children are hidden or
+  zero-size stays advisory. So does wrapping an existing element whose own text
+  pairs it across the move.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
