@@ -191,6 +191,7 @@ const {
   volatile,
   headOnlyVolatile,
   baseOnlyVolatile,
+  documentRootVolatile,
   statesUncertified,
   baselineFailures,
   undeclaredOnBase,
@@ -646,7 +647,7 @@ const evidence = {
   partialBaseline,
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
   liveTextFreeze: { violated: liveTextFreezeViolated },
-  volatility: { headOnly: headOnlyVolatile, baseOnly: baseOnlyVolatile },
+  volatility: { headOnly: headOnlyVolatile, baseOnly: baseOnlyVolatile, documentRoot: documentRootVolatile },
 };
 const certificationEvidence = assessCertificationEvidence({ ...evidence, criticalStates: criticalAudit });
 
@@ -695,6 +696,10 @@ const GATES = [
   {
     blocks: headOnlyVolatile.length > 0,
     note: ` + ${headOnlyVolatile.length} subtree(s) newly volatile on head (excluded, not certified)`,
+  },
+  {
+    blocks: documentRootVolatile.length > 0,
+    note: ` + ${documentRootVolatile.length} volatile html/body root(s) (page not compared, not certified)`,
   },
   {
     blocks: baseOnlyVolatile.length > 0,
@@ -779,7 +784,12 @@ if (jsonOut) {
           volatileExcluded: volatile,
           // Subtrees volatile on the head but compared on the base: excluded, so they block certification.
           // Subtrees volatile on the base but settled on the head: excluded, so they need review (approvable).
-          volatility: { headOnly: headOnlyVolatile, baseOnly: baseOnlyVolatile },
+          // html/body volatile on either side, only when present: the page was not compared, so it blocks.
+          volatility: {
+            headOnly: headOnlyVolatile,
+            baseOnly: baseOnlyVolatile,
+            ...(documentRootVolatile.length ? { documentRoot: documentRootVolatile } : {}),
+          },
           // Surfaces whose forced-state layer was skipped or unsupported on either side.
           statesUncertified,
           coverage: coverageVerdict,
@@ -832,6 +842,18 @@ if (headOnlyVolatile.length > 0) {
       ...headOnlyVolatile.slice(0, MAX).map((v) => `  ✗ ${v.surface}: ${v.path}`),
       ...(headOnlyVolatile.length > MAX ? [`  ... and ${headOnlyVolatile.length - MAX} more`] : []),
       '  → stop the head-side churn (a timer, stream, or animation the PR added), fixture it, or `ignore` the region on both sides.',
+    ],
+  );
+}
+if (documentRootVolatile.length > 0) {
+  printSection(
+    `✗ ${documentRootVolatile.length} document root(s) volatile at capture settle — everything under them was excluded,\n` +
+      '  so nothing on the page was compared and it is NOT certified:',
+    [
+      ...documentRootVolatile.slice(0, MAX).map((v) => `  ✗ ${v.surface}: ${v.path}`),
+      ...(documentRootVolatile.length > MAX ? [`  ... and ${documentRootVolatile.length - MAX} more`] : []),
+      '  → re-capture maps from an older StyleProof (a live region that resized html/body made them volatile);\n' +
+        '    otherwise stop the churn on html/body itself (a class or text toggled on a timer) or fixture it.',
     ],
   );
 }
@@ -922,6 +944,9 @@ function trustReasons() {
   if (partialBaseline) reasons.push(check('baseline-surface-capture', 'failed', baselineAttribution.summary));
   if (headOnlyVolatile.length > 0) {
     reasons.push(check('volatility', 'failed', `${headOnlyVolatile.length} subtree(s) newly volatile on head`));
+  }
+  if (documentRootVolatile.length > 0) {
+    reasons.push(check('document-volatility', 'failed', `${documentRootVolatile.length} volatile html/body root(s)`));
   }
   if (baseOnlyVolatile.length > 0) {
     reasons.push(check('base-volatility', 'found', `${baseOnlyVolatile.length} subtree(s) volatile on the base only`));

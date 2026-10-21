@@ -128,17 +128,48 @@ async function assertRequiredVisibleState(page: Page, required: CaptureOptions['
 
 type Elements = Record<string, ElementEntry>;
 
-function changedElementPaths(a: Elements, b: Elements): string[] {
-  const out: string[] = [];
-  for (const p of new Set([...Object.keys(a), ...Object.keys(b)]))
-    if (JSON.stringify(a[p]) !== JSON.stringify(b[p])) out.push(p);
-  return out;
+/**
+ * Only layout moved: the box, and used values whose computed value (Typed OM) is the same in
+ * both polls, like an `auto` height growing with a descendant. Same proof the diff uses to drop reflow.
+ */
+function reflowOnly(a: ElementEntry, b: ElementEntry): boolean {
+  const rest = (e: ElementEntry): string => JSON.stringify({ ...e, rect: undefined, style: undefined });
+  if (rest(a) !== rest(b)) return false;
+  const computed = a.computedValueStyle ?? {};
+  return Object.keys({ ...a.style, ...b.style }).every((p) => a.style[p] === b.style[p] || Object.hasOwn(computed, p));
+}
+
+/**
+ * One poll's changes. `changed` counts any difference (the settle waits through reflow too);
+ * `paths` are the live-region candidates, `inPlace` the ones present in both polls.
+ */
+function changedElementPaths(a: Elements, b: Elements): { changed: boolean; paths: string[]; inPlace: string[] } {
+  let changed = false;
+  const paths = new Set<string>();
+  const inPlace: string[] = [];
+  for (const p of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (JSON.stringify(a[p]) === JSON.stringify(b[p])) continue;
+    changed = true;
+    if (a[p] && b[p]) {
+      if (reflowOnly(a[p], b[p])) continue;
+      inPlace.push(p);
+      paths.add(p);
+      continue;
+    }
+    paths.add(p);
+    // A mount or unmount changes the parent's child list: the parent is the live region. Never
+    // <body>: a stream appended straight to it is excluded item by item and the page stays compared.
+    const parent = p.split(' > ').slice(0, -1).join(' > ');
+    if (parent && parent !== 'body') paths.add(parent);
+  }
+  return { changed, paths: [...paths], inPlace };
 }
 
 /**
  * Poll until the map has been UNCHANGED for `quietFor` ms (through the lull before
  * late content paints) or the budget runs out. Returns the paths still changing at
- * timeout: genuine live regions to exclude.
+ * timeout: genuine live regions to exclude. An ancestor that only reflows around one
+ * (`html`, `body`, a wrapper) is not one, so it stays compared.
  */
 async function stabilizePage(
   page: Page,
@@ -157,14 +188,17 @@ async function stabilizePage(
   // Per path: when it last changed. Out-of-phase tickers never change in the same poll, so
   // "the last poll's paths" would keep only one of them.
   const lastChangedAt = new Map<string, number>();
+  // Per path: when it last changed in place. A mount alone is late content, not a ticker.
+  const lastInPlaceAt = new Map<string, number>();
   while (realNow() - start < timeout) {
     await page.waitForTimeout(interval);
     const cur = await snap();
-    const changed = changedElementPaths(prev, cur);
+    const poll = changedElementPaths(prev, cur);
     prev = cur;
-    if (changed.length) {
+    if (poll.changed) {
       lastChangeAt = realNow();
-      for (const p of changed) lastChangedAt.set(p, lastChangeAt);
+      for (const p of poll.paths) lastChangedAt.set(p, lastChangeAt);
+      for (const p of poll.inPlace) lastInPlaceAt.set(p, lastChangeAt);
     } else if (pending() > 0) {
       // Quiet DOM but data requests in flight: the lull BEFORE the response paints.
       lastChangeAt = realNow();
@@ -172,12 +206,14 @@ async function stabilizePage(
       return [];
     }
   }
-  // Still changing at timeout: changed within the quiet window, or in the last poll that changed
-  // (in-flight requests can hold the loop open past a region ticking slower than `quietFor`).
-  // Content that loaded late (in any number of steps) and then settled is compared.
+  // Still changing at timeout: changed within the quiet window, or in place in the last poll that
+  // changed one (in-flight requests can hold the loop open past a region ticking slower than
+  // `quietFor`). Content that loaded late (in any number of steps) and then settled is compared.
   const end = realNow();
-  const lastPoll = Math.max(...lastChangedAt.values());
-  return [...lastChangedAt].filter(([, at]) => at === lastPoll || end - at <= quietFor).map(([p]) => p);
+  const lastPoll = Math.max(...lastInPlaceAt.values());
+  return [...lastChangedAt]
+    .filter(([p, at]) => end - at <= quietFor || lastInPlaceAt.get(p) === lastPoll)
+    .map(([p]) => p);
 }
 
 /** Settle the page and return the paths of live regions to exclude. */

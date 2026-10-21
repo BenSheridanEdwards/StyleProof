@@ -78,6 +78,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A live region that changes height no longer hides the whole page (#978).**
+  When a list or panel grew, every ancestor up to `html` changed with it, so
+  the settle recorded `html`, `body` and each wrapper as volatile. Both
+  captures then excluded every element and forced state, and `styleproof-diff`
+  certified the page with 0 reviewable changes. Now an ancestor whose only
+  change is reflow (its box, or a used value such as an `auto` height whose
+  computed value is unchanged) stays compared, a list that gains or loses
+  children is excluded as one region, and content that mounts once while a
+  request is still in flight is compared. If `html` or `body` is still volatile
+  on either side, `styleproof-diff` exits `1`, names each `surface: path` and
+  records `volatility.documentRoot`, which the shared verdict reads as
+  `CERTIFICATION_FAILED`. **Upgrade note:** a base map captured under the old
+  rule can carry `html`/`body` as volatile and blocks until it is re-captured.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

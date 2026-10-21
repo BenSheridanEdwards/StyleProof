@@ -1904,6 +1904,33 @@ test('source-bound diff CLI keeps certifying when the same subtree is volatile o
   rmTmp(root);
 });
 
+// #978: html/body volatile on BOTH sides used to pass the shared-volatility rule, so the
+// union skip compared nothing on the page and a bound run certified it unseen.
+test('source-bound diff CLI refuses to certify a surface whose html and body are volatile', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  // What each capture wrote: every element under the volatile roots deleted.
+  const side = { ...makeMap({ elements: {} }), volatile: ['html', 'body'] };
+  writeCapture(A, 'home@1280', side, null);
+  writeCapture(B, 'home@1280', side, null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(r.stdout.includes('home@1280: html'), r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.deepEqual(receipt.volatility.documentRoot, [
+    { surface: 'home@1280', path: 'body' },
+    { surface: 'home@1280', path: 'html' },
+  ]);
+  const options = { gateInventoryRemovals: true, baseCaptureFailed: false, changed: r.status !== 0 };
+  assert.equal(classifyStyleProofVerdict(receipt, options).state, 'CERTIFICATION_FAILED');
+  rmTmp(root);
+});
+
 test('source-bound report CLI refuses a clean verdict when a subtree became volatile only on the head', () => {
   const { root, A, B, card } = headVolatilityPair({ baseVolatile: false });
   const out = path.join(root, 'report');

@@ -21,8 +21,9 @@ export type CertificationEvidenceReceipt = {
   explainedMissingBaselineSurfaces?: unknown;
   liveTextFreeze?: { violated?: unknown } | null;
   /** Subtrees volatile on the head but compared on the base were excluded: never certified.
-   *  `baseOnly` (volatile on the base, settled on the head) is reviewable, not a blocker. */
-  volatility?: { headOnly?: unknown; baseOnly?: unknown } | null;
+   *  `baseOnly` (volatile on the base, settled on the head) is reviewable, not a blocker.
+   *  `documentRoot` (`html`/`body` volatile on either side) left the page uncompared: never certified. */
+  volatility?: { headOnly?: unknown; baseOnly?: unknown; documentRoot?: unknown } | null;
   /** Legacy product-state pair ledger. Armed + undeclared/stale fails closed. */
   legacyPairs?: { armed?: unknown; undeclared?: unknown; staleAcknowledgements?: unknown } | null;
   /** Critical state obligations. Armed + failing/unresolved/contradictory fails closed. */
@@ -56,6 +57,7 @@ const CERTIFICATION_BLOCKERS: ((r: CertificationEvidenceReceipt) => boolean)[] =
   (r) => r.reportConsistency?.reason === 'raw_only_no_reviewable',
   (r) => r.liveTextFreeze?.violated === true,
   (r) => entryCount(r.volatility?.headOnly) > 0,
+  (r) => entryCount(r.volatility?.documentRoot) > 0,
   (r) => r.statesUncertified !== 0,
   (r) => armedLedgerBlocks(r.legacyPairs, [r.legacyPairs?.undeclared, r.legacyPairs?.staleAcknowledgements]),
   (r) =>
