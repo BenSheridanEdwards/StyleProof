@@ -217,6 +217,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   acknowledged the `/staff` wall. Removing the exclusion on that advice made the
   next run fail closed with exit 5. Now a key is stale only when no crawled page
   matched it. A single-page crawl prints the same stale list as before (#963).
+- **A legacy-pair declaration that still matches is no longer called stale
+  (#969).** A `styleproof.product-state.json` that declared both a surface base
+  (`home`) and an exact capture key (`home@1280`) credited the unproven pair to
+  the first key only. The other key was reported as a stale declaration, so an
+  armed ledger failed certification and asked you to prune an accurate entry.
+  The result also depended on key order in the JSON. Now every declaration that
+  matches an unproven pair is in use, in either order. A declaration that
+  matches no unproven pair is still stale and still fails closed.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
