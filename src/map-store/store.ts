@@ -307,14 +307,21 @@ export function listMapStoreBundleShas(options: StoreOptions = {}): Set<string> 
 }
 
 /** An absolute spec re-anchored to `cwd`, so the base key resolves it inside the base worktree
- *  instead of hashing the head checkout's file (#965). Real paths, so a symlinked spelling of the
- *  checkout still counts as inside it. A spec outside the project can never match a bundle. */
+ *  instead of hashing the head checkout's file (#965). Resolve checkout aliases only: directory
+ *  symlinks below the project must retain their logical paths in both keys. */
 function projectRelativeSpec(command: string, cwd: string, spec: string): string {
   if (!path.isAbsolute(spec)) return spec;
-  const realSpec = path.join(fs.realpathSync(path.dirname(spec)), path.basename(spec));
-  const relative = path.relative(fs.realpathSync(cwd), realSpec);
-  if (relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
-    return relative;
+  const projectRoot = fs.realpathSync(cwd);
+  let relative: string | undefined;
+  let directory = path.dirname(spec);
+  while (true) {
+    // Keep the outermost checkout match so an in-project link back to the root stays logical too.
+    if (fs.realpathSync(directory) === projectRoot) relative = path.relative(directory, spec);
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  if (relative) return relative;
   throw new MapStoreError(`${command}: --spec ${spec} is outside the project at ${cwd}`);
 }
 

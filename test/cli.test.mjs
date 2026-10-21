@@ -1077,6 +1077,76 @@ test('diff rejects an absolute --spec outside the project and names it', () => {
   rmTmp(outside);
 });
 
+test('cached diff preserves a retargeted spec directory symlink for every checkout spelling', () => {
+  const repo = mkTmp();
+  const scratch = mkTmp();
+  let remote;
+  try {
+    gitInit(repo);
+    remote = addBareOrigin(repo);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+    for (const suite of ['suite-a', 'suite-b']) {
+      fs.mkdirSync(path.join(repo, suite));
+      fs.writeFileSync(path.join(repo, suite, 'styleproof.spec.ts'), '// styleproof spec');
+    }
+    fs.symlinkSync('suite-a', path.join(repo, 'e2e'), 'dir');
+    const spec = 'e2e/styleproof.spec.ts';
+    const baseKey = expectedCompatibilityKey({ cwd: repo, spec });
+    const targetSpec = 'suite-b/styleproof.spec.ts';
+    const targetKey = expectedCompatibilityKey({ cwd: repo, spec: targetSpec });
+    const baseSha = commitAll(repo, 'base');
+    spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+    fs.unlinkSync(path.join(repo, 'e2e'));
+    fs.symlinkSync('suite-b', path.join(repo, 'e2e'), 'dir');
+    const headSha = commitAll(repo, 'retarget spec directory');
+    const headKey = expectedCompatibilityKey({ cwd: repo, spec });
+    const bundles = [
+      [baseSha, baseKey, 'rgb(0, 0, 0)'],
+      [headSha, headKey, 'rgb(255, 0, 0)'],
+      // Both physical-path bundles exist and are identical: selecting them hides the change.
+      [baseSha, targetKey, 'rgb(0, 0, 0)'],
+      [headSha, targetKey, 'rgb(0, 0, 0)'],
+    ].map(([sha, compatibilityKey, color], index) => {
+      const dir = path.join(scratch, `bundle-${index}`);
+      writeCapture(
+        dir,
+        'home@1280',
+        { ...mapWith(color), metadata: { productState: { id: 'home', revision: 'fixture-v1' } } },
+        null,
+      );
+      writeManifest(dir, sha, compatibilityKey);
+      return { sha, compatibilityKey, dir };
+    });
+    seedMapStore(repo, bundles);
+    const alias = path.join(scratch, 'checkout');
+    fs.symlinkSync(repo, alias, 'dir');
+    for (const specArg of [targetSpec, spec, path.join(repo, spec), path.join(alias, spec)]) {
+      const jsonPath = path.join(scratch, 'diff.json');
+      const r = runIn(repo, DIFF, [
+        'main',
+        '--spec',
+        specArg,
+        '--expected-before-sha',
+        baseSha,
+        '--expected-after-sha',
+        headSha,
+        '--require-state-identity',
+        '--json',
+        jsonPath,
+      ]);
+      const expectedChanges = specArg === targetSpec ? 0 : 1;
+      assert.equal(r.status, expectedChanges, `${specArg}: ${r.stdout}${r.stderr}`);
+      const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      assert.equal(receipt.reviewableCounts.style, expectedChanges, specArg);
+      assert.equal(receipt.certifiesFully, expectedChanges === 0, specArg);
+    }
+  } finally {
+    rmTmp(repo);
+    rmTmp(scratch);
+    if (remote) rmTmp(remote);
+  }
+});
+
 test('diff compares an application dependency migration and reports both lockfile hashes as provenance', () => {
   const { repo, baseCompatibilityKey, headCompatibilityKey, baseLockfileHash, headLockfileHash } =
     setupCachedComparison({ changeLockfile: true });
