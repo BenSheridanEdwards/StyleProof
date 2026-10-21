@@ -247,9 +247,23 @@ function publishCommit(folder, daysAgo, overrides = {}) {
   };
 }
 
-async function sweep(fake, { budgetBytes = 1_000, retentionDays = 14, maximumCommitPages } = {}) {
+async function sweep(
+  fake,
+  {
+    budgetBytes = 1_000,
+    retentionDays = 14,
+    maximumCommitPages,
+    maximumAttempts = 1,
+    sleepImplementation = apiOptions.sleepImplementation,
+  } = {},
+) {
   let selection;
-  const options = { ...apiOptions, maximumAttempts: 1, fetchImplementation: fake.fetchImplementation };
+  const options = {
+    ...apiOptions,
+    maximumAttempts,
+    sleepImplementation,
+    fetchImplementation: fake.fetchImplementation,
+  };
   const result = await deleteReportFolders({
     ...options,
     selectFolders: async (folderSizesBytesByPath) => {
@@ -352,6 +366,37 @@ test('an open PR older than every other folder is protected by retention and bud
   assert.equal(result.branchSizeAfterBytes, 900);
   assert.equal(result.openFoldersExceedBudget, true);
   assert.ok(!fake.state.requests.includes('GET /pulls/1'));
+});
+
+test('a sweep re-reads PR lists on retry and preserves a reopened PR', async () => {
+  const closedPullRequests = [closedPull(50, 90)];
+  const openPullRequests = [];
+  const fake = buildFakeGitHub({
+    recursiveTreeEntries: reportTree({ 'pr-50': 900, 'run-1': 100 }),
+    closedPullRequests,
+    openPullRequests,
+    commits: [publishCommit('run-1', 30)],
+    refUpdateFailuresBeforeSuccess: 1,
+  });
+  const result = await sweep(fake, {
+    budgetBytes: 100,
+    maximumAttempts: 2,
+    sleepImplementation: async () => {
+      closedPullRequests.length = 0;
+      openPullRequests.push({ number: 50, closed_at: null });
+    },
+  });
+  assert.deepEqual(
+    fake.state.createdTrees[0].tree.map((entry) => entry.path),
+    ['pr-50', 'run-1'],
+  );
+  assert.equal(fake.state.refUpdates, 2);
+  assert.deepEqual(result.deletedFolders, ['run-1']);
+  assert.deepEqual(fake.state.createdTrees[1].tree, [{ path: 'run-1', mode: '040000', type: 'tree', sha: null }]);
+  assert.equal(result.branchSizeAfterBytes, 900);
+  for (const state of ['open', 'closed']) {
+    assert.equal(fake.state.requests.filter((request) => request.startsWith(`GET /pulls?state=${state}&`)).length, 2);
+  }
 });
 
 test('pure selection protects an explicitly open folder even when it has the oldest timestamp', () => {
