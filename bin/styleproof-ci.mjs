@@ -25,6 +25,7 @@ import {
   CiWorktreeError,
   CiWorktreeSession,
   assertResolvableCommit,
+  ciWorktreeScratchParent,
   consumerRelativeFromRepoRoot,
   ensureConsumerAtHead,
   gitRepoRoot,
@@ -40,6 +41,7 @@ import {
 import { planAncestorBaselineReuse, repoRelativePath } from '../dist/ancestor-baseline.js';
 import { classifyAncestorCaptureColdReason, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
 import { captureKeysIn } from '../dist/capture.js';
+import { isWithinDirectory } from '../dist/safe-filesystem.js';
 import {
   decideSelectiveRemap,
   formatSelectiveRemapPlan,
@@ -147,6 +149,16 @@ if (!process.env.CI && !opts.force) {
 const OWN_VERSION = JSON.parse(fs.readFileSync(path.join(binDir, '..', 'package.json'), 'utf8')).version;
 const root = path.resolve(baseDir);
 const consumerCwd = process.cwd();
+// Refuse a map root that holds the checkout or the temp folder this run's worktrees go
+// in (#943). Real paths, so a symlinked spelling of either cannot slip past.
+const realPath = (p) => (fs.existsSync(p) ? fs.realpathSync(p) : p);
+for (const [held, what] of [
+  [consumerCwd, 'the checkout'],
+  [ciWorktreeScratchParent(), "the temp folder that holds this run's worktrees"],
+]) {
+  if (isWithinDirectory(realPath(root), realPath(held)))
+    fail(NAME, `--base-dir ${root} is or contains ${what} (${held}); use a folder that holds only StyleProof maps`);
+}
 const env = childEnv(consumerCwd);
 const log = (message) => console.error(`${NAME}: ${message}`);
 const bail = (code) => {
@@ -531,9 +543,15 @@ function planHeadSelectiveRemap(baseMapsDir, consumerRoot, loaded) {
   });
 }
 
+/** Clear what an earlier run wrote under the map root, never the root itself: it may hold other files. */
+function clearOwnedMapRoot() {
+  for (const owned of ['base', 'head', 'styleproof-ci-outputs.json'])
+    fs.rmSync(path.join(root, owned), { recursive: true, force: true });
+}
+
 /** Rebuild the base cold inside its own worktree; returns true when the capture failed. */
 async function captureColdBase() {
-  fs.rmSync(root, { recursive: true, force: true });
+  clearOwnedMapRoot();
   const coldBaseCwd = worktreeRunCwd(worktrees.addDetached(base, 'cold-base'), consumerRel);
   const pm = detectPackageManagerPlan(coldBaseCwd);
   log(`base miss — rebuilding the pair cold (${pm.name})`);
@@ -623,7 +641,7 @@ function writeOutputs(baseCaptureFailed = false) {
 }
 
 try {
-  fs.rmSync(root, { recursive: true, force: true });
+  clearOwnedMapRoot();
   if (noStore) {
     log('no map store (--no-store) — capturing base and head in this job');
     // Soft-pass HOLD: structured cold reason for consumer Visual (#734).
