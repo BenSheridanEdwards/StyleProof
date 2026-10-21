@@ -278,10 +278,19 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const findingCount = findings.length;
   // The raw base: a geometry correspondence can move part of a run and split it.
   const spacing = siblingSpacingChanges(ctx.load(ctx.beforeDir, sd.surface), mapB);
+  const surfaceList =
+    cg.surfaces.length > 1
+      ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
+      : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
   if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
     const reason = MISLEADING_CROP_REASON;
     return {
       md: [
+        // The heading also ends the Action's PR comment summary (#952).
+        '',
+        `### ${regionHeading(changedPaths, findings)}`,
+        '',
+        surfaceList,
         '',
         `_${reason}_`,
         ...spacingLines(spacing),
@@ -303,10 +312,6 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);
   const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
   groups.sort((l, r) => topY(l) - topY(r));
-  const surfaceList =
-    cg.surfaces.length > 1
-      ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
-      : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
   const claimed = new Set<SiblingSpacingChange>();
   const rendered = groups.map((g) => {
     const region = visible(g.after) ? g.after : g.before;
