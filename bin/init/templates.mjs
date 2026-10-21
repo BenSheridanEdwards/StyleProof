@@ -414,7 +414,7 @@ const gateInput = ({ scaffold }) =>
 
 // The Action's report-storage input follows the maps' storage axis: artifact keeps
 // the report out of git history; branch publishes it to the styleproof-reports branch.
-const actionStep = (ctx, failedOutput) => `      - uses: BenSheridanEdwards/StyleProof@v8
+const actionStep = (ctx, failedOutput) => `      - uses: BenSheridanEdwards/StyleProof@v9
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
@@ -662,7 +662,7 @@ permissions:
 
 jobs:
   approve:
-    uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v8
+    uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v9
     with:
       status-context: StyleProof
       allow-self-approval: false
