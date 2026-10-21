@@ -1361,6 +1361,20 @@ Capture reads the React fiber in-page (`__reactFiber$*`/`__reactProps$*` on Reac
 
 Like the content layer it is **advisory**: never fed to the certification diff or the gate, so captures stay deterministic. Component names are mangled in minified production builds, so it's most useful against a dev / non-minified target; on a non-React page the fiber keys are absent and the field is simply omitted.
 
+## Optional: served-rule ledger (Change Reach, opt-in)
+
+Change Reach ([#934](https://github.com/BenSheridanEdwards/StyleProof/issues/934)) will name a changed CSS rule that no captured state ever rendered. Its first piece records the evidence. Off by default, opt in with `captureReach`:
+
+```ts
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureReach: true });
+```
+
+Each map then carries `reach`: every leaf rule of every stylesheet the page serves (keyed by its at-rule chain and selector, such as `@media (min-width: 1440px) > .panel`), a digest of its declarations, and `used: true` when it matched an element while the map was read. Forced `:hover`/`:focus`/`:active` reads count. Recording starts after the settle, so a rule that matched only while the page was still changing does not count. `@keyframes` and `@font-face` never read as used, because Chromium's rule usage only covers style rules. The rules that reference them carry the names in `refs`. Stylesheets StyleProof injects are left out.
+
+`defineStyleMapCapture` arms the tracker before each `go()`. Chromium keeps a linked stylesheet's text only when the tracker was armed before the sheet loaded. For a direct `captureStyleMap` call, arm one with `trackServedRules(page)` before you navigate and pass `{ captureReach: true, servedRules }`. Without it, linked stylesheets are counted in `reach.unreadable` rather than silently dropped.
+
+Nothing reads the ledger yet. The diff and the gate are unchanged, and a map with `reach` diffs identically to one without. The ledger adds about 23 bytes per served rule to a gzipped map.
+
 ## Optional: selective remap (advisory + CI opt-in)
 
 On a large app, capturing every surface on every PR is the slow part. `affectedSurfaces` answers the question that lets you skip most of it: **given the files a change touched, which declared surfaces could have rendered differently?** Everything it doesn't return can reuse its restored base map.

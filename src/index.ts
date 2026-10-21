@@ -133,6 +133,7 @@ export {
   saveStyleMap,
   loadStyleMap,
   trackInflightRequests,
+  trackServedRules,
   validateProductStateIdentity,
   ProductStateIdentityError,
 } from './capture.js';
@@ -148,6 +149,9 @@ export type {
   LiveRegionCandidate,
   CapturedOverlay,
   Rect,
+  ServedRule,
+  ServedRules,
+  ServedRuleTracker,
 } from './capture.js';
 
 export { diffStyleMaps, diffStyleMapDirs } from './diff.js';
