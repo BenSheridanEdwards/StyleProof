@@ -76,8 +76,9 @@ export function groupTitle(findings: Finding[]): string {
 // Computed values that follow from box size/position rather than styling. On any
 // reflow they change all the way up the ancestor chain, so an element whose ONLY
 // changes are these is a reflow casualty: the differ keeps them, the report hides them.
+// Min/max sizes retain authored computed values, so they must stay reviewable.
 const DERIVED_PROPS = new Set(
-  `width height block-size inline-size min-width min-height max-width max-height perspective-origin transform-origin
+  `width height block-size inline-size perspective-origin transform-origin
    top right bottom left inset-block-start inset-block-end inset-inline-start inset-inline-end`.split(/\s+/),
 );
 // Forced :hover/:focus/:active deltas also drop grid-track relayout noise.
@@ -260,10 +261,10 @@ export type ComparisonTruthOptions = {
 // What a live text change can plausibly move: its own box size and the sizes of
 // the boxes that wrap it, plus the origins that compute from those sizes. Offsets
 // (top/left/inset-*, …) and transforms are never a text reflow, so a live path
-// can never launder them.
+// can never launder them. Nor can min-/max- sizes: getComputedStyle reports their
+// authored computed value, not the laid-out size, so text length never moves them.
 const LIVE_TEXT_REFLOW_PROPS = new Set(
-  `width height block-size inline-size min-width min-height max-width max-height min-block-size max-block-size
-   min-inline-size max-inline-size perspective-origin transform-origin`.split(/\s+/),
+  'width height block-size inline-size perspective-origin transform-origin'.split(' '),
 );
 
 /**

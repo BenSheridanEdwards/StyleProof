@@ -244,6 +244,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   writing anything and names the command that switches, for example
   `styleproof-init --upgrade --mode review-gate`. The advisory gate hint and the
   fork hint name `--upgrade` too.
+- **A drifting age label no longer hides an authored `min-*`/`max-*` size
+  change on its ancestor (#982).** With `liveText` declared, a change to
+  `min-width`, `max-width`, `min-height`, `max-height` or their logical
+  `-block-size`/`-inline-size` forms on a live element or its ancestor was
+  excused as text reflow. `styleproof-diff` then reported 0 reviewable changes,
+  exited 0 and set `certifiesFully: true`, and `styleproof-report` passed too.
+  These properties report their authored value, so a longer or shorter age can
+  never change them. They are now always reviewable, and that run exits 1. An
+  age drift with no stylesheet change still passes.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
