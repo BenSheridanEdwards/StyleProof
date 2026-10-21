@@ -46,14 +46,14 @@ function stepProgram(stepName, values) {
   return { environment, program: new AsyncFunction('require', 'github', 'context', 'core', script) };
 }
 
-function values({ untrusted, trustState, changed, approved = false, mode = 'review-gate' }) {
+function values({ untrusted, trustState, changed, approved = false, approver = 'maintainer', mode = 'review-gate' }) {
   return {
     'steps.context.outputs.pr-number': '42',
     'steps.context.outputs.head-sha': HEAD_SHA,
     'steps.context.outputs.untrusted-capture': untrusted ? 'true' : 'false',
     'steps.diff.outputs.changed': changed ? 'true' : 'false',
     'steps.gate.outputs.approved': approved ? 'true' : 'false',
-    'steps.gate.outputs.approver': approved ? 'maintainer' : '',
+    'steps.gate.outputs.approver': approved ? approver : '',
     'steps.verdict.outputs.state': trustState,
     'steps.config.outputs.blocking': 'true',
     'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': ARTIFACT_URL,
@@ -146,7 +146,7 @@ test('a fork capture with changes is pending until a maintainer approves it', as
   });
   assert.deepEqual(
     { state: cleanApproved.statuses[0].state, description: cleanApproved.statuses[0].description },
-    { state: 'success', description: 'StyleProof changes approved' },
+    { state: 'success', description: 'Approved by @maintainer' },
   );
 });
 
@@ -190,7 +190,11 @@ const BOT = { login: 'github-actions[bot]', type: 'Bot' };
 async function rerunWithChanges(prior) {
   const scenario = { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true };
   const { outputs: gate } = await run('gate', scenario, [prior]);
-  const { statuses } = await run('Set review status', { ...scenario, approved: gate.approved === 'true' });
+  const { statuses } = await run('Set review status', {
+    ...scenario,
+    approved: gate.approved === 'true',
+    approver: gate.approver,
+  });
   return { gate, status: { state: statuses[0].state, description: statuses[0].description } };
 }
 
@@ -225,21 +229,48 @@ test('a clean or advisory green on the same head SHA is not a sign-off for a lat
   }
 });
 
-test('a real sign-off on the same head SHA carries forward, from the canonical writer only', async () => {
+test('an upgrade rejects the anonymous approval left by a buggy rerun of a clean status', async () => {
+  const { statuses } = await run('Set review status', {
+    untrusted: false,
+    trustState: 'NO_REVIEWABLE_STYLE_CHANGES',
+    changed: false,
+  });
+  assert.equal(statuses[0].state, 'success');
+  // The old gate mistook this clean green for a sign-off, then wrote this anonymous approval.
+  const legacyApproval = { ...statuses[0], description: 'StyleProof changes approved', creator: BOT };
+  assert.deepEqual(await rerunWithChanges(legacyApproval), {
+    gate: { approved: 'false', approver: '' },
+    status: {
+      state: 'failure',
+      description: 'StyleProof changes need sign-off — tick the box in the report comment',
+    },
+  });
+  const fork = { untrusted: true, trustState: 'NO_REVIEWABLE_STYLE_CHANGES', changed: false };
+  const { outputs: gate } = await run('gate', fork, [legacyApproval]);
+  assert.deepEqual(gate, { approved: 'false', approver: '' });
+  const pending = await run('Set review status', { ...fork, approved: gate.approved === 'true' });
+  assert.equal(pending.statuses[0].state, 'pending');
+});
+
+test('a real sign-off on the same head SHA preserves its identity across reruns, from the canonical writer only', async () => {
   const signOff = (description, creator = BOT) => ({ context: 'StyleProof', state: 'success', description, creator });
-  const approvedStatus = { state: 'success', description: 'StyleProof changes approved' };
-  assert.deepEqual(await rerunWithChanges(signOff('Approved by @maintainer')), {
-    gate: { approved: 'true', approver: 'maintainer' },
-    status: approvedStatus,
-  });
-  assert.deepEqual(await rerunWithChanges(signOff('Approved by @octocat_acme')), {
-    gate: { approved: 'true', approver: 'octocat_acme' },
-    status: approvedStatus,
-  });
-  assert.deepEqual(await rerunWithChanges(signOff('StyleProof changes approved')), {
-    gate: { approved: 'true', approver: '' },
-    status: approvedStatus,
-  });
+  for (const approver of ['maintainer', 'octocat_acme']) {
+    const description = `Approved by @${approver}`;
+    const first = await rerunWithChanges(signOff(description));
+    assert.deepEqual(first, {
+      gate: { approved: 'true', approver },
+      status: { state: 'success', description },
+    });
+    assert.deepEqual(await rerunWithChanges({ ...first.status, context: 'StyleProof', creator: BOT }), first);
+
+    const fork = { untrusted: true, trustState: 'NO_REVIEWABLE_STYLE_CHANGES', changed: false };
+    const { outputs: gate } = await run('gate', fork, [signOff(description)]);
+    assert.deepEqual(gate, { approved: 'true', approver });
+    const { statuses } = await run('Set review status', { ...fork, approved: gate.approved === 'true', approver });
+    assert.equal(statuses[0].state, 'success');
+    assert.equal(statuses[0].description, description);
+    assert.deepEqual((await run('gate', fork, [{ ...statuses[0], creator: BOT }])).outputs, gate);
+  }
   const foreign = await rerunWithChanges(signOff('Approved by @maintainer', { login: 'some-app[bot]', type: 'Bot' }));
   assert.deepEqual(foreign.gate, { approved: 'false', approver: '' });
 });
