@@ -115,6 +115,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and pass it as `servedRules`. Otherwise linked stylesheets are counted
   `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
   `ServedRuleTracker`.
+- **Reach corpus (`bench/`, #988).** `npm run bench:reach` pins the miss Change
+  Reach (#934) exists to close. A base/head fixture carries 14 seeded changes,
+  13 of them visual. A spec that opens only the healthy state shows 1 of the 13
+  in today's diff. Prototype reach joins (`bench/reach-joins.mjs`) name 11 of
+  the 12 misses from CSS rule usage, V8 block coverage and class-list deltas,
+  and the twelfth is pinned as the named runtime CSS-in-JS residual. Capturing
+  all five states shows 12 of 13. `npm run bench:reach:check` fails on drift in
+  either direction and runs in CI beside the detection corpus. Benchmark only,
+  not part of the published package.
 - **The PR comment names what changed, not just how much (#831).** A **What
   changed** block now follows the headline count. It has one row per one-sided
   surface with its status, and one row per change that names up to three
