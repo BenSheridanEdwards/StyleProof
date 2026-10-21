@@ -27,7 +27,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
     fs.readFileSync(path.join(here, '..', 'scripts/check-coverage.mjs'), 'utf8'),
     /COVERAGE_LINE_FLOOR = 40/,
   );
-  assert.match(buildJob, /matrix:\n[\s\S]*node: \['18', '20', '22'\]/);
+  assert.match(buildJob, /matrix:\n[\s\S]*node: \['22\.13\.0', '22', '24'\]/);
   assert.match(buildJob, /npm run build/);
   assert.match(buildJob, /if: matrix\.node != '22'/);
   assert.match(buildJob, /npm run test:unit/);
@@ -101,6 +101,30 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(required, /set -euo pipefail/);
   // The policy itself is executed case by case in test/ci-required-policy.test.mjs.
   assert.doesNotMatch(required, /actions\/checkout/);
+});
+
+test('the build matrix tests the exact Node floor every manifest declares', () => {
+  const floor = packageJson.engines.node.match(/^>=(\d+\.\d+\.\d+)$/)?.[1];
+  assert.ok(floor, `engines.node must be a plain >=X.Y.Z floor (got ${packageJson.engines.node})`);
+  const lock = JSON.parse(fs.readFileSync(path.join(here, '..', 'package-lock.json'), 'utf8'));
+  assert.equal(lock.packages[''].engines.node, packageJson.engines.node);
+  assert.equal(packageJson.devEngines.runtime.version, packageJson.engines.node);
+  assert.match(ci, new RegExp(`node: \\['${floor.replaceAll('.', '\\.')}',`));
+  const nvmrc = fs.readFileSync(path.join(here, '..', '.nvmrc'), 'utf8').trim();
+  assert.equal(nvmrc, floor.split('.')[0], '.nvmrc selects the Node major whose CI leg runs the once-only gates');
+  assert.match(ci, /node: \[[^\]]*'22'[^\]]*\]/, "the build matrix keeps the '22' leg the once-only gates run on");
+
+  const floorMajor = Number(floor.split('.')[0]);
+  const templates = fs.readFileSync(path.join(here, '..', 'bin/init/templates.mjs'), 'utf8');
+  const initMajor = Number(templates.match(/node-version: '(\d+)'/)?.[1]);
+  assert.ok(initMajor >= floorMajor, `styleproof-init sets up Node ${initMajor}, below the ${floorMajor} floor`);
+  const workflowsDir = path.join(here, '..', '.github/workflows');
+  for (const file of fs.readdirSync(workflowsDir).filter((name) => name.endsWith('.yml'))) {
+    const workflow = fs.readFileSync(path.join(workflowsDir, file), 'utf8');
+    for (const [, major] of workflow.matchAll(/node-version: '(\d+)/g)) {
+      assert.ok(Number(major) >= floorMajor, `${file} sets up Node ${major}, below the ${floorMajor} floor`);
+    }
+  }
 });
 
 test('CI runs a small non-Linux CLI smoke without the browser suite', () => {

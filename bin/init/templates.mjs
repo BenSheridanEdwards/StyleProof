@@ -6,7 +6,7 @@ import { SPEC_PATH_ENV } from '../spec-path-env.mjs';
 
 const setupNode = (extra = '') => `      - uses: actions/setup-node@v7
         with:
-          node-version: '20'${extra}`;
+          node-version: '22'${extra}`;
 
 export const PACKAGE_MANAGERS = {
   npm: {
