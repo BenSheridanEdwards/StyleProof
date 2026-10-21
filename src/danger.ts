@@ -4,4 +4,4 @@
  * classifiers run inside `page.evaluate` and recompile it in the browser.
  */
 export const DANGER_SOURCE =
-  '\\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew)\\b';
+  '\\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay(?:ments?)?|purchases?|buy|check ?out|place ?order|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew)\\b';
