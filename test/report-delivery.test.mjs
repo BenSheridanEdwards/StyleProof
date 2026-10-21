@@ -40,6 +40,7 @@ function actionCommentScript({
     ['inputs.report-retention-days', '30'],
     ['steps.diff.outputs.changed', 'true'],
     ['inputs.require-approval', 'true'],
+    ['inputs.fail-on-diff', 'true'],
     ['inputs.mode', 'certify'],
     ['steps.config.outputs.blocking', 'true'],
     ['steps.gate.outputs.approved', 'false'],
