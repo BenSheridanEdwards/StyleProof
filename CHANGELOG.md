@@ -225,6 +225,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The result also depended on key order in the JSON. Now every declaration that
   matches an unproven pair is in use, in either order. A declaration that
   matches no unproven pair is still stale and still fails closed.
+- **An `ignore` entry written as a selector list now skips the descendants of
+  every selector in it (#981).** `ignore: ['.ticker, .clock']` built the skip
+  selector `.ticker, .clock, .ticker, .clock *`, so ` *` applied only to
+  `.clock`. Children of `.ticker` were still captured, diffed, forced into
+  hover, focus and active states and scanned as live candidates, so a change
+  inside the region the user asked to skip failed the diff. The descendant
+  clause is now grouped as `:is(.ticker, .clock) *`, so a list acts like the
+  same selectors given as separate entries. A pseudo-element entry such as
+  `.card::before` no longer makes the capture throw a `SyntaxError`; it matches
+  no element.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
