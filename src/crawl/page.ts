@@ -212,14 +212,39 @@ export async function captureInPlace(page: Page, key: string, opts: SurfaceCrawl
   }
 }
 
-/** Clear storage before the app's code runs on EVERY load, so each gotoFresh is a clean slate in one navigation. */
+/** sessionStorage flag that spares exactly one load from the armed reset (see keepStorageOnNextLoad). */
+const KEEP_STORAGE = 'styleproof:keep-storage';
+const armed = new WeakSet<Page>();
+
+/** Clear storage before the app's code runs on EVERY load, so each gotoFresh is a clean slate in one navigation.
+ *  Armed once per page: a second copy of the script would clear what the flag spared. */
 export async function armResetStorage(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+  if (armed.has(page)) return;
+  armed.add(page);
+  await page.addInitScript((keep) => {
+    // An about:blank frame (the capture's UA-defaults probe) shares the page's storage but is no load.
+    if (location.protocol === 'about:') return;
     try {
+      if (sessionStorage.getItem(keep) !== null) {
+        sessionStorage.removeItem(keep);
+        return;
+      }
       localStorage.clear();
       sessionStorage.clear();
     } catch {
       /* storage unavailable (e.g. file://) */
     }
-  });
+  }, KEEP_STORAGE);
+}
+
+/** Let the next load keep its storage, so a session the setup steps stored (a login token) survives it. */
+export async function keepStorageOnNextLoad(page: Page): Promise<void> {
+  if (!armed.has(page)) return; // nothing would clear it
+  await page.evaluate((keep) => {
+    try {
+      sessionStorage.setItem(keep, '1');
+    } catch {
+      /* storage unavailable: nothing to keep */
+    }
+  }, KEEP_STORAGE);
 }

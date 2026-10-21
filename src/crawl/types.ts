@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import type { CrawlLink } from '../crawl.js';
 import type { IncompleteUiDiagnostic } from '../incomplete-ui.js';
 import type { AuthBoundaryObservation, CrawlConfidence } from '../crawl-confidence.js';
 
@@ -31,6 +32,10 @@ export type CrawlReport = {
   confidence: CrawlConfidence;
   /** Privacy-safe blocked continuations observed on each captured surface. */
   incompleteUi: IncompleteUiObservation[];
+  /** Same-origin pages the settled base state links to — what a multi-page sweep follows. */
+  links: CrawlLink[];
+  /** Path+query the base state settled on (after redirects and setup); `links` were read there. */
+  landed: string;
 };
 
 /** One deterministic step run after every fresh navigation — how input-gated states become

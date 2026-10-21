@@ -16,7 +16,7 @@ import { DANGER_SOURCE } from '../danger.js';
 import { unsafeControlDiagnostic } from '../incomplete-ui.js';
 import { classifyAuthBoundary, type AuthBoundaryMetadata } from '../auth-boundary.js';
 import { resolveCrawlConfidence, redactedRoutePath, shouldRetainAuthRedirects } from '../crawl-confidence.js';
-import { uniqueKeyFor } from '../crawl.js';
+import { selectCrawlLinks, uniqueKeyFor, type CrawlLink } from '../crawl.js';
 import { slug } from '../util.js';
 import { collectClickable, collectDefinedClasses } from './browser.js';
 import {
@@ -24,6 +24,7 @@ import {
   captureInPlace,
   fingerprint,
   gotoFresh,
+  keepStorageOnNextLoad,
   observeBoundaries,
   pathAndSearch,
   perform,
@@ -280,6 +281,9 @@ async function sweepCandidatesHere(
  *  deduped like any surface but never queued: a stalled app is not a state to crawl deeper from. */
 async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'): Promise<void> {
   const { opts, st } = ctx;
+  const gated = Boolean(opts.setup?.length);
+  // The page stands in the gated base state: keep the session setup stored (setup itself would stall).
+  if (gated) await keepStorageOnNextLoad(page);
   // Match by resource TYPE, not URL: apps cache-bust, so the re-load's data URLs never equal the observed ones.
   await page.route('**/*', async (route) => {
     const kind = route.request().resourceType();
@@ -291,6 +295,8 @@ async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'):
     await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
     await page.goto(opts.url, { waitUntil: 'load' });
     await settleDom(page, 2500); // no networkidle — a stalled request never goes idle
+    // Walled anyway: the session did not survive the reload. That is the setup's gate, not a data state.
+    if (gated && (await observeBoundaries(page)).auth) return;
     await observeInto(page, st, null, `during data-state ${mode}`);
     const fp = await fingerprint(page);
     if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
@@ -389,6 +395,12 @@ async function gotoFreshObservingAuth(page: Page, opts: SurfaceCrawlOptions, st:
   if (landed) st.authObservations.push(landed);
 }
 
+/** Same-origin pages linked from where the page stands, keyed by route. */
+async function linkedPages(page: Page): Promise<CrawlLink[]> {
+  const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href'))).catch(() => []);
+  return selectCrawlLinks(hrefs, { base: page.url() });
+}
+
 async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlReport> {
   fs.mkdirSync(opts.out, { recursive: true });
   const st: CrawlState = {
@@ -422,6 +434,10 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   const ctx: Ctx = { opts, st };
   const { classes: defined, unreadable } = await page.evaluate(collectDefinedClasses);
   const fp = await fingerprint(page);
+  // Read the nav from the settled base (after wait, settle, setup, reveal): a nav that mounts late
+  // or only behind the setup gate has no links on a bare load.
+  const links = await linkedPages(page);
+  const landed = pathAndSearch(page.url());
   st.seen.add(fp.sig);
   await record(page, ctx, { path: [], depth: 0, sig: fp.sig, retryOnly: false, viaRetry: false }, fp, st.queue);
   // The loading skeleton and error render exist in every data-driven app but almost never in a click path.
@@ -454,6 +470,8 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
       ),
     }),
     incompleteUi: st.incompleteUiObservations,
+    links,
+    landed,
   };
 }
 

@@ -257,6 +257,82 @@ test('authentication wall rendered by a synthetic data state → incomplete-auth
   }
 });
 
+// A fetch login over setup. `/` keeps its token in localStorage; `/memory` keeps it in memory only.
+const FETCH_LOGIN_SPA = `<!doctype html><html><head><meta charset="utf-8"><style>
+    .signin { padding: 16px; } .dashboard { padding: 16px; }
+    .skeleton { height: 20px; background: rgb(210,210,210); } .item { padding: 4px; } .err { color: rgb(200,0,0); }
+  </style></head><body><div id="root"></div><script>
+    const root = document.getElementById('root');
+    const keep = location.pathname !== '/memory';
+    let token = keep ? localStorage.getItem('token') : null;
+    function signin() {
+      root.innerHTML = '<form class="signin"><input id="user" autocomplete="username">' +
+        '<input id="pw" type="password" autocomplete="current-password"><button id="sign-in" type="button">Sign in</button></form>';
+      document.getElementById('sign-in').onclick = async () => {
+        token = (await (await fetch('/api/login', { method: 'POST' })).json()).token;
+        if (keep) localStorage.setItem('token', token);
+        dashboard();
+      };
+    }
+    async function dashboard() {
+      root.innerHTML = '<section class="dashboard"><h1>Dashboard</h1><div class="skeleton"></div></section>';
+      const section = root.firstChild;
+      try {
+        const r = await fetch('/api/items', { headers: { authorization: 'Bearer ' + token } });
+        if (!r.ok) throw new Error('items unavailable');
+        section.innerHTML = '<h1>Dashboard</h1>' + (await r.json()).map((i) => '<p class="item">' + i + '</p>').join('');
+      } catch {
+        section.innerHTML = '<h1>Dashboard</h1><p class="err">Could not load items</p>';
+      }
+    }
+    token ? dashboard() : signin();
+  </script></body></html>`;
+
+// Setup's login must hold through the loading/error data-state reloads (#947): they capture the
+// app's own skeleton and error render, and a session that cannot survive a reload lands back on
+// the sign-in form — the setup gate, never an unacknowledged wall or a data-state surface.
+test('setup login holds through synthetic data states → complete, never the sign-in form', async ({ page }) => {
+  const server = http.createServer((req, res) => {
+    res.setHeader('content-type', req.url?.startsWith('/api/') ? 'application/json' : 'text/html; charset=utf-8');
+    if (req.url === '/api/login') return res.end('{"token":"t-synthetic"}');
+    if (req.url === '/api/items') return res.end('["alpha","beta"]');
+    res.end(FETCH_LOGIN_SPA);
+  });
+  const port = await listen(server);
+  const setup = [
+    { action: 'fill' as const, selector: '#user', value: 'demo' },
+    { action: 'fill' as const, selector: '#pw', value: 'synthetic-pass' },
+    { action: 'click' as const, selector: '#sign-in' },
+    { action: 'waitFor' as const, selector: '.dashboard' },
+  ];
+  const outs: string[] = [];
+  const crawl = (route: string) => {
+    outs.push(path.join(os.tmpdir(), `styleproof-auth-setup-data-${Math.random().toString(36).slice(2)}`));
+    return crawlAndCapture(page, {
+      ...baseOpts(`http://127.0.0.1:${port}${route}`, outs[outs.length - 1]),
+      dataStates: true,
+      setup,
+    });
+  };
+  try {
+    const inMemory = await crawl('/memory');
+    expect(inMemory.confidence.status).toBe('complete');
+    expect(inMemory.confidence.blocked).toBe(false);
+    expect(inMemory.coverage.renderedClasses).not.toContain('signin');
+
+    // A second crawl on the same page (as a multi-page sweep does) still keeps the stored session.
+    const stored = await crawl('/');
+    expect(stored.confidence.status).toBe('complete');
+    expect(stored.confidence.blocked).toBe(false);
+    expect(stored.surfaces.map((s) => s.key)).toEqual(expect.arrayContaining(['loading', 'error']));
+    expect(stored.coverage.renderedClasses).toEqual(expect.arrayContaining(['skeleton', 'err']));
+    expect(stored.coverage.renderedClasses).not.toContain('signin');
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    for (const out of outs) fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
 async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return (server.address() as AddressInfo).port;
