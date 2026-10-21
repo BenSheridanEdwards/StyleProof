@@ -16,6 +16,7 @@ import {
 import { captureForcedStates, resolveForcedStateLimits } from './capture/forced-states.js';
 import { alignRectsToFullPageGeometry } from './capture/full-page.js';
 import { trackInflightRequests } from './capture/network.js';
+import { trackServedRules } from './capture/reach.js';
 import { isUnder, skipSelector, warn } from './capture/shared.js';
 import type {
   CaptureOptions,
@@ -36,6 +37,8 @@ export type {
   LiveRegionCandidate,
   ProductStateIdentity,
   Rect,
+  ServedRule,
+  ServedRules,
   StateRecipeCaptureProvenance,
   StyleMap,
 } from './capture/types.js';
@@ -48,6 +51,7 @@ export {
   stateLayerScreenshotPath,
 } from './capture/forced-states.js';
 export { trackDataResidue, trackInflightRequests } from './capture/network.js';
+export { trackServedRules, type ServedRuleTracker } from './capture/reach.js';
 export { urlMatcher } from './capture/url-glob.js';
 export {
   captureKeyFromMapFile,
@@ -349,9 +353,16 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const motion = (await page.evaluate(capturePage, { skipSel, motionOnly: true, captureText: false })).elements;
   // Tracked so a page reused without a reload (SPA go(), self-check) never accumulates freeze tags.
   const refreezeTag = await page.addStyleTag({ content: FREEZE_CSS });
+  // Rule usage starts after the settle, so a rule matched only while the page was still
+  // changing is not recorded as reached; starting it records every rule the settled page matches.
+  const reach = options.captureReach ? (options.servedRules ?? (await trackServedRules(page))) : undefined;
   try {
-    return await readSettledPage(page, { options, limits, ignore, skipSel, volatile, liveCandidates, motion });
+    await reach?.start();
+    const map = await readSettledPage(page, { options, limits, ignore, skipSel, volatile, liveCandidates, motion });
+    return reach ? { ...map, reach: await reach.stop([FREEZE_CSS]) } : map;
   } finally {
+    // A caller-armed tracker outlives this capture (self-check, popups); one armed here does not.
+    if (reach && !options.servedRules) await reach.dispose();
     // Best-effort: the page may already be closing on a throw path.
     await refreezeTag.evaluate((el) => (el as HTMLStyleElement).remove()).catch(() => {});
   }

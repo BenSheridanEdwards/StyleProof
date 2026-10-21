@@ -56,6 +56,22 @@ test('auditLegacyPairs: a declared surface base acknowledges every width of that
   assert.deepEqual(audit.staleAcknowledgements, []);
 });
 
+test('auditLegacyPairs: overlapping base and exact declarations are both in use, whatever their key order', () => {
+  const why = 'known demo shell pending identity stamp';
+  for (const surfaces of [['home@1280', 'home@768'], ['home@1280']]) {
+    for (const declared of [
+      { home: why, 'home@1280': why },
+      { 'home@1280': why, home: why },
+    ]) {
+      const audit = auditLegacyPairs(surfaces.map(legacy), declared, true);
+      const label = `${Object.keys(declared).join(', ')} over ${surfaces.join(', ')}`;
+      assert.deepEqual(audit.declared, surfaces, label);
+      assert.deepEqual(audit.undeclared, [], label);
+      assert.deepEqual(audit.staleAcknowledgements, [], label);
+    }
+  }
+});
+
 test('auditLegacyPairs: comparable identity is not a legacy pair and stale-declares the leftover', () => {
   const audit = auditLegacyPairs(
     [comparable('home@1280'), required('checkout@1280')],

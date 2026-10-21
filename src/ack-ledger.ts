@@ -131,11 +131,12 @@ export function reconcileLedger<T>(
   const acknowledged: string[] = [];
   const unacknowledged: string[] = [];
   for (const key of observed) {
-    const hit = ledgerKeys.find((ledgerKey) => matches(ledgerKey, key));
-    if (hit === undefined) unacknowledged.push(key);
+    // Every matching ledger key is in use, so overlapping keys are never stale and key order cannot matter.
+    const hits = ledgerKeys.filter((ledgerKey) => matches(ledgerKey, key));
+    if (hits.length === 0) unacknowledged.push(key);
     else {
       acknowledged.push(key);
-      used.add(hit);
+      for (const hit of hits) used.add(hit);
     }
   }
   return { acknowledged, unacknowledged, stale: ledgerKeys.filter((key) => !used.has(key)) };
