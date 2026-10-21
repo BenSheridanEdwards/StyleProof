@@ -19,12 +19,14 @@ export type ScopeGap = { surface: string; reason: string };
 export function aggregateConfidence(reports: CrawlReport[]): AggregatedConfidence {
   const all = reports.map((r) => r.confidence).filter(Boolean);
   const has = (status: CrawlConfidenceStatus): boolean => all.some((c) => c.status === status);
+  // Each page checks the whole exclude map, so a key is stale for the run only when every page lists it.
+  const staleLists = all.map((c) => c.staleExclusions ?? []);
   return {
     blocked: all.some((c) => c.blocked),
     status: has('incomplete-auth') ? 'incomplete-auth' : has('incomplete-unknown') ? 'incomplete-unknown' : 'complete',
     unack: all.flatMap((c) => c.unacknowledged ?? []),
     ack: all.flatMap((c) => c.acknowledged ?? []),
-    stale: [...new Set(all.flatMap((c) => c.staleExclusions ?? []))].sort(),
+    stale: [...new Set(staleLists.flat())].filter((key) => staleLists.every((list) => list.includes(key))).sort(),
   };
 }
 

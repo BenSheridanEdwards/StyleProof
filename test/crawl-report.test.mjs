@@ -10,6 +10,7 @@ import {
   crawlSummaryLine,
   incompleteUiLines,
 } from '../dist/crawl/report.js';
+import { resolveCrawlConfidence } from '../dist/crawl-confidence.js';
 
 const confidence = (over = {}) => ({
   status: 'complete',
@@ -45,7 +46,7 @@ test('aggregateCoverage: a class rendered on any page is covered; unreadable she
   assert.deepEqual(cov, { defined: 3, rendered: 2, missing: ['c'], unreadable: ['x.css'] });
 });
 
-test('aggregateConfidence: incomplete-auth wins, blocked when any page is blocked, stale keys dedupe', () => {
+test('aggregateConfidence: incomplete-auth wins, blocked when any page is blocked, stale keys intersect', () => {
   assert.deepEqual(aggregateConfidence([]), { blocked: false, status: 'complete', unack: [], ack: [], stale: [] });
   const wall = { key: '/login·password-input', diagnostics: [{ kind: 'credential-input', reason: 'password-input' }] };
   const agg = aggregateConfidence([
@@ -62,7 +63,34 @@ test('aggregateConfidence: incomplete-auth wins, blocked when any page is blocke
   assert.equal(agg.status, 'incomplete-auth');
   assert.equal(agg.blocked, true);
   assert.deepEqual(agg.unack, [wall]);
-  assert.deepEqual(agg.stale, ['/a', '/b']);
+  assert.deepEqual(agg.stale, ['/a']);
+});
+
+test('aggregateConfidence: an exclusion that acknowledged a wall on any crawled page is not stale (#963)', () => {
+  const exclude = { '/admin': 'staff-only wall', '/login': 'third-party sign-in, outside scope' };
+  const wall = (route) => ({ route, diagnostics: [{ kind: 'credential-input', reason: 'password-input' }] });
+  const page = (exc, ...routes) =>
+    report({ confidence: resolveCrawlConfidence({ observations: routes.map(wall), exclude: exc }) });
+  // Each page computes stale against the whole map: the entry page matched nothing, the others one key each.
+  const pages = [page(exclude), page(exclude, '/login'), page(exclude, '/admin')];
+  const perPage = pages.map((p) => p.confidence.staleExclusions);
+  assert.deepEqual(perPage, [['/admin', '/login'], ['/admin'], ['/login']]);
+  const agg = aggregateConfidence(pages);
+  assert.deepEqual(agg.stale, []);
+  assert.deepEqual(
+    agg.ack.map((a) => a.key),
+    ['/login·password-input', '/admin·password-input'],
+  );
+  const lines = confidenceLines(agg);
+  assert.match(lines[0], /— acknowledged; scope explicitly limited$/);
+  assert.equal(lines.filter((line) => line.includes('stale exclusions:')).length, 0);
+
+  // A key no crawled page matched is still stale, and a single page keeps its own sorted list.
+  const rotted = { ...exclude, '/gone': 'removed route' };
+  const withRotted = aggregateConfidence([page(rotted), page(rotted, '/login'), page(rotted, '/admin')]);
+  assert.deepEqual(withRotted.stale, ['/gone']);
+  assert.ok(confidenceLines(withRotted).includes('    stale exclusions: /gone'));
+  assert.deepEqual(aggregateConfidence([page(rotted, '/login')]).stale, ['/admin', '/gone']);
 });
 
 test('aggregateIncompleteUi: reasons merge per surface, sorted, with acknowledgements attached', () => {
