@@ -37,15 +37,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `>=22.13.0`. Node 18 and 20 are past end of life, and 22.13 is the oldest
   Node 22 release the dev toolchain supports (ESLint 10 `^22.13.0`, commitlint
   `>=22.12.0`); the runtime itself needs 22.6+ for type stripping. CI runs the
-  build and unit tests on 22.13.0 exactly, plus Node 22 and 24. Type stripping
-  is available on every supported Node. `package.json` now sets `devEngines`,
-  so npm 10.9+ refuses to install the repo on a Node below the floor. The npm
-  bundled with Node 18 and 20 (10.8) ignores `devEngines` and only warns, so
-  the Action's `npm ci` does not stop there: set up Node 22.13+ before the
-  Action. Workflows from `styleproof-init` set up Node 22 instead of 20, so
-  `styleproof-init --check` reports existing ones as stale. **Migration:** move
-  local and CI Node to 22.13 or later, then run `npx styleproof-init --upgrade`
-  to refresh the generated workflows.
+  build and unit tests on 22.13.0 exactly, plus Node 22 and 24. The Action
+  installs and builds StyleProof with its dev toolchain on your runner, so the
+  toolchain floor applies there too. `package.json` now sets `devEngines`, so
+  npm 10.9+ refuses to install the repo on a Node below the floor. npm before
+  10.9 (bundled with Node 18 and 20) ignores `devEngines` and prints only
+  `EBADENGINE` warnings, so the Action's `npm ci` does not stop there: set up
+  Node 22.13+ before the Action. The generated capture workflow sets up Node 22
+  instead of 20, so `styleproof-init --check` reports an existing one as stale.
+  The generated report workflow uses the runner's Node (`ubuntu-latest` ships
+  Node 22). **Migration:** move local and CI Node to 22.13 or later, then run
+  `npx styleproof-init --upgrade` to refresh the generated workflows.
 
 ### Fixed
 
