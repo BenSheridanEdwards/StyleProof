@@ -217,6 +217,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   byte-identical. The browser suite runs in four shards instead of three, so
   the heaviest shard holds less of the slowest specs. Test-infra only: the
   same tests run with the same assertions.
+- **A live region that changes height no longer hides the whole page (#978).**
+  A live list that grew resized every ancestor up to `html` in the same settle
+  poll, so `html`, `body` and the list were all recorded as volatile. Every
+  element was then excluded, a static heading or button restyle was not
+  reported, and a source-bound `styleproof-diff` exited 0 as certified. An
+  ancestor that only resized because a changing descendant did is now
+  compared, so only the churning region is excluded. A path that changed only
+  once is compared too, even while a data request is still in flight; a region
+  must change again in the last changing poll to be excluded that way. If
+  `html` or `body` is still volatile on the head, `styleproof-diff` now exits
+  1, names each `surface: path`, records `volatility.documentRoot` in `--json`,
+  and the shared verdict is `CERTIFICATION_FAILED`.
 - **A multi-page crawl no longer lists a used auth-boundary exclusion as stale.**
   Each crawled page checks the whole `--auth-boundary-exclude` map, so a page
   without the wall lists that key as stale. The run joined every page's list,

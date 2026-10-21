@@ -2010,6 +2010,40 @@ test('source-bound diff CLI keeps certifying when the same subtree is volatile o
   rmTmp(root);
 });
 
+// A live region that resized the page made html and body volatile on BOTH sides. Every
+// element was excluded, nothing was compared, and a bound run still certified.
+test('source-bound diff CLI fails closed when html and body are volatile on both sides', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  // What such a capture writes: the document roots listed as volatile, everything under them deleted.
+  const side = { ...makeMap({ elements: {} }), volatile: ['html', 'body', 'body > ul:nth-child(3)'] };
+  writeCapture(A, 'home@1280', side, null);
+  writeCapture(B, 'home@1280', side, null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /2 document root\(s\) volatile on head/);
+  assert.ok(r.stdout.includes('home@1280: html'), r.stdout);
+  assert.ok(r.stdout.includes('home@1280: body'), r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.deepEqual(receipt.volatility.headOnly, []);
+  assert.deepEqual(receipt.volatility.documentRoot, [
+    { surface: 'home@1280', path: 'body' },
+    { surface: 'home@1280', path: 'html' },
+  ]);
+  const verdict = classifyStyleProofVerdict(receipt, {
+    gateInventoryRemovals: true,
+    baseCaptureFailed: false,
+    changed: false,
+  });
+  assert.equal(verdict.state, 'CERTIFICATION_FAILED');
+  rmTmp(root);
+});
+
 test('source-bound report CLI refuses a clean verdict when a subtree became volatile only on the head', () => {
   const { root, A, B, card } = headVolatilityPair({ baseVolatile: false });
   const out = path.join(root, 'report');
