@@ -277,6 +277,25 @@ function closedPull(number, daysAgo) {
   return { number, closed_at: new Date((NOW - daysAgo * DAY_IN_SECONDS) * 1000).toISOString() };
 }
 
+test('noncanonical report folders are never sized, looked up, or deleted even over budget', async () => {
+  const fake = buildFakeGitHub({
+    recursiveTreeEntries: reportTree({ 'pr-007': 1_000, 'run-0': 1_000, 'pr-7': 100, 'run-8': 10 }),
+    closedPullRequests: [closedPull(7, 90)],
+    pullsByNumber: { 7: closedPull(7, 90), '007': closedPull(7, 90) },
+    commits: [publishCommit('pr-007', 90), publishCommit('run-0', 90), publishCommit('run-8', 1)],
+  });
+  const timestamps = await readReportFolderTimestamps(
+    { ...apiOptions, fetchImplementation: fake.fetchImplementation },
+    ['pr-007', 'run-0'],
+  );
+  assert.deepEqual([...timestamps.prunableAtEpochSecondsByPath], []);
+  const result = await sweep(fake, { budgetBytes: 10 });
+  assert.deepEqual(result.deletedFolders, ['pr-7']);
+  assert.equal(result.branchSizeAfterBytes, 10);
+  assert.deepEqual(fake.state.createdTrees[0].tree, [{ path: 'pr-7', mode: '040000', type: 'tree', sha: null }]);
+  assert.ok(!fake.state.requests.some((request) => request.startsWith('GET /pulls/')));
+});
+
 test('issue #878: legacy run reports no longer remain forever over budget', async () => {
   const fake = buildFakeGitHub({
     recursiveTreeEntries: reportTree({
