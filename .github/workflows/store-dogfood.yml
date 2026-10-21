@@ -27,9 +27,10 @@ on:
 permissions:
   contents: write
 
+# Cancel superseded PR runs; each manual run gets its own group so runs never cancel or queue behind each other.
 concurrency:
-  group: store-dogfood-${{ github.ref }}
-  cancel-in-progress: true
+  group: store-dogfood-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
