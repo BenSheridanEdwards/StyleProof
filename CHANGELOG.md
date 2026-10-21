@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Capture keys that differ only by case or Unicode normalization are
+  rejected up front (#976).** `assertUniqueExpandedKeys` now also detects
+  expanded keys that collide after NFC folding and lowercasing, so
+  `Alpha`/`alpha` or the NFC/NFD spellings of `café` fail at define time on
+  every OS with an error naming both origins, instead of one capture
+  silently overwriting the other's map file on a case-insensitive
+  filesystem (macOS, Windows). Exact duplicates still throw as before.
+
 - **`--route` inputs with a query string are no longer split on the query's
   `=` (#967).** The `key=path` form of `styleproof-variants --route` now
   applies only when the text before the first `=` is a plain key (no `/`,

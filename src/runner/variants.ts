@@ -144,6 +144,7 @@ function expandedOrigin(s: ExpandedKeyed): string {
  */
 export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
   const byKey = new Map<string, ExpandedKeyed>();
+  const byFoldedKey = new Map<string, ExpandedKeyed>();
   for (const s of surfaces) {
     assertSafeCaptureKey(s.key);
     const prior = byKey.get(s.key);
@@ -155,6 +156,18 @@ export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
           `rename one surface, variant, live state, or state recipe.`,
       );
     }
+    const folded = s.key.normalize('NFC').toLowerCase();
+    const foldedPrior = byFoldedKey.get(folded);
+    if (foldedPrior) {
+      throw new Error(
+        `styleproof: capture keys '${foldedPrior.key}' and '${s.key}' differ only by case or ` +
+          `Unicode normalization — ${expandedOrigin(foldedPrior)} collides with ${expandedOrigin(s)}. ` +
+          `On a case-insensitive filesystem (macOS, Windows) they name the same map file, ` +
+          `so one capture would overwrite the other and the changed surface would never be diffed; ` +
+          `rename one surface, variant, live state, or state recipe.`,
+      );
+    }
     byKey.set(s.key, s);
+    byFoldedKey.set(folded, s);
   }
 }
