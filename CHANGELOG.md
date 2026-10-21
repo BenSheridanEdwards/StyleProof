@@ -289,9 +289,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   computed-style changes") and for every advisory-mode verdict. A later run on
   the same head SHA that found changes therefore read it as approved, set the
   status to "StyleProof changes approved", ticked the box and skipped "Block on
-  unapproved changes". Now only the approve workflow's `Approved by @<login>`, or
-  the Action carrying that approval forward as "StyleProof changes approved",
-  counts. Such a run stays red until a reviewer ticks the box.
+  unapproved changes". Now only the approve workflow's `Approved by @<login>`, as
+  the whole description, or the Action carrying that approval forward as
+  "StyleProof changes approved", counts. Such a run stays red until a reviewer
+  ticks the box. In advisory mode it stays green but says the changes need
+  sign-off.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

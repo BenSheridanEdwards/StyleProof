@@ -611,7 +611,8 @@ runs:
             const canonical = !!mine && mine.creator?.type === 'Bot' && mine.creator.login === 'github-actions[bot]';
             // Only a sign-off counts: the approve workflow's "Approved by @x", or this Action
             // carrying one forward. Its own clean and advisory verdicts are success too.
-            const m = (mine?.description || '').match(/^Approved by @([A-Za-z0-9-]+)$/);
+            // Enterprise Managed User logins carry an underscore (octocat_acme).
+            const m = (mine?.description || '').match(/^Approved by @([A-Za-z0-9_-]+)$/);
             approved = canonical && mine.state === 'success' && (!!m || mine.description === 'StyleProof changes approved');
             if (approved && m) approver = m[1];
           }

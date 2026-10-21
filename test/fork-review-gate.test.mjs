@@ -232,6 +232,10 @@ test('a real sign-off on the same head SHA carries forward, from the canonical w
     gate: { approved: 'true', approver: 'maintainer' },
     status: approvedStatus,
   });
+  assert.deepEqual(await rerunWithChanges(signOff('Approved by @octocat_acme')), {
+    gate: { approved: 'true', approver: 'octocat_acme' },
+    status: approvedStatus,
+  });
   assert.deepEqual(await rerunWithChanges(signOff('StyleProof changes approved')), {
     gate: { approved: 'true', approver: '' },
     status: approvedStatus,
