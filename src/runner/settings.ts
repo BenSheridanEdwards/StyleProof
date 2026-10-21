@@ -75,6 +75,22 @@ export function resolveBaseDir(
   return baseDir ?? env ?? '__stylemaps__';
 }
 
+/**
+ * Explicit `replayUrl`, then `STYLEPROOF_REPLAY_URL`, then `**\/api/**`. Playwright reads an
+ * empty HAR `url` as match-all, which would replay the base's document, CSS and JS on head,
+ * so a blank config value is a LOUD error and a blank env value counts as unset.
+ */
+export function resolveReplayUrl(
+  configured: string | undefined,
+  env: string | undefined = process.env.STYLEPROOF_REPLAY_URL,
+): string {
+  if (configured !== undefined) {
+    if (!configured.trim()) throw new Error(`styleproof: replayUrl must be a non-empty URL glob, got '${configured}'`);
+    return configured;
+  }
+  return env?.trim() ? env : '**/api/**';
+}
+
 /** Explicit `screenshots`, else `STYLEPROOF_SCREENSHOTS=0` turns them off. */
 export function resolveScreenshots(
   screenshots: boolean | undefined,
@@ -131,7 +147,7 @@ export function resolveSettings(c: CaptureConfig): Settings {
     outDir: resolveOutputDir(baseDir, dir),
     screenshots: resolveScreenshots(c.screenshots),
     replayFrom,
-    replayUrl: c.replayUrl ?? env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
+    replayUrl: resolveReplayUrl(c.replayUrl),
     dataResidue: resolveDataResidue(c.dataResidue),
     freezeClock,
     clockTime,
