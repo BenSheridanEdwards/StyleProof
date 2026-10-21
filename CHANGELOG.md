@@ -190,6 +190,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof setup` installs with npm, pnpm and Yarn on Windows (#970).**
+  Setup spawned `npm.cmd`, `pnpm.cmd` or `yarn.cmd` directly. Node on Windows
+  rejects that with `EINVAL`, so setup exited 5 at the install step, or at the
+  Chromium step under `--skip-install`, before it scaffolded anything. Setup
+  now runs these shims through `cmd.exe` and quotes every argument, so the `>`
+  in `@playwright/test@>=1.45` is not read as a redirect. Bun, other platforms
+  and the `--dry-run` output are unchanged.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

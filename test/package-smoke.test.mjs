@@ -232,3 +232,44 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// #970: Node on Windows refuses to spawn npm.cmd directly (EINVAL). The cli-smoke Windows lane
+// runs setup's install and Chromium steps for real, against a recording npm stub first on PATH.
+test('setup hands npm every install and Chromium argument intact', { timeout: 60_000 }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-setup-spawn-'));
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    const stubs = path.join(tmp, 'bin');
+    const project = path.join(tmp, 'consumer');
+    fs.mkdirSync(stubs);
+    fs.mkdirSync(project);
+    const record = path.join(stubs, 'record.mjs');
+    fs.writeFileSync(
+      record,
+      "import fs from 'node:fs';\nfs.appendFileSync('npm-calls.jsonl', `${JSON.stringify(process.argv.slice(2))}\\n`);\n",
+    );
+    if (process.platform === 'win32') {
+      fs.writeFileSync(path.join(stubs, 'npm.cmd'), `@"${process.execPath}" "${record}" %*\r\n`);
+    } else {
+      const stub = `#!/bin/sh\nexec "${process.execPath}" "${record}" "$@"\n`;
+      fs.writeFileSync(path.join(stubs, 'npm'), stub, { mode: 0o755 });
+    }
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+    const setup = spawnSync(process.execPath, [path.join(root, 'bin/styleproof.mjs'), 'setup', '--external-server'], {
+      cwd: project,
+      encoding: 'utf8',
+      env: { ...process.env, [pathKey]: `${stubs}${path.delimiter}${process.env[pathKey]}` },
+    });
+    assert.equal(setup.status, 0, commandFailure(setup));
+    const calls = fs.readFileSync(path.join(project, 'npm-calls.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    // The peer range (`>=1.45`) carries a `>` that cmd.exe would treat as a redirect if it were unquoted.
+    const peer = `@playwright/test@${manifest.peerDependencies['@playwright/test']}`;
+    assert.deepEqual(calls, [
+      ['install', '--save-dev', `styleproof@${manifest.version}`, peer],
+      ['exec', 'playwright', 'install', 'chromium'],
+    ]);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
