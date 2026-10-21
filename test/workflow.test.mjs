@@ -37,7 +37,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(buildJob, /npm test|npm run test:e2e|npm run typecheck/);
 
   assert.match(e2eJob, /name: e2e \(node 22, shard/);
-  assert.match(e2eJob, /shard: \[1, 2, 3\]/);
+  assert.match(e2eJob, /shard: \[1, 2, 3, 4\]/);
   assert.match(e2eJob, /node-version: '22'/);
   assert.match(e2eJob, /run: npm ci/);
   assert.match(e2eJob, /run: npm run build/);
@@ -45,7 +45,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(e2eJob, /npx playwright install chromium firefox/);
   assert.match(
     e2eJob,
-    /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/3 --reporter=line,json/,
+    /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/4 --reporter=line,json/,
   );
   assert.match(e2eJob, /needs: changes/);
   assert.match(e2eJob, /if: needs\.changes\.outputs\.e2e == 'true'/);

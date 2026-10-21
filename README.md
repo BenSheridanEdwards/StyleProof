@@ -539,7 +539,7 @@ contracts: [what it catches](docs/what-it-catches.md) ·
 
 ## Contributing
 
-Repository CI runs the full browser suite in two file-level shards alongside the
+Repository CI runs the full browser suite in four file-level shards alongside the
 unit matrix on Node 22.13.0 (the supported floor), 22, and 24. The `e2e (node 22)`
 aggregate compares completed test IDs against a separately collected full
 inventory and requires the five-run determinism receipt. Missing, duplicated,

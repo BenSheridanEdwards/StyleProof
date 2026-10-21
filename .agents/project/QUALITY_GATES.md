@@ -22,7 +22,7 @@ is listed here only if it exists and runs on a clean checkout.
 | Dependency audit        | npm audit                                                  | CI (Node 22)                   | `npm audit --audit-level=high`                                                                                                                                                  |
 | PR body validation      | `scripts/validate-pr-body.mjs`                             | CI (`pull_request`)            | `.github/workflows/pr-body.yml`                                                                                                                                                 |
 | Unit tests              | Node `--test`                                              | push (`.husky/pre-push`) + CI  | `npm test`; CI reuses its prior build via `npm run test:unit`                                                                                                                   |
-| E2E                     | Playwright                                                 | CI (Node 22, 3 shards + evidence job) | `npm run build`; `npx playwright test --config=playwright.ci.config.ts --shard=N/3` (base projects plus the `firefox-unsupported-state` Firefox project); `e2e-evidence` runs `scripts/verify-e2e-shards.mjs` to check full inventory coverage and print the determinism oracle receipt. Locally: `npm run test:e2e` (base `playwright.config.ts`, no Firefox project) |
+| E2E                     | Playwright                                                 | CI (Node 22, 4 shards + evidence job) | `npm run build`; `npx playwright test --config=playwright.ci.config.ts --shard=N/4` (base projects plus the `firefox-unsupported-state` Firefox project); `e2e-evidence` runs `scripts/verify-e2e-shards.mjs` to check full inventory coverage and print the determinism oracle receipt. Locally: `npm run test:e2e` (base `playwright.config.ts`, no Firefox project) |
 | CLI smoke               | Node `--test` (package-smoke)                              | CI (macOS + Windows)           | `node --test test/package-smoke.test.mjs`                                                                                                                                       |
 | Demo report freshness   | `scripts/demo-report.mjs --check`                          | CI (Node 22)                   | CI: `node scripts/demo-report.mjs --check`; locally `npm run demo:check`                                                                                                        |
 | Action dogfood          | the Action itself, on fixtures                             | CI (`pull_request`)            | `.github/workflows/action-dogfood.yml`                                                                                                                                          |
@@ -41,7 +41,7 @@ is listed here only if it exists and runs on a clean checkout.
 - **`.husky/pre-push`** — `npm test` (git hook env is unset first so it does not
   leak into the CLI tests' temp repos).
 - **CI (`ci.yml`)** — build and unit on the full Node matrix; lint, format,
-  privacy, npm audit, and demo freshness on Node 22; e2e in three parallel
+  privacy, npm audit, and demo freshness on Node 22; e2e in four parallel
   Node 22 shards (`playwright.ci.config.ts`, which adds a Firefox project) plus
   an `e2e-evidence` job that verifies shard coverage and prints the determinism
   receipt; CLI smoke on macOS + Windows; one stable `required` check that fails
