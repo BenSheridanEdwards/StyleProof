@@ -112,14 +112,14 @@ export function collectLiveCandidateLabels(beforeDir: string, afterDir: string):
 }
 
 /** A changed element can anchor visual proof only when the captured page can show it. */
-function isPaintedEntry(map: StyleMap, entry: ElementEntry | undefined): boolean {
+function isPaintedEntry(map: StyleMap, entry: ElementEntry | undefined, bottom: number): boolean {
   const rect = screenshotRectOf(entry);
   if (!entry || !rect || !visible(rectToBox(rect))) return false;
   if (entry.style.display === 'none' || entry.style.visibility === 'hidden') return false;
   if (Number(entry.style.opacity ?? '1') <= 0) return false;
   const [x, y, width, height] = rect;
   const scrollX = map.viewport?.scrollX ?? 0;
-  if (x + width <= scrollX || y + height <= 0) return false;
+  if (x + width <= scrollX || y + height <= 0 || y >= bottom) return false;
   return map.viewport?.width === undefined || x < scrollX + map.viewport.width;
 }
 
@@ -128,11 +128,19 @@ function isBehindActiveModal(map: StyleMap, changedPath: string): boolean {
   return (map.overlays ?? []).some((o) => o.ariaModal === 'true' && !isSameOrDescendant(changedPath, o.path));
 }
 
-const isExposed = (map: StyleMap, p: string): boolean =>
-  isPaintedEntry(map, map.elements[p]) && !isBehindActiveModal(map, p);
+const isExposed = (map: StyleMap, p: string, bottom: number): boolean =>
+  isPaintedEntry(map, map.elements[p], bottom) && !isBehindActiveModal(map, p);
 
-export function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPaths: string[]): boolean {
-  return changedPaths.some((p) => isExposed(mapA, p) || isExposed(mapB, p));
+/** Each side's full-page screenshot bounds its canvas below; without one the canvas is unbounded. */
+export function hasExposedChangedEntry(
+  mapA: StyleMap,
+  mapB: StyleMap,
+  changedPaths: string[],
+  [pngA, pngB]: [PNG | null, PNG | null] = [null, null],
+): boolean {
+  const bottomA = pngA?.height ?? Infinity;
+  const bottomB = pngB?.height ?? Infinity;
+  return changedPaths.some((p) => isExposed(mapA, p, bottomA) || isExposed(mapB, p, bottomB));
 }
 
 export const hasActiveModal = (...maps: StyleMap[]): boolean =>

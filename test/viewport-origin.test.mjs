@@ -1,11 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
+import { PNG } from 'pngjs';
 import { isVisibleCapturedElement } from '../dist/visible-structure-gate.js';
 import { hasExposedChangedEntry } from '../dist/report/shared.js';
+import { MISLEADING_CROP_REASON } from '../dist/report/crop-pair.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
 import { saveStyleMap, loadStyleMap } from '../dist/capture.js';
 import { hashDeterminismMap } from '../dist/determinism-oracle.js';
-import { makeMap, mkTmp, rmTmp } from './helpers.mjs';
+import { makeMap, mkTmp, pairFixture, rmTmp, solidPng } from './helpers.mjs';
 
 const entry = (rect) => ({ tag: 'div', cls: 'marker', rect, style: {} });
 for (const [name, scrollX, scrollY] of [
@@ -139,6 +143,82 @@ test('report crop eligibility reads the screenshot box, not the driven box', () 
   assert.equal(exposed('lowerScroller'), true, 'scrolled out of a lower-page inner scroller');
   assert.equal(exposed('legacy'), false, 'legacy map without a screenshot box');
   for (const p of ['hidden', 'invisible', 'transparent', 'collapsed']) assert.equal(exposed(p), false, p);
+});
+
+test('report crop eligibility stops at the bottom of the screenshot canvas (#955)', () => {
+  const map = {
+    viewport: { width: 800, height: 800, documentHeight: 800 },
+    elements: {
+      belowCanvas: entry([100, 800, 200, 100]),
+      straddling: entry([100, 750, 200, 100]),
+      lowerScroller: { ...entry([0, 1500, 800, 100]), screenshotRect: [0, 2100, 800, 100] },
+    },
+  };
+  const canvas = new PNG({ width: 800, height: 800 });
+  const tall = new PNG({ width: 800, height: 2400 });
+  const exposed = (p, pngs) => hasExposedChangedEntry(map, map, [p], pngs);
+  assert.equal(exposed('belowCanvas', [canvas, canvas]), false, 'starts at the bottom edge of an 800px canvas');
+  assert.equal(exposed('belowCanvas', [canvas, tall]), true, 'painted on the taller side');
+  assert.equal(exposed('straddling', [canvas, canvas]), true, 'intersects the canvas');
+  assert.equal(exposed('belowCanvas'), true, 'no screenshot keeps the canvas unbounded below');
+  assert.equal(exposed('lowerScroller', [tall, tall]), true, 'expanded box inside a taller screenshot (#922)');
+});
+
+const SHEET = 'body > div:nth-child(2)';
+const CARD = 'body > div:nth-child(1)';
+
+/** A 100vh shell with a bottom sheet translated just below the 800px canvas. */
+function belowCanvasReport(extraChanged) {
+  const map = (background) => {
+    const m = makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 800, 800], style: {} },
+        [SHEET]: { tag: 'div', cls: 'sheet', rect: [100, 800, 200, 100], style: { 'background-color': background } },
+        ...(extraChanged && {
+          [CARD]: { tag: 'div', cls: 'card', rect: [100, 100, 200, 80], style: { 'background-color': background } },
+        }),
+      },
+    });
+    m.viewport = { width: 800, height: 800, documentHeight: 800 };
+    return m;
+  };
+  const dirs = pairFixture({
+    surface: 'home@800',
+    before: map('rgb(0, 0, 255)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(800, 800),
+    afterPng: solidPng(800, 800),
+  });
+  try {
+    const result = generateStyleMapReport({ beforeDir: dirs.beforeDir, afterDir: dirs.afterDir, outDir: dirs.outDir });
+    return {
+      markdown: fs.readFileSync(result.reportMdPath, 'utf8'),
+      group: JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces[0],
+      composites: fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-composite.png')),
+    };
+  } finally {
+    rmTmp(dirs.root);
+  }
+}
+
+test('a change below the screenshot canvas gets the not-visible note, not a crop (#955)', () => {
+  const { markdown, group, composites } = belowCanvasReport(false);
+  assert.equal(markdown.match(/!\[before.*\)/)?.[0], undefined, 'no before/after crop image');
+  assert.ok(markdown.includes(`_${MISLEADING_CROP_REASON}_`), 'the not-visible note replaces the crop');
+  assert.equal(group.visualEvidence, 'not-rendered');
+  assert.equal(group.reason, MISLEADING_CROP_REASON);
+  assert.deepEqual(composites, [], 'no crop of unrelated pixels at the bottom of the page');
+});
+
+test('a mixed group crops only the change that intersects the screenshot canvas (#955)', () => {
+  const { group, composites } = belowCanvasReport(true);
+  const sheet = group.regions.find((r) => r.paths.includes(SHEET));
+  const card = group.regions.find((r) => r.paths.includes(CARD));
+  assert.ok(card.images.composite, 'the on-canvas change keeps its crop');
+  assert.deepEqual(sheet.images, {});
+  assert.equal(sheet.visualEvidence, 'not-rendered');
+  assert.equal(sheet.reason, MISLEADING_CROP_REASON);
+  assert.equal(composites.length, 1);
 });
 
 test('viewport origin survives stored maps and participates in determinism receipts', () => {

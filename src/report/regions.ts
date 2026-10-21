@@ -150,7 +150,7 @@ type CropPack = { md: string[]; images: CropImages; visualEvidence?: 'not-render
 /** Crop one region's pair (or explain why there is none). */
 function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, state?: string): CropPack {
   const { g, region, mapA, mapB, cg } = a;
-  if (!region || !pngA || !pngB || !hasExposedChangedEntry(mapA, mapB, g.paths)) {
+  if (!region || !pngA || !pngB || !hasExposedChangedEntry(mapA, mapB, g.paths, [pngA, pngB])) {
     const note = cropNote(region, pngA, pngB);
     return {
       md: note ? ['', note] : [],
@@ -282,7 +282,8 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     cg.surfaces.length > 1
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
-  if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
+  const pngs = screenshotPair(ctx, sd.surface);
+  if (!hasExposedChangedEntry(mapA, mapB, changedPaths, pngs)) {
     const reason = MISLEADING_CROP_REASON;
     return {
       md: [
@@ -307,7 +308,6 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       findingCount,
     };
   }
-  const pngs = screenshotPair(ctx, sd.surface);
   let groups = groupRegions(changedPaths, mapA, mapB, ctx.padBy);
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);
   const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
