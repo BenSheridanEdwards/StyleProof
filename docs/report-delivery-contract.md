@@ -24,7 +24,7 @@ Regardless of storage mode, the Action also appends `report.md` to the GitHub jo
 
 ## Pull-request comment
 
-The Action upserts one comment identified by `<!-- styleproof-report -->`. It contains:
+The Action upserts one comment identified by `<!-- styleproof-report -->`. It reads every page of the thread and only reuses a comment a bot account wrote, so a person's comment that quotes the marker is never edited. It contains:
 
 - the bounded report summary;
 - the approval checkbox when review-gate mode requires one;

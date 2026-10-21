@@ -768,10 +768,14 @@ runs:
           }
           // `changed` = review required: before/after differences OR new surfaces with no baseline.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
-          const { data: comments } = await github.rest.issues.listComments({
+          // Every page, oldest first (#968): a report comment past the first 100 must be
+          // found, or each run posts another. Only a bot's comment is ours, never a
+          // person's that quotes the marker; find() keeps the oldest, so its id is stable.
+          // The marker is matched anywhere because the dogfood workflows prefix a notice.
+          const comments = await github.paginate(github.rest.issues.listComments, {
             ...context.repo, issue_number: prNumber, per_page: 100,
           });
-          const existing = comments.find((c) => c.body && c.body.includes(marker));
+          const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
           // Rerun-attempt ordering guard: a late delivery from an earlier attempt of THIS run
           // must not overwrite the verdict a newer attempt already published.
           const runId = '${{ github.run_id }}';

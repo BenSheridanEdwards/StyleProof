@@ -80,6 +80,7 @@ async function run(stepName, scenario, prior = []) {
   const comments = [];
   const outputs = {};
   const github = {
+    paginate: async (route, params) => (await route(params)).data,
     rest: {
       repos: {
         createCommitStatus: async (input) => statuses.push(input),
