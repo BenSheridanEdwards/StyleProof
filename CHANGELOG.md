@@ -210,6 +210,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   byte-identical. The browser suite runs in four shards instead of three, so
   the heaviest shard holds less of the slowest specs. Test-infra only: the
   same tests run with the same assertions.
+- **A multi-page crawl no longer lists a used auth-boundary exclusion as stale.**
+  Each crawled page checks the whole `--auth-boundary-exclude` map, so a page
+  without the wall lists that key as stale. The run joined every page's list,
+  and printed `stale exclusions: /staff` right under the line where that key
+  acknowledged the `/staff` wall. Removing the exclusion on that advice made the
+  next run fail closed with exit 5. Now a key is stale only when no crawled page
+  matched it. A single-page crawl prints the same stale list as before (#963).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
