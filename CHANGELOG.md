@@ -156,6 +156,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   key. At runtime a config that still sets it loads with the standard
   unknown-key warning. Map-store auth comes from `STYLEPROOF_MAP_STORE_TOKEN`
   or the checkout's credentials, as before.
+- **BREAKING: Node 18 and 20 are no longer supported.** `engines.node` is now
+  `>=22.13.0`. Node 18 and 20 are past end of life, and 22.13 is the oldest
+  Node 22 release the dev toolchain supports (ESLint 10 `^22.13.0`, commitlint
+  `>=22.12.0`); the runtime itself needs 22.6+ for type stripping. CI runs the
+  build and unit tests on 22.13.0 exactly, plus Node 22 and 24. The Action
+  installs StyleProof with its dev dependencies and builds it on your runner,
+  so their engine ranges apply there too. `package.json` now sets
+  `devEngines`, so npm 10.9+ refuses to install the repo on a Node below the
+  floor. npm before 10.9 (bundled with Node 18, 20 and 22 before 22.10)
+  ignores `devEngines` and prints only `EBADENGINE` warnings, so the Action's
+  `npm ci` does not stop there: set up Node 22.13+ before the Action. The
+  generated capture workflow sets up Node 22 instead of 20, so
+  `styleproof-init --check` reports an existing one as stale. The generated
+  report workflow uses the runner's Node (`ubuntu-latest` ships Node 22).
+  **Migration:** move local and CI Node to 22.13 or later, then run
+  `npx styleproof-init --upgrade` to refresh the generated workflows.
 
 ### Fixed
 
