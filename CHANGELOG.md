@@ -425,6 +425,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `✓ No reviewable computed-style changes` line and had no banner. The CLI now
   renders `report.html` again from the relabelled markdown, so both files show
   the same report. Bound runs, exit codes and `report.json` are unchanged (#964).
+- **Crawlers no longer click "Check out", "Submit payment" or "Place order"
+  (#973).** The shared destructive-action guard listed `checkout` but not the
+  two-word `check out`, and `pay` and `purchase` matched only as whole words, so
+  "Payment", "Payments" and "Purchases" passed. Nothing covered order
+  placement. `--crawl`, the variant crawler and state recipes all share the
+  guard, so they drove those controls; in a `--crawl` run each click reached
+  the server. The guard now also matches `check out`, `payment`, `payments`,
+  `purchases` and `place order`, so those controls are recorded but not
+  clicked. Words that only contain the letters, such as "Display", "Replay"
+  and "Payload", stay clickable.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
