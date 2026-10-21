@@ -253,19 +253,31 @@ Forced-state reads share a browser round trip with their liveness check and
 style flush. Each reset still flushes before the next state or target; captures
 remain serial, with the same coverage and resource limits.
 
-Nested overflow scrollers are expanded for full-page report screenshots. Capture
-keeps `rect` in the driven page's document coordinates for visibility and layout
+Nested overflow scrollers are expanded for full-page report screenshots. `<body>`
+is a candidate only when it scrolls itself: the root's computed `overflow-y` must
+not be `visible`, which would propagate body overflow to the viewport. Capture
+keeps `rect` in the driven page's document coordinates for correspondence and layout
 comparisons; optional `screenshotRect` locates the element in the expanded image.
-Crops and pixel attribution use `screenshotRect`, falling back to `rect` for older
-maps. Recapture affected nested-scroller baselines to obtain aligned crop evidence.
+Crops and pixel attribution prefer `screenshotRect`, falling back to `rect`.
+Recapture nested-scroller baselines for aligned evidence.
 
 When a surface scrolls the document, capture also records the viewport's scroll
-origin, and every capture records the document's scroll height. A visible element
-addition or removal requires review anywhere in that document height, within the
-reached viewport's width, and horizontal-scrolled changes retain report crops.
+origin, the driven document's scroll height, and `viewport.screenshotHeight` measured
+with screenshot scrollers expanded. A non-hidden element addition or removal requires
+review if either its non-zero driven `rect` intersects the original driven bounds,
+or its non-zero `screenshotRect ?? rect` intersects the screenshot bounds. Both use
+horizontal bounds `scrollX` to `scrollX + width` and vertical top `min(0, scrollY)`.
+The driven bottom remains `max(scrollY + height, documentHeight ?? Infinity)`;
+the screenshot bottom is `screenshotHeight`. The gate is never laxer than before:
+more additions/removals can become reviewable after expansion.
+When any scroller is expanded, elements inside unexpanded scrollers can also get
+`screenshotRect`; the gate does not infer per-ancestor clipping. Missing or invalid
+(non-finite or non-positive) `screenshotHeight` fails closed with an unbounded
+bottom, even with `documentHeight`. Hidden and zero-opacity additions stay advisory;
+zero-size additions stay advisory when neither box has non-zero size.
+Horizontal-scrolled changes retain report crops.
 Older maps lack the origin and assume zero; recapture affected scrolled baselines
-after upgrading. Older maps also lack the document height, so additions and
-removals below their first window count as visible.
+after upgrading.
 
 ## Quickstart
 

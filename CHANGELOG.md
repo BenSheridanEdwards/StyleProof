@@ -89,6 +89,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `node_modules/playwright-core` above the temp directory made the preflight
   resolve that install's browser build, find it missing and fail the run. The
   browser-preflight test is unchanged and keeps its coverage. Test-only.
+- **BREAKING: nested-scroller additions/removals visible in full-page screenshots
+  now require review (#920, targeting 9.0.0).** The visible-structure gate uses
+  either non-zero `rect` against the original driven bounds, or non-zero
+  `screenshotRect ?? rect` against the screenshot bounds. Both use horizontal
+  `scrollX` to `scrollX + width` and vertical top `min(0, scrollY)`; the driven
+  bottom is `max(scrollY + height, documentHeight ?? Infinity)` and the screenshot
+  bottom is `viewport.screenshotHeight`, measured with scrollers expanded,
+  with `<body>` a candidate only when it scrolls itself (root `overflow-y` is not
+  `visible`). This extends 7.5.1's driven-only gate and is never laxer: more
+  additions/removals become reviewable. Correspondence and layout
+  comparisons still use `rect`. Both CLIs exit 1 with reviewable DOM findings for
+  these changes, where they previously passed. Elements inside unexpanded scrollers
+  can also receive `screenshotRect` when another scroller was expanded; the gate
+  does not infer per-ancestor clipping. Missing or invalid (non-finite or
+  non-positive) `screenshotHeight` fails closed with an unbounded bottom, even with
+  `documentHeight`. Hidden and zero-opacity additions remain advisory, as do
+  additions whose boxes both have zero size. Recapture affected baselines to record
+  expanded geometry and height. Expansion restores an absent inline style attribute
+  as well as inline values, priorities, and scroll offsets. See
+  [ADR 0006](.agents/decisions/0006-screenshot-geometry-visible-structure.md).
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A
@@ -116,7 +136,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   lower on the page counted as painted. The check now reads `screenshotRect`,
   the box the crop is cut from, and falls back to `rect` for older maps. Hidden,
   `visibility: hidden` and zero-opacity elements still never anchor a crop. The
-  visible-structure gate is unchanged.
+  visible-structure gate now follows expanded geometry too (see #920 above).
 - **The docs now say what an empty `STYLEPROOF_CRITICAL_STATES` or
   `STYLEPROOF_PRODUCT_STATE` does.** `REFERENCE.md`, the `styleproof-diff` help
   and the `LedgerSpec.env` comment said an empty value unarms the ledger. It only
@@ -137,11 +157,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   window-sized viewport, so a visible element added further down a tall page
   passed as no change and `styleproof-diff` exited 0. Captures now record the
   document's scroll height as `viewport.documentHeight`, and an element counts
-  as visible anywhere in the document's scroll height. In quirks mode the height
-  is read from `document.scrollingElement`, so out-of-flow content there counts
-  too. Horizontal clipping to the viewport width is unchanged, and content
-  clipped inside a nested scroller stays advisory as before (tracked in #920).
-  Maps captured before this release have no `documentHeight`, so the gate
+  as visible anywhere in the document's scroll height. In quirks mode the
+  document height is read from `document.scrollingElement`, so out-of-flow content
+  there counts too. Horizontal clipping to the viewport width is unchanged.
+  Nested-scroller visibility now follows screenshot geometry and height
+  (see #920 above).
+  Maps captured before this release have no `screenshotHeight`, so the gate
   treats additions or removals below their first window as visible rather than
   passing them (#913).
 - **Hash-router surfaces keep their key when a route is added.** The default

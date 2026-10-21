@@ -17,6 +17,7 @@ import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIFF = path.join(ROOT, 'bin/styleproof-diff.mjs');
+const REPORT = path.join(ROOT, 'bin/styleproof-report.mjs');
 
 function writePairManifests(dirs) {
   const body = {
@@ -229,6 +230,107 @@ test('styleproof-diff exit 1 when a visible element is added on a paired surface
   assert.ok((json.elevatedVisibleStructure ?? 0) >= 1);
   rmTmp(dirs.root);
 });
+
+test('expanded below-fold addition requires review in both CLIs', () => {
+  const scroller = 'body > main:nth-child(1)';
+  const dirs = tmpDirs();
+  try {
+    const before = makeMap({
+      elements: { [scroller]: { rect: [0, 0, 1280, 720], style: { overflow: 'auto' } } },
+    });
+    before.viewport = { width: 1280, height: 720, documentHeight: 720, screenshotHeight: 3000 };
+    const after = structuredClone(before);
+    after.elements[`${scroller} > div.banner:nth-child(1)`] = {
+      tag: 'div',
+      cls: 'banner',
+      rect: [0, 2000, 1280, 80],
+      screenshotRect: [0, 2000, 1280, 80],
+      style: { position: 'absolute', display: 'block' },
+    };
+    for (const [dir, map] of [
+      [dirs.beforeDir, before],
+      [dirs.afterDir, after],
+    ]) {
+      writeCapture(dir, 'nested@1280', map, solidPng(1280, 3000));
+    }
+    writePairManifests(dirs);
+    const jsonPath = path.join(dirs.root, 'diff.json');
+    for (const [bin, args, receipt] of [
+      [DIFF, ['--allow-unasserted', '--json', jsonPath], jsonPath],
+      [REPORT, ['--out', dirs.outDir], path.join(dirs.outDir, 'report.json')],
+    ]) {
+      for (const [afterDir, expected] of [
+        [dirs.beforeDir, 0],
+        [dirs.afterDir, 1],
+      ]) {
+        const sourceArgs = [
+          '--expected-before-sha',
+          'a'.repeat(40),
+          '--expected-after-sha',
+          (expected ? 'b' : 'a').repeat(40),
+        ];
+        const result = spawnSync(process.execPath, [bin, dirs.beforeDir, afterDir, ...args, ...sourceArgs], {
+          cwd: dirs.root,
+          encoding: 'utf8',
+          timeout: 60_000,
+        });
+        assert.equal(result.status, expected, `${path.basename(bin)}: ${result.stderr || result.stdout}`);
+        assert.equal(JSON.parse(fs.readFileSync(receipt, 'utf8')).reviewableCounts.dom, expected);
+      }
+    }
+  } finally {
+    rmTmp(dirs.root);
+  }
+});
+
+for (const [name, style, screenshotRect] of [
+  ['display:none', { display: 'none' }, [0, 2000, 1280, 80]],
+  ['visibility:hidden', { visibility: 'hidden' }, [0, 2000, 1280, 80]],
+  ['opacity:0', { opacity: '0' }, [0, 2000, 1280, 80]],
+  ['zero width', {}, [0, 2000, 0, 80]],
+  ['zero height', {}, [0, 2000, 1280, 0]],
+]) {
+  test(`expanded below-fold ${name} addition stays advisory in diff and report`, () => {
+    const before = baseBoard();
+    before.viewport = { width: 1280, height: 720, documentHeight: 720, screenshotHeight: 3000 };
+    const after = structuredClone(before);
+    after.elements['body > div.ghost:nth-child(2)'] = {
+      tag: 'div',
+      cls: 'ghost',
+      rect: [0, 2000, 1280, 80],
+      screenshotRect,
+      style,
+    };
+    const { dirs, json } = fixture({ before, after });
+    try {
+      assert.equal(json.reviewableCounts.dom, 0);
+      assert.equal(json.elevatedVisibleStructure ?? 0, 0);
+      const jsonPath = path.join(dirs.root, 'diff.json');
+      const result = spawnSync(
+        process.execPath,
+        [
+          DIFF,
+          dirs.beforeDir,
+          dirs.afterDir,
+          '--allow-unasserted',
+          '--json',
+          jsonPath,
+          '--expected-before-sha',
+          'a'.repeat(40),
+          '--expected-after-sha',
+          'b'.repeat(40),
+        ],
+        { cwd: dirs.root, encoding: 'utf8', timeout: 60_000 },
+      );
+      assert.equal(result.status, 0, `expected exit 0: ${result.stderr || result.stdout}`);
+      const diff = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      assert.equal(diff.reviewableCounts.dom, 0);
+      assert.equal(diff.elevatedVisibleStructure ?? 0, 0);
+    } finally {
+      rmTmp(dirs.root);
+    }
+  });
+}
 
 test('withElevatedVisibleStructureCounts adds to reviewableCounts.dom', () => {
   assert.deepEqual(withElevatedVisibleStructureCounts({ dom: 0, style: 2, state: 0 }, 3), {
