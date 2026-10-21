@@ -535,6 +535,66 @@ test('styleproof-capture --crawl follows same-origin nav links across pages', as
   }
 });
 
+// A sub-state key can equal a linked page's route key: the entry page's "Sign in"
+// modal and a /sign-in page (state found first), or the /pricing "Plans" panel and
+// a /pricing/plans page (page queued first). Each surface needs its own map, or the
+// later capture overwrites the earlier one and the lost state is never diffed (#944).
+test('styleproof-capture --crawl never lets a sub-state and a linked page share a map', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-crawl-keys-'));
+  const port = await freePort();
+  let panel = 'rgb(10, 120, 10)';
+  const opens = (cls: string, label: string) =>
+    `<button onclick="document.body.insertAdjacentHTML('beforeend','<section class=${cls}>${cls}</section>');this.remove()">${label}</button>`;
+  const pages: Record<string, string> = {
+    '/': `<nav><a href="/sign-in">Sign in page</a> <a href="/pricing">Pricing</a> <a href="/pricing/plans">All plans</a></nav>${opens('modal', 'Sign in')}`,
+    '/sign-in': '<main class="card">sign-in page</main>',
+    '/pricing': opens('panel', 'Plans'),
+    '/pricing/plans': '<main class="grid">plan grid</main>',
+  };
+  // More than 5 body elements per page, so the crawl's mount wait settles at once instead of timing out.
+  const header = '<header><b>a</b> <b>b</b> <b>c</b> <b>d</b> <b>e</b></header>';
+  const server = http.createServer((req, res) => {
+    res.setHeader('content-type', 'text/html');
+    res.end(
+      `<!doctype html><html><head><style>.modal,.card,.grid{height:80px;background:rgb(200,200,250)}` +
+        `.panel{height:80px;background:${panel}}</style></head>` +
+        `<body>${header}${pages[new URL(req.url ?? '/', 'http://x').pathname] ?? 'not found'}</body></html>`,
+    );
+  });
+  await listen(server, port);
+  const crawl = async (out: string) => {
+    const args = ['--crawl', '--no-screenshots', '--widths', '1280', '--out', out];
+    const result = await runAsync(app, process.execPath, [CAPTURE, `http://127.0.0.1:${port}/`, ...args]);
+    expect(result.status, result.stderr + result.stdout).toBe(0);
+    return result.stdout;
+  };
+  const classesIn = (key: string) =>
+    Object.values(loadStyleMap(path.join(app, 'base', `${key}@1280.json.gz`)).elements).map((e) => e.cls);
+  try {
+    const keys = ['base', 'sign-in', 'sign-in-2', 'pricing', 'pricing-plans', 'pricing-plans-2'];
+    expect(await crawl('base')).toContain('✓ 6/6 surface(s) across 4 page(s)');
+    const maps = fs.readdirSync(path.join(app, 'base')).filter((f) => f.endsWith('.json.gz'));
+    expect(maps.sort(), 'one map per reported surface').toEqual(keys.map((k) => `${k}@1280.json.gz`).sort());
+    expect(classesIn('sign-in'), 'the entry modal keeps its bare key').toContain('modal');
+    expect(classesIn('sign-in-2'), 'the /sign-in page is suffixed').toContain('card');
+    expect(classesIn('pricing-plans'), 'the /pricing/plans page keeps its reserved key').toContain('grid');
+    expect(classesIn('pricing-plans-2'), 'the /pricing panel is suffixed').toContain('panel');
+    const ledger = JSON.parse(fs.readFileSync(path.join(app, 'base', 'styleproof-confidence.json'), 'utf8'));
+    const ledgerKeys = new Set(ledger.entries.map((e: { surface: string }) => e.surface));
+    expect([...ledgerKeys].sort(), 'the ledger lists every surface').toEqual([...keys].sort());
+
+    // A change to the panel state now reaches the diagnostic diff.
+    panel = 'rgb(10, 10, 220)';
+    await crawl('head');
+    const diff = await runAsync(app, process.execPath, [DIFF, 'base', 'head', '--allow-unasserted']);
+    expect(diff.stdout, diff.stderr).toContain('rgb(10, 120, 10) → rgb(10, 10, 220)');
+  } finally {
+    server.close();
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
 // A same-origin href can still 302 off-origin (SSO, /out?url=…). External
 // content is nondeterministic and must never enter a map: the CLI sweep skips
 // the page loudly and continues; a spec-driven capture fails naming the surface.

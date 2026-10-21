@@ -72,6 +72,9 @@ export type SurfaceCrawlOptions = {
   newPage?: () => Promise<Page>;
   /** Namespace for derived surface keys (multi-page sweeps): root = prefix, sub-states = `<prefix>-<label>`. */
   keyPrefix?: string;
+  /** Keys already taken in a multi-page sweep's shared --out, including every queued page's prefix.
+   *  Sub-state keys skip them and are added; the root key is the caller's reserved prefix (or `base`). */
+  usedKeys?: Set<string>;
   /** Auth boundaries deliberately outside scope (`key → non-empty reason`). Exclusions never claim full certification. */
   authBoundaryExclude?: Record<string, string>;
 };

@@ -53,10 +53,17 @@ class AuthBoundaryObserveError extends Error {
 }
 
 /** A prefixed crawl (one page of a multi-page sweep) keys its root as the prefix itself and
- *  namespaces sub-states under it, so two pages never overwrite each other in a shared --out. */
+ *  namespaces sub-states under it. The sweep shares `used` across pages, so a sub-state never
+ *  takes a key another page's surface (or queued prefix) already holds in the shared --out. */
 function deriveKey(steps: CrawlStep[], { opts, st }: Ctx): string {
-  const bare = steps.length === 0 ? 'base' : slug(steps[steps.length - 1].label);
   const prefix = opts.keyPrefix ?? '';
+  // The root is a page's first key; a sweep reserved it when queuing the page, so it is never suffixed.
+  if (steps.length === 0) {
+    const root = prefix || 'base';
+    st.used.add(root);
+    return root;
+  }
+  const bare = slug(steps[steps.length - 1].label);
   return uniqueKeyFor(prefix === '' ? bare : bare === 'base' ? prefix : `${prefix}-${bare}`, st.used);
 }
 
@@ -361,7 +368,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   fs.mkdirSync(opts.out, { recursive: true });
   const st: CrawlState = {
     seen: new Set(),
-    used: new Set(),
+    used: opts.usedKeys ?? new Set(),
     tried: new Set(),
     changersFrom: new Map(),
     classes: new Set(),

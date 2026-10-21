@@ -319,6 +319,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `STYLEPROOF_REPLAY_URL` (such as an unset `${{ vars.* }}` in CI) now counts as
   unset and falls back to `**/api/**`. An empty or blank `replayUrl` in the spec
   now throws `styleproof: replayUrl must be a non-empty URL glob` (#956).
+- **A multi-page `--crawl` no longer overwrites a state's map with a linked page's.**
+  Each page's crawl made its keys unique only within that page, and linked-page
+  prefixes were checked only against other prefixes. So a "Plans" panel on
+  `/pricing` (`pricing-plans`) and a `/pricing/plans` page wrote the same file,
+  and the later capture won. The crawl still reported every surface as captured,
+  but a change to the lost state never reached the diff. The whole sweep now
+  shares one key set, so the key claimed second gets a `-2` suffix, in either
+  discovery order. Keys that do not collide stay the same (#944).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
