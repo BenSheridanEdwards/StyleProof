@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isSelfCheckCaptureFailure } from '../dist/runner.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { removeSurfaceCaptureArtifacts } from '../dist/crawl-surfaces.js';
 import {
   MAP_MANIFEST,
+  clearSurfaceCaptureFailure,
   recordSurfaceCaptureFailure,
   readSurfaceCaptureFailures,
   writeMapManifest,
@@ -29,6 +30,7 @@ const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
 const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
 const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 const CI = path.join(here, '..', 'bin', 'styleproof-ci.mjs');
+const SELF_CHECK = path.join(here, '..', 'dist', 'runner', 'self-check.js');
 
 function run(script, args, env = {}, cwd = process.cwd()) {
   const childEnv = { ...process.env, ...env };
@@ -200,6 +202,22 @@ test('recordSurfaceCaptureFailure: keys that sanitize identically do not clobber
   const failures = readSurfaceCaptureFailures(dir);
   assert.equal(failures.length, 2);
   assert.deepEqual(new Set(failures.map((f) => f.key)), new Set(['about?x@900', 'about#x@900']));
+  rmTmp(root);
+});
+
+test('clearSurfaceCaptureFailure removes only its own key, never a key that sanitizes identically', () => {
+  const root = mkTmp();
+  const dir = path.join(root, 'maps');
+  fs.mkdirSync(dir, { recursive: true });
+  recordSurfaceCaptureFailure(dir, { key: 'about?x@900', reason: 'first', kind: 'capture' });
+  recordSurfaceCaptureFailure(dir, { key: 'about#x@900', reason: 'second', kind: 'capture' });
+  clearSurfaceCaptureFailure(dir, 'about?x@900');
+  assert.deepEqual(
+    readSurfaceCaptureFailures(dir).map((f) => f.key),
+    ['about#x@900'],
+  );
+  // Clearing a key that was never ledgered (the common first-attempt success) is a no-op.
+  clearSurfaceCaptureFailure(path.join(root, 'empty'), 'home@900');
   rmTmp(root);
 });
 
@@ -590,6 +608,95 @@ exit 1
     rmTmp(root);
   }
 });
+
+/** A stub capture run that drives the real failure policy the way Playwright `retries: 1` does:
+ *  `home@640` captures at once; `board@640` fails its first $BOARD_FAILED_ATTEMPTS attempt(s). */
+function writeRetryingPlaywright(binDir) {
+  const map = JSON.stringify(makeMap({ elements: { body: { tag: 'body' } } }));
+  fs.mkdirSync(binDir, { recursive: true });
+  const target = path.join(binDir, 'playwright');
+  fs.writeFileSync(
+    target,
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+(async () => {
+  const { withSurfaceFailureTolerance } = await import(${JSON.stringify(pathToFileURL(SELF_CHECK).href)});
+  const outDir = path.join(process.env.STYLEPROOF_BASEDIR, process.env.STYLEMAP_DIR);
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(outDir, 'styleproof-coverage.json'),
+    JSON.stringify({ version: 1, expected: ['board', 'home'], exclude: {}, determinism: 'self-checked' }),
+  );
+  const settings = { outDir, tolerateSurfaceFailures: false };
+  const attempt = (key, fail) =>
+    withSurfaceFailureTolerance(settings, key, async () => {
+      if (fail) throw new Error('page.goto: net::ERR_EMPTY_RESPONSE');
+      fs.writeFileSync(path.join(outDir, key + '.json'), ${JSON.stringify(map)});
+    });
+  await attempt('home@640', false);
+  let passed = false;
+  for (let n = 1; n <= 2 && !passed; n++) {
+    passed = await attempt('board@640', n <= Number(process.env.BOARD_FAILED_ATTEMPTS ?? 0)).then(
+      () => true,
+      () => false,
+    );
+  }
+  // A retry overwrites the outcome, so a test that passes on retry reads as passed (Playwright: flaky, exit 0).
+  fs.writeFileSync(
+    path.join(process.env.STYLEPROOF_CAPTURE_OUTCOMES_DIR, 'board.json'),
+    JSON.stringify({ title: 'board @ 640', status: passed ? 'passed' : 'failed' }),
+  );
+  process.exitCode = passed ? 0 : 1;
+})();
+`,
+  );
+  fs.chmodSync(target, 0o755);
+}
+
+for (const [label, failedAttempts, expected] of [
+  ['passes on its Playwright retry is not ledgered', 1, { map: 0, ledger: undefined, diff: 0 }],
+  ['fails on every attempt stays ledgered and blocks', 2, { map: 1, ledger: ['board@640'], diff: 1 }],
+]) {
+  test(`styleproof-map: a surface that ${label}`, () => {
+    const root = mkTmp();
+    try {
+      const spec = path.join(root, 'e2e/styleproof.spec.ts');
+      fs.mkdirSync(path.dirname(spec), { recursive: true });
+      fs.writeFileSync(spec, '// fake spec');
+      spawnSync('git', ['init', '-q'], { cwd: root });
+      const binDir = path.join(root, 'fake-bin');
+      writeRetryingPlaywright(binDir);
+      const maps = path.join(root, 'maps');
+      const env = {
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        STYLEPROOF_SHA: undefined,
+        GITHUB_HEAD_SHA: undefined,
+        GITHUB_BASE_SHA: undefined,
+        GITHUB_EVENT_PATH: undefined,
+        GITHUB_EVENT_NAME: undefined,
+        GITHUB_SHA: undefined,
+      };
+      const capture = (dir, extra = {}) =>
+        run(MAP, ['--spec', spec, '--dir', dir, '--base-dir', maps, '--no-upload'], { ...env, ...extra }, root);
+      const base = capture('base', { BOARD_FAILED_ATTEMPTS: String(failedAttempts) });
+      assert.equal(base.status, expected.map, base.stderr + base.stdout);
+      const head = capture('head');
+      assert.equal(head.status, 0, head.stderr + head.stdout);
+      // The head is the same app captured cleanly; only a real base gap may block it.
+      const diff = run(DIFF, [path.join(maps, 'base'), path.join(maps, 'head')]);
+      assert.equal(diff.status, expected.diff, diff.stderr + diff.stdout);
+      assert.equal(/baseline capture failure/.test(diff.stdout), Boolean(expected.ledger), diff.stdout);
+      const manifest = JSON.parse(fs.readFileSync(path.join(maps, 'base', MAP_MANIFEST), 'utf8'));
+      assert.deepEqual(
+        manifest.surfaceCaptureFailures?.map((f) => f.key),
+        expected.ledger,
+      );
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
 
 test('diff CLI: partial base manifest with failures vs full head fails closed as exit 1', () => {
   const root = mkTmp();
