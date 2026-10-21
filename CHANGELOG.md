@@ -54,7 +54,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    the glob with `**`. With a `baseURL` set, failing data requests the old
    matcher missed are now named and block the residue gate. Fixture those
    requests, or acknowledge intentional failures in
-   `styleproof.data-residue.json`.
+   `styleproof.data-residue.json`. A glob-free `replayUrl` such as `/graphql`
+   now matches the whole URL, so it no longer matches `/graphql?q=1`. If you
+   relied on substring matching, use a Playwright glob that covers the requests
+   you mean (for example `**/graphql**`), and remove residue acknowledgements
+   for endpoints now outside it.
 10. **`mapStore.token` (#921).** A typed `styleproof.config.ts` that sets
     `mapStore.token` fails type-check. Delete the key; map-store auth comes from
     `STYLEPROOF_MAP_STORE_TOKEN` or the checkout's credentials.
@@ -113,7 +117,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **BREAKING: Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
+- **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A
   dynamic `/blog/[slug]` and a static `/blog/slug` also shared `blog-slug`, so the
