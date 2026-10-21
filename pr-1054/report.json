@@ -1,0 +1,123 @@
+{
+  "gateMode": "certify",
+  "counts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 0,
+    "reviewableChangedSurfaces": 0,
+    "hasReviewableEvidence": false,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "liveTextFreezeViolated": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 0,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "comparable",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 1,
+      "incomparable": 0,
+      "unproven": 0,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@320",
+      "status": "comparable",
+      "required": true,
+      "reason": "explicit-state-match"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "baselineFailures": [],
+  "partialBaseline": false,
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 1
+    },
+    "completeness": "complete"
+  },
+  "legacyPairs": {
+    "armed": true,
+    "legacyPairs": [],
+    "declared": [],
+    "undeclared": [],
+    "staleAcknowledgements": []
+  },
+  "sourceBinding": {
+    "status": "bound",
+    "compatibility": "matched",
+    "before": {
+      "expected": "1b8fef2d3f41c0599c812b4fc32cf08731741016",
+      "observed": "1b8fef2d3f41c0599c812b4fc32cf08731741016",
+      "result": "matched"
+    },
+    "after": {
+      "expected": "0f5528c92de9102c8d746a4144e566ae7625b407",
+      "observed": "0f5528c92de9102c8d746a4144e566ae7625b407",
+      "result": "matched"
+    }
+  },
+  "evidenceBinding": {
+    "version": 1,
+    "before": {
+      "algorithm": "sha256",
+      "digest": "bbc9d25e84b63aa3fce7ba1656d6d8dc7ef0d7682eb355b649f70298e84fc035",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
+    },
+    "after": {
+      "algorithm": "sha256",
+      "digest": "58bb0e70e67cce026f16198732a5de9ab34065d87e92576e9f3e4572cfa6e381",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
+    }
+  },
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES",
+  "untrustedCapture": false
+}
