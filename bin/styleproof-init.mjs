@@ -569,7 +569,11 @@ if (touched.length) {
 const GATE_NOTE = {
   advisory:
     'reports but never blocks. When the signal proves out, switch with styleproof-init --upgrade --mode certify (or --mode review-gate).',
-  certify: 'fails the job on any style diff.',
+  // Split: the failing report job runs on the default branch, so the status is the gate (#937).
+  certify:
+    scaffold.workflow === 'split'
+      ? 'sets a red StyleProof status on any style diff; a fork PR stays pending, since certify approves nothing.'
+      : 'fails the job on any style diff.',
   'review-gate': 'sets a red status until a reviewer ticks "Approve all changes".',
 };
 const HOW = {

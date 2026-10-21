@@ -47,6 +47,19 @@ function stepProgram(stepName, values) {
   return { environment, program: new AsyncFunction('require', 'github', 'context', 'core', script) };
 }
 
+/** Evaluate a step's real `if:` (the ==, !=, &&, || subset action.yml uses) against test values. */
+function stepRuns(stepName, scenario) {
+  const step = actionYml.match(new RegExp(`- name: ${stepName}\\n[\\s\\S]*?(?=\\n {4}#|\\n {4}- name:|\\n {4}- id:)`));
+  const condition = step[0].match(/\n {6}if: >-\n([\s\S]*?)\n {6}uses:/)[1];
+  const given = values(scenario);
+  const expression = condition.replace(/'([^']*)'|([a-z_]+(?:\.[\w-]+)+)/g, (_, literal, name) => {
+    if (literal !== undefined) return JSON.stringify(literal);
+    assert.ok(Object.hasOwn(given, name), `no test value for ${name} in the ${stepName} if:`);
+    return JSON.stringify(given[name]);
+  });
+  return new Function(`return ${expression};`)();
+}
+
 function values({
   untrusted,
   trustState,
@@ -55,8 +68,13 @@ function values({
   approver = 'maintainer',
   mode = 'review-gate',
   runAttempt = '1',
+  event = 'pull_request',
+  failOnDiff = true,
 }) {
   return {
+    'github.event_name': event,
+    'inputs.fail-on-diff': failOnDiff ? 'true' : 'false',
+    'steps.comment.outputs.stale-delivery': 'false',
     'steps.context.outputs.pr-number': '42',
     'steps.context.outputs.head-sha': HEAD_SHA,
     'steps.context.outputs.untrusted-capture': untrusted ? 'true' : 'false',
@@ -363,6 +381,60 @@ test('a real sign-off on the same head SHA preserves its identity across reruns,
   }
   const foreign = await rerunWithChanges(signOff('Approved by @maintainer', { login: 'some-app[bot]', type: 'Bot' }));
   assert.deepEqual(foreign.gate, { approved: 'false', approver: '' });
+});
+
+test('a split-layout certify run puts a red StyleProof status on the PR head (#937)', async () => {
+  // The inputs `styleproof-init --workflow split --mode certify` passes from its
+  // workflow_run report job. That job runs on the default branch, so its own
+  // "Fail on diff" failure never reaches the PR: the status is the PR's only verdict.
+  const certify = { mode: 'certify', event: 'workflow_run' };
+  const changed = { ...certify, untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true };
+  assert.equal(stepRuns('Set review status', changed), true, 'certify from workflow_run must set the status');
+  const certifyDiff = 'Style changes detected — certify mode fails on any diff';
+  assert.deepEqual((await run('Set review status', changed)).statuses, [
+    {
+      owner: 'acme',
+      repo: 'app',
+      sha: HEAD_SHA,
+      context: 'StyleProof',
+      state: 'failure',
+      description: certifyDiff,
+      target_url: ARTIFACT_URL,
+    },
+  ]);
+  // Certify allows no sign-off: neither approve workflow treats this status as approvable.
+  for (const approve of ['.github/workflows/styleproof-approve-reusable.yml', 'example/styleproof-approve.yml']) {
+    assert.equal(fs.readFileSync(path.join(root, approve), 'utf8').includes(certifyDiff), false, approve);
+  }
+
+  const clean = { ...certify, untrusted: false, trustState: 'NO_REVIEWABLE_STYLE_CHANGES', changed: false };
+  const cleanStatus = (await run('Set review status', clean)).statuses[0];
+  assert.deepEqual(
+    { state: cleanStatus.state, description: cleanStatus.description },
+    { state: 'success', description: 'No reviewable computed-style changes' },
+  );
+  // A fork's clean capture is only its own claim: pending, never success. A fork diff still fails.
+  const forkClean = (await run('Set review status', { ...clean, untrusted: true })).statuses[0];
+  assert.deepEqual(
+    { state: forkClean.state, description: forkClean.description },
+    { state: 'pending', description: UNTRUSTED_DESCRIPTION },
+  );
+  const forkChanged = (await run('Set review status', { ...changed, untrusted: true })).statuses[0];
+  assert.deepEqual(
+    { state: forkChanged.state, description: forkChanged.description },
+    { state: 'failure', description: certifyDiff },
+  );
+  const forkFailed = { ...certify, untrusted: true, trustState: 'CERTIFICATION_FAILED', changed: false };
+  assert.equal((await run('Set review status', forkFailed)).statuses[0].state, 'failure');
+
+  // Single-workflow certify keeps its failing pull_request job as the gate, and
+  // fail-on-diff: false never blocks, so neither sets the status.
+  assert.equal(stepRuns('Set review status', { ...changed, event: 'pull_request' }), false);
+  assert.equal(stepRuns('Set review status', { ...changed, failOnDiff: false }), false);
+  // Every status-setting mode keeps setting it from either event.
+  for (const mode of ['review-gate', 'migration', 'advisory'])
+    for (const event of ['pull_request', 'workflow_run'])
+      assert.equal(stepRuns('Set review status', { ...changed, mode, event }), true, `${mode} from ${event}`);
 });
 
 test('the verdict step records the trusted untrusted-capture flag and the gate reads fork approvals', () => {

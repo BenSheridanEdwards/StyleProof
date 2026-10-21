@@ -941,17 +941,22 @@ runs:
     # can flip, instead of failing the job. Green when nothing changed; red ("needs
     # sign-off") until a write-access reviewer ticks the box. PR events only. A fork
     # (untrusted) capture is pending — never auto-green — until a maintainer approves.
+    # Certify mode sets it too when run from workflow_run (#937): that job runs on the
+    # default branch, so "Fail on diff" never reaches the PR and the status is its only
+    # verdict — red on any diff, never approvable.
     # Skipped when the comment step classified this delivery as a stale earlier
     # attempt, so a late attempt-1 retry cannot clobber attempt 2's status either.
     - name: Set review status
       id: status
       if: >-
         steps.context.outputs.pr-number != '' &&
-        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
+        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory' ||
+        (inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && github.event_name == 'workflow_run')) &&
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       env:
         STYLEPROOF_MODE: ${{ inputs.mode }}
+        STYLEPROOF_REQUIRE_APPROVAL: ${{ inputs.require-approval }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
         STYLEPROOF_UNTRUSTED_CAPTURE: ${{ steps.context.outputs.untrusted-capture }}
@@ -971,14 +976,16 @@ runs:
             `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
           const mode = process.env.STYLEPROOF_MODE;
           const blocking = '${{ steps.config.outputs.blocking }}';
-          const advisoryMode = mode === 'advisory' || blocking === 'advisory';
+          // Certify fails on any diff whatever the config says, exactly as "Fail on diff" does.
+          const certify = mode === 'certify' && process.env.STYLEPROOF_REQUIRE_APPROVAL !== 'true';
+          const advisoryMode = !certify && (mode === 'advisory' || blocking === 'advisory');
           // Same-repo: advisory mode is always green; otherwise green when no review is needed
           // or a prior sign-off approved this commit. Fork (untrusted) capture: never green
           // automatically — pending until a maintainer approves, even on zero diff.
           const { decideReviewStatus, UNTRUSTED_CAPTURE_STATUS_DESCRIPTION } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-status.js`);
           const untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
-          const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture });
+          const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture, certify });
           const {
             formatPartialBaselineStatusDescription,
             formatDegradedBaselineStatusDescription,
@@ -991,9 +998,11 @@ runs:
           const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
           const descriptions = {
             NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
-            STYLE_REVIEW_REQUIRED: approved
-              ? `Approved by @${approver}`
-              : 'StyleProof changes need sign-off — tick the box in the report comment',
+            STYLE_REVIEW_REQUIRED: certify
+              ? 'Style changes detected — certify mode fails on any diff'
+              : approved
+                ? `Approved by @${approver}`
+                : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
             CERTIFICATION_FAILED: 'Evidence incomplete on named surface+SHA — not a base recapture failure',

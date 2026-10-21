@@ -54,7 +54,7 @@ The generated trusted report workflow requests only the capabilities used by del
 - `actions: read` to retrieve the untrusted capture artifact;
 - `contents: write` only in branch mode, to publish the report-branch commit — artifact mode runs `contents: read`;
 - `pull-requests: write` to create or update the report comment;
-- `statuses: write` to set the optional review-gate commit status.
+- `statuses: write` to set the `StyleProof` commit status, which carries the verdict to the PR head.
 
 The capture workflow remains read-only and never receives report-publication credentials.
 
