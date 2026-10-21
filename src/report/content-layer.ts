@@ -24,6 +24,14 @@ function noStructureCropNote(change: 'added' | 'removed'): string {
   );
 }
 
+/** An entry past the `--max-crops` cap names the cap instead of silently showing no crop (#971). */
+function cropCapNote(scope: string, maxCrops: number): string[] {
+  return [
+    '',
+    `_Crop omitted: ${scope} reached the \`--max-crops\` limit (${maxCrops}). The change is still listed and counted._`,
+  ];
+}
+
 type StructureChange = Extract<ContentChange, { kind: 'structure' }>;
 
 /** The side an element exists on: an added element has no before entry, a removed one no after entry. */
@@ -293,7 +301,11 @@ function chromeStructureLines(ctx: RenderCtx, entry: ChromeStructureChange, seq:
     pngA && pngB
       ? { ctx, mapA: ctx.load(ctx.beforeDir, surface), mapB: ctx.load(ctx.afterDir, surface), pngA, pngB }
       : null;
-  const crop = sides && seq < ctx.maxCrops ? contentCropLines(sides, surface, c, `chrome-${seq + 1}`) : [];
+  const crop = !sides
+    ? []
+    : seq < ctx.maxCrops
+      ? contentCropLines(sides, surface, c, `chrome-${seq + 1}`)
+      : cropCapNote('Global chrome', ctx.maxCrops);
   return [
     '',
     `**${codeValue(prettyLabel(c.path, c.cls))}** — element ${c.change} on all ${bases} surface base${bases === 1 ? '' : 's'} ` +
@@ -345,6 +357,8 @@ function changeLines(ctx: RenderCtx, c: ContentChange): string[] {
 }
 
 function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurface, seq: number) {
+  // seq numbers crop files across the whole section; the cap counts this surface's crops only (#971).
+  const firstSeq = seq;
   const rawMapA = ctx.load(ctx.beforeDir, surface);
   const mapB = ctx.load(ctx.afterDir, surface);
   // Shifted text is reported at the head path: render text changes against the
@@ -355,7 +369,11 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
   for (const c of changes) {
     const mapA = c.kind === 'text' ? comparableMapA : rawMapA;
     const sides = pngA && pngB ? { ctx, mapA, mapB, pngA, pngB } : null;
-    const cropLines = sides && seq < ctx.maxCrops ? contentCropLines(sides, surface, c, `content-${seq + 1}`) : [];
+    const cropLines = !sides
+      ? []
+      : seq - firstSeq < ctx.maxCrops
+        ? contentCropLines(sides, surface, c, `content-${seq + 1}`)
+        : cropCapNote('this surface', ctx.maxCrops);
     if (cropLines.some((line) => line.startsWith('!['))) seq++;
     md.push('', `**${codeValue(prettyLabel(c.path, c.cls))}**`, '', ...changeLines(ctx, c), ...cropLines);
   }

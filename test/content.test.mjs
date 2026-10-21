@@ -578,7 +578,63 @@ test('maxCrops bounds advisory content image sets without hiding textual finding
   assert.match(md, /Old one/);
   assert.match(md, /Old two/);
   assert.match(md, /Old three/);
+  // #971: the two uncropped entries say why they have no crop.
+  assert.equal(md.split('_Crop omitted: this surface reached the `--max-crops` limit (1).').length - 1, 2);
   rmTmp(dirs.root);
+});
+
+// #971: five visible additions on each of two surfaces (distinct classes, so nothing is Global chrome).
+function twoSurfaceAdditions(opts = {}) {
+  const dirs = tmpDirs();
+  ['first@500', 'second@500'].forEach((surface, s) => {
+    const body = { body: { tag: 'body', rect: [0, 0, 500, 240] } };
+    const added = {};
+    for (let k = 1; k <= 5; k++) {
+      added[`body > section:nth-child(${k})`] = {
+        tag: 'section',
+        cls: `card-${s}-${k}`,
+        rect: [10 + (k - 1) * 95, 60, 80, 80],
+      };
+    }
+    writeCapture(dirs.beforeDir, surface, makeMap({ elements: body }), solidPng(500, 240));
+    writeCapture(
+      dirs.afterDir,
+      surface,
+      makeMap({ elements: { ...body, ...added } }),
+      solidPng(500, 240, [59, 130, 246]),
+    );
+  });
+  const result = generateStyleMapReport({ ...dirs, includeContent: true, zoomBelow: 0, ...opts });
+  const composites = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((name) => name.endsWith('-composite.png'));
+  return { dirs, result, composites, md: fs.readFileSync(result.reportMdPath, 'utf8') };
+}
+
+test('#971: maxCrops caps content crops per surface, so a later surface keeps its crops', () => {
+  const { dirs, result, composites, md } = twoSurfaceAdditions();
+  assert.equal(result.contentChanges, 10);
+  assert.equal(result.comparison.reviewableCounts.dom, 10, 'every visible addition gates the check');
+  assert.equal(composites.filter((name) => name.startsWith('first-500-')).length, 5);
+  assert.equal(composites.filter((name) => name.startsWith('second-500-')).length, 5, 'the second surface keeps all 5');
+  assert.equal(new Set(composites).size, 10, 'crop file names stay unique across the section');
+  assert.doesNotMatch(md, /Crop omitted/);
+  rmTmp(dirs.root);
+});
+
+test('#971: a content change past the per-surface crop cap carries an omission note, verdict unchanged', () => {
+  const full = twoSurfaceAdditions();
+  const capped = twoSurfaceAdditions({ maxCrops: 3 });
+  assert.equal(capped.composites.length, 6, '3 crops on each surface');
+  const note =
+    '_Crop omitted: this surface reached the `--max-crops` limit (3). The change is still listed and counted._';
+  for (const surface of ['first@500', 'second@500']) {
+    const section = capped.md.split(`### \`${surface}\``)[1].split('\n### ')[0];
+    assert.equal(section.split('element added').length - 1, 5, `${surface} still lists all 5 additions`);
+    assert.equal(section.split(note).length - 1, 2, `${surface} names both uncropped additions`);
+  }
+  assert.deepEqual(capped.result.comparison.reviewableCounts, full.result.comparison.reviewableCounts);
+  assert.equal(capped.result.comparison.hasReviewableEvidence, true);
+  rmTmp(full.dirs.root);
+  rmTmp(capped.dirs.root);
 });
 
 test('a capped report does not claim content artifacts when content comparison is disabled', () => {

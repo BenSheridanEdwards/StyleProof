@@ -304,6 +304,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   counts once in `reviewableCounts.dom`. A wrapper whose children are hidden or
   zero-size stays advisory. So does wrapping an existing element whose own text
   pairs it across the move.
+- **Content-layer crops are capped per surface, and a capped entry says so
+  (#971).** `--max-crops` is documented as a per-surface limit, but the content
+  section spent one budget across every surface. After 8 crops anywhere, later
+  changes on any surface got no crop and no note, including visible additions
+  that gate the check. Each surface now gets its own `--max-crops` crops. An
+  entry past the cap, including a Global chrome entry, now says the crop was
+  omitted because of `--max-crops`. The counts and the verdict are unchanged.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

@@ -25,13 +25,13 @@ function sidebarMap(links, extra = {}) {
   return makeMap({ elements });
 }
 
-function fixture({ before, after }) {
+function fixture({ before, after }, opts = {}) {
   const dirs = tmpDirs();
   for (const surface of SURFACES) {
     writeCapture(dirs.beforeDir, surface, before(surface), solidPng(400, 300));
     writeCapture(dirs.afterDir, surface, after(surface), solidPng(400, 300, [150, 150, 150]));
   }
-  const result = generateStyleMapReport({ ...dirs, includeContent: true });
+  const result = generateStyleMapReport({ ...dirs, includeContent: true, ...opts });
   return { dirs, result, md: fs.readFileSync(result.reportMdPath, 'utf8') };
 }
 
@@ -68,6 +68,24 @@ test('#754: a link added to the sidebar on every surface is ONE Global chrome en
     elevatedVisibleStructure: 1,
   });
   rmTmp(dirs.root);
+});
+
+test('#971: Global chrome entries past maxCrops carry an omission note, verdict unchanged', () => {
+  const sides = { before: () => sidebarMap(1), after: () => sidebarMap(3) };
+  const full = fixture(sides);
+  const capped = fixture(sides, { maxCrops: 1 });
+  assert.match(capped.md, /## 🧱 Global chrome — 2 element changes/);
+  const composites = fs
+    .readdirSync(`${capped.dirs.outDir}/crops`)
+    .filter((name) => /-chrome-\d+-composite\.png$/.test(name));
+  assert.equal(composites.length, 1);
+  const note =
+    '_Crop omitted: Global chrome reached the `--max-crops` limit (1). The change is still listed and counted._';
+  assert.equal(occurrences(capped.md, note), 1, 'the uncropped second entry says why it has no crop');
+  assert.equal(occurrences(full.md, 'Crop omitted'), 0);
+  assert.deepEqual(capped.result.comparison.reviewableCounts, full.result.comparison.reviewableCounts);
+  rmTmp(full.dirs.root);
+  rmTmp(capped.dirs.root);
 });
 
 test('#754: a sidebar link removed on every surface is ONE Global chrome entry', () => {
