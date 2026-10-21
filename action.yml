@@ -41,7 +41,7 @@ inputs:
     description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer in either storage mode; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
     default: '30'
   report-branch:
-    description: "Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is 'branch'."
+    description: "Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR or run-<run_id>/ per non-PR run; the styleproof-init workflow prunes PR reports on close and sweeps run reports on a schedule. Used only when report-storage is 'branch'."
     default: 'styleproof-reports'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
@@ -673,7 +673,11 @@ runs:
       run: |
         set -euo pipefail
         PR='${{ steps.context.outputs.pr-number }}'
-        REPORT_PATH="pr-${PR:-${{ github.run_id }}}"
+        if [ -n "$PR" ]; then
+          REPORT_PATH="pr-${PR}"
+        else
+          REPORT_PATH="run-${{ github.run_id }}"
+        fi
         REPORT_SHA='${{ steps.context.outputs.head-sha }}'
         [ -n "$REPORT_SHA" ] || REPORT_SHA='${{ github.sha }}'
 
