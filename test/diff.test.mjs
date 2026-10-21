@@ -1414,6 +1414,49 @@ test("a forced-state change to a live region root's own ::before never diffs", (
   }
 });
 
+test('a :hover ::after or :focus ::before change on a paired element is a state finding in certification (#948)', () => {
+  const btn = 'body > button:nth-child(1)';
+  const el = { tag: 'button', cls: 'cta', style: {} };
+  for (const [state, sub] of [
+    ['hover', `${btn}::after`],
+    ['focus', `${btn}::before`],
+  ]) {
+    const map = (color) => makeMap({ elements: { [btn]: el }, states: { [btn]: { [state]: { [sub]: { color } } } } });
+    for (const includeStructure of [true, false]) {
+      assert.deepEqual(
+        diffStyleMaps(map('rgb(255, 255, 255)'), map('rgb(255, 0, 0)'), { includeStructure }).map((f) => [
+          f.kind,
+          f.state,
+          f.sub,
+          f.props.map((p) => p.prop),
+        ]),
+        [['state', state, sub, ['color']]],
+        `${sub} with includeStructure: ${includeStructure}`,
+      );
+    }
+  }
+});
+
+test('certification still skips a pseudo state target whose host is unpaired or retagged', () => {
+  const btn = 'body > button:nth-child(1)';
+  const host = 'body > div:nth-child(2)';
+  const el = (tag) => ({ tag, cls: '', style: {} });
+  const map = (hostTag, color) =>
+    makeMap({
+      elements: { [btn]: el('button'), ...(hostTag ? { [host]: el(hostTag) } : {}) },
+      states: { [btn]: { hover: { [`${host}::after`]: { color } } } },
+    });
+  for (const [beforeTag, afterTag] of [
+    [null, 'div'],
+    ['div', 'span'],
+  ]) {
+    const findings = diffStyleMaps(map(beforeTag, 'rgb(0, 0, 0)'), map(afterTag, 'rgb(255, 0, 0)'), {
+      includeStructure: false,
+    });
+    assert.deepEqual(findings, [], `${beforeTag} -> ${afterTag}`);
+  }
+});
+
 test('a new one-sided :hover margin is a state finding, even when certification omits structure', () => {
   const btn = 'body > button:nth-child(1)';
   const el = { tag: 'button', cls: '', rect: [0, 0, 100, 40], style: {} };
