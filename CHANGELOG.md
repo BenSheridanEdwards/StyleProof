@@ -327,6 +327,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   but a change to the lost state never reached the diff. The whole sweep now
   shares one key set, so the key claimed second gets a `-2` suffix, in either
   discovery order. Keys that do not collide stay the same (#944).
+- **`styleproof-map --upload` no longer reports `uploaded` when the map-store
+  commit fails (#960).** The upload never checked `git add` or `git commit` in
+  its temporary map-store clone, and that clone inherits the publisher's global
+  Git config. A commit rejected by `commit.gpgsign` with a failing signer, or by
+  a global `core.hooksPath` commit-msg hook, left the clone on the existing
+  branch tip. The push then succeeded with nothing new, and the CLI printed
+  `uploaded` for a SHA that was never stored. The machine commit now skips
+  commit signing and Git hooks, and a failed add or commit is retried and then
+  ends in `upload failed` (exit 5). Republishing an identical bundle still
+  succeeds.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

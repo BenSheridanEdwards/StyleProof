@@ -110,6 +110,23 @@ function pushMapStoreCommit(target: StoreTarget, checkout: string, authenticatio
   return pushViaConsumerCheckout(target, checkout, failures);
 }
 
+/** Stage and commit the bundle. A byte-identical republish stages nothing and pushes the
+ *  stored tip as is. The machine commit skips the publisher's signing and hooks; a rejected
+ *  commit would leave HEAD on the branch tip, and the push would then succeed empty. */
+function commitMapStoreBundle(checkout: string, bundlePath: string, message: string): void {
+  const add = git(checkout, ['add', '-A', '--sparse', '--', 'README.md', bundlePath]);
+  if (add.status !== 0) throw new MapStoreError(describeFailure('map-store add', add));
+  const diff = git(checkout, ['diff', '--cached', '--quiet', '--no-ext-diff', '--no-textconv']);
+  if (diff.status === 0) return;
+  if (diff.status !== 1) throw new MapStoreError(describeFailure('map-store diff', diff));
+  const commit = git(
+    checkout,
+    ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message],
+    1 << 20,
+  );
+  if (commit.status !== 0) throw new MapStoreError(describeFailure('map-store commit', commit));
+}
+
 type PublishAttempt = {
   target: StoreTarget;
   sha: string;
@@ -134,8 +151,7 @@ function publishMapStoreAttempt(options: PublishAttempt): { ok: boolean; phase: 
     if (!options.includeHar) {
       fs.writeFileSync(path.join(bundle, MAP_MANIFEST), JSON.stringify({ ...options.manifest, har: false }, null, 2));
     }
-    git(checkout, ['add', '-A', '--sparse', '--', 'README.md', bundlePath]);
-    git(checkout, ['commit', '-q', '-m', mapPublishCommitMessage(options.sha, options.compatibilityKey)], 1 << 20);
+    commitMapStoreBundle(checkout, bundlePath, mapPublishCommitMessage(options.sha, options.compatibilityKey));
     const push = pushMapStoreCommit(options.target, checkout, options.authenticationArguments);
     return { ok: push.status === 0, phase: 'publish', error: push.stderr.trim() || `git exited ${push.status}` };
   } catch (error) {
