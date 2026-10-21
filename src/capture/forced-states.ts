@@ -15,7 +15,7 @@ import {
 import { codeLiteral } from '../util.js';
 import { captureFullPageScreenshot } from './full-page.js';
 import { isUnder, skipSelector, warn } from './shared.js';
-import type { ForcedStateLimits, ForcedStateScope, StyleMap } from './types.js';
+import type { ForcedStateLimits, ForcedStateScope, Props, StyleMap } from './types.js';
 
 const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"], [tabindex]';
 const STATE_ID_ATTR = 'data-styleproof-state-id';
@@ -174,6 +174,8 @@ async function snapStateScopeInSession(client: CDPSession, args: StateScopeArgs)
 type ForcedStateCaptureContext = {
   session: ForcedStateSession;
   states: StyleMap['states'];
+  /** Typed OM margin proof per owner/state; dropped (undefined) once any read lacked Typed OM. */
+  stateComputedValueStyle: StyleMap['stateComputedValueStyle'];
   baselineKey: string;
   skipSel: string;
   skipPaths: string[];
@@ -251,7 +253,23 @@ async function captureForcedStateVariation(
     return 'next-target';
   }
   if (Object.keys(forced.delta).length) (context.states[elementPath] ??= {})[stateName] = forced.delta;
+  recordStateComputedValueStyle(context, elementPath, stateName, forced.typedMargins);
   return 'continue';
+}
+
+/** Keep a read's Typed OM margin proof, or drop the whole field when this read had none. */
+function recordStateComputedValueStyle(
+  context: ForcedStateCaptureContext,
+  elementPath: string,
+  stateName: string,
+  typedMargins: Record<string, Props> | undefined,
+): void {
+  if (!context.stateComputedValueStyle) return;
+  if (!typedMargins) {
+    context.stateComputedValueStyle = undefined;
+    return;
+  }
+  if (Object.keys(typedMargins).length) (context.stateComputedValueStyle[elementPath] ??= {})[stateName] = typedMargins;
 }
 
 function warnTruncatedForcedStateScan(context: ForcedStateCaptureContext): void {
@@ -317,11 +335,15 @@ export async function captureForcedStates(
   maxInteractive: number,
   limits: Required<ForcedStateLimits>,
   skipPaths: string[] = [],
-): Promise<{ states: StyleMap['states']; skipped: boolean }> {
+): Promise<{
+  states: StyleMap['states'];
+  skipped: boolean;
+  stateComputedValueStyle?: StyleMap['stateComputedValueStyle'];
+}> {
   const skipSel = skipSelector(ignore);
   const baselineKey = `${STATE_BASELINE_KEY}-${Math.random().toString(36).slice(2)}`;
   let skipped = true;
-  const states = await withForcedStateSession(
+  const { states, stateComputedValueStyle } = await withForcedStateSession(
     page,
     skipSel,
     async (session) => {
@@ -330,6 +352,7 @@ export async function captureForcedStates(
       const context: ForcedStateCaptureContext = {
         session,
         states: {},
+        stateComputedValueStyle: {},
         baselineKey,
         skipSel,
         skipPaths,
@@ -356,11 +379,13 @@ export async function captureForcedStates(
       }
       // Any omitted target or element leaves the layer incomplete: fail closed, never read partial as identical.
       skipped = truncated || context.incomplete;
-      return context.states;
+      // A skipped layer proves nothing, so its margin proof is never persisted.
+      const proof = skipped ? undefined : context.stateComputedValueStyle;
+      return { states: context.states, stateComputedValueStyle: proof };
     },
     () => page.evaluate(clearStateBaseline, baselineKey).catch(() => undefined),
   );
-  return { states, skipped };
+  return { states, skipped, ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}) };
 }
 
 /** `<stem>.hover.png` — the full-page shot with every interactive node forced. */
