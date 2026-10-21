@@ -21,7 +21,10 @@ export function installHoverSink(): void {
     'position:fixed;left:0;top:0;width:1px;height:1px;z-index:2147483647;pointer-events:auto;opacity:0';
 }
 
-/** Adopt the motion-freeze sheet. One sheet per window, so a reused page never piles them up. */
+/**
+ * Adopt the motion-freeze sheet. One sheet per window, so a reused page never piles them up.
+ * No `?? []` guard: every Playwright engine has constructed sheets (Firefox 101, WebKit 16.4).
+ */
 export function freezeMotion(css: string): void {
   const w = window as unknown as WithFreeze;
   const sheet = (w.__spFreeze ??= new CSSStyleSheet());

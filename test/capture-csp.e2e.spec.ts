@@ -38,13 +38,11 @@ async function expectInlineStylesBlocked(page: Page): Promise<void> {
   expect(probe, 'the CSP blocks the page’s own inline <style>').not.toBe('rgb(1, 2, 3)');
 }
 
-/** Freeze sheets left on the page: inline <style> tags or adopted constructed sheets. */
+/** Freeze sheets left on the page: freeze <style> tags, or any adopted sheet (the fixture adopts none). */
 function freezeSheetsLeft(page: Page): Promise<number> {
   return page.evaluate((css) => {
-    const rules = (sheet: CSSStyleSheet) => Array.from(sheet.cssRules, (rule) => rule.cssText).join('');
-    const frozen = (sheet: CSSStyleSheet) => rules(sheet).includes('animation: none !important');
     const tags = Array.from(document.querySelectorAll('style')).filter((s) => s.textContent === css);
-    return tags.length + document.adoptedStyleSheets.filter(frozen).length;
+    return tags.length + document.adoptedStyleSheets.length;
   }, FREEZE_CSS);
 }
 
