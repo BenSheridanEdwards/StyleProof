@@ -42,11 +42,15 @@ function remapStyleMap(before: StyleMap, remap: PathRemap): StyleMap {
   // Owner and target paths remap independently; an unmatched target keeps its
   // concrete before path and surfaces as a one-sided state inventory.
   type Targets = NonNullable<StyleMap['states']>[string][string];
-  const states = remapKeys(before.states ?? {}, remap, (byState) =>
-    Object.fromEntries(
-      Object.entries(byState).map(([name, targets]) => [name, remapKeys<Targets[string]>(targets, remap)]),
-    ),
-  );
+  const remapStateLayer = (layer: StyleMap['states']): StyleMap['states'] =>
+    remapKeys(layer, remap, (byState) =>
+      Object.fromEntries(
+        Object.entries(byState).map(([name, targets]) => [name, remapKeys<Targets[string]>(targets, remap)]),
+      ),
+    );
+  const states = remapStateLayer(before.states ?? {});
+  // The forced margin proof is keyed like `states`; left on stale paths, a moved target would read as unchanged.
+  const proof = before.stateComputedValueStyle;
   const withPath = <T extends { path: string }>(items: T[] | undefined): T[] | undefined =>
     items?.flatMap((item) => {
       const to = remap(item.path);
@@ -56,6 +60,7 @@ function remapStyleMap(before: StyleMap, remap: PathRemap): StyleMap {
     ...before,
     elements: remapKeys(before.elements, remap),
     states,
+    ...(proof ? { stateComputedValueStyle: remapStateLayer(proof) } : {}),
     volatile: before.volatile?.map(remap).filter((p): p is string => p !== null),
     liveCandidates: withPath(before.liveCandidates),
     overlays: withPath(before.overlays),

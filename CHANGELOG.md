@@ -213,6 +213,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Open PR reports and undated folders are always kept; failed PR or commit
   listings and non-404 lookup failures abort without deleting reports.
 
+- **An `auto` margin that only echoes a forced-state width change no longer
+  reports (#917).** An `auto`-centred child whose `:hover` width changed
+  reported `margin-left`/`margin-right` (and the logical pair) rows beside the
+  width row. The capture now records the CSS Typed OM computed horizontal
+  margins of forced-state targets in a new optional map field,
+  `stateComputedValueStyle`. The diff drops a state's horizontal margin pair
+  only when both maps prove it `auto` at rest and under the state, and its
+  sides drift together. An authored margin, an `auto` set only by the state, a
+  `::before`/`::after` target, a skipped forced-state layer, or a browser
+  without Typed OM keeps every row. Maps captured before this change have no
+  field and keep reporting the rows; re-capture both sides to get the filter.
+  Known limit: if the width change comes from an element the diff never reports
+  (an `ignore`d sibling, a volatile or non-live path), the dropped margin rows
+  leave nothing reported.
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A

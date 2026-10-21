@@ -56,7 +56,16 @@ export type Finding =
       /** Own-text length changed, or could not be compared (a legacy map omitted the signal). */
       contentLengthSignal?: 'changed' | 'unknown';
     }
-  | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
+  | {
+      kind: 'state';
+      path: string;
+      cls: string;
+      state: string;
+      sub: string;
+      props: PropChange[];
+      /** Proven auto margin rows were removed from this owner+state; retain its size/position evidence. */
+      autoMarginEchoDropped?: true;
+    };
 
 /** Head-only surfaces split into first adoption (`genuinely-new`) and a failed prior baseline capture (`baseline-repair-debt`). */
 export type SurfaceClassification = 'genuinely-new' | 'baseline-repair-debt' | 'removed' | 'changed' | 'unchanged';
@@ -318,25 +327,59 @@ const pairedSameTag = ({ a, b }: DiffCtx, p: string): boolean =>
 const STATE_ADDS = '(state does not change it)';
 const STATE_DROPS = '(state no longer changes it)';
 
+type StateOwner = { path: string; cls: string; state: string };
+
+/**
+ * One map proves a horizontal margin pair is `auto` at rest AND under the forced state, from
+ * CSS Typed OM computed values. With the proof field present, a target missing from it kept
+ * its resting computed margins. Any missing value is unproven.
+ */
+function provesAutoMarginPair(map: StyleMap, owner: StateOwner, sub: string, pair: [string, string]): boolean {
+  const element = map.elements[sub];
+  if (!map.stateComputedValueStyle || !element) return false;
+  const forced = map.stateComputedValueStyle[owner.path]?.[owner.state]?.[sub] ?? element.computedValueStyle;
+  return pair.every((prop) => element.computedValueStyle?.[prop] === 'auto' && forced?.[prop] === 'auto');
+}
+
+/**
+ * Drop a balanced horizontal margin pair whose `auto` margins only echo another state change
+ * (a :hover width on an auto-centred child), when BOTH maps prove `auto` at rest and forced
+ * (#917). A forced state never moves the resting rect, so the rect cannot prove it (#877).
+ */
+function dropAutoEchoMarginPairs(ctx: DiffCtx, owner: StateOwner, sub: string, props: PropChange[]): PropChange[] {
+  if (/::[\w-]+$/.test(sub)) return props;
+  const echoes = HORIZONTAL_MARGIN_PAIRS.filter(
+    (pair) =>
+      !marginChangeHasPxImbalance(props.filter((p) => pair.includes(p.prop))) &&
+      provesAutoMarginPair(ctx.a, owner, sub, pair) &&
+      provesAutoMarginPair(ctx.b, owner, sub, pair),
+  ).flat();
+  return props.filter((p) => !echoes.includes(p.prop));
+}
+
 /** One forced state's deltas against every target element it touched. */
 function stateTargetFindings(
   ctx: DiffCtx,
-  owner: { path: string; cls: string; state: string },
+  owner: StateOwner,
   da: Record<string, Record<string, string>>,
   db: Record<string, Record<string, string>>,
 ): Finding[] {
   const findings: Finding[] = [];
+  let autoMarginEchoDropped = false;
   for (const sub of unionKeys(da, db)) {
     // A target inside a live region never diffs, like its element layer. Targets are keyed
     // `path` or `path::before` / `path::after`, so the pseudo suffix is dropped for the check.
     if (!ctx.live(sub.replace(/::[\w-]+$/, ''))) continue;
     if (!ctx.includeStructure && !pairedSameTag(ctx, sub)) continue;
-    // No layout-equivalent margin drop here: a forced state never moves the resting rect, so
-    // an unchanged rect cannot prove a balanced margin change is an echo (#877).
-    const props = dropSubpixelOriginProps(diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, STATE_ADDS, STATE_DROPS));
+    // No rect-based margin drop here (#877); only a Typed OM `auto` proof drops an echo (#917).
+    const rawProps = diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, STATE_ADDS, STATE_DROPS);
+    const withoutAutoMargins = dropAutoEchoMarginPairs(ctx, owner, sub, rawProps);
+    if (withoutAutoMargins.length < rawProps.length) autoMarginEchoDropped = true;
+    const props = dropSubpixelOriginProps(withoutAutoMargins);
     if (props.length) findings.push({ kind: 'state', ...owner, sub, props });
   }
-  return findings;
+  // A margin-only target can disappear; its driver may be any other target of this owner+state.
+  return autoMarginEchoDropped ? findings.map((f) => ({ ...f, autoMarginEchoDropped: true as const })) : findings;
 }
 
 /** Forced-state deltas (`:hover`/`:focus`/`:active`) for one owner element. */

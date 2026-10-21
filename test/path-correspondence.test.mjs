@@ -264,6 +264,31 @@ test('remapBeforeStyleMap rewrites forced-state owner and target paths when safe
   });
 });
 
+test('remapBeforeStyleMap rewrites the forced Typed OM margin proof with its owner and target', () => {
+  // Left on a stale path, a moved target would read as "computed margins unchanged from rest" (#917).
+  const forced = { 'margin-left': '40px', 'margin-right': '40px' };
+  const before = {
+    ...makeMap({
+      elements: { 'body > button:nth-child(1)': { tag: 'button', rect: [1, 1, 10, 10], ownTextLength: 0 } },
+    }),
+    stateComputedValueStyle: { 'body > button:nth-child(1)': { hover: { 'body > button:nth-child(1)': forced } } },
+  };
+  const moved = 'body > div:nth-child(1) > button:nth-child(1)';
+  const remapped = remapBeforeStyleMap(before, new Map([['body > button:nth-child(1)', moved]]));
+  assert.deepEqual(remapped.stateComputedValueStyle, { [moved]: { hover: { [moved]: forced } } });
+});
+
+test('remapBeforeStyleMap leaves a legacy map without the margin proof without it', () => {
+  const before = makeMap({
+    elements: { 'body > button:nth-child(1)': { tag: 'button', rect: [1, 1, 10, 10], ownTextLength: 0 } },
+  });
+  const remapped = remapBeforeStyleMap(
+    before,
+    new Map([['body > button:nth-child(1)', 'body > div:nth-child(1) > button:nth-child(1)']]),
+  );
+  assert.equal('stateComputedValueStyle' in remapped, false);
+});
+
 test('raw diffStyleMaps is unchanged by the correspondence helpers (correspondence is applied by diffStyleMapDirs)', () => {
   const button = {
     tag: 'button',
