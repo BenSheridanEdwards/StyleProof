@@ -134,7 +134,7 @@ function receiptMatches(expectedReceipt: string, markdown: Uint8Array | null, re
     // marker makes the publication ambiguous, the same rule the approval readback applies.
     const markdownText = decoder.decode(markdown);
     const receiptMarkers = markdownText.split('<!-- styleproof-receipt').length - 1;
-    return receiptMarkers === 1 && markdownText.split(expectedReceipt).length - 1 === 1;
+    return receiptMarkers === 1 && markdownText.split(`<!-- ${expectedReceipt} -->`).length - 1 === 1;
   } catch {
     return false;
   }

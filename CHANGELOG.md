@@ -652,6 +652,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **`--spec-ref` no longer aborts on an empty file in the spec directory.**
   A zero-byte blob (`.gitkeep`, an empty fixture) was treated as a failed read
   and `styleproof-ci` exited 1.
+- **A receipt marker in a map value no longer stops the report publishing
+  (#1015).** A state name or CSS value containing `<!-- styleproof-receipt`
+  reached `report.md` unchanged inside a code span, so the publish and approval
+  read-backs saw two markers and failed. Code spans now break `<!--` with an
+  invisible zero-width space, and the publish read-back counts only the full
+  `<!-- … -->` trailer for this run. A second real trailer, duplicate or stale,
+  still fails.
 
 ## [8.0.1] - 2026-10-17
 
