@@ -4,7 +4,7 @@
  * for a linked git worktree, the host working tree's — never from `process.cwd()`.
  * Fails closed: an unloadable `.ts` throws and is never read as `{}`.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -154,7 +154,15 @@ function nodePathForRoots(roots: readonly string[]): string {
   return [...dirs, ...existing].join(path.delimiter);
 }
 
-function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly string[], extraNodeArgs: string[] = []) {
+/** Validate before serialization so invalid functions or toJSON hooks cannot hide policy, and
+ *  return the record (or the schema error) on fd 3 so whatever the config prints cannot corrupt it. */
+function spawnConfigModuleEval(
+  filePath: string,
+  filename: string,
+  cwd: string,
+  roots: readonly string[],
+  extraNodeArgs: string[] = [],
+) {
   return spawnSync(
     process.execPath,
     [
@@ -162,11 +170,27 @@ function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly st
       '--no-warnings',
       '--input-type=module',
       '-e',
-      `import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
-       const config = mod?.default ?? mod;
-       process.stdout.write(JSON.stringify(config));`,
+      `import { writeFileSync } from 'node:fs';
+       import { plainObject, parseConfigRecord, StyleProofConfigError } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
+       import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
+       let result;
+       try {
+         const config = plainObject(mod?.default ?? mod, 'the default export', ${JSON.stringify(filename)});
+         result = { config: structuredClone(parseConfigRecord(config, ${JSON.stringify(filename)})) };
+       } catch (error) {
+         if (!(error instanceof StyleProofConfigError)) throw error;
+         result = { invalid: error.message };
+       }
+       writeFileSync(3, JSON.stringify(result));
+       await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write('', resolve))));
+       process.exit(0);`,
     ],
-    { encoding: 'utf8', cwd, env: { ...process.env, NODE_PATH: nodePathForRoots(roots) } },
+    {
+      encoding: 'utf8',
+      cwd,
+      env: { ...process.env, NODE_PATH: nodePathForRoots(roots) },
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+    },
   );
 }
 
@@ -190,21 +214,26 @@ function withRewrittenConfigCopy<T>(
   }
 }
 
-function parseEvalOutput(filePath: string, stdout: string): Record<string, unknown> {
-  return plainObject(JSON.parse(stdout), 'the default export', path.basename(filePath));
+/** The validated record from fd 3, or its schema error; the config's own stdout and stderr pass through to ours. */
+function parseEvalOutput(filePath: string, result: SpawnSyncReturns<string>): Record<string, unknown> {
+  const { config, invalid } = JSON.parse(String(result.output[3])) as { config?: unknown; invalid?: string };
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (invalid !== undefined) throw new StyleProofConfigError(invalid);
+  return plainObject(config, 'the default export', path.basename(filePath));
 }
 
 /** JS-shaped `.ts` (no type syntax) — works on every supported Node, including 18/20. */
 function evaluateTypeScriptAsPlainModuleSync(filePath: string): Record<string, unknown> {
   return withRewrittenConfigCopy(filePath, '.mjs', (tmp, roots, cwd) => {
-    const result = spawnConfigModuleEval(tmp, cwd, roots);
+    const result = spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots);
     if (result.status !== 0) {
       throw new Error(
         (result.stderr || result.stdout || 'sync loader cannot evaluate TypeScript').trim() ||
           'sync loader cannot evaluate TypeScript; use loadStyleProofConfigAsync()',
       );
     }
-    return parseEvalOutput(filePath, result.stdout);
+    return parseEvalOutput(filePath, result);
   });
 }
 
@@ -214,15 +243,17 @@ export function evaluateTypeScriptConfigSync(filePath: string): Record<string, u
   try {
     return evaluateTypeScriptAsPlainModuleSync(filePath);
   } catch (error) {
+    if (error instanceof StyleProofConfigError) throw error;
     plainError = error;
   }
   const stripped = withRewrittenConfigCopy(filePath, '.ts', (tmp, roots, cwd) =>
-    spawnConfigModuleEval(tmp, cwd, roots, ['--experimental-strip-types']),
+    spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots, ['--experimental-strip-types']),
   );
   if (stripped.status === 0) {
     try {
-      return parseEvalOutput(filePath, stripped.stdout);
+      return parseEvalOutput(filePath, stripped);
     } catch (error) {
+      if (error instanceof StyleProofConfigError) throw error;
       throw unloadableTypeScriptConfigError(filePath, error);
     }
   }

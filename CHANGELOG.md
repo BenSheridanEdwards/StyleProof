@@ -78,6 +78,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `styleproof.config.ts` that prints to stdout now loads in the CLIs and
+  the capture runner (#966).** The sync `.ts` loader sent the evaluated config
+  back on the child process's stdout and parsed all of it as JSON, so a
+  `console.log` in the config or in a module it imports failed the load with
+  `could not be evaluated`. `styleproof-affected` and `styleproof-diff` exited
+  2, and `defineStyleMapCapture` and `styleproof-capture` threw. The config now
+  comes back on a separate pipe, as `.mjs` and `.js` configs already do, and
+  what it prints reaches your terminal. The policy is validated before it is
+  serialised, so a `toJSON` method or a function value can no longer hide an
+  invalid field, and the load fails with the same message as the async loader.
+  A config that leaves a timer running no longer hangs the load.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
