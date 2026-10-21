@@ -5,6 +5,11 @@ import type { CapturedOverlay, ElementEntry, LiveRegionCandidate, Props } from '
 /** In-page shape of the window after {@link injectPathOf} runs. */
 type WithPathOf = { __spPathOf?: (el: Element) => string };
 
+/** In-page shape of the window once {@link freezeMotion} has run. */
+type WithFreeze = { __spFreeze?: CSSStyleSheet };
+
+// StyleProof's own styles go through CSSOM, which a page's style CSP does not govern;
+// an inline <style> or style attribute is blocked without 'unsafe-inline' (#977).
 export function installHoverSink(): void {
   let sink = document.querySelector<HTMLElement>('[data-styleproof-hover-sink]');
   if (!sink) {
@@ -12,10 +17,22 @@ export function installHoverSink(): void {
     sink.setAttribute('data-styleproof-hover-sink', '');
     document.body.appendChild(sink);
   }
-  sink.setAttribute(
-    'style',
-    'position:fixed;left:0;top:0;width:1px;height:1px;z-index:2147483647;pointer-events:auto;opacity:0',
-  );
+  sink.style.cssText =
+    'position:fixed;left:0;top:0;width:1px;height:1px;z-index:2147483647;pointer-events:auto;opacity:0';
+}
+
+/** Adopt the motion-freeze sheet. One sheet per window, so a reused page never piles them up. */
+export function freezeMotion(css: string): void {
+  const w = window as unknown as WithFreeze;
+  const sheet = (w.__spFreeze ??= new CSSStyleSheet());
+  sheet.replaceSync(css);
+  const others = document.adoptedStyleSheets.filter((s) => s !== sheet);
+  document.adoptedStyleSheets = [...others, sheet];
+}
+
+export function unfreezeMotion(): void {
+  const sheet = (window as unknown as WithFreeze).__spFreeze;
+  document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== sheet);
 }
 
 /** Define the structural-path helper on `window` once so every serialized function shares it. */

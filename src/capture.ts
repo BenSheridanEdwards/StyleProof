@@ -9,8 +9,10 @@ import {
   capturePageTokens,
   detectLiveCandidates,
   detectOverlayCandidates,
+  freezeMotion,
   injectPathOf,
   installHoverSink,
+  unfreezeMotion,
   type PageCapture,
 } from './capture/browser.js';
 import { captureForcedStates, resolveForcedStateLimits } from './capture/forced-states.js';
@@ -338,7 +340,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   await page.evaluate(injectPathOf);
   // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const freezeTag = await page.addStyleTag({ content: FREEZE_CSS });
+  await page.evaluate(freezeMotion, FREEZE_CSS);
 
   options.onPhase?.('settle');
   const volatile = await detectVolatile(page, skipSel, options.stabilize ?? true, captureText, options.pendingRequests);
@@ -349,10 +351,10 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
 
   // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
   // mounts during the settle must be seen), then the freeze is re-applied for every other read.
-  await freezeTag.evaluate((el) => (el as HTMLStyleElement).remove());
+  await page.evaluate(unfreezeMotion);
   const motion = (await page.evaluate(capturePage, { skipSel, motionOnly: true, captureText: false })).elements;
-  // Tracked so a page reused without a reload (SPA go(), self-check) never accumulates freeze tags.
-  const refreezeTag = await page.addStyleTag({ content: FREEZE_CSS });
+  // Removed again below so a page reused without a reload (SPA go(), self-check) starts unfrozen.
+  await page.evaluate(freezeMotion, FREEZE_CSS);
   // Rule usage starts after the settle, so a rule matched only while the page was still
   // changing is not recorded as reached; starting it records every rule the settled page matches.
   const reach = options.captureReach ? (options.servedRules ?? (await trackServedRules(page))) : undefined;
@@ -364,6 +366,6 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     // A caller-armed tracker outlives this capture (self-check, popups); one armed here does not.
     if (reach && !options.servedRules) await reach.dispose();
     // Best-effort: the page may already be closing on a throw path.
-    await refreezeTag.evaluate((el) => (el as HTMLStyleElement).remove()).catch(() => {});
+    await page.evaluate(unfreezeMotion).catch(() => {});
   }
 }
