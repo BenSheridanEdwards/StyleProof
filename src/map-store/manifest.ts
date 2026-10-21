@@ -47,7 +47,7 @@ export interface MapManifest {
 }
 
 const MAX_MAP_MANIFEST_BYTES = 16_777_216;
-const GENERATED_DIRTY_ALLOWLIST = new Set(['next-env.d.ts']);
+const GENERATED_DIRTY_ALLOWLIST = ['next-env.d.ts'];
 const COMMIT_SHA = /^[0-9a-f]{7,40}$/i;
 const PLAYWRIGHT_PACKAGES = ['@playwright/test', 'playwright', 'playwright-core'];
 
@@ -195,41 +195,45 @@ export function currentGitSha(cwd = process.cwd(), env: NodeJS.ProcessEnv = proc
   throw new MapStoreError('must run inside a git repository, or pass --sha <commit>');
 }
 
-function unquotePorcelain(value: string): string {
-  if (!value.startsWith('"') || !value.endsWith('"')) return value;
-  try {
-    return JSON.parse(value) as string;
-  } catch {
-    return value;
+/** `-z` porcelain: NUL-separated and never quoted, and a rename or copy entry is
+ *  followed by its source path as a field of its own. */
+function porcelainEntries(status: string): string[][] {
+  const fields = status.split('\0');
+  const entries: string[][] = [];
+  for (let i = 0; i < fields.length; i++) {
+    if (fields[i].length < 4) continue;
+    const target = fields[i].slice(3);
+    entries.push(/[RC]/.test(fields[i].slice(0, 2)) ? [target, fields[++i] ?? ''] : [target]);
   }
+  return entries;
 }
 
-/** Porcelain quotes special-character paths and renders renames as `old -> new`; both
- *  must be unwrapped or an allowance silently misses and reads as dirt. */
-function porcelainPaths(line: string): string[] {
-  const raw = line.slice(3).trim();
-  return raw ? raw.split(' -> ').map((side) => unquotePorcelain(side.trim())) : [];
-}
-
-/** True if any tracked file is modified/added/deleted. `ignore` (repo-relative files or
- *  directories) covers the map output dir and `--dirty-allow` paths a tool rewrites every run. */
-export function workingTreeDirty(cwd = process.cwd(), ignore?: string | readonly string[]): boolean {
+/** True if any tracked file is modified/added/deleted. `ignore` (repo-root-relative files or
+ *  directories) covers `--dirty-allow` paths a tool rewrites every run; `cwdIgnore` takes
+ *  cwd-relative ones, such as the map output dir. */
+export function workingTreeDirty(
+  cwd = process.cwd(),
+  ignore?: string | readonly string[],
+  cwdIgnore: readonly string[] = [],
+): boolean {
   // --untracked-files=all: git otherwise collapses an untracked directory to `dir/`.
-  const result = git(cwd, ['status', '--porcelain', '--untracked-files=all']);
-  const status = result.status === 0 ? result.stdout.trimEnd() : '';
+  const result = git(cwd, ['status', '--porcelain', '-z', '--untracked-files=all']);
+  const status = result.status === 0 ? result.stdout : '';
   if (!status) return false;
-  const prefixes = (typeof ignore === 'string' ? [ignore] : (ignore ?? []))
+  // Porcelain paths are repo-root-relative even from a package subdirectory such as `web/`.
+  const cwdPrefix = gitStdout(cwd, ['rev-parse', '--show-prefix']);
+  const prefixes = [
+    ...(typeof ignore === 'string' ? [ignore] : (ignore ?? [])),
+    ...cwdIgnore.filter(Boolean).map((p) => path.posix.normalize(`${cwdPrefix}${p}`)),
+  ]
     .filter(Boolean)
     // `docs/**` (the form config and init examples use) means everything under `docs/`.
     .map((p) => `${p.replace(/\/\*\*$/, '').replace(/\/+$/, '')}/`);
   const allowed = (file: string): boolean =>
-    GENERATED_DIRTY_ALLOWLIST.has(file) ||
+    GENERATED_DIRTY_ALLOWLIST.some((name) => file === name || file === `${cwdPrefix}${name}`) ||
     prefixes.some((prefix) => file === prefix.slice(0, -1) || file.startsWith(prefix));
   // A rename dirties the tree unless BOTH sides are allowed.
-  return status.split(/\r?\n/).some((line) => {
-    const files = porcelainPaths(line);
-    return files.length > 0 && !files.every(allowed);
-  });
+  return porcelainEntries(status).some((files) => !files.every(allowed));
 }
 
 /** Drop undefined/empty optional fields so the serialized manifest carries only what was known. */

@@ -439,6 +439,85 @@ test('workingTreeDirty: multiple allow paths cover files a dev tool rewrites, wi
   }
 });
 
+test('workingTreeDirty: Next shim is allowed from a package subdirectory, real edits are not (#961)', () => {
+  const repo = mkTmp('styleproof-dirty-subdir-');
+  const web = path.join(repo, 'web');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    fs.mkdirSync(path.join(web, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'next-env.d.ts'), 'v1');
+    fs.writeFileSync(path.join(web, 'next-env.d.ts'), 'v1');
+    fs.writeFileSync(path.join(web, 'src', 'page.tsx'), 'v1');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+
+    // Porcelain paths are repo-root-relative, so the shim shows as `web/next-env.d.ts`.
+    fs.writeFileSync(path.join(web, 'next-env.d.ts'), 'v2');
+    assert.equal(workingTreeDirty(web), false, "a subdirectory consumer's shim is allowed");
+    git('checkout', '-q', '--', '.');
+    fs.writeFileSync(path.join(repo, 'next-env.d.ts'), 'v2');
+    assert.equal(workingTreeDirty(repo), false, "a repo-root consumer's shim is still allowed");
+
+    fs.writeFileSync(path.join(web, 'src', 'page.tsx'), 'v2');
+    assert.equal(workingTreeDirty(web), true, 'a source edit in the subdirectory is still dirt');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
+test('workingTreeDirty: a non-ASCII path inside an allowed directory is allowed (#961)', () => {
+  const repo = mkTmp('styleproof-dirty-nonascii-');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    // git's default: non-ASCII bytes print as octal escapes ("espa\303\261ol.json").
+    git('config', 'core.quotePath', 'true');
+    fs.mkdirSync(path.join(repo, 'public', 'locales'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'public', 'locales', 'español.json'), '{}');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v1');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+
+    fs.writeFileSync(path.join(repo, 'public', 'locales', 'español.json'), '{"hola":1}');
+    assert.equal(workingTreeDirty(repo), true, 'the edit is real dirt');
+    assert.equal(workingTreeDirty(repo, ['public/locales/**']), false, 'the allowance covers the non-ASCII name');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v2');
+    assert.equal(workingTreeDirty(repo, ['public/locales/**']), true, 'an edit outside the allowance is still dirt');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
+test('workingTreeDirty: a cwd-relative allowance matches from a package subdirectory (#961)', () => {
+  const repo = mkTmp('styleproof-dirty-cwd-allow-');
+  const web = path.join(repo, 'web');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    fs.mkdirSync(web, { recursive: true });
+    fs.writeFileSync(path.join(web, 'src.txt'), 'v1');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+
+    // The map output dir `styleproof-map` writes from `web/`, not gitignored.
+    fs.mkdirSync(path.join(web, '.styleproof/maps/current'), { recursive: true });
+    fs.writeFileSync(path.join(web, '.styleproof/maps/current/home@1280.json'), '{}');
+    assert.equal(workingTreeDirty(web, [], ['.styleproof/maps/current']), false, 'the output dir is allowed');
+    assert.equal(workingTreeDirty(web, ['.styleproof/maps/current']), true, 'dirtyAllow stays repo-root-relative');
+    fs.writeFileSync(path.join(web, 'src.txt'), 'v2');
+    assert.equal(workingTreeDirty(web, [], ['.styleproof/maps/current']), true, 'a source edit is still dirt');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
 test('publishMapBundle ignores hook-exported Git repository variables and leaves the caller non-bare', async () => {
   const root = mkTmp('styleproof-hook-env-');
   const remote = path.join(root, 'remote.git');

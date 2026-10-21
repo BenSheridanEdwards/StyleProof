@@ -437,6 +437,49 @@ test('styleproof-map --upload exit codes: store fault is 5 (retryable), dirty tr
   }
 });
 
+test('styleproof-map --upload from a package subdirectory: the Next shim and map output stay clean (#961)', () => {
+  // `working-directory: web`. `.styleproof/` is not gitignored, so the output-dir allowance is exercised too.
+  const root = mkTmp();
+  const web = path.join(root, 'web');
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    writeSpec(web);
+    fs.writeFileSync(path.join(web, 'next-env.d.ts'), '/// <reference types="next" />\n');
+    addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+    // The capture's web server (`next build`) rewrites the shim while the map is written.
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n' +
+        'echo "/// <reference types=\\"next/image-types/global\\" />" >> next-env.d.ts\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const upload = () =>
+      spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+        cwd: web,
+        encoding: 'utf8',
+        env: cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}` }),
+      });
+
+    const clean = upload();
+    assert.equal(clean.status, 0, clean.stderr);
+    assert.doesNotMatch(clean.stderr, /dirty/);
+
+    // A real source edit from the same subdirectory still refuses the upload.
+    fs.rmSync(path.join(web, '.styleproof'), { recursive: true, force: true });
+    fs.appendFileSync(path.join(web, 'e2e/styleproof.spec.ts'), '\n// dirty edit\n');
+    const dirty = upload();
+    assert.equal(dirty.status, 2, dirty.stderr);
+    assert.match(dirty.stderr, /dirty/);
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});
+
 test('styleproof-map runs configured variant crawl before Playwright capture', () => {
   const root = mkTmp();
   try {
