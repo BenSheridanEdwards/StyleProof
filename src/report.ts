@@ -15,6 +15,7 @@ import {
   summarizeComparability,
   type ComparabilitySummary,
   type BaseOnlyVolatile,
+  type DocumentRootVolatile,
   type HeadOnlyVolatile,
   type SurfaceComparability,
   type SurfaceDiff,
@@ -177,6 +178,8 @@ export type ReportResult = {
   headOnlyVolatile: HeadOnlyVolatile[];
   /** Subtrees volatile on the base but settled on the head: excluded, so the report holds them for review. */
   baseOnlyVolatile: BaseOnlyVolatile[];
+  /** `html`/`body` volatile on either side: the page was not compared, so the report can never certify. */
+  documentRootVolatile: DocumentRootVolatile[];
   reportMdPath: string;
   reportJsonPath: string;
   /** Present only when `migration: true`. */
@@ -424,6 +427,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
+    documentRootVolatile: diff.documentRootVolatile,
     liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
     contentCount: contentSection.count,
     globalChromeCount: content.globalChrome,
@@ -542,6 +546,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     liveTextFreeze: liveTextFreezeReceipt(liveText),
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
+    documentRootVolatile: diff.documentRootVolatile,
     legacyPairs: gates.legacyPairs,
     criticalStates: gates.criticalStates,
     digest,
@@ -562,6 +567,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     confidence,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
+    documentRootVolatile: diff.documentRootVolatile,
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
   };

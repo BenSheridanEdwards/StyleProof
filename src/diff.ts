@@ -254,7 +254,7 @@ function documentRootVolatilePaths(a: StyleMap, b: StyleMap): string[] {
 }
 
 /** A document root volatile on one surface: nothing on the page was compared, so it cannot certify. */
-type DocumentRootVolatile = { surface: string; path: string };
+export type DocumentRootVolatile = { surface: string; path: string };
 
 const unionKeys = (a: object, b: object): string[] => [...new Set([...Object.keys(a), ...Object.keys(b)])];
 const sortedUnionKeys = (a: object, b: object): string[] => unionKeys(a, b).sort();

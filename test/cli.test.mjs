@@ -1906,7 +1906,7 @@ test('source-bound diff CLI keeps certifying when the same subtree is volatile o
 
 // #978: html/body volatile on BOTH sides used to pass the shared-volatility rule, so the
 // union skip compared nothing on the page and a bound run certified it unseen.
-test('source-bound diff CLI refuses to certify a surface whose html and body are volatile', () => {
+function documentRootVolatilePair() {
   const root = mkTmp();
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
@@ -1916,6 +1916,11 @@ test('source-bound diff CLI refuses to certify a surface whose html and body are
   writeCapture(B, 'home@1280', side, null);
   writeManifest(A, 'a'.repeat(40), 'same-env-key');
   writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  return { root, A, B };
+}
+
+test('source-bound diff CLI refuses to certify a surface whose html and body are volatile', () => {
+  const { root, A, B } = documentRootVolatilePair();
   const jsonOut = path.join(root, 'out.json');
   const r = runBoundDiff(A, B, jsonOut);
   assert.equal(r.status, 1, r.stdout);
@@ -1928,6 +1933,32 @@ test('source-bound diff CLI refuses to certify a surface whose html and body are
   ]);
   const options = { gateInventoryRemovals: true, baseCaptureFailed: false, changed: r.status !== 0 };
   assert.equal(classifyStyleProofVerdict(receipt, options).state, 'CERTIFICATION_FAILED');
+  rmTmp(root);
+});
+
+test('source-bound report CLI refuses a clean verdict when html and body are volatile', () => {
+  const { root, A, B } = documentRootVolatilePair();
+  const out = path.join(root, 'report');
+  const r = run(REPORT, [
+    A,
+    B,
+    '--out',
+    out,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /not certified — 2 volatile html\/body root\(s\)/);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  assert.ok(md.includes('`home@1280` · `html`'), md);
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.deepEqual(json.volatility.documentRoot, [
+    { surface: 'home@1280', path: 'body' },
+    { surface: 'home@1280', path: 'html' },
+  ]);
   rmTmp(root);
 });
 

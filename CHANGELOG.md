@@ -83,12 +83,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the settle recorded `html`, `body` and each wrapper as volatile. Both
   captures then excluded every element and forced state, and `styleproof-diff`
   certified the page with 0 reviewable changes. Now an ancestor whose only
-  change is reflow (its box, or a used value such as an `auto` height whose
-  computed value is unchanged) stays compared, a list that gains or loses
-  children is excluded as one region, and content that mounts once while a
-  request is still in flight is compared. If `html` or `body` is still volatile
-  on either side, `styleproof-diff` exits `1`, names each `surface: path` and
-  records `volatility.documentRoot`, which the shared verdict reads as
+  change is reflow stays compared. Reflow means its box, a used value such as
+  an `auto` height whose computed value is unchanged, or the size and position
+  of its `::before`/`::after`. A stream is excluded item by item. A volatile
+  root that holds both content that changed during the settle and content that
+  never did (a wrapper that toggles a class with each new item) also stays
+  compared, so the static content is not excluded with it. Content that mounts
+  once while a request is still in flight is compared. If `html` or `body` is
+  still volatile on either side, `styleproof-diff` and `styleproof-report` exit
+  `1` and name each `surface: path`, `--json` and `report.json` record
+  `volatility.documentRoot`, and the shared verdict reads it as
   `CERTIFICATION_FAILED`. **Upgrade note:** a base map captured under the old
   rule can carry `html`/`body` as volatile and blocks until it is re-captured.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to

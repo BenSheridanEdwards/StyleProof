@@ -320,6 +320,7 @@ export type ReportArtifacts = Pick<
   liveTextFreeze: { violated: boolean; reason?: string } | null;
   headOnlyVolatile?: ReportResult['headOnlyVolatile'];
   baseOnlyVolatile?: ReportResult['baseOnlyVolatile'];
+  documentRootVolatile?: ReportResult['documentRootVolatile'];
   /** Base capture failures set aside because the base never declared the surface. */
   undeclaredOnBase?: string[];
   digest: DigestRow[];
@@ -358,11 +359,12 @@ export function writeReportArtifacts(a: ReportArtifacts): {
     ...(a.baselineProvenance ? { baselineProvenance: a.baselineProvenance } : {}),
     ...(a.liveTextFreeze ? { liveTextFreeze: a.liveTextFreeze } : {}),
     // Additive, only when present, so a clean report's bytes are unchanged.
-    ...(a.headOnlyVolatile?.length || a.baseOnlyVolatile?.length
+    ...(a.headOnlyVolatile?.length || a.baseOnlyVolatile?.length || a.documentRootVolatile?.length
       ? {
           volatility: {
             headOnly: a.headOnlyVolatile ?? [],
             ...(a.baseOnlyVolatile?.length ? { baseOnly: a.baseOnlyVolatile } : {}),
+            ...(a.documentRootVolatile?.length ? { documentRoot: a.documentRootVolatile } : {}),
           },
         }
       : {}),

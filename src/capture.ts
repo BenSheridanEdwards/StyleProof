@@ -23,6 +23,7 @@ import type {
   ForcedStateLimits,
   LiveRegionCandidate,
   ProductStateIdentity,
+  Props,
   StyleMap,
 } from './capture/types.js';
 
@@ -128,41 +129,50 @@ async function assertRequiredVisibleState(page: Page, required: CaptureOptions['
 
 type Elements = Record<string, ElementEntry>;
 
+// Pseudo-element longhands that follow the originating box (`inset: 0`, `height: 100%`). Pseudos
+// carry no Typed OM proof, so only these may move for the box to count as reflow.
+const PSEUDO_GEOMETRY = new Set([
+  ...'width height inline-size block-size top right bottom left transform-origin perspective-origin'.split(' '),
+  ...'inset-block-start inset-block-end inset-inline-start inset-inline-end'.split(' '),
+]);
+
+const onlyMoved = (a: Props, b: Props, layout: (prop: string) => boolean): boolean =>
+  Object.keys({ ...a, ...b }).every((p) => a[p] === b[p] || layout(p));
+
 /**
- * Only layout moved: the box, and used values whose computed value (Typed OM) is the same in
- * both polls, like an `auto` height growing with a descendant. Same proof the diff uses to drop reflow.
+ * Only layout moved: the box, used values whose computed value (Typed OM) is the same in both
+ * polls (an `auto` height growing with a descendant; the diff drops these too), and a pseudo's geometry.
  */
 function reflowOnly(a: ElementEntry, b: ElementEntry): boolean {
-  const rest = (e: ElementEntry): string => JSON.stringify({ ...e, rect: undefined, style: undefined });
+  const rest = (e: ElementEntry): string =>
+    JSON.stringify({ ...e, rect: undefined, style: undefined, pseudo: undefined });
   if (rest(a) !== rest(b)) return false;
   const computed = a.computedValueStyle ?? {};
-  return Object.keys({ ...a.style, ...b.style }).every((p) => a.style[p] === b.style[p] || Object.hasOwn(computed, p));
+  if (!onlyMoved(a.style, b.style, (p) => Object.hasOwn(computed, p))) return false;
+  const [pa, pb] = [a.pseudo ?? {}, b.pseudo ?? {}];
+  return Object.keys({ ...pa, ...pb }).every(
+    (ps) => pa[ps] && pb[ps] && onlyMoved(pa[ps], pb[ps], (p) => PSEUDO_GEOMETRY.has(p)),
+  );
 }
 
 /**
  * One poll's changes. `changed` counts any difference (the settle waits through reflow too);
- * `paths` are the live-region candidates, `inPlace` the ones present in both polls.
+ * `paths` are the live-region candidates (mounts, unmounts, in-place changes), `inPlace` the last.
  */
 function changedElementPaths(a: Elements, b: Elements): { changed: boolean; paths: string[]; inPlace: string[] } {
   let changed = false;
-  const paths = new Set<string>();
+  const paths: string[] = [];
   const inPlace: string[] = [];
   for (const p of new Set([...Object.keys(a), ...Object.keys(b)])) {
     if (JSON.stringify(a[p]) === JSON.stringify(b[p])) continue;
     changed = true;
-    if (a[p] && b[p]) {
-      if (reflowOnly(a[p], b[p])) continue;
+    if (!a[p] || !b[p]) paths.push(p);
+    else if (!reflowOnly(a[p], b[p])) {
+      paths.push(p);
       inPlace.push(p);
-      paths.add(p);
-      continue;
     }
-    paths.add(p);
-    // A mount or unmount changes the parent's child list: the parent is the live region. Never
-    // <body>: a stream appended straight to it is excluded item by item and the page stays compared.
-    const parent = p.split(' > ').slice(0, -1).join(' > ');
-    if (parent && parent !== 'body') paths.add(parent);
   }
-  return { changed, paths: [...paths], inPlace };
+  return { changed, paths, inPlace };
 }
 
 /**
@@ -211,9 +221,16 @@ async function stabilizePage(
   // `quietFor`). Content that loaded late (in any number of steps) and then settled is compared.
   const end = realNow();
   const lastPoll = Math.max(...lastInPlaceAt.values());
-  return [...lastChangedAt]
+  const volatile = [...lastChangedAt]
     .filter(([p, at]) => end - at <= quietFor || lastInPlaceAt.get(p) === lastPoll)
     .map(([p]) => p);
+  // A root over content that changed AND content that never did reacts to a live region inside
+  // it (a wrapper, `html`, `body`): it stays compared, so that content is not excluded with it.
+  const changed = [...lastChangedAt.keys()];
+  return volatile.filter((root) => {
+    const below = (p: string): boolean => p.startsWith(root + ' > ');
+    return !changed.some(below) || !Object.keys(prev).some((p) => below(p) && !lastChangedAt.has(p));
+  });
 }
 
 /** Settle the page and return the paths of live regions to exclude. */

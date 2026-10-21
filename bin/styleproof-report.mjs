@@ -98,6 +98,7 @@ const consistencyFailed = result.reportConsistency?.ok === false;
 const { changedSurfaces, oneSidedSurfaces, newSurfaces, totalFindings, contentChanges } = result;
 const headOnlyVolatile = result.headOnlyVolatile ?? [];
 const baseOnlyVolatile = result.baseOnlyVolatile ?? [];
+const documentRootVolatile = result.documentRootVolatile ?? [];
 
 function summaryLine() {
   if (changedSurfaces > 0) {
@@ -115,6 +116,9 @@ function summaryLine() {
   if (consistencyFailed) return '⚠ no presentation changes — report consistency failure written';
   if (headOnlyVolatile.length > 0) {
     return `✗ not certified — ${headOnlyVolatile.length} subtree(s) newly volatile on head were excluded from the comparison`;
+  }
+  if (documentRootVolatile.length > 0) {
+    return `✗ not certified — ${documentRootVolatile.length} volatile html/body root(s): the page was excluded from the comparison`;
   }
   if (baseOnlyVolatile.length > 0) {
     return `⚠ review required — ${baseOnlyVolatile.length} subtree(s) volatile on the base only were excluded from the comparison`;
@@ -148,6 +152,7 @@ const clean =
   !consistencyFailed &&
   headOnlyVolatile.length === 0 &&
   baseOnlyVolatile.length === 0 &&
+  documentRootVolatile.length === 0 &&
   result.comparison?.blocksCertification !== true &&
   result.comparison?.hasReviewableEvidence !== true &&
   !armedFailure(result.legacyPairs, ['undeclared', 'staleAcknowledgements']) &&

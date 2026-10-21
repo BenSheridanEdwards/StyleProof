@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import type { BaseOnlyVolatile, DiffCounts, HeadOnlyVolatile } from '../diff.js';
+import type { BaseOnlyVolatile, DiffCounts, DocumentRootVolatile, HeadOnlyVolatile } from '../diff.js';
 import {
   baselineFailureReceipts,
   honestBaselineCompareAttribution,
@@ -26,6 +26,8 @@ export type HeadlineInput = {
   headOnlyVolatile?: HeadOnlyVolatile[];
   /** Subtrees volatile on the base only: excluded, held for review (approvable). */
   baseOnlyVolatile?: BaseOnlyVolatile[];
+  /** `html`/`body` volatile on either side: the page was not compared, never certified. */
+  documentRootVolatile?: DocumentRootVolatile[];
   liveCandidateLabels: string[];
   contentCount: number;
   /** One-sided element changes shared by every surface base that renders their container (#754). */
@@ -210,6 +212,11 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
       '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below). Fail closed (`CERTIFICATION_FAILED`); not a clean no-change.',
     ];
   }
+  if (input.documentRootVolatile?.length) {
+    return [
+      '✗ Not certified — `html`/`body` was volatile at capture settle, so the page was excluded from the comparison (see below). Fail closed (`CERTIFICATION_FAILED`); not a clean no-change.',
+    ];
+  }
   if (input.baseOnlyVolatile?.length) {
     return [
       '⚠ Review required — a subtree volatile on the base settled on head and was excluded from the comparison (see below). Not a clean no-change; approve once the head rendering there is reviewed.',
@@ -278,6 +285,17 @@ function summaryLines(input: HeadlineInput): string[] {
   return md;
 }
 
+/** A blank line, `lead`, and the first 20 `surface · path` rows (the rest are in report.json); none when empty. */
+function namedPathLines(list: { surface: string; path: string }[], lead: string): string[] {
+  if (list.length === 0) return [];
+  return [
+    '',
+    lead,
+    ...list.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
+    ...(list.length > 20 ? [`- … and ${list.length - 20} more (full list in report.json)`] : []),
+  ];
+}
+
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
@@ -292,23 +310,22 @@ export function reportHeadline(input: HeadlineInput): string[] {
     );
   }
   const headOnly = input.headOnlyVolatile ?? [];
-  if (headOnly.length > 0) {
-    md.push(
-      '',
-      `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
-      ...headOnly.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
-      ...(headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []),
-    );
-  }
+  const documentRoot = input.documentRootVolatile ?? [];
   const baseOnly = input.baseOnlyVolatile ?? [];
-  if (baseOnly.length > 0) {
-    md.push(
-      '',
+  md.push(
+    ...namedPathLines(
+      headOnly,
+      `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
+    ),
+    ...namedPathLines(
+      documentRoot,
+      `✗ **${documentRoot.length} document root(s) volatile** — \`html\`/\`body\` was still changing at capture settle, so everything under it was excluded and **nothing on the page is certified**. Re-capture maps from an older StyleProof; otherwise stop the churn on \`html\`/\`body\` itself (a class or text toggled on a timer) or fixture it.`,
+    ),
+    ...namedPathLines(
+      baseOnly,
       `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
-      ...baseOnly.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
-      ...(baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []),
-    );
-  }
+    ),
+  );
   return [...md, ...contentNoteLines(input)];
 }
 
