@@ -171,6 +171,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   key. At runtime a config that still sets it loads with the standard
   unknown-key warning. Map-store auth comes from `STYLEPROOF_MAP_STORE_TOKEN`
   or the checkout's credentials, as before.
+- **BREAKING: Node 18 and 20 are no longer supported.** `engines.node` is now
+  `>=22.13.0`. Node 18 and 20 are past end of life, and 22.13 is the oldest
+  Node the build and lint toolchain runs on. CI tests 22.13.0 exactly, plus
+  Node 22 and 24. On every supported Node a typed `styleproof.config.ts`
+  loads through Node's type stripping. The Action installs its own checkout
+  with `npm ci`, and `package.json` now sets `devEngines`, so on an older Node
+  that step fails with npm's version error. Workflows from `styleproof-init`
+  set up Node 22 instead of 20, so `styleproof-init --check` reports existing
+  ones as stale. **Migration:** move local and CI Node to 22.13 or later, then
+  run `npx styleproof-init --upgrade` to refresh the generated workflows.
 
 ### Fixed
 

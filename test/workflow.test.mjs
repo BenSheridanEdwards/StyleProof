@@ -27,7 +27,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
     fs.readFileSync(path.join(here, '..', 'scripts/check-coverage.mjs'), 'utf8'),
     /COVERAGE_LINE_FLOOR = 40/,
   );
-  assert.match(buildJob, /matrix:\n[\s\S]*node: \['18', '20', '22'\]/);
+  assert.match(buildJob, /matrix:\n[\s\S]*node: \['22\.13\.0', '22', '24'\]/);
   assert.match(buildJob, /npm run build/);
   assert.match(buildJob, /if: matrix\.node != '22'/);
   assert.match(buildJob, /npm run test:unit/);
@@ -101,6 +101,17 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(required, /set -euo pipefail/);
   // The policy itself is executed case by case in test/ci-required-policy.test.mjs.
   assert.doesNotMatch(required, /actions\/checkout/);
+});
+
+test('the build matrix tests the exact Node floor every manifest declares', () => {
+  const floor = packageJson.engines.node.match(/^>=(\d+\.\d+\.\d+)$/)?.[1];
+  assert.ok(floor, `engines.node must be a plain >=X.Y.Z floor (got ${packageJson.engines.node})`);
+  const lock = JSON.parse(fs.readFileSync(path.join(here, '..', 'package-lock.json'), 'utf8'));
+  assert.equal(lock.packages[''].engines.node, packageJson.engines.node);
+  assert.equal(packageJson.devEngines.runtime.version, packageJson.engines.node);
+  assert.match(ci, new RegExp(`node: \\['${floor.replaceAll('.', '\\.')}',`));
+  const nvmrc = fs.readFileSync(path.join(here, '..', '.nvmrc'), 'utf8').trim();
+  assert.equal(nvmrc, floor.split('.')[0], '.nvmrc tracks the floor major, the leg that runs the once-only gates');
 });
 
 test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
