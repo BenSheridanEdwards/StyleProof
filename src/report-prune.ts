@@ -1,11 +1,12 @@
-// Prune `pr-<n>/` report folders from the report branch through the GitHub git-data
+// Prune `pr-<n>/` and `run-<id>/` report folders through the GitHub git-data
 // API: on PR close delete that PR's folder; on a schedule sweep by retention, then by
-// a hard size budget (oldest-closed first, open PRs never touched). The budget is what
+// a hard size budget (oldest first, open PRs and undated folders never touched). The budget is what
 // bounds the branch — one PR can publish hundreds of megabytes of crops.
 
 import {
   type GitHubApi,
   type GitHubApiOptions,
+  GitHubApiError,
   advanceBranch,
   blobSizesByFolder,
   createCommit,
@@ -23,18 +24,22 @@ export type ReportFolderPruneSelection = {
   foldersToDelete: string[];
   /** Blob bytes that remain on the branch after the selected deletions. */
   branchSizeAfterBytes: number;
-  /** True when even deleting every closed folder leaves the branch over budget. */
+  /** Folders kept because their age could not be established. */
+  undatedFolders: string[];
+  /** True when open PR folders plus undated folders alone exceed the budget. */
   openFoldersExceedBudget: boolean;
 };
 
-/** Pure policy: retention first, then oldest-closed-first until the branch fits the budget. */
+/** Pure policy: retention first, then oldest first; open PRs and undated folders survive. */
 export function selectReportFoldersToPrune(options: {
   folderSizesBytesByPath: Map<string, number>;
-  closedAtEpochSecondsByPath: Map<string, number>;
+  prunableAtEpochSecondsByPath: ReadonlyMap<string, number>;
+  openPullRequestPaths: ReadonlySet<string>;
   retentionCutoffEpochSeconds: number;
   budgetBytes: number;
 }): ReportFolderPruneSelection {
-  const closedAt = (folder: string) => options.closedAtEpochSecondsByPath.get(folder) ?? 0;
+  const dated = (folder: string) => Number.isFinite(options.prunableAtEpochSecondsByPath.get(folder));
+  const ageTimestamp = (folder: string) => options.prunableAtEpochSecondsByPath.get(folder)!;
   const foldersToDelete: string[] = [];
   let branchSizeAfterBytes = [...options.folderSizesBytesByPath.values()].reduce((total, size) => total + size, 0);
   const remove = (folder: string) => {
@@ -42,14 +47,22 @@ export function selectReportFoldersToPrune(options: {
     branchSizeAfterBytes -= options.folderSizesBytesByPath.get(folder) ?? 0;
   };
   const oldestFirst = [...options.folderSizesBytesByPath.keys()]
-    .filter((folder) => options.closedAtEpochSecondsByPath.has(folder))
-    .sort((a, b) => closedAt(a) - closedAt(b));
-  for (const folder of oldestFirst) if (closedAt(folder) <= options.retentionCutoffEpochSeconds) remove(folder);
+    .filter((folder) => !options.openPullRequestPaths.has(folder) && dated(folder))
+    .sort((a, b) => ageTimestamp(a) - ageTimestamp(b) || a.localeCompare(b));
+  for (const folder of oldestFirst) if (ageTimestamp(folder) <= options.retentionCutoffEpochSeconds) remove(folder);
   for (const folder of oldestFirst) {
     if (branchSizeAfterBytes <= options.budgetBytes) break;
     if (!foldersToDelete.includes(folder)) remove(folder);
   }
-  return { foldersToDelete, branchSizeAfterBytes, openFoldersExceedBudget: branchSizeAfterBytes > options.budgetBytes };
+  const undatedFolders = [...options.folderSizesBytesByPath.keys()].filter(
+    (folder) => !options.openPullRequestPaths.has(folder) && !dated(folder),
+  );
+  return {
+    foldersToDelete,
+    branchSizeAfterBytes,
+    undatedFolders,
+    openFoldersExceedBudget: branchSizeAfterBytes > options.budgetBytes,
+  };
 }
 
 export type ReportPruneApiOptions = GitHubApiOptions & { branch: string };
@@ -67,7 +80,7 @@ async function readBranchFolders(api: GitHubApi, branch: string) {
   return {
     tipCommitSha,
     tipTreeSha,
-    folderSizesBytesByPath: blobSizesByFolder(tree, (folder) => /^pr-\d+$/.test(folder)),
+    folderSizesBytesByPath: blobSizesByFolder(tree, (folder) => /^(pr|run)-\d+$/.test(folder)),
   };
 }
 
@@ -105,19 +118,134 @@ export async function deleteReportFolders(
   });
 }
 
-/** Closed-at timestamps for every closed PR, keyed `pr-<n>`. Open PRs are deliberately absent. */
-export async function readClosedPullRequestTimestamps(options: ReportPruneApiOptions): Promise<Map<string, number>> {
-  const api = githubClient(options);
-  const closedAt = new Map<string, number>();
+type PullRequest = { number: number; closed_at: string | null };
+
+/** Both listings must complete before any folder can be classified as a legacy run. */
+async function readPullRequests(api: GitHubApi, state: 'open' | 'closed'): Promise<PullRequest[]> {
+  const result: PullRequest[] = [];
   for (let page = 1; ; page += 1) {
-    const pulls = await api<Array<{ number: number; closed_at: string | null }>>(
-      'GET',
-      `/pulls?state=closed&per_page=100&page=${page}`,
-    );
-    for (const pull of pulls) {
-      if (pull.closed_at !== null) closedAt.set(`pr-${pull.number}`, Math.floor(Date.parse(pull.closed_at) / 1000));
-    }
+    const pulls = await api<PullRequest[]>('GET', `/pulls?state=${state}&per_page=100&page=${page}`);
+    result.push(...pulls);
     if (pulls.length < 100) break;
   }
-  return closedAt;
+  return result;
+}
+
+async function readPullRequestStates(api: GitHubApi) {
+  const openPullRequestPaths = new Set((await readPullRequests(api, 'open')).map((pull) => `pr-${pull.number}`));
+  const closedPullRequests = new Map(
+    (await readPullRequests(api, 'closed')).map((pull) => [`pr-${pull.number}`, pull]),
+  );
+  return { openPullRequestPaths, closedPullRequests };
+}
+
+async function classifyPullRequestFolder(
+  api: GitHubApi,
+  folder: string,
+  closedPullRequests: ReadonlyMap<string, PullRequest>,
+  openPullRequestPaths: Set<string>,
+  prunableAtEpochSecondsByPath: Map<string, number>,
+): Promise<boolean> {
+  let pull = closedPullRequests.get(folder);
+  if (!pull) {
+    try {
+      pull = await api<PullRequest>('GET', `/pulls/${folder.slice(3)}`);
+    } catch (error) {
+      if (!(error instanceof GitHubApiError) || error.status !== 404) throw error;
+      return true;
+    }
+  }
+  if (pull.closed_at == null) openPullRequestPaths.add(folder);
+  else {
+    const epoch = Math.floor(Date.parse(pull.closed_at) / 1000);
+    if (Number.isFinite(epoch)) prunableAtEpochSecondsByPath.set(folder, epoch);
+  }
+  return false;
+}
+
+async function classifyReportFolders(
+  api: GitHubApi,
+  folders: readonly string[],
+  closedPullRequests: ReadonlyMap<string, PullRequest>,
+  openPullRequestPaths: Set<string>,
+  prunableAtEpochSecondsByPath: Map<string, number>,
+): Promise<Set<string>> {
+  const runFolders = new Set<string>();
+  for (const folder of folders) {
+    if (openPullRequestPaths.has(folder)) continue;
+    if (/^run-\d+$/.test(folder)) {
+      runFolders.add(folder);
+      continue;
+    }
+    if (!/^pr-\d+$/.test(folder)) continue;
+    if (
+      await classifyPullRequestFolder(
+        api,
+        folder,
+        closedPullRequests,
+        openPullRequestPaths,
+        prunableAtEpochSecondsByPath,
+      )
+    ) {
+      runFolders.add(folder);
+    }
+  }
+  return runFolders;
+}
+
+type ReportCommit = { commit: { message: string; committer: { date: string } | null } };
+
+function recordRunFolderTimestamps(
+  commits: readonly ReportCommit[],
+  runFolders: ReadonlySet<string>,
+  prunableAtEpochSecondsByPath: Map<string, number>,
+  undatedRunFolders: Set<string>,
+): void {
+  for (const { commit } of commits) {
+    const folder = /^StyleProof report ((?:pr|run)-\d+) @ \S+$/.exec(commit.message.split('\n')[0])?.[1];
+    if (!folder || !runFolders.has(folder)) continue;
+    const epoch = Math.floor(Date.parse(commit.committer?.date ?? '') / 1000);
+    if (!Number.isFinite(epoch)) undatedRunFolders.add(folder);
+    else if (epoch > (prunableAtEpochSecondsByPath.get(folder) ?? -Infinity)) {
+      prunableAtEpochSecondsByPath.set(folder, epoch);
+    }
+  }
+}
+
+async function dateRunFolders(
+  api: GitHubApi,
+  options: ReportPruneApiOptions & { maximumCommitPages?: number },
+  runFolders: ReadonlySet<string>,
+  prunableAtEpochSecondsByPath: Map<string, number>,
+): Promise<void> {
+  if (runFolders.size === 0) return;
+  const undatedRunFolders = new Set<string>();
+  for (let page = 1; page <= (options.maximumCommitPages ?? 30); page += 1) {
+    const query = `sha=${encodeURIComponent(options.branch)}&per_page=100&page=${page}`;
+    const commits = await api<ReportCommit[]>('GET', `/commits?${query}`);
+    recordRunFolderTimestamps(commits, runFolders, prunableAtEpochSecondsByPath, undatedRunFolders);
+    if (commits.length < 100) break;
+  }
+  // An unreadable publish date might be newer than every dated publish we saw.
+  for (const folder of undatedRunFolders) prunableAtEpochSecondsByPath.delete(folder);
+}
+
+/** Closed PRs use closed_at; run and confirmed legacy folders use the latest publish
+ *  committer date in a bounded log scan. Missing/invalid dates never permit deletion. */
+export async function readReportFolderTimestamps(
+  options: ReportPruneApiOptions & { maximumCommitPages?: number },
+  folders: readonly string[],
+): Promise<{ prunableAtEpochSecondsByPath: Map<string, number>; openPullRequestPaths: Set<string> }> {
+  const api = githubClient(options);
+  const { openPullRequestPaths, closedPullRequests } = await readPullRequestStates(api);
+  const prunableAtEpochSecondsByPath = new Map<string, number>();
+  const runFolders = await classifyReportFolders(
+    api,
+    folders,
+    closedPullRequests,
+    openPullRequestPaths,
+    prunableAtEpochSecondsByPath,
+  );
+  await dateRunFolders(api, options, runFolders, prunableAtEpochSecondsByPath);
+  return { prunableAtEpochSecondsByPath, openPullRequestPaths };
 }

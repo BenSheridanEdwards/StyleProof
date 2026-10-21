@@ -283,3 +283,21 @@ test('the summary step fails safe when report.md is missing (#700)', () => {
   assert.equal(result.status, 0, `summary step output: ${result.stderr}`);
   assert.equal(fs.existsSync(summaryFile), false, 'no report must mean no summary write');
 });
+
+for (const [prNumber, expectedPath] of [
+  ['42', 'pr-42'],
+  ['', 'run-17198732451'],
+]) {
+  test(`branch publish passes ${expectedPath} to the publisher (#878)`, () => {
+    const script = runBlockContaining('REPORT_PATH=')
+      .replaceAll('${{ steps.context.outputs.pr-number }}', prNumber)
+      .replaceAll('${{ github.run_id }}', '17198732451')
+      .replace(/\$\{\{[^}]*\}\}/g, 'placeholder');
+    const result = spawnSync('bash', ['-c', 'node() { printf "%s\\n" "$@"; }\n' + script], {
+      encoding: 'utf8',
+      env: { ...EMPTY_ARRAY_ENVIRONMENT, STYLEPROOF_REPORT_BRANCH: 'styleproof-reports' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(result.stdout.includes(`--report-path\n${expectedPath}\n`), result.stdout);
+  });
+}
