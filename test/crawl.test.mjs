@@ -1,10 +1,143 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from '../dist/crawl.js';
+import {
+  selectCrawlLinks,
+  defaultLinkKey,
+  crawlCoverageGaps,
+  crawlCoverageError,
+  uniqueKeyFor,
+} from '../dist/crawl.js';
+import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { performance } from 'node:perf_hooks';
 
 const BASE = 'https://app.test/';
 const pick = (hrefs, opts = {}) => selectCrawlLinks(hrefs, { base: BASE, ...opts });
+
+// Browser-free worker fixture. Only resets of Alpha/Beta are delayed; browser
+// operations otherwise finish immediately. Captures deliberately fail because
+// this fixture exercises discovery/key allocation, without writing map files.
+async function scheduledSurfaceKeys(first, { defined = ['unrendered'], ...overrides } = {}) {
+  const candidate = (selector, label) => ({ action: 'click', selector, label, identity: selector, unsafe: false });
+  const controls = {
+    root: [candidate('alpha', 'Alpha'), candidate('beta', 'Beta')],
+    alpha: [candidate('alpha-pricing', 'Pricing'), candidate('alpha-pricing-2', 'Pricing 2')],
+    beta: [candidate('beta-pricing', 'Pricing')],
+  };
+  const arrivals = [];
+  const scheduled = new Set();
+  const resetOrder = [];
+  const keys = [];
+  const usedKeys = new Set(['base']);
+  const newPage = async () => {
+    let state = 'root';
+    let fresh = false;
+    return {
+      on() {},
+      off() {},
+      url: () => BASE,
+      async setViewportSize() {},
+      async waitForTimeout() {},
+      async goto() {
+        state = 'root';
+        fresh = true;
+      },
+      locator(selector) {
+        return {
+          first() {
+            return this;
+          },
+          async waitFor() {},
+          async scrollIntoViewIfNeeded() {},
+          async isVisible() {
+            return true;
+          },
+          async evaluate() {
+            state = selector;
+            return true;
+          },
+        };
+      },
+      async evaluate(fn) {
+        if (fn.name === 'collectBoundaryMetadata') return { auth: [], incompleteUi: [] };
+        if (fn.name === 'collectDefinedClasses') return { classes: defined, unreadable: [] };
+        if (fn.name === 'collectClickable') return controls[state] ?? [];
+        if (fn.name === 'domShape') {
+          if (fresh && (state === 'alpha' || state === 'beta') && !scheduled.has(state)) {
+            scheduled.add(state);
+            await new Promise((resolve) => {
+              arrivals.push({ state, resolve });
+              if (arrivals.length === 2) {
+                arrivals.find((a) => a.state === first).resolve();
+                setTimeout(() => arrivals.find((a) => a.state !== first).resolve(), 40);
+              }
+            });
+            resetOrder.push(state);
+          }
+          fresh = false;
+          return { shape: state, elements: 10, classes: [state] };
+        }
+        if (fn.name === 'installHoverSink') throw new Error('capture unavailable in worker fixture');
+        return 10; // DOM settle count; other navigation-only browser callbacks are inert.
+      },
+    };
+  };
+  const report = await crawlAndCapture(await newPage(), {
+    url: BASE,
+    out: new URL('../.takeover/', import.meta.url).pathname,
+    widths: [1280],
+    height: 800,
+    ignore: [],
+    screenshots: false,
+    dataStates: false,
+    resetStorage: false,
+    stopWhenCovered: true,
+    workers: 2,
+    newPage,
+    maxDepth: 3,
+    maxActionsPerState: 10,
+    maxStates: 20,
+    usedKeys,
+    onSurface(surface, ok) {
+      assert.equal(ok, false, 'fixture captures must fail explicitly');
+      keys.push([surface.path.map((s) => s.selector).join('/'), surface.key]);
+    },
+    ...overrides,
+  });
+  assert.deepEqual(resetOrder, [first, first === 'alpha' ? 'beta' : 'alpha']);
+  assert.deepEqual(
+    report.failed,
+    keys.map(([, key]) => key),
+  );
+  const prefix = uniqueKeyFor(pick(['/pricing-3'])[0].key, usedKeys);
+  return { keys, prefix };
+}
+
+test('multi-page keys stay identical when worker resets finish in opposite orders', async () => {
+  const alphaFirst = await scheduledSurfaceKeys('alpha');
+  const betaFirst = await scheduledSurfaceKeys('beta');
+  assert.deepEqual(betaFirst, alphaFirst);
+  assert.deepEqual(alphaFirst, {
+    keys: [
+      ['', 'base'],
+      ['alpha', 'alpha'],
+      ['beta', 'beta'],
+      ['alpha/alpha-pricing', 'pricing'],
+      ['alpha/alpha-pricing-2', 'pricing-2'],
+      ['beta/beta-pricing', 'pricing-3'],
+    ],
+    prefix: 'pricing-3-2',
+  });
+});
+
+test('queued workers recheck coverage and state limits in deterministic sweep order', async () => {
+  for (const options of [{ defined: ['alpha-pricing'] }, { maxStates: 4 }]) {
+    const alphaFirst = await scheduledSurfaceKeys('alpha', options);
+    const betaFirst = await scheduledSurfaceKeys('beta', options);
+    assert.deepEqual(betaFirst, alphaFirst);
+    assert.equal(alphaFirst.keys.length, options.maxStates ?? 5);
+    assert.ok(!alphaFirst.keys.some(([selector]) => selector === 'beta/beta-pricing'));
+  }
+});
 
 // ------------------------------------------------------- selectCrawlLinks
 

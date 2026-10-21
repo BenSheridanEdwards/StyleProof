@@ -289,10 +289,9 @@ async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'):
   }
 }
 
-/** Sweep the queue with N workers, each on its own page. FIFO → breadth-first: shallow surfaces
- *  (nav tabs, opened panels) are exhausted before drilling; dedup is set-based, so order never
- *  changes WHAT is found. Coverage early-stop (opt-in) fires the moment every defined class has
- *  been SEEN — no plateau stop, since a productive deep state can add vocabulary late. */
+/** Reset N worker pages concurrently, then sweep in queue order so shared dedup, key allocation,
+ *  and child enqueueing never depend on browser timing. Coverage early-stop (opt-in) fires when
+ *  every defined class has been SEEN — no plateau stop, since deep states can add vocabulary late. */
 async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: string[]): Promise<void> {
   const { opts, st } = ctx;
   const pages: Page[] = [primary];
@@ -313,16 +312,25 @@ async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: strin
   };
   let active = 0;
   let fatalError: unknown;
+  let turn = Promise.resolve();
   const sweepEntry = async (page: Page, entry: QueueEntry): Promise<void> => {
     const sink: QueueEntry[] = [];
+    const previous = turn;
+    let finish!: () => void;
+    turn = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
     active++;
     try {
-      if (await resetToState(page, opts, entry)) {
+      const reset = await resetToState(page, opts, entry);
+      await previous;
+      if (!fatalError && st.surfaces.length < opts.maxStates && !converged() && reset) {
         const r = await sweepCandidatesHere(page, ctx, entry, sink);
         counters.tried += r.tried;
         counters.skipped += r.skipped;
       }
     } catch (err) {
+      await previous;
       // Observation failures are never fail-soft; anything else — the state's surface was already captured.
       if (err instanceof AuthBoundaryObserveError) {
         fatalError = err;
@@ -331,6 +339,7 @@ async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: strin
     } finally {
       st.queue.push(...sink);
       active--;
+      finish();
     }
   };
   // An idle worker waits while a sibling's sweep may still buffer children into the queue.

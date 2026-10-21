@@ -73,8 +73,8 @@ whole surface: --crawl
   --no-data-states  skip the automatic loading/error captures of the entry page
                     (on by default: data requests stalled → loading skeleton;
                     fulfilled with 500 → error render)
-  --workers <n>     concurrent sweep workers (default 4); same surface set as a
-                    serial crawl — pass 1 for byte-stable key attribution
+  --workers <n>     concurrent page resets (default 4); surfaces and keys are
+                    allocated in deterministic queue order
   --no-follow-links crawl the entry page's interactive surface only. By default
                     every same-origin page the nav links to is crawled too,
                     each keyed by its route (about, pricing, blog-post, ...)
