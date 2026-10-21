@@ -609,10 +609,11 @@ runs:
             // the approve workflow both write as github-actions[bot]. A success status from any
             // other integration or user with statuses:write is not a sign-off.
             const canonical = !!mine && mine.creator?.type === 'Bot' && mine.creator.login === 'github-actions[bot]';
-            approved = canonical && mine.state === 'success';
-            // The approve workflow stamps "Approved by @x" into the status description.
-            const m = approved && (mine.description || '').match(/Approved by @([A-Za-z0-9-]+)/);
-            if (m) approver = m[1];
+            // Only a sign-off counts: the approve workflow's "Approved by @x", or this Action
+            // carrying one forward. Its own clean and advisory verdicts are success too.
+            const m = (mine?.description || '').match(/^Approved by @([A-Za-z0-9-]+)$/);
+            approved = canonical && mine.state === 'success' && (!!m || mine.description === 'StyleProof changes approved');
+            if (approved && m) approver = m[1];
           }
           core.setOutput('approved', approved ? 'true' : 'false');
           core.setOutput('approver', approver);

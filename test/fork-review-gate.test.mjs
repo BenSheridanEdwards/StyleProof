@@ -24,7 +24,9 @@ const UNTRUSTED_DESCRIPTION = 'Fork PR — maps captured in an untrusted job; ma
 
 /** Compile one github-script step with its env: block, substituting every expression. */
 function stepProgram(stepName, values) {
-  const step = actionYml.match(new RegExp(`- name: ${stepName}\\n[\\s\\S]*?(?=\\n {4}#|\\n {4}- name:|\\n {4}- id:)`));
+  const step = actionYml.match(
+    new RegExp(`- (?:name|id): ${stepName}\\n[\\s\\S]*?(?=\\n {4}#|\\n {4}- name:|\\n {4}- id:)`),
+  );
   assert.ok(step, `action.yml should contain the ${stepName} step`);
   const resolve = (expression) => {
     assert.ok(Object.hasOwn(values, expression), `no test value for \${{ ${expression} }}`);
@@ -71,13 +73,18 @@ function values({ untrusted, trustState, changed, approved = false, mode = 'revi
   };
 }
 
-async function run(stepName, scenario) {
+/** `prior` is what GitHub already holds for HEAD_SHA, newest first. */
+async function run(stepName, scenario, prior = []) {
   const { environment, program } = stepProgram(stepName, values(scenario));
   const statuses = [];
   const comments = [];
+  const outputs = {};
   const github = {
     rest: {
-      repos: { createCommitStatus: async (input) => statuses.push(input) },
+      repos: {
+        createCommitStatus: async (input) => statuses.push(input),
+        listCommitStatusesForRef: async () => ({ data: prior }),
+      },
       issues: {
         listComments: async () => ({ data: [] }),
         createComment: async (input) => comments.push(input),
@@ -86,7 +93,7 @@ async function run(stepName, scenario) {
     },
   };
   const context = { repo: { owner: 'acme', repo: 'app' }, runId: 9001, payload: { repository: { private: false } } };
-  const core = { setOutput() {}, info() {} };
+  const core = { setOutput: (name, value) => (outputs[name] = value), info() {} };
   const requireForScript = (specifier) => (specifier === 'fs' ? { existsSync: () => false } : nativeRequire(specifier));
   const previous = { ...process.env };
   Object.assign(process.env, environment, { GITHUB_ACTION_PATH: root });
@@ -96,7 +103,7 @@ async function run(stepName, scenario) {
     for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
     Object.assign(process.env, previous);
   }
-  return { statuses, comments };
+  return { statuses, comments, outputs };
 }
 
 const APPROVE_BOX = /^- \[ \] \*\*Approve all changes\*\*$/m;
@@ -175,6 +182,62 @@ test('same-repo verdicts are unchanged: clean is green with no box, changes are 
 
   const advisory = await run('Set review status', { ...clean, mode: 'advisory' });
   assert.equal(advisory.statuses[0].state, 'success');
+});
+
+const BOT = { login: 'github-actions[bot]', type: 'Bot' };
+
+/** A later same-repo review-gate run with changes on HEAD_SHA, which already carries `prior`. */
+async function rerunWithChanges(prior) {
+  const scenario = { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true };
+  const { outputs: gate } = await run('gate', scenario, [prior]);
+  const { statuses } = await run('Set review status', { ...scenario, approved: gate.approved === 'true' });
+  return { gate, status: { state: statuses[0].state, description: statuses[0].description } };
+}
+
+test('a clean or advisory green on the same head SHA is not a sign-off for a later run with changes (#936)', async () => {
+  const clean = await run('Set review status', {
+    untrusted: false,
+    trustState: 'NO_REVIEWABLE_STYLE_CHANGES',
+    changed: false,
+  });
+  const advisory = await run('Set review status', {
+    untrusted: false,
+    trustState: 'STYLE_REVIEW_REQUIRED',
+    changed: true,
+    mode: 'advisory',
+  });
+  for (const [label, { statuses }] of [
+    ['clean', clean],
+    ['advisory', advisory],
+  ]) {
+    assert.equal(statuses[0].state, 'success', `${label}: the earlier run's own verdict is green`);
+    assert.deepEqual(
+      await rerunWithChanges({ ...statuses[0], creator: BOT }),
+      {
+        gate: { approved: 'false', approver: '' },
+        status: {
+          state: 'failure',
+          description: 'StyleProof changes need sign-off — tick the box in the report comment',
+        },
+      },
+      `${label}: nobody approved, so the changes still need sign-off`,
+    );
+  }
+});
+
+test('a real sign-off on the same head SHA carries forward, from the canonical writer only', async () => {
+  const signOff = (description, creator = BOT) => ({ context: 'StyleProof', state: 'success', description, creator });
+  const approvedStatus = { state: 'success', description: 'StyleProof changes approved' };
+  assert.deepEqual(await rerunWithChanges(signOff('Approved by @maintainer')), {
+    gate: { approved: 'true', approver: 'maintainer' },
+    status: approvedStatus,
+  });
+  assert.deepEqual(await rerunWithChanges(signOff('StyleProof changes approved')), {
+    gate: { approved: 'true', approver: '' },
+    status: approvedStatus,
+  });
+  const foreign = await rerunWithChanges(signOff('Approved by @maintainer', { login: 'some-app[bot]', type: 'Bot' }));
+  assert.deepEqual(foreign.gate, { approved: 'false', approver: '' });
 });
 
 test('the verdict step records the trusted untrusted-capture flag and the gate reads fork approvals', () => {
