@@ -272,6 +272,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   unlabelled body was pasted into the summary instead. The group now opens with the same heading
   and surface line as a visible group. It still has no crops and keeps
   `visualEvidence: 'not-rendered'` in `report.json` (#952).
+- **A change below the screenshot canvas gets the "not visible" note, not an
+  unrelated crop (#955).** The report's crop check bounded a changed element's
+  box on the left, top and right of the screenshot, but not below it. An element
+  that starts at or past the bottom of the full-page screenshot, such as a fixed
+  sheet translated just off the page, got a crop of the page's last rows: the
+  same pixels on both sides and no highlight. The check now stops at each side's
+  screenshot height. That element gets the `MISLEADING_CROP_REASON` note and
+  `visualEvidence: 'not-rendered'` in `report.json`, and no crop is written.
+  Elements that intersect the screenshot keep their crops, and the verdict and
+  counts are unchanged.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
