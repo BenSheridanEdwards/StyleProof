@@ -116,7 +116,9 @@ function pushMapStoreCommit(target: StoreTarget, checkout: string, authenticatio
 function commitMapStoreBundle(checkout: string, bundlePath: string, message: string): void {
   const add = git(checkout, ['add', '-A', '--sparse', '--', 'README.md', bundlePath]);
   if (add.status !== 0) throw new MapStoreError(describeFailure('map-store add', add));
-  if (git(checkout, ['diff', '--cached', '--quiet']).status === 0) return;
+  const diff = git(checkout, ['diff', '--cached', '--quiet', '--no-ext-diff', '--no-textconv']);
+  if (diff.status === 0) return;
+  if (diff.status !== 1) throw new MapStoreError(describeFailure('map-store diff', diff));
   const commit = git(
     checkout,
     ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message],

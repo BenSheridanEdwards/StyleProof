@@ -642,6 +642,81 @@ test('publishMapBundle treats a byte-identical republish as already stored', asy
   }
 });
 
+for (const driver of ['external diff', 'textconv']) {
+  for (const existing of [true, false]) {
+    test(`publishMapBundle ignores inherited ${driver} for ${existing ? 'changed existing bundles' : 'new SHAs'}`, async () => {
+      const root = mkTmp('styleproof-publish-diff-config-');
+      const previousGlobalConfig = process.env.GIT_CONFIG_GLOBAL;
+      try {
+        const { consumer, capture, tip } = existingMapStore(root);
+        const sha = 'e'.repeat(40);
+        const dir = capture(sha);
+        await publishMapBundle({ dir, cwd: consumer });
+        const before = tip();
+        const changedDir = existing ? dir : capture('f'.repeat(40));
+        const changedSha = existing ? sha : 'f'.repeat(40);
+        fs.writeFileSync(path.join(changedDir, 'home@1280.json'), '{"changed":true}\n');
+        const helper = path.join(root, 'hide-diff');
+        fs.writeFileSync(helper, '#!/bin/sh\necho identical\nexit 0\n', { mode: 0o755 });
+        const attributes = path.join(root, 'attributes');
+        fs.writeFileSync(attributes, '* diff=hidden\n');
+        const globalConfig = path.join(root, 'gitconfig');
+        fs.writeFileSync(
+          globalConfig,
+          driver === 'external diff'
+            ? `[diff]\n\texternal = ${helper}\n\ttrustExitCode = true\n`
+            : `[core]\n\tattributesFile = ${attributes}\n[diff "hidden"]\n\ttextconv = ${helper}\n`,
+        );
+        process.env.GIT_CONFIG_GLOBAL = globalConfig;
+
+        await publishMapBundle({ dir: changedDir, cwd: consumer });
+
+        assert.notEqual(tip(), before, 'the map-store branch moved');
+        const outDir = path.join(root, 'restored');
+        const restored = restoreMapBundle({ sha: changedSha, outDir, cwd: consumer });
+        assert.equal(restored.sha, changedSha, 'the uploaded SHA restores');
+        assert.equal(fs.readFileSync(path.join(outDir, 'home@1280.json'), 'utf8'), '{"changed":true}\n');
+      } finally {
+        if (previousGlobalConfig === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+        else process.env.GIT_CONFIG_GLOBAL = previousGlobalConfig;
+        rmTmp(root);
+      }
+    });
+  }
+}
+
+for (const failure of ['exit 2', 'kill -TERM $$']) {
+  test(`publishMapBundle rejects an unexpected staged-diff result (${failure})`, async () => {
+    const root = mkTmp('styleproof-publish-diff-fails-');
+    const previousPath = process.env.PATH;
+    try {
+      const { consumer, capture, tip } = existingMapStore(root);
+      const dir = capture('a'.repeat(40));
+      const before = tip();
+      const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+      const bin = path.join(root, 'bin');
+      fs.mkdirSync(bin);
+      fs.writeFileSync(
+        path.join(bin, 'git'),
+        `#!/bin/sh\ncase "$*" in\n  "diff --cached "*) echo "staged diff unavailable" >&2; ${failure} ;;\nesac\nexec '${realGit.replaceAll("'", "'\\''")}' "$@"\n`,
+        { mode: 0o755 },
+      );
+      process.env.PATH = `${bin}${path.delimiter}${previousPath ?? ''}`;
+
+      await assert.rejects(publishMapBundle({ dir, cwd: consumer }), (error) => {
+        assert.ok(error instanceof MapStoreError);
+        assert.match(error.message, /map-store diff: staged diff unavailable/);
+        return true;
+      });
+      assert.equal(tip(), before, 'a failed staged check never publishes');
+    } finally {
+      if (previousPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousPath;
+      rmTmp(root);
+    }
+  });
+}
+
 test('workflow-token credential arguments let real Git obtain credentials without putting the token in argv', () => {
   const mapStoreToken = 'fake-workflow-token';
   const credentialArguments = workflowTokenCredentialArguments();
