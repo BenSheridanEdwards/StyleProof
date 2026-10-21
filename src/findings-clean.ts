@@ -260,10 +260,10 @@ export type ComparisonTruthOptions = {
 // What a live text change can plausibly move: its own box size and the sizes of
 // the boxes that wrap it, plus the origins that compute from those sizes. Offsets
 // (top/left/inset-*, …) and transforms are never a text reflow, so a live path
-// can never launder them.
+// can never launder them. Nor can min-/max- sizes: getComputedStyle reports their
+// authored computed value, not the laid-out size, so text length never moves them.
 const LIVE_TEXT_REFLOW_PROPS = new Set(
-  `width height block-size inline-size min-width min-height max-width max-height min-block-size max-block-size
-   min-inline-size max-inline-size perspective-origin transform-origin`.split(/\s+/),
+  'width height block-size inline-size perspective-origin transform-origin'.split(' '),
 );
 
 /**

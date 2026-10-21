@@ -2032,6 +2032,35 @@ test('source-bound diff CLI does not let a drifting declared timestamp hide a po
   rmTmp(root);
 });
 
+// min-/max- sizes are authored computed values a text reflow can never move. They
+// used to be excused on a drifting age label's ancestor, so the restyle certified.
+test('source-bound diff CLI does not let a drifting declared timestamp hide an authored max-width change on its card', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const side = (text, maxWidth) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body' },
+        [CARD]: { tag: 'div', cls: 'card', style: { 'max-width': maxWidth } },
+        [AGE]: { tag: 'span', cls: 'age', style: { width: '96px' }, ownTextLength: text.length, text },
+      },
+    }),
+    metadata: { liveText: { freeze: false, selectors: ['.age'] } },
+  });
+  writeCapture(A, 'home@1280', side('edited 3m ago', '480px'), null);
+  writeCapture(B, 'home@1280', side('edited 4m ago', '192px'), null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.equal(receipt.reviewableCounts.style, 1, 'the card max-width change stays reviewable');
+  rmTmp(root);
+});
+
 test('source-bound diff CLI fails closed on a cleaned :hover width delta next to declared live-text drift', () => {
   const { root, A, B } = liveTextPair({ cardTop: '10px', hoverWidth: '120px' });
   const jsonOut = path.join(root, 'out.json');

@@ -16,7 +16,7 @@ import {
 } from '../dist/live-text.js';
 import { diffContentMaps, diffStyleMaps } from '../dist/diff.js';
 import { assessComparisonTruth, isGeometryOnlyGroup } from '../dist/change-groups.js';
-import { dropDeclaredLiveTextGeometry } from '../dist/findings-clean.js';
+import { dropDeclaredLiveTextGeometry, rawFindingsExplainedByLiveText } from '../dist/findings-clean.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
@@ -302,6 +302,46 @@ test('declared liveText drops only size reflow on the live path and its ancestor
     1,
     'a live path on one surface never exempts the same path on another',
   );
+});
+
+// min-/max- sizes are computed values, not resolved ones: getComputedStyle reports
+// what the stylesheet authored, so a longer or shorter age can never move them.
+// They used to be excused on a drifting label's ancestor, zeroing an authored restyle.
+test('declared liveText keeps an authored min/max size change on a drifting age label ancestor', () => {
+  const stamp = 'body > main:nth-child(1) > aside:nth-child(2)';
+  const label = `${stamp} > time:nth-child(1)`;
+  const audit = auditLiveTextChanges(
+    'home@900',
+    [{ kind: 'text', path: label, cls: 'ago', before: 'edited 3m ago', after: 'edited 4m ago' }],
+    { freeze: false, selectors: [] },
+  );
+  assert.equal(isLiveTextGeometryPath(stamp, audit.livePaths), true);
+  const restyle = (props) => ({
+    kind: 'style',
+    path: stamp,
+    cls: 'stamp',
+    pseudo: null,
+    props: props.map(([prop, before, after]) => ({ prop, before, after })),
+  });
+  for (const props of [
+    [
+      ['max-width', '480px', '192px'],
+      ['min-height', '48px', '96px'],
+    ],
+    [
+      ['max-inline-size', '480px', '192px'],
+      ['min-block-size', '48px', '96px'],
+    ],
+  ]) {
+    const findings = [restyle(props)];
+    const name = props.map(([prop]) => prop).join('/');
+    assert.equal(dropDeclaredLiveTextGeometry(findings, audit, 'home@900').length, 1, `${name} is authored`);
+    const surfaces = [{ surface: 'home@900', findings }];
+    assert.equal(rawFindingsExplainedByLiveText(surfaces, audit), false, `${name} is not live-text residue`);
+    const truth = assessComparisonTruth(surfaces, { dom: 0, style: 2, state: 0 }, [], { liveText: audit });
+    assert.equal(truth.reviewableCounts.style, 2, `${name} stays reviewable`);
+    assert.equal(truth.hasReviewableEvidence, true);
+  }
 });
 
 test('declared liveText does not exempt an unrelated cleaned state delta from raw-only fail-closed', () => {
