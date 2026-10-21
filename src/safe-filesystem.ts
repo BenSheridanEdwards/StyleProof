@@ -36,8 +36,9 @@ function assertRegularPath(filePath: string, stat: fs.Stats): void {
   if (!stat.isFile()) throw new UnsafeFilesystemEntryError(filePath, 'non-regular');
 }
 
-function readBoundedDescriptor(descriptor: number, maximumBytes: number): Buffer {
-  const buffer = Buffer.allocUnsafe(maximumBytes + 1);
+/** Read up to `size + 1` bytes: sized from `fstat`, not the cap, with one spare byte to see growth. */
+function readBoundedDescriptor(descriptor: number, size: number): Buffer {
+  const buffer = Buffer.allocUnsafe(size + 1);
   let offset = 0;
   while (offset < buffer.length) {
     const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, null);
@@ -68,10 +69,12 @@ function assertStableIdentity(filePath: string, first: fs.Stats, second: fs.Stat
   if (!sameFileIdentity(first, second)) throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
 }
 
-function readDescriptor(filePath: string, descriptor: number, maximumBytes?: number): Buffer {
-  const bytes =
-    maximumBytes === undefined ? fs.readFileSync(descriptor) : readBoundedDescriptor(descriptor, maximumBytes);
+function readDescriptor(filePath: string, descriptor: number, size: number, maximumBytes?: number): Buffer {
+  if (maximumBytes === undefined) return fs.readFileSync(descriptor);
+  const bytes = readBoundedDescriptor(descriptor, size);
   assertWithinMaximum(filePath, bytes.length, maximumBytes);
+  // The identity checks cannot see an append, so a file that grew after fstat is refused here.
+  if (bytes.length > size) throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
   return bytes;
 }
 
@@ -90,7 +93,7 @@ export function readRegularFileNoFollow(filePath: string, maximumBytes?: number)
     assertStableIdentity(filePath, beforeOpen, opened);
     assertStableIdentity(filePath, pathBeforeRead, opened);
 
-    const bytes = readDescriptor(filePath, descriptor, maximumBytes);
+    const bytes = readDescriptor(filePath, descriptor, opened.size, maximumBytes);
     const afterRead = fs.fstatSync(descriptor);
     const pathAfterRead = fs.lstatSync(filePath);
     assertRegularPath(filePath, pathAfterRead);

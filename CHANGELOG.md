@@ -455,6 +455,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   including user-authored comments that are never edited, so a late earlier
   attempt cannot overwrite a newer attempt's comment or status. A comment
   from an account without write access cannot suppress a delivery.
+- **Reading a style map no longer reserves 256 MiB, so `styleproof-diff` is
+  4-6x faster at hundreds of surfaces (#972).** Every capped no-follow read
+  allocated its full size cap plus one byte, whatever the file's size, and the
+  returned bytes kept that buffer alive. A 12 KB map took 256 MiB of external
+  memory, so V8 ran a garbage collection on nearly every map read while diff
+  and report held the maps they had already parsed. The read buffer is now sized
+  from the file's `fstat` size plus one byte. A file that grows after it is sized
+  is refused as `changed-during-read`, or as `oversized` once it passes the cap,
+  instead of being read past its checked size.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
