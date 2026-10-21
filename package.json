@@ -101,7 +101,8 @@
     "bench:detection": "npm run build && node bench/detection-rate.mjs",
     "bench:detection:check": "npm run build && node bench/detection-rate.mjs --check",
     "bench:reach": "npm run build && node bench/reach-corpus.mjs",
-    "bench:reach:check": "npm run build && node bench/reach-corpus.mjs --check"
+    "bench:reach:check": "npm run build && node bench/reach-corpus.mjs --check",
+    "bench:reach-cost": "npm run build && node bench/reach-cost.mjs"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.45"
