@@ -15,10 +15,12 @@ lanes:
   - '!LICENSE'
   # Documentation and committed proof assets; the build job checks docs/demo freshness.
   - '!docs/**'
-  # Agent context documents; nothing in CI loads them.
+  # Agent context documents; only the build job's context-layer check reads them.
   - '!.agents/**'
   # Local agent tooling (skills, hooks, settings); never run in CI.
   - '!.claude/**'
+  # Codex hook registration; Codex reads it locally, never in CI.
+  - '!.codex/**'
   # Issue forms rendered by GitHub only.
   - '!.github/ISSUE_TEMPLATE/**'
   # PR body template rendered by GitHub only.
@@ -45,6 +47,10 @@ lanes:
   - '!scripts/check-coverage.mjs'
   # Privacy scan run by the build job.
   - '!scripts/privacy-check.mjs'
+  # Context-layer check run by the build job.
+  - '!scripts/check-context-layer.mjs'
+  # Suppression-comment check run by the build job.
+  - '!scripts/check-suppressions.mjs'
   # PR body validator run by pr-body.yml.
   - '!scripts/validate-pr-body.mjs'
   # PR body headings shared with the PR body validator.

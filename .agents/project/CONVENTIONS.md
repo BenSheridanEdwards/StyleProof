@@ -6,9 +6,14 @@
   in `.mjs`. Import compiled paths with `.js` extensions (NodeNext).
 - **Prettier is the formatter.** Run `npm run format`; CI runs `format:check`.
   Do not hand-format against it.
-- **ESLint is the linter** (flat config). `no-console` is a warning in `src/` (the
-  library must not print) and off in CLIs/tests/scripts (console is the interface
-  there).
+- **ESLint is the linter** (flat config). Lint fails on any warning
+  (`--max-warnings=0`), so `no-console` in `src/` (the library must not print)
+  blocks like an error; it is off in CLIs/tests/scripts (console is the
+  interface there).
+- **Every suppression says why.** An inline `eslint-disable*` names its rules
+  and ends in `-- <reason>`; a type suppression is `@ts-expect-error <reason>`,
+  never `@ts-ignore` or `@ts-nocheck`. `npm run check:suppressions` enforces it,
+  and ESLint fails on a disable that no longer suppresses anything.
 - **`strict` TypeScript.** No new `tsc` errors. `dist/` is generated — never edit
   it or commit it (it is gitignored).
 

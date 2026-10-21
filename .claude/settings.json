@@ -6,7 +6,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-gate-bypass.sh\""
+            "if": "Bash(git *)",
+            "command": "sh",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/block-gate-bypass.sh"]
+          },
+          {
+            "type": "command",
+            "if": "Bash(env *)",
+            "command": "sh",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/block-gate-bypass.sh"]
+          },
+          {
+            "type": "command",
+            "if": "Bash(sh *)",
+            "command": "sh",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/block-gate-bypass.sh"]
+          },
+          {
+            "type": "command",
+            "if": "Bash(bash *)",
+            "command": "sh",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/block-gate-bypass.sh"]
           }
         ]
       }

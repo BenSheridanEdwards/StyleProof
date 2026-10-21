@@ -62,6 +62,16 @@ jobs:
       - name: Format check
         if: matrix.node == '22'
         run: npm run format:check
+
+      # The agent docs keep their pointer chain, links and unique ADR numbers,
+      # and every suppression comment says why (ADR 0007).
+      - name: Context layer
+        if: matrix.node == '22'
+        run: npm run check:context
+
+      - name: Suppressions
+        if: matrix.node == '22'
+        run: npm run check:suppressions
       - name: Privacy check
         if: matrix.node == '22'
         env:

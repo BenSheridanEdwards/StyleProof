@@ -9,10 +9,12 @@ is listed here only if it exists and runs on a clean checkout.
 | Gate                    | Tool                                                       | When                           | Command / source                                                                                                                                                                |
 | ----------------------- | ---------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Commit message          | commitlint (`config-conventional`)                         | commit (`.husky/commit-msg`)   | `npx --no-install commitlint --edit "$1"`                                                                                                                                       |
-| Build                   | `tsc`                                                      | commit + CI                    | `npm run build`                                                                                                                                                                 |
-| Typecheck               | `tsc --noEmit`                                             | commit                         | `npm run typecheck`                                                                                                                                                             |
-| Lint                    | ESLint                                                     | commit + CI (Node 22)          | `npm run lint`                                                                                                                                                                  |
+| Build                   | `tsc`                                                      | CI (Node 22.13.0, 22, 24)      | `npm run build`                                                                                                                                                                 |
+| Typecheck               | `tsc --noEmit`                                             | `npm run verify` (no hook; CI typechecks through `npm run build`) | `npm run typecheck`                                                                                                                                    |
+| Lint                    | ESLint (`--max-warnings=0`; unused disable directives are errors) | commit + CI (Node 22)   | `npm run lint`                                                                                                                                                                  |
 | Format                  | Prettier                                                   | commit + CI (Node 22)          | `npm run format:check`                                                                                                                                                          |
+| Context layer           | `scripts/check-context-layer.mjs`                          | CI (Node 22) + `npm run verify` | `npm run check:context`: root pointers, project docs, relative links, repeated sections, unique ADR numbers                                                                   |
+| Suppressions            | `scripts/check-suppressions.mjs`                           | CI (Node 22) + `npm run verify` | `npm run check:suppressions`: every inline `eslint-disable` names its rules and a `-- reason`; a type suppression is a reasoned `@ts-expect-error`                            |
 | Privacy scan            | `scripts/privacy-check.mjs`                                | CI (Node 22) + `prepublishOnly` (not a local hook) | `npm run privacy:check`                                                                                                                                                         |
 | Complexity / dead code  | Fallow                                                     | commit + CI (`pull_request`)   | `npx --no-install fallow audit --base HEAD --health-baseline .fallow/health-baseline.json`; `.github/workflows/fallow.yml`                                                      |
 | Production health       | Fallow (`fallow health --production`)                      | commit + CI (`pull_request`)   | `npx --no-install fallow health --production --baseline .fallow/health-baseline.json --changed-since HEAD --diff-file <staged diff> --fail-on-issues`; CI runs the same health pass with `--changed-since <PR base SHA>` in `.github/workflows/fallow.yml` |
@@ -29,19 +31,27 @@ is listed here only if it exists and runs on a clean checkout.
 | Map-store dogfood       | real capture + map store + diff                            | CI (`pull_request`)            | `.github/workflows/store-dogfood.yml`                                                                                                                                           |
 | Live StyleProof dogfood | Action on `styleproof.config.ts` surfaces (`example/demo`) | CI (`pull_request`, same-repo) | `.github/workflows/styleproof-dogfood.yml` — advisory (`fail-on-diff: false`); product-state ledger armed (declare-or-fail-closed); **not** part of the hosted `required` check |
 | Phase 1 mapping (advisory) | Playwright foundation + structure harnesses (`capture → diff → report`) | CI (`pull_request`) | `.github/workflows/phase1-advisory-dogfood.yml` — job **`Phase 1 mapping (advisory)`**; soft-pass HOLD (fail closed on wrong/incomplete mapping); **not** part of the hosted `required` check |
-| Gate-bypass block       | `.claude/hooks/block-gate-bypass.sh`                       | PreToolUse (Claude Code)       | Exits non-zero on `git commit`/`push` with `--no-verify`/`-n`                                                                                                                   |
+| Gate-bypass block       | `.claude/hooks/block-gate-bypass.sh`                       | PreToolUse (Claude Code for `git`/`env`/`sh`/`bash` commands; Codex via `.codex/hooks.json`) | Exits 2 on `--no-verify` and its abbreviations, `git commit -n` in any flag cluster, `HUSKY=0`, and writes to `core.hooksPath`, a git alias, or a config include; `test/block-gate-bypass.test.mjs` pins the shapes ([ADR 0007](../decisions/0007-adopt-the-agentic-repo-template.md)) |
 
 ## Where each gate fires
 
 - **`.husky/commit-msg`** — commitlint.
-- **`.husky/pre-commit`** — build, typecheck, lint, format check, gitleaks
-  staged-diff scan, Fallow audit, then `fallow health --production` over the
-  staged diff. The privacy scan is **not** a local hook; run
-  `npm run privacy:check` yourself before pushing.
+- **`.husky/pre-commit`** — lint, format check, gitleaks staged-diff scan,
+  Fallow audit, then `fallow health --production` over the staged diff. Build
+  and typecheck left the hook in #811; CI runs them. The privacy scan is **not**
+  a local hook; run `npm run privacy:check` (or `npm run verify`) yourself
+  before pushing.
 - **`.husky/pre-push`** — `npm test` (git hook env is unset first so it does not
-  leak into the CLI tests' temp repos).
+  leak into the CLI tests' temp repos), then `scripts/pre-push-e2e.mjs`, a
+  path-filtered Playwright smoke when the pushed files touch the browser
+  capture surface (skipped with a warning when Chromium is missing).
+- **`npm run verify`** — every local gate in one command: context and
+  suppression checks, typecheck, lint, format check, privacy scan, and
+  `npm test`. No hook runs it
+  ([ADR 0007](../decisions/0007-adopt-the-agentic-repo-template.md)).
 - **CI (`ci.yml`)** — build and unit on the full Node matrix; lint, format,
-  privacy, npm audit, and demo freshness on Node 22; e2e in three parallel
+  context layer, suppressions, privacy, npm audit, and demo freshness on
+  Node 22; e2e in three parallel
   Node 22 shards (`playwright.ci.config.ts`, which adds a Firefox project) plus
   an `e2e-evidence` job that verifies shard coverage and prints the determinism
   receipt; CLI smoke on macOS + Windows; one stable `required` check that fails
@@ -63,7 +73,9 @@ is listed here only if it exists and runs on a clean checkout.
 
 ## Bypass policy
 
-Gates are never bypassed. `--no-verify`/`-n` is forbidden, and weakening type,
-lint, or test configuration to turn red green is a named violation. The
-`.claude/hooks/block-gate-bypass.sh` PreToolUse hook blocks the bypass flags at
-the agent boundary; CI gates cannot be skipped at all.
+Gates are never bypassed. `--no-verify`/`-n`, `HUSKY=0`, and pointing
+`core.hooksPath` elsewhere are forbidden, and weakening type, lint, or test
+configuration to turn red green is a named violation. The
+`.claude/hooks/block-gate-bypass.sh` PreToolUse hook blocks the common bypass
+shapes at the agent boundary. It is a speed bump; ADR 0007 lists what it
+misses. CI gates cannot be skipped at all.

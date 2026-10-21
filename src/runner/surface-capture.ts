@@ -208,7 +208,7 @@ export function recordCaptureTestOutcomes(): void {
   if (!dir) return;
   // eslint-disable-next-line no-empty-pattern -- Playwright hooks take fixtures first; none are needed.
   test.beforeEach(({}, info) => recordCaptureTestOutcome(dir, info.testId, { title: info.title, status: 'running' }));
-  // eslint-disable-next-line no-empty-pattern -- as above.
+  // eslint-disable-next-line no-empty-pattern -- Playwright hooks take fixtures first; none are needed.
   test.afterEach(({}, info) =>
     recordCaptureTestOutcome(dir, info.testId, {
       title: info.title,

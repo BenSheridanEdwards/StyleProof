@@ -1,7 +1,7 @@
 # Agent Operating Rules
 
-These rules bind every agent (and human) working in this repository. `AGENTS.md`
-summarises them; this is the full text.
+These rules bind every agent (and human) working in this repository. The
+[start-here guide](README.md) summarises them; this is the full text.
 
 ## Behavioural Rules
 
