@@ -516,7 +516,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
   }
 
-  md.append(evidenceSection(evidenceBody));
+  md.finish(evidenceSection(evidenceBody));
 
   const paths = writeReportArtifacts({
     outDir,

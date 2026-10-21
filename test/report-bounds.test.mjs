@@ -78,6 +78,58 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
   rmTmp(root);
 });
 
+test('a capped report.md accounts for every surface and keeps its Evidence block (#953)', () => {
+  const { beforeDir, afterDir, root } = tmpDirs();
+  const N = 30;
+  for (let s = 0; s < N; s++) {
+    const map = (color) =>
+      makeMap({
+        elements: {
+          body: { tag: 'body', rect: [0, 0, 1280, 800] },
+          [`body > p.q${s}`]: { tag: 'p', cls: `q${s}`, rect: [8, 8, 300, 20], style: { color } },
+        },
+      });
+    writeCapture(beforeDir, `zeta-${s}@1280`, map('rgb(0, 0, 0)'), null);
+    writeCapture(afterDir, `zeta-${s}@1280`, map(`rgb(${s + 1}, 0, 3)`), null);
+  }
+  const report = (name, maxReportBytes) => {
+    const res = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(root, name), maxReportBytes });
+    return {
+      md: fs.readFileSync(res.reportMdPath, 'utf8'),
+      surfaces: JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces.length,
+    };
+  };
+  const EVIDENCE = '<summary>Evidence (warnings & failures)</summary>';
+  // No manifests, so the product-state comparison is unproven and Evidence carries that warning.
+  const full = report('full', Infinity);
+  assert.ok(full.md.includes(EVIDENCE), 'the uncapped report has an Evidence block');
+
+  for (const budget of [5_000, 8_000]) {
+    const { md, surfaces } = report(`capped-${budget}`, budget);
+    const sections = (md.match(/^### /gm) ?? []).length;
+    const oneLiners = (md.match(/^- `zeta-\d+@1280` · \d+ change\(s\)$/gm) ?? []).length;
+    const more = Number(md.match(/^_…and (\d+) more section\(s\) not listed here/m)?.[1] ?? 0);
+    const evidence = md.includes(EVIDENCE) && /Product-state comparison/.test(md.slice(md.indexOf(EVIDENCE)));
+    assert.deepEqual(
+      {
+        budget,
+        withinBudget: Buffer.byteLength(md, 'utf8') <= budget,
+        capNotice: md.includes('summarized to keep this report renderable'),
+        // Every surface is a full section, a one-liner, or counted in the closing line.
+        accounted: sections + oneLiners + more,
+        evidence,
+        surfaces,
+      },
+      { budget, withinBudget: true, capNotice: true, accounted: N, evidence: true, surfaces: N },
+      `${budget}: ${sections} full + ${oneLiners} one-liners + ${more} counted`,
+    );
+  }
+
+  // A report that fits its budget exactly is not capped: byte-for-byte the uncapped report.
+  assert.equal(report('exact', Buffer.byteLength(full.md, 'utf8')).md, full.md);
+  rmTmp(root);
+});
+
 // ----------------------------------------------- hostile CSS values are escaped
 
 // A CSS property value is author/attacker-influenced. A `|` would split a report
