@@ -336,6 +336,7 @@ chmod +x node_modules/.bin/playwright
           CI: '1',
           PLAYWRIGHT_FIXTURE: playwrightFixture,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
           GITHUB_OUTPUT: githubOutput,
         },
         repo,
@@ -722,6 +723,7 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
           FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: output,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
         },
       });
       assert.equal(result.status, 0, result.stderr + result.stdout);
@@ -773,6 +775,7 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
           FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: secondOutput,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
         },
       });
       assert.equal(second.status, 0, second.stderr + second.stdout);
@@ -802,6 +805,7 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
           FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: publishOutput,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
         },
       });
       assert.equal(published.status, 0, published.stderr + published.stdout);
@@ -818,6 +822,7 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
           FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: restoreOutput,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
         },
       });
       assert.equal(restored.status, 0, restored.stderr + restored.stdout);
@@ -916,7 +921,7 @@ printf 'consumer' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/resolved-from.txt"
           mapRoot,
           '--force',
         ],
-        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1', STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1' },
         repo,
       );
       assert.equal(result.status, 0, result.stderr + result.stdout);
@@ -997,7 +1002,7 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
 
       const result = runCi(
         ['--base', base, '--head', head, '--base-dir', mapRoot, '--force'],
-        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1', STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1' },
         repo,
       );
       // Before the fix, config was read from the pre-checkout tree (base here):
@@ -1012,7 +1017,7 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
       fs.rmSync(mapRoot, { recursive: true, force: true });
       const withRef = runCi(
         ['--base', base, '--head', head, '--spec-ref', head, '--base-dir', mapRoot, '--force'],
-        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1', STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1' },
         repo,
       );
       assert.equal(withRef.status, 0, withRef.stderr + withRef.stdout);
@@ -1107,6 +1112,7 @@ cp app.txt "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-app.txt"
         CI: '1',
         GITHUB_OUTPUT: output,
         STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
       },
       repo,
     );
@@ -1257,6 +1263,7 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
           BASE_FAIL_SHA: base,
           SPEC_REF_PROBE: probe,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
           STYLEPROOF_SUPPRESS_PLATFORM_WARNING: '1',
         },
         repo,
@@ -1555,6 +1562,7 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
           PM_LOG: pmLog,
           GITHUB_OUTPUT: output,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
         },
         repo,
       );
@@ -1591,6 +1599,7 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
           GITHUB_OUTPUT: failedOutput,
           PM_LOG: pmLog,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
         },
         repo,
       );
@@ -1652,7 +1661,7 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
 
       const result = runCi(
         ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'],
-        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1', STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1' },
         repo,
       );
       assert.equal(result.status, 2, 'head capture stays fail-closed on a dirty consumer tree');
