@@ -1973,7 +1973,8 @@ esac
 // capture-relevant restores that ancestor's bundle as the baseline — with the
 // reuse recorded in $GITHUB_OUTPUT and the provenance sidecar, never silently.
 // Prior to #595 this was opt-in via STYLEPROOF_ANCESTOR_BASELINE=1; now default-on.
-// #595: ancestor baseline is ENABLED BY DEFAULT — no env var needed, uses ['src'] roots
+// #595: ancestor baseline is ENABLED BY DEFAULT — no env var needed. #826: roots are no
+// longer implied, so the fixture declares ancestorBaseline.roots ['src'].
 test(
   'styleproof-ci: ancestor baseline reuse is enabled by default without env vars (#595)',
   { timeout: 60_000 },
@@ -2002,10 +2003,11 @@ test(
       fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
       fs.writeFileSync(path.join(repo, 'src', 'app.css'), 'a{}\n');
       fs.writeFileSync(path.join(repo, 'docs', 'notes.md'), 'one\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.config.json'), '{"ancestorBaseline":{"roots":["src"]}}\n');
       git(repo, ['add', '-A']);
       git(repo, ['commit', '-qm', 'test: stored ancestor']);
       const ancestor = git(repo, ['rev-parse', 'HEAD']);
-      // Base B: a docs-only merge on top of A — nothing in the default ['src'] roots changed.
+      // Base B: a docs-only merge on top of A — nothing in the declared ['src'] roots changed.
       fs.writeFileSync(path.join(repo, 'docs', 'notes.md'), 'two\n');
       git(repo, ['add', 'docs/notes.md']);
       git(repo, ['commit', '-qm', 'test: docs-only base move']);
@@ -2051,7 +2053,7 @@ test(
       git(seed, ['push', '-q', 'origin', 'styleproof-maps']);
       git(root, ['--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true']);
 
-      // NO STYLEPROOF_ANCESTOR_BASELINE env var — default is enabled with ['src'] roots
+      // NO STYLEPROOF_ANCESTOR_BASELINE env var — default is enabled
       const result = runCi(
         ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'],
         {
@@ -2074,7 +2076,7 @@ test(
 // Git names changed paths from the repository root; a package-subdirectory consumer's
 // spec and roots are written relative to its own directory or config file. Reuse must
 // still see its changes, and re-anchoring must never drop an as-written match.
-function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.ts', config }) {
+function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.ts', config, env = {} }) {
   const root = mkTmp('styleproof-ci-ancestor-monorepo-');
   const remote = path.join(root, 'remote.git');
   const repo = path.join(root, 'consumer');
@@ -2098,13 +2100,13 @@ function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.
     write('packages/web/e2e/styleproof.spec.ts', '// capture fixture\n');
     write('packages/web/src/app.css', 'a{}\n');
     if (config) write('packages/web/styleproof.config.json', `${JSON.stringify(config)}\n`);
-    write(changed, '/* one */\n');
+    if (changed) write(changed, '/* one */\n');
     git(repo, ['add', '-A']);
     git(repo, ['commit', '-qm', 'test: stored ancestor']);
     const ancestor = git(repo, ['rev-parse', 'HEAD']);
-    // Base B changes exactly one path; the head is a separate commit on top.
-    write(changed, '/* two */\n');
-    git(repo, ['commit', '-qam', 'test: base change']);
+    // Base B changes exactly one path (none when `changed` is null); the head is a separate commit on top.
+    if (changed) write(changed, '/* two */\n');
+    git(repo, ['commit', '-qam', 'test: base change', ...(changed ? [] : ['--allow-empty'])]);
     const base = git(repo, ['rev-parse', 'HEAD']);
     write('packages/web/src/app.css', 'a{color:red}\n');
     git(repo, ['commit', '-qam', 'test: head']);
@@ -2158,7 +2160,7 @@ function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.
         path.join(root, 'maps'),
         '--force',
       ],
-      { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+      { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1', ...env },
       web,
     );
     return result.stderr;
@@ -2172,15 +2174,22 @@ const reuseBlocked = (file) =>
     `ancestor baseline reuse: taking the full capture path — 1 of 1 path\\(s\\) changed since ancestor \\w+ are capture-relevant \\(first: ${file.replaceAll('.', '\\.')}\\)`,
   );
 
+// #826: these cases relied on the implicit ['src'] default; they now declare it so a spec
+// or root rule, not the no-roots fail-closed default, is what blocks reuse.
+const SRC_ROOTS = { ancestorBaseline: { roots: ['src'] } };
+
 for (const [name, options] of [
-  ['its default src root', { changed: 'packages/web/src/theme.css' }],
-  ['its spec directory', { changed: 'packages/web/e2e/fixtures.ts' }],
-  ['its spec directory under an absolute --spec', { changed: 'packages/web/e2e/fixtures.ts', specArg: 'absolute' }],
+  ['its declared src root', { changed: 'packages/web/src/theme.css', config: SRC_ROOTS }],
+  ['its spec directory', { changed: 'packages/web/e2e/fixtures.ts', config: SRC_ROOTS }],
+  [
+    'its spec directory under an absolute --spec',
+    { changed: 'packages/web/e2e/fixtures.ts', specArg: 'absolute', config: SRC_ROOTS },
+  ],
   [
     'a config root resolved from its config file',
     { changed: 'packages/web/styles/tokens.css', config: { ancestorBaseline: { roots: ['styles'] } } },
   ],
-  ['the as-written spec directory at the repository root', { changed: 'e2e/helpers.ts' }],
+  ['the as-written spec directory at the repository root', { changed: 'e2e/helpers.ts', config: SRC_ROOTS }],
 ]) {
   test(
     `styleproof-ci: a subdirectory consumer's change under ${name} blocks ancestor reuse`,
@@ -2197,12 +2206,95 @@ test(
   'styleproof-ci: a subdirectory consumer still reuses an ancestor across an unrelated change',
   { timeout: 60_000 },
   () => {
-    const stderr = runSubdirectoryAncestorReuse({ changed: 'docs/notes.md' });
+    const stderr = runSubdirectoryAncestorReuse({ changed: 'docs/notes.md', config: SRC_ROOTS });
     assert.match(
       stderr,
       /reused the baseline of nearest ancestor \w+ \(depth 1; 1 changed path\(s\), none capture-relevant\)/,
       stderr,
     );
+  },
+);
+
+// #826: with no roots declared, every changed path invalidates the ancestor baseline.
+const NO_ROOTS_LINE =
+  /ancestor baseline reuse: no source roots declared — every changed path invalidates the ancestor baseline; declare ancestorBaseline\.roots in styleproof\.config or set STYLEPROOF_ANCESTOR_BASELINE_ROOTS/g;
+
+test(
+  'styleproof-ci: with no roots declared, an app/ change since the ancestor forces a fresh base capture (#826)',
+  {
+    timeout: 60_000,
+  },
+  () => {
+    const changed = 'packages/web/app/page.tsx';
+    const stderr = runSubdirectoryAncestorReuse({ changed });
+    assert.doesNotMatch(stderr, /reused the baseline of nearest ancestor/, stderr);
+    assert.match(stderr, reuseBlocked(changed), stderr);
+    assert.match(
+      stderr,
+      /styleproof: map-restore side=base sha=\w+ base_hit=miss cold_reason=ancestor_relevant_changes/,
+      stderr,
+    );
+    assert.equal(stderr.match(NO_ROOTS_LINE)?.length, 1, `the no-roots line is logged exactly once:\n${stderr}`);
+  },
+);
+
+test(
+  'styleproof-ci: with ancestorBaseline.roots [src] declared, an app/ change still reuses the ancestor (#826)',
+  {
+    timeout: 60_000,
+  },
+  () => {
+    const stderr = runSubdirectoryAncestorReuse({ changed: 'packages/web/app/page.tsx', config: SRC_ROOTS });
+    assert.match(
+      stderr,
+      /reused the baseline of nearest ancestor \w+ \(depth 1; 1 changed path\(s\), none capture-relevant\)/,
+      stderr,
+    );
+    assert.doesNotMatch(stderr, NO_ROOTS_LINE, stderr);
+  },
+);
+
+test(
+  'styleproof-ci: a change to an exact-file root like next.config.mjs blocks ancestor reuse (#826)',
+  { timeout: 60_000 },
+  () => {
+    // The roots styleproof-init writes for an app/ layout with a root next.config.mjs.
+    const changed = 'packages/web/next.config.mjs';
+    const stderr = runSubdirectoryAncestorReuse({
+      changed,
+      config: { ancestorBaseline: { roots: ['app', 'next.config.mjs'] } },
+    });
+    assert.doesNotMatch(stderr, /reused the baseline of nearest ancestor/, stderr);
+    assert.match(stderr, reuseBlocked(changed), stderr);
+    assert.doesNotMatch(stderr, NO_ROOTS_LINE, stderr);
+  },
+);
+
+test('styleproof-ci: STYLEPROOF_ANCESTOR_BASELINE_ROOTS wins over config roots (#826)', { timeout: 60_000 }, () => {
+  const changed = 'packages/web/app/page.tsx';
+  const stderr = runSubdirectoryAncestorReuse({
+    changed,
+    config: SRC_ROOTS,
+    env: { STYLEPROOF_ANCESTOR_BASELINE_ROOTS: 'packages/web/app' },
+  });
+  assert.doesNotMatch(stderr, /reused the baseline of nearest ancestor/, stderr);
+  assert.match(stderr, reuseBlocked(changed), stderr);
+  assert.doesNotMatch(stderr, NO_ROOTS_LINE, stderr);
+});
+
+test(
+  'styleproof-ci: with no roots declared, an ancestor with nothing changed since is still reused (#826)',
+  {
+    timeout: 60_000,
+  },
+  () => {
+    const stderr = runSubdirectoryAncestorReuse({ changed: null });
+    assert.match(
+      stderr,
+      /reused the baseline of nearest ancestor \w+ \(depth 1; 0 changed path\(s\), none capture-relevant\)/,
+      stderr,
+    );
+    assert.equal(stderr.match(NO_ROOTS_LINE)?.length, 1, stderr);
   },
 );
 

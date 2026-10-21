@@ -4,6 +4,7 @@
 // never overwritten without --force; machine-owned files are refreshed by --upgrade
 // and audited by --check. Exit 0 = done, 1 = --check found drift, 2 = usage error.
 import fs from 'node:fs';
+import path from 'node:path';
 // Leaf modules only: init must never load the capture graph.
 import { discoverNextRoutes } from '../dist/routes.js';
 import { discoverComponentFiles } from '../dist/components.js';
@@ -17,12 +18,12 @@ import { findStyleProofHooks, reportObsoleteHooks, retireObsoleteHooks } from '.
 import {
   APPROVE_WORKFLOW,
   PACKAGE_MANAGERS,
-  STYLEPROOF_CONFIG_TEMPLATE,
   ciWorkflow,
   lintArtifactsTemplate,
   playwrightConfigTemplate,
   reportWorkflow,
   specTemplate,
+  styleproofConfigTemplate,
 } from './init/templates.mjs';
 
 const NAME = 'styleproof-init';
@@ -384,7 +385,140 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
   console.log(
     'app playwright.config exists — left untouched; styleproof-map uses playwright.styleproof.config.ts by default',
   );
-scaffoldFile('styleproof.config.ts', STYLEPROOF_CONFIG_TEMPLATE, { note: 'typed config with defineConfig()' });
+// Ancestor-reuse roots, written for both storage modes: reuse only runs with branch
+// storage, but the config is user-owned and never re-scaffolded, so a later switch to
+// --storage branch keeps accurate roots. Source dirs (app/pages: Next.js routers;
+// components/lib: root-level UI code; styles/public: global CSS and rendered assets),
+// root CSS-tool and framework/bundler configs (they change compiled output), root
+// compiler/transpiler configs (tsconfig.json, tsconfig.*.json, jsconfig.json:
+// path aliases and JSX settings; babel.config.*, .babelrc*; .browserslistrc:
+// autoprefixed CSS), root build inputs (.gitignore: Tailwind v4 class sources; .npmrc,
+// Dockerfile, .dockerignore: install and build), root stylesheets, and a Vite-style
+// index.html. Roots match a directory prefix or an exact file path, so config files
+// work as roots. Roots decide baseline correctness, so init
+// fails safe and writes no roots (every changed path counts) when it cannot bound the
+// render inputs: in a workspace monorepo, whose shared packages it cannot bound; below the
+// git repository root, where sibling inputs outside the cwd cannot be bounded; or when
+// any top-level entry is neither a detected root nor known not to affect rendering.
+// Symlinks and submodules are never classified, even when git ignores them: their content
+// lives elsewhere. One anywhere below a detected root directory (a symlink or a .git
+// entry) also means no roots.
+// Markers are searched from the cwd up to the git repository root (the filesystem root
+// outside git), so init inside a workspace package finds them.
+const ANCESTOR_ROOT_DIRS = ['src', 'app', 'pages', 'styles', 'public', 'components', 'lib'];
+const ANCESTOR_ROOT_FILE =
+  /^(?:(?:tailwind|postcss|next|vite|svelte|astro|nuxt|remix|webpack)\.config\.[cm]?[jt]s|tsconfig(?:\..+)?\.json|jsconfig\.json|babel\.config\.(?:[cm]?[jt]s|json)|\.babelrc(?:\.(?:[cm]?[jt]s|json))?|\.browserslistrc|\.gitignore|\.npmrc|Dockerfile|\.dockerignore|.+\.(?:css|scss|sass|less)|index\.html)$/s;
+// Top-level entries known not to affect rendering. Keep this conservative: a name left
+// out only costs reuse, a wrong name here lets a stale baseline through. .env* is
+// deliberately absent: env can change rendering. So are docs/test dirs and Markdown: an
+// app can import a stylesheet from docs/ or e2e/, or render a README. Every manifest and
+// lockfile here is one the runtime counts as always relevant (src/ancestor-baseline.ts).
+// Generated output dirs (coverage, test reports, .styleproof) are absent too: when not
+// gitignored they can hold an imported file, and when gitignored they are never classified.
+// File names are exact (no wildcard suffix), so an importable near-miss such as
+// styleproof.config.tokens.json stays unclassified.
+// Assumed: the app never imports from these VCS/CI/editor tooling dirs.
+const NON_RENDER_DIRS = new Set(['.git', '.github', '.gitlab', '.vscode', '.idea', '.husky', '.changeset']);
+const NON_RENDER_FILE =
+  /^(?:styleproof\.config\.(?:ts|mjs|js|json)|playwright(?:\.styleproof)?\.config\.[cm]?[jt]s|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|\.gitattributes|\.editorconfig|\.nvmrc|\.node-version|(?:eslint|prettier|stylelint|commitlint|vitest|jest)\.config\.[cm]?[jt]s|\.(?:eslintrc|stylelintrc|lintstagedrc)(?:\.(?:json|ya?ml|[cm]?js))?|\.prettierrc(?:\.(?:json5?|ya?ml|[cm]?js|toml))?|\.eslintignore|\.prettierignore|next-env\.d\.ts)$/;
+// The spec's top-level entry: its own directory (always capture-relevant) or the spec file.
+const specEntry = specPath.split('/').length <= 2 ? specPath.split('/')[0] : undefined;
+// The entries git would see (tracked plus untracked-not-ignored), else the directory listing.
+function topLevelEntries() {
+  const listed = gitOutput(['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
+  const names =
+    listed === undefined
+      ? fs.readdirSync('.').filter((name) => name !== 'node_modules' && name !== '.git')
+      : listed.split('\0').map((file) => file.split('/')[0]);
+  return [...new Set(names)].filter(Boolean).sort();
+}
+const WORKSPACE_MARKERS = ['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'];
+const isDirectory = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
+function workspaceMarkerIn(dir) {
+  try {
+    if (JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).workspaces)
+      return 'package.json "workspaces"';
+  } catch {
+    /* no or unreadable manifest: fall through to the marker files */
+  }
+  return WORKSPACE_MARKERS.find((file) => fs.existsSync(path.join(dir, file)));
+}
+const realCwd = fs.realpathSync(process.cwd());
+const gitRoot = gitOutput(['rev-parse', '--show-toplevel']);
+const realGitRoot = gitRoot === undefined ? undefined : fs.realpathSync(gitRoot);
+function workspaceMarker() {
+  for (let dir = realCwd; ; dir = path.dirname(dir)) {
+    const marker = workspaceMarkerIn(dir);
+    if (marker) return dir === realCwd ? marker : `${marker} at ${path.relative(realCwd, dir)}`;
+    if (dir === realGitRoot || dir === path.dirname(dir)) return undefined;
+  }
+}
+const ancestorWorkspace = workspaceMarker();
+const belowGitRoot = realGitRoot !== undefined && realGitRoot !== realCwd;
+const skipRoots = Boolean(ancestorWorkspace) || belowGitRoot;
+// Gitlinks (submodules, mode 160000) in the index, whether or not they are checked out.
+const gitlinks = new Set(
+  (gitOutput(['ls-files', '-s', '-z']) ?? '')
+    .split('\0')
+    .filter((record) => record.startsWith('160000 '))
+    .map((record) => record.slice(record.indexOf('\t') + 1).split('/')[0]),
+);
+// A symlink or submodule (gitlink, or a directory holding its own .git) points at content
+// outside this tree, so it is never a detected root nor known not to render.
+const isOpaque = (name) =>
+  fs.lstatSync(name, { throwIfNoEntry: false })?.isSymbolicLink() ||
+  gitlinks.has(name) ||
+  (isDirectory(name) && fs.lstatSync(path.join(name, '.git'), { throwIfNoEntry: false }) !== undefined);
+// Recognised root names, opaque or not: an opaque one means no roots even when git ignores it.
+const rootCandidates = skipRoots
+  ? []
+  : [
+      ...ANCESTOR_ROOT_DIRS.filter((name) => isDirectory(name) || isOpaque(name)),
+      ...fs
+        .readdirSync('.', { withFileTypes: true })
+        .filter((entry) => ANCESTOR_ROOT_FILE.test(entry.name))
+        .map((entry) => entry.name)
+        .sort(),
+    ];
+const detectedRoots = rootCandidates.filter(
+  (name) => !isOpaque(name) && (ANCESTOR_ROOT_DIRS.includes(name) || fs.lstatSync(name).isFile()),
+);
+// The first symlink or .git entry below a root directory (Dirents are lstat-based, so links
+// are never followed): its content lives elsewhere, so the root does not bound it.
+function opaqueDescendant(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const child = `${dir}/${entry.name}`;
+    if (entry.isSymbolicLink() || entry.name === '.git') return child;
+    const found = entry.isDirectory() ? opaqueDescendant(child) : undefined;
+    if (found) return found;
+  }
+  return undefined;
+}
+const unclassifiedEntries = skipRoots
+  ? []
+  : [
+      ...new Set([
+        ...topLevelEntries().filter(
+          (name) =>
+            isOpaque(name) ||
+            (!detectedRoots.includes(name) &&
+              name !== specEntry &&
+              !(isDirectory(name) ? NON_RENDER_DIRS.has(name) : NON_RENDER_FILE.test(name))),
+        ),
+        ...rootCandidates.filter(isOpaque),
+        ...detectedRoots.filter(isDirectory).map(opaqueDescendant).filter(Boolean),
+      ]),
+    ];
+// Init writes .gitignore below even when none exists yet, so it is always a root.
+const ancestorRoots =
+  unclassifiedEntries.length || !detectedRoots.length ? [] : [...new Set([...detectedRoots, '.gitignore'])];
+scaffoldFile(
+  'styleproof.config.ts',
+  styleproofConfigTemplate(ancestorRoots, ancestorWorkspace, unclassifiedEntries, belowGitRoot),
+  {
+    note: 'typed config with defineConfig()',
+  },
+);
 
 // Current (.styleproof/) plus legacy map artifact patterns.
 const gitignore = ensureGitignoreLines([

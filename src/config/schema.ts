@@ -44,7 +44,9 @@ export type MapStoreConfig = {
   pruneBudgetBytes?: number;
 };
 
-/** Ancestor baseline reuse (opt-out, default enabled); `roots` to search default to ['src']. */
+/** Ancestor baseline reuse (opt-out, default enabled). `roots` are repo paths, directories
+ *  or exact files, relative to the config file; omitted or empty roots make every changed
+ *  path capture-relevant. */
 export type AncestorBaselineConfig = { enabled?: boolean; roots?: string[] };
 
 /** Report store prune defaults. */
