@@ -382,6 +382,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that succeeds now clears the entry an earlier attempt of the same key left. A
   surface that fails on every attempt, or whose failure is tolerated under
   `--tolerate-surface-failures`, is still ledgered and still blocks (#957).
+- **The browser preflight now checks the Chromium build a capture launches
+  (#980).** `styleproof-ci` checked the full `chromium-<rev>` build, but a
+  headless capture with no `channel` launches `chromium_headless_shell-<rev>`.
+  So a host with only the full build passed and then failed at
+  `browserType.launch`, and a host with only the headless shell ran
+  `playwright install` on every run. The preflight now checks the headless
+  shell and names it in the remedy. It checks the full build only when the
+  capture config sets `headless: false` or `channel: 'chromium'`.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

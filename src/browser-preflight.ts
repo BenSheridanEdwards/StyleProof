@@ -129,15 +129,40 @@ function browserExecutableFromModule(
 export function resolveBrowserExecutablePath(
   cwd: string,
   browserName: PreflightBrowserName,
+  captureConfigText?: string,
 ): BrowserExecutableResolution {
   const consumerRequire = createRequire(path.join(path.resolve(cwd), 'package.json'));
   const resolutionFailures: string[] = [];
   for (const playwrightModuleName of ['playwright-core', '@playwright/test']) {
     const attempt = browserExecutableFromModule(consumerRequire, playwrightModuleName, browserName);
-    if ('executablePath' in attempt) return { kind: 'resolved', executablePath: attempt.executablePath };
+    if ('executablePath' in attempt) {
+      const executablePath =
+        browserName === 'chromium'
+          ? chromiumBuildPathToVerify(attempt.executablePath, captureConfigText)
+          : attempt.executablePath;
+      return { kind: 'resolved', executablePath };
+    }
     resolutionFailures.push(attempt.failure);
   }
   return { kind: 'unresolvable', reason: resolutionFailures.join('; ') };
+}
+
+/** Capture config text that makes Playwright launch the full Chromium build
+ *  instead of the headless shell (same token-level detection as webkit). */
+const FULL_CHROMIUM_BUILD_CONFIG_PATTERN = /\bheadless\s*:\s*false\b|\bchannel\s*:\s*['"`]chromium['"`]/;
+
+/**
+ * `chromium.executablePath()` reports the full `chromium-<rev>` build, but a
+ * headless launch with no channel — every StyleProof capture by default —
+ * opens the sibling `chromium_headless_shell-<rev>` build. Verify that one by
+ * its Playwright install marker, unless the capture config asks for the full
+ * build. A path outside the `chromium-<rev>` layout is verified as-is.
+ */
+function chromiumBuildPathToVerify(fullBuildExecutablePath: string, captureConfigText: string | undefined): string {
+  if (FULL_CHROMIUM_BUILD_CONFIG_PATTERN.test(captureConfigText ?? '')) return fullBuildExecutablePath;
+  const fullBuild = /^(.*[\\/])chromium-(\d+)[\\/]/.exec(fullBuildExecutablePath);
+  if (!fullBuild) return fullBuildExecutablePath;
+  return path.join(fullBuild[1], `chromium_headless_shell-${fullBuild[2]}`, 'INSTALLATION_COMPLETE');
 }
 
 /** The browser-build directory name a Playwright executable path pins (e.g.
@@ -180,7 +205,7 @@ export function evaluateBrowserPreflight(
     remedyCommand,
     message:
       `the pinned ${browserName} browser build ${revisionDirectory} is missing — ` +
-      `expected executable at ${executablePath}. ` +
+      `expected at ${executablePath}. ` +
       `Next: run \`${remedyCommand}\` on this host, then re-run.`,
   };
 }
