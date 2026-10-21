@@ -1041,6 +1041,42 @@ test('diff accepts a single base ref and uses cached maps', () => {
   rmTmp(repo);
 });
 
+// #965: the base key must read the spec inside the base worktree. An absolute --spec used to
+// hash the head checkout's file there instead, so every cached compare missed the base bundle.
+for (const [label, checkoutPath] of [
+  ['an absolute --spec', (repo) => repo],
+  [
+    'an absolute --spec through a symlinked folder',
+    (repo, scratch) => {
+      fs.symlinkSync(repo, path.join(scratch, 'checkout'), 'dir');
+      return path.join(scratch, 'checkout');
+    },
+  ],
+]) {
+  test(`diff with ${label} restores the same cached maps as the relative spec`, () => {
+    const { repo } = setupCachedComparison();
+    const scratch = mkTmp();
+    const spec = path.join(checkoutPath(repo, scratch), 'e2e/styleproof.spec.ts');
+    const r = runIn(repo, DIFF, ['main', '--spec', spec]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
+    rmTmp(repo);
+    rmTmp(scratch);
+  });
+}
+
+test('diff rejects an absolute --spec outside the project and names it', () => {
+  const { repo } = setupCachedComparison();
+  const outside = mkTmp();
+  writeSpec(outside);
+  const spec = path.join(outside, 'e2e/styleproof.spec.ts');
+  const r = runIn(repo, DIFF, ['main', '--spec', spec]);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.ok(r.stderr.includes(`--spec ${spec} is outside the project`), r.stderr);
+  rmTmp(repo);
+  rmTmp(outside);
+});
+
 test('diff compares an application dependency migration and reports both lockfile hashes as provenance', () => {
   const { repo, baseCompatibilityKey, headCompatibilityKey, baseLockfileHash, headLockfileHash } =
     setupCachedComparison({ changeLockfile: true });

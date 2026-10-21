@@ -337,6 +337,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   commit signing and Git hooks, and a failed add or commit is retried and then
   ends in `upload failed` (exit 5). Republishing an identical bundle still
   succeeds.
+- **A cached diff or report with an absolute `--spec` finds the base bundle (#965).**
+  `styleproof-diff <base-ref> --spec /abs/path` and `styleproof-report` with the
+  same flag used to exit 2 with "cached maps are not available". The base
+  compatibility key hashed the head checkout's spec instead of the spec in the
+  base worktree, so it never matched the published bundle. An absolute `--spec`
+  inside the project, including one reached through a symlinked folder, now gives
+  the same keys as the relative path. One outside the project fails with an error
+  that names it.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

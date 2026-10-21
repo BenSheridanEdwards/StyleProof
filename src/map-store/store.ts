@@ -306,6 +306,18 @@ export function listMapStoreBundleShas(options: StoreOptions = {}): Set<string> 
   }
 }
 
+/** An absolute spec re-anchored to `cwd`, so the base key resolves it inside the base worktree
+ *  instead of hashing the head checkout's file (#965). Real paths, so a symlinked spelling of the
+ *  checkout still counts as inside it. A spec outside the project can never match a bundle. */
+function projectRelativeSpec(command: string, cwd: string, spec: string): string {
+  if (!path.isAbsolute(spec)) return spec;
+  const realSpec = path.join(fs.realpathSync(path.dirname(spec)), path.basename(spec));
+  const relative = path.relative(fs.realpathSync(cwd), realSpec);
+  if (relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+    return relative;
+  throw new MapStoreError(`${command}: --spec ${spec} is outside the project at ${cwd}`);
+}
+
 /** Restore the base and head bundles for a cached compare into a fresh temp root. The base
  *  key is computed from a detached base worktree so its spec/lockfile match what was published. */
 export function resolveCachedCaptureDirs(
@@ -322,11 +334,12 @@ export function resolveCachedCaptureDirs(
   if (!fs.existsSync(path.resolve(cwd, options.spec))) {
     throw new MapStoreError(`${options.command}: no StyleProof spec at ${options.spec}`);
   }
+  const spec = projectRelativeSpec(options.command, cwd, options.spec);
   const baseRef = options.args[0] ?? inferBaseRef();
   const baseSha = gitStdout(cwd, ['rev-parse', `${baseRef}^{commit}`]);
   if (!baseSha) throw new MapStoreError(`could not resolve ${baseRef} to a commit`);
   const headSha = currentGitSha(cwd);
-  const compatibilityKey = expectedCompatibilityKey({ cwd, spec: options.spec, baseUrl: options.baseUrl });
+  const compatibilityKey = expectedCompatibilityKey({ cwd, spec, baseUrl: options.baseUrl });
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const dirs = { beforeDir: path.join(tmpRoot, 'base'), afterDir: path.join(tmpRoot, 'head') };
   const restore = (sha: string, outDir: string, key: string) =>
@@ -346,11 +359,7 @@ export function resolveCachedCaptureDirs(
     worktrees = new CiWorktreeSession(repoRoot);
     const baseWorktree = worktrees.addDetached(baseSha, 'cache-base');
     const baseCwd = worktreeRunCwd(baseWorktree, consumerRel);
-    restore(
-      baseSha,
-      dirs.beforeDir,
-      expectedCompatibilityKey({ cwd: baseCwd, spec: options.spec, baseUrl: options.baseUrl }),
-    );
+    restore(baseSha, dirs.beforeDir, expectedCompatibilityKey({ cwd: baseCwd, spec, baseUrl: options.baseUrl }));
     restore(headSha, dirs.afterDir, compatibilityKey);
     return { ...dirs, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };
   } catch (error) {
