@@ -111,7 +111,7 @@ test('the build matrix tests the exact Node floor every manifest declares', () =
   assert.equal(packageJson.devEngines.runtime.version, packageJson.engines.node);
   assert.match(ci, new RegExp(`node: \\['${floor.replaceAll('.', '\\.')}',`));
   const nvmrc = fs.readFileSync(path.join(here, '..', '.nvmrc'), 'utf8').trim();
-  assert.equal(nvmrc, floor.split('.')[0], '.nvmrc tracks the floor major, the leg that runs the once-only gates');
+  assert.equal(nvmrc, floor.split('.')[0], '.nvmrc selects the Node major whose CI leg runs the once-only gates');
 });
 
 test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
