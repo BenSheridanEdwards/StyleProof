@@ -190,6 +190,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The Node 22 unit-coverage leg no longer waits on one test file.**
+  `test/report.test.mjs` ran its 130 tests in one process, about 430 s under
+  coverage, and started late in the alphabetical file order. It now runs as
+  three files (`report.test.mjs`, `report-describe.test.mjs`,
+  `report-bounds.test.mjs`) beside the rest of the suite. The shared
+  `solidPng` fixture encodes each size once instead of on every call, and the
+  byte-budget test uses 400×480 screenshots, which leave its `report.md`
+  byte-identical. The browser suite runs in four shards instead of three, so
+  the heaviest shard holds less of the slowest specs. Test-infra only: the
+  same tests run with the same assertions.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

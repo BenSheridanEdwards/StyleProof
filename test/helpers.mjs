@@ -94,16 +94,77 @@ export function makeMap({ elements = {}, defaults = {}, states = {} } = {}) {
   return { defaults, elements: els, states };
 }
 
+// pngjs's adaptive-filter encode dominates fixture setup (and is ~7× slower under
+// --experimental-test-coverage), so encode each size+colour once per test file.
+const solidPngCache = new Map();
+
 /** A solid-fill, fully opaque PNG of the given size — a real, decodable image. */
 export function solidPng(width, height, [r, g, b] = [200, 200, 200]) {
-  const png = new PNG({ width, height });
-  for (let i = 0; i < png.data.length; i += 4) {
-    png.data[i] = r;
-    png.data[i + 1] = g;
-    png.data[i + 2] = b;
-    png.data[i + 3] = 255;
+  const key = `${width}x${height}:${r},${g},${b}`;
+  let encoded = solidPngCache.get(key);
+  if (!encoded) {
+    const png = new PNG({ width, height });
+    for (let i = 0; i < png.data.length; i += 4) {
+      png.data[i] = r;
+      png.data[i + 1] = g;
+      png.data[i + 2] = b;
+      png.data[i + 3] = 255;
+    }
+    encoded = PNG.sync.write(png);
+    solidPngCache.set(key, encoded);
   }
-  return PNG.sync.write(png);
+  // A fresh copy, so a caller that edits its buffer cannot change a later fixture.
+  return Buffer.from(encoded);
+}
+
+/** A page with a reflowed body and one restyled button (the report tests' standard scene). */
+export function sceneMap({ buttonColor, bodyHeight }) {
+  // body is a reflow casualty: its only change is height (a DERIVED prop).
+  // The real, styling-intent change is the button's background-color.
+  return makeMap({
+    defaults: {},
+    elements: {
+      body: {
+        tag: 'body',
+        cls: '',
+        rect: [0, 0, 1280, bodyHeight],
+        ownTextLength: 0,
+        style: { height: `${bodyHeight}px` },
+      },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'wrap',
+        rect: [20, 20, 1240, 300],
+        ownTextLength: 0,
+        style: { display: 'block' },
+      },
+      'body > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta primary',
+        rect: [100, 100, 160, 48],
+        ownTextLength: 0,
+        style: { 'background-color': buttonColor },
+      },
+    },
+  });
+}
+
+/** Count magenta highlight pixels on each half of a side-by-side annotated crop. */
+export function highlightPixelsBySide(filePath) {
+  const png = PNG.sync.read(fs.readFileSync(filePath));
+  const dividerWidth = 12;
+  const halfWidth = (png.width - dividerWidth) / 2;
+  let before = 0;
+  let after = 0;
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < png.width; x++) {
+      const offset = (y * png.width + x) * 4;
+      if (png.data[offset] !== 255 || png.data[offset + 1] !== 0 || png.data[offset + 2] !== 200) continue;
+      if (x < halfWidth) before++;
+      else if (x >= halfWidth + dividerWidth) after++;
+    }
+  }
+  return { before, after };
 }
 
 /**
