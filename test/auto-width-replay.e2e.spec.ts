@@ -12,24 +12,28 @@ import { defineCrawlCapture, defineStyleMapCapture } from '../dist/index.js';
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-auto-width-replay-'));
 
 const NAV_HTML = '<!doctype html><html><body><nav><a href="/widget">Widget</a></nav></body></html>';
+// The data URL names the load's width, so a recording only answers a load at the width it was made
+// at. A JS breakpoint mounts the CSS that opens the 1100px band only on a load at 720px or wider.
 const WIDGET_HTML = `<!doctype html><html><head><style>
   .card { padding: 8px; color: rgb(10, 20, 30); }
   @media (min-width: 720px) { .card { padding: 24px; } }
 </style></head><body><main id="app">loading</main>
 <script>
-  fetch('/api/widget')
+  const band1100 = '<style>@media (min-width: 1100px) { .card { margin: 4px; } }</style>';
+  if (innerWidth >= 720) document.head.insertAdjacentHTML('beforeend', band1100);
+  fetch('/api/widget?w=' + innerWidth)
     .then((r) => { if (!r.ok) throw new Error('status ' + r.status); return r.json(); })
     .then((d) => { document.getElementById('app').innerHTML = '<div id="loaded" class="card">' + d.label + '</div>'; });
 </script></body></html>`;
 
 /** One synthetic app per scenario: its ready marker renders from `/api/widget`, which answers 503 once `down`. */
 async function widgetApp() {
-  const app = { origin: '', down: false, liveHitsWhileDown: 0 };
+  const app = { origin: '', down: false, liveHits: [] as string[] };
   const server = http.createServer((req, res) => {
     if (req.url?.startsWith('/api/')) {
-      if (app.down) app.liveHitsWhileDown++;
+      app.liveHits.push(req.url);
       res.writeHead(app.down ? 503 : 200, { 'content-type': 'application/json' });
-      res.end(app.down ? '{}' : JSON.stringify({ label: 'Widget A' }));
+      res.end(app.down ? '{}' : JSON.stringify({ label: `Widget for ${req.url}` }));
       return;
     }
     res.setHeader('content-type', 'text/html');
@@ -72,18 +76,31 @@ const mapsIn = (dir: string): string[] =>
 
 for (const [name, capture] of Object.entries(scenarios)) {
   const app = await widgetApp();
+  const base = path.join(directory, `${name}-base`);
+  const partial = path.join(directory, `${name}-partial`);
   test.describe.serial(`auto-width ${name}`, () => {
     test.use({ baseURL: app.origin });
     test.describe('base: backend up, recording', () => capture(`${name}-base`));
     test('the backend goes down', () => {
       app.down = true;
+      app.liveHits = [];
     });
-    test.describe('head: backend down, replaying the base', () =>
-      capture(`${name}-head`, path.join(directory, `${name}-base`)));
+    test.describe('head: backend down, replaying the base', () => capture(`${name}-head`, base));
     test('the head captures every detected band from the base recording and never calls the live backend', () => {
-      expect(mapsIn(`${name}-base`)).toEqual(['widget@360.json.gz', 'widget@720.json.gz']);
+      expect(mapsIn(`${name}-base`)).toEqual(['widget@1100.json.gz', 'widget@360.json.gz', 'widget@720.json.gz']);
       expect(mapsIn(`${name}-head`)).toEqual(mapsIn(`${name}-base`));
-      expect(app.liveHitsWhileDown).toBe(0);
+      expect(app.liveHits).toEqual([]);
+    });
+    test('the backend comes back up, and the base loses its 360px recording', () => {
+      app.down = false;
+      app.liveHits = [];
+      fs.cpSync(base, partial, { recursive: true });
+      fs.rmSync(path.join(partial, 'widget@360.har'));
+    });
+    test.describe('head: replaying a base with no 360px recording', () => capture(`${name}-partial-head`, partial));
+    test('only the width with no recording calls the live backend', () => {
+      expect(mapsIn(`${name}-partial-head`)).toEqual(mapsIn(`${name}-base`));
+      expect([...new Set(app.liveHits)]).toEqual(['/api/widget?w=360']);
     });
   });
 }

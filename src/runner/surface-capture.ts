@@ -62,35 +62,40 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<bool
   return intercepting;
 }
 
-/** The base's `<key>@<width>.har` for the band a load at `viewportWidth` renders in (else its narrowest). */
-function baseHarFor(replayFrom: string, key: string, viewportWidth = 0): string | undefined {
+function viewportHeight(surface: ExpandedSurface, width: number): number {
+  return typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
+}
+
+/** The width of the base's `<key>@<width>.har` for the band `viewportWidth` is in (else its narrowest). */
+function baseHarWidth(replayFrom: string, key: string, viewportWidth = 0): number | undefined {
   const prefix = `${key}@`;
   const widths = (fs.existsSync(replayFrom) ? fs.readdirSync(replayFrom) : [])
     .filter((f) => f.startsWith(prefix) && /^\d+\.har$/.test(f.slice(prefix.length)))
     .map((f) => parseInt(f.slice(prefix.length), 10))
     .sort((a, b) => a - b);
-  const width = widths.filter((w) => w <= viewportWidth).pop() ?? widths[0];
-  return width === undefined ? undefined : `${key}@${width}.har`;
+  return widths.filter((w) => w <= viewportWidth).pop() ?? widths[0];
 }
 
 /**
- * Load an auto-width surface once and read its `@media` bands. Under replay the load is pinned to
- * the base's recording of the band it renders in, like a capture, so detection never reaches the
- * live backend; with no base recording it runs live, as each width's capture then will.
+ * Load an auto-width surface once and read its `@media` bands. Under replay the load repeats the
+ * base's capture of the band the viewport is in, so detection never reaches the live backend; with
+ * no base recording it runs live, as each width's capture then will.
  */
 export async function detectSurfaceWidths(page: Page, surface: ExpandedSurface, s: Settings): Promise<number[]> {
-  const har = s.replayFrom ? baseHarFor(s.replayFrom, surface.key, page.viewportSize()?.width) : undefined;
-  if (har) {
-    // Load as the base's capture did: reduced motion, its recorded data, the frozen clock.
+  const width = s.replayFrom ? baseHarWidth(s.replayFrom, surface.key, page.viewportSize()?.width) : undefined;
+  if (width !== undefined) {
+    // Load as the base's capture did: reduced motion, its recorded data, the frozen clock, and its
+    // viewport, since a request keyed on the window size must match the recording or it is aborted.
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await pinInputs(page, har, s);
+    await pinInputs(page, `${surface.key}@${width}.har`, s);
+    await page.setViewportSize({ width, height: viewportHeight(surface, width) });
   }
   try {
     await surface.go(page);
     return await detectViewportWidths(page);
   } finally {
-    // Drop the replay routes only (a spec's own routes stay): each width then pins its own HAR.
-    if (har) await page.unroute(s.replayUrl);
+    // Drop every route on the replay URL (other URL patterns' routes survive); each width pins its own HAR.
+    if (width !== undefined) await page.unroute(s.replayUrl);
   }
 }
 
@@ -131,7 +136,7 @@ export async function captureSurface(
   const pinned = await pinInputs(page, `${declared.key}@${width}.har`, s);
   // A live fallback is stamped on the map (and its popups) so the gate never reads it as replay-proven.
   const surface = pinned ? declared : { ...declared, metadata: { ...declared.metadata, inputs: 'live' as const } };
-  const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
+  const height = viewportHeight(surface, width);
   await page.setViewportSize({ width, height });
   // Both trackers are armed BEFORE go() so the surface's own load requests are seen. Residue
   // is keyed on the BASE surface key so liveStates splits and widths dedupe to one entry.
