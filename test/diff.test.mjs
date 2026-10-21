@@ -645,6 +645,16 @@ test('a target with no proof entry and no resting computed proof keeps the rows'
   assert.deepEqual(echoRows(echoMap(BASE_ECHO), echoMap({ ...HEAD_ECHO, forced: null, resting: null })), ALL_ROWS);
 });
 
+test('a target missing from one map elements keeps the rows even when both maps carry the auto proof', () => {
+  const head = echoMap(HEAD_ECHO);
+  delete head.elements[ECHO_CHILD];
+  const stateRows = diffStyleMaps(echoMap(BASE_ECHO), head)
+    .filter((finding) => finding.kind === 'state')
+    .flatMap((finding) => finding.props.map((change) => change.prop))
+    .sort();
+  assert.deepEqual(stateRows, ALL_ROWS);
+});
+
 test('a pseudo-element target never drops margin rows', () => {
   const sub = `${ECHO_CHILD}::before`;
   assert.deepEqual(echoRows(echoMap({ ...BASE_ECHO, sub }), echoMap({ ...HEAD_ECHO, sub })), ALL_ROWS);

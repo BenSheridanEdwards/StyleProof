@@ -491,14 +491,18 @@ export function snapSubtree({
   let typedMargins: Record<string, Record<string, string>> | undefined = saveBaseline || restingTyped ? {} : undefined;
   const recordTypedMargins = (element: Element, elementPath: string): void => {
     if (!typedMargins) return;
-    const typed = element.computedStyleMap?.();
-    if (!typed) {
+    let forced: Record<string, string>;
+    try {
+      const typed = element.computedStyleMap?.();
+      if (!typed) throw new Error('no Typed OM');
+      forced = Object.fromEntries(
+        marginProperties.map((property) => [property, typed.get(property)?.toString() ?? '']),
+      );
+    } catch {
+      // A missing map or a property the browser's StylePropertyMap rejects drops the proof.
       typedMargins = undefined;
       return;
     }
-    const forced = Object.fromEntries(
-      marginProperties.map((property) => [property, typed.get(property)?.toString() ?? '']),
-    );
     const resting = restingTyped?.[elementPath];
     const changed = !resting || marginProperties.some((property) => resting[property] !== forced[property]);
     if (saveBaseline || result[elementPath] || changed) typedMargins[elementPath] = forced;

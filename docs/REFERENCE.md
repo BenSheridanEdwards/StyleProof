@@ -926,7 +926,10 @@ defineStyleMapCapture({
   reports. An authored margin, an `auto` that only the state sets, a
   `::before`/`::after` target, or a map without the proof
   (`stateComputedValueStyle`, absent on maps captured before #917) keeps every
-  margin row. Re-capture both sides to get the filter.
+  margin row. Re-capture both sides to get the filter. Known limit: the proof
+  shows the margins only echo a layout change, not that the cause reports. If the
+  cause is an element the diff never reports (an `ignore`d sibling, a volatile or
+  non-live path), the dropped margin rows leave nothing reported.
 
 > Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
 

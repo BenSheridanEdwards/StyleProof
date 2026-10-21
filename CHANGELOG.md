@@ -47,6 +47,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `::before`/`::after` target, a skipped forced-state layer, or a browser
   without Typed OM keeps every row. Maps captured before this change have no
   field and keep reporting the rows; re-capture both sides to get the filter.
+  Known limit: if the width change comes from an element the diff never reports
+  (an `ignore`d sibling, a volatile or non-live path), the dropped margin rows
+  leave nothing reported.
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A
