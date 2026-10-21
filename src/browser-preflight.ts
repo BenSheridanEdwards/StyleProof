@@ -138,7 +138,11 @@ export function resolveBrowserExecutablePath(
     if ('executablePath' in attempt) {
       const executablePath =
         browserName === 'chromium'
-          ? chromiumBuildPathToVerify(attempt.executablePath, captureConfigText)
+          ? chromiumBuildPathToVerify(
+              attempt.executablePath,
+              captureConfigText,
+              playwrightPackageVersion(consumerRequire, playwrightModuleName),
+            )
           : attempt.executablePath;
       return { kind: 'resolved', executablePath };
     }
@@ -147,18 +151,44 @@ export function resolveBrowserExecutablePath(
   return { kind: 'unresolvable', reason: resolutionFailures.join('; ') };
 }
 
+/** The resolved Playwright package's version, or undefined when unreadable. */
+function playwrightPackageVersion(consumerRequire: NodeJS.Require, playwrightModuleName: string): string | undefined {
+  try {
+    const { version } = consumerRequire(`${playwrightModuleName}/package.json`) as { version?: unknown };
+    return typeof version === 'string' ? version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Playwright 1.49 is the first release with a separate Chromium headless
+ *  shell; earlier releases launch headless captures from the full build. */
+function playwrightHasHeadlessShell(playwrightVersion: string | undefined): boolean {
+  const release = /^(\d+)\.(\d+)\./.exec(playwrightVersion ?? '');
+  if (!release) return false;
+  const [major, minor] = [Number(release[1]), Number(release[2])];
+  return major > 1 || (major === 1 && minor >= 49);
+}
+
 /** Capture config text that makes Playwright launch the full Chromium build
  *  instead of the headless shell (same token-level detection as webkit). */
 const FULL_CHROMIUM_BUILD_CONFIG_PATTERN = /\bheadless\s*:\s*false\b|\bchannel\s*:\s*['"`]chromium['"`]/;
 
 /**
- * `chromium.executablePath()` reports the full `chromium-<rev>` build, but a
- * headless launch with no channel — every StyleProof capture by default —
- * opens the sibling `chromium_headless_shell-<rev>` build. Verify that one by
- * its Playwright install marker, unless the capture config asks for the full
- * build. A path outside the `chromium-<rev>` layout is verified as-is.
+ * `chromium.executablePath()` reports the full `chromium-<rev>` build, but from
+ * Playwright 1.49 a headless launch with no channel — every StyleProof capture
+ * by default — opens the sibling `chromium_headless_shell-<rev>` build (same
+ * revision: Playwright's registry pins the shell to chromium's). Verify that
+ * one by its Playwright install marker, unless the capture config asks for the
+ * full build. An earlier or unreadable Playwright version, or a path outside
+ * the `chromium-<rev>` layout, is verified as-is.
  */
-function chromiumBuildPathToVerify(fullBuildExecutablePath: string, captureConfigText: string | undefined): string {
+function chromiumBuildPathToVerify(
+  fullBuildExecutablePath: string,
+  captureConfigText: string | undefined,
+  playwrightVersion: string | undefined,
+): string {
+  if (!playwrightHasHeadlessShell(playwrightVersion)) return fullBuildExecutablePath;
   if (FULL_CHROMIUM_BUILD_CONFIG_PATTERN.test(captureConfigText ?? '')) return fullBuildExecutablePath;
   const fullBuild = /^(.*[\\/])chromium-(\d+)[\\/]/.exec(fullBuildExecutablePath);
   if (!fullBuild) return fullBuildExecutablePath;

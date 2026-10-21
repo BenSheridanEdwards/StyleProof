@@ -383,13 +383,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   surface that fails on every attempt, or whose failure is tolerated under
   `--tolerate-surface-failures`, is still ledgered and still blocks (#957).
 - **The browser preflight now checks the Chromium build a capture launches
-  (#980).** `styleproof-ci` checked the full `chromium-<rev>` build, but a
-  headless capture with no `channel` launches `chromium_headless_shell-<rev>`.
-  So a host with only the full build passed and then failed at
-  `browserType.launch`, and a host with only the headless shell ran
-  `playwright install` on every run. The preflight now checks the headless
-  shell and names it in the remedy. It checks the full build only when the
-  capture config sets `headless: false` or `channel: 'chromium'`.
+  (#980).** `styleproof-ci` checked the full `chromium-<rev>` build, but on
+  Playwright 1.49 and later a headless capture with no `channel` launches
+  `chromium_headless_shell-<rev>`. So a host with only the full build passed
+  and then failed at `browserType.launch`, and a host with only the headless
+  shell ran `playwright install` on every run. On Playwright 1.49 and later the
+  preflight now checks the headless shell and names it in the remedy, unless
+  the capture config sets `headless: false` or `channel: 'chromium'`. Earlier
+  Playwright releases have no headless shell, so the preflight still checks
+  the full build there.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

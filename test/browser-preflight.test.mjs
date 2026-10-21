@@ -17,11 +17,15 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 // doesn't exist`. The preflight must catch that BEFORE the first capture and
 // hand back the exact remedy, naming the missing revision.
 
-/** Plant a fake `moduleName` package in `root`'s node_modules. */
-function writeModule(root, moduleName, source) {
+/** Plant a fake `moduleName` package in `root`'s node_modules, with `version`
+ *  in its package.json when given. */
+function writeModule(root, moduleName, source, version) {
   const moduleRoot = path.join(root, 'node_modules', ...moduleName.split('/'));
   fs.mkdirSync(moduleRoot, { recursive: true });
-  fs.writeFileSync(path.join(moduleRoot, 'package.json'), JSON.stringify({ name: moduleName, main: 'index.cjs' }));
+  fs.writeFileSync(
+    path.join(moduleRoot, 'package.json'),
+    JSON.stringify({ name: moduleName, version, main: 'index.cjs' }),
+  );
   fs.writeFileSync(path.join(moduleRoot, 'index.cjs'), source);
 }
 
@@ -135,8 +139,8 @@ test('resolveBrowserExecutablePath: unresolvable without a consumer Playwright, 
     assert.equal(resolved.kind, 'resolved');
     assert.equal(
       resolved.executablePath,
-      path.join('/fake/ms-playwright/chromium_headless_shell-1187', 'INSTALLATION_COMPLETE'),
-      'chromium resolves to the headless shell a capture launches (#980)',
+      '/fake/ms-playwright/chromium-1187/chrome',
+      'a Playwright with no readable version keeps the reported path',
     );
 
     const noWebkit = resolveBrowserExecutablePath(resolvedConsumerRoot, 'webkit');
@@ -151,10 +155,12 @@ test('resolveBrowserExecutablePath: unresolvable without a consumer Playwright, 
 // chromium.executablePath(), but a headless launch with no channel (every
 // StyleProof capture by default) opens the separate `chromium_headless_shell-<rev>`
 // build. The preflight must verify the build the capture actually launches.
+// Releases before 1.49 have no headless shell and launch the full build.
 
-/** A consumer whose fake playwright-core reports the full Chromium build at
- *  `<root>/ms-playwright/chromium-1187/…`, with nothing installed yet. */
-function withFakeChromiumConsumer(run) {
+/** A consumer whose fake playwright-core `playwrightVersion` reports the full
+ *  Chromium build at `<root>/ms-playwright/chromium-1187/…`, with nothing
+ *  installed yet. */
+function withFakeChromiumConsumer(run, playwrightVersion = '1.49.0') {
   const consumerRoot = mkTmp('styleproof-preflight-chromium-');
   const browsersRoot = path.join(consumerRoot, 'ms-playwright');
   const fullBuildExecutable = path.join(browsersRoot, 'chromium-1187', 'chrome-linux64', 'chrome');
@@ -162,6 +168,7 @@ function withFakeChromiumConsumer(run) {
     consumerRoot,
     'playwright-core',
     `module.exports = { chromium: { executablePath: () => ${JSON.stringify(fullBuildExecutable)} } };\n`,
+    playwrightVersion,
   );
   const install = (relativePath) => {
     const installedFile = path.join(browsersRoot, relativePath);
@@ -221,4 +228,13 @@ test('browser preflight: a capture config that launches the full chromium build 
       assert.equal(preflight(configText).status, 'verified', configText);
     }
   });
+});
+
+test('browser preflight: a Playwright release without the headless shell verifies the full chromium build', () => {
+  withFakeChromiumConsumer(({ install, preflight }) => {
+    install(path.join('chromium-1187', 'chrome-linux64', 'chrome'));
+    const fullBuildOnly = preflight(undefined);
+    assert.equal(fullBuildOnly.status, 'verified', 'a headless capture on this release launches the full build');
+    assert.equal(fullBuildOnly.revisionDirectory, 'chromium-1187');
+  }, '1.48.2');
 });
