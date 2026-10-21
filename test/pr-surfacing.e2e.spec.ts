@@ -319,6 +319,65 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     expect(colorOf(diffStyleMaps(base, head), '::placeholder'), 'the placeholder recolour is surfaced').toBeTruthy();
   });
 
+  // #979: these pseudo-elements were never read, so their restyle passed as no change.
+  const PARAGRAPH = '<p>Hello there</p>';
+  const MODAL = '<dialog>Hi</dialog><script>document.querySelector("dialog").showModal()</script>';
+  const FILE = '<input type="file" name="upload">';
+  for (const [pseudo, rule, markup, prop] of [
+    ['::first-letter', 'p::first-letter{color:VALUE}', PARAGRAPH, 'color'],
+    ['::first-line', 'p::first-line{color:VALUE}', PARAGRAPH, 'color'],
+    ['::backdrop', 'dialog::backdrop{background-color:VALUE}', MODAL, 'background-color'],
+    ['::file-selector-button', 'input::file-selector-button{background-color:VALUE}', FILE, 'background-color'],
+  ]) {
+    test(`a ${pseudo} ${prop} change → a style finding with pseudo="${pseudo}"`, async ({ page }) => {
+      const base = await cap(page, rule.replace('VALUE', 'rgb(200,0,0)'), markup);
+      const head = await cap(page, rule.replace('VALUE', 'rgb(0,0,200)'), markup);
+      const f = diffStyleMaps(base, head).find(
+        (x) => x.kind === 'style' && x.pseudo === pseudo && x.props.some((p) => p.prop === prop),
+      );
+      expect(f, `the ${pseudo} restyle is surfaced with its pseudo tag`).toBeTruthy();
+    });
+  }
+
+  for (const [state, pseudo, rule, markup] of [
+    ['focus', '::placeholder', 'input:focus::placeholder{color:VALUE}', '<input name="email" placeholder="Email">'],
+    ['hover', '::marker', 'summary:hover::marker{color:VALUE}', '<details><summary>More</summary></details>'],
+  ]) {
+    test(`a :${state}${pseudo} colour change → a ${state} state finding on the ${pseudo}`, async ({ page }) => {
+      const base = await cap(page, rule.replace('VALUE', 'rgb(200,0,0)'), markup);
+      const head = await cap(page, rule.replace('VALUE', 'rgb(0,0,200)'), markup);
+      const f = diffStyleMaps(base, head).find(
+        (x) => x.kind === 'state' && x.state === state && x.props.some((p) => p.prop === 'color'),
+      );
+      expect(f, `the :${state}${pseudo} restyle is surfaced as a state finding`).toBeTruthy();
+      expect(f!.kind === 'state' && f!.sub).toMatch(new RegExp(`${pseudo}$`));
+    });
+  }
+
+  test('no ::first-letter / ::first-line entry without an override, and identical pages stay silent', async ({
+    page,
+  }) => {
+    // The unmatched blockquote rule makes capture read these pseudo-elements on every block box.
+    const styled =
+      'blockquote::first-letter{color:rgb(200,0,0)}' +
+      'p{color:rgb(0,0,200);padding:10px;background:rgb(240,240,240);font-weight:700}';
+    const plain = await cap(page, styled, '<div>' + PARAGRAPH + '</div><ul><li>One</li></ul>');
+    const generated = Object.values(plain.elements).flatMap((e) =>
+      Object.keys(e.pseudo ?? {}).filter((ps) => ps === '::first-letter' || ps === '::first-line'),
+    );
+    expect(generated, 'inherited longhands alone record no generated pseudo entry').toEqual([]);
+
+    const css =
+      'p::first-letter{color:rgb(200,0,0)}p::first-line{color:rgb(0,200,0)}' +
+      'dialog::backdrop{background-color:rgb(0,0,200)}input::file-selector-button{color:rgb(200,0,0)}' +
+      'input:focus::placeholder{color:rgb(200,0,0)}summary:hover::marker{color:rgb(200,0,0)}';
+    const markup =
+      PARAGRAPH + FILE + '<input name="email" placeholder="Email">' + '<details><summary>More</summary></details>';
+    const base = await cap(page, css, markup + MODAL);
+    const head = await cap(page, css, markup + MODAL);
+    expect(diffStyleMaps(base, head), 'an identical capture yields no findings').toEqual([]);
+  });
+
   test('an ::after added on head only → a style finding with pseudo="::after"', async ({ page }) => {
     const base = await cap(page, boxCss(''), BOX);
     const head = await cap(page, '.box::after{content:"›";color:rgb(200,0,0)}' + boxCss(''), BOX);

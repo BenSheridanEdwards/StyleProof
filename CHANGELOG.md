@@ -28,7 +28,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    re-capture the baseline with 9.0.0. Under `--storage branch`, the
    `publish-base` job does this when the upgrade merges to the default branch.
    Until then, an 8.x base map can make an unchanged page need review for the
-   reasons in steps 2 to 8 and 15.
+   reasons in steps 2 to 8, 15 and 18.
 2. **Colliding Next.js route keys (#919).** A project with both
    `/blog/[slug]` and `/blog/slug` sees `blog-slug` removed and a suffixed key
    added. Re-capture, and replace `blog-slug` wherever a committed list or
@@ -105,6 +105,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     Node 18 and 20 are no longer supported. Move local and CI Node to 22.13 or
     later, then run `npx styleproof-init --upgrade` to refresh the generated
     capture workflow.
+18. **More pseudo-elements (#979).** Maps now hold `::first-letter`,
+    `::first-line`, `::backdrop` and `::file-selector-button` layers, and
+    forced-state reads now include `::placeholder` and `::marker`. Against an
+    8.x baseline, a page that styles one of these shows it once as a change.
+    Re-capture the baseline. Older maps still load and diff.
 
 ### Added
 
@@ -210,6 +215,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   outside it and the spec directory stopped counting as capture-relevant. A
   change there could then reuse an ancestor's baseline. `repoRelativePath` now
   realpaths both sides before re-anchoring.
+- **A restyled `::first-letter`, `::first-line`, `::backdrop`,
+  `::file-selector-button`, `:focus::placeholder` or `:hover::marker` no longer
+  passes as no change (#979).** Capture read only `::before`, `::after`,
+  `::marker` and `::placeholder` at rest, and only `::before` and `::after`
+  under a forced state. It now also reads `::first-letter` and `::first-line`
+  on block containers, `::backdrop` on a modal or open popover, and
+  `::file-selector-button` on a file input. A value is kept only when it
+  differs from both the element and the UA default, so an element with no
+  override gets no new entry. The forced-state read now includes
+  `::placeholder` on inputs and textareas and `::marker` on list items, keyed
+  `path::placeholder` / `path::marker`. The pseudo-elements that stay unread
+  are listed in `docs/what-it-catches.md`.
 - **The Node 22 unit-coverage leg no longer waits on one test file.**
   `test/report.test.mjs` ran its 130 tests in one process, about 430 s under
   coverage, and started late in the alphabetical file order. It now runs as

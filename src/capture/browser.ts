@@ -118,6 +118,8 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   const documentHeight = (document.scrollingElement ?? document.documentElement).scrollHeight;
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
+  const GENERATED_PSEUDOS = ['::first-letter', '::first-line', '::backdrop', '::file-selector-button'];
+  const BLOCK_CONTAINER = /^(block|inline-block|list-item|flow-root|table-cell|table-caption)$/;
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
 
   // Per-tag (and per-tag-per-pseudo) UA defaults from a stylesheet-free iframe prune the maps.
@@ -130,23 +132,69 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   // would return an inherited function instead of a probe (or poison __proto__ on write).
   const defaults: Record<string, Props> = Object.create(null);
   const probeCache: Record<string, Element> = Object.create(null);
-  const probeFor = (tag: string): Element => {
-    if (!(tag in probeCache)) {
+  const probeFor = (tag: string, type?: string): Element => {
+    // A space never occurs in a tag name, so the typed key cannot collide with a page tag.
+    const key = type ? `${tag} ${type}` : tag;
+    if (!(key in probeCache)) {
       const probe = fdoc.createElement(tag);
+      if (type) probe.setAttribute('type', type);
       fdoc.body.appendChild(probe);
-      probeCache[tag] = probe;
+      probeCache[key] = probe;
     }
-    return probeCache[tag];
+    return probeCache[key];
+  };
+  const readDefault = (tag: string, pseudo?: string): Props => {
+    // ::file-selector-button exists only on a file input, so its UA defaults need one.
+    const probe = pseudo === '::file-selector-button' ? probeFor(tag, 'file') : probeFor(tag);
+    const cs = fdoc.defaultView!.getComputedStyle(probe, pseudo ?? null);
+    const o: Props = {};
+    for (let i = 0; i < cs.length; i++) o[cs.item(i)] = cs.getPropertyValue(cs.item(i));
+    return o;
   };
   const defaultFor = (tag: string, pseudo?: string): Props => {
     const key = pseudo ? `${tag}${pseudo}` : tag;
-    if (!(key in defaults)) {
-      const cs = fdoc.defaultView!.getComputedStyle(probeFor(tag), pseudo ?? null);
-      const o: Props = {};
-      for (let i = 0; i < cs.length; i++) o[cs.item(i)] = cs.getPropertyValue(cs.item(i));
-      defaults[key] = o;
-    }
+    if (!(key in defaults)) defaults[key] = readDefault(tag, pseudo);
     return defaults[key];
+  };
+  // GENERATED_PSEUDOS inherit from their element, so pruning against the UA default alone
+  // would record every inherited longhand. A value is kept only when it differs from the
+  // element too, and a default joins the map only once an entry uses it (#979).
+  const unusedDefaults: Record<string, Props> = Object.create(null);
+  const overridesOf = (el: Element, tag: string, pseudo: string, origin: CSSStyleDeclaration): Props => {
+    const key = `${tag}${pseudo}`;
+    const def = defaults[key] ?? (unusedDefaults[key] ??= readDefault(tag, pseudo));
+    const own = snap(getComputedStyle(el, pseudo), def);
+    for (const p of Object.keys(own)) if (own[p] === origin.getPropertyValue(p)) delete own[p];
+    if (Object.keys(own).length) defaults[key] = def;
+    return own;
+  };
+  const matchesSafely = (el: Element, selector: string): boolean => {
+    try {
+      return el.matches(selector);
+    } catch {
+      return false; // a browser without this pseudo-class has no such box
+    }
+  };
+  // A ::first-letter/::first-line read costs a full style read per block box, so it runs only
+  // when some stylesheet could hold such a rule. An unreadable sheet counts as one.
+  const sheetMayStyleFirstBoxes = (sheet: CSSStyleSheet | null): boolean => {
+    if (!sheet) return false;
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      return true;
+    }
+    return Array.from(rules).some((rule) =>
+      rule instanceof CSSImportRule ? sheetMayStyleFirstBoxes(rule.styleSheet) : /:first-l/i.test(rule.cssText),
+    );
+  };
+  const adopted = (document as Document & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets ?? [];
+  const readFirstBoxes = [...Array.from(document.styleSheets), ...adopted].some(sheetMayStyleFirstBoxes);
+  const generates = (el: Element, pseudo: string, display: string): boolean => {
+    if (pseudo === '::backdrop') return matchesSafely(el, ':modal') || matchesSafely(el, ':popover-open');
+    if (pseudo === '::file-selector-button') return el instanceof HTMLInputElement && el.type === 'file';
+    return readFirstBoxes && BLOCK_CONTAINER.test(display); // ::first-letter, ::first-line
   };
 
   const snap = (cs: CSSStyleDeclaration, def: Props | null): Props => {
@@ -266,6 +314,11 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
       const cs = getComputedStyle(el, ps);
       if ((ps === '::before' || ps === '::after') && cs.getPropertyValue('content') === 'none') continue;
       const props = snap(cs, defaultFor(tag, ps));
+      if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
+    }
+    for (const ps of GENERATED_PSEUDOS) {
+      if (!generates(el, ps, usedStyle.display)) continue;
+      const props = overridesOf(el, tag, ps, usedStyle);
       if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
     }
     elements[pathOf(el)] = entry;
@@ -542,10 +595,17 @@ export function snapSubtree({
     if (saveBaseline || result[elementPath] || changed) typedMargins[elementPath] = forced;
   };
   for (const { element, path: elementPath } of elements) {
-    for (const pseudo of [null, '::before', '::after']) {
+    const field = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+    for (const pseudo of [null, '::before', '::after', field ? '::placeholder' : '::marker']) {
       const style = getComputedStyle(element, pseudo);
       const key = elementPath + (pseudo || '');
-      if (pseudo && style.getPropertyValue('content') === 'none') {
+      // Fields read ::placeholder, other elements ::marker, which exists only on a list item
+      // (#979); a ::before/::after exists only with content.
+      const absent =
+        pseudo === '::marker'
+          ? getComputedStyle(element).display !== 'list-item'
+          : !!pseudo && style.getPropertyValue('content') === 'none';
+      if (absent) {
         if (!saveBaseline && baseline?.[key]) {
           result[key] = Object.fromEntries(Object.keys(baseline[key]).map((property) => [property, '(gone)']));
         }
