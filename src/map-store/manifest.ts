@@ -79,16 +79,21 @@ function packageLockPlaywrightHash(content: Buffer): string | undefined {
 }
 
 /** Playwright descriptors of a text lockfile (pnpm, yarn, bun): `name@version` matches plus
- *  each Playwright block header with its resolved version. */
+ *  each Playwright block header with its resolved version. Only the exact package names
+ *  count: `@scope/playwright` or `plugin-playwright` is application provenance (#958). A
+ *  key-leading `/` (pnpm v6) or a peer-suffix `(` may precede a name; a name character or
+ *  a scope's `name/` may not. */
 function textLockfilePlaywrightHash(content: Buffer): string | undefined {
   const text = content.toString('utf8');
   const descriptors = new Set<string>();
-  for (const match of text.matchAll(/(?:@playwright\/test|playwright(?:-core)?)@(?:npm:)?([0-9][0-9A-Za-z.+-]*)/g)) {
+  const exactDescriptors =
+    /(?<![\w@.-]|[\w.-]\/)(?:@playwright\/test|playwright(?:-core)?)@(?:npm:)?([0-9][0-9A-Za-z.+-]*)/g;
+  for (const match of text.matchAll(exactDescriptors)) {
     descriptors.add(match[0]);
   }
   for (const block of text.split(/\r?\n\s*\r?\n/)) {
     const header = block.split(/\r?\n/, 1)[0] ?? '';
-    if (!/(?:@playwright\/test|playwright(?:-core)?)[@:"]/i.test(header)) continue;
+    if (!/^\s*['"]?\/?(?:@playwright\/test|playwright(?:-core)?)[@:"]/i.test(header)) continue;
     const version = block.match(/^\s*version:\s*['"]?([^'"\s]+)|^\s*version\s+['"]([^'"]+)/m);
     const resolvedVersion = version?.[1] ?? version?.[2];
     if (resolvedVersion) descriptors.add(`${header.trim()}=${resolvedVersion}`);
@@ -121,11 +126,23 @@ function hasHar(dir: string): boolean {
 
 type CompatibilityInput = ReturnType<typeof compatibilityInput>;
 
+function realPath(target: string): string {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return target;
+  }
+}
+
 function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: string }) {
   // Resolve FIRST: a relative cwd made createRequire throw inside playwrightVersion, so
   // publish and restore stamped different keys for one environment and every lookup missed.
   const cwd = path.resolve(options.cwd);
   const specPath = path.resolve(cwd, options.spec);
+  // Physical paths on both sides: an absolute spec spelled through a symlinked folder
+  // otherwise keys as `../..` and misses every bundle (#962). The spec's directory resolves
+  // even when the file itself is missing.
+  const physicalSpec = path.join(realPath(path.dirname(specPath)), path.basename(specPath));
   const lock = detectLockfile(cwd);
   let specHash: string;
   try {
@@ -135,7 +152,7 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
   }
   return {
     packageVersion: styleProofPackageVersion(),
-    spec: path.relative(cwd, specPath) || options.spec,
+    spec: path.relative(realPath(cwd), physicalSpec) || options.spec,
     specHash,
     lockfile: lock.file,
     lockfileHash: lock.hash,
@@ -144,7 +161,8 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
     platform: process.platform,
     arch: process.arch,
     nodeMajor: process.versions.node.split('.')[0] ?? process.versions.node,
-    baseUrl: options.baseUrl,
+    // An empty BASE_URL is an unset one, so the stored manifest field reproduces the key (#959).
+    baseUrl: options.baseUrl || undefined,
   };
 }
 

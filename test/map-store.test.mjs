@@ -2089,6 +2089,210 @@ test('application lockfile changes preserve provenance without changing capture-
   }
 });
 
+// #958: a text lockfile's runtime descriptor is the exact Playwright packages only. A plugin
+// whose name merely ends in `playwright` is application provenance, like any other dependency.
+for (const [label, file, lockfile] of [
+  [
+    'pnpm v9',
+    'pnpm-lock.yaml',
+    (plugin, pw) => `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      '@example/playwright':
+        specifier: ^4.0.0
+        version: ${plugin}(playwright-core@${pw})
+      '@playwright/test':
+        specifier: ${pw}
+        version: ${pw}
+
+packages:
+
+  '@example/playwright@${plugin}':
+    resolution: {integrity: sha512-a}
+
+  '@playwright/test@${pw}':
+    resolution: {integrity: sha512-b}
+
+  playwright-core@${pw}:
+    resolution: {integrity: sha512-c}
+
+snapshots:
+
+  '@example/playwright@${plugin}(playwright-core@${pw})':
+    dependencies:
+      playwright-core: ${pw}
+
+  '@playwright/test@${pw}':
+    dependencies:
+      playwright-core: ${pw}
+`,
+  ],
+  [
+    'pnpm v6',
+    'pnpm-lock.yaml',
+    (plugin, pw) => `lockfileVersion: '6.0'
+
+devDependencies:
+  '@example/playwright':
+    specifier: ^4.0.0
+    version: ${plugin}
+  '@playwright/test':
+    specifier: ${pw}
+    version: ${pw}
+
+packages:
+
+  /@example/playwright@${plugin}:
+    resolution: {integrity: sha512-a}
+
+  /@playwright/test@${pw}:
+    resolution: {integrity: sha512-b}
+`,
+  ],
+  [
+    'yarn berry',
+    'yarn.lock',
+    (plugin, pw) => `__metadata:
+  version: 8
+  cacheKey: 10c0
+
+"@playwright/test@npm:${pw}":
+  version: ${pw}
+  resolution: "@playwright/test@npm:${pw}"
+  languageName: node
+  linkType: hard
+
+"example-plugin-playwright@npm:^2.0.0":
+  version: ${plugin}
+  resolution: "example-plugin-playwright@npm:${plugin}"
+  languageName: node
+  linkType: hard
+`,
+  ],
+  [
+    'yarn classic',
+    'yarn.lock',
+    // Ranges only: the Playwright version reaches the key solely through the block header.
+    (plugin, pw) => `# yarn lockfile v1
+
+
+"@example/playwright@^4.0.0":
+  version "${plugin}"
+
+"@playwright/test@^1.0.0", "@playwright/test@~${pw}":
+  version "${pw}"
+`,
+  ],
+  [
+    'bun',
+    'bun.lock',
+    (plugin, pw) => `{
+  "lockfileVersion": 1,
+  "packages": {
+    "@example/playwright": ["@example/playwright@${plugin}", "", {}, "sha512-a"],
+    "@playwright/test": ["@playwright/test@${pw}", "", {}, "sha512-b"],
+  }
+}
+`,
+  ],
+]) {
+  test(`a ${label} bump of a package named like playwright keeps capture-runtime compatibility (#958)`, () => {
+    const consumer = mkTmp('styleproof-text-lockfile-');
+    const spec = 'e2e/styleproof.spec.ts';
+    const stamp = (dir, sha) =>
+      writeMapManifest({ dir, spec, sha: sha.repeat(40), screenshots: false, dirty: false, cwd: consumer });
+    try {
+      fs.mkdirSync(path.join(consumer, 'e2e'));
+      fs.writeFileSync(path.join(consumer, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(path.join(consumer, spec), 'export default {};\n');
+
+      fs.writeFileSync(path.join(consumer, file), lockfile('4.0.1', '1.61.0'));
+      const before = stamp(path.join(consumer, 'before'), 'a');
+      fs.writeFileSync(path.join(consumer, file), lockfile('4.0.2', '1.61.0'));
+      const after = stamp(path.join(consumer, 'after'), 'b');
+
+      assert.equal(after.compatibilityKey, before.compatibilityKey, 'only a Playwright runtime change splits the key');
+      assert.equal(
+        assertCompatibleMapDirs(path.join(consumer, 'before'), path.join(consumer, 'after'))
+          .applicationDependencyProvenance?.status,
+        'changed',
+      );
+
+      fs.writeFileSync(path.join(consumer, file), lockfile('4.0.2', '1.62.0'));
+      assert.notEqual(
+        expectedCompatibilityKey({ cwd: consumer, spec }),
+        after.compatibilityKey,
+        'a Playwright runtime bump must still select a different cache contract',
+      );
+    } finally {
+      rmTmp(consumer);
+    }
+  });
+}
+
+// #959: an empty BASE_URL is an unset one, and the stamped key is the one a BASE_URL lookup computes.
+test('a manifest stamped from BASE_URL carries the lookup key, and an empty BASE_URL keys as unset (#959)', () => {
+  const consumer = mkTmp('styleproof-base-url-key-');
+  const spec = 'e2e/styleproof.spec.ts';
+  const stamp = (name, BASE_URL) =>
+    writeMapManifest({
+      dir: path.join(consumer, name),
+      spec,
+      sha: 'a'.repeat(40),
+      screenshots: false,
+      dirty: false,
+      cwd: consumer,
+      env: { BASE_URL },
+    });
+  try {
+    fs.mkdirSync(path.join(consumer, 'e2e'));
+    fs.writeFileSync(path.join(consumer, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(consumer, spec), 'export default {};\n');
+    const unset = expectedCompatibilityKey({ cwd: consumer, spec });
+
+    assert.equal(expectedCompatibilityKey({ cwd: consumer, spec, baseUrl: '' }), unset);
+    const empty = stamp('empty', '');
+    assert.equal(empty.compatibilityKey, unset, 'an empty BASE_URL must find bundles published without one');
+    assert.equal(empty.baseUrl, undefined);
+
+    const set = stamp('set', 'http://127.0.0.1:3000');
+    assert.equal(set.compatibilityKey, expectedCompatibilityKey({ cwd: consumer, spec, baseUrl: set.baseUrl }));
+    assert.notEqual(set.compatibilityKey, unset, 'a different app URL is still a different contract');
+  } finally {
+    rmTmp(consumer);
+  }
+});
+
+// #962: the key names the spec relative to the project, whichever path spelling reached it.
+test('expectedCompatibilityKey is identical for a spec reached through a symlinked folder (#962)', () => {
+  const root = mkTmp('styleproof-symlinked-spec-');
+  const project = path.join(root, 'project');
+  const link = path.join(root, 'project-link');
+  const spec = 'e2e/styleproof.spec.ts';
+  try {
+    fs.mkdirSync(path.join(project, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(project, spec), 'export default {};\n');
+    fs.writeFileSync(path.join(root, 'outside.spec.ts'), 'export default {};\n');
+    fs.symlinkSync(project, link, 'dir');
+    const relative = expectedCompatibilityKey({ cwd: project, spec });
+
+    assert.equal(expectedCompatibilityKey({ cwd: project, spec: path.join(project, spec) }), relative);
+    assert.equal(expectedCompatibilityKey({ cwd: project, spec: path.join(link, spec) }), relative);
+    assert.equal(expectedCompatibilityKey({ cwd: link, spec }), relative);
+    assert.notEqual(
+      expectedCompatibilityKey({ cwd: project, spec: path.join(root, 'outside.spec.ts') }),
+      relative,
+      'a spec genuinely outside the project keeps its own key',
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('expectedCompatibilityKey is stable when a detached restore probe has no node_modules', () => {
   const consumer = mkTmp('styleproof-detached-probe-');
   const capture = path.join(consumer, 'maps');

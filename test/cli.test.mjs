@@ -1263,6 +1263,56 @@ test('styleproof-map --restore exits 4 when the map store branch does not exist'
   rmTmp(repo);
 });
 
+// #959: the upload keys the bundle by the job's BASE_URL, so the restore lookup must too.
+for (const baseUrl of ['http://127.0.0.1:3000', '']) {
+  test(`styleproof-map --restore finds the bundle --upload published with BASE_URL=${JSON.stringify(baseUrl)} (#959)`, () => {
+    const root = mkTmp();
+    const binDir = mkTmp('styleproof-fakebin-');
+    try {
+      gitInit(root);
+      spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+      fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+      writeSpec(root);
+      addBareOrigin(root);
+      const headSha = commitAll(root, 'base');
+      const fakePlaywright = path.join(binDir, 'playwright');
+      fs.writeFileSync(
+        fakePlaywright,
+        '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+      );
+      fs.chmodSync(fakePlaywright, 0o755);
+      const env = cliEnv({
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        BASE_URL: baseUrl,
+        STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+      });
+      const restore = (extra = {}) =>
+        spawnSync(
+          process.execPath,
+          [MAP, '--restore', '--sha', headSha, '--dir', 'base', '--base-dir', path.join(root, '.styleproof', 'out')],
+          { cwd: root, encoding: 'utf8', env: { ...env, ...extra } },
+        );
+
+      const upload = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+        cwd: root,
+        encoding: 'utf8',
+        env,
+      });
+      assert.equal(upload.status, 0, upload.stderr);
+      const sameEnv = restore();
+      assert.equal(sameEnv.status, 0, sameEnv.stderr);
+      assert.match(sameEnv.stderr, /base_hit=exact/);
+
+      const otherApp = restore({ BASE_URL: 'http://127.0.0.1:4000' });
+      assert.equal(otherApp.status, 4, otherApp.stderr);
+      assert.match(otherApp.stderr, /cold_reason=compat_mismatch/);
+    } finally {
+      rmTmp(root);
+      rmTmp(binDir);
+    }
+  });
+}
+
 /** A local origin whose upload-pack stalls, so every networked map-store git call hangs. */
 function stallingOriginRepo(config) {
   const repo = mkTmp();

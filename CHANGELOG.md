@@ -551,6 +551,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Certify from `pull_request` is unchanged, and init's
   output and report-workflow header now say what the split certify gate does;
   run `styleproof-init --upgrade` to refresh an existing scaffold.
+- **pnpm, yarn and bun maps stay comparable when a package named like
+  `playwright` is bumped (#958).** The Playwright runtime descriptor of a text
+  lockfile also matched the `playwright@<version>` tail of names such as
+  `@axe-core/playwright` and `eslint-plugin-playwright`. Bumping one of them
+  changed the compatibility key, so `styleproof-diff` refused the pair and
+  exited 2 on every run. Only `@playwright/test`, `playwright` and
+  `playwright-core` now count, as they already did for `package-lock.json`;
+  other packages show up as changed lockfile provenance.
+- **Bundles published with `BASE_URL` set or empty are found again (#959).**
+  `styleproof-map --upload` keyed the bundle by the job's `BASE_URL`, but
+  `styleproof-map --restore` and the `styleproof-ci` ancestor restore looked it
+  up without one. Every restore missed with `cold_reason=compat_mismatch` and
+  recaptured the base cold. Both lookups now use the same `BASE_URL`, and an
+  empty `BASE_URL` keys like an unset one, so its manifest fields reproduce its
+  key. Keys for jobs without `BASE_URL` are unchanged.
+- **An absolute `--spec` reached through a symlinked folder keeps its map-store
+  key (#962).** The key stored the spec relative to the physical working
+  directory, so a spec spelled through a symlink (a linked checkout, or macOS's
+  `/var/folders` temp directory) keyed as a `../..` path and missed every
+  bundle. Both paths are now resolved to real paths first, so the relative,
+  physical and symlinked spellings of one spec share a key. A spec outside the
+  project still keys separately. `styleproof-ci` ancestor reuse resolves the
+  same way, so a change under that spec's folder counts as capture-relevant
+  again; before, only the cache miss kept the ancestor from being reused.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
