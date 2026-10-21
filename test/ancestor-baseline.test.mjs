@@ -107,6 +107,29 @@ test("repoRelativePath: a subdirectory consumer's spec and roots compare against
   );
 });
 
+test('repoRelativePath: a path through a symlinked checkout re-anchors to the real repository root', () => {
+  // git names the real toplevel; an absolute --spec or a cwd may keep a symlinked prefix
+  // (macOS temp dirs are symlinked). Missing either side's link would drop the spec directory.
+  const root = mkTmp('styleproof-ancestor-symlink-');
+  try {
+    const repo = path.join(fs.realpathSync(root), 'repo');
+    const web = path.join(repo, 'packages', 'web');
+    fs.mkdirSync(path.join(web, 'e2e'), { recursive: true });
+    const linked = path.join(root, 'linked');
+    fs.symlinkSync(repo, linked, 'dir');
+    const linkedWeb = path.join(linked, 'packages', 'web');
+    assert.equal(
+      repoRelativePath(repo, web, path.join(linkedWeb, 'e2e', 'styleproof.spec.ts')),
+      'packages/web/e2e/styleproof.spec.ts',
+      'an absolute target through the link',
+    );
+    assert.equal(repoRelativePath(linked, web, 'src'), 'packages/web/src', 'a checkout root through the link');
+    assert.equal(repoRelativePath(repo, linkedWeb, 'styles'), 'packages/web/styles', 'a missing root through the link');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('captureRelevantChangedPaths: NO declared roots fails closed — every changed path is relevant', () => {
   const changedPaths = ['docs/notes.md', 'README.md'];
   assert.deepEqual(

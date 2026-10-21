@@ -190,6 +190,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Ancestor baseline reuse sees spec-directory changes through a symlinked
+  path.** `styleproof-ci` compared an absolute `--spec` with git's changed
+  paths without resolving symlinks. Git names the real repository root, so a
+  spec path through a symlink (a macOS temp dir, or a symlinked checkout) fell
+  outside it and the spec directory stopped counting as capture-relevant. A
+  change there could then reuse an ancestor's baseline. `repoRelativePath` now
+  realpaths both sides before re-anchoring.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

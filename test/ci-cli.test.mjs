@@ -2147,6 +2147,12 @@ function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.
     git(seed, ['commit', '-qm', 'seed']);
     git(seed, ['push', '-q', 'origin', 'styleproof-maps']);
 
+    // An absolute --spec through a symlink keeps the link while git names the real path.
+    const linkedCheckout = () => {
+      const linked = path.join(root, 'linked');
+      fs.symlinkSync(repo, linked, 'dir');
+      return linked;
+    };
     // A cold base capture cannot run in this fixture; only the reuse decision matters.
     const result = runCi(
       [
@@ -2155,7 +2161,11 @@ function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.
         '--head',
         head,
         '--spec',
-        specArg === 'absolute' ? path.join(web, spec) : specArg,
+        specArg === 'absolute'
+          ? path.join(web, spec)
+          : specArg === 'symlinked'
+            ? path.join(linkedCheckout(), 'packages', 'web', spec)
+            : specArg,
         '--base-dir',
         path.join(root, 'maps'),
         '--force',
@@ -2184,6 +2194,10 @@ for (const [name, options] of [
   [
     'its spec directory under an absolute --spec',
     { changed: 'packages/web/e2e/fixtures.ts', specArg: 'absolute', config: SRC_ROOTS },
+  ],
+  [
+    'its spec directory under an absolute --spec through a symlinked checkout',
+    { changed: 'packages/web/e2e/fixtures.ts', specArg: 'symlinked' },
   ],
   [
     'a config root resolved from its config file',
