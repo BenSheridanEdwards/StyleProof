@@ -93,17 +93,34 @@ test('selectCrawlLinks: a rendered hash-router link is a surface keyed by its ro
   ]);
 });
 
-test('selectCrawlLinks: the bare root route `#/` and a crawl root that landed on a hash route never duplicate', () => {
+test('selectCrawlLinks: a crawl root that landed on a hash route is one surface, never an extra `index`', () => {
   // `/#/` is the router's root view, the same page as `/`: not a second `index-2` surface.
   assert.deepEqual(pick(['#/', '#!/', '#/settings'], { includeSelf: true }), [
     { key: 'index', url: '/' },
     { key: 'settings', url: '/#/settings' },
   ]);
-  // The router redirected `/` to `/#/home`: the crawl root IS `home`, so its own nav link dedupes against it.
-  assert.deepEqual(pick(['#/home', '#/settings', '#/'], { base: 'https://app.test/#/home', includeSelf: true }), [
+  // A router sent `/` to `/#/home`, so the crawl root IS `home`. Its skip link, the bare root route,
+  // a logo link back to `/` and its own nav link are all that page, so `index` never appears and an
+  // `expected` list of the real routes reconciles.
+  const links = pick(['#main', '/', '#/', '#!/', '#/home', '#/settings'], {
+    base: 'https://app.test/#/home',
+    includeSelf: true,
+  });
+  assert.deepEqual(links, [
     { key: 'home', url: '/#/home' },
     { key: 'settings', url: '/#/settings' },
-    { key: 'index', url: '/' },
+  ]);
+  assert.equal(
+    crawlCoverageError(
+      '/',
+      links.map((l) => l.key),
+      ['home', 'settings'],
+    ),
+    null,
+  );
+  // Read without includeSelf (the CLI page sweep), a skip link on that root is still not a surface.
+  assert.deepEqual(pick(['#main', '#/settings'], { base: 'https://app.test/#/home' }), [
+    { key: 'settings', url: '/#/settings' },
   ]);
 });
 

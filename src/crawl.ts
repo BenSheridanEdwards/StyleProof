@@ -83,11 +83,11 @@ function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: L
   const url = resolveLink(href, base, match);
   if (!url) return null;
   const route = hashRoute(url);
-  const path = url.pathname + url.search + route;
-  // a bare fragment of the crawl root is the same page
-  if (url.hash && !route && path === base.pathname + base.search + hashRoute(base)) return null;
+  const path = url.pathname + url.search;
+  // a bare fragment of the crawl root is the same page, even when the root landed on a hash route
+  if (url.hash && !route && path === base.pathname + base.search) return null;
   url.hash = route; // navigate the surface (its hash route included), not a scroll anchor within it
-  return { key: keyFor(url), url: path };
+  return { key: keyFor(url), url: path + route };
 }
 
 /** A URL the app navigated to PROGRAMMATICALLY (history API). The fragment is KEPT: a pushState
@@ -151,9 +151,14 @@ function collectUnique(links: Iterable<CrawlLink | null>, seen: Set<string>, use
 export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opts: SelectLinksOptions): CrawlLink[] {
   const base = new URL(opts.base);
   const keyFor = opts.key ?? defaultLinkKey;
-  const self = opts.includeSelf ? [{ key: keyFor(base), url: base.pathname + base.search + hashRoute(base) }] : [];
+  const root = base.pathname + base.search;
+  const route = hashRoute(base);
+  const self = opts.includeSelf ? [{ key: keyFor(base), url: root + route }] : [];
+  // A root that landed on a hash route (a router sent `/` to `/#/home`) is also its bare path,
+  // so a nav link back to `/` is that same page, never a second surface.
+  const seen = new Set(self.length && route ? [dedupIdentity(root)] : []);
   const links = Array.from(hrefs, (href) => (href ? toLink(href, base, keyFor, opts.match) : null));
-  return collectUnique([...self, ...links], new Set(), new Set());
+  return collectUnique([...self, ...links], seen, new Set());
 }
 
 /** Turn URLs observed through the history API into surface links, deduped against the shared frontier. */

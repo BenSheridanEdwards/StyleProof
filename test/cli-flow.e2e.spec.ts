@@ -604,6 +604,54 @@ http.createServer((req, res) => {
   }
 });
 
+// A hash router sends `/` to `/#/home`. The CLI sweep follows the nav's `#/settings` link as a page,
+// but not `#/home`: that is the entry page as it landed, so crawling it again duplicates it (#946).
+test('styleproof-capture --crawl follows hash-router links, never re-crawling the route the entry landed on', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-hash-router-'));
+  const port = await freePort();
+  try {
+    fs.writeFileSync(
+      path.join(app, 'server.mjs'),
+      `import http from 'node:http';
+const port = Number(process.argv[2]);
+http.createServer((req, res) => {
+  res.setHeader('content-type', 'text/html');
+  res.end('<!doctype html><html><head><style>.k{color:rgb(20,20,30)}</style></head><body>' +
+    '<a href="#main">Skip</a><nav><a href="/">Logo</a> <a href="#/home">Home</a> <a href="#/settings">Settings</a></nav>' +
+    '<h1 id="main" class="k">View</h1><script>if (!location.hash) location.replace("#/home");</script></body></html>');
+}).listen(port, '127.0.0.1');
+`,
+    );
+    const server = spawn('node', ['server.mjs', String(port)], { cwd: app });
+    try {
+      await waitForPort(port);
+      const out = path.join(app, 'maps');
+      const result = await runAsync(app, process.execPath, [
+        CAPTURE,
+        `http://127.0.0.1:${port}/`,
+        '--crawl',
+        '--no-screenshots',
+        '--widths',
+        '1280',
+        '--out',
+        out,
+      ]);
+      expect(result.status, result.stderr + result.stdout).toBe(0);
+      const maps = fs
+        .readdirSync(out)
+        .filter((f) => f.endsWith('.json.gz'))
+        .sort();
+      expect(maps).toEqual(['base@1280.json.gz', 'settings@1280.json.gz']);
+      expect(result.stdout).toContain('across 2 page(s)');
+    } finally {
+      server.kill();
+    }
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
 // Spec-driven counterpart: a crawl-discovered surface that redirects off-origin
 // FAILS the capture naming the surface — a gate capture must never silently
 // swallow (or silently skip) a surface it cannot truthfully record.

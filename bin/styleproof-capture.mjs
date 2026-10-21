@@ -142,10 +142,13 @@ try {
   process.exit(2);
 }
 
-// Read the freshly-loaded page's same-origin nav links, keyed by route.
-async function harvestPageLinks(page, url) {
+// Read the freshly-loaded page's same-origin nav links, keyed by route. The page as it landed is
+// marked seen, so a router that sent `/` to `/#/home` never crawls its own `#/home` link again.
+async function harvestPageLinks(page, url, seenPages) {
   await page.goto(url, { waitUntil: 'load' });
   const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href'))).catch(() => []);
+  const [landed] = selectCrawlLinks([], { base: page.url(), includeSelf: true });
+  seenPages.add(dedupIdentity(landed.url));
   return selectCrawlLinks(hrefs, { base: page.url() });
 }
 
@@ -210,7 +213,7 @@ async function sweepPages(browser, page) {
     }
     reports.push(crawled);
     statesLeft -= crawled.surfaces.length;
-    if (opts.followLinks) enqueueLinkedPages(await harvestPageLinks(page, url), sweep);
+    if (opts.followLinks) enqueueLinkedPages(await harvestPageLinks(page, url, sweep.seenPages), sweep);
   }
   if (sweep.queue.length > 0) {
     console.log(`⚠ --max-states reached: ${sweep.queue.length} linked page(s) left uncrawled — raise --max-states`);

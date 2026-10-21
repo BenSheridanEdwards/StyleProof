@@ -89,8 +89,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   at `/#/settings`. This applies to `defineCrawlCapture` and
   `styleproof-capture --follow-links`. A plain `#anchor` and the bare root
   route `#/` still point at the page already loaded. A crawl root that lands on
-  a hash route is captured at that route. A hash-router app now gets new
-  surfaces, so add their keys to `expected` and re-capture the baseline.
+  a hash route is captured once, at that route: when a router sends `/` to
+  `/#/home`, the root is `home` at `/#/home`, and its skip link, `#/`, a link
+  back to `/` and its own `#/home` link add no second surface or page. A route
+  with a query is its own surface too, so a docs site that links each heading
+  as `#/guide?id=intro` now gets one surface per heading (`guide-intro`). A
+  hash-router app now gets one new surface per route, so add the route keys to
+  `expected` and re-capture the baseline.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
