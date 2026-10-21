@@ -51,20 +51,38 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    window as visible. Re-capture so the maps record it.
 9. **Relative `replayUrl` (#918).** A relative `replayUrl` with no `baseURL`
    now fails the capture. Set `use.baseURL` in the Playwright config, or start
-   the glob with `**`.
+   the glob with `**`. With a `baseURL` set, failing data requests the old
+   matcher missed are now named and block the residue gate. Fixture those
+   requests, or acknowledge intentional failures in
+   `styleproof.data-residue.json`.
 10. **`mapStore.token` (#921).** A typed `styleproof.config.ts` that sets
     `mapStore.token` fails type-check. Delete the key; map-store auth comes from
     `STYLEPROOF_MAP_STORE_TOKEN` or the checkout's credentials.
-11. **Ancestor baseline roots (#826, PR #927; drop this step if #927 does not
+11. **`mapStore.gitTimeoutMs` (#921).** A config that set
+    `mapStore.gitTimeoutMs` lower than its git calls take now times out; it was
+    ignored before. Raise it, or remove it to get the 120000 ms default.
+    `STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS` still wins over it.
+12. **Surfaces named like `Object.prototype` keys (#882).** A blocked surface
+    keyed like `constructor` now fails closed with exit 6, as any other blocked
+    surface does. Make its setup deterministic, or acknowledge it explicitly
+    with `crawl.incompleteUiExclude` / `--incomplete-ui-exclude`.
+13. **Forced-state margins (#914, #886).** A `:hover`/`:focus`/`:active`
+    margin change the old filter dropped is now reported, so a run that passed
+    can now need review. Review the change; no re-capture is needed.
+14. **Ancestor baseline roots (#826, PR #927; drop this step if #927 does not
     ship in 9.0.0).** With no roots declared, every changed path now counts as
     capture-relevant, so ancestor baseline reuse fires less often. To keep the
     old behaviour, declare `ancestorBaseline: { roots: ['src'] }` in
-    `styleproof.config`, or set `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`.
-12. **Nested-scroller visibility (#920, PR #928; drop this step if #928 does
-    not ship in 9.0.0).** The visible-structure gate judges nested-scroller
-    additions and removals by `screenshotRect ?? rect` against
-    `viewport.screenshotHeight`, so more of them need review, and a map without
-    `screenshotHeight` fails closed. Re-capture the baseline.
+    `styleproof.config`, or set `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`. Add
+    every other directory or file that changes how your app renders, not only
+    `src`.
+15. **Nested-scroller visibility (#920, PR #928; drop this step if #928 does
+    not ship in 9.0.0).** An added or removed element now counts as visible if
+    its driven `rect` is visible against the driven bounds, or its
+    `screenshotRect ?? rect` is visible against the screenshot bounds, so the
+    gate is never laxer than before and more of them need review. A map with
+    missing or invalid `viewport.screenshotHeight` treats the screenshot bottom
+    as unbounded (fails closed). Re-capture the baseline.
 
 ### Added
 
@@ -105,7 +123,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   keeps its key, so its baseline does not change. A project that already had both
   `/blog/[slug]` and `/blog/slug` sees `blog-slug` reported once as a removed
   surface and the suffixed key as a new surface. Re-capture the baseline.
-- **`mapStore.gitTimeoutMs` now bounds map-store git calls.** The key was
+- **BREAKING: `mapStore.gitTimeoutMs` now bounds map-store git calls.** The key was
   validated and documented but never read, so only the
   `STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS` env var set the timeout. Publish,
   restore, cached compares and ancestor-baseline listing now use the config
@@ -114,6 +132,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   down to 0, which `spawnSync` treats as no timeout. An env value that is set
   but not a positive number (`STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS=abc`) now
   falls through to the config value instead of the 120000 ms default.
+  **Migration:** a config value lower than the git calls take now times out;
+  raise it, or remove it to get the 120000 ms default.
 - **Report crops no longer drop elements scrolled out of a top-of-page inner
   scroller.** The report decided whether a changed element could anchor a crop
   from its driven-state box, so an element scrolled above an inner scroller near
@@ -130,7 +150,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof.product-state.json` in cwd still arms the gate, so a CI env var
   cannot silently drop committed obligations. To disarm, delete or rename the
   file. A unit test pins both cases. No runtime change (#875).
-- **A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
+- **BREAKING: A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
   from certification.** The layout-equivalent margin filter dropped a forced-state
   delta's matching left/right margin change whenever the element's rectangle was
   unchanged. That rectangle is the resting one, which a forced state never moves,
@@ -272,7 +292,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The directory index was a plain object, so a one-sided `constructor` capture
   crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
   and `auditLiveTextDirs`) instead of being reported as removed or new.
-- **A one-sided `:hover`/`:focus` margin that a state adds or removes is no
+- **BREAKING: A one-sided `:hover`/`:focus` margin that a state adds or removes is no
   longer dropped from certification.** The layout-equivalent margin filter read a state delta's
   "state does not change it" side as an unknown px value and treated it as
   balanced, so `button:hover { margin-left: 40px }` produced no finding. The
@@ -284,10 +304,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   **Migration:** the first crawl after upgrading shows the duplicate surface as
   removed; re-capture the baseline and delete its key from crawl `expected`
   lists.
-- **A surface named like an `Object.prototype` key no longer counts as
+- **BREAKING: A surface named like an `Object.prototype` key no longer counts as
   acknowledged incomplete UI.** `exclude[surface]` read an inherited value for
   `constructor`, so a blocked continuation on that surface skipped the
-  fail-closed exit 6 without any exclusion file.
+  fail-closed exit 6 without any exclusion file. **Migration:** such a surface
+  now fails closed with exit 6; make its setup deterministic, or acknowledge it
+  with `crawl.incompleteUiExclude` / `--incomplete-ui-exclude`.
 - **BREAKING: In-page `#anchor` clicks no longer become new crawl surfaces.** Chromium
   fires `popstate` for a fragment jump, so the navigation observer re-queued the
   current page (`docs-2`). Popstate now reports only a new path or query, or a
