@@ -76,8 +76,9 @@ export function groupTitle(findings: Finding[]): string {
 // Computed values that follow from box size/position rather than styling. On any
 // reflow they change all the way up the ancestor chain, so an element whose ONLY
 // changes are these is a reflow casualty: the differ keeps them, the report hides them.
+// Min/max sizes retain authored computed values, so they must stay reviewable.
 const DERIVED_PROPS = new Set(
-  `width height block-size inline-size min-width min-height max-width max-height perspective-origin transform-origin
+  `width height block-size inline-size perspective-origin transform-origin
    top right bottom left inset-block-start inset-block-end inset-inline-start inset-inline-end`.split(/\s+/),
 );
 // Forced :hover/:focus/:active deltas also drop grid-track relayout noise.
