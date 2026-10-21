@@ -4,7 +4,7 @@
  * navigable surfaces; `defineCrawlCapture` in `runner.ts` does the navigation.
  */
 
-/** A discovered surface: a filename-safe key and the same-origin path+query to navigate. */
+/** A discovered surface: a filename-safe key and the same-origin path+query (plus any hash route) to navigate. */
 export type CrawlLink = { key: string; url: string };
 
 /** Keep only links whose resolved URL matches a substring, RegExp, or predicate. Omit to keep every same-origin link. */
@@ -73,12 +73,20 @@ function resolveLink(href: string, base: URL, match?: LinkMatch): URL | null {
   return url.origin === base.origin && matches(url, match) ? url : null;
 }
 
+/** The fragment when it is a hash-router route (`#/settings`, `#!/settings`), else `''`. A route is a
+ *  page of its own; a plain `#anchor`, or the bare root route `#/`, is a spot on the page already loaded. */
+function hashRoute(url: URL): string {
+  return /^#!?\/./.test(url.hash) ? url.hash : '';
+}
+
 function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
   const url = resolveLink(href, base, match);
   if (!url) return null;
-  const path = url.pathname + url.search;
-  if (url.hash && path === base.pathname + base.search) return null; // a bare fragment of the crawl root is the same page
-  url.hash = ''; // navigate the surface, not a scroll anchor within it
+  const route = hashRoute(url);
+  const path = url.pathname + url.search + route;
+  // a bare fragment of the crawl root is the same page
+  if (url.hash && !route && path === base.pathname + base.search + hashRoute(base)) return null;
+  url.hash = route; // navigate the surface (its hash route included), not a scroll anchor within it
   return { key: keyFor(url), url: path };
 }
 
@@ -143,7 +151,7 @@ function collectUnique(links: Iterable<CrawlLink | null>, seen: Set<string>, use
 export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opts: SelectLinksOptions): CrawlLink[] {
   const base = new URL(opts.base);
   const keyFor = opts.key ?? defaultLinkKey;
-  const self = opts.includeSelf ? [{ key: keyFor(base), url: base.pathname + base.search }] : [];
+  const self = opts.includeSelf ? [{ key: keyFor(base), url: base.pathname + base.search + hashRoute(base) }] : [];
   const links = Array.from(hrefs, (href) => (href ? toLink(href, base, keyFor, opts.match) : null));
   return collectUnique([...self, ...links], new Set(), new Set());
 }

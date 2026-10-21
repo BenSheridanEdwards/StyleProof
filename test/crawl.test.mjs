@@ -67,6 +67,46 @@ test('selectCrawlLinks: a bare fragment of the crawl root is not a surface', () 
   assert.deepEqual(links, [{ key: 'a', url: '/?tab=a' }]); // hash stripped from the navigable url
 });
 
+test('selectCrawlLinks: a rendered hash-router link is a surface keyed by its route, hash kept in the url', () => {
+  // A hash-router nav (`<a href="#/settings">`) used to vanish on the crawl root as a "bare
+  // fragment", so only `index` was captured and a settings-panel change went unreported.
+  assert.deepEqual(pick(['#/settings', '/#/billing', '#!/legacy', '#main'], { includeSelf: true }), [
+    { key: 'index', url: '/' },
+    { key: 'settings', url: '/#/settings' },
+    { key: 'billing', url: '/#/billing' },
+    { key: 'legacy', url: '/#!/legacy' },
+  ]);
+  // Seen from another page, the route is not collapsed into its path (`index` at `/`).
+  assert.deepEqual(pick(['/#/settings'], { base: 'https://app.test/about' }), [
+    { key: 'settings', url: '/#/settings' },
+  ]);
+  assert.deepEqual(pick(['#/settings'], { base: 'https://app.test/app' }), [
+    { key: 'app-settings', url: '/app#/settings' },
+  ]);
+  // `match` and a custom `key` both see the route.
+  assert.deepEqual(
+    pick(['#/settings', '/about'], { match: /#\// }).map((l) => l.url),
+    ['/#/settings'],
+  );
+  assert.deepEqual(pick(['#/settings'], { key: (u) => `view-${u.hash.slice(2)}` }), [
+    { key: 'view-settings', url: '/#/settings' },
+  ]);
+});
+
+test('selectCrawlLinks: the bare root route `#/` and a crawl root that landed on a hash route never duplicate', () => {
+  // `/#/` is the router's root view, the same page as `/`: not a second `index-2` surface.
+  assert.deepEqual(pick(['#/', '#!/', '#/settings'], { includeSelf: true }), [
+    { key: 'index', url: '/' },
+    { key: 'settings', url: '/#/settings' },
+  ]);
+  // The router redirected `/` to `/#/home`: the crawl root IS `home`, so its own nav link dedupes against it.
+  assert.deepEqual(pick(['#/home', '#/settings', '#/'], { base: 'https://app.test/#/home', includeSelf: true }), [
+    { key: 'home', url: '/#/home' },
+    { key: 'settings', url: '/#/settings' },
+    { key: 'index', url: '/' },
+  ]);
+});
+
 test('selectCrawlLinks: match narrows by RegExp, substring, and predicate', () => {
   const hrefs = ['/?tab=a', '/help', '/about'];
   assert.deepEqual(

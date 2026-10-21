@@ -78,6 +78,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Rendered hash-router links now become crawl surfaces (#946).** The link
+  crawl treated every `#fragment` as an in-page anchor. On the crawl root it
+  dropped `<a href="#/settings">` and `/#/settings`. From any other page it cut
+  the route off, so the link keyed as its path (usually `index`), and a custom
+  `key` or `match` never saw the route. A hash-router nav therefore captured
+  only `index`. A change on the settings view went unreported, and an
+  `expected` list naming the routes failed as a nav regression. A `#/…` or
+  `#!/…` link now keeps its route: `/#/settings` keys `settings` and is captured
+  at `/#/settings`. This applies to `defineCrawlCapture` and
+  `styleproof-capture --follow-links`. A plain `#anchor` and the bare root
+  route `#/` still point at the page already loaded. A crawl root that lands on
+  a hash route is captured at that route. A hash-router app now gets new
+  surfaces, so add their keys to `expected` and re-capture the baseline.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
