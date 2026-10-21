@@ -4,8 +4,9 @@
 
 - **TypeScript** compiled with `tsc` to **ESM** (`"type": "module"`). Target
   `ES2022`, module `NodeNext`, `strict: true` (`tsconfig.json`).
-- **Node.js** — `engines.node >= 18`; CI matrix builds on Node 18, 20, 22 and
-  runs lint/format/privacy/audit/demo checks on 22.
+- **Node.js** — `engines.node >= 22.13.0` (also `devEngines`; `.nvmrc` is 22);
+  CI matrix builds on Node 22.13.0, 22 and 24 and runs
+  lint/format/privacy/audit/demo/coverage checks on 22.
 - Library output is `dist/`; CLIs are plain `.mjs` in `bin/`.
 
 ## Runtime dependencies

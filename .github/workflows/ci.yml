@@ -37,7 +37,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['18', '20', '22']
+        # 22.13.0 is the engines.node floor, tested exactly; 22 and 24 are the
+        # current LTS lines. The run-once gates below use the '22' leg.
+        node: ['22.13.0', '22', '24']
     steps:
       - uses: actions/checkout@v7
 
@@ -83,7 +85,7 @@ jobs:
 
       - name: Unit tests
         # Build already emitted and typechecked this exact checkout above.
-        # Coverage thresholds need Node 22.8+; keep plain units on 18/20.
+        # Coverage runs once, on the '22' leg; the other legs run plain units.
         if: matrix.node != '22'
         run: npm run test:unit
 
@@ -120,7 +122,7 @@ jobs:
 
       # The one place the browser capture path (page.evaluate + CDP) is
       # exercised — a self-contained file:// fixture, no live server. The
-      # Node-sensitive paths remain covered by units on 18, 20, and 22.
+      # Node-sensitive paths remain covered by units on every build matrix leg.
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"

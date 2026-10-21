@@ -269,6 +269,8 @@ removals below their first window count as visible.
 
 ## Quickstart
 
+StyleProof requires Node 22.13 or later, locally and in CI.
+
 ### Upgrading to 8.0.0
 
 StyleProof 8 runs in CI. Upgrade the npm package and the report Action to
@@ -507,9 +509,9 @@ contracts: [what it catches](docs/what-it-catches.md) ·
 ## Contributing
 
 Repository CI runs the full browser suite in two file-level shards alongside the
-Node 18/20/22 unit matrix. The `e2e (node 22)` aggregate compares completed test IDs
-against a separately collected full inventory and requires the five-run determinism
-receipt. Missing, duplicated, skipped, failed, or retried tests fail verification.
+unit matrix on Node 22.13.0 (the supported floor), 22, and 24. The
+`e2e (node 22)` aggregate compares completed test IDs against a separately
+collected full inventory and requires the five-run determinism receipt. Missing, duplicated, skipped, failed, or retried tests fail verification.
 The `browser-evidence-node-22` artifact retains the inventory, shard results, and
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
 

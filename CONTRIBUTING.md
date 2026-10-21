@@ -13,11 +13,11 @@ npm install                 # also runs `npm run build` via the `prepare` script
 npx playwright install chromium   # for the smoke e2e
 ```
 
-The published package supports Node 18+ (`engines.node: ">=18"`), and CI runs its
-build and unit tests on Node 18, 20, and 22. Developing it needs a newer Node: use
-Node 22.13+ (or 24+). The git hooks, lint, and commitlint depend on tools that
-declare newer engines: `@commitlint/cli` (`>=22.12.0`), `fallow` (`>=22`), and
-ESLint 10 (`^20.19.0 || ^22.13.0 || >=24`).
+The package requires Node 22.13+ (`engines.node: ">=22.13.0"`). CI runs its build
+and unit tests on Node 22.13.0 (the floor itself), 22, and 24. `.nvmrc` selects
+Node 22, and `devEngines` makes npm refuse to install on anything older than the
+floor. The floor comes from the dev toolchain: ESLint 10 declares
+`^20.19.0 || ^22.13.0 || >=24`, `@commitlint/cli` `>=22.12.0`, and `fallow` `>=22`.
 
 The only runtime dependency is `pngjs` (pure JS). Dev dependencies include
 `@playwright/test`, `typescript`, the `eslint` + `typescript-eslint` + `globals`
