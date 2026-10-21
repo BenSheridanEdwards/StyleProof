@@ -205,6 +205,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   expanded geometry and height. Expansion restores an absent inline style attribute
   as well as inline values, priorities, and scroll offsets. See
   [ADR 0006](.agents/decisions/0006-screenshot-geometry-visible-structure.md).
+- **BREAKING: non-PR branch reports now publish under `run-<run_id>/` instead of
+  `pr-<run_id>/` (#878).** Migration: update consumers that read non-PR report
+  paths on the report branch to use `run-<run_id>/`; PR paths and artifact names
+  are unchanged. Sweeps prune dated run reports and confirmed legacy run folders
+  alongside closed PR reports by retention and one oldest-first budget order.
+  Open PR reports and undated folders are always kept; failed PR listings or
+  uncertain lookups abort without deleting reports.
+
 - **Discovered Next.js routes no longer share a surface key.** `discoverNextRoutes`
   gave `/about-us` and `/about_us` the same key, so the spec from `styleproof-init`
   threw `capture key 'about-us' is produced by two surfaces` and did not load. A

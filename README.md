@@ -206,7 +206,9 @@ Reports publish as workflow artifacts by default. The comment links the artifact
 repository git history. Crops travel inside the published report package instead of being duplicated into the comment.
 Every report viewer needs an authenticated GitHub session, because artifact downloads are never anonymous.
 `report-storage: branch` opts into the `styleproof-reports` orphan branch for an in-browser rendered report, with
-anonymous access on public repositories only. If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
+anonymous access on public repositories only. PR reports use `pr-<n>/`; runs without a resolved PR use
+`run-<run_id>/`. Branch sweeps prune closed PR reports and dated run reports oldest first, protecting open PRs
+and folders whose age is unknown. If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
 
 ## Why
 
