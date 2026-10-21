@@ -4,6 +4,7 @@
 // Exit 0 = no changes, 1 = report generated, 2 = usage error.
 import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
+import { renderReportHtml } from '../dist/report/html.js';
 import { defineCli, number } from './cli.mjs';
 import { compareFlags, coverageExclusions, resolveCompareInputs, withCaptureDirs } from './compare.mjs';
 
@@ -88,10 +89,11 @@ if (sourceBindingFailed) {
     /✓ No reviewable computed-style changes/g,
     '⚠ UNVERIFIED DIAGNOSTIC: No reviewable computed-style changes',
   );
-  fs.writeFileSync(
-    result.reportMdPath,
-    relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled,
-  );
+  const labeled =
+    relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled;
+  fs.writeFileSync(result.reportMdPath, labeled);
+  // report.html was rendered from the unlabelled markdown; render it again so both carry the label (#964).
+  fs.writeFileSync(result.reportHtmlPath, renderReportHtml(labeled.replace(/\n$/, '')));
 }
 
 const consistencyFailed = result.reportConsistency?.ok === false;
