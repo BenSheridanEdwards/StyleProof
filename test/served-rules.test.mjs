@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { servedRulesOf } from '../dist/capture/reach.js';
+import { servedRulesOf, trackServedRules } from '../dist/capture/reach.js';
+import { assertDeterministicReach } from '../dist/runner/self-check.js';
 
 // The Change Reach ledger (#991) names every leaf rule of a stylesheet's text and
 // marks it used when a matched rule-usage range overlaps it.
@@ -66,7 +67,7 @@ test('servedRulesOf records custom properties declared and read, and keyframe or
   assert.equal(root.uses, undefined);
   assert.deepEqual(badge.uses, ['--warn', '--gap']);
   assert.ok(badge.refs.includes('pulse'));
-  assert.ok(title.refs.includes('Brand'), 'quoted family names are split into identifiers');
+  assert.deepEqual(title.refs, ['Brand Sans', 'sans-serif']);
   assert.equal(keyframes.key, '@keyframes pulse');
   assert.equal(keyframes.used, undefined);
 });
@@ -77,13 +78,172 @@ test('a changed custom property value changes its digest', () => {
   assert.notEqual(before.vars['--warn'], after.vars['--warn']);
 });
 
-test('servedRulesOf ends on unterminated comments, strings and blocks', () => {
+test('servedRulesOf fails with unknown reach on unterminated comments, strings and blocks', () => {
   for (const text of [
     '.a { color: red; } /* never closed',
     '.a { content: "never closed; }',
     '.a { color: red;',
     '@media (x) {',
   ]) {
-    assert.doesNotThrow(() => servedRulesOf(text, []), text);
+    assert.throws(() => servedRulesOf(text, []), /served CSS reach is unknown/, text);
   }
+});
+
+test('quoted and escaped delimiters do not swallow later rules or usage', () => {
+  const text = String.raw`[data-label="{;}"] { color: red; }
+    .escaped\{ { content: "quote\"}; still quoted"; }
+    .last { color: blue; }`;
+  const rules = servedRulesOf(text, used(text, '.last { color: blue; }'));
+  assert.deepEqual(
+    rules.map((r) => [r.key, r.used ?? false]),
+    [
+      ['[data-label="{;}"]', false],
+      [String.raw`.escaped\{`, false],
+      ['.last', true],
+    ],
+  );
+  const before = servedRulesOf(String.raw`.a { content: "quote\"}; before"; }`, []);
+  const after = servedRulesOf(String.raw`.a { content: "quote\"}; after"; }`, []);
+  assert.notEqual(before[0].hash, after[0].hash);
+});
+
+test('statement delimiters in strings, comments and component values are opaque', () => {
+  const text = `@import url("{;}.css");
+    @media (test: "{;") { [data-label="}"] /* { ; */ { --value: fn(a;b); } }
+    .last { color: blue; }`;
+  assert.deepEqual(
+    servedRulesOf(text, []).map((r) => r.key),
+    ['@media (test: "{;") > [data-label="}"] /* { ; */', '.last'],
+  );
+});
+
+test('significant whitespace in strings and escaped identifiers survives keys and hashes', () => {
+  const rule = (css) => servedRulesOf(css, [])[0];
+  assert.notEqual(
+    rule('.a { content: "a  b"; white-space: pre; }').hash,
+    rule('.a { content: "a b"; white-space: pre; }').hash,
+  );
+  assert.notEqual(rule('[data-label="a  b"] { color: red; }').key, rule('[data-label="a b"] { color: red; }').key);
+  assert.notEqual(rule(String.raw`.a\  b { color: red; }`).key, rule(String.raw`.a\ b { color: red; }`).key);
+  assert.notEqual(rule(String.raw`.a { content: "\31  2"; }`).hash, rule(String.raw`.a { content: "\31 2"; }`).hash);
+});
+
+test('nested CSS fails with unknown reach even when the outer rule matched', () => {
+  for (const text of [
+    '.panel { color: red; &.fault { color: blue; } }',
+    '.panel { &:hover { color: blue; } }',
+    '.panel { div { color: blue; } }',
+    '.panel { @media (width > 1px) { color: blue; } }',
+  ]) {
+    assert.throws(() => servedRulesOf(text, used(text, text)), /served CSS reach is unknown/, text);
+  }
+});
+
+test('malformed component values fail instead of producing partial evidence', () => {
+  for (const text of ['.a { --x: fn(; }', '[data-label="x" { color: red; }', '.a { color: red; }}']) {
+    assert.throws(() => servedRulesOf(text, []), /served CSS reach is unknown/, text);
+  }
+});
+
+test('custom property digests include complete strings and balanced component values', () => {
+  for (const [before, after] of [
+    ['"a;b"', '"a;c"'],
+    ['fn(a;b)', 'fn(a;c)'],
+    ['{ x: a; y: b; }', '{ x: a; y: c; }'],
+    [String.raw`"a\";b"`, String.raw`"a\";c"`],
+    ['"a  b"', '"a b"'],
+  ]) {
+    const [left] = servedRulesOf(`:root { --label: ${before}; --other: yes; }`, []);
+    const [right] = servedRulesOf(`:root { --label: ${after}; --other: yes; }`, []);
+    assert.notEqual(left.vars['--label'], right.vars['--label'], `${before} versus ${after}`);
+    assert.equal(left.vars['--other'], right.vars['--other']);
+  }
+});
+
+test('font references preserve complete quoted and unquoted family names', () => {
+  const [rule] = servedRulesOf('.title { font-family: "Brand  Sans", Foo Bar, "Semi;Comma,Font", sans-serif; }', []);
+  assert.deepEqual(rule.refs, ['Brand  Sans', 'Foo Bar', 'Semi;Comma,Font', 'sans-serif']);
+});
+
+test('unsupported escaped font dependencies and shorthands fail with unknown reach', () => {
+  for (const declaration of [
+    String.raw`font-family: Brand\ Sans`,
+    String.raw`font-family: "Brand\22 Sans"`,
+    'font: italic 16px "Brand Sans"',
+    'font-family: var(--family)',
+  ]) {
+    assert.throws(() => servedRulesOf(`.title { ${declaration}; }`, []), /served CSS reach is unknown/, declaration);
+  }
+});
+
+async function trackedLedger(sheets) {
+  let added;
+  const client = {
+    on: (event, listener) => {
+      if (event === 'CSS.styleSheetAdded') added = listener;
+    },
+    send: async (command, params) => {
+      if (command === 'CSS.enable') {
+        for (const sheet of sheets) {
+          added({ header: { origin: 'regular', isInline: true, sourceURL: '', ...sheet } });
+        }
+      }
+      if (command === 'CSS.getStyleSheetText') return sheets.find((s) => s.styleSheetId === params.styleSheetId);
+      if (command === 'CSS.stopRuleUsageTracking') {
+        return {
+          ruleUsage: sheets.flatMap((s) =>
+            s.used ? [{ styleSheetId: s.styleSheetId, used: true, startOffset: 0, endOffset: s.text.length }] : [],
+          ),
+        };
+      }
+      return {};
+    },
+    detach: async () => {},
+  };
+  const tracker = await trackServedRules({ context: () => ({ newCDPSession: async () => client }) });
+  try {
+    await tracker.start();
+    return await tracker.stop([]);
+  } finally {
+    await tracker.dispose();
+  }
+}
+
+test('sheet discovery order cannot move usage between repeated rule keys', async () => {
+  const sheets = [
+    { styleSheetId: 'one', text: '.a { color: red; }', used: true },
+    { styleSheetId: 'two', text: '.a { color: blue; }' },
+  ];
+  const first = await trackedLedger(sheets);
+  assert.deepEqual(first, await trackedLedger([...sheets].reverse()));
+  assert.equal(first.rules.filter((r) => r.used).length, 1);
+});
+
+test('identical sheet labels and text fail as ambiguous in either discovery order', async () => {
+  const sheets = [
+    { styleSheetId: 'one', text: '.a { color: red; }', used: true },
+    { styleSheetId: 'two', text: '.a { color: red; }' },
+  ];
+  for (const order of [sheets, [...sheets].reverse()]) {
+    await assert.rejects(trackedLedger(order), /served CSS reach is unknown: ambiguous identical stylesheets/);
+  }
+});
+
+test('reach self-check rejects ledger drift and missing evidence with unchanged styles', () => {
+  const reach = { sheets: ['inline'], rules: [{ sheet: 0, key: '.a', hash: 'abc', used: true }] };
+  const first = { elements: [], reach };
+  assert.doesNotThrow(() => assertDeterministicReach(first, structuredClone(first), 'home'));
+  for (const changed of [
+    undefined,
+    { ...reach, rules: [{ ...reach.rules[0], used: undefined }] },
+    { ...reach, rules: [{ ...reach.rules[0], hash: 'def' }] },
+    { ...reach, sheets: ['constructed'] },
+    { ...reach, unreadable: 1 },
+  ]) {
+    assert.throws(
+      () => assertDeterministicReach(first, { elements: [], reach: changed }, 'home'),
+      /self-check failed: home is non-deterministic.*reach/,
+    );
+  }
+  assert.throws(() => assertDeterministicReach({ elements: [] }, { elements: [] }, 'home'), /reach.*missing/);
 });

@@ -137,9 +137,9 @@ export type StyleMap = {
 
 /** One served CSS leaf rule (a style rule, `@keyframes`, `@font-face`…) in the Change Reach ledger. */
 export type ServedRule = {
-  /** At-rule chain and prelude, whitespace-collapsed (`@media (min-width: 1440px) > .panel`); a repeat gets ` #2`, ` #3`… */
+  /** At-rule chain and prelude, preserving strings/escapes (`@media (min-width: 1440px) > .panel`); repeats get ` #2`… */
   key: string;
-  /** Digest of the whitespace-collapsed declaration block: a changed body changes it. */
+  /** Digest of the declaration block, collapsing whitespace only outside strings, comments and escapes. */
   hash: string;
   /** Index into `ServedRules.sheets`. */
   sheet: number;

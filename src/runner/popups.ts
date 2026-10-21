@@ -13,7 +13,7 @@ import { diffStyleMaps } from '../diff.js';
 import { realNow } from '../spec-clock.js';
 import { captureArtifactStem } from '../surface-keys.js';
 import { popupDomSnapshot, type PopupCandidate, type PopupSnapshotArgs } from './browser.js';
-import { selfCheckErrorMessage } from './self-check.js';
+import { assertDeterministicReach, selfCheckErrorMessage } from './self-check.js';
 import { captureOptionsFor, resolvePopupCaptureOptions } from './settings.js';
 import type { ExpandedSurface, ResolvedPopupCaptureOptions, Settings } from './types.js';
 
@@ -134,6 +134,7 @@ async function assertPopupDeterministic(
     );
   }
   const again = await captureOpenedPopupMap(run, popupId);
+  if (run.s.captureReach) assertDeterministicReach(first, again, `${run.surface.key}-${popupId}`);
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     throw new Error(

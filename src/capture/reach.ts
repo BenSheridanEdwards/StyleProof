@@ -15,45 +15,83 @@ type SheetHeader = {
   isConstructed?: boolean;
 };
 
-const collapse = (s: string): string => s.replace(/\s+/g, ' ').trim();
 const digest = (s: string): string => createHash('sha256').update(s).digest('hex').slice(0, 16);
 // Grouping at-rules hold rules; every other block is a leaf (style rule, @keyframes, @font-face…).
 const GROUPING = /^@(media|supports|layer|container|scope|document|starting-style)\b/i;
-// Declarations that name a @keyframes or @font-face by identifier.
-const REFERENCING = /(?:^|;)\s*(animation(?:-name)?|font(?:-family)?)\s*:\s*([^;]+)/gi;
-
-/** Index just past the `close` that ends the run opened at `from`, or `limit` when it never closes. */
-function past(text: string, close: string, from: number, limit: number): number {
-  const at = text.indexOf(close, from);
-  return at === -1 ? limit : at + close.length;
+function unknown(detail: string): never {
+  throw new Error(`styleproof: served CSS reach is unknown: ${detail}`);
 }
 
-/** Matching close brace for the `{` at `open`, skipping comments and strings. */
-function closeOf(text: string, open: number): number {
-  let depth = 0;
-  for (let i = open; i < text.length; i++) {
-    const ch = text[i];
-    if (text.startsWith('/*', i)) i = past(text, '*/', i + 2, text.length) - 1;
-    else if (ch === '"' || ch === "'") i = past(text, ch, i + 1, text.length) - 1;
-    else if (ch === '{') depth++;
-    else if (ch === '}' && --depth === 0) return i;
+/** A CSS escape includes up to six hex digits and their optional whitespace terminator. */
+function escapeEnd(text: string, i: number): number {
+  const escape = /^\\(?:[\da-f]{1,6}(?:\r\n|[ \t\r\n\f])?|\r\n|[^\r])/i.exec(text.slice(i));
+  if (!escape) unknown('unterminated escape');
+  return i + escape[0].length;
+}
+
+/** Strings, escapes and comments are opaque to delimiter and whitespace scans. */
+function opaqueEnd(text: string, i: number): number {
+  if (text.startsWith('/*', i)) {
+    const end = text.indexOf('*/', i + 2);
+    if (end === -1) unknown('unterminated comment');
+    return end + 2;
   }
-  return text.length - 1;
+  if (text[i] === '\\') return escapeEnd(text, i);
+  const quote = text[i];
+  if (quote !== '"' && quote !== "'") return i;
+  for (let end = i + 1; end < text.length;) {
+    if (text[end] === quote) return end + 1;
+    if (/[\r\n\f]/.test(text[end])) unknown('newline in string');
+    end = text[end] === '\\' ? escapeEnd(text, end) : end + 1;
+  }
+  return unknown('unterminated string');
 }
 
-/** Next significant index at or after `i`: past whitespace, comments, and the `}` of a closed block. */
-function skipTrivia(text: string, i: number, to: number): number {
-  while (i < to && (text.startsWith('/*', i) || /\s|}/.test(text[i])))
-    i = text.startsWith('/*', i) ? past(text, '*/', i + 2, to) : i + 1;
+/** Next delimiter outside strings, comments, escapes and balanced component values. */
+function delimiter(text: string, from: number, stops: string): number {
+  const stack: string[] = [];
+  const closes: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+  for (let i = from; i < text.length; i++) {
+    const end = opaqueEnd(text, i);
+    if (end > i) {
+      i = end - 1;
+      continue;
+    }
+    const ch = text[i];
+    if (!stack.length && stops.includes(ch)) return i;
+    if (closes[ch]) stack.push(closes[ch]);
+    else if (')]}'.includes(ch) && stack.pop() !== ch) unknown('unbalanced delimiter');
+  }
+  if (stack.length) unknown('unclosed block or component value');
+  return text.length;
+}
+
+/** Collapse only CSS whitespace outside opaque tokens, preserving their significant contents. */
+function collapse(text: string): string {
+  let result = '';
+  let space = '';
+  for (let i = 0; i < text.length;) {
+    const end = opaqueEnd(text, i);
+    if (end === i && /[ \t\r\n\f]/.test(text[i])) {
+      if (result) space = ' ';
+      i++;
+    } else {
+      result += space + text.slice(i, end > i ? end : i + 1);
+      space = '';
+      i = end > i ? end : i + 1;
+    }
+  }
+  return result;
+}
+
+function skipTrivia(text: string, from: number, to: number): number {
+  let i = from;
+  while (i < to) {
+    if (text.startsWith('/*', i)) i = opaqueEnd(text, i);
+    else if (/[ \t\r\n\f]/.test(text[i])) i++;
+    else break;
+  }
   return i;
-}
-
-/** End of a statement at-rule such as `@import …;` at `i`, or -1 when a block opens first. */
-function statementEnd(text: string, i: number, to: number): number {
-  const brace = text.indexOf('{', i);
-  const semi = text.indexOf(';', i);
-  if (brace !== -1 && brace < to && (semi === -1 || semi > brace)) return -1;
-  return semi === -1 || semi >= to ? to : semi + 1;
 }
 
 type LeafRule = { key: string; body: string; start: number; end: number };
@@ -63,13 +101,14 @@ function leafRules(text: string): LeafRule[] {
   const rules: LeafRule[] = [];
   const walk = (from: number, to: number, chain: string[]): void => {
     for (let i = skipTrivia(text, from, to); i < to; i = skipTrivia(text, i, to)) {
-      const end = statementEnd(text, i, to);
-      if (end !== -1) {
-        i = end;
+      const brace = delimiter(text, i, '{;}');
+      if (text[brace] === ';' && text[i] === '@') {
+        i = brace + 1;
         continue;
       }
-      const brace = text.indexOf('{', i);
-      const close = closeOf(text, brace);
+      if (brace >= to || text[brace] !== '{') unknown('unsupported rule prelude');
+      const close = delimiter(text, brace + 1, '}');
+      if (close >= to) unknown('unclosed rule block');
       const prelude = collapse(text.slice(i, brace));
       if (GROUPING.test(prelude)) walk(brace + 1, close, [...chain, prelude]);
       else
@@ -86,22 +125,63 @@ function leafRules(text: string): LeafRule[] {
   return rules;
 }
 
+/** Complete declaration values, including semicolons in strings/functions/custom-property blocks. */
+function declarations(body: string): [string, string][] {
+  const result: [string, string][] = [];
+  for (let i = skipTrivia(body, 0, body.length); i < body.length;) {
+    const end = delimiter(body, i, ';');
+    const colon = delimiter(body.slice(0, end), i, ':{');
+    if (body[colon] !== ':') unknown('nested rule or unsupported declaration');
+    const property = collapse(body.slice(i, colon));
+    if (!/^(?:--)?[\w-]+$/.test(property)) unknown('unsupported declaration name');
+    const value = body.slice(colon + 1, end);
+    if (!property.startsWith('--') && delimiter(value, 0, '{') < value.length)
+      unknown('nested rule or unsupported declaration value');
+    result.push([property, collapse(value)]);
+    i = skipTrivia(body, end + 1, body.length);
+  }
+  return result;
+}
+
 /** The custom properties a body declares (name → value digest) and the ones it reads through `var()`. */
-function customProperties(body: string): Pick<ServedRule, 'vars' | 'uses'> {
-  const declared = [...body.matchAll(/(?:^|;)\s*(--[\w-]+)\s*:\s*([^;]*)/g)];
+function customProperties(body: string, values: [string, string][]): Pick<ServedRule, 'vars' | 'uses'> {
+  const declared = values.filter(([property]) => property.startsWith('--'));
   const read = [...new Set([...body.matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]))];
   return {
-    ...(declared.length ? { vars: Object.fromEntries(declared.map((m) => [m[1], digest(collapse(m[2]))])) } : {}),
+    ...(declared.length ? { vars: Object.fromEntries(declared.map(([name, value]) => [name, digest(value)])) } : {}),
     ...(read.length ? { uses: read } : {}),
   };
 }
 
+function commaValues(value: string): string[] {
+  const values: string[] = [];
+  for (let i = 0; i < value.length;) {
+    const end = delimiter(value, i, ',');
+    values.push(value.slice(i, end).trim());
+    i = end + 1;
+  }
+  return values;
+}
+
+function fontFamily(family: string): string {
+  if (family[0] === '"' || family[0] === "'") {
+    if (opaqueEnd(family, 0) !== family.length) unknown('unsupported font family');
+    return family.slice(1, -1);
+  }
+  if (!/^[-\w]+(?: [-\w]+)*$/.test(family)) unknown('unsupported font family');
+  return family;
+}
+
 /** Identifiers in `animation`/`font` declarations: candidate @keyframes and @font-face names. */
-function referencedNames(body: string): string[] {
-  const names = [...body.matchAll(REFERENCING)].flatMap((m) =>
-    m[2].split(/[\s,]+/).map((t) => t.replace(/^["']|["']$/g, '')),
-  );
-  return [...new Set(names.filter((t) => /^-?[_a-zA-Z][\w-]*$/.test(t)))];
+function referencedNames(values: [string, string][]): string[] {
+  const names = values.flatMap(([property, value]) => {
+    if (!/^(animation(?:-name)?|font(?:-family)?)$/i.test(property)) return [];
+    if (/^font$/i.test(property) || /\\|\/\*|\(/.test(value)) unknown('unsupported font or animation dependency');
+    if (/^font-family$/i.test(property)) return commaValues(value).map(fontFamily);
+    if (/["']/.test(value)) unknown('unsupported animation dependency');
+    return value.split(/[\s,]+/).filter((t) => /^-?[_a-zA-Z][\w-]*$/.test(t));
+  });
+  return [...new Set(names)];
 }
 
 /**
@@ -111,12 +191,16 @@ function referencedNames(body: string): string[] {
  */
 export function servedRulesOf(text: string, used: readonly UsedRange[]): Omit<ServedRule, 'sheet'>[] {
   return leafRules(text).map((rule) => {
-    const refs = referencedNames(rule.body);
+    const keyframes = /^@(?:-\w+-)?keyframes\b/i.test(text.slice(rule.start));
+    const values = keyframes
+      ? leafRules(rule.body).flatMap((frame) => declarations(frame.body))
+      : declarations(rule.body);
+    const refs = referencedNames(values);
     return {
       key: rule.key,
       hash: digest(rule.body),
       ...(used.some((r) => r.startOffset < rule.end && r.endOffset > rule.start) ? { used: true as const } : {}),
-      ...customProperties(rule.body),
+      ...customProperties(rule.body, values),
       ...(refs.length ? { refs } : {}),
     };
   });
@@ -164,8 +248,10 @@ async function readSheets(
     else if (!ownCss.includes(text.trim())) read.push({ label, text, styleSheetId: header.styleSheetId });
   }
   // Discovery order varies between runs; the ledger must not.
-  const order = (s: ReadSheet): string => `${s.label}\n${digest(s.text)}`;
-  return { read: read.sort((a, b) => (order(a) < order(b) ? -1 : order(a) > order(b) ? 1 : 0)), unreadable };
+  const order = (s: ReadSheet): string => JSON.stringify([s.label, s.text]);
+  read.sort((a, b) => (order(a) < order(b) ? -1 : order(a) > order(b) ? 1 : 0));
+  if (read.some((sheet, i) => i > 0 && order(sheet) === order(read[i - 1]))) unknown('ambiguous identical stylesheets');
+  return { read, unreadable };
 }
 
 /**
