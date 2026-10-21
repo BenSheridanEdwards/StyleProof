@@ -215,19 +215,21 @@
       .stage {
         position: relative;
         overflow: clip;
-        background: repeating-linear-gradient(
-          45deg,
-          color-mix(in oklch, var(--muted) 25%, transparent) 0 6px,
-          transparent 6px 12px
-        );
       }
       [data-interaction='hover'] .stage {
         touch-action: pan-y;
         cursor: col-resize;
       }
+      /* Opaque hatch: where a side's image does not cover the stage, show "no pixels", never the other side. */
       .layer {
         position: absolute;
         inset: 0;
+        background-color: var(--panel);
+        background-image: repeating-linear-gradient(
+          45deg,
+          color-mix(in oklch, var(--muted) 25%, transparent) 0 6px,
+          transparent 6px 12px
+        );
       }
       .layer .split {
         position: absolute;

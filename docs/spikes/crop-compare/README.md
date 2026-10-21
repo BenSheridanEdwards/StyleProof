@@ -10,7 +10,7 @@ the options so the owner can decide.
 
 ## Open it
 
-Open `docs/spikes/crop-compare/index.html` from a checkout of this repository. It works from `file://`. It is one
+Open `docs/spikes/crop-compare/index.html` from a checkout of this repository. It works from a `file:` URL. It is one
 self-contained page with inline CSS and JS, no build step, no network and no libraries. The crops load by relative path
 (`../../demo/crops/…`, `../../proof/…`), so the page must stay inside the checkout.
 
@@ -23,7 +23,7 @@ Query parameters, for scripted screenshots:
 - `?interaction=hover` selects hover-to-reveal.
 
 Example: `index.html?width=390&interaction=hover`. The on-page toggles set the same state. They try to write it back
-to the URL; some browsers refuse `history.replaceState` on `file://`, and the toggles still work when they do.
+to the URL; some browsers refuse `history.replaceState` on a `file:` URL, and the toggles still work when they do.
 
 With JavaScript off, every crop renders as a static before/after pair, stacked when two copies do not fit. Nothing
 depends on the slider working.
@@ -36,9 +36,9 @@ All four are real images already committed to this repository. None was made for
    runtime. Each side 424×180. **Side-by-side at 1280.** A report crop that fits twice. The change (an `Old` → `New`
    label) is small; the demo report adds a 2× zoom for it.
 2. **Hard to find: `::marker` colour.** `docs/proof/issue-447/full-v2-run-1/cases/computed-pseudo-marker-color-v2/`
-   `before.png` and `after.png` (#447 benchmark render proof). About 640×100 (see the note below). **Slider at 1280
-   expected.** A bullet a few pixels wide turns green → red and nothing else moves. This is the real "find the change
-   without guessing" test.
+   `before.png` and `after.png` (#447 benchmark render proof). Each 640×98. **Slider at 1280** (2 × 640 + 16 = 1296 >
+   1248). A bullet a few pixels wide turns green → red and nothing else moves. This is the real "find the change without
+   guessing" test.
 3. **Wide: board@800 band.** `docs/proof/rect-inner-scroll/crops/board-800-1-composite.png`, split at runtime. Each
    side 800×424. **Slider at 1280.** A report crop wider than half the container.
 4. **Full page: inner-scroll shell at 800px.** `docs/proof/fullpage-inner-scroll/before-unexpanded.png` (800×800) and
@@ -47,10 +47,11 @@ All four are real images already committed to this repository. None was made for
 
 At 390px every crop uses the slider.
 
-Note on sizes: the shell in this session could not run an image tool, so the sizes above come from the proof READMEs,
-from the composite geometry below, and from viewing the files. The page does not trust them. It reads each image's
-`naturalWidth`/`naturalHeight` at runtime and prints the measured size and the computed mode on every crop. If the
-marker pair is narrower than 616px, the page will show it side-by-side at 1280 and say why.
+The sizes above were measured with `file`. The page does not hard-code them: it reads each image's
+`naturalWidth`/`naturalHeight` at runtime and prints the measured size and the computed mode on every crop.
+
+When the two sides differ in size, the part of the slider a side's image does not cover shows an opaque hatch ("no
+pixels on this side"), so the before side never shows after pixels and the after side never shows before pixels.
 
 ### Split geometry for composites
 
@@ -150,8 +151,9 @@ GitHub's Markdown view, not as `report.html`.
 
 ## Hosting options
 
-"Unverified" marks facts I took from memory of GitHub's and vendors' documentation and could not check in this session
-(no network). Plans and limits change; check them before deciding.
+Facts with a source link were checked against GitHub's documentation or with `curl` after the build session.
+"Unverified" marks facts taken from memory of GitHub's and vendors' documentation and not checked. Plans and limits
+change; check them before deciding.
 
 ### (a) Status quo: Markdown blob view (branch mode) and artifact HTML (default)
 
@@ -164,26 +166,36 @@ GitHub's Markdown view, not as `report.html`.
 
 ### (b) GitHub Pages serving the report branch
 
-- Private repos: Pages on a private repo needs a paid plan (Pro, Team or Enterprise) — unverified. On those plans the
-  site is **public** even though the repo is private, unless the org is on Enterprise Cloud and uses private Pages
-  access control — unverified.
-- Who can see it: a public site is open to anyone with the URL. Private Pages: people with read access — unverified.
+- Private repos: Pages is available for private repos on GitHub Pro, Team, Enterprise Cloud and Enterprise Server;
+  GitHub Free has Pages for public repos only
+  ([GitHub's products](https://docs.github.com/en/get-started/learning-about-github/githubs-products)). The site is
+  **public** to anyone on the internet even though the repo is private, unless the repo belongs to an organization on
+  Enterprise Cloud that publishes the project site from a private or internal repo with private visibility
+  ([changing the visibility of your Pages site](https://docs.github.com/en/enterprise-cloud@latest/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site)).
+- Who can see it: a public site, anyone on the internet. A privately published site, people with read access to the
+  repo (same page).
 - JS: yes.
 - Consumer setup: enable Pages and pick a source. A branch source runs GitHub's Pages build (Jekyll unless the branch
-  has `.nojekyll`). An Actions source needs a deploy job with `pages: write` and `id-token: write`. A repo has one Pages
-  site, so this collides with a repo that already publishes docs on Pages. StyleProof would also have to start
-  publishing `report.html` to the branch (today it does not; see above).
-- Risk: for most private repos, crops of the app under review become public. That is the main risk. Fork PRs cannot
-  deploy (no write token).
-- Latency: a build or deploy per publish, usually about a minute; the Pages CDN can serve a stale copy for some minutes
-  — unverified.
+  has `.nojekyll`), but pushes made with the workflow's `GITHUB_TOKEN` do not trigger a branch-source build
+  ([configuring a publishing source](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)).
+  StyleProof publishes the report branch from a workflow, so the realistic path is an Actions source: a custom deploy
+  job using `actions/upload-pages-artifact` and `actions/deploy-pages`, with `pages: write` and `id-token: write`. A
+  repo has one Pages site, so this collides with a repo that already publishes docs on Pages. StyleProof would also
+  have to start publishing `report.html` (today it does not; see above).
+- Risk: for most private repos, crops of the app under review become public. That is the main risk. A `pull_request`
+  job from a fork gets a read-only token and no secrets, so it cannot deploy itself. A trusted downstream workflow
+  (`workflow_run`) could publish a fork's report, with the usual risks of handling untrusted input from a fork.
+- Latency: a build or deploy per publish; GitHub says changes can take up to 10 minutes to publish (visibility page
+  above). The Pages CDN can serve a stale copy for some minutes — unverified.
 
 ### (c) raw.githubusercontent.com or htmlpreview-style proxies
 
-- Private repos: raw needs a token in the URL; public proxies can only fetch public repos.
+- Private repos: for a private repo, raw.githubusercontent.com requires authentication (a token); public proxies can
+  only fetch public repos.
 - Who can see it: raw, repo readers; a proxy, anyone, plus the proxy operator.
-- JS: raw serves files as `text/plain` (with `nosniff` — unverified header detail), so the browser shows source, not a
-  page. Not viable.
+- JS: raw serves files as `content-type: text/plain; charset=utf-8` with `x-content-type-options: nosniff` and
+  `content-security-policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`, so the browser shows source, not
+  a page, and script cannot run even if the type were sniffed (checked with `curl` on a public file). Not viable.
 - Consumer setup: none, but it does not work.
 - Risk: a third-party proxy fetches and may log the report. A token in a URL leaks access.
 - Latency: immediate.
@@ -191,12 +203,15 @@ GitHub's Markdown view, not as `report.html`.
 ### (d) Workflow artifact HTML download (today's default storage)
 
 - Private repos: yes.
-- Who can see it: signed-in users with read access to the repo. Download needs sign-in even on public repos —
-  unverified.
-- JS: yes, after unzip and open from disk. This spike shows `file://` is enough for a slider viewer.
+- Who can see it: signed-in users with read access to the repo. Download needs read access and sign-in even on public
+  repos
+  ([downloading workflow artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)).
+- JS: yes, after unzip and open from disk. This spike shows a `file:` URL is enough for a slider viewer.
 - Consumer setup: none; it is the default.
-- Risk: crops stay on GitHub and expire with retention (30 days by default here; GitHub's maximum depends on plan and
-  repo settings — unverified). Nothing is written to git history.
+- Risk: crops stay on GitHub and expire with retention. This repo's action sets `report-retention-days` to 30 by
+  default. GitHub allows 1–90 days for public repos and 1–400 days for private repos, default 90
+  ([artifact and log retention](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization)).
+  Nothing is written to git history.
 - Latency: available as soon as the upload finishes, but download, unzip and open is three steps, and there is no
   inline view.
 
@@ -206,20 +221,22 @@ GitHub's Markdown view, not as `report.html`.
 - Who can see it: whoever the host lets in. The default for most is anyone with the URL. Access control (Cloudflare
   Access, Netlify or Vercel password or SSO) is often a paid tier — unverified.
 - JS: yes.
-- Consumer setup: an account, a deploy secret in the repo, a deploy step and access-control config. Fork PRs do not get
-  secrets.
-- Risk: crops of the app leave GitHub for a third party. CI holds a deploy secret. It adds a service to an Action that
-  needs none today.
+- Consumer setup: an account, deploy credentials (a secret in the repo or OIDC federation, depending on the host), a
+  deploy step and access-control config. A `pull_request` job from a fork gets no secrets; a trusted `workflow_run`
+  could deploy, with the same untrusted-input risks as in (b).
+- Risk: crops of the app leave GitHub for a third party. CI holds deploy credentials. It adds a service to an Action
+  that needs none today.
 - Latency: seconds to a minute per deploy — unverified.
 
 ### (f) Open locally with a CLI
 
-`gh run download` (or a future StyleProof helper, not built) fetches the artifact and opens `report.html`.
+`gh run download` downloads and extracts the artifact; the reviewer then opens `report.html` from disk as a separate
+step. A future StyleProof helper (proposed, not built) could do both in one command.
 
 - Private repos: yes. Who can see it: whoever can download the artifact. JS: yes.
 - Consumer setup: `gh` installed and signed in.
 - Risk: same as (d).
-- Latency: one command instead of three clicks.
+- Latency: one command and an open instead of three clicks; one command with the helper.
 
 ### (g) Gist, PR comment, check-run summary
 
@@ -229,14 +246,16 @@ All render sanitised Markdown. No JS, so no slider. They suit the static fallbac
 
 1. **Keep the artifact as the default**, and make an interactive `report.html` the thing inside it. It works for
    private repos, keeps crops on GitHub under repo permissions, writes nothing to git history, and needs no setup. The
-   spike shows the viewer can be one self-contained file that runs from `file://`, so it needs no host. The cost is the
+   spike shows the viewer can be one self-contained file that runs from a `file:` URL, so it needs no host. The cost is the
    download and unzip. A later CLI helper (option f) could cut that to one command.
 2. **Offer GitHub Pages as an opt-in, documented for public repos only.** It gives a one-click in-browser report. Do
-   not recommend it for private repos unless the owner confirms the org has private Pages: on most paid plans a Pages
-   site from a private repo is public, which would publish crops of an unreleased app. It also needs `pages: write` and
-   `id-token: write`, collides with an existing Pages site, and adds a deploy delay.
+   not recommend it for private repos unless the owner confirms the org is on Enterprise Cloud with private Pages
+   visibility: otherwise a Pages site from a private repo is public, which would publish crops of an unreleased app.
+   Because workflow pushes with `GITHUB_TOKEN` do not trigger a branch-source build, it would be a custom Actions
+   deploy (`actions/upload-pages-artifact` + `actions/deploy-pages`), which needs `pages: write` and `id-token: write`.
+   It also collides with an existing Pages site and adds a deploy delay.
 3. **Do not use raw or proxy URLs, or an external host, by default.** Raw cannot render HTML. Proxies and external
-   hosts move private crops to a third party and need secrets.
+   hosts move private crops to a third party, and external hosts need deploy credentials.
 4. **Whatever is chosen, keep the static fallback.** The PR comment and `report.md` keep the static side-by-side
    Markdown with PNG crops. That is the only view that works in GitHub's blob view, in email notifications and with
    JavaScript off, and it is the evidence of record. The slider is an enhancement on top of it, never a replacement.
@@ -248,5 +267,28 @@ above argue that the comment stays as the thin summary with static crops.
 
 - Prototype code, not product code. No tests. It will not be maintained.
 - Only four crops. Real reports can have dozens; scroll and load cost are not measured.
-- Not checked in Safari, Firefox or on a real phone in this session.
-- The hosting facts marked unverified need checking against current GitHub and vendor documentation.
+- Checked in Chromium (Playwright) outside the build session: at 1280 the modes are side-by-side, slider, slider,
+  slider; at 390 every crop slides. The scrubber moves with a mouse drag on the track and with the keyboard (Arrow 1%,
+  Shift+Arrow 10%, Home/End). Hover follows the mouse. At 390 with touch emulation, a touch tap and a touch drag move
+  the divider in both interactions. With JavaScript disabled every crop shows its static pair and no slider. Resizing
+  re-evaluates the mode.
+- Not checked in Safari, Firefox, on a real phone or with a screen reader.
+- The hosting facts still marked unverified need checking against current GitHub and vendor documentation.
+
+## Screenshots
+
+Chromium (Playwright) captures in [`screenshots/`](screenshots/):
+
+- [`1280-scrubber.png`](screenshots/1280-scrubber.png): 1280px, scrubber.
+- [`1280-hover.png`](screenshots/1280-hover.png): 1280px, hover-to-reveal.
+- [`390-scrubber.png`](screenshots/390-scrubber.png): 390px, scrubber.
+- [`390-hover.png`](screenshots/390-hover.png): 390px, hover-to-reveal.
+- [`1280-no-js.png`](screenshots/1280-no-js.png): 1280px, JavaScript off, the static fallback.
+- [`390-no-js.png`](screenshots/390-no-js.png): 390px, JavaScript off, the static fallback.
+- [`scrubber-hard-to-find-30.png`](screenshots/scrubber-hard-to-find-30.png): the `::marker` crop, scrubber, divider
+  moved to 30% with the keyboard.
+- [`hover-hard-to-find-60.png`](screenshots/hover-hard-to-find-60.png): the `::marker` crop, hover-to-reveal, divider
+  at 60% under the mouse.
+- [`390-touch-device.png`](screenshots/390-touch-device.png): a 390px touch-emulated device after a touch drag to 70%.
+- [`fullpage-before-100.png`](screenshots/fullpage-before-100.png): the full-page crop with the divider at 100%
+  (before): the 800×800 before image, then hatch where before has no pixels, never the 800×2000 after image.
