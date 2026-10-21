@@ -31,6 +31,7 @@ is listed here only if it exists and runs on a clean checkout.
 | Map-store dogfood       | real capture + map store + diff                            | CI (`pull_request`)            | `.github/workflows/store-dogfood.yml`                                                                                                                                           |
 | Live StyleProof dogfood | Action on `styleproof.config.ts` surfaces (`example/demo`) | CI (`pull_request`, same-repo) | `.github/workflows/styleproof-dogfood.yml` — advisory (`fail-on-diff: false`); product-state ledger armed (declare-or-fail-closed); **not** part of the hosted `required` check |
 | Phase 1 mapping (advisory) | Playwright foundation + structure harnesses (`capture → diff → report`) | CI (`pull_request`) | `.github/workflows/phase1-advisory-dogfood.yml` — job **`Phase 1 mapping (advisory)`**; soft-pass HOLD (fail closed on wrong/incomplete mapping); **not** part of the hosted `required` check |
+| Enforcement sign-off    | `scripts/enforcement-approval.mjs` (main's copy)           | CI (`pull_request_target`; `issue_comment` edits of its comment) | `.github/workflows/enforcement-approval.yml`: a PR that changes `.husky/**`, `.github/workflows/**`, `eslint.config.js`, `commitlint.config.js`, `scripts/check-suppressions.mjs`, `scripts/check-context-layer.mjs` or the gate's own files gets a pending `enforcement-approval` status until BenSheridanEdwards ticks the box bound to the head commit; `test/enforcement-approval.test.mjs` pins it ([ADR 0008](../decisions/0008-sign-off-enforcement-changes.md)). Not yet a required check |
 | Gate-bypass block       | `.claude/hooks/block-gate-bypass.sh`                       | PreToolUse (Claude Code for `git`/`env`/`sh`/`bash` commands; Codex via `.codex/hooks.json`) | Exits 2 on `--no-verify` and its abbreviations, `git commit -n` in any flag cluster, `HUSKY=0`, and writes to `core.hooksPath`, a git alias, or a config include; `test/block-gate-bypass.test.mjs` pins the shapes ([ADR 0007](../decisions/0007-adopt-the-agentic-repo-template.md)) |
 
 ## Where each gate fires
@@ -70,6 +71,9 @@ is listed here only if it exists and runs on a clean checkout.
   `.github/workflows/styleproof-approve.yml` is the thin adopter-shaped approve
   caller (`styleproof-approve-reusable.yml@main`). It is not a required check;
   reviewer ticks stay inert until advisory dogfood enables `require-approval`.
+  `enforcement-approval.yml` runs `main`'s copy of
+  `scripts/enforcement-approval.mjs` and posts the `enforcement-approval`
+  status; it blocks a merge only once branch protection requires that status.
 
 ## Bypass policy
 

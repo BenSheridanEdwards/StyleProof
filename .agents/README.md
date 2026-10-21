@@ -82,6 +82,7 @@ holds until a check exists.
 | --- | --- |
 | Commits and PR titles follow Conventional Commits. | commitlint on `commit-msg`; `PR body` workflow (`scripts/validate-pr-body.mjs`) |
 | Every hook runs; `--no-verify` (and abbreviations), `git commit -n` (and clusters such as `-nm`), `HUSKY=0`, and writes to `core.hooksPath`, a git alias, or a config include are refused. | `.claude/hooks/block-gate-bypass.sh` for Claude Code (`.claude/settings.json`) and Codex (`.codex/hooks.json`); CI re-runs every gate |
+| A change to a gate file (`.husky/**`, `.github/workflows/**`, `eslint.config.js`, `commitlint.config.js`, the suppression and context checks, the sign-off gate itself) waits for BenSheridanEdwards to tick a sign-off bound to the head commit. | `enforcement-approval` commit status from `.github/workflows/enforcement-approval.yml` (`scripts/enforcement-approval.mjs`, [ADR 0008](decisions/0008-sign-off-enforcement-changes.md)); it blocks a merge once branch protection requires it |
 | Lint passes with zero warnings, and every inline `eslint-disable` is used. | `npm run lint` (`--max-warnings=0`, `reportUnusedDisableDirectives: 'error'`) in `pre-commit` and CI |
 | Every inline `eslint-disable*` names its rules and a `-- reason`; every type suppression is a `@ts-expect-error` with its reason. | `npm run check:suppressions` in CI |
 | Formatting matches Prettier. | `npm run format:check` in `pre-commit` and CI |
