@@ -319,7 +319,7 @@ npx styleproof-init --check
 `uses: BenSheridanEdwards/StyleProof@v8` or `styleproof-approve-reusable.yml@v8`
 pin to `@v9` too: the Action runs its own copy of StyleProof, so an `@v8` pin
 keeps the 8.x gate. Then re-capture the baseline once. See the migration list
-in the [unreleased changelog](CHANGELOG.md#unreleased).
+in the [9.0.0 changelog](CHANGELOG.md#900---2026-10-21).
 
 ### Set up everything
 
