@@ -321,6 +321,20 @@ if (opts.upgrade) {
   process.exit(0);
 }
 
+// An axis flag that differs from the generated workflow would add that axis's files beside
+// a workflow still running the old one; only --upgrade rewrites the workflow, so stop first.
+const switching = [
+  ['workflow', 'workflow'],
+  ['storage', 'storage'],
+  ['gate', 'mode'],
+].filter(([name]) => scaffold[name] !== inferred[name]);
+if (switching.length && hasMarker(CI_PATH, MARKERS.ci))
+  fail(
+    NAME,
+    `${CI_PATH} records workflow=${inferred.workflow} storage=${inferred.storage} gate=${inferred.gate}; nothing was written.\n` +
+      `Next: run ${NAME} --upgrade ${switching.map(([name, flag]) => `--${flag} ${scaffold[name]}`).join(' ')} to switch.`,
+  );
+
 // Full scaffold; `touched` names exactly what init wrote.
 const touched = [];
 function scaffoldFile(file, contents, { force: f = false, note = '', forceHint = false, onWrite } = {}) {
@@ -554,7 +568,7 @@ if (touched.length) {
 
 const GATE_NOTE = {
   advisory:
-    'reports but never blocks. When the signal proves out, re-scaffold with --mode certify or --mode review-gate.',
+    'reports but never blocks. When the signal proves out, switch with styleproof-init --upgrade --mode certify (or --mode review-gate).',
   certify: 'fails the job on any style diff.',
   'review-gate': 'sets a red status until a reviewer ticks "Approve all changes".',
 };
@@ -572,7 +586,7 @@ const HOW = {
     '  1. One job per pull request: capture base and head maps in place, diff them,',
     '     and publish the report — no second workflow, no map-store branch.',
     '  2. Forked pull requests get a read-only token and cannot publish; if you accept',
-    '     fork or Dependabot PRs, re-scaffold with --workflow split.',
+    '     fork or Dependabot PRs, switch with styleproof-init --upgrade --workflow split.',
   ],
 };
 console.log('\nHow the gate works:');

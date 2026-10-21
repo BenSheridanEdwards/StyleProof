@@ -235,6 +235,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   same selectors given as separate entries. A pseudo-element entry such as
   `.card::before` no longer makes the capture throw a `SyntaxError`; it matches
   no element.
+- **Re-running `styleproof-init` with a new mode no longer reports a gate the
+  workflow does not run (#939).** On an existing scaffold, `--mode`,
+  `--workflow` or `--storage` with a different value left `styleproof.yml` on
+  its old mode. Init still added `styleproof-approve.yml` or
+  `styleproof-report.yml` beside it and printed the new `Gate mode`, and
+  `--check` then reported every file as current. Now init exits 2 before
+  writing anything and names the command that switches, for example
+  `styleproof-init --upgrade --mode review-gate`. The advisory gate hint and the
+  fork hint name `--upgrade` too.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

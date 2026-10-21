@@ -450,6 +450,65 @@ test('styleproof-init: an unmarked legacy scaffold is detected from its files an
   }
 });
 
+// #939: a plain re-run with a new axis used to add that axis's extra workflow beside
+// the old styleproof.yml and print the new gate, while the workflow kept the old one.
+for (const { args, file, marker, gate, hint } of [
+  {
+    args: REVIEW,
+    file: 'styleproof-approve.yml',
+    marker: 'workflow=single storage=artifact gate=review-gate',
+    gate: 'review-gate',
+    hint: /switch with styleproof-init --upgrade --mode certify \(or --mode review-gate\)/,
+  },
+  {
+    args: SPLIT,
+    file: 'styleproof-report.yml',
+    marker: 'workflow=split storage=artifact gate=advisory',
+    gate: 'advisory',
+    hint: /switch with styleproof-init --upgrade --workflow split/,
+  },
+]) {
+  test(`styleproof-init: re-running a default scaffold with ${args.join(' ')} writes nothing and names --upgrade (#939)`, () => {
+    const root = mkTmp();
+    try {
+      const dir = ['--dir', 'e2e/styleproof.spec.ts'];
+      const first = runInit(root, dir);
+      assert.equal(first.status, 0, first.stderr);
+      const workflow = readFile(root, '.github/workflows/styleproof.yml');
+      const spec = readSpec(root) + '// my customization\n';
+      fs.writeFileSync(path.join(root, 'e2e/styleproof.spec.ts'), spec);
+
+      for (const force of [[], ['--force']]) {
+        const rerun = runInit(root, [...args, ...force, ...dir]);
+        assert.equal(rerun.status, 2, rerun.stdout + rerun.stderr);
+        assert.match(rerun.stderr, new RegExp(`run styleproof-init --upgrade ${args.join(' ')}`));
+        assert.doesNotMatch(rerun.stdout, /Gate mode:/);
+        assert.equal(fs.existsSync(path.join(root, '.github/workflows', file)), false);
+        assert.equal(readFile(root, '.github/workflows/styleproof.yml'), workflow);
+        assert.equal(readSpec(root), spec);
+      }
+      // The first scaffold's hint names the same command.
+      assert.match(first.stdout, hint);
+
+      // The named command switches the whole generated set, and --check agrees.
+      const upgraded = runInit(root, ['--upgrade', ...args, ...dir]);
+      assert.equal(upgraded.status, 0, upgraded.stdout + upgraded.stderr);
+      assert.match(readFile(root, '.github/workflows/styleproof.yml'), new RegExp(`# styleproof-scaffold: ${marker}`));
+      assert.equal(fs.existsSync(path.join(root, '.github/workflows', file)), true);
+      const checked = runInit(root, ['--check', ...dir]);
+      assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+
+      // A re-run with the recorded axes still writes nothing and reports the gate on disk.
+      const same = runInit(root, [...args, ...dir]);
+      assert.equal(same.status, 0, same.stdout + same.stderr);
+      assert.match(same.stdout, new RegExp(`Gate mode: ${gate} `));
+      assert.match(same.stdout, /nothing to write — project already scaffolded/);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
 test('styleproof-init: gitignore includes all map artifact patterns to prevent accidental commits', () => {
   const root = mkTmp();
   try {
