@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spike: crop compare layout and slider interaction (#792, #793)</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: oklch(0.98 0 none);
+        --fg: oklch(0.22 0 none);
+        --muted: oklch(0.5 0 none);
+        --line: oklch(0.85 0 none);
+        --panel: oklch(1 0 none);
+        --accent: oklch(0.55 0.2 260);
+        --warn: oklch(0.55 0.18 45);
+        --gap: 16px; /* keep in sync with GAP in the script */
+        scrollbar-gutter: stable; /* a scrollbar appearing must not flip a crop's mode */
+        font-family: system-ui, sans-serif;
+        line-height: 1.5;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: oklch(0.18 0 none);
+          --fg: oklch(0.92 0 none);
+          --muted: oklch(0.7 0 none);
+          --line: oklch(0.35 0 none);
+          --panel: oklch(0.23 0 none);
+          --accent: oklch(0.72 0.15 260);
+          --warn: oklch(0.75 0.15 70);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        margin: 0;
+      }
+      .spike-banner {
+        padding: 8px 16px;
+        background: var(--warn);
+        color: oklch(1 0 none);
+        font-weight: 600;
+        text-align: center;
+      }
+      .report {
+        margin-inline: auto;
+        max-inline-size: 1280px;
+        padding: 16px;
+        background: var(--panel);
+        outline: 1px dashed var(--line); /* outline, not border: it must not eat into the measured width */
+      }
+      .report[data-preset] {
+        max-inline-size: none;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin-block: 0 8px;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin-block: 0 4px;
+      }
+      code {
+        font-size: 0.9em;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        margin-block: 12px;
+      }
+      fieldset {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        margin: 0;
+        padding: 4px 12px 8px;
+      }
+      fieldset label {
+        margin-inline-end: 12px;
+        white-space: nowrap;
+      }
+      .rule {
+        border-inline-start: 4px solid var(--accent);
+        padding: 8px 12px;
+        margin-block: 12px;
+        background: color-mix(in oklch, var(--accent) 8%, transparent);
+      }
+      .rule p {
+        margin: 0;
+      }
+      .crop {
+        border-block-start: 1px solid var(--line);
+        padding-block: 16px;
+      }
+      .mode {
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin-block: 0 8px;
+      }
+      .mode strong {
+        color: var(--fg);
+      }
+      .warn {
+        color: var(--warn);
+        font-weight: 600;
+      }
+      .source {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-block: 8px 0;
+      }
+      details {
+        margin-block-start: 8px;
+      }
+      summary {
+        cursor: pointer;
+      }
+
+      /* Static pair: the no-JS fallback and the side-by-side mode. Wraps (stacks) when two copies do not fit. */
+      .static-pair {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--gap);
+        align-items: start;
+      }
+      .static-pair figure {
+        margin: 0;
+        max-inline-size: 100%;
+      }
+      .static-pair figure:has(.split) {
+        inline-size: min(100%, calc(var(--w) * 1px));
+      }
+      .static-pair img {
+        display: block;
+        max-inline-size: 100%;
+        block-size: auto;
+      }
+      figcaption,
+      .tag {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      /* One panel cut out of a before|after composite (geometry from compositePair in src/report/png.ts). */
+      .split {
+        inline-size: 100%;
+        aspect-ratio: var(--w) / var(--h);
+        background-repeat: no-repeat;
+        background-size: calc(var(--cw) / var(--w) * 100%) auto;
+        background-position-x: calc(var(--x) / max(1, var(--cw) - var(--w)) * 100%);
+        background-position-y: calc(var(--y) / max(1, var(--ch) - var(--h)) * 100%);
+      }
+
+      /* Slider */
+      .slider {
+        inline-size: min(100%, calc(var(--W) * 1px));
+      }
+      .slider-caption {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .track {
+        position: sticky;
+        inset-block-start: 0;
+        z-index: 2;
+        block-size: 28px;
+        margin-block-end: 4px;
+        background: var(--panel);
+        touch-action: none;
+        cursor: ew-resize;
+      }
+      .track::before {
+        content: '';
+        position: absolute;
+        inset-inline: 0;
+        inset-block-start: 12px;
+        block-size: 4px;
+        border-radius: 2px;
+        background: var(--line);
+      }
+      .track .fill {
+        position: absolute;
+        inset-inline-start: 0;
+        inset-block-start: 12px;
+        block-size: 4px;
+        inline-size: var(--p);
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .track .thumb {
+        position: absolute;
+        inset-block-start: 4px;
+        inset-inline-start: var(--p);
+        translate: -50% 0;
+        inline-size: 20px;
+        block-size: 20px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 2px solid var(--panel);
+      }
+      [data-interaction='hover'] .track {
+        display: none;
+      }
+      .stage {
+        position: relative;
+        overflow: clip;
+        background: repeating-linear-gradient(
+          45deg,
+          color-mix(in oklch, var(--muted) 25%, transparent) 0 6px,
+          transparent 6px 12px
+        );
+      }
+      [data-interaction='hover'] .stage {
+        touch-action: pan-y;
+        cursor: col-resize;
+      }
+      .layer {
+        position: absolute;
+        inset: 0;
+      }
+      .layer .split {
+        position: absolute;
+        inset-block-start: 0;
+        inset-inline-start: 0;
+      }
+      .layer.before {
+        clip-path: inset(0 calc(100% - var(--p)) 0 0);
+      }
+      .tag {
+        position: absolute;
+        inset-block-start: 6px;
+        z-index: 1;
+        padding: 0 6px;
+        border-radius: 4px;
+        background: oklch(0.2 0 none / 0.75);
+        color: oklch(1 0 none);
+        pointer-events: none;
+      }
+      .tag.before {
+        inset-inline-start: 6px;
+      }
+      .tag.after {
+        inset-inline-end: 6px;
+      }
+      .divider {
+        position: absolute;
+        inset-block: 0;
+        inset-inline-start: var(--p);
+        inline-size: 24px;
+        translate: -50% 0;
+        z-index: 1;
+        touch-action: none;
+        cursor: ew-resize;
+      }
+      .divider::before {
+        content: '';
+        position: absolute;
+        inset-block: 0;
+        inset-inline-start: 11px;
+        inline-size: 2px;
+        background: var(--accent);
+        box-shadow: 0 0 0 1px oklch(1 0 none / 0.6);
+      }
+      .grip {
+        position: absolute;
+        inset-block-start: 50%;
+        inset-inline-start: 0;
+        translate: 0 -50%;
+        inline-size: 24px;
+        block-size: 36px;
+        border-radius: 6px;
+        background: var(--accent);
+        color: oklch(1 0 none);
+        display: grid;
+        place-items: center;
+        font-size: 0.7rem;
+      }
+      .tall .grip {
+        position: sticky;
+        inset-block-start: 45vh;
+        translate: none;
+      }
+      .grip:focus-visible {
+        outline: 3px solid var(--fg);
+        outline-offset: 2px;
+      }
+      .grip:active,
+      .track:active .thumb {
+        scale: 1.1;
+      }
+      .readout {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-block: 4px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="spike-banner">
+      Throwaway spike prototype, not product code. Explores #792 (side-by-side vs slider) and #793 (scrubber vs
+      hover-to-reveal).
+    </p>
+    <main class="report" id="report">
+      <h1>Crop compare spike</h1>
+      <p>
+        Real StyleProof crops already committed in this repository, laid out by an automatic crop-size rule. Decide
+        NORTH_STAR open decision 1 (threshold) and open decision 2 (slider interaction). See
+        <a href="README.md">README.md</a>.
+      </p>
+      <noscript>
+        <p class="rule">
+          JavaScript is off. Every crop is shown as a static before/after pair, stacked when two copies do not fit. This
+          is the fallback the slider must never replace.
+        </p>
+      </noscript>
+
+      <div class="controls" id="controls" hidden>
+        <fieldset>
+          <legend>Report container width (<code>?width=</code>)</legend>
+          <label><input type="radio" name="width" value="" checked /> Fit window</label>
+          <label><input type="radio" name="width" value="1280" /> Desktop 1280px</label>
+          <label><input type="radio" name="width" value="390" /> Mobile 390px</label>
+        </fieldset>
+        <fieldset>
+          <legend>Slider interaction (<code>?interaction=</code>)</legend>
+          <label><input type="radio" name="interaction" value="scrubber" checked /> Scrubber (default)</label>
+          <label><input type="radio" name="interaction" value="hover" /> Hover-to-reveal</label>
+        </fieldset>
+      </div>
+
+      <div class="rule" id="rule" hidden>
+        <p><strong>Threshold rule (automatic, crop-size based).</strong> <span id="rule-text"></span></p>
+        <p id="interaction-text"></p>
+      </div>
+
+      <div id="crops">
+        <section class="crop" aria-labelledby="c1">
+          <h2 id="c1">Narrow crop: <code>span.content-label</code> on home@900</h2>
+          <p class="mode"></p>
+          <div class="view">
+            <div class="static-pair">
+              <figure data-side="before" style="--w: 424">
+                <figcaption>before</figcaption>
+                <div
+                  class="split"
+                  role="img"
+                  aria-label="before: home@900 content crop"
+                  data-src="../../demo/crops/home-900-content-2-composite.png"
+                  style="
+                    background-image: url('../../demo/crops/home-900-content-2-composite.png');
+                    --x: 20;
+                    --y: 20;
+                    --w: 424;
+                    --h: 180;
+                    --cw: 916;
+                    --ch: 220;
+                  "
+                ></div>
+              </figure>
+              <figure data-side="after" style="--w: 424">
+                <figcaption>after</figcaption>
+                <div
+                  class="split"
+                  role="img"
+                  aria-label="after: home@900 content crop"
+                  data-src="../../demo/crops/home-900-content-2-composite.png"
+                  style="
+                    background-image: url('../../demo/crops/home-900-content-2-composite.png');
+                    --x: 472;
+                    --y: 20;
+                    --w: 424;
+                    --h: 180;
+                    --cw: 916;
+                    --ch: 220;
+                  "
+                ></div>
+              </figure>
+            </div>
+          </div>
+          <details>
+            <summary>Where is the change? (open after you have looked)</summary>
+            The small label on the right of the dark bar: its text changes from <code>Old</code> to
+            <code>New</code> (and its colour). The demo report adds a 2× zoom because it is too small to read at 1:1.
+          </details>
+          <p class="source">
+            Source: <code>docs/demo/crops/home-900-content-2-composite.png</code> (demo report composite, split at
+            runtime).
+          </p>
+        </section>
+
+        <section class="crop" aria-labelledby="c2">
+          <h2 id="c2">Hard to find: <code>::marker</code> colour</h2>
+          <p class="mode"></p>
+          <div class="view">
+            <div class="static-pair">
+              <figure data-side="before">
+                <figcaption>before</figcaption>
+                <img
+                  src="../../proof/issue-447/full-v2-run-1/cases/computed-pseudo-marker-color-v2/before.png"
+                  alt="before: a one-item list"
+                />
+              </figure>
+              <figure data-side="after">
+                <figcaption>after</figcaption>
+                <img
+                  src="../../proof/issue-447/full-v2-run-1/cases/computed-pseudo-marker-color-v2/after.png"
+                  alt="after: a one-item list"
+                />
+              </figure>
+            </div>
+          </div>
+          <details>
+            <summary>Where is the change? (open after you have looked)</summary>
+            The list bullet left of “List entry”: a dot a few pixels wide changes from green to red. Nothing else moves.
+          </details>
+          <p class="source">
+            Source: <code>docs/proof/issue-447/full-v2-run-1/cases/computed-pseudo-marker-color-v2/</code> (#447
+            benchmark render proof).
+          </p>
+        </section>
+
+        <section class="crop" aria-labelledby="c3">
+          <h2 id="c3">Wide crop: the magenta band on board@800</h2>
+          <p class="mode"></p>
+          <div class="view">
+            <div class="static-pair">
+              <figure data-side="before" style="--w: 800">
+                <figcaption>before</figcaption>
+                <div
+                  class="split"
+                  role="img"
+                  aria-label="before: board@800 band crop"
+                  data-src="../../proof/rect-inner-scroll/crops/board-800-1-composite.png"
+                  style="
+                    background-image: url('../../proof/rect-inner-scroll/crops/board-800-1-composite.png');
+                    --x: 20;
+                    --y: 20;
+                    --w: 800;
+                    --h: 424;
+                    --cw: 1668;
+                    --ch: 464;
+                  "
+                ></div>
+              </figure>
+              <figure data-side="after" style="--w: 800">
+                <figcaption>after</figcaption>
+                <div
+                  class="split"
+                  role="img"
+                  aria-label="after: board@800 band crop"
+                  data-src="../../proof/rect-inner-scroll/crops/board-800-1-composite.png"
+                  style="
+                    background-image: url('../../proof/rect-inner-scroll/crops/board-800-1-composite.png');
+                    --x: 848;
+                    --y: 20;
+                    --w: 800;
+                    --h: 424;
+                    --cw: 1668;
+                    --ch: 464;
+                  "
+                ></div>
+              </figure>
+            </div>
+          </div>
+          <details>
+            <summary>Where is the change? (open after you have looked)</summary>
+            The whole band changes colour from blue to magenta.
+          </details>
+          <p class="source">
+            Source: <code>docs/proof/rect-inner-scroll/crops/board-800-1-composite.png</code> (report composite, split
+            at runtime).
+          </p>
+        </section>
+
+        <section class="crop" aria-labelledby="c4">
+          <h2 id="c4">Full-page capture: inner-scroll shell at 800px</h2>
+          <p class="mode"></p>
+          <div class="view">
+            <div class="static-pair">
+              <figure data-side="before">
+                <figcaption>before</figcaption>
+                <img
+                  src="../../proof/fullpage-inner-scroll/before-unexpanded.png"
+                  alt="before: full-page screenshot, 800 by 800"
+                />
+              </figure>
+              <figure data-side="after">
+                <figcaption>after</figcaption>
+                <img
+                  src="../../proof/fullpage-inner-scroll/after-expanded.png"
+                  alt="after: full-page screenshot, 800 by 2000"
+                />
+              </figure>
+            </div>
+          </div>
+          <details>
+            <summary>Where is the change? (open after you have looked)</summary>
+            The after capture is 2000px tall and paints the magenta “BELOW THE FOLD” band; the before capture stops at
+            800px (hatched area = no pixels on that side). This pair compares two capture paths, not a CSS edit, but
+            both are real full-page screenshots, so it tests a tall slider honestly.
+          </details>
+          <p class="source">Source: <code>docs/proof/fullpage-inner-scroll/</code> (see its README).</p>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      'use strict';
+      // Spike only. The threshold is code, not a config knob.
+      const GAP = 16; // px between the two copies; matches --gap
+      const MOBILE_MAX = 600; // available width below this: every crop uses the slider
+      const COMPOSITE_PAD = 20; // compositePair in src/report/png.ts
+      const COMPOSITE_GAP = 28;
+
+      const report = document.getElementById('report');
+      const params = new URLSearchParams(location.search);
+      const state = {
+        width: /^[1-9][0-9]{2,3}$/.test(params.get('width') || '') ? params.get('width') : '',
+        interaction: params.get('interaction') === 'hover' ? 'hover' : 'scrubber',
+      };
+
+      function writeUrl() {
+        const next = new URLSearchParams(location.search);
+        if (state.width) next.set('width', state.width);
+        else next.delete('width');
+        next.set('interaction', state.interaction);
+        try {
+          history.replaceState(null, '', `?${next}`);
+        } catch {
+          // file:// origins may refuse replaceState; the controls still work.
+        }
+      }
+
+      function applyWidth() {
+        if (state.width) {
+          report.dataset.preset = state.width;
+          report.style.inlineSize = `${state.width}px`;
+        } else {
+          delete report.dataset.preset;
+          report.style.inlineSize = '';
+        }
+      }
+
+      function applyInteraction() {
+        document.body.dataset.interaction = state.interaction;
+        document.getElementById('interaction-text').textContent =
+          state.interaction === 'scrubber'
+            ? 'Scrubber: drag the handle on the track (or the divider line). Keyboard: focus the divider grip, ' +
+              'Arrow keys move 1%, Shift+Arrow 10%, Home/End jump to the edges.'
+            : 'Hover-to-reveal: the divider follows the mouse across the crop. On touch, drag or tap across the ' +
+              'crop. The divider grip stays keyboard operable.';
+      }
+
+      // A side is one image region: a whole file, or one panel of a before|after composite.
+      function loadImage(src) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error(`could not load ${src}`));
+          img.src = src;
+        });
+      }
+
+      async function readSide(figure) {
+        const split = figure.querySelector('.split');
+        if (!split) {
+          const src = figure.querySelector('img').getAttribute('src');
+          const img = await loadImage(src);
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
+          return { src, alt: figure.querySelector('img').alt, x: 0, y: 0, w, h, cw: w, ch: h, warning: '' };
+        }
+        const src = split.dataset.src;
+        const img = await loadImage(src);
+        const cw = img.naturalWidth;
+        const ch = img.naturalHeight;
+        const w = (cw - 2 * COMPOSITE_PAD - COMPOSITE_GAP) / 2;
+        const h = ch - 2 * COMPOSITE_PAD;
+        const x = figure.dataset.side === 'before' ? COMPOSITE_PAD : COMPOSITE_PAD + w + COMPOSITE_GAP;
+        const style = getComputedStyle(split);
+        const markup = Number(style.getPropertyValue('--cw'));
+        const warning =
+          markup === cw ? '' : `Markup geometry assumed a ${markup}px composite; the file is ${cw}px. Using the file.`;
+        if (warning) {
+          for (const [k, v] of Object.entries({ x, y: COMPOSITE_PAD, w, h, cw, ch })) {
+            split.style.setProperty(`--${k}`, v);
+          }
+          figure.style.setProperty('--w', w);
+        }
+        return { src, alt: split.getAttribute('aria-label'), x, y: COMPOSITE_PAD, w, h, cw, ch, warning };
+      }
+
+      function regionEl(side, widthPercent) {
+        const el = document.createElement('div');
+        el.className = 'split';
+        el.setAttribute('role', 'img');
+        el.setAttribute('aria-label', side.alt);
+        el.style.backgroundImage = `url("${side.src}")`;
+        for (const k of ['x', 'y', 'w', 'h', 'cw', 'ch']) el.style.setProperty(`--${k}`, side[k]);
+        el.style.inlineSize = `${widthPercent}%`;
+        return el;
+      }
+
+      function decide(crop, available) {
+        if (available < MOBILE_MAX) {
+          return { mode: 'slider', why: `available ${available}px < ${MOBILE_MAX}px (mobile), so every crop slides` };
+        }
+        const need = 2 * crop.w + GAP;
+        return need <= available
+          ? { mode: 'side-by-side', why: `2 × ${crop.w} + ${GAP} = ${need}px ≤ ${available}px available` }
+          : { mode: 'slider', why: `2 × ${crop.w} + ${GAP} = ${need}px > ${available}px available` };
+      }
+
+      function buildSlider(crop) {
+        const { before, after } = crop.sides;
+        const W = crop.w;
+        const H = Math.max(before.h, after.h);
+        const root = document.createElement('div');
+        root.className = 'slider';
+        root.style.setProperty('--W', W);
+        root.innerHTML =
+          '<div class="slider-caption"><span>◀ before</span><span>after ▶</span></div>' +
+          '<div class="track" aria-hidden="true"><div class="fill"></div><div class="thumb"></div></div>' +
+          '<div class="stage"><div class="layer after"></div><div class="layer before"></div>' +
+          '<span class="tag before">before</span><span class="tag after">after</span>' +
+          '<div class="divider"><div class="grip" role="slider" tabindex="0" aria-valuemin="0" ' +
+          'aria-valuemax="100">◀▶</div></div></div><p class="readout"></p>';
+        const stage = root.querySelector('.stage');
+        stage.style.aspectRatio = `${W} / ${H}`;
+        root.querySelector('.layer.after').append(regionEl(after, (after.w / W) * 100));
+        root.querySelector('.layer.before').append(regionEl(before, (before.w / W) * 100));
+        const grip = root.querySelector('.grip');
+        grip.setAttribute('aria-label', `Before/after divider: ${crop.title}`);
+        const readout = root.querySelector('.readout');
+
+        function setPos(p) {
+          crop.p = Math.min(100, Math.max(0, p));
+          const shown = Math.round(crop.p);
+          root.style.setProperty('--p', `${crop.p}%`);
+          grip.setAttribute('aria-valuenow', shown);
+          grip.setAttribute('aria-valuetext', `${shown}%: before left of the divider, after right of it`);
+          readout.textContent = `Divider at ${shown}%: before is left of the line, after is right of it.`;
+        }
+        const fromEvent = (e) => {
+          const r = stage.getBoundingClientRect();
+          return ((e.clientX - r.left) / r.width) * 100;
+        };
+
+        // Scrubber: drag the track or the divider (pointer capture keeps the drag when you leave the crop).
+        for (const handle of [root.querySelector('.track'), root.querySelector('.divider')]) {
+          handle.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            e.preventDefault();
+            handle.setPointerCapture(e.pointerId);
+            grip.focus({ preventScroll: true });
+            setPos(fromEvent(e));
+          });
+          handle.addEventListener('pointermove', (e) => {
+            if (handle.hasPointerCapture(e.pointerId)) setPos(fromEvent(e));
+          });
+        }
+
+        // Hover-to-reveal: mouse/pen follow the pointer; touch moves it on tap or horizontal drag.
+        stage.addEventListener('pointermove', (e) => {
+          if (state.interaction !== 'hover') return;
+          if (e.pointerType === 'touch' && !stage.hasPointerCapture(e.pointerId)) return;
+          setPos(fromEvent(e));
+        });
+        stage.addEventListener('pointerdown', (e) => {
+          if (state.interaction !== 'hover' || e.pointerType !== 'touch') return;
+          stage.setPointerCapture(e.pointerId);
+          setPos(fromEvent(e));
+        });
+
+        grip.addEventListener('keydown', (e) => {
+          const step = e.shiftKey ? 10 : 1;
+          const moves = {
+            ArrowLeft: crop.p - step,
+            ArrowDown: crop.p - step,
+            ArrowRight: crop.p + step,
+            ArrowUp: crop.p + step,
+            PageDown: crop.p - 10,
+            PageUp: crop.p + 10,
+            Home: 0,
+            End: 100,
+          };
+          if (!(e.key in moves)) return;
+          e.preventDefault();
+          setPos(moves[e.key]);
+        });
+
+        setPos(crop.p);
+        return root;
+      }
+
+      function render(crop) {
+        const available = crop.view.clientWidth;
+        const { mode, why } = decide(crop, available);
+        crop.modeEl.innerHTML = '';
+        const strong = document.createElement('strong');
+        strong.textContent = mode;
+        crop.modeEl.append(
+          strong,
+          ` — crop ${crop.w}×${Math.max(crop.sides.before.h, crop.sides.after.h)}px natural; ${why}.`,
+        );
+        const warning = crop.sides.before.warning || crop.sides.after.warning;
+        if (warning) {
+          const w = document.createElement('span');
+          w.className = 'warn';
+          w.textContent = ` ${warning}`;
+          crop.modeEl.append(w);
+        }
+        if (mode === crop.mode) return;
+        crop.mode = mode;
+        crop.staticPair.hidden = mode !== 'side-by-side';
+        if (mode === 'slider' && !crop.slider) {
+          crop.slider = buildSlider(crop);
+          crop.view.append(crop.slider);
+        }
+        if (crop.slider) crop.slider.hidden = mode !== 'slider';
+      }
+
+      function renderAll(crops) {
+        const available = crops[0]?.view.clientWidth ?? 0;
+        const max = Math.floor((available - GAP) / 2);
+        document.getElementById('rule-text').textContent =
+          `Two copies sit side by side only when 2 × crop width + ${GAP}px ≤ the report container's available ` +
+          `width; otherwise the crop gets a slider. Available now: ${available}px` +
+          (available < MOBILE_MAX
+            ? `, which is under ${MOBILE_MAX}px (mobile), so every crop uses the slider.`
+            : `, so crops up to ${max}px wide go side by side.`);
+        for (const crop of crops) {
+          render(crop);
+          if (crop.slider) {
+            const tall = crop.slider.querySelector('.stage').getBoundingClientRect().height > innerHeight * 0.8;
+            crop.slider.querySelector('.stage').classList.toggle('tall', tall);
+          }
+        }
+      }
+
+      async function main() {
+        document.getElementById('controls').hidden = false;
+        document.getElementById('rule').hidden = false;
+        for (const input of document.querySelectorAll('#controls input')) {
+          input.checked = input.value === state[input.name];
+          input.addEventListener('change', () => {
+            state[input.name] = input.value;
+            writeUrl();
+            applyWidth();
+            applyInteraction();
+          });
+        }
+        applyWidth();
+        applyInteraction();
+
+        const crops = [];
+        for (const section of document.querySelectorAll('.crop')) {
+          const view = section.querySelector('.view');
+          const modeEl = section.querySelector('.mode');
+          try {
+            const [before, after] = await Promise.all([
+              readSide(section.querySelector('[data-side="before"]')),
+              readSide(section.querySelector('[data-side="after"]')),
+            ]);
+            crops.push({
+              title: section.querySelector('h2').textContent,
+              view,
+              modeEl,
+              staticPair: view.querySelector('.static-pair'),
+              sides: { before, after },
+              w: Math.max(before.w, after.w),
+              p: 50,
+              mode: 'side-by-side',
+              slider: null,
+            });
+          } catch (error) {
+            modeEl.className = 'mode warn';
+            modeEl.textContent = `${error.message}. Open this page from a repo checkout; the static pair stays.`;
+          }
+        }
+        if (crops.length === 0) return;
+        new ResizeObserver(() => renderAll(crops)).observe(document.getElementById('crops'));
+        renderAll(crops);
+      }
+
+      main();
+    </script>
+  </body>
+</html>
