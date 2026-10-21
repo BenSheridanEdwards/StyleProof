@@ -1933,10 +1933,11 @@ test(
     try {
       const { repo, args } = noStoreConsumer(root);
       const mapRoot = path.join(root, 'maps');
-      fs.mkdirSync(path.join(mapRoot, 'base'), { recursive: true });
-      fs.mkdirSync(path.join(mapRoot, 'head'), { recursive: true });
-      fs.writeFileSync(path.join(mapRoot, 'base', 'stale@900.json'), '{}');
-      fs.writeFileSync(path.join(mapRoot, 'head', 'stale@900.json'), '{}');
+      // Named outside the capture-artifact pattern, so only styleproof-ci's own clear can remove them.
+      for (const side of ['base', 'head']) {
+        fs.mkdirSync(path.join(mapRoot, side), { recursive: true });
+        fs.writeFileSync(path.join(mapRoot, side, 'leftover.txt'), 'stale\n');
+      }
       fs.writeFileSync(path.join(mapRoot, 'keep.txt'), 'not ours\n');
       const result = runCi(
         [...args, '--base-dir', mapRoot],
@@ -1945,8 +1946,8 @@ test(
       );
       assert.equal(result.status, 0, result.stderr + result.stdout);
       assert.ok(fs.existsSync(path.join(mapRoot, 'keep.txt')), 'a file styleproof-ci did not write survives');
-      assert.ok(!fs.existsSync(path.join(mapRoot, 'base', 'stale@900.json')), 'a stale base map is still cleared');
-      assert.ok(!fs.existsSync(path.join(mapRoot, 'head', 'stale@900.json')), 'a stale head map is still cleared');
+      assert.ok(!fs.existsSync(path.join(mapRoot, 'base', 'leftover.txt')), 'stale base/ dir cleared');
+      assert.ok(!fs.existsSync(path.join(mapRoot, 'head', 'leftover.txt')), 'stale head/ dir cleared');
       assert.ok(fs.existsSync(path.join(mapRoot, 'base', 'home@900.json')));
       assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')));
     } finally {
