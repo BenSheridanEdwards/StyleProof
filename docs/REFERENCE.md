@@ -917,10 +917,16 @@ defineStyleMapCapture({
   between a side and its opposite): a one-sided change like
   `margin-left: 0 → 40px` still reports even when something else compensates and
   the box doesn't move, and if the box moves or resizes, any margin change
-  reports. Forced `:hover`/`:focus`/`:active` deltas never use this suppression:
-  the captured rectangle is the resting one, so it cannot prove a state's margin
-  change left the box in place, and every horizontal margin change in a state
-  delta reports.
+  reports. Forced `:hover`/`:focus`/`:active` deltas never use the rectangle:
+  it is the resting one, so it cannot prove a state's margin change left the box
+  in place. A state's horizontal margin pair drops only when both captures prove,
+  from CSS Typed OM computed values, that the pair is `auto` at rest **and**
+  under the forced state, and its sides drift together. That is an `auto`-centred
+  child whose used margins only echo a state's width change; the width still
+  reports. An authored margin, an `auto` that only the state sets, a
+  `::before`/`::after` target, or a map without the proof
+  (`stateComputedValueStyle`, absent on maps captured before #917) keeps every
+  margin row. Re-capture both sides to get the filter.
 
 > Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
 
@@ -936,7 +942,7 @@ Anything still moving on its own after that is detected as a volatile region and
 | Animations, transitions, real hover/focus, caret            | frozen / neutralised before the map is read; forced states are captured separately                                              |
 | Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                                                           |
 | Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                                                              |
-| Layout-equivalent horizontal auto margins                   | element layer only, when the rectangle is unchanged **and** the sides drift together; a one-sided change reports                |
+| Layout-equivalent horizontal auto margins                   | unchanged rectangle (element layer) or Typed OM `auto` proof (forced states), **and** the sides drift together                  |
 | Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                                                                  |
 | Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison; head-only volatility blocks; base-only is reviewable |
 | Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                                                       |
