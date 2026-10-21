@@ -35,14 +35,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   or the checkout's credentials, as before.
 - **BREAKING: Node 18 and 20 are no longer supported.** `engines.node` is now
   `>=22.13.0`. Node 18 and 20 are past end of life, and 22.13 is the oldest
-  Node the build and lint toolchain runs on. CI tests 22.13.0 exactly, plus
-  Node 22 and 24. On every supported Node a typed `styleproof.config.ts`
-  loads through Node's type stripping. The Action installs its own checkout
-  with `npm ci`, and `package.json` now sets `devEngines`, so on an older Node
-  that step fails with npm's version error. Workflows from `styleproof-init`
-  set up Node 22 instead of 20, so `styleproof-init --check` reports existing
-  ones as stale. **Migration:** move local and CI Node to 22.13 or later, then
-  run `npx styleproof-init --upgrade` to refresh the generated workflows.
+  Node 22 release the dev toolchain supports (ESLint 10 `^22.13.0`, commitlint
+  `>=22.12.0`); the runtime itself needs 22.6+ for type stripping. CI runs the
+  build and unit tests on 22.13.0 exactly, plus Node 22 and 24. Type stripping
+  is available on every supported Node. `package.json` now sets `devEngines`,
+  so npm 10.9+ refuses to install the repo on a Node below the floor. The npm
+  bundled with Node 18 and 20 (10.8) ignores `devEngines` and only warns, so
+  the Action's `npm ci` does not stop there: set up Node 22.13+ before the
+  Action. Workflows from `styleproof-init` set up Node 22 instead of 20, so
+  `styleproof-init --check` reports existing ones as stale. **Migration:** move
+  local and CI Node to 22.13 or later, then run `npx styleproof-init --upgrade`
+  to refresh the generated workflows.
 
 ### Fixed
 

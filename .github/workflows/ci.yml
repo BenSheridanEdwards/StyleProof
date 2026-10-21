@@ -54,9 +54,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      # ESLint 10's formatter uses newer Node APIs when printing findings. Keep
-      # runtime support proven on every Node version, but run lint/format once on
-      # the supported toolchain.
+      # Lint, format, privacy, audit, and demo run once, on the '22' leg.
       - name: Lint
         if: matrix.node == '22'
         run: npm run lint

@@ -509,9 +509,10 @@ contracts: [what it catches](docs/what-it-catches.md) ·
 ## Contributing
 
 Repository CI runs the full browser suite in two file-level shards alongside the
-unit matrix on Node 22.13.0 (the supported floor), 22, and 24. The
-`e2e (node 22)` aggregate compares completed test IDs against a separately
-collected full inventory and requires the five-run determinism receipt. Missing, duplicated, skipped, failed, or retried tests fail verification.
+unit matrix on Node 22.13.0 (the supported floor), 22, and 24. The `e2e (node 22)`
+aggregate compares completed test IDs against a separately collected full
+inventory and requires the five-run determinism receipt. Missing, duplicated,
+skipped, failed, or retried tests fail verification.
 The `browser-evidence-node-22` artifact retains the inventory, shard results, and
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
 
