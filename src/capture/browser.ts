@@ -6,7 +6,7 @@ import type { CapturedOverlay, ElementEntry, LiveRegionCandidate, Props } from '
 type WithPathOf = { __spPathOf?: (el: Element) => string };
 
 /** In-page shape of the window once {@link freezeMotion} has run. */
-type WithFreeze = { __spFreeze?: CSSStyleSheet };
+type WithFreeze = { __spFreeze?: CSSStyleSheet; __spAssertFrozen?: () => void };
 
 // StyleProof's own styles go through CSSOM, which a page's style CSP does not govern;
 // an inline <style> or style attribute is blocked without 'unsafe-inline' (#977).
@@ -31,11 +31,20 @@ export function freezeMotion(css: string): void {
   sheet.replaceSync(css);
   const others = document.adoptedStyleSheets.filter((s) => s !== sheet);
   document.adoptedStyleSheets = [...others, sheet];
+  w.__spAssertFrozen = (): void => {
+    if (!document.adoptedStyleSheets.includes(sheet) || sheet.disabled) {
+      throw new Error('styleproof: motion freeze was removed or disabled during capture');
+    }
+  };
+  w.__spAssertFrozen();
 }
 
-export function unfreezeMotion(): void {
-  const sheet = (window as unknown as WithFreeze).__spFreeze;
+export function unfreezeMotion(validate = false): void {
+  const w = window as unknown as WithFreeze;
+  if (validate) w.__spAssertFrozen!();
+  const sheet = w.__spFreeze;
   document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== sheet);
+  delete w.__spAssertFrozen;
 }
 
 /** Define the structural-path helper on `window` once so every serialized function shares it. */
@@ -101,6 +110,8 @@ export type PageCapture = {
 // Pre-existing, grandfathered in the health baseline.
 // fallow-ignore-next-line complexity
 export function capturePage({ skipSel, motionOnly, captureText, captureComponent }: CaptureArgs): PageCapture {
+  const assertFrozen = motionOnly ? (): void => {} : (window as unknown as Required<WithFreeze>).__spAssertFrozen;
+  assertFrozen();
   // Keep the document origin in the same browser snapshot as every bounding box.
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
@@ -260,6 +271,7 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
     elements[pathOf(el)] = entry;
   }
   frame.remove();
+  assertFrozen();
   return { defaults, elements, shadowHosts, sameOriginFrames, scrollX, scrollY, documentHeight };
 }
 
@@ -469,6 +481,8 @@ export function snapSubtree({
   saveBaseline,
   scope = 'document',
 }: StateScopeArgs) {
+  const assertFrozen = (window as unknown as WithFreeze).__spAssertFrozen;
+  assertFrozen?.();
   const target = document.querySelector(selector);
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
   const stateWindow = window as unknown as Record<string, Record<string, Record<string, string>> | undefined>;
@@ -557,6 +571,7 @@ export function snapSubtree({
     recordTypedMargins(element, elementPath);
   }
 
+  assertFrozen?.();
   if (saveBaseline) {
     stateWindow[baselineKey] = result;
     stateWindow[typedKey] = typedMargins;

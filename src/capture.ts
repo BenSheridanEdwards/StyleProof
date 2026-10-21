@@ -351,7 +351,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
 
   // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
   // mounts during the settle must be seen), then the freeze is re-applied for every other read.
-  await page.evaluate(unfreezeMotion);
+  await page.evaluate(unfreezeMotion, true);
   const motion = (await page.evaluate(capturePage, { skipSel, motionOnly: true, captureText: false })).elements;
   // Removed again below so a page reused without a reload (SPA go(), self-check) starts unfrozen.
   await page.evaluate(freezeMotion, FREEZE_CSS);
@@ -361,11 +361,14 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   try {
     await reach?.start();
     const map = await readSettledPage(page, { options, limits, ignore, skipSel, volatile, liveCandidates, motion });
-    return reach ? { ...map, reach: await reach.stop([FREEZE_CSS]) } : map;
+    const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS]) } : map;
+    // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
+    await page.evaluate(unfreezeMotion, true);
+    return result;
   } finally {
     // A caller-armed tracker outlives this capture (self-check, popups); one armed here does not.
     if (reach && !options.servedRules) await reach.dispose();
     // Best-effort: the page may already be closing on a throw path.
-    await page.evaluate(unfreezeMotion).catch(() => {});
+    await page.evaluate(unfreezeMotion, false).catch(() => {});
   }
 }
