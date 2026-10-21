@@ -253,6 +253,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   These properties report their authored value, so a longer or shorter age can
   never change them. They are now always reviewable, and that run exits 1. An
   age drift with no stylesheet change still passes.
+- **A `:hover`, `:focus` or `:active` change on a `::before` or `::after` now
+  fails certification (#948).** Forced-state targets are keyed `path::before` or
+  `path::after`, but certify mode looked that whole key up in the element map,
+  which never holds a `::` key. So `styleproof-diff` and the Action skipped every
+  pseudo-element state change and certified the run. Certify mode now pairs the
+  target by its host element, and reports it when the host has the same tag on
+  both sides. A content-shift or own-text move now also carries a `::before` /
+  `::after` target to the host's new path, so an unchanged target does not turn
+  into a one-sided pair. `--migration` findings are unchanged.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

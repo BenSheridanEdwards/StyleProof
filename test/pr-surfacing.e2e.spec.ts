@@ -336,9 +336,15 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     const after = '.box::after{content:"›";color:rgb(0,0,0)}' + boxCss('');
     const base = await cap(page, after + '.box:hover::after{color:rgb(200,0,0)}', btn);
     const head = await cap(page, after, btn);
-    const f = hoverDrop(diffStyleMaps(base, head));
-    expect(f, 'the dropped hover restyle of the ::after is surfaced').toBeTruthy();
-    expect(f!.kind === 'state' && f!.sub).toMatch(/::after$/);
+    // Certification (includeStructure: false) pairs the ::after by its host button (#948).
+    for (const includeStructure of [true, false]) {
+      const f = hoverDrop(diffStyleMaps(base, head, { includeStructure }));
+      expect(
+        f,
+        `the dropped hover restyle of the ::after is surfaced (includeStructure: ${includeStructure})`,
+      ).toBeTruthy();
+      expect(f!.kind === 'state' && f!.sub).toMatch(/::after$/);
+    }
   });
 
   test('a dropped :hover that hid a ::before → a hover state finding on the ::before', async ({ page }) => {
@@ -346,9 +352,14 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     const before = '.box::before{content:"•";color:rgb(0,0,0)}' + boxCss('');
     const base = await cap(page, before + '.box:hover::before{content:none}', btn);
     const head = await cap(page, before, btn);
-    const f = diffStyleMaps(base, head).find((x) => x.kind === 'state' && x.state === 'hover');
-    expect(f, 'the ::before no longer disappearing on hover is surfaced').toBeTruthy();
-    expect(f!.kind === 'state' && f!.sub).toMatch(/::before$/);
+    for (const includeStructure of [true, false]) {
+      const f = diffStyleMaps(base, head, { includeStructure }).find((x) => x.kind === 'state' && x.state === 'hover');
+      expect(
+        f,
+        `the ::before no longer disappearing on hover is surfaced (includeStructure: ${includeStructure})`,
+      ).toBeTruthy();
+      expect(f!.kind === 'state' && f!.sub).toMatch(/::before$/);
+    }
   });
 
   const dropHoverOn = async (page: import('@playwright/test').Page, markup: string) =>
