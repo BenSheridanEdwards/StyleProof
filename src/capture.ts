@@ -238,7 +238,7 @@ async function captureStateLayer(
   limits: Required<ForcedStateLimits>,
   ignore: string[],
   volatile: string[],
-): Promise<{ states: StyleMap['states']; statesSkipped: boolean }> {
+): Promise<Pick<StyleMap, 'states' | 'stateComputedValueStyle'> & { statesSkipped: boolean }> {
   if (options.captureStates === false) return { states: {}, statesSkipped: true };
   const browserName = page.context().browser()?.browserType().name();
   if (browserName !== 'chromium') {
@@ -249,7 +249,8 @@ async function captureStateLayer(
     return { states: {}, statesSkipped: true };
   }
   const forced = await captureForcedStates(page, ignore, options.maxInteractive ?? 800, limits, volatile);
-  return { states: forced.states, statesSkipped: forced.skipped };
+  const proof = forced.stateComputedValueStyle;
+  return { states: forced.states, statesSkipped: forced.skipped, ...(proof ? { stateComputedValueStyle: proof } : {}) };
 }
 
 type SettledRead = {
@@ -278,7 +279,13 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   const overlays = (await page.evaluate(detectOverlayCandidates, { skipSel })).filter((o) => base.elements[o.path]);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, read.motion);
-  const { states, statesSkipped } = await captureStateLayer(page, options, read.limits, read.ignore, volatile);
+  const { states, statesSkipped, stateComputedValueStyle } = await captureStateLayer(
+    page,
+    options,
+    read.limits,
+    read.ignore,
+    volatile,
+  );
   const tokens = await page.evaluate(capturePageTokens);
   const inventory: NavigableItem[] = options.inventory
     ? classifyInventory(await page.evaluate(collectNavAffordances))
@@ -299,6 +306,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     defaults: base.defaults,
     elements: base.elements,
     states,
+    ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),
     ...(read.liveCandidates.length ? { liveCandidates: read.liveCandidates } : {}),

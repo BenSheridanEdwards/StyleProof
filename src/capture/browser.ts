@@ -426,7 +426,13 @@ export function analyzeForcedStateScope(): ForcedStateScopeAnalysis {
   for (const sheet of [...Array.from(document.styleSheets), ...adopted]) visitSheet(sheet);
   return result;
 }
-export type StateScopeResult = { delta: Record<string, Props>; truncated: boolean; scanned: number };
+export type StateScopeResult = {
+  delta: Record<string, Props>;
+  truncated: boolean;
+  scanned: number;
+  /** Forced Typed OM horizontal margins per changed target; absent when Typed OM was unavailable for the read. */
+  typedMargins?: Record<string, Props>;
+};
 
 /**
  * Read a target-first, bounded scope (the document by default, else the target's or its
@@ -477,6 +483,26 @@ export function snapSubtree({
 
   const baseline = stateWindow[baselineKey];
   const result: Record<string, Record<string, string>> = {};
+  // Typed OM computed horizontal margins prove an `auto` margin whose used px only echoes a
+  // state's width change (#917). One unsupported element drops the proof for the whole read.
+  const typedKey = `${baselineKey}-typed-margins`;
+  const restingTyped = stateWindow[typedKey];
+  const marginProperties = ['margin-left', 'margin-right', 'margin-inline-start', 'margin-inline-end'];
+  let typedMargins: Record<string, Record<string, string>> | undefined = saveBaseline || restingTyped ? {} : undefined;
+  const recordTypedMargins = (element: Element, elementPath: string): void => {
+    if (!typedMargins) return;
+    const typed = element.computedStyleMap?.();
+    if (!typed) {
+      typedMargins = undefined;
+      return;
+    }
+    const forced = Object.fromEntries(
+      marginProperties.map((property) => [property, typed.get(property)?.toString() ?? '']),
+    );
+    const resting = restingTyped?.[elementPath];
+    const changed = !resting || marginProperties.some((property) => resting[property] !== forced[property]);
+    if (saveBaseline || result[elementPath] || changed) typedMargins[elementPath] = forced;
+  };
   for (const { element, path: elementPath } of elements) {
     for (const pseudo of [null, '::before', '::after']) {
       const style = getComputedStyle(element, pseudo);
@@ -504,18 +530,21 @@ export function snapSubtree({
       }
       if (saveBaseline || Object.keys(properties).length) result[key] = properties;
     }
+    recordTypedMargins(element, elementPath);
   }
 
   if (saveBaseline) {
     stateWindow[baselineKey] = result;
+    stateWindow[typedKey] = typedMargins;
     return { delta: {}, truncated, scanned: elements.length };
   }
   if (!baseline) return { delta: {}, truncated: true, scanned: elements.length };
-  return { delta: result, truncated, scanned: elements.length };
+  return { delta: result, truncated, scanned: elements.length, ...(typedMargins ? { typedMargins } : {}) };
 }
 
 export function clearStateBaseline(baselineKey: string): void {
   delete (window as unknown as Record<string, unknown>)[baselineKey];
+  delete (window as unknown as Record<string, unknown>)[`${baselineKey}-typed-margins`];
 }
 
 export type MarkArgs = { selector: string; skipSel: string; attr: string };

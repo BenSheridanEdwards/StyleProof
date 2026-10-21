@@ -96,6 +96,15 @@ export type StyleMap = {
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;
+  /**
+   * CSS Typed OM computed values of the four horizontal margins (`margin-left`/`-right`,
+   * `margin-inline-start`/`-end`) of forced-state targets, keyed like `states` (owner → state →
+   * target; never `::before`/`::after`). A target is recorded when it is in that state's delta or
+   * when any of the four computed values differs from rest; a missing target means its computed
+   * margins equal its resting ones. Absent on legacy captures, when Typed OM was unavailable, and
+   * when the forced-state layer was skipped.
+   */
+  stateComputedValueStyle?: Record<string, Record<string, Record<string, Props>>>;
   /** True when the forced-state layer was not fully captured — the diff must not read it as identical. */
   statesSkipped?: boolean;
   /** Paths still changing when the settle budget ran out; excluded here and skipped by the diff. */

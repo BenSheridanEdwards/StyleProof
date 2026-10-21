@@ -532,45 +532,138 @@ test('reports a forced-state (hover) delta change', () => {
   assert.deepEqual(f[0].props, [{ prop: 'color', before: 'rgb(0, 0, 255)', after: '(state no longer changes it)' }]);
 });
 
-test('reports balanced margin drift inside forced-state deltas until the capture can prove an auto echo', () => {
-  // The resting rect never moves under a forced state, so it cannot prove this is an echo.
-  // #917 restores the no-finding expectation once the capture can prove `auto` on both sides.
-  const a = makeMap({
-    elements: {
-      'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
-      'body > button:nth-child(1) > div:nth-child(1)': {
-        tag: 'div',
-        cls: 'content',
-        rect: [40, 0, 1200, 800],
+test('ignores layout-equivalent margin drift inside forced-state deltas', () => {
+  // The resting rect never moves under a forced state, so the proof is Typed OM `auto` at rest
+  // and forced on both sides (#917). `b` has no proof entry: its computed margins stay at rest.
+  const autoMargins = { 'margin-left': 'auto', 'margin-right': 'auto' };
+  const a = {
+    ...makeMap({
+      elements: {
+        'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
+        'body > button:nth-child(1) > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'content',
+          rect: [40, 0, 1200, 800],
+          computedValueStyle: autoMargins,
+        },
       },
-    },
-    states: {
-      'body > button:nth-child(1)': {
-        hover: {
-          'body > button:nth-child(1) > div:nth-child(1)': {
-            'margin-left': '40px',
-            'margin-right': '40px',
+      states: {
+        'body > button:nth-child(1)': {
+          hover: {
+            'body > button:nth-child(1) > div:nth-child(1)': {
+              'margin-left': '40px',
+              'margin-right': '40px',
+            },
           },
         },
       },
+    }),
+    stateComputedValueStyle: {
+      'body > button:nth-child(1)': { hover: { 'body > button:nth-child(1) > div:nth-child(1)': autoMargins } },
     },
-  });
-  const b = makeMap({
-    elements: {
-      'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
-      'body > button:nth-child(1) > div:nth-child(1)': {
-        tag: 'div',
-        cls: 'content',
-        rect: [40, 0, 1200, 800],
+  };
+  const b = {
+    ...makeMap({
+      elements: {
+        'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
+        'body > button:nth-child(1) > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'content',
+          rect: [40, 0, 1200, 800],
+          computedValueStyle: autoMargins,
+        },
       },
-    },
-    states: { 'body > button:nth-child(1)': { hover: {} } },
-  });
+      states: { 'body > button:nth-child(1)': { hover: {} } },
+    }),
+    stateComputedValueStyle: {},
+  };
 
+  assert.deepEqual(diffStyleMaps(a, b), []);
+});
+
+// #917 fixtures: an auto-centred child whose hover width change moves its used margins.
+const ECHO_OWNER = 'body > a:nth-child(1)';
+const ECHO_CHILD = `${ECHO_OWNER} > div:nth-child(1)`;
+const AUTO_MARGINS = {
+  'margin-left': 'auto',
+  'margin-right': 'auto',
+  'margin-inline-start': 'auto',
+  'margin-inline-end': 'auto',
+};
+const pxMargins = (left, right = left) => ({
+  'margin-left': left,
+  'margin-right': right,
+  'margin-inline-start': left,
+  'margin-inline-end': right,
+});
+
+/**
+ * One side of the echo. `resting: null` drops the resting computed proof; `forced` is the proof
+ * entry, `null` keeps the field with no entry, and `'legacy'` omits the field.
+ */
+function echoMap({ width, used, resting = AUTO_MARGINS, forced = AUTO_MARGINS, sub = ECHO_CHILD }) {
+  const entries = forced ? { [ECHO_OWNER]: { hover: { [sub]: forced } } } : {};
+  const proof = forced === 'legacy' ? {} : { stateComputedValueStyle: entries };
+  return {
+    ...makeMap({
+      elements: {
+        [ECHO_OWNER]: { tag: 'a' },
+        [sub]: { tag: 'div', ...(resting ? { computedValueStyle: resting } : {}) },
+      },
+      states: { [ECHO_OWNER]: { hover: { [sub]: { width, ...used } } } },
+    }),
+    ...proof,
+  };
+}
+
+const echoRows = (a, b) =>
+  diffStyleMaps(a, b)
+    .flatMap((finding) => finding.props.map((change) => change.prop))
+    .sort();
+const BASE_ECHO = { width: '300px', used: pxMargins('350px') };
+const HEAD_ECHO = { width: '320px', used: pxMargins('340px') };
+const ALL_ROWS = ['margin-inline-end', 'margin-inline-start', 'margin-left', 'margin-right', 'width'];
+
+test('a proven auto margin echo inside a forced state drops every horizontal margin row, not the width', () => {
+  assert.deepEqual(echoRows(echoMap(BASE_ECHO), echoMap(HEAD_ECHO)), ['width']);
+});
+
+test('a legacy map without the forced margin proof on either side keeps the echo rows', () => {
+  assert.deepEqual(echoRows(echoMap({ ...BASE_ECHO, forced: 'legacy' }), echoMap(HEAD_ECHO)), ALL_ROWS);
+  assert.deepEqual(echoRows(echoMap(BASE_ECHO), echoMap({ ...HEAD_ECHO, forced: 'legacy' })), ALL_ROWS);
+});
+
+test('an authored forced margin (computed px, not auto) keeps the rows', () => {
+  assert.deepEqual(echoRows(echoMap(BASE_ECHO), echoMap({ ...HEAD_ECHO, forced: pxMargins('340px') })), ALL_ROWS);
+});
+
+test('an auto set only by the state over an authored resting margin keeps the rows', () => {
+  assert.deepEqual(echoRows(echoMap({ ...BASE_ECHO, resting: pxMargins('350px') }), echoMap(HEAD_ECHO)), ALL_ROWS);
+});
+
+test('a target with no proof entry and no resting computed proof keeps the rows', () => {
+  assert.deepEqual(echoRows(echoMap(BASE_ECHO), echoMap({ ...HEAD_ECHO, forced: null, resting: null })), ALL_ROWS);
+});
+
+test('a pseudo-element target never drops margin rows', () => {
+  const sub = `${ECHO_CHILD}::before`;
+  assert.deepEqual(echoRows(echoMap({ ...BASE_ECHO, sub }), echoMap({ ...HEAD_ECHO, sub })), ALL_ROWS);
+});
+
+test('an unbalanced px margin change keeps the rows even when auto is proven', () => {
   assert.deepEqual(
-    diffStyleMaps(a, b).map((f) => [f.kind, f.state, f.props.map((p) => p.prop)]),
-    [['state', 'hover', ['margin-left', 'margin-right']]],
+    echoRows(echoMap(BASE_ECHO), echoMap({ ...HEAD_ECHO, used: pxMargins('340px', '330px') })),
+    ALL_ROWS,
   );
+});
+
+test('only the proven horizontal margin pair drops', () => {
+  const forced = { ...AUTO_MARGINS, 'margin-inline-start': '340px', 'margin-inline-end': '340px' };
+  assert.deepEqual(echoRows(echoMap(BASE_ECHO), echoMap({ ...HEAD_ECHO, forced })), [
+    'margin-inline-end',
+    'margin-inline-start',
+    'width',
+  ]);
 });
 
 test('findings are sorted by structural path', () => {
