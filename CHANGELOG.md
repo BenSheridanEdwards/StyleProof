@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`--route` inputs with a query string are no longer split on the query's
+  `=` (#967).** The `key=path` form of `styleproof-variants --route` now
+  applies only when the text before the first `=` is a plain key (no `/`,
+  `?`, `#` or `:`). A path or absolute URL with a query string, such as
+  `/?tab=reports`, keeps its URL and gets a derived key, instead of
+  harvesting `reports` under the key `/?tab`. `styleproof-map --crawl-route`,
+  `STYLEPROOF_CRAWL_ROUTES` and config `crawl.routes`, which pass routes
+  through unchanged, inherit the fix.
+
 ### Added
 
 - **The PR comment names what changed, not just how much (#831).** A **What

@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { chromium } from '@playwright/test';
 import { harvestStyleVariants } from '../dist/variant-crawler.js';
-import { defaultLinkKey } from '../dist/crawl.js';
+import { parseRouteSpec } from '../dist/crawl.js';
 import { defineCli, number } from './cli.mjs';
 
 const NAME = 'styleproof-variants';
@@ -39,9 +39,7 @@ const viewport = { width: number(NAME, 'width', opts.width), height: number(NAME
 const baseUrl = opts['base-url'];
 
 function parseRoute(input) {
-  const eq = input.indexOf('=');
-  if (eq > 0) return { key: input.slice(0, eq), url: input.slice(eq + 1) };
-  return { key: defaultLinkKey(new URL(input, baseUrl)), url: input };
+  return parseRouteSpec(input, baseUrl);
 }
 
 const browser = await chromium.launch();

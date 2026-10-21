@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from '../dist/crawl.js';
+import { selectCrawlLinks, defaultLinkKey, parseRouteSpec, crawlCoverageGaps, crawlCoverageError } from '../dist/crawl.js';
 import { performance } from 'node:perf_hooks';
 
 const BASE = 'https://app.test/';
@@ -339,4 +339,41 @@ test('dedupIdentity: query parameter order does not create a second surface', ()
   assert.equal(dedupIdentity('/s?b=1&a=2#/x'), dedupIdentity('/s?a=2&b=1#/x'));
   assert.notEqual(dedupIdentity('/?lang=en#/search?q=x&page=2'), dedupIdentity('/?page=2&lang=en#/search?q=x'));
   assert.equal(dedupIdentity('/p#/route?b=1&a=2'), '/p#/route?b=1&a=2');
+});
+
+// ------------------------------------------------------- parseRouteSpec
+// `key=path` only when the text before the first `=` is a plain key; a path or
+// absolute URL with a query string keeps its URL and gets a derived key (#967).
+test('parseRouteSpec: a path with a query string is not split on the query\'s `=`', () => {
+  assert.deepEqual(parseRouteSpec('/?tab=reports', 'https://app.test'), {
+    key: 'reports',
+    url: '/?tab=reports',
+  });
+});
+
+test('parseRouteSpec: an absolute URL with a query keeps its full URL and gets a derived key', () => {
+  assert.deepEqual(parseRouteSpec('https://app.test/?tab=b', 'https://other.test'), {
+    key: 'b',
+    url: 'https://app.test/?tab=b',
+  });
+});
+
+test('parseRouteSpec: a plain key before `=` still names an explicit route', () => {
+  assert.deepEqual(parseRouteSpec('x=/?tab=c', 'https://app.test'), { key: 'x', url: '/?tab=c' });
+  assert.deepEqual(parseRouteSpec('settings=/settings', 'https://app.test'), {
+    key: 'settings',
+    url: '/settings',
+  });
+});
+
+test('parseRouteSpec: a plain path and root keep today\'s behavior', () => {
+  assert.deepEqual(parseRouteSpec('/settings', 'https://app.test'), { key: 'settings', url: '/settings' });
+  assert.deepEqual(parseRouteSpec('/', 'https://app.test'), { key: 'index', url: '/' });
+});
+
+test('parseRouteSpec: a scheme-qualified key (colon) is a whole URL, not key=path', () => {
+  assert.deepEqual(parseRouteSpec('http://127.0.0.1:4811/?tab=reports', 'https://app.test'), {
+    key: 'reports',
+    url: 'http://127.0.0.1:4811/?tab=reports',
+  });
 });

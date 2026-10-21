@@ -54,6 +54,21 @@ export function defaultLinkKey(url: URL): string {
   return slug || 'index';
 }
 
+/**
+ * Parse a `--route` input into `{key, url}`. The `key=path` form applies only when the
+ * text before the first `=` is a plain key (no `/`, `?`, `#` or `:`), so a path or
+ * absolute URL with a query string keeps its URL and gets a `defaultLinkKey` key;
+ * `/?tab=reports` must not split on the query's `=`. `settings=/settings` keeps
+ * its explicit key.
+ */
+export function parseRouteSpec(input: string, baseUrl: string): CrawlLink {
+  const eq = input.indexOf('=');
+  if (eq > 0 && !/[/?#:]/.test(input.slice(0, eq))) {
+    return { key: input.slice(0, eq), url: input.slice(eq + 1) };
+  }
+  return { key: defaultLinkKey(new URL(input, baseUrl)), url: input };
+}
+
 function matches(url: URL, match?: LinkMatch): boolean {
   if (match === undefined) return true;
   if (typeof match === 'string') return url.href.includes(match);
