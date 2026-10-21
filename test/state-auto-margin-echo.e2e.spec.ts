@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { captureStyleMap, diffStyleMaps, type StyleMap } from '../dist/index.js';
+import { cleanFindingsForDisplay } from '../dist/findings-clean.js';
 
 // An `auto`-centred child whose margins only echo a :hover width change is not a margin
 // change (#917). The capture proves `auto` at rest and forced with CSS Typed OM; an authored
@@ -43,6 +44,10 @@ test('an auto margin echoing a :hover width change reports the width, not the ma
   const props = hoverProps(base, head);
   expect(props).toContain('width');
   expect(marginProps(props)).toEqual([]);
+  const display = cleanFindingsForDisplay(diffStyleMaps(base, head));
+  const shownProps = display.filter((finding) => finding.kind === 'state').flatMap((finding) => finding.props);
+  expect(shownProps.map((change) => change.prop)).toContain('width');
+  expect(marginProps(shownProps.map((change) => change.prop))).toEqual([]);
 });
 
 test('an authored :hover margin with the same used px still reports', async ({ page }) => {

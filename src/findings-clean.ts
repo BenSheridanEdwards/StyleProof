@@ -88,13 +88,18 @@ const STATE_STRIP = new Set([
   ),
 ]);
 
+/** Replacing proven auto margin echoes must not erase the owner+state's size/position evidence. */
+function isAutoMarginEchoEvidence(f: Finding, p: PropChange): boolean {
+  return f.kind === 'state' && f.autoMarginEchoDropped === true && STATE_STRIP.has(p.prop);
+}
+
 /** Derived/box longhands among a surface's RAW summarised props — what the CLI folds behind `(+N derived longhands)`. */
 export function derivedLonghandCount(findings: Finding[]): number {
   let n = 0;
   for (const f of findings) {
     if (f.kind === 'dom') continue;
     const strip = f.kind === 'state' ? STATE_STRIP : DERIVED_PROPS;
-    for (const p of summarizeProps(f.props)) if (strip.has(p.prop)) n++;
+    for (const p of summarizeProps(f.props)) if (strip.has(p.prop) && !isAutoMarginEchoEvidence(f, p)) n++;
   }
   return n;
 }
@@ -141,7 +146,7 @@ export function cleanFindings(findings: Finding[]): Finding[] {
         out.push(f);
         continue;
       }
-      const props = f.props.filter((p) => keep[f.kind](p) && !echoes(f, p));
+      const props = f.props.filter((p) => isAutoMarginEchoEvidence(f, p) || (keep[f.kind](p) && !echoes(f, p)));
       if (props.length) out.push({ ...f, props });
     }
   }
@@ -160,6 +165,11 @@ function contentDrivenGeometry(findings: Finding[]): StyleFinding[] {
   );
 }
 
+/** Evidence that would survive cleanup even before retaining auto-margin state geometry. */
+function hasOtherCleanedEvidence(f: Finding): boolean {
+  return f.kind === 'dom' || f.props.some((p) => !isAutoMarginEchoEvidence(f, p));
+}
+
 /**
  * {@link cleanFindings}, but a surface is never cleaned into silence while it
  * still gates: content-driven geometry stays in the display set, and when
@@ -174,8 +184,8 @@ export function cleanFindingsForDisplay(findings: Finding[]): Finding[] {
     const shown = new Set(cleaned.filter(isStyle).map((f) => `${f.path}|${f.pseudo ?? ''}`));
     return [...cleaned, ...contentDriven.filter((f) => !shown.has(`${f.path}|${f.pseudo ?? ''}`))];
   }
-  if (cleaned.length > 0) return cleaned;
-  return findings.filter((f): f is StyleFinding => f.kind === 'style' && f.props.length > 0);
+  if (cleaned.some(hasOtherCleanedEvidence)) return cleaned;
+  return [...findings.filter((f): f is StyleFinding => f.kind === 'style' && f.props.length > 0), ...cleaned];
 }
 
 /** True when every shown prop is a size/position longhand — the "geometry only" shape that usually means content drift. */

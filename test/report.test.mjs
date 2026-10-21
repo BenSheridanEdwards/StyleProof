@@ -16,6 +16,13 @@ import {
 import { codeValue, escapeInlineMarkdown } from '../dist/code-span.js';
 import * as reportShared from '../dist/report/shared.js';
 import { safeKey } from '../dist/surface-keys.js';
+import { diffStyleMaps } from '../dist/diff.js';
+import {
+  cleanFindingsForDisplay,
+  assessComparisonTruth,
+  signatureOf,
+  derivedLonghandCount,
+} from '../dist/findings-clean.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
 
 // NOTE: summarizeProps and prettyLabel must be exported from report.ts (and
@@ -1757,6 +1764,253 @@ test('end-to-end: forced-state echoes are suppressed and the change reads in pla
   assert.match(md, /recoloured/); // plain-English bullet, not a raw prop dump
   assert.doesNotMatch(md, /\(gone\)/);
   rmTmp(root);
+});
+
+// #917: only the proven auto margin echoes disappear; their own state's size stays reviewable.
+function autoMarginResizeMap(width, color, sizeProp = 'width', changedMargins = true) {
+  const owner = 'body > a:nth-child(1)';
+  const child = `${owner} > div:nth-child(1)`;
+  const margins = ['margin-left', 'margin-right', 'margin-inline-start', 'margin-inline-end'];
+  const auto = Object.fromEntries(margins.map((prop) => [prop, 'auto']));
+  const used = Object.fromEntries(margins.map((prop) => [prop, `${(1000 - width) / 2}px`]));
+  return {
+    ...makeMap({
+      elements: {
+        [owner]: { tag: 'a', rect: [0, 0, 1000, 100] },
+        [child]: { tag: 'div', rect: [400, 0, 200, 100], computedValueStyle: auto },
+        'body > h1:nth-child(2)': { tag: 'h1', rect: [0, 120, 200, 40], style: { color } },
+      },
+      states: {
+        [owner]: {
+          hover: {
+            [child]: {
+              [sizeProp]: `${width}px`,
+              'transform-origin': `${width / 2}px 50px`,
+              'perspective-origin': `${width / 2}px 50px`,
+              ...(changedMargins ? used : {}),
+            },
+          },
+        },
+      },
+    }),
+    stateComputedValueStyle: { [owner]: { hover: { [child]: auto } } },
+  };
+}
+
+for (const unrelatedColorChange of [false, true]) {
+  for (const sizeProp of ['width', 'inline-size']) {
+    test(`end-to-end: auto margin echo keeps hover ${sizeProp} reviewable (unrelated colour: ${unrelatedColorChange})`, () => {
+      const before = autoMarginResizeMap(300, 'red', sizeProp);
+      const after = autoMarginResizeMap(320, unrelatedColorChange ? 'blue' : 'red', sizeProp);
+      const raw = diffStyleMaps(before, after);
+      const display = cleanFindingsForDisplay(raw);
+      const state = display.find((finding) => finding.kind === 'state');
+      assert.deepEqual(state?.props, [
+        { prop: sizeProp, before: '300px', after: '320px' },
+        { prop: 'transform-origin', before: '150px 50px', after: '160px 50px' },
+        { prop: 'perspective-origin', before: '150px 50px', after: '160px 50px' },
+      ]);
+      assert.equal(derivedLonghandCount(raw), 0, 'the affected state keeps all size/position evidence');
+      assert.ok(raw.every((finding) => finding.props.every((p) => !p.prop.startsWith('margin'))));
+      const truth = assessComparisonTruth([{ surface: 'home@1280', findings: raw }]);
+      assert.deepEqual(truth.reviewableCounts, { dom: 0, style: Number(unrelatedColorChange), state: 3 });
+      assert.equal(truth.hasReviewableEvidence, true);
+      assert.equal(truth.rawOnlyNoReviewable, false);
+
+      const { beforeDir, afterDir, outDir, root } = pairFixture({ surface: 'home@1280', before, after });
+      try {
+        const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+        const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+        assert.deepEqual(result.comparison.reviewableCounts, truth.reviewableCounts);
+        assert.equal(result.comparison.hasReviewableEvidence, true);
+        assert.equal(result.comparison.rawOnlyNoReviewable, false);
+        assert.deepEqual(report.reportConsistency, { ok: true, reason: 'aligned' });
+        assert.deepEqual(report.counts, truth.reviewableCounts);
+        const shownState = report.surfaces.flatMap((surface) => surface.findings).find((f) => f.kind === 'state');
+        assert.deepEqual(shownState?.props, state.props, 'the report JSON includes the size evidence');
+        const md = fs.readFileSync(result.reportMdPath, 'utf8');
+        assert.match(md, /hover/);
+        assert.ok(md.includes(sizeProp), 'the size evidence reaches the rendered report');
+        assert.doesNotMatch(md, /margin-(left|right|inline-start|inline-end)/);
+      } finally {
+        rmTmp(root);
+      }
+    });
+  }
+}
+
+for (const unrelatedColorChange of [false, true]) {
+  test(`end-to-end: a margin-only child keeps its container hover resize reviewable (unrelated colour: ${unrelatedColorChange})`, () => {
+    const owner = 'body > a:nth-child(1)';
+    const child = `${owner} > div:nth-child(1)`;
+    const before = autoMarginResizeMap(300, 'red');
+    const after = autoMarginResizeMap(320, unrelatedColorChange ? 'blue' : 'red');
+    for (const [map, width, margin] of [
+      [before, '300px', '50px'],
+      [after, '320px', '60px'],
+    ]) {
+      map.states[owner].hover = {
+        [owner]: { width, 'inline-size': width },
+        [child]: Object.fromEntries(
+          ['margin-left', 'margin-right', 'margin-inline-start', 'margin-inline-end'].map((prop) => [prop, margin]),
+        ),
+      };
+    }
+    const raw = diffStyleMaps(before, after);
+    const display = cleanFindingsForDisplay(raw);
+    const expectedState = {
+      kind: 'state',
+      path: owner,
+      cls: '',
+      state: 'hover',
+      sub: owner,
+      props: [
+        { prop: 'width', before: '300px', after: '320px' },
+        { prop: 'inline-size', before: '300px', after: '320px' },
+      ],
+      autoMarginEchoDropped: true,
+    };
+    assert.deepEqual(
+      display.filter((f) => f.kind === 'state'),
+      [expectedState],
+    );
+    assert.ok(
+      raw.every((f) => f.kind !== 'state' || f.sub !== child),
+      'the margin-only target stays omitted',
+    );
+    assert.equal(derivedLonghandCount(raw), 0);
+    const truth = assessComparisonTruth([{ surface: 'home@1280', findings: raw }]);
+    assert.deepEqual(truth.reviewableCounts, { dom: 0, style: Number(unrelatedColorChange), state: 2 });
+    assert.equal(truth.hasReviewableEvidence, true);
+    assert.equal(truth.rawOnlyNoReviewable, false);
+
+    const { beforeDir, afterDir, outDir, root } = pairFixture({ surface: 'home@1280', before, after });
+    try {
+      const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+      const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+      assert.deepEqual(result.comparison.reviewableCounts, truth.reviewableCounts);
+      assert.equal(result.comparison.hasReviewableEvidence, true);
+      assert.equal(result.comparison.rawOnlyNoReviewable, false);
+      assert.deepEqual(report.reportConsistency, { ok: true, reason: 'aligned' });
+      assert.deepEqual(report.counts, truth.reviewableCounts);
+      assert.deepEqual(
+        report.surfaces.flatMap((surface) => surface.findings).filter((f) => f.kind === 'state'),
+        [expectedState],
+      );
+      const md = fs.readFileSync(result.reportMdPath, 'utf8');
+      assert.match(md, /hover/);
+      assert.match(md, /width/);
+      assert.match(md, /300px/);
+      assert.match(md, /320px/);
+      assert.doesNotMatch(md, /margin-(left|right|inline-start|inline-end)/);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+test('auto margin retention covers other targets and position/grid evidence only in the affected owner and state', () => {
+  const owner = 'body > a:nth-child(1)';
+  const child = `${owner} > div:nth-child(1)`;
+  const target = 'body > p:nth-child(3)';
+  const before = autoMarginResizeMap(300, 'red', 'left');
+  const after = autoMarginResizeMap(320, 'blue', 'left');
+  for (const [map, left, tracks] of [
+    [before, '10px', '100px 100px'],
+    [after, '20px', '110px 110px'],
+  ]) {
+    map.elements[target] = { tag: 'p', cls: '', style: {} };
+    const geometry = { left, 'grid-template-columns': tracks };
+    map.states[owner].hover[target] = geometry;
+    map.states[owner].focus = { [target]: geometry };
+    map.states[target] = { hover: { [target]: geometry } };
+  }
+  const raw = diffStyleMaps(before, after);
+  const affected = raw.filter((f) => f.kind === 'state' && f.path === owner && f.state === 'hover');
+  assert.equal(affected.length, 2);
+  assert.ok(affected.every((f) => f.autoMarginEchoDropped === true));
+  const display = cleanFindingsForDisplay(raw);
+  assert.deepEqual(
+    display.filter((f) => f.kind === 'state'),
+    affected,
+  );
+  assert.ok(affected.find((f) => f.sub === child).props.some((p) => p.prop === 'left'));
+  assert.deepEqual(
+    affected.find((f) => f.sub === target).props.map((p) => p.prop),
+    ['left', 'grid-template-columns'],
+  );
+  const unmarked = raw.filter((f) => f.kind === 'state' && !affected.includes(f));
+  assert.equal(unmarked.length, 2);
+  assert.ok(unmarked.every((f) => !Object.hasOwn(f, 'autoMarginEchoDropped')));
+  const legacyBefore = { ...before, stateComputedValueStyle: undefined };
+  const legacyAfter = { ...after, stateComputedValueStyle: undefined };
+  const legacyUnaffected = diffStyleMaps(legacyBefore, legacyAfter).filter(
+    (f) => f.kind === 'state' && (f.path !== owner || f.state !== 'hover'),
+  );
+  assert.equal(JSON.stringify(unmarked), JSON.stringify(legacyUnaffected));
+  assert.deepEqual(cleanFindingsForDisplay(unmarked), []);
+  const truth = assessComparisonTruth([{ surface: 'home@1280', findings: raw }]);
+  assert.equal(truth.hasReviewableEvidence, true);
+  assert.equal(truth.rawOnlyNoReviewable, false);
+});
+
+test('retained auto-margin size evidence leaves unrelated style fallback and state stripping unchanged', () => {
+  const before = autoMarginResizeMap(300, 'red');
+  const after = autoMarginResizeMap(320, 'red');
+  for (const [map, width] of [
+    [before, '100px'],
+    [after, '120px'],
+  ]) {
+    map.elements['body > p:nth-child(3)'] = { tag: 'p', cls: '', style: { width } };
+    map.states['body > a:nth-child(1)'].focus = { 'body > p:nth-child(3)': { width } };
+  }
+  const raw = diffStyleMaps(before, after);
+  const display = cleanFindingsForDisplay(raw);
+  assert.deepEqual(
+    display.map((f) => [f.kind, f.state, f.props.map((p) => p.prop)]),
+    [
+      ['style', undefined, ['width']],
+      ['state', 'hover', ['width', 'transform-origin', 'perspective-origin']],
+    ],
+  );
+  assert.deepEqual(assessComparisonTruth([{ surface: 'home@1280', findings: raw }]).reviewableCounts, {
+    dom: 0,
+    style: 1,
+    state: 3,
+  });
+});
+
+test('auto proof without removed margin rows keeps the existing state-strip behaviour', () => {
+  const before = autoMarginResizeMap(300, 'red', 'width', false);
+  const after = autoMarginResizeMap(320, 'blue', 'width', false);
+  const raw = diffStyleMaps(before, after);
+  const state = raw.find((finding) => finding.kind === 'state');
+  assert.deepEqual(Object.keys(state), ['kind', 'path', 'cls', 'state', 'sub', 'props']);
+  assert.deepEqual(
+    cleanFindingsForDisplay(raw).map((finding) => finding.kind),
+    ['style'],
+  );
+  const stateOnly = raw.filter((finding) => finding.kind === 'state');
+  assert.deepEqual(cleanFindingsForDisplay(stateOnly), []);
+  assert.equal(assessComparisonTruth([{ surface: 'home@1280', findings: stateOnly }]).rawOnlyNoReviewable, true);
+  const legacyBefore = { ...before };
+  const legacyAfter = { ...after };
+  delete legacyBefore.stateComputedValueStyle;
+  delete legacyAfter.stateComputedValueStyle;
+  const legacyRaw = diffStyleMaps(legacyBefore, legacyAfter);
+  assert.equal(JSON.stringify(raw), JSON.stringify(legacyRaw), 'unchanged finding bytes');
+  assert.equal(signatureOf(raw), signatureOf(legacyRaw), 'unchanged signatures');
+  const { beforeDir, afterDir, outDir, root } = pairFixture({ surface: 'home@1280', before, after });
+  try {
+    const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+    const reportBytes = fs.readFileSync(result.reportJsonPath, 'utf8');
+    writeCapture(beforeDir, 'home@1280', legacyBefore, null);
+    writeCapture(afterDir, 'home@1280', legacyAfter, null);
+    const legacyResult = generateStyleMapReport({ beforeDir, afterDir, outDir });
+    assert.equal(fs.readFileSync(legacyResult.reportJsonPath, 'utf8'), reportBytes, 'unchanged report.json bytes');
+  } finally {
+    rmTmp(root);
+  }
 });
 
 test('end-to-end: includeLayoutNoise keeps the reflow-casualty element beside its driver', () => {

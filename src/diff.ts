@@ -56,7 +56,16 @@ export type Finding =
       /** Own-text length changed, or could not be compared (a legacy map omitted the signal). */
       contentLengthSignal?: 'changed' | 'unknown';
     }
-  | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
+  | {
+      kind: 'state';
+      path: string;
+      cls: string;
+      state: string;
+      sub: string;
+      props: PropChange[];
+      /** Proven auto margin rows were removed from this owner+state; retain its size/position evidence. */
+      autoMarginEchoDropped?: true;
+    };
 
 /** Head-only surfaces split into first adoption (`genuinely-new`) and a failed prior baseline capture (`baseline-repair-debt`). */
 export type SurfaceClassification = 'genuinely-new' | 'baseline-repair-debt' | 'removed' | 'changed' | 'unchanged';
@@ -356,6 +365,7 @@ function stateTargetFindings(
   db: Record<string, Record<string, string>>,
 ): Finding[] {
   const findings: Finding[] = [];
+  let autoMarginEchoDropped = false;
   for (const sub of unionKeys(da, db)) {
     // A target inside a live region never diffs, like its element layer. Targets are keyed
     // `path` or `path::before` / `path::after`, so the pseudo suffix is dropped for the check.
@@ -363,10 +373,13 @@ function stateTargetFindings(
     if (!ctx.includeStructure && !pairedSameTag(ctx, sub)) continue;
     // No rect-based margin drop here (#877); only a Typed OM `auto` proof drops an echo (#917).
     const rawProps = diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, STATE_ADDS, STATE_DROPS);
-    const props = dropSubpixelOriginProps(dropAutoEchoMarginPairs(ctx, owner, sub, rawProps));
+    const withoutAutoMargins = dropAutoEchoMarginPairs(ctx, owner, sub, rawProps);
+    if (withoutAutoMargins.length < rawProps.length) autoMarginEchoDropped = true;
+    const props = dropSubpixelOriginProps(withoutAutoMargins);
     if (props.length) findings.push({ kind: 'state', ...owner, sub, props });
   }
-  return findings;
+  // A margin-only target can disappear; its driver may be any other target of this owner+state.
+  return autoMarginEchoDropped ? findings.map((f) => ({ ...f, autoMarginEchoDropped: true as const })) : findings;
 }
 
 /** Forced-state deltas (`:hover`/`:focus`/`:active`) for one owner element. */
