@@ -283,7 +283,16 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
   const pngs = screenshotPair(ctx, sd.surface);
-  if (!hasExposedChangedEntry(mapA, mapB, changedPaths, pngs)) {
+  if (
+    !hasExposedChangedEntry(mapA, mapB, changedPaths, pngs) &&
+    !STATE_LAYER_NAMES.some((state) => {
+      const statePaths = findings.filter((f) => f.kind === 'state' && f.state === state).map((f) => f.path);
+      return (
+        statePaths.length > 0 &&
+        hasExposedChangedEntry(mapA, mapB, statePaths, screenshotPair(ctx, sd.surface, `.${state}`))
+      );
+    })
+  ) {
     const reason = MISLEADING_CROP_REASON;
     return {
       md: [

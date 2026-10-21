@@ -402,6 +402,62 @@ test('state-only change crops hover vs hover, not rest vs rest', () => {
   rmTmp(dirs.root);
 });
 
+for (const [restingHeight, hoverBeforeHeight, hoverAfterHeight, mixed] of [
+  [200, 400, 400, false],
+  [200, 400, 400, true],
+  [200, 200, 400, false],
+  [200, 400, 200, false],
+  [200, 200, 200, false],
+  [400, 200, 200, true],
+]) {
+  test(`state crop uses layer bounds: rest=${restingHeight}, hover=${hoverBeforeHeight}/${hoverAfterHeight}, mixed=${mixed}`, () => {
+    const target = 'body > a:nth-child(1)';
+    const link = (color) =>
+      makeMap({
+        elements: {
+          body: { tag: 'body', rect: [0, 0, 400, 400], style: {} },
+          [target]: {
+            tag: 'a',
+            cls: 'link',
+            rect: [20, 200, 80, 20],
+            style: { color: mixed ? color : 'rgb(126, 214, 208)' },
+          },
+        },
+        states: { [target]: { hover: { [target]: { 'background-color': color } } } },
+      });
+    const dirs = pairFixture({
+      surface: 'demo@900',
+      before: link('rgb(165, 243, 252)'),
+      after: link('rgb(252, 165, 165)'),
+      beforePng: solidPng(400, restingHeight),
+      afterPng: solidPng(400, restingHeight),
+    });
+    try {
+      fs.writeFileSync(path.join(dirs.beforeDir, 'demo@900.hover.png'), solidPng(400, hoverBeforeHeight));
+      fs.writeFileSync(path.join(dirs.afterDir, 'demo@900.hover.png'), solidPng(400, hoverAfterHeight));
+      const result = generateStyleMapReport(dirs);
+      const md = fs.readFileSync(result.reportMdPath, 'utf8');
+      const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+      const surface = report.surfaces[0];
+      const region = surface.regions[0];
+      assert.match(md, /needs review/);
+      if (hoverBeforeHeight > 200 || hoverAfterHeight > 200) {
+        assert.ok(region?.stateImages?.hover?.composite, 'visible hover change keeps its crop');
+        assert.notEqual(surface.visualEvidence, 'not-rendered');
+        assert.match(md, /◀ base :hover {2}· {2}head :hover ▶/);
+      } else {
+        assert.ok(!region?.stateImages?.hover, 'no hover crop of unrelated pixels above the target');
+        assert.match(md, /outside the screenshot canvas/);
+      }
+      if (mixed) {
+        assert.equal(!!region?.images?.composite, restingHeight > 200, 'resting crop keeps its own bounds');
+      }
+    } finally {
+      rmTmp(dirs.root);
+    }
+  });
+}
+
 test('state-only change without layer screenshots does not pretend rest is hover', () => {
   const link = (hoverColor) =>
     makeMap({
