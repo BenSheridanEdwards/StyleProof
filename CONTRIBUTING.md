@@ -15,8 +15,9 @@ npx playwright install chromium   # for the smoke e2e
 
 The package requires Node 22.13+ (`engines.node: ">=22.13.0"`). CI runs its build
 and unit tests on Node 22.13.0 (the floor itself), 22, and 24. `.nvmrc` selects
-Node 22. `devEngines` makes npm 10.9+ refuse to install on a Node below the floor;
-the npm bundled with Node 18 and 20 (10.8) ignores `devEngines` and only warns.
+Node 22. `devEngines` makes npm 10.9+ refuse to install on a Node below the floor.
+npm before 10.9 (bundled with Node 18 and 20) ignores `devEngines` and prints only
+`EBADENGINE` warnings.
 The floor is the oldest Node 22 release the dev toolchain supports: ESLint 10
 declares `^20.19.0 || ^22.13.0 || >=24`, `@commitlint/cli` `>=22.12.0`, and
 `fallow` `>=22`. The runtime itself needs 22.6+ for type stripping. Lint and the

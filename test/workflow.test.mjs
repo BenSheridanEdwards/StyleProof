@@ -112,6 +112,19 @@ test('the build matrix tests the exact Node floor every manifest declares', () =
   assert.match(ci, new RegExp(`node: \\['${floor.replaceAll('.', '\\.')}',`));
   const nvmrc = fs.readFileSync(path.join(here, '..', '.nvmrc'), 'utf8').trim();
   assert.equal(nvmrc, floor.split('.')[0], '.nvmrc selects the Node major whose CI leg runs the once-only gates');
+  assert.match(ci, /node: \[[^\]]*'22'[^\]]*\]/, "the build matrix keeps the '22' leg the once-only gates run on");
+
+  const floorMajor = Number(floor.split('.')[0]);
+  const templates = fs.readFileSync(path.join(here, '..', 'bin/init/templates.mjs'), 'utf8');
+  const initMajor = Number(templates.match(/node-version: '(\d+)'/)?.[1]);
+  assert.ok(initMajor >= floorMajor, `styleproof-init sets up Node ${initMajor}, below the ${floorMajor} floor`);
+  const workflowsDir = path.join(here, '..', '.github/workflows');
+  for (const file of fs.readdirSync(workflowsDir).filter((name) => name.endsWith('.yml'))) {
+    const workflow = fs.readFileSync(path.join(workflowsDir, file), 'utf8');
+    for (const [, major] of workflow.matchAll(/node-version: '(\d+)/g)) {
+      assert.ok(Number(major) >= floorMajor, `${file} sets up Node ${major}, below the ${floorMajor} floor`);
+    }
+  }
 });
 
 test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
