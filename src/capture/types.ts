@@ -102,7 +102,10 @@ export type StyleMap = {
    * target; never `::before`/`::after`). A target is recorded when it is in that state's delta or
    * when any of the four computed values differs from rest; a missing target means its computed
    * margins equal its resting ones. Absent on legacy captures, when Typed OM was unavailable, and
-   * when the forced-state layer was skipped.
+   * when the forced-state layer was skipped. "Resting" here is the state layer's own snapshot, while
+   * the diff reads a missing target's rest from the element layer's earlier `computedValueStyle`;
+   * this assumes both reads see the same settled page (a margin still changing is normally caught
+   * as volatile).
    */
   stateComputedValueStyle?: Record<string, Record<string, Record<string, Props>>>;
   /** True when the forced-state layer was not fully captured — the diff must not read it as identical. */
