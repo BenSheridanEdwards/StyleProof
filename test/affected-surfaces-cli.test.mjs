@@ -72,6 +72,75 @@ test('styleproof-affected: a token/global change exits 3 (unbounded → re-captu
   });
 });
 
+test('styleproof-affected: a :root rule after a comment in a CSS Module exits 3 (re-capture all)', () => {
+  const dir = mkTmp('styleproof-affected-comment-');
+  try {
+    fs.cpSync(FIXTURE, dir, { recursive: true });
+    fs.appendFileSync(
+      path.join(dir, 'src/components/Chart.module.css'),
+      '/* brand tokens */\n:root {\n  --brand: red;\n}\n',
+    );
+    const res = run(
+      [
+        '--graph',
+        'graph.depcruise.json',
+        ...Object.entries(SURFACES).flatMap(([k, p]) => ['--surface', `${k}=${p}`]),
+        '--changed',
+        'src/components/Chart.module.css',
+        '--json',
+      ],
+      dir,
+    );
+    assert.equal(res.status, 3, res.stderr);
+    const verdict = JSON.parse(res.stdout);
+    assert.equal(verdict.verdict, 'all');
+    assert.deepEqual(verdict.recapture, ['dashboard', 'home', 'pricing']);
+    assert.deepEqual(verdict.reuse, []);
+    assert.match(verdict.reason, /Chart\.module\.css/);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('styleproof-affected: an unscoped <style> change in a .vue component exits 3 (re-capture all)', () => {
+  const dir = mkTmp('styleproof-affected-vue-');
+  try {
+    fs.mkdirSync(path.join(dir, 'src', 'components'), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'src/components/Widget.vue'),
+      '<template><div class="panel">widget</div></template>\n<style>\n.panel { padding: 24px; }\n</style>\n',
+    );
+    const modules = [
+      { source: 'src/pages/Home.vue', dependencies: [{ resolved: 'src/components/Widget.vue', dynamic: false }] },
+      { source: 'src/pages/Settings.vue', dependencies: [] },
+      { source: 'src/components/Widget.vue', dependencies: [] },
+    ];
+    fs.writeFileSync(path.join(dir, 'graph.json'), JSON.stringify({ modules }));
+    const res = run(
+      [
+        '--graph',
+        'graph.json',
+        '--surface',
+        'home=src/pages/Home.vue',
+        '--surface',
+        'settings=src/pages/Settings.vue',
+        '--changed',
+        'src/components/Widget.vue',
+        '--json',
+      ],
+      dir,
+    );
+    assert.equal(res.status, 3, res.stderr);
+    const verdict = JSON.parse(res.stdout);
+    assert.equal(verdict.verdict, 'all');
+    assert.deepEqual(verdict.recapture, ['home', 'settings']);
+    assert.deepEqual(verdict.reuse, []);
+    assert.match(verdict.reason, /Widget\.vue/);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
 test('styleproof-affected: inline --surface entries work without a surfaces file', () => {
   const res = run([
     '--graph',
