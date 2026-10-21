@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { resolveForcedStateLimits } from '../capture/forced-states.js';
 import { warn } from '../capture/shared.js';
+import type { ServedRuleTracker } from '../capture/reach.js';
 import type { CaptureOptions } from '../capture/types.js';
 import { requireLiveTextCapture, validateLiveText } from '../live-text.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, restoreRealSpecClock } from '../spec-clock.js';
@@ -141,13 +142,19 @@ export function resolveSettings(c: CaptureConfig): Settings {
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
     inventory: c.inventory ?? false,
+    captureReach: c.captureReach ?? false,
     liveText,
     tolerateSurfaceFailures: envFlag(env.STYLEPROOF_TOLERATE_SURFACE_FAILURES),
   };
 }
 
 /** The capture options every capture of `surface` shares (the surface's limits win over the run's). */
-export function captureOptionsFor(surface: ExpandedSurface, s: Settings, pending: () => number): CaptureOptions {
+export function captureOptionsFor(
+  surface: ExpandedSurface,
+  s: Settings,
+  pending: () => number,
+  servedRules?: ServedRuleTracker,
+): CaptureOptions {
   return {
     ...resolveForcedStateLimits({
       maxForcedStateElements:
@@ -158,6 +165,8 @@ export function captureOptionsFor(surface: ExpandedSurface, s: Settings, pending
     }),
     ignore: surface.ignore ?? [],
     captureText: s.captureText,
+    captureReach: s.captureReach,
+    servedRules,
     pendingRequests: pending,
   };
 }

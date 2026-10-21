@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { captureStyleMap } from '../capture.js';
+import type { ServedRuleTracker } from '../capture/reach.js';
 import { warn } from '../capture/shared.js';
 import type { LiveRegionCandidate, StyleMap } from '../capture/types.js';
 import { diffStyleMaps, type Finding } from '../diff.js';
@@ -115,10 +116,11 @@ export async function assertDeterministic(
   first: StyleMap,
   settings: Settings,
   pending: () => number,
+  servedRules?: ServedRuleTracker,
 ): Promise<void> {
   await surface.go(page);
   const again = await captureStyleMap(page, {
-    ...captureOptionsFor(surface, settings, pending),
+    ...captureOptionsFor(surface, settings, pending, servedRules),
     requiredVisibleState: surface.requiredVisibleState,
   });
   const drift = diffStyleMaps(first, again);

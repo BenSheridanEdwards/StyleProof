@@ -1,5 +1,12 @@
 import type { Page } from '@playwright/test';
-import { captureStyleMap, captureSurfaceScreenshots, saveStyleMap, trackInflightRequests } from '../capture.js';
+import {
+  captureStyleMap,
+  captureSurfaceScreenshots,
+  saveStyleMap,
+  trackInflightRequests,
+  trackServedRules,
+  type ServedRuleTracker,
+} from '../capture.js';
 import { warn } from '../capture/shared.js';
 import type { CaptureMetadata, StyleMap } from '../capture/types.js';
 import { diffStyleMaps } from '../diff.js';
@@ -100,11 +107,12 @@ type PopupRun = {
   options: ResolvedPopupCaptureOptions;
   pristine: ReadonlySet<string>;
   pending: () => number;
+  servedRules?: ServedRuleTracker;
 };
 
 function captureOpenedPopupMap(run: PopupRun, popupId: string): Promise<StyleMap> {
   return captureStyleMap(run.page, {
-    ...captureOptionsFor(run.surface, run.s, run.pending),
+    ...captureOptionsFor(run.surface, run.s, run.pending, run.servedRules),
     captureComponent: run.s.captureComponent,
     metadata: popupMetadata(run.surface, popupId),
   });
@@ -167,24 +175,30 @@ export async function capturePopupSurfaces(
   const options = resolvePopupCaptureOptions(surface.popups ?? s.popups);
   if (!options.enabled || options.max === 0) return;
 
-  await surface.go(page);
-  const { keys, candidates } = await snapshot(page, {
-    triggerSelector: options.triggers,
-    popupSelector: options.overlays,
-    attr: POPUP_TRIGGER_ATTR,
-    max: options.max,
-  });
-  // Overlays legitimately visible in the settled state; every reopen is verified back to this baseline.
-  const pristine: ReadonlySet<string> = new Set(keys);
-  for (const candidate of candidates) {
-    const requests = trackInflightRequests(page);
-    try {
-      await capturePopupCandidate(
-        { page, surface, viewport, s, options, pristine, pending: requests.pending },
-        candidate,
-      );
-    } finally {
-      requests.dispose();
+  // Armed before go() so Chromium keeps linked stylesheets' text for every popup's ledger.
+  const servedRules = s.captureReach ? await trackServedRules(page) : undefined;
+  try {
+    await surface.go(page);
+    const { keys, candidates } = await snapshot(page, {
+      triggerSelector: options.triggers,
+      popupSelector: options.overlays,
+      attr: POPUP_TRIGGER_ATTR,
+      max: options.max,
+    });
+    // Overlays legitimately visible in the settled state; every reopen is verified back to this baseline.
+    const pristine: ReadonlySet<string> = new Set(keys);
+    for (const candidate of candidates) {
+      const requests = trackInflightRequests(page);
+      try {
+        await capturePopupCandidate(
+          { page, surface, viewport, s, options, pristine, pending: requests.pending, servedRules },
+          candidate,
+        );
+      } finally {
+        requests.dispose();
+      }
     }
+  } finally {
+    await servedRules?.dispose();
   }
 }

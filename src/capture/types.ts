@@ -1,5 +1,6 @@
 import type { NavigableItem } from '../inventory.js';
 import type { DataResidueEntry } from '../data-residue.js';
+import type { ServedRuleTracker } from './reach.js';
 
 export type Props = Record<string, string>;
 /** Document-space bounding box: [x, y, width, height], rounded. */
@@ -130,6 +131,34 @@ export type StyleMap = {
   inventory?: NavigableItem[];
   /** Data-boundary requests that FAILED during capture (fallback branch rendered). Only when armed and non-empty. */
   dataResidue?: DataResidueEntry[];
+  /** Served CSS rules and which matched while the map was read; only with `captureReach: true` (Change Reach, #991). */
+  reach?: ServedRules;
+};
+
+/** One served CSS leaf rule (a style rule, `@keyframes`, `@font-face`…) in the Change Reach ledger. */
+export type ServedRule = {
+  /** At-rule chain and prelude, whitespace-collapsed (`@media (min-width: 1440px) > .panel`); a repeat gets ` #2`, ` #3`… */
+  key: string;
+  /** Digest of the whitespace-collapsed declaration block: a changed body changes it. */
+  hash: string;
+  /** Index into `ServedRules.sheets`. */
+  sheet: number;
+  /** Matched an element while the map was read, at rest or in a forced state. Never set on `@keyframes`/`@font-face`. */
+  used?: true;
+  /** Custom properties the rule declares, each mapped to a digest of its value. */
+  vars?: Record<string, string>;
+  /** Custom properties the rule reads through `var()`. */
+  uses?: string[];
+  /** Identifiers in its `animation`/`font` declarations: the `@keyframes`/`@font-face` names it can reference. */
+  refs?: string[];
+};
+
+export type ServedRules = {
+  /** Where each stylesheet came from: its URL path, `inline`, or `constructed`. */
+  sheets: string[];
+  rules: ServedRule[];
+  /** Stylesheets whose text could not be read; their rules are missing, so reach over them is unknown. */
+  unreadable?: number;
 };
 
 export type CaptureOptions = {
@@ -163,6 +192,13 @@ export type CaptureOptions = {
   captureText?: boolean;
   /** Opt-in React layer: record the rendering component + primitive props. Advisory. */
   captureComponent?: boolean;
+  /** Opt-in Change Reach ledger: record served CSS rules and which matched into `StyleMap.reach` (default off). */
+  captureReach?: boolean;
+  /**
+   * A `trackServedRules(page)` armed BEFORE navigation. Without one, `captureReach` arms its own after
+   * the page loaded, and linked stylesheets read as `unreadable` because Chromium did not keep their text.
+   */
+  servedRules?: ServedRuleTracker;
   /** Internal: in-flight data request count from a tracker armed BEFORE navigation. */
   pendingRequests?: () => number;
   /** Internal: capture-phase callback for the per-surface timeout. */

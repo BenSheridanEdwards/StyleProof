@@ -105,6 +105,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Served-rule ledger for Change Reach (#991).** `captureReach: true` (in
+  `defineStyleMapCapture` or `captureStyleMap`) records every served CSS rule
+  in `StyleMap.reach` and marks the ones that matched an element while the map
+  was read, forced states included. This is the evidence Change Reach (#934)
+  uses to name a changed rule that no captured state rendered. Off by default.
+  Nothing reads it yet, so diffs, verdicts and exit codes are unchanged. For a
+  direct `captureStyleMap` call, arm `trackServedRules(page)` before navigating
+  and pass it as `servedRules`. Otherwise linked stylesheets are counted
+  `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
+  `ServedRuleTracker`.
 - **The PR comment names what changed, not just how much (#831).** A **What
   changed** block now follows the headline count. It has one row per one-sided
   surface with its status, and one row per change that names up to three
