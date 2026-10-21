@@ -2,6 +2,7 @@ import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { detectViewportWidths } from '../breakpoints.js';
 import {
   captureStyleMap,
   captureSurfaceScreenshots,
@@ -59,6 +60,38 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<bool
   if (intercepting) await passLiveStreams(page, s.replayUrl);
   if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
   return intercepting;
+}
+
+/** The base's `<key>@<width>.har` for the band a load at `viewportWidth` renders in (else its narrowest). */
+function baseHarFor(replayFrom: string, key: string, viewportWidth = 0): string | undefined {
+  const prefix = `${key}@`;
+  const widths = (fs.existsSync(replayFrom) ? fs.readdirSync(replayFrom) : [])
+    .filter((f) => f.startsWith(prefix) && /^\d+\.har$/.test(f.slice(prefix.length)))
+    .map((f) => parseInt(f.slice(prefix.length), 10))
+    .sort((a, b) => a - b);
+  const width = widths.filter((w) => w <= viewportWidth).pop() ?? widths[0];
+  return width === undefined ? undefined : `${key}@${width}.har`;
+}
+
+/**
+ * Load an auto-width surface once and read its `@media` bands. Under replay the load is pinned to
+ * the base's recording of the band it renders in, like a capture, so detection never reaches the
+ * live backend; with no base recording it runs live, as each width's capture then will.
+ */
+export async function detectSurfaceWidths(page: Page, surface: ExpandedSurface, s: Settings): Promise<number[]> {
+  const har = s.replayFrom ? baseHarFor(s.replayFrom, surface.key, page.viewportSize()?.width) : undefined;
+  if (har) {
+    // Load as the base's capture did: reduced motion, its recorded data, the frozen clock.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await pinInputs(page, har, s);
+  }
+  try {
+    await surface.go(page);
+    return await detectViewportWidths(page);
+  } finally {
+    // Drop the replay routes only (a spec's own routes stay): each width then pins its own HAR.
+    if (har) await page.unroute(s.replayUrl);
+  }
 }
 
 /** One heartbeat unit per declared surface×width; an auto-width surface is ONE unit. */

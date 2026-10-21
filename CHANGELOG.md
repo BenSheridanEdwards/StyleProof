@@ -575,6 +575,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   physical and checkout-alias spellings of one spec share a key. A symlink
   inside the project, such as `e2e -> suite-a`, keeps its logical path, and a
   spec outside the project still keys separately.
+- **Auto-width surfaces no longer fail a head capture when the backend is down
+  (#974).** A surface with no `widths` loads once to read its `@media` bands,
+  and that load ran before any HAR replay was in place. Under
+  `STYLEPROOF_REPLAY_FROM` it called the live backend, so with the backend down
+  the head run failed for auto-width surfaces only, in `defineStyleMapCapture`
+  and `defineCrawlCapture` alike. The detection load now replays the base's
+  recording for the band it renders in, with the frozen clock and reduced
+  motion a capture uses, and drops those routes before each width pins its own
+  HAR. A surface with no base recording still loads live, as each of its width
+  captures then does. Recording runs and fixed-width surfaces are unchanged.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

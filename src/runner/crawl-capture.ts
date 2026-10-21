@@ -1,6 +1,5 @@
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { detectViewportWidths } from '../breakpoints.js';
 import { crawlCoverageError, dedupIdentity, selectCrawlLinks, selectObservedNavs, type CrawlLink } from '../crawl.js';
 import { captureTestBudgetMs } from '../surface-progress.js';
 import { NAV_OBSERVER_FN, NAV_OBSERVER_SNIPPET } from './browser.js';
@@ -8,6 +7,7 @@ import { withSurfaceFailureTolerance } from './self-check.js';
 import { resolveSettings } from './settings.js';
 import {
   captureSurface,
+  detectSurfaceWidths,
   heartbeatUnitCount,
   writeBrowserBuildTest,
   recordCaptureTestOutcomes,
@@ -64,8 +64,7 @@ async function sweepCrawlSurfaces(
         settings,
         `${surface.key}@auto`,
         async () => {
-          await surface.go(page);
-          widths = await detectViewportWidths(page);
+          widths = await detectSurfaceWidths(page, surface, settings);
         },
         aggregate,
       );
