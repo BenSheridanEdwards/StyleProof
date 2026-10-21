@@ -483,6 +483,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   box lies in the area both screenshots cover, the pair now clamps one origin to
   the smaller screenshot; a change past the shorter page's end keeps per-side
   cropping so it stays visible.
+- **Crop pairs for full-width and right-edge elements show the same page rows on
+  both sides (#954).** The check for whether both screenshots cover a crop box
+  measured the box with its crop padding (`--pad`, 12px by default). A
+  full-width header, section or footer, an element at the right edge, or one
+  flush with the shorter page's bottom has padding past the screenshot edge, so
+  it fell back to per-side cropping. When the page height changed, the two
+  panels then started at different page rows, and the content layer wrote a
+  changed pair over identical pixels. The check now measures the element inside
+  the padding. A change that really lies past the shorter page's end still
+  crops each side on its own.
 - **report.html no longer turns a CSS value into a live link.** A value
   carrying `|` is written as `\|` so the report.md table row survives on
   GitHub, but report.html split the row on every pipe. Text after the pipe left
