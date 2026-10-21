@@ -16,7 +16,9 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *   1. content shift — same hashed semantic path pattern, tag, class, own-text
  *      length and component on both sides pair k-th to k-th, only while the group
  *      is the same size on both sides (an nth-child shift, never an add/remove)
- *      and no member was already placed by own-text identity.
+ *      and no member was already placed, or shown in place, by own-text identity.
+ *      Moves that only permute paths present on both sides (a modifier class
+ *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
  *      unique on both sides, sharing an ancestor segment or re-nested. For
  *      certification the hashed identities along the path must also match.
@@ -107,11 +109,30 @@ function pathsByContentSignature(map: StyleMap): Map<string, string[]> {
   return pathsBySignature;
 }
 
+/**
+ * Keep only moves whose chain ends on a head path no base element moves away from
+ * (a sibling inserted or removed). A closed cycle only permutes paths present on both sides,
+ * as when a modifier class moves between same-shape siblings: that is a restyle.
+ */
+function withoutClosedPermutations(moves: Map<string, string>): Map<string, string> {
+  const sourceOf = new Map([...moves].map(([beforePath, afterPath]) => [afterPath, beforePath]));
+  const kept = new Map<string, string>();
+  for (const tail of sourceOf.keys()) {
+    if (moves.has(tail)) continue;
+    for (let afterPath = tail, beforePath = sourceOf.get(tail); beforePath !== undefined;) {
+      kept.set(beforePath, afterPath);
+      [afterPath, beforePath] = [beforePath, sourceOf.get(beforePath)];
+    }
+  }
+  return kept;
+}
+
 /** base path → head path for elements whose identity is recognisable on both sides but whose path moved. */
 function correspondingPathsByContentSignature(
   before: StyleMap,
   after: StyleMap,
   identified: Map<string, string>,
+  inPlace: Set<string>,
 ): Map<string, string> {
   const bySignatureAfter = pathsByContentSignature(after);
   const identifiedTargets = new Set(identified.values());
@@ -122,11 +143,14 @@ function correspondingPathsByContentSignature(
     if (afterPaths.length !== beforePaths.length) continue;
     // Own-text identity already placed part of this group; k-th pairing could contradict it.
     if (beforePaths.some((p) => identified.has(p)) || afterPaths.some((p) => identifiedTargets.has(p))) continue;
-    beforePaths.forEach((beforePath, i) => {
-      if (afterPaths[i] !== beforePath) beforeToAfter.set(beforePath, afterPaths[i]!);
-    });
+    const moves = beforePaths.flatMap((beforePath, i) =>
+      afterPaths[i] !== beforePath ? [[beforePath, afterPaths[i]!] as const] : [],
+    );
+    // Own text shows an element stayed put; moving it, or something onto its path, contradicts that.
+    if (moves.some(([beforePath, afterPath]) => inPlace.has(beforePath) || inPlace.has(afterPath))) continue;
+    for (const [beforePath, afterPath] of moves) beforeToAfter.set(beforePath, afterPath);
   }
-  return beforeToAfter;
+  return withoutClosedPermutations(beforeToAfter);
 }
 
 /** Re-key base elements onto their head paths; an unmatched occupant of a claimed path is dropped. */
@@ -143,7 +167,10 @@ function applyPathMoves(before: StyleMap, beforeToAfter: Map<string, string>): S
 /** Re-key identifiable base elements onto their head paths: own-text identity, plus the nth-child shift for the rest. */
 export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
   const identified = ownTextIdentityMoves(before, after);
-  const shifted = correspondingPathsByContentSignature(before, after, identified);
+  const inPlace = new Set(
+    ownTextAnchors(before, after).flatMap(([beforePath, afterPath]) => (beforePath === afterPath ? [beforePath] : [])),
+  );
+  const shifted = correspondingPathsByContentSignature(before, after, identified, inPlace);
   return applyPathMoves(before, new Map([...shifted, ...identified]));
 }
 

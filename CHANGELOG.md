@@ -909,6 +909,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   invisible zero-width space, and the publish read-back counts only the full
   `<!-- … -->` trailer for this run. A second real trailer, duplicate or stale,
   still fails.
+- **A modifier class moved between same-shape siblings is no longer certified
+  as no change (#949).** Moving `active`, `featured` or `current` from one tab,
+  card or row to another, with no sibling inserted or removed, re-paired the
+  siblings k-th to k-th by class. The re-pairing cancelled every difference, so
+  `styleproof-diff` certified a real visual change. The nth-child shift pass now
+  drops moves that only permute paths present on both sides, and never moves an
+  element whose own text shows it stayed in place. Both siblings are reported.
+  A sibling that was really inserted or removed still pairs as before.
 
 ## [8.0.1] - 2026-10-17
 

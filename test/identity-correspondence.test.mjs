@@ -92,6 +92,74 @@ test('the active state genuinely moving to another tab is still reported on both
   );
 });
 
+// ── modifier class moved between same-shape siblings, nothing inserted (#949) ──────
+
+test('a modifier class moved to another tab is certified on both tabs', () => {
+  const strip = (active) =>
+    makeMap({
+      elements: Object.fromEntries(
+        ['Alpha', 'Gamma', 'Delta'].map((label, index) => [
+          tabPath(index + 1),
+          {
+            tag: 'button',
+            cls: label === active ? 'tab active' : 'tab',
+            rect: [8 + index * 72, 8, 64, 30],
+            ownTextLength: label.length,
+            text: label,
+            style: label === active ? ACTIVE : INACTIVE,
+          },
+        ]),
+      ),
+    });
+  assert.deepEqual(summary(certify(strip('Alpha'), strip('Gamma'))), [
+    ['style', null, tabPath(1), ['color', 'border-bottom-color']],
+    ['style', null, tabPath(2), ['color', 'border-bottom-color']],
+  ]);
+});
+
+test('a modifier class moved to another text-less card is certified on both cards', () => {
+  const card = (position) => `${STRIP} > div:nth-child(${position})`;
+  const FEATURED = { 'border-top-color': 'rgb(0, 80, 200)', 'box-shadow': 'rgba(0, 0, 0, 0.2) 0px 4px 12px 0px' };
+  const PLAIN = { 'border-top-color': 'rgb(220, 220, 220)', 'box-shadow': 'none' };
+  const row = (featured) =>
+    makeMap({
+      elements: Object.fromEntries(
+        [1, 2, 3].map((position) => [
+          card(position),
+          {
+            tag: 'div',
+            cls: position === featured ? 'card featured' : 'card',
+            rect: [8 + (position - 1) * 260, 8, 250, 160],
+            ownTextLength: 0,
+            style: position === featured ? FEATURED : PLAIN,
+          },
+        ]),
+      ),
+    });
+  assert.deepEqual(summary(certify(row(2), row(3))), [
+    ['style', null, card(2), ['border-top-color', 'box-shadow']],
+    ['style', null, card(3), ['border-top-color', 'box-shadow']],
+  ]);
+});
+
+test('an element own text shows stayed in place is never re-paired onto a new sibling', () => {
+  // The first tab loses its modifier class; a new tab with that class (and an
+  // equal-length label) is appended. The first tab's restyle must stay visible.
+  const tab = (label, active) => ({
+    tag: 'button',
+    cls: active ? 'tab active' : 'tab',
+    rect: [8, 8, 64, 30],
+    ownTextLength: label.length,
+    text: label,
+    style: active ? ACTIVE : INACTIVE,
+  });
+  const before = makeMap({ elements: { [tabPath(1)]: tab('Alpha', true) } });
+  const after = makeMap({
+    elements: { [tabPath(1)]: tab('Alpha', false), [tabPath(2)]: { ...tab('Gamma', true), rect: [80, 8, 64, 30] } },
+  });
+  assert.deepEqual(summary(certify(before, after)), [['style', null, tabPath(1), ['color', 'border-bottom-color']]]);
+});
+
 test('an ambiguous own text stays unpaired by identity (fails closed to the existing passes)', () => {
   const before = tabStrip(['Alpha', 'Beta'], 'Beta');
   const after = tabStrip(['Alpha', 'Omega', 'Beta', 'Alpha'], 'Beta');
