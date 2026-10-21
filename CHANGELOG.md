@@ -652,6 +652,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   An `auto`-centred child whose margins only follow a width change under hover
   now also reports its margin rows until the capture can prove that echo.
 - **BREAKING: Visible elements added below the first screen now require review.** The
+- **A balanced margin change on a centred item that moves its siblings now
+  reports (#951).** The layout-equivalent margin filter dropped a matching
+  left/right margin change whenever the element's own rectangle was unchanged.
+  In a centring container (`justify-content: center`, `text-align: center`) the
+  item stays put while its neighbours move, so `margin: 0 8px` → `margin: 0 48px`
+  on the middle item produced no finding and `styleproof-diff` exited 0. On maps
+  where both sides carry CSS Typed OM values, every horizontal margin row now
+  reports unless both sides prove the margin is `auto`. An authored margin change
+  that moves nothing, such as on a lone centred item, now also reports. Maps
+  without Typed OM keep the rectangle check.
+- **Visible elements added below the first screen now require review.** The
   visible-structure gate intersected each added or removed element with the
   window-sized viewport, so a visible element added further down a tall page
   passed as no change and `styleproof-diff` exited 0. Captures now record the

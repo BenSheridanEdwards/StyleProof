@@ -909,10 +909,16 @@ defineStyleMapCapture({
 
 - **Self-check** — captures each surface twice and fails if they differ, so a replay gap or unseeded randomness surfaces as a clear _"non-deterministic capture"_ error, never as a phantom change on an unrelated PR. **On by default while recording** (where live nondeterminism shows up); off on the replay run, which renders against the recorded HAR and is deterministic by construction. `STYLEPROOF_SELFCHECK=1` forces it on for both; `selfCheck: false` opts out.
 - **Framework noise is skipped by default.** Non-visual and framework-injected elements never count as a change — `<meta>`/`<title>`/`<script>`/`<style>`/… (which Next.js streams into the body then hoists) and live regions like Next's `next-route-announcer`. A real stylesheet change still shows up in the affected elements' computed styles, not in the `<style>` tag. Add your own selectors with `ignore` — they extend this default, they don't replace it.
-- **Layout-equivalent margin noise is normalised.** If the browser reports
-  horizontal auto-centering margins (`margin-left`/`margin-right` and logical
-  equivalents) differently but the captured document-space rectangle is
-  identical, StyleProof treats that as the same rendered layout. The suppression
+- **Layout-equivalent margin noise is normalised.** When both captures carry CSS
+  Typed OM computed values (`computedValueStyle`), a horizontal margin row
+  (`margin-left`/`margin-right` and logical equivalents) drops only when both
+  sides record the same computed value, such as `auto`, so the used px only
+  echoes a container change. An authored px margin change reports even when the
+  element's own rectangle is unchanged, because a centring parent can move its
+  siblings instead (#951). On maps without Typed OM values, if the browser
+  reports horizontal auto-centering margins differently but the captured
+  document-space rectangle is identical, StyleProof treats that as the same
+  rendered layout. The rectangle suppression
   only fires when the sides drift **together** (no demonstrable px imbalance
   between a side and its opposite): a one-sided change like
   `margin-left: 0 → 40px` still reports even when something else compensates and
@@ -945,7 +951,7 @@ Anything still moving on its own after that is detected as a volatile region and
 | Animations, transitions, real hover/focus, caret            | frozen / neutralised before the map is read; forced states are captured separately                                              |
 | Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                                                           |
 | Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                                                              |
-| Layout-equivalent horizontal auto margins                   | unchanged rectangle (element layer) or Typed OM `auto` proof (forced states), **and** the sides drift together                  |
+| Layout-equivalent horizontal auto margins                   | Typed OM `auto` on both sides (states: plus balanced sides); legacy element layer: unchanged rectangle **and** balanced sides   |
 | Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                                                                  |
 | Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison; head-only volatility blocks; base-only is reviewable |
 | Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                                                       |

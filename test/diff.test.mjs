@@ -421,6 +421,49 @@ test('ignores layout-equivalent horizontal margin drift when the element rect is
   assert.deepEqual(diffStyleMaps(a, b), []);
 });
 
+// A centred flex row absorbs a balanced margin growth on its middle item: the item's rect
+// stays put and its neighbours move instead (#951). With Typed OM proof on both sides, a
+// margin row without a computed-value entry is authored px, so it reports.
+const centredItem = (margin, computedValueStyle) =>
+  makeMap({
+    elements: {
+      'body > nav:nth-child(1) > a:nth-child(2)': {
+        tag: 'a',
+        cls: 'chip middle',
+        rect: [360, 0, 80, 30],
+        style: {
+          'margin-left': margin,
+          'margin-right': margin,
+          'margin-inline-start': margin,
+          'margin-inline-end': margin,
+        },
+        computedValueStyle,
+      },
+    },
+  });
+
+test('reports a balanced px margin change with an unchanged rect when both sides carry Typed OM proof', () => {
+  const typedOm = { 'animation-duration': 'auto' };
+  const f = diffStyleMaps(centredItem('8px', typedOm), centredItem('48px', typedOm));
+  assert.equal(f.length, 1);
+  assert.deepEqual(f[0].props.map((p) => `${p.prop}:${p.before}->${p.after}`).sort(), [
+    'margin-inline-end:8px->48px',
+    'margin-inline-start:8px->48px',
+    'margin-left:8px->48px',
+    'margin-right:8px->48px',
+  ]);
+});
+
+test('still drops a balanced auto-margin echo with an unchanged rect when both sides prove auto', () => {
+  const autoMargins = {
+    'margin-left': 'auto',
+    'margin-right': 'auto',
+    'margin-inline-start': 'auto',
+    'margin-inline-end': 'auto',
+  };
+  assert.deepEqual(diffStyleMaps(centredItem('8px', autoMargins), centredItem('48px', autoMargins)), []);
+});
+
 test('keeps a one-sided margin change even when the rect is unchanged (external compensation is not layout-equivalent)', () => {
   // margin-left 0 -> 40px with margin-right unchanged would shift the box by
   // 40px on its own; an identical rect means something else compensated. That

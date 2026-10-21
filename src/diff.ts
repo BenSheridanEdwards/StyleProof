@@ -185,12 +185,18 @@ function marginChangeHasPxImbalance(props: PropChange[]): boolean {
   });
 }
 
-/** A balanced horizontal margin change with an unchanged rect is layout-equivalent drift. */
+/**
+ * A balanced horizontal margin change with an unchanged rect is layout-equivalent drift, on
+ * legacy maps only. With Typed OM on both sides, a margin row with no computed-value entry is
+ * authored px: a centring parent can absorb it and move the siblings instead (#951). A real
+ * `auto` echo there is dropped by `dropUsedValueOnlyProps`.
+ */
 function dropLayoutEquivalentMarginProps(
   props: PropChange[],
   a?: StyleMap['elements'][string],
   b?: StyleMap['elements'][string],
 ): PropChange[] {
+  if (a?.computedValueStyle && b?.computedValueStyle) return props;
   if (!sameRect(a?.rect, b?.rect) || marginChangeHasPxImbalance(props)) return props;
   return props.filter((p) => !LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop));
 }
