@@ -1021,6 +1021,32 @@ test('a caller-ignored region is not surfaced as a live candidate', async ({ pag
   expect(classes, 'the ignored ad ticker is not surfaced as a live candidate').not.toContain('ad-ticker');
 });
 
+test('an ignore entry written as a selector list skips the subtree of every selector in it', async ({ page }) => {
+  // ignore: ['.ticker, .clock'] must act like ['.ticker', '.clock'] (#981): the
+  // children of .ticker (the first selector) are skipped, so their change never diffs.
+  const html = (color: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
+    button:hover { color: rgb(0, 128, 0); }
+  </style></head><body>
+    <main>
+      <div class="ticker"><span style="color:${color}">tick</span><button>pause</button></div>
+      <div class="clock"><b style="color:${color}">now</b></div>
+      <button class="cta">ok</button>
+    </main>
+  </body></html>`;
+  const capture = (color: string) =>
+    withPage(page, html(color), () => captureStyleMap(page, { ignore: ['.ticker, .clock'], stabilize: false }));
+  const red = await capture('rgb(255, 0, 0)');
+  const blue = await capture('rgb(0, 0, 255)');
+  const ignored = ['body > main:nth-child(1) > div:nth-child(1)', 'body > main:nth-child(1) > div:nth-child(2)'];
+  const under = (paths: string[]) => paths.filter((p) => ignored.some((r) => p === r || p.startsWith(`${r} > `)));
+  expect(under(Object.keys(red.elements)), 'nothing under .ticker or .clock is captured').toEqual([]);
+  expect(under(Object.keys(red.states)), 'nothing under .ticker or .clock is forced into a state').toEqual([]);
+  expect(Object.keys(red.states), 'the button outside the ignore still gets its states').toContain(
+    'body > main:nth-child(1) > button:nth-child(3)',
+  );
+  expect(diffStyleMaps(red, blue)).toEqual([]);
+});
+
 test('ignores framework / non-visual DOM noise by default (meta, title, next-route-announcer)', async ({ page }) => {
   // The body carries the kind of noise Next.js streams in / injects: a couple of
   // <meta>, a <title>, a <script>, and the route-announcer live region — none of

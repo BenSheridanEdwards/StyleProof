@@ -9,7 +9,10 @@ export function isUnder(path: string, roots: string[]): boolean {
   return roots.some((r) => path === r || path.startsWith(r + ' > '));
 }
 
-/** Selector matching every ignored element and its descendants; `''` when nothing is ignored. */
+/**
+ * Selector matching every ignored element and its descendants; `''` when nothing is ignored.
+ * `:is()` groups an entry that is itself a list (`.a, .b`), so ` *` reaches every member.
+ */
 export function skipSelector(ignore: string[]): string {
-  return ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
+  return ignore.length ? ignore.map((s) => `${s}, :is(${s}) *`).join(', ') : '';
 }

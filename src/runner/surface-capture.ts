@@ -8,6 +8,7 @@ import {
   saveStyleMap,
   trackDataResidue,
   trackInflightRequests,
+  trackServedRules,
 } from '../capture.js';
 import { warn } from '../capture/shared.js';
 import type { CaptureMetadata, StyleMap } from '../capture/types.js';
@@ -103,6 +104,8 @@ export async function captureSurface(
   // is keyed on the BASE surface key so liveStates splits and widths dedupe to one entry.
   const requests = trackInflightRequests(page);
   const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key, baseURL);
+  // Change Reach: Chromium keeps linked stylesheets' text only when this is armed before they load.
+  const servedRules = s.captureReach ? await trackServedRules(page) : undefined;
   const captureKey = `${surface.key}@${width}`;
   const startedAtMs = realNow(); // realNow: the spec-process clock may be frozen
   let phase: CapturePhase = 'navigate';
@@ -115,7 +118,7 @@ export async function captureSurface(
       async (surfaceRun) => {
         await surface.go(page);
         const map = await captureStyleMap(page, {
-          ...captureOptionsFor(surface, s, requests.pending),
+          ...captureOptionsFor(surface, s, requests.pending, servedRules),
           captureComponent: s.captureComponent,
           inventory: s.inventory,
           requiredVisibleState: surface.requiredVisibleState,
@@ -128,7 +131,7 @@ export async function captureSurface(
         if (s.selfCheck) {
           phase = 'self-check';
           const selfCheckStartedAtMs = realNow();
-          await assertDeterministic(page, surface, map, s, requests.pending);
+          await assertDeterministic(page, surface, map, s, requests.pending, servedRules);
           selfCheckMs = realNow() - selfCheckStartedAtMs;
           phase = 'capture';
         }
@@ -153,6 +156,7 @@ export async function captureSurface(
   } finally {
     requests.dispose();
     residue.dispose();
+    await servedRules?.dispose();
   }
 }
 

@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
+import { isDeepStrictEqual } from 'node:util';
 import { captureStyleMap } from '../capture.js';
+import type { ServedRuleTracker } from '../capture/reach.js';
 import { warn } from '../capture/shared.js';
 import type { LiveRegionCandidate, StyleMap } from '../capture/types.js';
 import { diffStyleMaps, type Finding } from '../diff.js';
@@ -108,19 +110,30 @@ export function selfCheckErrorMessage(
   return first ? `${message} First: ${driftDesc(first)}` : message;
 }
 
-/** Capture the surface again and throw if the computed styles drifted from `first`. */
+/** Enabled reach evidence must be present and agree, even when computed styles agree. */
+export function assertDeterministicReach(first: StyleMap, again: StyleMap, surfaceKey: string): void {
+  if (!first.reach || !again.reach || !isDeepStrictEqual(first.reach, again.reach)) {
+    throw new Error(
+      `styleproof self-check failed: ${surfaceKey} is non-deterministic — served CSS reach evidence changed or is missing.`,
+    );
+  }
+}
+
+/** Capture the surface again and throw if computed styles or enabled reach evidence drifted. */
 export async function assertDeterministic(
   page: Page,
   surface: ExpandedSurface,
   first: StyleMap,
   settings: Settings,
   pending: () => number,
+  servedRules?: ServedRuleTracker,
 ): Promise<void> {
   await surface.go(page);
   const again = await captureStyleMap(page, {
-    ...captureOptionsFor(surface, settings, pending),
+    ...captureOptionsFor(surface, settings, pending, servedRules),
     requiredVisibleState: surface.requiredVisibleState,
   });
+  if (settings.captureReach) assertDeterministicReach(first, again, surface.key);
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     throw new Error(

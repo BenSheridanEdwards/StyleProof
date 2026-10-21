@@ -105,6 +105,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Served-rule ledger for Change Reach (#991).** `captureReach: true` (in
+  `defineStyleMapCapture` or `captureStyleMap`) records every served CSS rule
+  in `StyleMap.reach` and marks the ones that matched an element while the map
+  was read, forced states included. This is the evidence Change Reach (#934)
+  uses to name a changed rule that no captured state rendered. Off by default.
+  Nothing reads it yet, so diffs, verdicts and exit codes are unchanged. For a
+  direct `captureStyleMap` call, arm `trackServedRules(page)` before navigating
+  and pass it as `servedRules`. Otherwise linked stylesheets are counted
+  `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
+  `ServedRuleTracker`.
 - **The PR comment names what changed, not just how much (#831).** A **What
   changed** block now follows the headline count. It has one row per one-sided
   surface with its status, and one row per change that names up to three
@@ -190,6 +200,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The Node 22 unit-coverage leg no longer waits on one test file.**
+  `test/report.test.mjs` ran its 130 tests in one process, about 430 s under
+  coverage, and started late in the alphabetical file order. It now runs as
+  three files (`report.test.mjs`, `report-describe.test.mjs`,
+  `report-bounds.test.mjs`) beside the rest of the suite. The shared
+  `solidPng` fixture encodes each size once instead of on every call, and the
+  byte-budget test uses 400×480 screenshots, which leave its `report.md`
+  byte-identical. The browser suite runs in four shards instead of three, so
+  the heaviest shard holds less of the slowest specs. Test-infra only: the
+  same tests run with the same assertions.
+- **A multi-page crawl no longer lists a used auth-boundary exclusion as stale.**
+  Each crawled page checks the whole `--auth-boundary-exclude` map, so a page
+  without the wall lists that key as stale. The run joined every page's list,
+  and printed `stale exclusions: /staff` right under the line where that key
+  acknowledged the `/staff` wall. Removing the exclusion on that advice made the
+  next run fail closed with exit 5. Now a key is stale only when no crawled page
+  matched it. A single-page crawl prints the same stale list as before (#963).
+- **A legacy-pair declaration that still matches is no longer called stale
+  (#969).** A `styleproof.product-state.json` that declared both a surface base
+  (`home`) and an exact capture key (`home@1280`) credited the unproven pair to
+  the first key only. The other key was reported as a stale declaration, so an
+  armed ledger failed certification and asked you to prune an accurate entry.
+  The result also depended on key order in the JSON. Now every declaration that
+  matches an unproven pair is in use, in either order. A declaration that
+  matches no unproven pair is still stale and still fails closed.
+- **An `ignore` entry written as a selector list now skips the descendants of
+  every selector in it (#981).** `ignore: ['.ticker, .clock']` built the skip
+  selector `.ticker, .clock, .ticker, .clock *`, so ` *` applied only to
+  `.clock`. Children of `.ticker` were still captured, diffed, forced into
+  hover, focus and active states and scanned as live candidates, so a change
+  inside the region the user asked to skip failed the diff. The descendant
+  clause is now grouped as `:is(.ticker, .clock) *`, so a list acts like the
+  same selectors given as separate entries. A pseudo-element entry such as
+  `.card::before` no longer makes the capture throw a `SyntaxError`; it matches
+  no element.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

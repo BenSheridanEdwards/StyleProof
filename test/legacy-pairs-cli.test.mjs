@@ -120,6 +120,30 @@ test('declared legacy pairs stay advisory and never soft-green certify', () => {
   rmTmp(capture.root);
 });
 
+test('overlapping base and exact declarations stay advisory in either key order and are never stale', () => {
+  const why = 'known demo shell pending identity stamp';
+  for (const declared of [
+    { home: why, 'home@1280': why },
+    { 'home@1280': why, home: why },
+  ]) {
+    const capture = fixture();
+    const order = Object.keys(declared).join(', ');
+    try {
+      fs.writeFileSync(path.join(capture.root, 'styleproof.product-state.json'), JSON.stringify(declared));
+      const result = runDiff(capture);
+      assert.equal(result.status, 0, `${order}: ${result.stderr || result.stdout}`);
+      assert.deepEqual(result.json.legacyPairs.declared, ['home@1280'], order);
+      assert.deepEqual(result.json.legacyPairs.staleAcknowledgements, [], order);
+      assert.equal(result.json.certifiesFully, false, 'declared legacy pairs must not certify');
+      assert.doesNotMatch(result.stdout, /stale legacy-pair declaration/, order);
+      const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
+      assert.notEqual(audit.trustDecision.finalState, 'CERTIFICATION_FAILED', order);
+    } finally {
+      rmTmp(capture.root);
+    }
+  }
+});
+
 test('explicit productState identity still certifies when the declare gate is armed', () => {
   const capture = fixture({ productState: { id: 'home-ready', revision: 'fixture-v1' } });
   fs.writeFileSync(path.join(capture.root, 'styleproof.product-state.json'), '{}\n');

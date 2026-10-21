@@ -92,6 +92,20 @@ test('reconcileLedger splits observed keys and names stale entries', () => {
   assert.deepEqual(widthless, { acknowledged: ['home@1280'], unacknowledged: ['nav@375'], stale: ['gone'] });
 });
 
+test('reconcileLedger never names a ledger key stale while it matches an observed key, in any key order', () => {
+  const overlapping = (ledgerKey, observed) => observed === ledgerKey || observed.startsWith(`${ledgerKey}@`);
+  for (const ledger of [
+    { home: 'why', 'home@1280': 'why', gone: 'stale' },
+    { 'home@1280': 'why', home: 'why', gone: 'stale' },
+  ]) {
+    assert.deepEqual(
+      reconcileLedger(['home@1280'], ledger, overlapping),
+      { acknowledged: ['home@1280'], unacknowledged: [], stale: ['gone'] },
+      `ledger order: ${Object.keys(ledger).join(', ')}`,
+    );
+  }
+});
+
 test('an empty env value drops a config path but a default file in cwd still arms the gate', () => {
   const root = mkTmp();
   const previous = process.cwd();
