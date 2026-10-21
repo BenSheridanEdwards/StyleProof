@@ -7,6 +7,7 @@ import {
   summarizeProps,
 } from '../dist/report.js';
 import { codeValue } from '../dist/code-span.js';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import {
   makeMap,
   mkTmp,
@@ -78,7 +79,7 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
   rmTmp(root);
 });
 
-test('a capped report.md accounts for every surface and keeps its Evidence block (#953)', () => {
+test('a capped report.md accounts for every surface and never drops its Evidence block silently (#953)', () => {
   const { beforeDir, afterDir, root } = tmpDirs();
   const N = 30;
   for (let s = 0; s < N; s++) {
@@ -104,29 +105,53 @@ test('a capped report.md accounts for every surface and keeps its Evidence block
   const full = report('full', Infinity);
   assert.ok(full.md.includes(EVIDENCE), 'the uncapped report has an Evidence block');
 
-  for (const budget of [5_000, 8_000]) {
-    const { md, surfaces } = report(`capped-${budget}`, budget);
+  // Every surface is a full section, a one-liner, or counted in the closing line.
+  const assertCapped = (name, budget, hasEvidence) => {
+    const { md, surfaces } = report(name, budget);
     const sections = (md.match(/^### /gm) ?? []).length;
     const oneLiners = (md.match(/^- `zeta-\d+@1280` · \d+ change\(s\)$/gm) ?? []).length;
     const more = Number(md.match(/^_…and (\d+) more section\(s\) not listed here/m)?.[1] ?? 0);
-    const evidence = md.includes(EVIDENCE) && /Product-state comparison/.test(md.slice(md.indexOf(EVIDENCE)));
     assert.deepEqual(
       {
         budget,
         withinBudget: Buffer.byteLength(md, 'utf8') <= budget,
         capNotice: md.includes('summarized to keep this report renderable'),
-        // Every surface is a full section, a one-liner, or counted in the closing line.
         accounted: sections + oneLiners + more,
-        evidence,
+        evidence: hasEvidence(md),
         surfaces,
       },
       { budget, withinBudget: true, capNotice: true, accounted: N, evidence: true, surfaces: N },
-      `${budget}: ${sections} full + ${oneLiners} one-liners + ${more} counted`,
+      `${name}: ${sections} full + ${oneLiners} one-liners + ${more} counted`,
+    );
+  };
+  for (const budget of [5_000, 8_000]) {
+    assertCapped(
+      `capped-${budget}`,
+      budget,
+      (md) => md.includes(EVIDENCE) && /Product-state comparison/.test(md.slice(md.indexOf(EVIDENCE))),
     );
   }
 
-  // A report that fits its budget exactly is not capped: byte-for-byte the uncapped report.
+  // A report that fits its budget exactly takes the uncapped layout.
   assert.equal(report('exact', Buffer.byteLength(full.md, 'utf8')).md, full.md);
+
+  // Evidence too large for the budget (a ledger listing 1,000 uncaptured surfaces) gives way to a
+  // stand-in line instead of crowding out every section, the notice and the count.
+  const expected = [
+    ...Array.from({ length: N }, (_, s) => `zeta-${s}`),
+    ...Array.from({ length: 1000 }, (_, k) => `zeta-gap-${k}`),
+  ];
+  fs.writeFileSync(
+    path.join(afterDir, COVERAGE_LEDGER),
+    JSON.stringify({ version: 1, expected, exclude: {}, determinism: 'self-checked' }),
+  );
+  assertCapped(
+    'oversize-8000',
+    8_000,
+    (md) =>
+      !md.includes(EVIDENCE) &&
+      md.includes('_Evidence (warnings & failures) omitted at the 8000-byte display budget._'),
+  );
   rmTmp(root);
 });
 

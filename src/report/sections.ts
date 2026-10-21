@@ -168,6 +168,11 @@ function moreSectionsLines(n: number): string[] {
   return ['', `_…and ${n} more section(s) not listed here — full data is in \`report.json\`._`];
 }
 
+/** Stands in for an Evidence block too large for the budget, so it is never dropped silently. */
+function evidenceOmittedLines(budget: number): string[] {
+  return ['', `_Evidence (warnings & failures) omitted at the ${budget}-byte display budget._`];
+}
+
 const markdownByteLength = (lines: string[]): number => Buffer.byteLength(`${lines.join('\n')}\n`, 'utf8');
 // What appending these lines adds to report.md.
 const addedBytes = (lines: string[]): number => (lines.length === 0 ? 0 : markdownByteLength(lines));
@@ -180,7 +185,8 @@ type Block = { full: string[]; summary?: string };
  * written as queued; otherwise full detail runs while it leaves room for the cap
  * notice, a closing count and the Evidence tail, each remaining section becomes its
  * one-line summary, and summaries that no longer fit are counted (the data stays in
- * report.json and crops/).
+ * report.json and crops/). An Evidence tail too large for that is replaced by a
+ * one-line stand-in.
  */
 export class ReportMarkdown {
   readonly lines: string[] = [];
@@ -205,8 +211,12 @@ export class ReportMarkdown {
   /** Lay out the queued sections, then the tail (the Evidence block), inside the budget. */
   finish(tail: string[]): void {
     if (this.push([...this.blocks.flatMap((b) => b.full), ...tail], 0)) return;
-    const summaries = this.blocks.filter((b) => b.summary !== undefined).length;
-    const closing = addedBytes(moreSectionsLines(summaries)) + addedBytes(tail);
+    const count = addedBytes(moreSectionsLines(this.summariesFrom(0)));
+    // Evidence that leaves no room for the short notice and the count gives way to a stand-in line.
+    if (!this.fits(tail, addedBytes(omittedNoticeLines(this.maxBytes)) + count)) {
+      tail = evidenceOmittedLines(this.maxBytes);
+    }
+    const closing = count + addedBytes(tail);
     const dropped = this.layOutCapped(closing);
     if (dropped > 0) this.push(moreSectionsLines(dropped), addedBytes(tail));
     this.push(tail, 0);
@@ -214,7 +224,8 @@ export class ReportMarkdown {
 
   /** Full detail, then one-liners, always leaving `closing` bytes; returns the summaries left out. */
   private layOutCapped(closing: number): number {
-    const notice = cappedNoticeLines(this.maxBytes);
+    const fullNotice = cappedNoticeLines(this.maxBytes);
+    const notice = this.fits(fullNotice, closing) ? fullNotice : omittedNoticeLines(this.maxBytes);
     let i = 0;
     // Full detail while it leaves room for the notice too; a heading that does not fit is skipped.
     for (; i < this.blocks.length; i++) {
@@ -222,21 +233,28 @@ export class ReportMarkdown {
       if (!this.push(full, addedBytes(notice) + closing) && summary !== undefined) break;
     }
     if (i === this.blocks.length) return 0;
-    if (!this.push(notice, closing)) this.push(omittedNoticeLines(this.maxBytes), closing);
+    // No one-liner without the notice that explains it: a budget too small for both counts them all.
+    if (!this.push(notice, closing)) return this.summariesFrom(i);
     // Then one-liners (and headings) until one does not fit; the rest are counted.
     for (let j = i; j < this.blocks.length; j++) {
       const { full, summary } = this.blocks[j];
-      if (!this.push(summary === undefined ? full : [summary], closing)) {
-        return this.blocks.slice(j).filter((b) => b.summary !== undefined).length;
-      }
+      if (!this.push(summary === undefined ? full : [summary], closing)) return this.summariesFrom(j);
     }
     return 0;
   }
 
+  private summariesFrom(i: number): number {
+    return this.blocks.slice(i).filter((b) => b.summary !== undefined).length;
+  }
+
+  /** Whether the lines fit with `reserve` bytes to spare. */
+  private fits(lines: string[], reserve: number): boolean {
+    return lines.length === 0 || markdownByteLength([...this.lines, ...lines]) + reserve <= this.maxBytes;
+  }
+
   /** Append when the lines fit with `reserve` bytes to spare; returns false (and appends nothing) otherwise. */
   private push(lines: string[], reserve: number): boolean {
-    if (lines.length === 0) return true;
-    if (markdownByteLength([...this.lines, ...lines]) + reserve > this.maxBytes) return false;
+    if (!this.fits(lines, reserve)) return false;
     this.lines.push(...lines);
     return true;
   }
