@@ -262,6 +262,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   both sides. A content-shift or own-text move now also carries a `::before` /
   `::after` target to the host's new path, so an unchanged target does not turn
   into a one-sided pair. `--migration` findings are unchanged.
+- **A change on a hidden element no longer drops the PR comment verdict.** When
+  no changed element in a change group was exposed in the capture, such as a
+  `display: none` drawer whose colour changed, report.md printed the
+  misleading-crop note and the property table with no `### ` heading and no
+  surface name. The Action ends the PR comment summary at the first `### `
+  line, so the comment kept only the bare title and lost the verdict and the
+  **What changed** block. When such a group sorted before a visible group, its
+  unlabelled body was pasted into the summary instead. The group now opens with the same heading
+  and surface line as a visible group. It still has no crops and keeps
+  `visualEvidence: 'not-rendered'` in `report.json` (#952).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
