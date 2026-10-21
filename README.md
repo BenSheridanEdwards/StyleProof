@@ -300,6 +300,23 @@ an earlier release generated. Under `--storage branch` it also adds the
 yours publishes to the map store. See the
 [8.0.0 changelog](CHANGELOG.md#800---2026-10-16).
 
+### Upgrading to 9.0.0
+
+Upgrade the npm package and the report Action to major 9 together, then
+refresh and verify the generated workflows:
+
+```bash
+npm install --save-dev styleproof@^9
+npx styleproof-init --upgrade
+npx styleproof-init --check
+```
+
+`--upgrade` moves the generated workflows to `@v9`. Update any hand-written
+`uses: BenSheridanEdwards/StyleProof@v8` or `styleproof-approve-reusable.yml@v8`
+pin to `@v9` too: the Action runs its own copy of StyleProof, so an `@v8` pin
+keeps the 8.x gate. Then re-capture the baseline once. See the migration list
+in the [unreleased changelog](CHANGELOG.md#unreleased).
+
 ### Set up everything
 
 ```bash
