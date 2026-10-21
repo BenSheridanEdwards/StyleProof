@@ -24,6 +24,48 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The plain-English bullets under each crop escape the same values, so a CSS
   value carrying Markdown characters now renders literally there too.
 
+### Changed
+
+- **BREAKING: ancestor baseline reuse no longer assumes `src` is the only
+  source root (#826).** With no `ancestorBaseline.roots` and no
+  `STYLEPROOF_ANCESTOR_BASELINE_ROOTS`, `styleproof-ci` treated only `src` as
+  capture-relevant. A base-branch change in `app/`, `pages/`, `styles/`,
+  `public/`, `index.html` or a root Tailwind or PostCSS config did not block
+  reuse, so the PR was diffed against a stale ancestor baseline. Now, with no
+  roots declared, every changed path is capture-relevant: reuse fires only when
+  nothing changed since the ancestor. The run logs one line,
+  `ancestor baseline reuse: no source roots declared`, that names both
+  settings. `styleproof-init` now writes `ancestorBaseline.roots` into a new
+  `styleproof.config.ts` for the layout it detects (`src`, `app`, `pages`,
+  `styles`, `public`, `components`, `lib`, root `tailwind`, `postcss`, `next`,
+  `vite`, `svelte`, `astro`, `nuxt`, `remix` and `webpack` `.config.*` files,
+  root `tsconfig.json`, `tsconfig.*.json`, `jsconfig.json`, `babel.config.*`,
+  `.babelrc` / `.babelrc.*` and `.browserslistrc`, root `.gitignore`, `.npmrc`,
+  `Dockerfile` and `.dockerignore` (build inputs), root `*.css` / `*.scss` / `*.sass` / `*.less` stylesheets, `index.html`), always
+  including `.gitignore` since init itself creates or updates it, or a comment
+  when it detects none. It fails safe: roots are written only when
+  every top-level entry (tracked or untracked-not-ignored inside git) is either
+  a detected root or on a short list known not to affect rendering (VCS/CI and
+  editor dirs, exactly named lint/format/test configs, the
+  manifests and lockfiles the reuse check always counts, StyleProof's own
+  files). Docs and test dirs and Markdown are not on it, since an app can
+  import or render them. Symlinks and submodules are never classified, even
+  when ignored by git, and a symlink or `.git` entry anywhere under a detected
+  root directory means no roots.
+  Otherwise, such as an imported `main.js` next to `index.html`, an `assets/`
+  dir or a `README.md`, it writes no roots and the comment names the entries it
+  could not classify. In a workspace monorepo (`package.json` `workspaces`,
+  `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`) it also writes
+  no roots, with a comment saying why, since shared packages can change
+  rendering outside any root it could detect. Run below the git repository
+  root, it writes no roots either, since inputs outside the current directory
+  cannot be bounded. Only
+  branch-storage runs are affected; `--no-store` never reuses an ancestor.
+  **Migration:** to keep the old reuse behaviour, declare
+  `ancestorBaseline: { roots: ['src'] }` in `styleproof.config`, or set
+  `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`. Add any other directory or file
+  that changes how your app renders.
+
 ### Removed
 
 - **BREAKING: `mapStore.token` is removed from the config schema and the

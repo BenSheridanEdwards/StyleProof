@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captureRelevantChangedPaths } from '../dist/ancestor-baseline.js';
 import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -1315,6 +1316,440 @@ test('styleproof-init: scaffolds styleproof.config.ts with blocking: advisory by
     assert.equal(fs.existsSync(path.join(root, 'styleproof.config.json')), false);
   } finally {
     rmTmp(root);
+  }
+});
+
+// #826: with no roots declared every changed path invalidates the ancestor baseline, so
+// init writes explicit roots for the layout it detects (and none when it detects none).
+const ancestorRootsLine = (config) => config.match(/^ {2}ancestorBaseline: \{ roots: \[(.*)\] \},$/m)?.[1];
+
+for (const [name, files, expected] of [
+  ['a Next.js app', ['app/page.tsx', 'app/about/page.tsx', 'public/logo.svg'], "'app', 'public', '.gitignore'"],
+  [
+    'a plain app with src and root CSS-tool configs',
+    ['src/main.ts', 'styles/base.css', 'tailwind.config.ts', 'postcss.config.mjs', 'index.html'],
+    "'src', 'styles', 'index.html', 'postcss.config.mjs', 'tailwind.config.ts', '.gitignore'",
+  ],
+  [
+    'a Next.js app with a root framework config and root stylesheets',
+    ['app/page.tsx', 'next.config.mjs', 'global.css', 'theme.scss'],
+    "'app', 'global.css', 'next.config.mjs', 'theme.scss', '.gitignore'",
+  ],
+  [
+    'a Vite app with a root bundler config',
+    ['src/main.ts', 'vite.config.ts', 'index.html', 'tsconfig.json'],
+    "'src', 'index.html', 'tsconfig.json', 'vite.config.ts', '.gitignore'",
+  ],
+  [
+    'an app with root compiler/transpiler configs',
+    [
+      'src/main.ts',
+      'tsconfig.json',
+      'jsconfig.json',
+      'tsconfig.app.json',
+      '.browserslistrc',
+      'babel.config.js',
+      'babel.config.ts',
+      '.babelrc.cts',
+    ],
+    "'src', '.babelrc.cts', '.browserslistrc', 'babel.config.js', 'babel.config.ts', 'jsconfig.json', 'tsconfig.app.json', 'tsconfig.json', '.gitignore'",
+  ],
+  // Every top-level entry of a realistic app is either a root or known not to render.
+  [
+    'a realistic Next.js app',
+    [
+      'app/page.tsx',
+      'app/layout.tsx',
+      'app/globals.css',
+      'public/next.svg',
+      'next.config.mjs',
+      'tsconfig.json',
+      'next-env.d.ts',
+      'postcss.config.mjs',
+      'tailwind.config.ts',
+      'package.json',
+      'package-lock.json',
+      '.gitignore',
+      'eslint.config.mjs',
+      'e2e/home.spec.ts',
+    ],
+    "'app', 'public', '.gitignore', 'next.config.mjs', 'postcss.config.mjs', 'tailwind.config.ts', 'tsconfig.json'",
+  ],
+  [
+    'a realistic Vite app',
+    [
+      'src/main.tsx',
+      'src/App.tsx',
+      'src/index.css',
+      'public/vite.svg',
+      'index.html',
+      'vite.config.ts',
+      'tsconfig.json',
+      'tsconfig.app.json',
+      'tsconfig.node.json',
+      'package.json',
+      'package-lock.json',
+      '.gitignore',
+      'eslint.config.js',
+    ],
+    "'src', 'public', '.gitignore', 'index.html', 'tsconfig.app.json', 'tsconfig.json', 'tsconfig.node.json', 'vite.config.ts'",
+  ],
+  // Build inputs: Tailwind v4 reads .gitignore for class sources; .npmrc and Docker files change the build.
+  [
+    'an app with root build-input files',
+    ['src/main.ts', '.gitignore', '.npmrc', 'Dockerfile', '.dockerignore'],
+    "'src', '.dockerignore', '.gitignore', '.npmrc', 'Dockerfile'",
+  ],
+]) {
+  test(`styleproof-init: writes explicit ancestorBaseline.roots for ${name} (#826)`, () => {
+    for (const storage of ['artifact', 'branch']) {
+      const root = mkTmp();
+      try {
+        for (const file of files) touch(root, file);
+        if (files.includes('package.json')) fs.writeFileSync(path.join(root, 'package.json'), '{}\n');
+        const res = runInit(root, [
+          '--dir',
+          'e2e/styleproof.spec.ts',
+          '--storage',
+          storage,
+          '--server-command',
+          'npm run build && npm run start',
+        ]);
+        assert.equal(res.status, 0, res.stderr);
+        assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), expected, storage);
+      } finally {
+        rmTmp(root);
+      }
+    }
+  });
+}
+
+test('styleproof-init: writes ancestorBaseline.roots as valid string literals for quoted names (#826)', () => {
+  const root = mkTmp();
+  try {
+    for (const file of ["theme'dark.css", 'a\\b.css']) touch(root, file);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+    assert.equal(line, "'a\\\\b.css', 'theme\\'dark.css', '.gitignore'");
+    assert.deepEqual(new Function(`return [${line}];`)(), ['a\\b.css', "theme'dark.css", '.gitignore']);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: writes ancestorBaseline.roots for root stylesheets with line terminators in their names (#826)', () => {
+  const root = mkTmp();
+  try {
+    const names = ['cr\rbreak.css', 'lf\nbreak.css', 'ls\u2028break.css', 'ps\u2029break.css'];
+    touch(root, 'src/main.ts');
+    for (const file of names) touch(root, file);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+    assert.ok(line, 'roots written on one line');
+    assert.deepEqual(new Function(`return [${line}];`)(), ['src', ...names, '.gitignore']);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: writes no ancestorBaseline.roots when it detects none, and says so (#826)', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const config = readFile(root, 'styleproof.config.ts');
+    assert.equal(ancestorRootsLine(config), undefined, config);
+    assert.match(config, /detected no source roots,\n {2}\/\/ so every changed path invalidates the ancestor baseline/);
+    assert.match(config, /^ {2}\/\/ ancestorBaseline: \{ roots: \['src'\] \},$/m);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+// A top-level entry init cannot classify may be a render input (an imported script or
+// asset, Next middleware), so roots that omit it would let a stale baseline through.
+for (const [name, files, named] of [
+  ['a flat app whose index.html imports main.js', ['index.html', 'main.js'], "'main.js'"],
+  ['an app with src and an imported assets stylesheet', ['src/main.ts', 'assets/theme.css'], "'assets'"],
+  ['a Next.js app with root middleware', ['app/page.tsx', 'next.config.mjs', 'middleware.ts'], "'middleware.ts'"],
+  ['an app with a near-miss config name', ['src/main.ts', 'tsconfig.json.bak'], "'tsconfig.json.bak'"],
+  ['an app with root .env files', ['src/main.ts', '.env', '.env.example'], "'.env', '.env.example'"],
+  ['many unclassified entries', ['src/main.ts', 'a.js', 'b.js', 'c.js', 'd.js'], "'a.js', 'b.js', 'c.js' and 1 more"],
+  ['an unclassified name with a line terminator', ['src/main.ts', 'x\ny.js'], "'x\\ny.js'"],
+]) {
+  test(`styleproof-init: writes no ancestorBaseline.roots for ${name}, and names the entries (#826)`, () => {
+    const root = mkTmp();
+    try {
+      for (const file of files) touch(root, file);
+      const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+      assert.equal(res.status, 0, res.stderr);
+      const config = readFile(root, 'styleproof.config.ts');
+      assert.equal(ancestorRootsLine(config), undefined, config);
+      assert.ok(
+        config.includes(`found top-level entries\n  // it cannot classify (${named}), so it declared no roots`),
+        config,
+      );
+      assert.match(config, /every\n {2}\/\/ changed path invalidates the ancestor baseline/);
+      assert.match(config, /^ {2}\/\/ ancestorBaseline: \{ roots: \['src'\] \},$/m);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+// Fail safe: an entry that can hold or point at a render input is never classified, so
+// init writes no roots and names it. Each probe would have yielded roots before.
+for (const [name, setup, named, spec = 'e2e/styleproof.spec.ts'] of [
+  ['an imported docs/theme.css', (root) => touch(root, 'docs/theme.css'), "'docs'"],
+  ['a rendered README.md', (root) => touch(root, 'README.md'), "'README.md'"],
+  [
+    'an e2e/theme.css beside a nested spec',
+    (root) => touch(root, 'e2e/theme.css'),
+    "'e2e'",
+    'e2e/deep/styleproof.spec.ts',
+  ],
+  [
+    'an npm-shrinkwrap.json the runtime does not count',
+    (root) => touch(root, 'npm-shrinkwrap.json'),
+    "'npm-shrinkwrap.json'",
+  ],
+  [
+    'a src symlink to a directory outside the tree',
+    (root) => {
+      fs.renameSync(path.join(root, 'src'), `${root}-shared`);
+      fs.symlinkSync(`${root}-shared`, path.join(root, 'src'));
+    },
+    "'src'",
+  ],
+  [
+    'a src gitlink (submodule)',
+    (root) => {
+      spawnSync('git', ['init', '-q'], { cwd: root });
+      fs.rmSync(path.join(root, 'src/main.ts'));
+      const gitlink = `160000,${'a'.repeat(40)},src`;
+      const res = spawnSync('git', ['update-index', '--add', '--cacheinfo', gitlink], { cwd: root });
+      assert.equal(res.status, 0, String(res.stderr));
+    },
+    "'src'",
+  ],
+  [
+    'a gitignored src symlink to .github',
+    (root) => {
+      spawnSync('git', ['init', '-q'], { cwd: root });
+      fs.rmSync(path.join(root, 'src'), { recursive: true });
+      touch(root, '.github/main.ts');
+      touch(root, '.github/theme.css');
+      fs.symlinkSync('.github', path.join(root, 'src'));
+      fs.writeFileSync(path.join(root, '.gitignore'), 'src\n');
+      const res = spawnSync('git', ['add', '-A'], { cwd: root });
+      assert.equal(res.status, 0, String(res.stderr));
+    },
+    "'src'",
+  ],
+  [
+    'a gitignored theme.css symlink to .github/theme.css',
+    (root) => {
+      spawnSync('git', ['init', '-q'], { cwd: root });
+      touch(root, '.github/theme.css');
+      fs.symlinkSync('.github/theme.css', path.join(root, 'theme.css'));
+      fs.writeFileSync(path.join(root, '.gitignore'), 'theme.css\n');
+    },
+    "'theme.css'",
+  ],
+  ['a src directory holding its own .git', (root) => fs.mkdirSync(path.join(root, 'src/.git')), "'src'"],
+  [
+    'a src/theme.css symlink to a file outside the root',
+    (root) => {
+      touch(root, '.github/theme.css');
+      fs.symlinkSync('../.github/theme.css', path.join(root, 'src/theme.css'));
+    },
+    "'src/theme.css'",
+  ],
+  [
+    'a nested src/vendor/.git repository',
+    (root) => fs.mkdirSync(path.join(root, 'src/vendor/.git'), { recursive: true }),
+    "'src/vendor/.git'",
+  ],
+  [
+    'an imported styleproof.config.tokens.json',
+    (root) => touch(root, 'styleproof.config.tokens.json'),
+    "'styleproof.config.tokens.json'",
+  ],
+  [
+    'an imported eslint.config.tokens.json',
+    (root) => touch(root, 'eslint.config.tokens.json'),
+    "'eslint.config.tokens.json'",
+  ],
+  [
+    'an imported .prettierrc.tokens.json',
+    (root) => touch(root, '.prettierrc.tokens.json'),
+    "'.prettierrc.tokens.json'",
+  ],
+  ['an imported, non-ignored coverage/theme.css', (root) => touch(root, 'coverage/theme.css'), "'coverage'"],
+]) {
+  test(`styleproof-init: writes no ancestorBaseline.roots for ${name} (#826)`, () => {
+    const root = mkTmp();
+    try {
+      touch(root, 'src/main.ts');
+      setup(root);
+      const res = runInit(root, ['--dir', spec, '--storage', 'branch']);
+      assert.equal(res.status, 0, res.stderr);
+      const config = readFile(root, 'styleproof.config.ts');
+      assert.equal(ancestorRootsLine(config), undefined, config);
+      assert.ok(config.includes(`// it cannot classify (${named}), so it declared no roots`), config);
+    } finally {
+      rmTmp(root);
+      rmTmp(`${root}-shared`);
+    }
+  });
+}
+
+// Below the git root, sibling inputs (web/src importing ../../shared/theme.css) cannot be bounded.
+test('styleproof-init: writes no ancestorBaseline.roots when run below the git repository root (#826)', () => {
+  const root = mkTmp();
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    for (const file of ['web/src/main.ts', 'shared/theme.css']) touch(root, file);
+    const res = runInit(path.join(root, 'web'), ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const config = readFile(path.join(root, 'web'), 'styleproof.config.ts');
+    assert.equal(ancestorRootsLine(config), undefined, config);
+    assert.match(config, /styleproof-init ran below the repository\n {2}\/\/ root, where inputs outside/);
+    assert.match(config, /^ {2}\/\/ ancestorBaseline: \{ roots: \['src'\] \},$/m);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+// Inside git, init classifies what git would see: ignored build output does not block roots.
+test('styleproof-init: ignores gitignored top-level entries when classifying (#826)', () => {
+  const root = mkTmp();
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), 'dist/\n.next/\ncoverage/\nplaywright-report/\n');
+    const ignored = ['dist/main.js', '.next/server/app.js', 'coverage/theme.css', 'playwright-report/index.html'];
+    for (const file of ['src/main.ts', ...ignored]) touch(root, file);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src', '.gitignore'");
+  } finally {
+    rmTmp(root);
+  }
+});
+
+// Init creates .gitignore after choosing roots, so roots include it even when it did not exist yet.
+test('styleproof-init: includes the .gitignore it creates in ancestorBaseline.roots (#826)', () => {
+  const root = mkTmp();
+  try {
+    touch(root, 'src/main.ts');
+    assert.equal(fs.existsSync(path.join(root, '.gitignore')), false);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+    assert.deepEqual(new Function(`return [${line}];`)(), ['src', '.gitignore']);
+    assert.equal(fs.existsSync(path.join(root, '.gitignore')), true);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+// The generated roots feed the reuse decision: a change to an entry init could not
+// classify must count as capture-relevant, while explicit roots still bound the rest.
+test('styleproof-init: generated roots make an unclassified entry change block ancestor reuse (#826)', () => {
+  const generatedRoots = (files) => {
+    const root = mkTmp();
+    try {
+      for (const file of files) touch(root, file);
+      const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+      assert.equal(res.status, 0, res.stderr);
+      const line = ancestorRootsLine(readFile(root, 'styleproof.config.ts'));
+      return line === undefined ? [] : new Function(`return [${line}];`)();
+    } finally {
+      rmTmp(root);
+    }
+  };
+  const relevant = (sourceRoots, changedPaths) =>
+    captureRelevantChangedPaths({ changedPaths, spec: 'e2e/styleproof.spec.ts', sourceRoots });
+
+  const flat = generatedRoots(['index.html', 'main.js']);
+  assert.deepEqual(relevant(flat, ['main.js']), ['main.js']);
+  const assets = generatedRoots(['src/main.ts', 'assets/theme.css']);
+  assert.deepEqual(relevant(assets, ['assets/theme.css']), ['assets/theme.css']);
+  const next = generatedRoots(['app/page.tsx', 'next.config.mjs', 'eslint.config.mjs']);
+  assert.deepEqual(relevant(next, ['app/page.tsx', 'eslint.config.mjs']), ['app/page.tsx']);
+});
+
+// A workspace package (packages/ui) can change rendering outside any root init could
+// detect, so a monorepo gets no roots — the every-change-counts default — and a reason.
+for (const [marker, write, named] of [
+  [
+    'package.json workspaces',
+    (root) => fs.writeFileSync(path.join(root, 'package.json'), '{"workspaces":["packages/*"]}\n'),
+    'package.json "workspaces"',
+  ],
+  ...['pnpm-workspace.yaml', 'lerna.json', 'nx.json', 'turbo.json'].map((file) => [
+    file,
+    (root) => touch(root, file),
+    file,
+  ]),
+]) {
+  test(`styleproof-init: writes no ancestorBaseline.roots in a ${marker} monorepo, and says why (#826)`, () => {
+    const root = mkTmp();
+    try {
+      for (const file of ['app/page.tsx', 'next.config.mjs', 'packages/ui/Button.tsx']) touch(root, file);
+      write(root);
+      const res = runInit(root, [
+        '--dir',
+        'e2e/styleproof.spec.ts',
+        '--storage',
+        'branch',
+        '--server-command',
+        'npm run build && npm run start',
+      ]);
+      assert.equal(res.status, 0, res.stderr);
+      const config = readFile(root, 'styleproof.config.ts');
+      assert.equal(ancestorRootsLine(config), undefined, config);
+      assert.ok(
+        config.includes(`found a workspace\n  // monorepo (${named}) whose shared packages it cannot bound`),
+        config,
+      );
+      assert.match(config, /every changed path invalidates the ancestor baseline/);
+    } finally {
+      rmTmp(root);
+    }
+  });
+
+  test(`styleproof-init: writes no ancestorBaseline.roots in a package of a ${marker} monorepo (#826)`, () => {
+    const root = mkNonGitTmp();
+    try {
+      for (const file of ['packages/web/app/page.tsx', 'packages/ui/Button.tsx']) touch(root, file);
+      write(root);
+      const res = runInit(path.join(root, 'packages/web'), ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+      assert.equal(res.status, 0, res.stderr);
+      const config = readFile(path.join(root, 'packages/web'), 'styleproof.config.ts');
+      assert.equal(ancestorRootsLine(config), undefined, config);
+      assert.ok(config.includes(`found a workspace\n  // monorepo (${named} at ../..) whose`), config);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+// The walk stops at the git repository root: a marker above it belongs to another project.
+test('styleproof-init: ignores a workspace marker above the git repository root (#826)', () => {
+  const outer = mkTmp();
+  try {
+    touch(outer, 'turbo.json');
+    const root = path.join(outer, 'app');
+    touch(root, 'src/main.ts');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--storage', 'branch']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(ancestorRootsLine(readFile(root, 'styleproof.config.ts')), "'src', '.gitignore'");
+  } finally {
+    rmTmp(outer);
   }
 });
 
