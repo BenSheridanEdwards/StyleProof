@@ -311,6 +311,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that gate the check. Each surface now gets its own `--max-crops` crops. An
   entry past the cap, including a Global chrome entry, now says the crop was
   omitted because of `--max-crops`. The counts and the verdict are unchanged.
+- **An empty `STYLEPROOF_REPLAY_URL` no longer replays the base's code on head.**
+  An empty value was kept as the data-boundary glob, and Playwright reads an
+  empty HAR `url` as "match every request". The base HAR then recorded the
+  document, CSS and JS, the head capture was served the base's copies, and a
+  real change diffed as zero changes with exit 0. An empty or blank
+  `STYLEPROOF_REPLAY_URL` (such as an unset `${{ vars.* }}` in CI) now counts as
+  unset and falls back to `**/api/**`. An empty or blank `replayUrl` in the spec
+  now throws `styleproof: replayUrl must be a non-empty URL glob` (#956).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
