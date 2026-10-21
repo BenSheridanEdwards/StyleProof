@@ -80,7 +80,7 @@ async function readBranchFolders(api: GitHubApi, branch: string) {
   return {
     tipCommitSha,
     tipTreeSha,
-    folderSizesBytesByPath: blobSizesByFolder(tree, (folder) => /^(pr|run)-\d+$/.test(folder)),
+    folderSizesBytesByPath: blobSizesByFolder(tree, (folder) => /^(pr|run)-[1-9]\d*$/.test(folder)),
   };
 }
 
@@ -173,11 +173,11 @@ async function classifyReportFolders(
   const runFolders = new Set<string>();
   for (const folder of folders) {
     if (openPullRequestPaths.has(folder)) continue;
-    if (/^run-\d+$/.test(folder)) {
+    if (/^run-[1-9]\d*$/.test(folder)) {
       runFolders.add(folder);
       continue;
     }
-    if (!/^pr-\d+$/.test(folder)) continue;
+    if (!/^pr-[1-9]\d*$/.test(folder)) continue;
     if (
       await classifyPullRequestFolder(
         api,

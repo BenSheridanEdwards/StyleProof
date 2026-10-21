@@ -252,8 +252,8 @@ for (const manager of [
       assert.match(workflow, /--pull-request '\$\{\{ github\.event\.pull_request\.number \}\}'/);
       assert.doesNotMatch(workflow, /git rm -r --quiet "pr-\$PR"/);
 
-      // Daily sweep: retention window plus a hard size budget, oldest-closed
-      // first, open PRs never touched. Close-triggered pruning alone cannot
+      // Daily sweep: retention window plus a hard size budget, oldest first;
+      // open PRs and undated folders kept. Close-triggered pruning alone cannot
       // bound the branch (missed close events leak; big recent folders blow
       // the budget inside any retention window).
       assert.match(workflow, /schedule:/);

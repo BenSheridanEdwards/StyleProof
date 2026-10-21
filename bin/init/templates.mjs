@@ -324,9 +324,9 @@ ${PM.setup}
     # cannot bound it: a missed close event leaks a folder forever, and one PR
     # can publish hundreds of megabytes of crops, so the folders that blow the
     # budget are often younger than any reasonable retention window. The sweep
-    # deletes reports whose PR closed more than the retention window ago, then,
-    # if the branch is still over the size budget, keeps deleting oldest-closed
-    # first until it fits. Reports for open PRs are never touched.
+    # deletes closed PR reports and run-<run_id>/ (and legacy pr-<run_id>/)
+    # reports by retention, then by size budget, oldest first. Open PR reports
+    # and undated folders are always kept.
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
