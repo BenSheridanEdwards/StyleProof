@@ -15,9 +15,9 @@ const WIDTH = 720;
 // The loud-skip channel is console.warn from the runner (in this worker process);
 // collect it so the tests can assert skips are NAMED, not silent.
 const warnings: string[] = [];
-// eslint-disable-next-line no-console
+// eslint-disable-next-line no-console -- tests capture the runner warnings to assert skips are named
 const realWarn = console.warn.bind(console);
-// eslint-disable-next-line no-console
+// eslint-disable-next-line no-console -- tests capture the runner warnings to assert skips are named
 console.warn = (...args: unknown[]) => {
   warnings.push(args.map(String).join(' '));
   realWarn(...args);

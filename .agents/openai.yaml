@@ -1,0 +1,30 @@
+# Agent manifest: the vendor-neutral entry point.
+#
+# The operating doctrine is not welded to one vendor. `AGENTS.md` and
+# `CLAUDE.md` at the root point to `.agents/README.md`, the start-here guide;
+# this file lists the same entry points for OpenAI-family agents.
+interface:
+  display_name: "StyleProof"
+  short_description: "Reports the visual CSS changes a pull request makes, from computed styles in a real browser."
+  default_prompt: "Read .agents/README.md before writing. Follow the gates; done means `npm run verify` is green, plus `npm run test:e2e` when the browser surface changed."
+
+context:
+  # Read these before writing any code.
+  contract: ".agents/README.md"
+  detail:
+    - ".agents/AGENT_OPERATING_RULES.md"
+    - ".agents/project/ARCHITECTURE.md"
+    - ".agents/project/CONVENTIONS.md"
+    - ".agents/project/DEFINITION_OF_DONE.md"
+    - ".agents/project/QUALITY_GATES.md"
+    - ".agents/project/PR_QUALITY.md"
+    - ".agents/project/TECH_STACK.md"
+    - ".agents/project/GLOSSARY.md"
+  decisions: ".agents/decisions/"
+  skills: ".agents/skills/"
+
+commands:
+  verify: "npm run verify"
+  e2e: "npm run test:e2e"
+  # Reads the PR title and body from the PR_TITLE and PR_BODY environment variables.
+  validate_pr_body: "node scripts/validate-pr-body.mjs"

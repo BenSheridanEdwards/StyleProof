@@ -15,6 +15,8 @@ const cases = [
   ['changelog plus unit tests', ['CHANGELOG.md', 'test/release-notes.test.mjs', 'test/report.test.mjs'], false],
   ['agent tooling and lint config', ['.claude/skills/good-css/SKILL.md', 'AGENTS.md', 'eslint.config.js'], false],
   ['PR-body and privacy tooling', ['scripts/validate-pr-body.mjs', 'scripts/privacy-check.mjs'], false],
+  ['context and suppression checks', ['scripts/check-context-layer.mjs', 'scripts/check-suppressions.mjs'], false],
+  ['codex hook registration', ['.codex/hooks.json', '.claude/hooks/block-gate-bypass.sh'], false],
   ['demo page CSS', ['example/demo/index.html'], true],
   ['known-truth CSS fixture', ['test/fixtures/known-truth-css/style.css'], true],
   ['detection corpus fixture', ['bench/detection-fixture.html'], true],

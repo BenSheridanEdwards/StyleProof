@@ -749,7 +749,7 @@ defineStyleMapCapture({
     const map = run(app, process.execPath, [MAP]);
     expect(map.status, map.stderr + map.stdout).toBe(0);
     // Playwright reports the worker fan-out; a serial run would say "1 worker".
-    // eslint-disable-next-line no-control-regex
+    // eslint-disable-next-line no-control-regex -- strips ANSI colour escapes from Playwright output
     const plainStdout = map.stdout.replace(/\u001b\[[0-9;]*m/g, '');
     expect(plainStdout).toMatch(/using [2-9] workers/);
     const mapsDir = path.join(app, '.styleproof/maps/current');

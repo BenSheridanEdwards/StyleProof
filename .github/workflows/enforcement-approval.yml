@@ -1,0 +1,60 @@
+# Enforcement sign-off gate (.agents/decisions/0008-sign-off-enforcement-changes.md).
+#
+# pull_request_target runs the default branch's copy of this workflow and of
+# scripts/enforcement-approval.mjs, so main's rules judge every PR, forks
+# included. The job reads the guarded files at the merge base and the PR head
+# through the API, checks out main's script alone, and runs no PR code. A PR
+# that changes a gate file gets a pending `enforcement-approval` commit status
+# until BenSheridanEdwards ticks the box bound to the head commit.
+# Like every pull_request_target and issue_comment workflow, it takes effect
+# once it lands on main.
+name: Enforcement approval
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+  issue_comment:
+    types: [edited] # ticking the approval box edits the gate's comment
+
+permissions: {}
+
+jobs:
+  approve:
+    # Any edit of the comment this workflow wrote reaches the script, whoever
+    # made it and whether or not it kept the marker, so the script can clear
+    # every edit but the approver's fresh tick. Unlike styleproof-approve.yml,
+    # this does not filter out edits by bots: their ticks must be cleared too.
+    # The script re-reads the comment author from the API before trusting it.
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.issue.pull_request &&
+      github.event.comment.user.type == 'Bot' &&
+      github.event.comment.user.login == 'github-actions[bot]' &&
+      (startsWith(github.event.comment.body, '<!-- enforcement-approval -->') ||
+      startsWith(github.event.changes.body.from, '<!-- enforcement-approval -->')))
+    runs-on: ubuntu-latest
+    # Job-level, so a run whose job is skipped, such as an edit of any other
+    # comment, never joins the group and cancels a queued gate run.
+    concurrency:
+      group: enforcement-approval-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: false
+    # contents:read for main's script and the guarded files; pull-requests:write
+    # for the head SHA, the file list, and the gate's comment (issues:write does
+    # not cover pull request comments); statuses:write for the gate. The
+    # approver's public profile name for the label needs no scope.
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: scripts/enforcement-approval.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const { run } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/enforcement-approval.mjs`);
+            await run({ github, context, core });

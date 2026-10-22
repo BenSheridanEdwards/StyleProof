@@ -6,7 +6,7 @@
 // links, and appends the approval box — i.e. it embeds the PR COMMENT. The README
 // once called that "the unmodified product report".
 //
-// AGENTS.md: "If evidence weakens a claim, fix the evidence or qualify/remove the
+// .agents/README.md: "If evidence weakens a claim, fix the evidence or qualify/remove the
 // claim." These tests pin the qualification to the script, in BOTH directions, so
 // neither can drift without the other failing.
 import { test } from 'node:test';
