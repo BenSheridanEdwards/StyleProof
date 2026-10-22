@@ -115,3 +115,45 @@ test('unreadable stylesheets on either side are counted', () => {
   const head = { ...map(), reach: { sheets: [], rules: [], unreadable: 1 } };
   assert.equal(classifyRuleReach([base], [head]).unreadableSheets, 3);
 });
+
+test('a range media query stays one condition; a quoted combinator stays in its selector', () => {
+  const ranged = '@media (width > 600px) > @container card (inline-size > 30rem) > .panel';
+  const result = classifyRuleReach([map(rule(ranged, 'h1'))], [map(rule(ranged, 'h2'))]);
+  assert.equal(result.rules[0].condition, '@media (width > 600px) > @container card (inline-size > 30rem)');
+  const quoted = '.tip[data-arrow=" > "] > .label';
+  const plain = classifyRuleReach([map(rule(quoted, 'h1'))], [map(rule(quoted, 'h2'))]).rules[0];
+  assert.equal(plain.condition, undefined);
+  assert.equal(plain.why, 'its selector never matched');
+});
+
+test('a body only one route serves is compared on its own, not hidden by another route', () => {
+  // Route-split stylesheets: route 2 serves a different body for the same key.
+  const route1 = map(rule('.x', 'A', { used: true }));
+  const baseRoute2 = map(rule('.x', 'A', { used: true }));
+  const headRoute2 = map(rule('.x', 'B'));
+  assert.deepEqual(
+    classifyRuleReach([route1, baseRoute2], [route1, headRoute2]).rules.map((r) => [r.key, r.change, r.status]),
+    [['.x', 'changed', 'never-rendered']],
+  );
+  // Head drops route 2's body: the removed body is judged where base rendered it.
+  const oldRoute2 = (used) => map(rule('.x', 'C', used ? { used: true } : {}));
+  const seen = classifyRuleReach([route1, oldRoute2(true)], [route1, route1]).rules[0];
+  assert.deepEqual([seen.change, seen.status], ['changed', 'reached']);
+  const unseen = classifyRuleReach([route1, oldRoute2(false)], [route1, route1]).rules[0];
+  assert.deepEqual([unseen.change, unseen.status], ['changed', 'never-rendered']);
+});
+
+test('a changed @font-face is a blind channel only when a rendered rule uses its family', () => {
+  const faces = (brandHash) => [
+    rule('@font-face', brandHash, { refs: ['Brand Sans'] }),
+    rule('@font-face #2', 'other', { refs: ['Other Serif'] }),
+  ];
+  const base = map(...faces('b1'), rule('.title', 't', { used: true, refs: ['Other Serif'] }));
+  const head = map(...faces('b2'), rule('.title', 't', { used: true, refs: ['Other Serif'] }));
+  const unused = statusOf(classifyRuleReach([base], [head]), '@font-face');
+  assert.deepEqual([unused.status, unused.why], ['never-rendered', 'no rendered rule references it']);
+
+  const brandBase = map(...faces('b1'), rule('.brand', 'r', { used: true, refs: ['Brand Sans'] }));
+  const brandHead = map(...faces('b2'), rule('.brand', 'r', { used: true, refs: ['Brand Sans'] }));
+  assert.equal(statusOf(classifyRuleReach([brandBase], [brandHead]), '@font-face').status, 'blind-channel');
+});
