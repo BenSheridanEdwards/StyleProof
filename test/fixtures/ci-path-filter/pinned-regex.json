@@ -1,0 +1,29 @@
+{
+  "action": {
+    "repository": "dorny/paths-filter",
+    "revision": "0e4a8c6effa4802afeda77dc8d303f8176d7dfad",
+    "sourceUrl": "https://raw.githubusercontent.com/dorny/paths-filter/0e4a8c6effa4802afeda77dc8d303f8176d7dfad/src/filter.ts",
+    "sourceSha256": "1e65b5a836f178387313b4104a31cc8d81deb7ecede895b686f7df9c6926a493"
+  },
+  "picomatch": {
+    "version": "2.3.1",
+    "integrity": "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==",
+    "resolved": "https://registry.npmjs.org/picomatch/-/picomatch-2.3.1.tgz",
+    "compilerSourceSha256": "2cb169cbe17d356036c5f62a377318b85e30817877e59797842aec9d8b15f54b"
+  },
+  "options": {
+    "dot": true
+  },
+  "patterns": [
+    {
+      "pattern": "**",
+      "source": "^(?:(?!(?:^|\\/)\\.{1,2}(?:\\/|$))(?:(?:(?!(?:^|\\/)\\.{1,2}(?:\\/|$)).)*?)\\/?)$",
+      "flags": ""
+    },
+    {
+      "pattern": "([\\s\\S]+)",
+      "source": "^(?:((?:\\[\\s\\S\\]|[\\s\\S])+))$",
+      "flags": ""
+    }
+  ]
+}

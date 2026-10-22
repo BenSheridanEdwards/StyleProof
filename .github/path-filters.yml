@@ -1,58 +1,11 @@
-# The only list of paths that may skip the browser lanes (e2e shards, e2e evidence,
-# detection corpus) and the four dogfood workflows. Each of those workflows passes
-# this file to dorny/paths-filter with predicate-quantifier: every, so a changed
-# file runs every lane unless it matches one of the negations below.
+# Every nonempty changed Git filename requires the browser lanes (e2e shards,
+# evidence, detection corpus) and the four dogfood workflows. No path is exempt.
+# Each workflow uses this file with predicate-quantifier: every.
 #
-# Fail-closed: add a path only when nothing a browser or dogfood lane executes or
-# reads can load it, and say why. src/** never qualifies: bin/styleproof.mjs spawns
-# every CLI by computed name, so the e2e lane can reach all of src.
-# docs/** can contain rendered HTML, styles and proof assets, so it never qualifies.
-# scripts/ci-path-filters.mjs reads this file; test/ci-path-filters.test.mjs pins it.
+# The pinned picomatch compiles ** and negations using dot, which misses legal
+# line terminators in filenames. This sole positive pattern uses [\s\S]: every
+# code unit is either whitespace or non-whitespace, including all line terminators.
+# Its + requires a nonempty filename; no change-status condition can exclude one.
+# scripts/ci-path-filters.mjs validates this exact policy shape for the local hook.
 lanes:
-  - '**'
-  # Top-level prose (README, CHANGELOG, AGENTS); no CLI or lane reads it.
-  - '!*.md'
-  # License text; shipped in the package, read by nothing.
-  - '!LICENSE'
-  # Agent context documents; only the build job's context-layer check reads them.
-  - '!.agents/**'
-  # Local agent tooling (skills, hooks, settings); never run in CI.
-  - '!.claude/**'
-  # Codex hook registration; Codex reads it locally, never in CI.
-  - '!.codex/**'
-  # Issue forms rendered by GitHub only.
-  - '!.github/ISSUE_TEMPLATE/**'
-  # PR body template rendered by GitHub only.
-  - '!.github/PULL_REQUEST_TEMPLATE.md'
-  # Fallow health baseline read only by fallow.yml.
-  - '!.fallow/**'
-  # Fallow configuration read only by fallow.yml.
-  - '!.fallowrc.jsonc'
-  # Local MCP server list for agent sessions.
-  - '!.mcp.json'
-  # Pin file for vendored agent skills under .claude/.
-  - '!skills-lock.json'
-  # Lint rules; the build job runs lint and they never reach dist/.
-  - '!eslint.config.js'
-  # Commit message rules for the local hook.
-  - '!commitlint.config.js'
-  # Formatter settings; the build job runs format:check.
-  - '!.prettierrc.json'
-  # Formatter ignore list; the build job runs format:check.
-  - '!.prettierignore'
-  # Node unit tests; the build job runs them and no browser lane imports one.
-  - '!test/*.test.mjs'
-  # Unit coverage floor for the build job.
-  - '!scripts/check-coverage.mjs'
-  # Privacy scan run by the build job.
-  - '!scripts/privacy-check.mjs'
-  # Context-layer check run by the build job.
-  - '!scripts/check-context-layer.mjs'
-  # Suppression-comment check run by the build job.
-  - '!scripts/check-suppressions.mjs'
-  # PR body validator run by pr-body.yml.
-  - '!scripts/validate-pr-body.mjs'
-  # PR body headings shared with the PR body validator.
-  - '!scripts/eight-section-pr-body.mjs'
-  # Release note extraction run by release.yml.
-  - '!scripts/release-notes.mjs'
+  - '([\s\S]+)'
