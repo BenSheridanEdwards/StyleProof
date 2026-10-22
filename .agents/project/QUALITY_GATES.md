@@ -47,9 +47,10 @@ is listed here only if it exists and runs on a clean checkout.
   shared CI path policy over staged and pushed files. Every nonempty changed
   path selects the full browser suite, including prose and tooling files;
   filenames have no exemptions. Unknown inventories, including a first push
-  without a remote base, also run it. Only a proven empty or deletion-only
-  inventory may skip it. Missing Chromium, malformed push metadata and Git read
-  failures block the push.
+  without a remote base, also run it. Only a proven empty path inventory may
+  skip it, including a ref-deletion-only push with no staged paths. Deleted files
+  still require browser checks. Missing Chromium, malformed push metadata and
+  Git read failures block the push.
 - **`npm run verify`** — every local gate in one command: context and
   suppression checks, typecheck, lint, format check, privacy scan, and
   `npm test`. No hook runs it
