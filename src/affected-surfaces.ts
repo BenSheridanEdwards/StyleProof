@@ -124,8 +124,11 @@ function contextDir(arg: string, fromDir: string): string | null | 'unbounded' {
   const prefix = arg.match(/^`([^$`]*)/)?.[1]; // static head of a template literal
   // import(name), import('../x/' + name), or an alias (`@/x/${n}`) the graph cannot place: fail closed.
   if (!prefix || !prefix.includes('/') || !/^\.\.?\//.test(prefix)) return 'unbounded';
-  // A head that ends inside a filename (`../widgets/card-`) is rooted at its directory.
-  return normalizeDir(fromDir, prefix.slice(0, prefix.lastIndexOf('/') + 1));
+  // Cut at the last `/`; trailing `.` or `..` can leave that directory, so fail closed.
+  const head = prefix.slice(0, prefix.lastIndexOf('/') + 1);
+  const tail = prefix.slice(head.length);
+  if (tail === '.' || tail === '..') return 'unbounded';
+  return normalizeDir(fromDir, head);
 }
 
 /** Recover computed `import()`s the resolver dropped as bundler context-module edges; `'unbounded'` when any has no static prefix. */

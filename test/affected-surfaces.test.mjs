@@ -374,6 +374,8 @@ test('affectedSurfaces fails closed on a computed import() it cannot place', () 
   };
   assert.equal(run("const D = lazy(() => import('../components/' + name));"), 'all', 'string concatenation');
   assert.equal(run('const D = lazy(() => import(`@/components/${name}`));'), 'all', 'aliased template prefix');
+  assert.equal(run('const D = lazy(() => import(`../components/..${s}`));'), 'all', 'a prefix ending in a .. segment');
+  assert.equal(run('const D = lazy(() => import(`../components/.${s}`));'), 'all', 'a prefix ending in a . segment');
   assert.equal(
     run("const D = lazy(() => import('../components/Widget.json', { with: { type: 'json' } }));"),
     'all',
