@@ -6,6 +6,7 @@
 # Fail-closed: add a path only when nothing a browser or dogfood lane executes or
 # reads can load it, and say why. src/** never qualifies: bin/styleproof.mjs spawns
 # every CLI by computed name, so the e2e lane can reach all of src.
+# docs/** can contain rendered HTML, styles and proof assets, so it never qualifies.
 # scripts/ci-path-filters.mjs reads this file; test/ci-path-filters.test.mjs pins it.
 lanes:
   - '**'
@@ -13,8 +14,6 @@ lanes:
   - '!*.md'
   # License text; shipped in the package, read by nothing.
   - '!LICENSE'
-  # Documentation and committed proof assets; the build job checks docs/demo freshness.
-  - '!docs/**'
   # Agent context documents; only the build job's context-layer check reads them.
   - '!.agents/**'
   # Local agent tooling (skills, hooks, settings); never run in CI.
