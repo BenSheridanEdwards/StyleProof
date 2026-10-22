@@ -5,10 +5,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isSelfCheckCaptureFailure } from '../dist/runner.js';
+import { withSurfaceFailureTolerance } from '../dist/runner/self-check.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { removeSurfaceCaptureArtifacts } from '../dist/crawl-surfaces.js';
 import {
   MAP_MANIFEST,
+  SURFACE_CAPTURE_FAILURES_DIR,
   clearSurfaceCaptureFailure,
   recordSurfaceCaptureFailure,
   readSurfaceCaptureFailures,
@@ -219,6 +221,36 @@ test('clearSurfaceCaptureFailure removes only its own key, never a key that sani
   // Clearing a key that was never ledgered (the common first-attempt success) is a no-op.
   clearSurfaceCaptureFailure(path.join(root, 'empty'), 'home@900');
   rmTmp(root);
+});
+
+test('clearSurfaceCaptureFailure refuses an actual filename hash collision without changing the ledger', async () => {
+  const root = mkTmp();
+  try {
+    const failedKey = 'surface??????##?##??#####?#@640';
+    const capturedKey = 'surface????###??###??????##@640';
+    const failure = { key: failedKey, reason: 'navigation failed', kind: 'capture' };
+    recordSurfaceCaptureFailure(root, failure);
+    assert.deepEqual(fs.readdirSync(path.join(root, SURFACE_CAPTURE_FAILURES_DIR)), ['surface_@640-d7d15760.json']);
+    assert.throws(() => clearSurfaceCaptureFailure(root, capturedKey), /capture failure.*key mismatch/i);
+    assert.deepEqual(readSurfaceCaptureFailures(root), [failure]);
+    // Cleanup errors must not be swallowed or overwrite the other key's failure, even in tolerate/crawl mode.
+    for (const tolerateSurfaceFailures of [false, true]) {
+      const aggregated = [];
+      await assert.rejects(
+        withSurfaceFailureTolerance(
+          { outDir: root, tolerateSurfaceFailures },
+          capturedKey,
+          async () => {},
+          (line) => aggregated.push(line),
+        ),
+        /capture failure.*key mismatch/i,
+      );
+      assert.deepEqual(aggregated, []);
+      assert.deepEqual(readSurfaceCaptureFailures(root), [failure]);
+    }
+  } finally {
+    rmTmp(root);
+  }
 });
 
 test('styleproof-map: tolerate flag publishes partial baseline when Playwright exits non-zero', () => {
@@ -620,6 +652,7 @@ function writeRetryingPlaywright(binDir) {
     `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
+const assert = require('node:assert/strict');
 (async () => {
   const { withSurfaceFailureTolerance } = await import(${JSON.stringify(pathToFileURL(SELF_CHECK).href)});
   const outDir = path.join(process.env.STYLEPROOF_BASEDIR, process.env.STYLEMAP_DIR);
@@ -629,18 +662,27 @@ const path = require('node:path');
     JSON.stringify({ version: 1, expected: ['board', 'home'], exclude: {}, determinism: 'self-checked' }),
   );
   const settings = { outDir, tolerateSurfaceFailures: false };
-  const attempt = (key, fail) =>
+  const attempt = (key, fail, selfCheck = false) =>
     withSurfaceFailureTolerance(settings, key, async () => {
+      if (selfCheck) throw new Error('styleproof self-check failed: board is non-deterministic');
       if (fail) throw new Error('page.goto: net::ERR_EMPTY_RESPONSE');
       fs.writeFileSync(path.join(outDir, key + '.json'), ${JSON.stringify(map)});
     });
   await attempt('home@640', false);
   let passed = false;
-  for (let n = 1; n <= 2 && !passed; n++) {
-    passed = await attempt('board@640', n <= Number(process.env.BOARD_FAILED_ATTEMPTS ?? 0)).then(
+  const fatalRetry = process.env.BOARD_SELF_CHECK_RETRY === '1';
+  for (let n = 1; n <= (fatalRetry ? 3 : 2) && !passed; n++) {
+    passed = await attempt('board@640', n <= Number(process.env.BOARD_FAILED_ATTEMPTS ?? 0), fatalRetry && n === 2).then(
       () => true,
       () => false,
     );
+  }
+  if (fatalRetry) {
+    const { readSurfaceCaptureFailures, readFatalCaptureFailure } = await import(${JSON.stringify(pathToFileURL(path.join(here, '..', 'dist', 'map-store.js')).href)});
+    assert.equal(passed, true);
+    assert.deepEqual(readSurfaceCaptureFailures(outDir), []);
+    assert.match(readFatalCaptureFailure(outDir), /self-check failed/);
+    console.error('retry captured successfully; failure ledger cleared; fatal marker survives');
   }
   // A retry overwrites the outcome, so a test that passes on retry reads as passed (Playwright: flaky, exit 0).
   fs.writeFileSync(
@@ -657,6 +699,7 @@ const path = require('node:path');
 for (const [label, failedAttempts, expected] of [
   ['passes on its Playwright retry is not ledgered', 1, { map: 0, ledger: undefined, diff: 0 }],
   ['fails on every attempt stays ledgered and blocks', 2, { map: 1, ledger: ['board@640'], diff: 1 }],
+  ['fails capture, fails self-check, then captures still blocks', 1, { map: 1, fatal: true }],
 ]) {
   test(`styleproof-map: a surface that ${label}`, () => {
     const root = mkTmp();
@@ -679,8 +722,18 @@ for (const [label, failedAttempts, expected] of [
       };
       const capture = (dir, extra = {}) =>
         run(MAP, ['--spec', spec, '--dir', dir, '--base-dir', maps, '--no-upload'], { ...env, ...extra }, root);
-      const base = capture('base', { BOARD_FAILED_ATTEMPTS: String(failedAttempts) });
+      const base = capture('base', {
+        BOARD_FAILED_ATTEMPTS: String(failedAttempts),
+        BOARD_SELF_CHECK_RETRY: expected.fatal ? '1' : undefined,
+      });
       assert.equal(base.status, expected.map, base.stderr + base.stdout);
+      if (expected.fatal) {
+        assert.match(base.stderr, /retry captured successfully; failure ledger cleared; fatal marker survives/);
+        assert.match(base.stderr, /fatal self-check failure; discarding/);
+        assert.doesNotMatch(base.stderr + base.stdout, /wrote .* for|determinism proven|publishing partial baseline/i);
+        assert.equal(fs.existsSync(path.join(maps, 'base')), false, 'fatal capture output must be discarded');
+        return;
+      }
       const head = capture('head');
       assert.equal(head.status, 0, head.stderr + head.stdout);
       // The head is the same app captured cleanly; only a real base gap may block it.

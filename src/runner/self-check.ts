@@ -49,7 +49,6 @@ export async function withSurfaceFailureTolerance(
 ): Promise<void> {
   try {
     await run();
-    clearSurfaceCaptureFailure(settings.outDir, captureKey);
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
     if (isSelfCheckCaptureFailure(reason)) {
@@ -59,7 +58,9 @@ export async function withSurfaceFailureTolerance(
     }
     if (!aggregate) throw e;
     aggregate(`${captureKey.replace(/@([^@]*)$/, ' @ $1')}: ${reason}`);
+    return;
   }
+  clearSurfaceCaptureFailure(settings.outDir, captureKey);
 }
 
 function driftDesc(f: Finding): string {

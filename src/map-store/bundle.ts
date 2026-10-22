@@ -188,7 +188,17 @@ export function recordSurfaceCaptureFailure(dir: string, failure: SurfaceCapture
 
 /** Drop the failure an earlier attempt of `key` recorded, once a later attempt (a Playwright retry) captured it. */
 export function clearSurfaceCaptureFailure(dir: string, key: string): void {
-  fs.rmSync(surfaceCaptureFailureFile(dir, key), { force: true });
+  const file = surfaceCaptureFailureFile(dir, key);
+  let bytes: Buffer;
+  try {
+    bytes = readRegularFileNoFollow(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+  const failure = JSON.parse(bytes.toString('utf8')) as SurfaceCaptureFailure | null;
+  if (failure?.key !== key) throw new MapStoreError(`capture failure ledger key mismatch: ${file}`);
+  fs.rmSync(file, { force: true });
 }
 
 /** Read tolerated failures written during capture (sorted by key). */
