@@ -218,10 +218,14 @@ export function workingTreeDirty(
 ): boolean {
   // --untracked-files=all: git otherwise collapses an untracked directory to `dir/`.
   const result = git(cwd, ['status', '--porcelain', '-z', '--untracked-files=all']);
-  const status = result.status === 0 ? result.stdout : '';
+  if (result.status !== 0 || result.error) return true;
+  const status = result.stdout;
   if (!status) return false;
   // Porcelain paths are repo-root-relative even from a package subdirectory such as `web/`.
-  const cwdPrefix = gitStdout(cwd, ['rev-parse', '--show-prefix']);
+  const prefixResult = git(cwd, ['rev-parse', '--show-prefix']);
+  if (prefixResult.status !== 0 || prefixResult.error) return true;
+  // Preserve path whitespace; only the terminating newline belongs to Git's output format.
+  const cwdPrefix = prefixResult.stdout.replace(/\n$/, '');
   const prefixes = [
     ...(typeof ignore === 'string' ? [ignore] : (ignore ?? [])),
     ...cwdIgnore.filter(Boolean).map((p) => path.posix.normalize(`${cwdPrefix}${p}`)),

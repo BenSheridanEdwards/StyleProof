@@ -518,6 +518,62 @@ test('workingTreeDirty: a cwd-relative allowance matches from a package subdirec
   }
 });
 
+test('workingTreeDirty: whitespace in the cwd prefix never allows sibling edits', () => {
+  const repo = mkTmp('styleproof-dirty-whitespace-');
+  const web = path.join(repo, ' web');
+  const sibling = path.join(repo, 'web');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    for (const dir of [web, sibling]) {
+      fs.mkdirSync(path.join(dir, 'generated'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'generated/map.json'), '{}');
+      fs.writeFileSync(path.join(dir, 'next-env.d.ts'), 'v1');
+    }
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+
+    for (const file of ['generated/map.json', 'next-env.d.ts']) {
+      fs.writeFileSync(path.join(sibling, file), 'v2');
+      assert.equal(workingTreeDirty(web, [], ['generated']), true, `sibling ${file} is still dirt`);
+      git('checkout', '-q', '--', '.');
+      fs.writeFileSync(path.join(web, file), 'v2');
+      assert.equal(workingTreeDirty(web, [], ['generated']), false, `cwd ${file} is allowed`);
+      git('checkout', '-q', '--', '.');
+    }
+  } finally {
+    rmTmp(repo);
+  }
+});
+
+test('workingTreeDirty: a failed prefix lookup cannot allow a root sibling', () => {
+  const repo = mkTmp('styleproof-dirty-prefix-failure-');
+  const previousPath = process.env.PATH;
+  try {
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    execFileSync(realGit, ['init', '-q'], { cwd: repo, stdio: 'pipe' });
+    const web = path.join(repo, 'web');
+    const bin = path.join(repo, '.git', 'bin');
+    fs.mkdirSync(web);
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(repo, 'generated.txt'), 'changed');
+    fs.writeFileSync(
+      path.join(bin, 'git'),
+      `#!/bin/sh\nif [ "$*" = "rev-parse --show-prefix" ]; then exit 1; fi\nexec '${realGit.replaceAll("'", "'\\''")}' "$@"\n`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${bin}${path.delimiter}${previousPath ?? ''}`;
+
+    assert.equal(workingTreeDirty(web, [], ['generated.txt']), true);
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    rmTmp(repo);
+  }
+});
+
 test('publishMapBundle ignores hook-exported Git repository variables and leaves the caller non-bare', async () => {
   const root = mkTmp('styleproof-hook-env-');
   const remote = path.join(root, 'remote.git');

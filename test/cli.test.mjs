@@ -431,6 +431,23 @@ test('styleproof-map --upload exit codes: store fault is 5 (retryable), dirty tr
     });
     assert.equal(dirty.status, 2, dirty.stderr);
     assert.match(dirty.stderr, /dirty/);
+
+    // HEAD is readable even when a corrupt index makes git status fail.
+    fs.writeFileSync(path.join(root, '.git/index'), 'corrupt index');
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+    assert.equal(head.status, 0, head.stderr);
+    assert.equal(head.stdout.trim(), headSha);
+    const status = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' });
+    assert.notEqual(status.status, 0, 'the corrupt index must make status fail');
+    const unreadable = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env,
+    });
+    assert.equal(unreadable.status, 2, unreadable.stderr);
+    assert.match(unreadable.stderr, /dirty/);
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, '.styleproof/maps/current', MAP_MANIFEST), 'utf8'));
+    assert.equal(manifest.dirty, true);
   } finally {
     rmTmp(root);
     rmTmp(binDir);
