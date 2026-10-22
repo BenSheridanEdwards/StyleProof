@@ -8,6 +8,7 @@ import {
 } from '../dist/report.js';
 import { codeValue } from '../dist/code-span.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { ReportMarkdown } from '../dist/report/sections.js';
 import {
   makeMap,
   mkTmp,
@@ -20,6 +21,24 @@ import {
 } from './helpers.mjs';
 
 // ---------------------------------------- bounded report (always GitHub-renderable)
+
+test('a large uncapped report keeps every section and its Evidence tail without exceeding the argument limit', () => {
+  const sections = Array.from({ length: 6_957 }, (_, section) => [
+    '',
+    `### \`surface-${section}@1280\``,
+    '',
+    ...Array.from({ length: 20 }, (_, line) => `- Change ${line} on surface ${section}`),
+  ]);
+  const evidence = ['', '<summary>Evidence (warnings & failures)</summary>', '', 'Capture warning: review required.'];
+  const expected = ['# StyleProof', ...sections.flat(), ...evidence];
+  for (const budget of [Infinity, Buffer.byteLength(`${expected.join('\n')}\n`, 'utf8')]) {
+    const report = new ReportMarkdown(budget);
+    report.lines.push('# StyleProof');
+    for (const [section, lines] of sections.entries()) report.detail(lines, `- surface-${section}`);
+    report.finish(evidence);
+    assert.deepEqual(report.lines, expected, 'all detail and warnings must survive in order');
+  }
+});
 
 test('report.md stays under its byte budget (GitHub-renderable); report.json keeps every surface', () => {
   const { beforeDir, afterDir, outDir, root } = tmpDirs();

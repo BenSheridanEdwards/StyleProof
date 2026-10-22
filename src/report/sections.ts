@@ -255,7 +255,7 @@ export class ReportMarkdown {
   /** Append when the lines fit with `reserve` bytes to spare; returns false (and appends nothing) otherwise. */
   private push(lines: string[], reserve: number): boolean {
     if (!this.fits(lines, reserve)) return false;
-    this.lines.push(...lines);
+    for (const line of lines) this.lines.push(line);
     return true;
   }
 }
