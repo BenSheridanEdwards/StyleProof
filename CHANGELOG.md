@@ -455,10 +455,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reused its stale base map. The prefix is now cut back to its last `/`, so it
   covers `src/widgets/`. Every file kind under that directory is now a possible
   target, so ``import(`../themes/${t}.module.css`)`` selects its importer when a
-  stylesheet there changes. A code file or stylesheet reached only by the
-  computed import now selects that importer instead of every surface. An asset
-  such as an `.svg` or font that no module imports statically still re-captures
-  every surface, because CSS can load it. A prefix that ends in `.` or `..` now
+  stylesheet there changes. Context recovery only widens changes already placed
+  by a resolved source import or declared surface entry. A code file, stylesheet
+  or asset reached only by a computed import re-captures every surface; ignored
+  `node_modules` edges cannot establish placement. This also makes previously
+  scoped context-only code changes conservative. CSS `url()` and `@font-face`
+  dependencies remain unmodelled, so assets without resolved source importers
+  still re-capture every surface. A prefix that ends in `.` or `..` now
   re-captures every surface, because the import can leave that directory.
 - **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
   surface under selective remap (#942).** These single-file components carry
@@ -466,8 +469,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Svelte `:global(...)` or Astro `<style is:global>`. They were never
   classified, so the verdict covered only the component's importers and other
   surfaces that render the same selectors reused their base maps. Any change to
-  one of these files now resolves to `'all'`. Changes to scripts, stylesheets,
-  configs and assets keep their current verdicts.
+  one of these files now resolves to `'all'`.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
