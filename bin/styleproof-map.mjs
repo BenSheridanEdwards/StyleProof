@@ -532,9 +532,9 @@ function stampManifest() {
   const manifestSha = sha || headBeforeCapture || 'uncommitted';
   let dirty = manifestSha === 'uncommitted' ? true : dirtyBeforeCapture;
   try {
-    const rel = path.relative(process.cwd(), targetDir) || targetDir;
+    const rel = path.relative(process.cwd(), targetDir);
     const headAfter = currentGitSha(process.cwd(), captureEnv(dir));
-    if (workingTreeDirty(process.cwd(), [...dirtyAllow, rel]) || (headBeforeCapture && headAfter !== headBeforeCapture))
+    if (workingTreeDirty(process.cwd(), dirtyAllow, [rel]) || (headBeforeCapture && headAfter !== headBeforeCapture))
       dirty = true;
   } catch {
     // git unreadable now — keep the pre-capture verdict rather than guess

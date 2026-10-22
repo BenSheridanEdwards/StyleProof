@@ -392,6 +392,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the capture config sets `headless: false` or `channel: 'chromium'`. Earlier
   Playwright releases have no headless shell, so the preflight still checks
   the full build there.
+- **Map upload from a package subdirectory no longer refuses a clean tree as
+  dirty (#961).** `git status --porcelain` prints repo-root paths, so from
+  `working-directory: web` a rewritten `web/next-env.d.ts` missed the built-in
+  `next-env.d.ts` allowance, and an un-ignored `web/.styleproof/maps/current`
+  missed the cwd-relative output-dir allowance. `styleproof-map --upload` then
+  exited 2. Both allowances now match in repo-root coordinates through the cwd
+  prefix. The status is also read with `-z`, so a non-ASCII name such as
+  `public/locales/español.json` matches its `dirtyAllow` directory instead of
+  staying octal-quoted. `dirtyAllow` entries stay repo-root-relative, and real
+  source edits and renames that leave an allowance still block upload.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
