@@ -322,12 +322,13 @@ function ensurePlaywrightBrowsersOrDie(cwd) {
     if (!playwrightInstall(cwd)) bail(1);
     return;
   }
-  const browserNames = browsersRequiredByCaptureConfig(readCapturePlaywrightConfigText(cwd));
+  const captureConfigText = readCapturePlaywrightConfigText(cwd);
+  const browserNames = browsersRequiredByCaptureConfig(captureConfigText);
   if (browserNames.includes('webkit'))
     log('browser preflight: the capture Playwright config mentions webkit — checking chromium and webkit');
   const verdicts = [];
   for (const browserName of browserNames) {
-    const resolution = resolveBrowserExecutablePath(cwd, browserName);
+    const resolution = resolveBrowserExecutablePath(cwd, browserName, captureConfigText);
     if (resolution.kind === 'unresolvable') {
       log(`browser preflight: cannot resolve the ${browserName} executable path (${resolution.reason})`);
       log('browser preflight skipped — running playwright install unconditionally');
