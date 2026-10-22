@@ -574,6 +574,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   stylesheet there changes. A prefix whose last segment is `.` or `..`
   (``import(`../widgets/..${s}`)``) can climb out of that directory, so it now
   resolves to `'all'`.
+  stylesheet there changes. A prefix that ends in `.` or `..` now re-captures
+  every surface, because the import can leave that directory.
 - **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
   surface under selective remap (#942).** These single-file components carry
   their own `<style>` blocks, which can be global: an unscoped Vue `<style>`,
