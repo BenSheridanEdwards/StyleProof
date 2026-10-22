@@ -2233,8 +2233,7 @@ packages:
   });
 }
 
-// #959: an empty BASE_URL is an unset one, and the stamped key is the one a BASE_URL lookup computes.
-test('a manifest stamped from BASE_URL carries the lookup key, and an empty BASE_URL keys as unset (#959)', () => {
+test('a manifest preserves an empty BASE_URL and its distinct lookup key', () => {
   const consumer = mkTmp('styleproof-base-url-key-');
   const spec = 'e2e/styleproof.spec.ts';
   const stamp = (name, BASE_URL) =>
@@ -2253,10 +2252,13 @@ test('a manifest stamped from BASE_URL carries the lookup key, and an empty BASE
     fs.writeFileSync(path.join(consumer, spec), 'export default {};\n');
     const unset = expectedCompatibilityKey({ cwd: consumer, spec });
 
-    assert.equal(expectedCompatibilityKey({ cwd: consumer, spec, baseUrl: '' }), unset);
+    const emptyKey = expectedCompatibilityKey({ cwd: consumer, spec, baseUrl: '' });
+    assert.notEqual(emptyKey, unset, 'custom Playwright configs can distinguish empty from unset');
     const empty = stamp('empty', '');
-    assert.equal(empty.compatibilityKey, unset, 'an empty BASE_URL must find bundles published without one');
-    assert.equal(empty.baseUrl, undefined);
+    assert.equal(empty.compatibilityKey, emptyKey);
+    assert.equal(empty.baseUrl, '');
+    assert.equal(readMapManifest(path.join(consumer, 'empty')).baseUrl, '');
+    assert.equal(empty.compatibilityKey, expectedCompatibilityKey({ cwd: consumer, spec, baseUrl: empty.baseUrl }));
 
     const set = stamp('set', 'http://127.0.0.1:3000');
     assert.equal(set.compatibilityKey, expectedCompatibilityKey({ cwd: consumer, spec, baseUrl: set.baseUrl }));
@@ -2283,11 +2285,66 @@ test('expectedCompatibilityKey is identical for a spec reached through a symlink
     assert.equal(expectedCompatibilityKey({ cwd: project, spec: path.join(project, spec) }), relative);
     assert.equal(expectedCompatibilityKey({ cwd: project, spec: path.join(link, spec) }), relative);
     assert.equal(expectedCompatibilityKey({ cwd: link, spec }), relative);
+    assert.equal(expectedCompatibilityKey({ cwd: link, spec: path.join(project, spec) }), relative);
     assert.notEqual(
       expectedCompatibilityKey({ cwd: project, spec: path.join(root, 'outside.spec.ts') }),
       relative,
       'a spec genuinely outside the project keeps its own key',
     );
+    fs.unlinkSync(path.join(project, spec));
+    assert.equal(
+      expectedCompatibilityKey({ cwd: project, spec: path.join(link, spec) }),
+      expectedCompatibilityKey({ cwd: project, spec }),
+      'checkout aliases normalize even when the spec is missing',
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('spec keys preserve logical paths when in-project symlinks are retargeted', () => {
+  const root = mkTmp('styleproof-logical-spec-');
+  const project = path.join(root, 'project');
+  const alias = path.join(root, 'checkout');
+  const spec = 'e2e/styleproof.spec.ts';
+  try {
+    for (const suite of ['suite-a', 'suite-b']) {
+      fs.mkdirSync(path.join(project, suite), { recursive: true });
+      fs.writeFileSync(path.join(project, suite, 'styleproof.spec.ts'), '// identical spec bytes');
+    }
+    fs.symlinkSync(project, alias, 'dir');
+    fs.symlinkSync('.', path.join(project, 'self'), 'dir');
+    fs.symlinkSync('suite-a', path.join(project, 'e2e'), 'dir');
+    const logicalKey = expectedCompatibilityKey({ cwd: project, spec });
+    for (const suite of ['suite-a', 'suite-b']) {
+      fs.unlinkSync(path.join(project, 'e2e'));
+      fs.symlinkSync(suite, path.join(project, 'e2e'), 'dir');
+      for (const cwd of [project, alias]) {
+        for (const spelling of [spec, path.join(project, spec), path.join(alias, spec)]) {
+          assert.equal(expectedCompatibilityKey({ cwd, spec: spelling }), logicalKey);
+        }
+      }
+      assert.notEqual(
+        expectedCompatibilityKey({ cwd: project, spec: `${suite}/styleproof.spec.ts` }),
+        logicalKey,
+        'the physical spec is a separate capture contract',
+      );
+      assert.notEqual(
+        expectedCompatibilityKey({ cwd: project, spec: path.join(alias, 'self', spec) }),
+        logicalKey,
+        'an in-project link to the root also keeps its logical path',
+      );
+      const manifest = writeMapManifest({
+        dir: path.join(root, 'maps'),
+        cwd: project,
+        spec: path.join(alias, spec),
+        sha: 'a'.repeat(40),
+        screenshots: false,
+        dirty: false,
+      });
+      assert.equal(manifest.spec, spec);
+      assert.equal(manifest.compatibilityKey, logicalKey);
+    }
   } finally {
     rmTmp(root);
   }
