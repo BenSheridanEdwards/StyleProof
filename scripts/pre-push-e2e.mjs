@@ -2,26 +2,13 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { needsBrowserLanes } from './ci-path-filters.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/**
- * Staged / pushed paths that should trigger local Playwright e2e on pre-push.
- * "engine" = `src/runner` (Playwright capture runner). Spec #773 option 3.
- */
-export const E2E_PATH_PATTERNS = [
-  /^src\/capture(\/|\.ts$)/,
-  /^src\/diff\.ts$/,
-  /^src\/report(\/|\.ts$)/,
-  /^src\/runner(\/|\.ts$)/,
-];
-
-/** True when any path hits capture / diff / report / engine (runner). */
+/** Unknown inventories run; known paths use the same browser policy as CI. */
 export function shouldRunStagedE2e(files) {
-  return files.some((file) => {
-    const normalized = file.replaceAll('\\', '/');
-    return E2E_PATH_PATTERNS.some((re) => re.test(normalized));
-  });
+  return files === null || needsBrowserLanes(files);
 }
 
 /** Chromium present if Playwright resolves an executable path that exists on disk. */
@@ -30,41 +17,67 @@ export function chromiumInstalled({ executablePath, existsSync = fs.existsSync }
   return existsSync(executablePath);
 }
 
-function gitLines(...args) {
+function gitOutput(...args) {
   const result = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
-  if (result.status !== 0) return [];
-  return result.stdout
-    .split(/\r?\n/)
-    .map((l) => l.trim())
+  if (result.error || result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed: ${result.error?.message ?? result.stderr.trim()}`);
+  }
+  return result.stdout;
+}
+
+function gitPaths(...args) {
+  return gitOutput('diff', '--name-only', '--no-renames', '-z', ...args)
+    .split('\0')
     .filter(Boolean);
 }
 
-function usableOid(oid) {
-  return typeof oid === 'string' && oid.length > 0 && !/^0+$/.test(oid);
+function validOid(oid) {
+  return typeof oid === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(oid);
 }
 
 function filesForPushRange({ remoteOid, localOid }) {
-  if (!usableOid(remoteOid) || !usableOid(localOid)) return [];
-  return gitLines('diff', '--name-only', `${remoteOid}..${localOid}`);
+  if (!validOid(remoteOid) || !validOid(localOid) || remoteOid.length !== localOid.length) {
+    throw new Error('Invalid pre-push object IDs: expected full, matching-format Git OIDs');
+  }
+  if (/^0+$/.test(localOid)) {
+    if (/^0+$/.test(remoteOid)) throw new Error('Invalid pre-push object IDs: both OIDs are zero');
+    return []; // Deleting a ref introduces no new tree to check.
+  }
+  if (/^0+$/.test(remoteOid)) return null; // A new ref has no known remote comparison tree.
+  return gitPaths(`${remoteOid}..${localOid}`);
+}
+
+function parsePushRange(line) {
+  const parts = line.trim().split(/\s+/);
+  if (parts.length !== 4) throw new Error('Invalid pre-push record: expected four fields');
+  const [localRef, localOid, remoteRef, remoteOid] = parts;
+  if (!remoteRef.startsWith('refs/')) throw new Error('Invalid pre-push destination ref: expected a full ref');
+  gitOutput('check-ref-format', remoteRef);
+  if (/^0+$/.test(localOid)) {
+    if (localRef !== '(delete)') throw new Error('Invalid pre-push deletion ref');
+  } else {
+    const resolved = gitOutput('rev-parse', '--verify', '--end-of-options', localRef).trim();
+    if (resolved.toLowerCase() !== localOid.toLowerCase()) throw new Error('Invalid pre-push local ref/OID pair');
+  }
+  return { remoteOid, localOid };
 }
 
 function parsePushRangesFromStdin(stdinText) {
-  const ranges = [];
-  for (const line of stdinText.split(/\r?\n/)) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length < 4) continue;
-    const [, localOid, , remoteOid] = parts;
-    ranges.push({ remoteOid, localOid });
-  }
-  return ranges;
+  if (!stdinText.trim()) return null;
+  return stdinText
+    .split(/\r?\n/)
+    .filter((line) => line.trim())
+    .map(parsePushRange);
 }
 
-/** Staged index paths plus files in each remote..local push range from pre-push stdin. */
+/** Staged and pushed paths, or null when the push inventory cannot be known. */
 export function collectPrePushFiles({ stagedFiles, pushRanges, readStdin }) {
-  const staged = stagedFiles ?? gitLines('diff', '--cached', '--name-only');
-  const ranges = pushRanges ?? (readStdin ? parsePushRangesFromStdin(fs.readFileSync(0, 'utf8')) : []);
-  const pushed = ranges.flatMap(filesForPushRange);
-  return [...new Set([...staged, ...pushed])];
+  const staged = stagedFiles ?? gitPaths('--cached');
+  const ranges = pushRanges ?? (readStdin ? parsePushRangesFromStdin(fs.readFileSync(0, 'utf8')) : null);
+  if (ranges === null) return null;
+  const pushed = ranges.map(filesForPushRange);
+  if (pushed.includes(null)) return null;
+  return [...new Set([...staged, ...pushed.flat()])];
 }
 
 async function resolveChromiumPath() {
@@ -79,20 +92,22 @@ async function resolveChromiumPath() {
 async function main() {
   const files = collectPrePushFiles({ readStdin: !process.stdin.isTTY });
   if (!shouldRunStagedE2e(files)) {
-    console.log('  › staged e2e — skipped (no capture/diff/report/engine paths in staged or pushed files)');
+    console.log('  › pre-push e2e — skipped (all staged and pushed paths are browser-safe)');
     return;
   }
 
   const executablePath = await resolveChromiumPath();
   if (!chromiumInstalled({ executablePath })) {
-    console.warn('  ⚠ Playwright Chromium not installed — skipping staged e2e.');
-    console.warn('    Install it (`npx playwright install chromium`) for pre-push browser checks;');
-    console.warn('    the e2e CI workflow still gates every push.');
-    return;
+    throw new Error('Playwright Chromium not installed. Run `npx playwright install chromium` before pushing.');
   }
 
-  console.log('  › staged e2e (capture/diff/report/engine paths changed)');
-  const result = spawnSync('npm', ['run', 'test:e2e'], { cwd: ROOT, stdio: 'inherit', env: process.env });
+  console.log('  › pre-push e2e (browser paths changed or push inventory unknown)');
+  const result = spawnSync('npm', ['run', 'test:e2e', '--', '--workers=4'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (result.error) throw result.error;
   process.exit(result.status ?? 1);
 }
 
