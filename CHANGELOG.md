@@ -200,6 +200,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Repository browser gates reject incomplete verification.** Changes anywhere
+  under `docs/` now require the browser and dogfood lanes. Demo freshness also
+  compares committed HTML, so CSS-only drift or a missing HTML report fails.
+  The local pre-push check shares the CI path policy, runs the full browser suite
+  for new branches without a remote base, and fails on missing Chromium or
+  unreadable Git change information. The served-rules browser spec uses a
+  per-test loopback server so inspector re-fetches no longer depend on fake-host
+  DNS. Product capture and report behavior are unchanged.
+
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
@@ -699,7 +708,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   lanes skipped `bin/`, `action.yml`, `tsconfig.json`, workflow changes and a
   helper that e2e specs import; the dogfood workflows skipped `tsconfig.json`,
   workflow changes and their own e2e specs. Every lane now runs unless each
-  changed file is on a short list of paths that no lane loads, such as docs,
+  changed file is on a short list of paths that no lane loads, such as
   top-level Markdown, agent tooling, lint configs and Node unit tests. That list
   lives in one file, `.github/path-filters.yml`, which all five workflows pass to
   dorny.

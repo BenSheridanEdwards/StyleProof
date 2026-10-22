@@ -80,12 +80,13 @@ baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
 it on the Node 22 matrix leg. Develop with Node 22.13+ so the floor flags exist;
 older Node exits non-zero with a clear message instead of silently skipping.
 
-`pre-push` always runs `npm test`. When staged or pushed files touch
-`src/capture`, `src/diff.ts`, `src/report`, or `src/runner` (the capture engine),
-it also runs `npm run test:e2e`. If Playwright Chromium is missing, that e2e
-step **warns and skips** (same optional-local pattern as gitleaks in
-`pre-commit`); CI e2e still gates every push. Install Chromium with
-`npx playwright install chromium` when you work on those paths.
+`pre-push` always runs `npm test`. It uses `.github/path-filters.yml`, the same
+path policy as CI, to select `npm run test:e2e -- --workers=4` for staged or pushed
+changes. This includes fixtures, stylesheets, e2e specs and all `docs/` paths.
+A new branch without a remote base runs the full browser suite. Missing Chromium,
+unreadable Git changes or malformed push metadata fail the push. Install Chromium
+with `npx playwright install chromium` before pushing browser-relevant changes.
+`npm run demo:check` verifies demo Markdown, HTML and decoded crop pixels.
 
 The unit suite imports the **built `dist/`** (the same surface the bins and consumers
 use), so a stale build can't yield a false green — `npm test` rebuilds first. Add or
