@@ -440,6 +440,36 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that is or contains the checkout or the temp folder that holds the run's
   worktrees now exits 2 before any git or filesystem work. Real paths are
   compared, so a symlinked spelling is refused too (#943).
+- **Selective remap now re-captures every surface for a CSS Module global rule
+  after a comment or `;` statement (#940).** A `:root`, `html`, `body` or `*`
+  rule counted as global only right after the start of the file or a `{`, `}`,
+  `,` or `(`. A `/* … */` comment, a Sass `//` comment or a statement such as
+  `@charset "utf-8";` or `@layer components;` in front of it made the module
+  read as scoped. `styleproof-affected` exited 0 and every surface that does not
+  import the module reused its stale base map. These cases now resolve to
+  `'all'`, and comments around class-only rules still stay scoped.
+- **A computed `import()` whose prefix stops inside a filename, or that loads a
+  stylesheet, now selects its importer (#941).** For
+  ``import(`../widgets/card-${kind}`)`` the context directory became
+  `src/widgets/card-`, which matched no file, so the lazy importer's surface
+  reused its stale base map. The prefix is now cut back to its last `/`, so it
+  covers `src/widgets/`. Every file kind under that directory is now a possible
+  target, so ``import(`../themes/${t}.module.css`)`` selects its importer when a
+  stylesheet there changes. Context recovery only widens changes already placed
+  by a resolved source import or declared surface entry. A code file, stylesheet
+  or asset reached only by a computed import re-captures every surface; ignored
+  `node_modules` edges cannot establish placement. This also makes previously
+  scoped context-only code changes conservative. CSS `url()` and `@font-face`
+  dependencies remain unmodelled, so assets without resolved source importers
+  still re-capture every surface. A prefix that ends in `.` or `..` now
+  re-captures every surface, because the import can leave that directory.
+- **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
+  surface under selective remap (#942).** These single-file components carry
+  their own `<style>` blocks, which can be global: an unscoped Vue `<style>`,
+  Svelte `:global(...)` or Astro `<style is:global>`. They were never
+  classified, so the verdict covered only the component's importers and other
+  surfaces that render the same selectors reused their base maps. Any change to
+  one of these files now resolves to `'all'`.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

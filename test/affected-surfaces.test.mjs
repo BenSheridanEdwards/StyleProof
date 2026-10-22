@@ -32,6 +32,24 @@ test('classify: nested and selector-list global elements escape a CSS Module', (
   );
   assert.equal(classifyStyleChange('Theme.module.css', read('.local, :where(BODY) { color: red }')), 'all');
 });
+test('classify: a comment or `;` statement around a global rule cannot hide it in a CSS Module', () => {
+  for (const [file, src] of [
+    ['Card.module.css', '.card{}\n/* tokens */\n:root{--b:red}'],
+    ['Card.module.css', '/* reset */\n*{box-sizing:border-box}'],
+    ['Card.module.css', '@charset "utf-8";\n:root{}'],
+    ['Card.module.css', '@layer components;\nhtml{}'],
+    ['Card.module.scss', '.card{}\n// tokens\n:root{}'],
+    ['Card.module.css', '/* reset */ body/* note */ { color:red }'],
+    ['Card.module.scss', '.a{}\n:root// x\n{--b:1}'],
+  ]) {
+    assert.equal(classifyStyleChange(file, read(src)), 'all', src);
+  }
+  // Guard against over-widening: comments around class-only rules stay scoped.
+  assert.equal(
+    classifyStyleChange('Card.module.scss', read('/**\n * Card\n */\n.card{}\n// title\n.title{}')),
+    'scope',
+  );
+});
 test('classify: CSS Module using `composes … from` pulls in outside scope', () => {
   assert.equal(classifyStyleChange('Btn.module.css', read('.btn{composes: base from "./shared.css"}')), 'all');
 });
@@ -196,8 +214,8 @@ test("a component sharing a dir with a context import → that dir's consumer to
 test('a string-literal lazy component → its lazy importer (edge kept by the graph)', () => {
   assert.deepEqual(sorted(run(['src/components/Promo.tsx'])), ['dashboard', 'home']);
 });
-test('a component reachable ONLY via a computed import → recovered as a context module', () => {
-  assert.deepEqual(sorted(run(['src/components/Widget.tsx'])), ['dashboard']);
+test('a component reachable ONLY via a computed import fails closed without a resolved importer', () => {
+  assert.equal(run(['src/components/Widget.tsx']), 'all');
 });
 test('a scoped CSS-module change follows its component, staying selective', () => {
   assert.deepEqual(sorted(run(['src/components/PriceTable.module.css'])), ['dashboard', 'pricing']);
@@ -218,6 +236,33 @@ test('a global token stylesheet forces a full re-capture', () => {
 });
 test('a createGlobalStyle change forces a full re-capture (not a local .tsx edit)', () => {
   assert.equal(run(['src/components/GlobalStyle.tsx']), 'all');
+});
+test('a global style change in a .vue, .svelte or .astro component forces a full re-capture', () => {
+  const affected = (file, src) => {
+    const sources = { 'src/pages/Home.ts': "import '../components/Panel';", 'src/pages/Settings.ts': '', [file]: src };
+    return affectedSurfaces({
+      changedFiles: [file],
+      surfaces: { home: 'src/pages/Home.ts', settings: 'src/pages/Settings.ts' },
+      graph: [{ from: 'src/pages/Home.ts', to: file }],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    });
+  };
+  const panel = '<div class="panel">panel</div>';
+  assert.equal(
+    affected('src/components/Panel.vue', `<template>${panel}</template>\n<style>\n.panel{padding:24px}\n</style>`),
+    'all',
+  );
+  assert.equal(
+    affected('src/components/Panel.svelte', `${panel}\n<style>\n:global(.panel){padding:24px}\n</style>`),
+    'all',
+  );
+  assert.equal(
+    affected('src/components/Panel.astro', `${panel}\n<style is:global>\n.panel{padding:24px}\n</style>`),
+    'all',
+  );
+  // A pure asset still follows the import graph.
+  assert.deepEqual(sorted(affected('src/components/panel.svg', '<svg/>')), ['home']);
 });
 test('a shared static component → every surface that imports it', () => {
   assert.deepEqual(sorted(run(['src/components/Header.tsx'])), ['dashboard', 'home', 'pricing']);
@@ -329,6 +374,8 @@ test('affectedSurfaces fails closed on a computed import() it cannot place', () 
   };
   assert.equal(run("const D = lazy(() => import('../components/' + name));"), 'all', 'string concatenation');
   assert.equal(run('const D = lazy(() => import(`@/components/${name}`));'), 'all', 'aliased template prefix');
+  assert.equal(run('const D = lazy(() => import(`../components/..${s}`));'), 'all', 'a prefix ending in a .. segment');
+  assert.equal(run('const D = lazy(() => import(`../components/.${s}`));'), 'all', 'a prefix ending in a . segment');
   assert.equal(
     run("const D = lazy(() => import('../components/Widget.json', { with: { type: 'json' } }));"),
     'all',
@@ -338,5 +385,166 @@ test('affectedSurfaces fails closed on a computed import() it cannot place', () 
     [...run('const D = lazy(() => import(`../components/${name}`));')].sort(),
     ['dashboard', 'pricing'],
     'a relative template prefix is still recovered as a context module',
+  );
+});
+
+test('affectedSurfaces roots a computed import() at the last / of its prefix, for any file kind', () => {
+  const run = (dashboardSrc, changed) => {
+    const sources = {
+      'src/pages/Pricing.tsx':
+        "import {Widget} from '../components/Widget';\nimport t from '../themes/dark.module.css';",
+      'src/pages/Dashboard.tsx': dashboardSrc,
+      'src/components/Widget.tsx': 'export default function Widget(){return null}',
+      'src/themes/dark.module.css': '.panel{color:#fff}',
+    };
+    return affectedSurfaces({
+      changedFiles: [changed],
+      surfaces: { pricing: 'src/pages/Pricing.tsx', dashboard: 'src/pages/Dashboard.tsx' },
+      graph: [
+        { from: 'src/pages/Pricing.tsx', to: 'src/components/Widget.tsx' },
+        { from: 'src/pages/Pricing.tsx', to: 'src/themes/dark.module.css' },
+      ],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    });
+  };
+  const widget = 'src/components/Widget.tsx';
+  assert.deepEqual(
+    sorted(run('const D = lazy(() => import(`../components/Wid${name}`));', widget)),
+    ['dashboard', 'pricing'],
+    'a prefix that ends inside a filename',
+  );
+  assert.deepEqual(
+    sorted(run('const D = lazy(() => import(`../components/Wid${name}.tsx`));', widget)),
+    ['dashboard', 'pricing'],
+    'the same prefix with an extension suffix',
+  );
+  assert.deepEqual(
+    sorted(run('const T = await import(`../themes/${t}.module.css`);', 'src/themes/dark.module.css')),
+    ['dashboard', 'pricing'],
+    'a stylesheet target',
+  );
+});
+
+test('an asset placed only by a computed import() fails closed; one with a static importer also gets the context importer', () => {
+  const run = (changed, extraGraph = []) => {
+    const sources = {
+      'src/pages/Home.tsx': 'const I = await import(`../assets/${name}.svg`);',
+      'src/pages/Settings.tsx': 'export default function Settings(){return null}',
+      'src/assets/bg.svg': '<svg/>',
+      'src/assets/Inter.woff2': '',
+      'src/assets/logo.svg': '<svg/>',
+    };
+    return affectedSurfaces({
+      changedFiles: [changed],
+      surfaces: { home: 'src/pages/Home.tsx', settings: 'src/pages/Settings.tsx' },
+      graph: [{ from: 'src/pages/Settings.tsx', to: 'src/assets/logo.svg' }, ...extraGraph],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    });
+  };
+  assert.equal(run('src/assets/bg.svg'), 'all', 'an asset no module imports statically');
+  assert.equal(run('src/assets/Inter.woff2'), 'all');
+  assert.equal(
+    run('src/assets/bg.svg', [{ from: 'node_modules/pkg/index.js', to: 'src/assets/bg.svg' }]),
+    'all',
+    'a node_modules importer is not a static importer',
+  );
+  assert.deepEqual(
+    sorted(run('src/assets/logo.svg')),
+    ['home', 'settings'],
+    'a statically imported asset also gets the context importer',
+  );
+});
+
+for (const extension of [
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'mjs',
+  'mjsx',
+  'mts',
+  'mtsx',
+  'cjs',
+  'cjsx',
+  'cts',
+  'ctsx',
+  'module.css',
+  'module.scss',
+  'module.sass',
+  'module.less',
+  'module.styl',
+]) {
+  test(`a context-only .${extension} style change cannot narrow an unplaced verdict`, () => {
+    const changed = `src/themes/card-dark.${extension}`;
+    const sources = {
+      'src/pages/Home.tsx': 'const Theme = import(`../themes/card-${name}`);',
+      'src/pages/Settings.tsx': 'export default function Settings(){return null}',
+      [changed]: extension.startsWith('module.') ? '.card { color: red; }' : 'export const style = { color: "red" };',
+    };
+    for (const graph of [[], [{ from: 'node_modules/pkg/index.js', to: changed }]]) {
+      assert.equal(
+        affectedSurfaces({
+          changedFiles: [changed],
+          surfaces: { home: 'src/pages/Home.tsx', settings: 'src/pages/Settings.tsx' },
+          graph,
+          files: Object.keys(sources),
+          readFile: (p) => sources[p],
+        }),
+        'all',
+        'context recovery cannot establish ownership, including an ignored node_modules importer',
+      );
+    }
+  });
+}
+
+for (const [asset, css] of [
+  ['background.svg', '.panel { background-image: url("../assets/background.svg"); }'],
+  ['Inter.woff2', '@font-face { font-family: Inter; src: url("../assets/Inter.woff2") format("woff2"); }'],
+]) {
+  test(`a CSS-only ${asset} under a computed-import directory re-captures every surface`, () => {
+    const changed = `src/assets/${asset}`;
+    const sources = {
+      'src/pages/Home.tsx': 'const Asset = import(`../assets/${name}`);',
+      'src/pages/Settings.tsx': 'import "../styles/settings.css";',
+      'src/styles/settings.css': css,
+      [changed]: '',
+    };
+    for (const ignoredEdges of [[], [{ from: 'node_modules/pkg/index.js', to: changed }]]) {
+      assert.equal(
+        affectedSurfaces({
+          changedFiles: [changed],
+          surfaces: { home: 'src/pages/Home.tsx', settings: 'src/pages/Settings.tsx' },
+          graph: [{ from: 'src/pages/Settings.tsx', to: 'src/styles/settings.css' }, ...ignoredEdges],
+          files: Object.keys(sources),
+          readFile: (p) => sources[p],
+        }),
+        'all',
+        'the module graph omits CSS url()/@font-face dependencies, so Settings cannot reuse its base map',
+      );
+    }
+  });
+}
+
+test('context recovery widens a resolved dependency even when its static importer has no surface', () => {
+  const sources = {
+    'src/pages/Home.tsx': 'const Theme = import(`../themes/card-${name}`);',
+    'src/pages/Settings.tsx': 'export default function Settings(){return null}',
+    'src/themes/card-dark.module.css': '.card { color: red; }',
+    'src/themes/Orphan.tsx': 'import "./card-dark.module.css";',
+  };
+  assert.deepEqual(
+    sorted(
+      affectedSurfaces({
+        changedFiles: ['src/themes/card-dark.module.css'],
+        surfaces: { home: 'src/pages/Home.tsx', settings: 'src/pages/Settings.tsx' },
+        graph: [{ from: 'src/themes/Orphan.tsx', to: 'src/themes/card-dark.module.css' }],
+        files: Object.keys(sources),
+        readFile: (p) => sources[p],
+      }),
+    ),
+    ['home'],
+    'the resolved graph selects no surface; context recovery adds the home surface',
   );
 });

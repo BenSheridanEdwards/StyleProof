@@ -37,9 +37,10 @@ export type AffectedSurfacesInput = {
  *  listed are provably unaffected and may reuse their committed base map. */
 export type AffectedSurfaces = Set<string> | 'all';
 
-// Selectors/at-rules whose scope escapes the importing file.
+// Selectors/at-rules whose scope escapes the importing file. Global selectors count
+// after rule boundaries, `;` statements, or comments, and when a comment follows.
 const GLOBAL_CSS =
-  /(^|[{},(])\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
+  /(^|[{},(;]|\*\/|\/\/[^\n]*\n)\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~/])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
 // CSS-in-JS global APIs. Soundness depends on this list being complete for the
 // libraries in use: an unlisted global API in a .tsx would be misread as scoped.
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;
@@ -55,6 +56,8 @@ const isConfig = (f: string) =>
 const isStyleSheet = (f: string) => /\.(css|scss|sass|less|styl)$/.test(f);
 const isCssModule = (f: string) => /\.module\.(css|scss|sass|less|styl)$/.test(f);
 const isCode = (f: string) => /\.[cm]?[jt]sx?$/.test(f);
+// A single-file component's `<style>` can be global (unscoped Vue, Svelte `:global`, Astro `is:global`).
+const isSfc = (f: string) => /\.(vue|svelte|astro)$/.test(f);
 
 // A CSS Module escapes its hashed scope via `:global`, cross-module `composes … from`,
 // genuinely global selectors, or any Sass/CSS load.
@@ -121,7 +124,11 @@ function contextDir(arg: string, fromDir: string): string | null | 'unbounded' {
   const prefix = arg.match(/^`([^$`]*)/)?.[1]; // static head of a template literal
   // import(name), import('../x/' + name), or an alias (`@/x/${n}`) the graph cannot place: fail closed.
   if (!prefix || !prefix.includes('/') || !/^\.\.?\//.test(prefix)) return 'unbounded';
-  return normalizeDir(fromDir, prefix);
+  // Cut at the last `/`; trailing `.` or `..` can leave that directory, so fail closed.
+  const head = prefix.slice(0, prefix.lastIndexOf('/') + 1);
+  const tail = prefix.slice(head.length);
+  if (tail === '.' || tail === '..') return 'unbounded';
+  return normalizeDir(fromDir, head);
 }
 
 /** Recover computed `import()`s the resolver dropped as bundler context-module edges; `'unbounded'` when any has no static prefix. */
@@ -132,8 +139,9 @@ function recoverContextEdges(from: string, src: string, files: string[]): Module
     const base = contextDir(m[1], fromDir);
     if (base === 'unbounded') return 'unbounded';
     if (base === null) continue;
+    // Any file kind under the directory is a possible target (`${t}.module.css`), not only code.
     for (const f of files) {
-      if ((base === '' || f.startsWith(`${base}/`)) && isCode(f)) edges.push({ from, to: f, dynamic: true });
+      if (base === '' || f.startsWith(`${base}/`)) edges.push({ from, to: f, dynamic: true });
     }
   }
   return edges;
@@ -194,8 +202,12 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
   const placeable = new Set<string>([...canonFiles, ...graph.flatMap((e) => [e.from, e.to])]);
   if ([...entryFiles].some((f) => !placeable.has(f))) return 'all';
 
+  const staticTargets = new Set(graph.filter((e) => isSource(e.from) && isSource(e.to)).map((e) => e.to));
   const affectedFiles = new Set<string>();
   for (const f of changed) {
+    // Context recovery may widen a resolved dependency, but cannot establish
+    // ownership of an otherwise unplaced change (including CSS url()/font assets).
+    if (!entryFiles.has(f) && !staticTargets.has(f)) return 'all';
     const reach = reverseReach(f, rev);
     if (reach.size === 0 && !entryFiles.has(f)) return 'all';
     for (const src of [f, ...reach]) affectedFiles.add(src);
@@ -207,8 +219,8 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
   );
 }
 
-/** A changed file whose kind participates in style scope (stylesheet, code, or config). */
-const isStyleOrCode = (f: string) => isStyleSheet(f) || isCode(f) || isConfig(f);
+/** A changed file whose kind participates in style scope (stylesheet, code, config, or single-file component). */
+const isStyleOrCode = (f: string) => isStyleSheet(f) || isCode(f) || isConfig(f) || isSfc(f);
 
 /** {@link classifyStyleChange} against a reader that returns `undefined` for a missing
  *  file (rather than throwing), matching the reverse-graph reader shape. */
