@@ -607,6 +607,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof-map` also removes HAR files before exiting a failed capture unless
   `--keep-har` was requested, so rejected detection loads leave no default recording.
   and "Payload", stay clickable.
+  `purchases` and `place order`. `--crawl` skips those controls and counts
+  them in the "N skipped" total; the variant crawler records an `unsafe-label`
+  skip. On upgrade, an existing state recipe whose label (or `stateKey` when
+  no label is set), or whose live target label, contains one of these words
+  now fails closed with "refusing unsafe state recipe" instead of capturing.
+  If the control is not destructive, declare that state as an explicit
+  `variants` entry instead. Words that only contain the letters, such as
+  "Display", "Replay" and "Payload", stay clickable.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
