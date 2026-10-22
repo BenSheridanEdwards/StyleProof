@@ -112,12 +112,13 @@ export function readLedger<T = string>(
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error(`${filePath} must be a JSON object of {"<surface>": ...}`);
   }
-  const ledger: Record<string, T> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (spec.keyLabel) assertSafeLedgerKey(spec.keyLabel, key);
-    ledger[key] = parseValue(spec, value, key, filePath);
-  }
-  return ledger;
+  // fromEntries defines own data properties, including the valid surface key __proto__.
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).map(([key, value]) => {
+      if (spec.keyLabel) assertSafeLedgerKey(spec.keyLabel, key);
+      return [key, parseValue(spec, value, key, filePath)];
+    }),
+  );
 }
 
 /** Split observed keys into acknowledged / unacknowledged, and name ledger entries that match nothing. */

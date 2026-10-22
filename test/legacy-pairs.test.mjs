@@ -207,3 +207,19 @@ test('readLegacyPairsAckFile: rejects an empty reason or unsafe key', () => {
     rmTmp(dir);
   }
 });
+
+test('a __proto__ legacy declaration acknowledges its pair and becomes stale when the pair disappears', () => {
+  const root = mkTmp();
+  try {
+    const file = path.join(root, 'legacy.json');
+    fs.writeFileSync(file, JSON.stringify({ ['__proto__']: 'legacy fixture' }));
+    const declared = readLegacyPairsAckFile(file);
+    const audit = auditLegacyPairs([legacy('__proto__@1280')], declared, true);
+    assert.deepEqual(audit.declared, ['__proto__@1280']);
+    assert.deepEqual(audit.undeclared, []);
+    assert.deepEqual(audit.staleAcknowledgements, []);
+    assert.deepEqual(auditLegacyPairs([], declared, true).staleAcknowledgements, ['__proto__']);
+  } finally {
+    rmTmp(root);
+  }
+});

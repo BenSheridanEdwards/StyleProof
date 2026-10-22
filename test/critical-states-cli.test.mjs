@@ -328,3 +328,22 @@ test('styleproof-diff passes criticalStates into classifyStyleProofVerdict so Ac
     'the CLI verdict receipt must include the critical-obligation audit, not only comparison.blocksCertification',
   );
 });
+
+test('an uncaptured __proto__ critical obligation cannot silently certify', () => {
+  const capture = fixture({ productState: { id: 'home-ready', revision: 'fixture-v1' } });
+  try {
+    writeObligations(capture.root, {
+      ['__proto__']: { owner: 'qa', reason: 'required state must certify' },
+    });
+    const result = runDiff(capture);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.equal(result.json.certifiesFully, false);
+    assert.deepEqual(result.json.criticalStates.obligations, ['__proto__']);
+    assert.deepEqual(result.json.criticalStates.unresolved, ['__proto__']);
+    assert.match(result.stdout, /unresolved critical obligation __proto__/);
+    const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
+    assert.equal(audit.trustDecision.finalState, 'CERTIFICATION_FAILED');
+  } finally {
+    rmTmp(capture.root);
+  }
+});

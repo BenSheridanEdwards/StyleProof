@@ -131,3 +131,39 @@ test('an empty env value drops a config path but a default file in cwd still arm
     rmTmp(root);
   }
 });
+
+for (const spec of [INVENTORY_LEDGER, DATA_RESIDUE_LEDGER, LEGACY_PAIRS_LEDGER, CRITICAL_STATES_LEDGER]) {
+  test(`${spec.label} preserves __proto__ as an own ledger entry`, () => {
+    const root = mkTmp();
+    try {
+      const file = path.join(root, 'acks.json');
+      const written = { ['__proto__']: '  declared reason  ', constructor: 'another reason' };
+      fs.writeFileSync(file, JSON.stringify(written));
+      const ledger = readLedger(spec, file);
+      assert.equal(Object.hasOwn(ledger, '__proto__'), true);
+      assert.equal(ledger.__proto__, spec.lenient ? '  declared reason  ' : 'declared reason');
+      assert.equal(ledger.constructor, 'another reason');
+      assert.equal(Object.getPrototypeOf(ledger), Object.prototype);
+      assert.deepEqual(Object.keys(JSON.parse(JSON.stringify(ledger))), ['__proto__', 'constructor']);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+test('lenient ledgers preserve object-valued __proto__ entries without changing the result prototype', () => {
+  const root = mkTmp();
+  try {
+    const file = path.join(root, 'acks.json');
+    const written = { ['__proto__']: { owner: 'qa', reason: 'fixture pending' } };
+    fs.writeFileSync(file, JSON.stringify(written));
+    for (const spec of [INVENTORY_LEDGER, DATA_RESIDUE_LEDGER]) {
+      const ledger = readLedger(spec, file);
+      assert.deepEqual(ledger, written);
+      assert.equal(Object.getPrototypeOf(ledger), Object.prototype);
+      assert.equal(ledger.owner, undefined);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});

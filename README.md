@@ -495,6 +495,9 @@ report leads with their verdicts:
   (`CERTIFICATION_FAILED`) in the CLI, Action verdict, and PR comment. Armed
   and **declared** → explicit advisory, never a certified green. Details:
   [docs/product-state-comparability.md](docs/product-state-comparability.md).
+  Ledger keys are literal surface names, including `__proto__`: legacy-pair
+  declarations retain them, and critical-state obligations for uncaptured
+  surfaces still block certification.
 
 Those verdicts roll up into one more line the report always states: the
 **confidence ledger** (`styleproof-confidence.json`, bundled next to the maps).

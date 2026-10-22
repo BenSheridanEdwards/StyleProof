@@ -200,6 +200,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Acknowledgement ledgers retain `__proto__` surface keys.** Critical-state
+  obligations under that name now fail when uncaptured instead of disappearing
+  and allowing certification. Legacy-pair declarations now acknowledge their
+  matching captures and become stale when those captures disappear. The shared
+  reader also preserves object-valued inventory and data-residue entries without
+  changing the returned object's prototype.
+
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
