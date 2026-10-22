@@ -580,6 +580,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   computed import now selects that importer instead of every surface. An asset
   such as an `.svg` or font that no module imports statically still re-captures
   every surface, because CSS can load it. A prefix that ends in `.` or `..` now
+  stylesheet there changes. Context recovery only widens changes already placed
+  by a resolved source import or declared surface entry. A code file, stylesheet
+  or asset reached only by a computed import re-captures every surface; ignored
+  `node_modules` edges cannot establish placement. This also makes previously
+  scoped context-only code changes conservative. CSS `url()` and `@font-face`
+  dependencies remain unmodelled, so assets without resolved source importers
+  still re-capture every surface. A prefix that ends in `.` or `..` now
   re-captures every surface, because the import can leave that directory.
 - **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
   surface under selective remap (#942).** These single-file components carry
@@ -692,6 +699,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   handles the error, because its fallback could hide a breakpoint band.
   `styleproof-map` also removes HAR files before exiting a failed capture unless
   `--keep-har` was requested, so rejected detection loads leave no default recording.
+  one of these files now resolves to `'all'`.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
