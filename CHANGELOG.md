@@ -402,6 +402,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `public/locales/español.json` matches its `dirtyAllow` directory instead of
   staying octal-quoted. `dirtyAllow` entries stay repo-root-relative, and real
   source edits and renames that leave an allowance still block upload.
+- **A budget-capped `report.md` no longer silently drops surfaces or its
+  Evidence block (#953).** Full sections used up the `maxReportBytes` budget
+  with nothing held back. The one-liners after them were then dropped without
+  a count, the Evidence block (for example **Coverage** — ✗ INCOMPLETE) was
+  left out, and at small budgets even the cap notice did not fit. A capped report
+  now keeps room for the cap notice, a closing
+  `…and N more section(s) not listed here` line and the Evidence block. An
+  Evidence block too large to fit beside them (for example a coverage ledger
+  listing thousands of uncaptured surfaces) is replaced by an
+  `Evidence (warnings & failures) omitted at the N-byte display budget` line
+  instead of crowding out every section. So whenever the budget has room for
+  the headline and those short lines, every section appears in full, as a
+  one-liner under the cap notice, or in that count. A report that fits its
+  budget is byte-for-byte unchanged, and the budget stays a strict ceiling. A
+  capped report also no longer lists a `0 global chrome element change(s)`
+  one-liner when the chrome did not change.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

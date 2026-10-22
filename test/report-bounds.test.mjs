@@ -7,6 +7,8 @@ import {
   summarizeProps,
 } from '../dist/report.js';
 import { codeValue } from '../dist/code-span.js';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { ReportMarkdown } from '../dist/report/sections.js';
 import {
   makeMap,
   mkTmp,
@@ -19,6 +21,24 @@ import {
 } from './helpers.mjs';
 
 // ---------------------------------------- bounded report (always GitHub-renderable)
+
+test('a large uncapped report keeps every section and its Evidence tail without exceeding the argument limit', () => {
+  const sections = Array.from({ length: 6_957 }, (_, section) => [
+    '',
+    `### \`surface-${section}@1280\``,
+    '',
+    ...Array.from({ length: 20 }, (_, line) => `- Change ${line} on surface ${section}`),
+  ]);
+  const evidence = ['', '<summary>Evidence (warnings & failures)</summary>', '', 'Capture warning: review required.'];
+  const expected = ['# StyleProof', ...sections.flat(), ...evidence];
+  for (const budget of [Infinity, Buffer.byteLength(`${expected.join('\n')}\n`, 'utf8')]) {
+    const report = new ReportMarkdown(budget);
+    report.lines.push('# StyleProof');
+    for (const [section, lines] of sections.entries()) report.detail(lines, `- surface-${section}`);
+    report.finish(evidence);
+    assert.deepEqual(report.lines, expected, 'all detail and warnings must survive in order');
+  }
+});
 
 test('report.md stays under its byte budget (GitHub-renderable); report.json keeps every surface', () => {
   const { beforeDir, afterDir, outDir, root } = tmpDirs();
@@ -74,6 +94,82 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
   assert.ok(
     mdFull.length > md.length * 2,
     `uncapped report should be far larger (capped ${md.length}, full ${mdFull.length})`,
+  );
+  rmTmp(root);
+});
+
+test('a capped report.md accounts for every surface and never drops its Evidence block silently (#953)', () => {
+  const { beforeDir, afterDir, root } = tmpDirs();
+  const N = 30;
+  for (let s = 0; s < N; s++) {
+    const map = (color) =>
+      makeMap({
+        elements: {
+          body: { tag: 'body', rect: [0, 0, 1280, 800] },
+          [`body > p.q${s}`]: { tag: 'p', cls: `q${s}`, rect: [8, 8, 300, 20], style: { color } },
+        },
+      });
+    writeCapture(beforeDir, `zeta-${s}@1280`, map('rgb(0, 0, 0)'), null);
+    writeCapture(afterDir, `zeta-${s}@1280`, map(`rgb(${s + 1}, 0, 3)`), null);
+  }
+  const report = (name, maxReportBytes) => {
+    const res = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(root, name), maxReportBytes });
+    return {
+      md: fs.readFileSync(res.reportMdPath, 'utf8'),
+      surfaces: JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces.length,
+    };
+  };
+  const EVIDENCE = '<summary>Evidence (warnings & failures)</summary>';
+  // No manifests, so the product-state comparison is unproven and Evidence carries that warning.
+  const full = report('full', Infinity);
+  assert.ok(full.md.includes(EVIDENCE), 'the uncapped report has an Evidence block');
+
+  // Every surface is a full section, a one-liner, or counted in the closing line.
+  const assertCapped = (name, budget, hasEvidence) => {
+    const { md, surfaces } = report(name, budget);
+    const sections = (md.match(/^### /gm) ?? []).length;
+    const oneLiners = (md.match(/^- `zeta-\d+@1280` · \d+ change\(s\)$/gm) ?? []).length;
+    const more = Number(md.match(/^_…and (\d+) more section\(s\) not listed here/m)?.[1] ?? 0);
+    assert.deepEqual(
+      {
+        budget,
+        withinBudget: Buffer.byteLength(md, 'utf8') <= budget,
+        capNotice: md.includes('summarized to keep this report renderable'),
+        accounted: sections + oneLiners + more,
+        evidence: hasEvidence(md),
+        surfaces,
+      },
+      { budget, withinBudget: true, capNotice: true, accounted: N, evidence: true, surfaces: N },
+      `${name}: ${sections} full + ${oneLiners} one-liners + ${more} counted`,
+    );
+  };
+  for (const budget of [5_000, 8_000]) {
+    assertCapped(
+      `capped-${budget}`,
+      budget,
+      (md) => md.includes(EVIDENCE) && /Product-state comparison/.test(md.slice(md.indexOf(EVIDENCE))),
+    );
+  }
+
+  // A report that fits its budget exactly takes the uncapped layout.
+  assert.equal(report('exact', Buffer.byteLength(full.md, 'utf8')).md, full.md);
+
+  // Evidence too large for the budget (a ledger listing 1,000 uncaptured surfaces) gives way to a
+  // stand-in line instead of crowding out every section, the notice and the count.
+  const expected = [
+    ...Array.from({ length: N }, (_, s) => `zeta-${s}`),
+    ...Array.from({ length: 1000 }, (_, k) => `zeta-gap-${k}`),
+  ];
+  fs.writeFileSync(
+    path.join(afterDir, COVERAGE_LEDGER),
+    JSON.stringify({ version: 1, expected, exclude: {}, determinism: 'self-checked' }),
+  );
+  assertCapped(
+    'oversize-8000',
+    8_000,
+    (md) =>
+      !md.includes(EVIDENCE) &&
+      md.includes('_Evidence (warnings & failures) omitted at the 8000-byte display budget._'),
   );
   rmTmp(root);
 });

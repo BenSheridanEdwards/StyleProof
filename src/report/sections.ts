@@ -150,6 +150,11 @@ function cappedNoticeLines(budget: number): string[] {
   ];
 }
 
+/** The shorter cap notice, for budgets too small for cappedNoticeLines. */
+function omittedNoticeLines(budget: number): string[] {
+  return ['', `_Inline detail omitted at the ${budget}-byte display budget; full data is in \`report.json\`._`, ''];
+}
+
 /** One-liner for a budget-capped change group: name · change count · crop link. */
 function compactChangeSummary(ctx: RenderCtx, cg: ChangeGroup, json: Record<string, unknown>): string {
   const more = cg.surfaces.length > 1 ? ` (+${cg.surfaces.length - 1} more)` : '';
@@ -158,45 +163,100 @@ function compactChangeSummary(ctx: RenderCtx, cg: ChangeGroup, json: Record<stri
   return `- \`${safeKey(cg.rep.sd.surface)}\`${more} · ${cg.rep.findings.length} change(s)${link}`;
 }
 
+/** The closing count for summaries that no longer fit (#953). */
+function moreSectionsLines(n: number): string[] {
+  return ['', `_…and ${n} more section(s) not listed here — full data is in \`report.json\`._`];
+}
+
+/** Stands in for an Evidence block too large for the budget, so it is never dropped silently. */
+function evidenceOmittedLines(budget: number): string[] {
+  return ['', `_Evidence (warnings & failures) omitted at the ${budget}-byte display budget._`];
+}
+
 const markdownByteLength = (lines: string[]): number => Buffer.byteLength(`${lines.join('\n')}\n`, 'utf8');
+// What appending these lines adds to report.md.
+const addedBytes = (lines: string[]): number => (lines.length === 0 ? 0 : markdownByteLength(lines));
+
+type Block = { full: string[]; summary?: string };
 
 /**
  * The report.md accumulator with its byte budget: GitHub refuses to render markdown
- * past ~512 KB, so once full detail would overflow, each remaining section is
- * replaced by its one-line summary (the data stays in report.json and crops/).
+ * past ~512 KB. Sections are queued and laid out by finish(): a report that fits is
+ * written as queued; otherwise full detail runs while it leaves room for the cap
+ * notice, a closing count and the Evidence tail, each remaining section becomes its
+ * one-line summary, and summaries that no longer fit are counted (the data stays in
+ * report.json and crops/). An Evidence tail too large for that is replaced by a
+ * one-line stand-in.
  */
 export class ReportMarkdown {
   readonly lines: string[] = [];
-  private capped = false;
+  private readonly blocks: Block[] = [];
   constructor(private readonly maxBytes: number) {}
 
-  /** Append when it fits; returns false (and appends nothing) otherwise. */
-  append(lines: string[]): boolean {
-    if (lines.length === 0) return true;
-    if (markdownByteLength([...this.lines, ...lines]) > this.maxBytes) return false;
-    this.lines.push(...lines);
-    return true;
+  /** Queue lines kept in either layout while they fit: a heading or a closing note. */
+  append(lines: string[]): void {
+    if (lines.length > 0) this.blocks.push({ full: lines });
   }
 
-  /** Full detail while the budget lasts, then the one-line summary. */
+  /** Queue full detail and the one-line summary that replaces it past the budget. */
   detail(detail: string[], summary: string): void {
-    if (!this.capped && this.append(detail)) return;
-    if (!this.capped) {
-      this.capped = true;
-      if (!this.append(cappedNoticeLines(this.maxBytes))) {
-        this.append([
-          '',
-          `_Inline detail omitted at the ${this.maxBytes}-byte display budget; full data is in \`report.json\`._`,
-          '',
-        ]);
-      }
-    }
-    this.append([summary]);
+    if (detail.length > 0) this.blocks.push({ full: detail, summary });
   }
 
   /** Drop trailing lines until the headline itself fits the budget. */
   trimToBudget(): void {
     while (this.lines.length > 0 && markdownByteLength(this.lines) > this.maxBytes) this.lines.pop();
+  }
+
+  /** Lay out the queued sections, then the tail (the Evidence block), inside the budget. */
+  finish(tail: string[]): void {
+    if (this.push([...this.blocks.flatMap((b) => b.full), ...tail], 0)) return;
+    const count = addedBytes(moreSectionsLines(this.summariesFrom(0)));
+    // Evidence that leaves no room for the short notice and the count gives way to a stand-in line.
+    if (!this.fits(tail, addedBytes(omittedNoticeLines(this.maxBytes)) + count)) {
+      tail = evidenceOmittedLines(this.maxBytes);
+    }
+    const closing = count + addedBytes(tail);
+    const dropped = this.layOutCapped(closing);
+    if (dropped > 0) this.push(moreSectionsLines(dropped), addedBytes(tail));
+    this.push(tail, 0);
+  }
+
+  /** Full detail, then one-liners, always leaving `closing` bytes; returns the summaries left out. */
+  private layOutCapped(closing: number): number {
+    const fullNotice = cappedNoticeLines(this.maxBytes);
+    const notice = this.fits(fullNotice, closing) ? fullNotice : omittedNoticeLines(this.maxBytes);
+    let i = 0;
+    // Full detail while it leaves room for the notice too; a heading that does not fit is skipped.
+    for (; i < this.blocks.length; i++) {
+      const { full, summary } = this.blocks[i];
+      if (!this.push(full, addedBytes(notice) + closing) && summary !== undefined) break;
+    }
+    if (i === this.blocks.length) return 0;
+    // No one-liner without the notice that explains it: a budget too small for both counts them all.
+    if (!this.push(notice, closing)) return this.summariesFrom(i);
+    // Then one-liners (and headings) until one does not fit; the rest are counted.
+    for (let j = i; j < this.blocks.length; j++) {
+      const { full, summary } = this.blocks[j];
+      if (!this.push(summary === undefined ? full : [summary], closing)) return this.summariesFrom(j);
+    }
+    return 0;
+  }
+
+  private summariesFrom(i: number): number {
+    return this.blocks.slice(i).filter((b) => b.summary !== undefined).length;
+  }
+
+  /** Whether the lines fit with `reserve` bytes to spare. */
+  private fits(lines: string[], reserve: number): boolean {
+    return lines.length === 0 || markdownByteLength([...this.lines, ...lines]) + reserve <= this.maxBytes;
+  }
+
+  /** Append when the lines fit with `reserve` bytes to spare; returns false (and appends nothing) otherwise. */
+  private push(lines: string[], reserve: number): boolean {
+    if (!this.fits(lines, reserve)) return false;
+    for (const line of lines) this.lines.push(line);
+    return true;
   }
 }
 
