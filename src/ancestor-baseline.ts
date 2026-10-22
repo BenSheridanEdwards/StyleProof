@@ -3,6 +3,7 @@
 // paths changed between A and B is capture-relevant. Every uncertainty (no stored
 // ancestor, no declared source roots, any git failure) resolves to a full capture, and
 // reuse never launders provenance: the caller records a BaselineProvenance sidecar.
+import fs from 'node:fs';
 import path from 'node:path';
 import { runGit } from './node-util.js';
 import { canonicalPath } from './affected-surfaces.js';
@@ -61,12 +62,28 @@ export function changedPathsBetween(options: { ancestorSha: string; sha: string;
   );
 }
 
+/** `p` resolved through symlinks. A missing tail (a root not created yet) is kept as
+ *  written under its nearest existing ancestor's real path. */
+function realPathOrResolved(p: string): string {
+  const resolved = path.resolve(p);
+  try {
+    return fs.realpathSync(resolved);
+  } catch {
+    const parent = path.dirname(resolved);
+    return parent === resolved ? resolved : path.join(realPathOrResolved(parent), path.basename(resolved));
+  }
+}
+
 /** Git reports changed paths from the repository root; a spec or source root is written
  *  relative to a checkout directory (the cwd, or the config file's directory). Re-anchor
  *  `target` (relative to `fromDirectory`, or absolute) to the repository root at
- *  `checkoutRoot`. A target at or outside the root becomes '' — the whole repository. */
+ *  `checkoutRoot`. A target at or outside the root becomes '' — the whole repository.
+ *  Both sides are realpath'd: git names the real toplevel, while an absolute target may
+ *  keep a symlinked prefix, as macOS temp dirs do. */
 export function repoRelativePath(checkoutRoot: string, fromDirectory: string, target: string): string {
-  const relative = path.relative(path.resolve(checkoutRoot), path.resolve(fromDirectory, target)).replaceAll('\\', '/');
+  const relative = path
+    .relative(realPathOrResolved(checkoutRoot), realPathOrResolved(path.resolve(fromDirectory, target)))
+    .replaceAll('\\', '/');
   return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) ? '' : relative;
 }
 

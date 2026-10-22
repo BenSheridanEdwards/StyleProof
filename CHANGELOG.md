@@ -200,6 +200,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Ancestor baseline reuse sees spec-directory changes through a symlinked
+  path.** `styleproof-ci` compared an absolute `--spec` with git's changed
+  paths without resolving symlinks. Git names the real repository root, so a
+  spec path through a symlink (a macOS temp dir, or a symlinked checkout) fell
+  outside it and the spec directory stopped counting as capture-relevant. A
+  change there could then reuse an ancestor's baseline. `repoRelativePath` now
+  realpaths both sides before re-anchoring.
 - **The Node 22 unit-coverage leg no longer waits on one test file.**
   `test/report.test.mjs` ran its 130 tests in one process, about 430 s under
   coverage, and started late in the alphabetical file order. It now runs as
