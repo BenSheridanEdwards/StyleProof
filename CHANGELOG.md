@@ -418,6 +418,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   budget is byte-for-byte unchanged, and the budget stays a strict ceiling. A
   capped report also no longer lists a `0 global chrome element change(s)`
   one-liner when the chrome did not change.
+- **`report.html` now carries the same UNVERIFIED label as `report.md`.** On a
+  run with no trusted source SHAs, `styleproof-report` relabelled `report.md` to
+  `⚠ UNVERIFIED DIAGNOSTIC`, or added an UNVERIFIED banner, after the generator
+  had already written `report.html`. The HTML kept the green
+  `✓ No reviewable computed-style changes` line and had no banner. The CLI now
+  renders `report.html` again from the relabelled markdown, so both files show
+  the same report. Bound runs, exit codes and `report.json` are unchanged (#964).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

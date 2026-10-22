@@ -18,6 +18,7 @@ import {
   writeCapture,
 } from './helpers.mjs';
 import { writeConfidenceLedger, buildConfidenceLedger } from '../dist/confidence-ledger.js';
+import { renderReportHtml } from '../dist/report/html.js';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -1400,6 +1401,64 @@ test('report CLI blocks an unverified empty report even when nothing changed', (
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   assert.doesNotMatch(md, /Release confidence/);
   assert.doesNotMatch(r.stderr, /projection|release confidence/i);
+  rmTmp(root);
+});
+
+// #964: report.html is the rendered sibling of report.md, so an unbound run's
+// UNVERIFIED relabel or banner must reach it too, never the green ✓ line.
+function readReportPair(out) {
+  return {
+    md: fs.readFileSync(path.join(out, 'report.md'), 'utf8'),
+    html: fs.readFileSync(path.join(out, 'report.html'), 'utf8'),
+  };
+}
+
+function assertHtmlRendersMd({ md, html }) {
+  assert.equal(html, renderReportHtml(md.replace(/\n$/, '')), 'report.html renders the final report.md');
+}
+
+test('report CLI labels an unverified empty report UNVERIFIED in report.html, not with the ✓ line', () => {
+  const { root, A, B } = identicalPair();
+  const out = path.join(root, 'out');
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const pair = readReportPair(out);
+  assert.match(pair.md, /⚠ UNVERIFIED DIAGNOSTIC: No reviewable computed-style changes/);
+  assert.match(pair.html, /⚠ UNVERIFIED DIAGNOSTIC: No reviewable computed-style changes/);
+  assert.doesNotMatch(pair.html, /✓ No reviewable computed-style changes/);
+  assertHtmlRendersMd(pair);
+  rmTmp(root);
+});
+
+test('report CLI carries the UNVERIFIED banner into report.html when the report has no ✓ line', () => {
+  const { root, A, B } = differingPair();
+  const out = path.join(root, 'out');
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const pair = readReportPair(out);
+  assert.match(pair.md, /^> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified\./);
+  assert.match(pair.html, /UNVERIFIED DIAGNOSTIC: source binding was not verified\./);
+  assertHtmlRendersMd(pair);
+  rmTmp(root);
+});
+
+test('source-bound report CLI keeps the ✓ no-change line in both report.md and report.html', () => {
+  const { root, A, B } = identicalPair();
+  const out = path.join(root, 'out');
+  const shas = [
+    '--expected-before-sha',
+    fixtureCommitSha('base-sha'),
+    '--expected-after-sha',
+    fixtureCommitSha('head-sha'),
+  ];
+  const r = run(REPORT, [A, B, '--out', out, ...shas]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const pair = readReportPair(out);
+  for (const text of [pair.md, pair.html]) {
+    assert.match(text, /✓ No reviewable computed-style changes/);
+    assert.doesNotMatch(text, /UNVERIFIED/);
+  }
+  assertHtmlRendersMd(pair);
   rmTmp(root);
 });
 
