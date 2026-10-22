@@ -1925,6 +1925,93 @@ test(
   },
 );
 
+for (const linkedWorktree of [false, true]) {
+  test(`styleproof-ci: map roots inside Git metadata are rejected before mutation (linked worktree: ${linkedWorktree})`, () => {
+    const root = mkTmp('styleproof-ci-git-map-root-');
+    try {
+      const { repo, args } = noStoreConsumer(root);
+      const git = (cwd, ...gitArgs) => {
+        const result = spawnSync('git', gitArgs, { cwd, encoding: 'utf8' });
+        assert.equal(result.status, 0, result.stderr);
+        return result.stdout.trim();
+      };
+      const cwd = linkedWorktree ? path.join(root, 'linked-worktree') : repo;
+      if (linkedWorktree) git(repo, 'worktree', 'add', '--detach', cwd, 'HEAD');
+      const headBefore = git(cwd, 'rev-parse', 'HEAD');
+      // A different requested head proves rejection happens before force-checkout too.
+      const ciArgs = [...args];
+      ciArgs[ciArgs.indexOf('--head') + 1] = git(cwd, 'rev-parse', 'HEAD~1');
+      const runnerTemp = path.join(root, 'runner-temp');
+      fs.mkdirSync(runnerTemp);
+      const gitDirs = new Set(
+        ['--git-dir', '--git-common-dir'].map((flag) => git(cwd, 'rev-parse', '--path-format=absolute', flag)),
+      );
+      for (const [index, gitDir] of [...gitDirs].entries()) {
+        const headFile = path.join(gitDir, 'HEAD');
+        const headBytes = fs.readFileSync(headFile);
+        const nested = path.join(gitDir, 'maps');
+        fs.mkdirSync(path.join(nested, 'head'), { recursive: true });
+        const sentinel = path.join(nested, 'head', 'keep.txt');
+        fs.writeFileSync(sentinel, 'Git metadata\n');
+        const alias = path.join(root, `git-alias-${index}`);
+        fs.symlinkSync(gitDir, alias, 'dir');
+        for (const mapRoot of [alias, gitDir, nested, path.join(alias, 'maps'), path.join(alias, 'missing')]) {
+          const result = runCi([...ciArgs, '--base-dir', mapRoot], { CI: '1', RUNNER_TEMP: runnerTemp }, cwd);
+          assert.deepEqual(
+            fs.readFileSync(headFile),
+            headBytes,
+            'HEAD bytes survive, including on case-insensitive filesystems',
+          );
+          assert.equal(git(cwd, 'rev-parse', 'HEAD'), headBefore, 'the checkout did not move');
+          assert.equal(fs.readFileSync(sentinel, 'utf8'), 'Git metadata\n');
+          assert.equal(fs.lstatSync(alias).isSymbolicLink(), true, 'the map-root symlink survives');
+          assert.equal(result.status, 2, result.stderr + result.stdout);
+          assert.match(result.stderr, /--base-dir .* is within a Git directory/);
+          assert.deepEqual(fs.readdirSync(runnerTemp), [], 'no worktree scratch directory was created');
+        }
+      }
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+test('styleproof-ci: unresolved Git directories fail closed before mutation', () => {
+  const root = mkTmp('styleproof-ci-unknown-git-dir-');
+  try {
+    const { repo, args } = noStoreConsumer(root);
+    const mapRoot = path.join(root, 'maps');
+    fs.mkdirSync(path.join(mapRoot, 'head'), { recursive: true });
+    const sentinel = path.join(mapRoot, 'head', 'keep.txt');
+    fs.writeFileSync(sentinel, 'keep\n');
+    const runnerTemp = path.join(root, 'runner-temp');
+    fs.mkdirSync(runnerTemp);
+    const headFile = path.join(repo, '.git', 'HEAD');
+    const headBytes = fs.readFileSync(headFile);
+    const ciArgs = [...args];
+    ciArgs[ciArgs.indexOf('--head') + 1] = ciArgs[ciArgs.indexOf('--base') + 1];
+    for (const flag of ['--git-dir', '--git-common-dir']) {
+      for (const exitCode of [0, 42]) {
+        const result = runCi(
+          [...ciArgs, '--base-dir', mapRoot],
+          ciEnvWithGitWrapper(root, `case " $* " in *" ${flag} "*) exit ${exitCode} ;; esac`, {
+            CI: '1',
+            RUNNER_TEMP: runnerTemp,
+          }),
+          repo,
+        );
+        assert.equal(result.status, 2, result.stderr + result.stdout);
+        assert.ok(result.stderr.includes(`could not resolve ${flag}`), result.stderr);
+        assert.deepEqual(fs.readFileSync(headFile), headBytes, 'the checkout did not move');
+        assert.equal(fs.readFileSync(sentinel, 'utf8'), 'keep\n', 'no map cleanup ran');
+        assert.deepEqual(fs.readdirSync(runnerTemp), [], 'no worktree scratch directory was created');
+      }
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test(
   'styleproof-ci: a map root keeps files styleproof-ci did not write and still clears stale base/ and head/ (#943)',
   { timeout: 30_000 },

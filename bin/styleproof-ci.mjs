@@ -170,6 +170,28 @@ let consumerRel;
 let worktrees;
 try {
   repoRoot = gitRepoRoot(consumerCwd);
+  // Git metadata may live outside the checkout (linked worktrees/separate git dirs).
+  // Resolve missing descendants through their existing parent so aliases cannot bypass the guard.
+  let mapRootAncestor = root;
+  while (!fs.existsSync(mapRootAncestor)) mapRootAncestor = path.dirname(mapRootAncestor);
+  const resolvedMapRoot = path.resolve(fs.realpathSync(mapRootAncestor), path.relative(mapRootAncestor, root));
+  for (const flag of ['--git-dir', '--git-common-dir']) {
+    const result = spawnSync('git', ['rev-parse', '--path-format=absolute', flag], {
+      cwd: consumerCwd,
+      encoding: 'utf8',
+    });
+    if (result.status !== 0 || !result.stdout?.trim())
+      throw new CiWorktreeError(
+        `could not resolve ${flag}: ${result.stderr?.trim() || 'git returned no directory'}`,
+        2,
+      );
+    const gitDir = fs.realpathSync(result.stdout.trim());
+    if (isWithinDirectory(gitDir, resolvedMapRoot))
+      fail(
+        NAME,
+        `--base-dir ${root} is within a Git directory (${gitDir}); use a folder that holds only StyleProof maps`,
+      );
+  }
   consumerRel = consumerRelativeFromRepoRoot(repoRoot, consumerCwd);
   assertResolvableCommit(base, repoRoot);
   assertResolvableCommit(head, repoRoot);
