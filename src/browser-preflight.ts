@@ -144,6 +144,9 @@ export function resolveBrowserExecutablePath(
               playwrightPackageVersion(consumerRequire, playwrightModuleName),
             )
           : attempt.executablePath;
+      if (!executablePath) {
+        return { kind: 'unresolvable', reason: `unknown Chromium headless shell layout: ${attempt.executablePath}` };
+      }
       return { kind: 'resolved', executablePath };
     }
     resolutionFailures.push(attempt.failure);
@@ -172,27 +175,41 @@ function playwrightHasHeadlessShell(playwrightVersion: string | undefined): bool
 
 /** Capture config text that makes Playwright launch the full Chromium build
  *  instead of the headless shell (same token-level detection as webkit). */
-const FULL_CHROMIUM_BUILD_CONFIG_PATTERN = /\bheadless\s*:\s*false\b|\bchannel\s*:\s*['"`]chromium['"`]/;
+const FULL_CHROMIUM_BUILD_CONFIG_PATTERN =
+  /\bheadless["']?\s*:\s*false\b|\bchannel["']?\s*:\s*['"`](?:chromium|chrome-for-testing)['"`]/;
+
+/** Shell paths corresponding to Playwright's legacy and Chrome for Testing layouts. */
+const CHROMIUM_SHELL_EXECUTABLES: Record<string, string[]> = {
+  'chrome-linux': ['chrome-linux', 'headless_shell'],
+  'chrome-mac': ['chrome-mac', 'headless_shell'],
+  'chrome-win': ['chrome-win', 'headless_shell.exe'],
+  'chrome-linux64': ['chrome-headless-shell-linux64', 'chrome-headless-shell'],
+  'chrome-mac-x64': ['chrome-headless-shell-mac-x64', 'chrome-headless-shell'],
+  'chrome-mac-arm64': ['chrome-headless-shell-mac-arm64', 'chrome-headless-shell'],
+  'chrome-win64': ['chrome-headless-shell-win64', 'chrome-headless-shell.exe'],
+};
 
 /**
  * `chromium.executablePath()` reports the full `chromium-<rev>` build, but from
  * Playwright 1.49 a headless launch with no channel — every StyleProof capture
  * by default — opens the sibling `chromium_headless_shell-<rev>` build (same
  * revision: Playwright's registry pins the shell to chromium's). Verify that
- * one by its Playwright install marker, unless the capture config asks for the
- * full build. An earlier or unreadable Playwright version, or a path outside
+ * one by its executable and install marker, unless the capture config asks for
+ * the full build. An earlier or unreadable Playwright version, or a path outside
  * the `chromium-<rev>` layout, is verified as-is.
  */
 function chromiumBuildPathToVerify(
   fullBuildExecutablePath: string,
   captureConfigText: string | undefined,
   playwrightVersion: string | undefined,
-): string {
+): string | undefined {
   if (!playwrightHasHeadlessShell(playwrightVersion)) return fullBuildExecutablePath;
   if (FULL_CHROMIUM_BUILD_CONFIG_PATTERN.test(captureConfigText ?? '')) return fullBuildExecutablePath;
-  const fullBuild = /^(.*[\\/])chromium-(\d+)[\\/]/.exec(fullBuildExecutablePath);
+  const fullBuild = /^(.*[\\/])chromium-(\d+)[\\/]([^\\/]+)/.exec(fullBuildExecutablePath);
   if (!fullBuild) return fullBuildExecutablePath;
-  return path.join(fullBuild[1], `chromium_headless_shell-${fullBuild[2]}`, 'INSTALLATION_COMPLETE');
+  const shellExecutable = CHROMIUM_SHELL_EXECUTABLES[fullBuild[3]];
+  if (!shellExecutable) return undefined;
+  return path.join(fullBuild[1], `chromium_headless_shell-${fullBuild[2]}`, ...shellExecutable);
 }
 
 /** The browser-build directory name a Playwright executable path pins (e.g.
@@ -217,12 +234,15 @@ export function playwrightInstallRemedyCommand(browserNames: PreflightBrowserNam
  * The preflight verdict for one browser: `verified` when the executable the
  * pinned Playwright release expects actually exists, otherwise `missing` with
  * the exact remedy command and the missing revision name. `executableExists`
- * defaults to a real filesystem check and is injectable for tests.
+ * defaults to a real filesystem check (including the shell install marker)
+ * and is injectable for tests.
  */
 export function evaluateBrowserPreflight(
   browserName: PreflightBrowserName,
   executablePath: string,
-  executableExists: boolean = fs.existsSync(executablePath),
+  executableExists: boolean = fs.existsSync(executablePath) &&
+    (!/[/\\]chromium_headless_shell-\d+[/\\]/.test(executablePath) ||
+      fs.existsSync(path.join(path.dirname(path.dirname(executablePath)), 'INSTALLATION_COMPLETE'))),
 ): BrowserPreflightVerdict {
   const revisionDirectory = revisionDirectoryFromExecutablePath(executablePath);
   if (executableExists) return { status: 'verified', browserName, executablePath, revisionDirectory };

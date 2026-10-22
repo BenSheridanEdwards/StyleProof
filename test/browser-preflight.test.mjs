@@ -160,10 +160,14 @@ test('resolveBrowserExecutablePath: unresolvable without a consumer Playwright, 
 /** A consumer whose fake playwright-core `playwrightVersion` reports the full
  *  Chromium build at `<root>/ms-playwright/chromium-1187/…`, with nothing
  *  installed yet. */
-function withFakeChromiumConsumer(run, playwrightVersion = '1.49.0') {
+function withFakeChromiumConsumer(
+  run,
+  playwrightVersion = '1.49.0',
+  fullBuildRelativePath = path.join('chrome-linux64', 'chrome'),
+) {
   const consumerRoot = mkTmp('styleproof-preflight-chromium-');
   const browsersRoot = path.join(consumerRoot, 'ms-playwright');
-  const fullBuildExecutable = path.join(browsersRoot, 'chromium-1187', 'chrome-linux64', 'chrome');
+  const fullBuildExecutable = path.join(browsersRoot, 'chromium-1187', fullBuildRelativePath);
   writeModule(
     consumerRoot,
     'playwright-core',
@@ -206,28 +210,105 @@ test('browser preflight: an empty cache is still missing the chromium headless s
   });
 });
 
+test('browser preflight: a shell install marker without its executable is missing', () => {
+  withFakeChromiumConsumer(({ install, preflight }) => {
+    install(path.join('chromium_headless_shell-1187', 'INSTALLATION_COMPLETE'));
+    const markerOnly = preflight(undefined);
+    assert.equal(markerOnly.status, 'missing');
+    assert.equal(markerOnly.revisionDirectory, 'chromium_headless_shell-1187');
+    assert.equal(markerOnly.remedyCommand, 'npx playwright install chromium');
+    assert.match(markerOnly.executablePath, /chrome-headless-shell-linux64[/\\]chrome-headless-shell$/);
+  }, '1.61.1');
+});
+
+test('browser preflight: a shell executable without its install marker is missing', () => {
+  withFakeChromiumConsumer(({ install, preflight }) => {
+    install(path.join('chromium_headless_shell-1187', 'chrome-headless-shell-linux64', 'chrome-headless-shell'));
+    assert.equal(preflight(undefined).status, 'missing');
+  });
+});
+
 test('browser preflight: only the chromium headless shell installed verifies without a reinstall', () => {
   withFakeChromiumConsumer(({ install, preflight }) => {
     install(path.join('chromium_headless_shell-1187', 'INSTALLATION_COMPLETE'));
+    install(path.join('chromium_headless_shell-1187', 'chrome-headless-shell-linux64', 'chrome-headless-shell'));
     const shellOnly = preflight(undefined);
     assert.equal(shellOnly.status, 'verified', 'a headless capture launches the shell, so no install is needed');
     assert.equal(shellOnly.revisionDirectory, 'chromium_headless_shell-1187');
   });
 });
 
-test('browser preflight: a capture config that launches the full chromium build still requires it', () => {
-  withFakeChromiumConsumer(({ install, preflight }) => {
-    install(path.join('chromium_headless_shell-1187', 'INSTALLATION_COMPLETE'));
-    for (const configText of ['use: { headless: false }', "use: { channel: 'chromium' }"]) {
+for (const configText of [
+  'use: { headless: false }',
+  'use: { "headless": false }',
+  "use: { channel: 'chromium' }",
+  'use: { "channel": "chromium" }',
+  "use: { 'channel': 'chromium' }",
+  "use: { channel: 'chrome-for-testing' }",
+  'use: { "channel": "chrome-for-testing" }',
+]) {
+  test(`browser preflight: ${configText} requires the full chromium build`, () => {
+    withFakeChromiumConsumer(({ install, preflight }) => {
+      install(path.join('chromium_headless_shell-1187', 'INSTALLATION_COMPLETE'));
+      install(path.join('chromium_headless_shell-1187', 'chrome-headless-shell-linux64', 'chrome-headless-shell'));
       const shellOnly = preflight(configText);
-      assert.equal(shellOnly.status, 'missing', `${configText} launches the full build`);
+      assert.equal(shellOnly.status, 'missing', 'the shell cannot serve a full-build capture');
       assert.equal(shellOnly.revisionDirectory, 'chromium-1187');
-    }
-    install(path.join('chromium-1187', 'chrome-linux64', 'chrome'));
-    for (const configText of ['use: { headless: false }', "use: { channel: 'chromium' }"]) {
-      assert.equal(preflight(configText).status, 'verified', configText);
-    }
+      install(path.join('chromium-1187', 'chrome-linux64', 'chrome'));
+      assert.equal(preflight(configText).status, 'verified');
+    });
   });
+}
+
+for (const [fullBuildPath, shellPath] of [
+  ['chrome-linux/chrome', 'chrome-linux/headless_shell'],
+  ['chrome-mac/Chromium.app/Contents/MacOS/Chromium', 'chrome-mac/headless_shell'],
+  ['chrome-win/chrome.exe', 'chrome-win/headless_shell.exe'],
+  ['chrome-linux64/chrome', 'chrome-headless-shell-linux64/chrome-headless-shell'],
+  [
+    'chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
+    'chrome-headless-shell-mac-x64/chrome-headless-shell',
+  ],
+  [
+    'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
+    'chrome-headless-shell-mac-arm64/chrome-headless-shell',
+  ],
+  ['chrome-win64/chrome.exe', 'chrome-headless-shell-win64/chrome-headless-shell.exe'],
+]) {
+  test(`browser preflight: verifies the shell executable for ${fullBuildPath}`, () => {
+    withFakeChromiumConsumer(
+      ({ install, preflight }) => {
+        install(path.join('chromium_headless_shell-1187', 'INSTALLATION_COMPLETE'));
+        assert.equal(preflight().status, 'missing', 'the marker alone cannot verify this layout');
+        install(path.join('chromium_headless_shell-1187', shellPath));
+        const installed = preflight();
+        assert.equal(installed.status, 'verified');
+        assert.ok(installed.executablePath.endsWith(path.normalize(shellPath)));
+      },
+      '1.61.1',
+      path.normalize(fullBuildPath),
+    );
+  });
+}
+
+test('browser preflight: an unknown shell layout is unresolvable even with the full build installed', () => {
+  const consumerRoot = mkTmp('styleproof-preflight-unknown-');
+  try {
+    const executablePath = path.join(consumerRoot, 'chromium-1187', 'unknown-layout', 'chrome');
+    fs.mkdirSync(path.dirname(executablePath), { recursive: true });
+    fs.writeFileSync(executablePath, '');
+    writeModule(
+      consumerRoot,
+      'playwright-core',
+      `module.exports = { chromium: { executablePath: () => ${JSON.stringify(executablePath)} } };`,
+      '1.61.1',
+    );
+    const resolution = resolveBrowserExecutablePath(consumerRoot, 'chromium');
+    assert.equal(resolution.kind, 'unresolvable');
+    assert.match(resolution.reason, /unknown Chromium headless shell layout/);
+  } finally {
+    rmTmp(consumerRoot);
+  }
 });
 
 test('browser preflight: a Playwright release without the headless shell verifies the full chromium build', () => {
