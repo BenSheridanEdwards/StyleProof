@@ -77,6 +77,24 @@ function customProps(body) {
   return Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)].map((m) => [m[1], m[2].trim()]));
 }
 
+const readsProp = (body, prop) => [...body.matchAll(/\bvar\(\s*(--[\w-]+)\s*[,)]/g)].some((m) => m[1] === prop);
+
+/** Every dependent alias and consumer must resolve to captured usage. */
+function customPropertyGap(prop, side, path = new Set()) {
+  if (path.has(prop)) return `cyclic consumer of ${prop}`;
+  const consumers = side.rules.filter((r) => readsProp(r.body, prop));
+  if (!consumers.length) return `no resolved consumer of ${prop}`;
+  const next = new Set([...path, prop]);
+  for (const consumer of consumers) {
+    if (!side.used.has(consumer.key)) return `consumer of ${prop} never matched: ${consumer.key}`;
+    for (const [alias, value] of Object.entries(customProps(consumer.body))) {
+      if (!readsProp(value, prop)) continue;
+      const gap = customPropertyGap(alias, side, next);
+      if (gap) return gap;
+    }
+  }
+}
+
 /** Class names any served selector can target — the J3 token vocabulary. */
 export function classVocabulary(rules) {
   return new Set(rules.flatMap((r) => [...r.prelude.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1])));
@@ -109,28 +127,44 @@ export function cssReach(rule, side, before) {
     };
   const now = customProps(rule.body);
   const was = before ? customProps(before.body) : {};
-  for (const prop of Object.keys(now).filter((p) => now[p] !== was[p])) {
-    const idle = side.rules.find((r) => r !== rule && r.body.includes(`var(${prop}`) && !used(r));
-    if (idle) return { status: 'never-rendered', why: `consumer of ${prop} never matched: ${idle.key}` };
+  for (const prop of new Set([...Object.keys(was), ...Object.keys(now)])) {
+    if (now[prop] === was[prop]) continue;
+    const gap = customPropertyGap(prop, side);
+    if (gap) return { status: 'never-rendered', why: gap };
   }
   return { status: 'reached', why: 'matched in a captured state' };
 }
 
-/** Rule catalog and matched keys from Playwright CSS coverage entries of one or more captures. */
+/**
+ * Rule catalog from coverage entries with stable stylesheet URLs and capture IDs.
+ * Repeated captures may union usage only when the same sheet has identical text.
+ */
 export function servedRules(coverageEntries) {
-  const rules = new Map();
-  const used = new Set();
+  const sheets = new Map();
   for (const entry of coverageEntries) {
-    const seen = new Map();
+    if (!entry.url) throw new Error('missing stylesheet identity: CSS reach is unknown');
+    const sheet = sheets.get(entry.url) ?? { text: entry.text, captures: new Set(), ranges: [] };
+    const capture = entry.capture ?? 0;
+    if (sheet.text !== entry.text || sheet.captures.has(capture))
+      throw new Error(`ambiguous stylesheet ${entry.url}: CSS reach is unknown`);
+    sheet.captures.add(capture);
+    sheet.ranges.push(...entry.ranges);
+    sheets.set(entry.url, sheet);
+  }
+  const rules = [];
+  const used = new Set();
+  for (const sheet of [...sheets.keys()].sort()) {
+    const entry = sheets.get(sheet);
+    const ordinals = new Map();
     for (const rule of parseCssRules(entry.text)) {
-      const n = (seen.get(rule.key) ?? 0) + 1;
-      seen.set(rule.key, n);
-      const key = n > 1 ? `${rule.key} #${n}` : rule.key;
-      if (!rules.has(key)) rules.set(key, { ...rule, key });
+      const ordinal = ordinals.get(rule.key) ?? 0;
+      ordinals.set(rule.key, ordinal + 1);
+      const key = JSON.stringify([sheet, ordinal, rule.key]);
+      rules.push({ ...rule, selector: rule.key, sheet, ordinal, key });
       if (entry.ranges.some((r) => r.start < rule.end && r.end > rule.start)) used.add(key);
     }
   }
-  return { rules: [...rules.values()], used };
+  return { rules, used };
 }
 
 /** Rules that differ between two catalogs, each with the side it is judged on. */

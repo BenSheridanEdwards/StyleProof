@@ -87,7 +87,9 @@ async function capture(browser, side, surface) {
   await page.goto(pathToFileURL(path.join(out, side, 'index.html')).href + surface.query, { waitUntil: 'load' });
   const map = await captureStyleMap(page);
   const js = (await page.coverage.stopJSCoverage()).find((e) => e.url.endsWith('/app.js'));
-  const css = (await page.coverage.stopCSSCoverage()).filter((e) => e.text);
+  const css = (await page.coverage.stopCSSCoverage())
+    .filter((e) => e.text)
+    .map((e) => ({ ...e, url: path.relative(path.join(out, side), fileURLToPath(e.url)) }));
   await page.close();
   return { map, css, execution: lineExecution(js, sourceMaps[side], '/app.jsx') };
 }
@@ -141,12 +143,18 @@ function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
 
 function evaluate(surfaceIds) {
   const pick = (side) => surfaceIds.map((id) => caps[side][id]);
-  const served = Object.fromEntries(SIDES.map((side) => [side, servedRules(pick(side).flatMap((c) => c.css))]));
+  const served = Object.fromEntries(
+    SIDES.map((side) => [
+      side,
+      servedRules(pick(side).flatMap((c, capture) => c.css.map((entry) => ({ ...entry, capture })))),
+    ]),
+  );
   const vocabulary = classVocabulary([...served.base.rules, ...served.head.rules]);
   const pairs = surfaceIds.map((id) => ({ base: caps.base[id].map, head: caps.head[id].map }));
   const units = changedRules(served.base, served.head).map((c) => ({
     kind: 'css',
     key: c.key,
+    selector: c.rule.selector,
     ...cssReach(c.rule, served[c.side], c.before),
   }));
   for (const hunk of hunks)
@@ -157,7 +165,7 @@ function evaluate(surfaceIds) {
 
 const matches = (c, u) =>
   u.kind === 'css'
-    ? Boolean(c.unit.css) && new RegExp(c.unit.css).test(u.key)
+    ? Boolean(c.unit.css) && new RegExp(c.unit.css).test(u.selector)
     : Boolean(c.unit.js) && u.text.includes(c.unit.js);
 const worst = (units) =>
   ['never-rendered', 'blind-channel', 'unmeasured'].find((s) => units.some((u) => u.status === s)) ?? 'reached';
