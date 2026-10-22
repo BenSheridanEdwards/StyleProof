@@ -6,8 +6,8 @@
 //   node scripts/demo-report.mjs --check   # CI: fail if docs/demo/ is stale
 //
 // The inputs are SYNTHETIC and deterministic (drawn with pngjs, not a browser). The
-// --check gate compares the report Markdown and the DECODED PIXELS of each crop, so
-// zlib differences across Node versions never cause a false stale.
+// --check gate compares the report Markdown, HTML, and the DECODED PIXELS of each
+// crop, so zlib differences across Node versions never cause a false stale.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -259,6 +259,10 @@ if (process.argv.includes('--check')) {
   const fresh = (d) => fs.readFileSync(path.join(d, 'report.md'), 'utf8');
   const problems = [];
   if (fresh(tmp) !== fresh(DEMO_DIR)) problems.push('report.md differs');
+  const committedHtml = path.join(DEMO_DIR, 'report.html');
+  if (!fs.existsSync(committedHtml)) problems.push('report.html is missing');
+  else if (!fs.readFileSync(path.join(tmp, 'report.html')).equals(fs.readFileSync(committedHtml)))
+    problems.push('report.html differs');
   const cropsOf = (d) => {
     const c = path.join(d, 'crops');
     return fs.existsSync(c) ? fs.readdirSync(c).sort() : [];
