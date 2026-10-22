@@ -85,7 +85,9 @@ path policy as CI, to select `npm run test:e2e -- --workers=4` for any staged or
 pushed path, including prose and tooling files. There are no filename exemptions,
 and Git filenames retain literal backslashes and line terminators. Unknown
 inventories, including a new branch without a remote base, run the full suite;
-only a proven empty or deletion-only inventory may skip it. Missing Chromium,
+only a proven empty path inventory may skip it. A ref-deletion-only push with no
+staged paths has no changed paths; deleting a tracked file still runs browsers.
+Missing Chromium,
 unreadable Git changes or malformed push metadata fail the push. Install Chromium
 with `npx playwright install chromium` before pushing changes.
 `npm run demo:check` verifies demo Markdown, HTML and decoded crop pixels.
