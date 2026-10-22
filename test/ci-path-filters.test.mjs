@@ -11,7 +11,19 @@ const root = path.join(here, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const cases = [
-  ['docs-only', ['docs/NORTH_STAR.md', 'docs/proof/readme-lead/readme-top.png', 'README.md'], false],
+  ['top-level prose-only', ['README.md', 'CHANGELOG.md'], false],
+  ['documentation prose', ['docs/NORTH_STAR.md'], true],
+  ['committed demo report', ['docs/demo/report.html'], true],
+  ['documentation stylesheet', ['docs/demo/theme.css'], true],
+  ['documentation script', ['docs/demo/theme.js'], true],
+  ['documentation tokens', ['docs/demo/tokens.json'], true],
+  ['documentation SVG', ['docs/demo/theme.svg'], true],
+  ['documentation screenshot', ['docs/proof/readme-lead/readme-top.png'], true],
+  ['new documentation asset extension', ['docs/new/theme.future'], true],
+  ['documentation test-shaped asset', ['docs/new/theme.test.mjs'], true],
+  ['documentation asset renamed to top-level prose', ['docs/demo/report.html', 'report.md'], true],
+  ['top-level prose renamed to documentation', ['README.md', 'docs/new/report.html'], true],
+  ['documentation asset renamed within docs', ['docs/demo/report.html', 'docs/demo/new.html'], true],
   ['changelog plus unit tests', ['CHANGELOG.md', 'test/release-notes.test.mjs', 'test/report.test.mjs'], false],
   ['agent tooling and lint config', ['.claude/skills/good-css/SKILL.md', 'AGENTS.md', 'eslint.config.js'], false],
   ['PR-body and privacy tooling', ['scripts/validate-pr-body.mjs', 'scripts/privacy-check.mjs'], false],
@@ -53,7 +65,9 @@ for (const [name, files, expected] of cases) {
 }
 
 test('Windows separators classify like POSIX paths', () => {
-  assert.equal(isSafePath('docs\\setup.md'), true);
+  assert.equal(isSafePath('docs\\setup.md'), false);
+  assert.equal(needsBrowserLanes(['docs\\demo\\report.html']), true);
+  assert.equal(isSafePath('README.md'), true);
   assert.equal(needsBrowserLanes(['src\\diff.ts']), true);
 });
 
