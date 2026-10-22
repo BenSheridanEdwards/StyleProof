@@ -44,10 +44,12 @@ is listed here only if it exists and runs on a clean checkout.
   before pushing.
 - **`.husky/pre-push`** — `npm test` (git hook env is unset first so it does not
   leak into the CLI tests' temp repos), then `scripts/pre-push-e2e.mjs`, the
-  shared CI path policy over staged and pushed files. It runs the full browser
-  suite for matching paths (including all `docs/`) or a first push without a
-  remote base. Missing Chromium, malformed push metadata and Git read failures
-  block the push.
+  shared CI path policy over staged and pushed files. Every nonempty changed
+  path selects the full browser suite, including prose and tooling files;
+  filenames have no exemptions. Unknown inventories, including a first push
+  without a remote base, also run it. Only a proven empty or deletion-only
+  inventory may skip it. Missing Chromium, malformed push metadata and Git read
+  failures block the push.
 - **`npm run verify`** — every local gate in one command: context and
   suppression checks, typecheck, lint, format check, privacy scan, and
   `npm test`. No hook runs it

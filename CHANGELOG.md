@@ -200,8 +200,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **Repository browser gates reject incomplete verification.** Changes anywhere
-  under `docs/` now require the browser and dogfood lanes. Demo freshness also
+- **Repository browser gates reject incomplete verification.** The shared path
+  policy now selects browser and dogfood lanes for every nonempty changed path,
+  including prose and tooling files. Removing filename exemptions avoids glob
+  gaps for line terminators; the local gate also preserves literal backslashes
+  instead of treating them as directory separators. Demo freshness also
   compares committed HTML, so CSS-only drift or a missing HTML report fails.
   The local pre-push check shares the CI path policy, runs the full browser suite
   for new branches without a remote base, and fails on missing Chromium or
