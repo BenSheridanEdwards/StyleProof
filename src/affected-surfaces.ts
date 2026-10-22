@@ -37,10 +37,10 @@ export type AffectedSurfacesInput = {
  *  listed are provably unaffected and may reuse their committed base map. */
 export type AffectedSurfaces = Set<string> | 'all';
 
-// Selectors/at-rules whose scope escapes the importing file. A global selector
-// counts after a rule boundary, a `;` statement, or a `/* */` or `//` comment.
+// Selectors/at-rules whose scope escapes the importing file. Global selectors count
+// after rule boundaries, `;` statements, or comments, and when a comment follows.
 const GLOBAL_CSS =
-  /(^|[{},(;]|\*\/|\/\/[^\n]*\n)\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
+  /(^|[{},(;]|\*\/|\/\/[^\n]*\n)\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~/])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
 // CSS-in-JS global APIs. Soundness depends on this list being complete for the
 // libraries in use: an unlisted global API in a .tsx would be misread as scoped.
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;

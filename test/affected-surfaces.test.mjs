@@ -32,13 +32,15 @@ test('classify: nested and selector-list global elements escape a CSS Module', (
   );
   assert.equal(classifyStyleChange('Theme.module.css', read('.local, :where(BODY) { color: red }')), 'all');
 });
-test('classify: a comment or `;` statement before a global rule cannot hide it in a CSS Module', () => {
+test('classify: a comment or `;` statement around a global rule cannot hide it in a CSS Module', () => {
   for (const [file, src] of [
     ['Card.module.css', '.card{}\n/* tokens */\n:root{--b:red}'],
     ['Card.module.css', '/* reset */\n*{box-sizing:border-box}'],
     ['Card.module.css', '@charset "utf-8";\n:root{}'],
     ['Card.module.css', '@layer components;\nhtml{}'],
     ['Card.module.scss', '.card{}\n// tokens\n:root{}'],
+    ['Card.module.css', '/* reset */ body/* note */ { color:red }'],
+    ['Card.module.scss', '.a{}\n:root// x\n{--b:1}'],
   ]) {
     assert.equal(classifyStyleChange(file, read(src)), 'all', src);
   }
