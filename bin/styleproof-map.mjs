@@ -403,12 +403,12 @@ try {
   // A marker that exists but cannot be read is still a fatal marker: fail closed.
   fatalCaptureFailure = errorMessage(error);
 }
-if (status !== 0 && fatalCaptureFailure) {
+if (fatalCaptureFailure) {
   console.error(
     `${NAME}: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
   );
   removeTree(targetDir);
-  process.exit(status);
+  process.exit(status || 1);
 }
 // Publish survivors ONLY when EVERY failed test is a ledgered surface failure (head/default AND tolerate).
 // Soft-pass HOLD: without --tolerate-surface-failures the process stays red after publish;

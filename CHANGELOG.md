@@ -373,6 +373,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   neither. Under `style-src-attr 'none'` the sink now stays fixed at (0,0), so
   the pointer no longer really hovers a top-left element into the resting map.
   Pages with no CSP or with `'unsafe-inline'` capture as before.
+- **A surface that captures on a Playwright retry no longer blocks every PR on
+  that base.** Each failed capture attempt wrote a failure ledger entry, and a
+  later attempt that saved the map did not remove it. `styleproof-map` exited 0
+  for the flaky test but still listed the surface in
+  `manifest.surfaceCaptureFailures`, so every diff against that base exited 1
+  with a baseline capture failure for a map that was in the bundle. A capture
+  that succeeds now clears the entry an earlier attempt of the same key left. A
+  surface that fails on every attempt, or whose failure is tolerated under
+  `--tolerate-surface-failures`, is still ledgered and still blocks (#957).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

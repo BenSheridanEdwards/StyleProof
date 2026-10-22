@@ -5,7 +5,7 @@ import type { ServedRuleTracker } from '../capture/reach.js';
 import { warn } from '../capture/shared.js';
 import type { LiveRegionCandidate, StyleMap } from '../capture/types.js';
 import { diffStyleMaps, type Finding } from '../diff.js';
-import { markFatalCaptureFailure, recordSurfaceCaptureFailure } from '../map-store.js';
+import { clearSurfaceCaptureFailure, markFatalCaptureFailure, recordSurfaceCaptureFailure } from '../map-store.js';
 import { captureOptionsFor } from './settings.js';
 import type { ExpandedSurface, Settings } from './types.js';
 
@@ -37,7 +37,8 @@ function ledgerNonFatalSurfaceFailure(
  * fatal for the run; any other failure is always ledgered. When
  * `tolerateSurfaceFailures` is set the failure is swallowed (cold-base continue);
  * otherwise it rethrows so the run exits non-zero — Soft-pass HOLD — while leaving
- * the ledger for partial publish of survivors.
+ * the ledger for partial publish of survivors. A run that succeeds clears the entry an
+ * earlier attempt of the same key left, so a Playwright retry that captures is not a gap.
  * Returns the failure line when the caller aggregates instead of throwing (the crawl).
  */
 export async function withSurfaceFailureTolerance(
@@ -57,7 +58,9 @@ export async function withSurfaceFailureTolerance(
     }
     if (!aggregate) throw e;
     aggregate(`${captureKey.replace(/@([^@]*)$/, ' @ $1')}: ${reason}`);
+    return;
   }
+  clearSurfaceCaptureFailure(settings.outDir, captureKey);
 }
 
 function driftDesc(f: Finding): string {

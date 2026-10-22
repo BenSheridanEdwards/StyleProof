@@ -167,18 +167,38 @@ export function captureEvidenceBindingReceipt(beforeDir: string, afterDir: strin
   return { version: 1, before: captureEvidenceReceipt(beforeDir), after: captureEvidenceReceipt(afterDir) };
 }
 
-/** Record one tolerated surface failure (safe under parallel Playwright workers). A hash of
- *  the RAW key keeps colliding sanitized names (`a/b@1280` vs `a_b@1280`) from clobbering. */
+/** One ledger file per capture key. A hash of the RAW key keeps colliding sanitized names
+ *  (`a/b@1280` vs `a_b@1280`) from clobbering each other. */
+function surfaceCaptureFailureFile(dir: string, key: string): string {
+  const stem = key.replace(/[^a-zA-Z0-9@._-]+/g, '_').slice(0, 200);
+  return path.join(dir, SURFACE_CAPTURE_FAILURES_DIR, `${stem}-${sha256(key).slice(0, 8)}.json`);
+}
+
+/** Record one tolerated surface failure (safe under parallel Playwright workers). */
 export function recordSurfaceCaptureFailure(dir: string, failure: SurfaceCaptureFailure): void {
-  const sub = path.join(dir, SURFACE_CAPTURE_FAILURES_DIR);
   const normalized: SurfaceCaptureFailure = {
     key: boundedText(failure.key, 256, 'capture'),
     reason: boundedText(failure.reason, 1024, 'capture failed'),
     ...(failure.kind ? { kind: failure.kind } : {}),
   };
-  const stem = failure.key.replace(/[^a-zA-Z0-9@._-]+/g, '_').slice(0, 200);
-  fs.mkdirSync(sub, { recursive: true });
-  fs.writeFileSync(path.join(sub, `${stem}-${sha256(failure.key).slice(0, 8)}.json`), JSON.stringify(normalized));
+  const file = surfaceCaptureFailureFile(dir, failure.key);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(normalized));
+}
+
+/** Drop the failure an earlier attempt of `key` recorded, once a later attempt (a Playwright retry) captured it. */
+export function clearSurfaceCaptureFailure(dir: string, key: string): void {
+  const file = surfaceCaptureFailureFile(dir, key);
+  let bytes: Buffer;
+  try {
+    bytes = readRegularFileNoFollow(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+  const failure = JSON.parse(bytes.toString('utf8')) as SurfaceCaptureFailure | null;
+  if (failure?.key !== key) throw new MapStoreError(`capture failure ledger key mismatch: ${file}`);
+  fs.rmSync(file, { force: true });
 }
 
 /** Read tolerated failures written during capture (sorted by key). */
