@@ -73,8 +73,8 @@ function productChange(overrides = {}) {
   };
 }
 
-/** A top-level prose-only change: the filter said false and the browser lanes skipped. */
-function proseOnlyChange(overrides = {}) {
+/** No changed paths: the filter said false and the browser lanes skipped. */
+function emptyChange(overrides = {}) {
   return productChange({
     changes: { result: 'success', outputs: { e2e: 'false' } },
     e2e: { result: 'skipped' },
@@ -86,6 +86,63 @@ function proseOnlyChange(overrides = {}) {
 
 const browserLanes = ['e2e', 'e2e-evidence', 'detection-corpus'];
 const badResults = ['skipped', 'cancelled', 'failure', ''];
+
+// Replay compiler output captured from the integrity-verified picomatch 2.3.1
+// locked by this action revision. This is not a dynamic execution of dorny.
+// The separate policy test permits exactly the universal positive pattern;
+// keeping the historical ** output reproduces the original hosted false skip.
+const compiled = JSON.parse(fs.readFileSync(new URL('./fixtures/ci-path-filter/pinned-regex.json', import.meta.url)));
+const patterns = [
+  ...fs.readFileSync(new URL('../.github/path-filters.yml', import.meta.url), 'utf8').matchAll(/^ {2}- '([^']+)'$/gm),
+].map((match) => match[1]);
+
+test('captured matcher provenance agrees with the pinned action and its compiler options', () => {
+  assert.ok(ci.includes(`dorny/paths-filter@${compiled.action.revision} # v3.0.2`));
+  assert.equal(compiled.action.revision, '0e4a8c6effa4802afeda77dc8d303f8176d7dfad');
+  assert.equal(compiled.picomatch.version, '2.3.1');
+  assert.deepEqual(compiled.options, { dot: true });
+  assert.deepEqual(
+    compiled.patterns.map(({ pattern }) => pattern),
+    ['**', '([\\s\\S]+)'],
+  );
+  assert.ok(patterns.length > 0, 'an empty filter must not make every() vacuously true');
+});
+
+for (const term of ['\n', '\r', '\u2028', '\u2029']) {
+  for (const file of [`docs/theme${term}.css`, `src/${term}/theme.css`, `${term}theme.css`, `theme.css${term}`]) {
+    test(`captured hosted matcher for ${JSON.stringify(file)} makes required reject skipped browsers`, () => {
+      const historical = compiled.patterns.find(({ pattern }) => pattern === '**');
+      assert.equal(new RegExp(historical.source, historical.flags).test(file), false, 'original hosted symptom');
+      const decision =
+        patterns.length > 0 &&
+        patterns.every((pattern) => {
+          const captured = compiled.patterns.find((entry) => entry.pattern === pattern);
+          assert.ok(
+            captured,
+            `unsupported pattern ${pattern}: regenerate pinned compiler evidence and review the policy`,
+          );
+          return new RegExp(captured.source, captured.flags).test(file);
+        });
+      const { passed, output } = runRequired(
+        emptyChange({
+          changes: { result: 'success', outputs: { e2e: String(decision) } },
+        }),
+      );
+      assert.equal(decision, true, `${JSON.stringify(file)} was not selected by the captured hosted matcher`);
+      assert.equal(passed, false, output);
+      assert.match(output, /E2E_RESULT was 'skipped' \(want success\)/);
+    });
+  }
+}
+
+test('the captured universal pattern selects ordinary and control-character paths but rejects an empty filename', () => {
+  const universal = compiled.patterns.find(({ pattern }) => pattern === '([\\s\\S]+)');
+  const matcher = new RegExp(universal.source, universal.flags);
+  for (const file of ['README.md', '.agents\\theme.css', 'theme.css', '\t.css', '\u0001.css', '\u0085.css']) {
+    assert.equal(matcher.test(file), true, JSON.stringify(file));
+  }
+  assert.equal(matcher.test(''), false);
+});
 
 test('the required step reads the path-filter e2e output and every needed job result', () => {
   assert.equal(step.env.E2E_DECISION, 'needs.changes.outputs.e2e');
@@ -103,15 +160,16 @@ test('product change with complete browser proof passes', () => {
   assert.match(output, /browser paths changed; e2e shards, evidence and detection corpus must succeed/);
 });
 
-test('top-level prose-only change with planned browser skips passes', () => {
+test('an empty changed-file inventory with planned browser skips passes', () => {
   const { passed, output } = runRequired(
-    proseOnlyChange({ changes: { result: 'success', outputs: { e2e: String(needsBrowserLanes(['README.md'])) } } }),
+    emptyChange({ changes: { result: 'success', outputs: { e2e: String(needsBrowserLanes([])) } } }),
   );
   assert.ok(passed, output);
   assert.match(output, /no browser paths changed; browser lanes may skip/);
 });
 
 for (const file of [
+  'README.md',
   'docs/demo/report.html',
   'docs/demo/theme.css',
   'docs/demo/theme.js',
@@ -120,10 +178,11 @@ for (const file of [
   'docs/proof/new/report.png',
   'docs/new/theme.future',
   'docs/setup.md',
+  '.agents\\theme.css',
 ]) {
   test(`${file}: the shared path policy makes required reject skipped browser proof`, () => {
     const { passed, output } = runRequired(
-      proseOnlyChange({ changes: { result: 'success', outputs: { e2e: String(needsBrowserLanes([file])) } } }),
+      emptyChange({ changes: { result: 'success', outputs: { e2e: String(needsBrowserLanes([file])) } } }),
     );
     assert.equal(passed, false, output);
     assert.match(output, /browser paths changed; e2e shards, evidence and detection corpus must succeed/);
@@ -149,8 +208,8 @@ for (const lane of browserLanes) {
     });
   }
   for (const result of ['cancelled', 'failure', '']) {
-    test(`top-level prose-only change still rejects ${lane} = '${result}'`, () => {
-      const { passed, output } = runRequired(proseOnlyChange({ [lane]: { result } }));
+    test(`an empty inventory still rejects ${lane} = '${result}'`, () => {
+      const { passed, output } = runRequired(emptyChange({ [lane]: { result } }));
       assert.equal(passed, false, output);
       assert.match(output, new RegExp(`was '${result}' \\(want success or skipped\\)`));
     });
@@ -159,7 +218,7 @@ for (const lane of browserLanes) {
 
 for (const result of ['failure', 'cancelled', 'skipped']) {
   test(`a path filter that ended '${result}' is not trusted, even if it said false`, () => {
-    const { passed, output } = runRequired(proseOnlyChange({ changes: { result, outputs: { e2e: 'false' } } }));
+    const { passed, output } = runRequired(emptyChange({ changes: { result, outputs: { e2e: 'false' } } }));
     assert.equal(passed, false, output);
     assert.match(output, /CHANGES_RESULT was/);
     assert.match(output, /untrusted \(path filter did not succeed\)/);
@@ -176,7 +235,7 @@ for (const [label, changes] of [
   ['malformed e2e output 0', { result: 'success', outputs: { e2e: '0' } }],
 ]) {
   test(`${label}: fails closed with skipped browser lanes`, () => {
-    const { passed, output } = runRequired(proseOnlyChange({ changes }));
+    const { passed, output } = runRequired(emptyChange({ changes }));
     assert.equal(passed, false, output);
     assert.match(output, /want true or false/);
   });
@@ -191,7 +250,7 @@ for (const job of ['build', 'cli-smoke']) {
   for (const result of badResults) {
     for (const [kind, change] of [
       ['product', productChange],
-      ['top-level prose-only', proseOnlyChange],
+      ['empty-inventory', emptyChange],
     ]) {
       test(`${kind} change still requires ${job} (node matrix / platform smoke) to succeed, rejecting '${result}'`, () => {
         const { passed, output } = runRequired(change({ [job]: { result } }));
