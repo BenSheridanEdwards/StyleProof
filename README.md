@@ -558,8 +558,9 @@ terminators and literal backslashes cannot make a style change appear safe.
 `npm run demo:check` compares demo Markdown and HTML plus decoded crop pixels.
 The local pre-push check runs the full browser suite for staged or pushed changes
 and unknown inventories, including a new branch with no remote base. Only a
-proven empty or deletion-only inventory can skip it. Missing Chromium, malformed
-push metadata and unreadable Git changes block the push. Install Chromium with
+proven empty path inventory can skip it, including a ref-deletion-only push with
+no staged paths. Deleted files still require browser checks. Missing Chromium,
+malformed push metadata and unreadable Git changes block the push. Install Chromium with
 `npx playwright install chromium` before pushing changes.
 
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
