@@ -43,7 +43,11 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Measure
-        run: node bench/reach-cost.mjs --runs 7 | tee reach-cost.txt
+        shell: bash
+        run: |
+          rm -f bench/reach-cost.results.json
+          node bench/reach-cost.mjs --runs 7 | tee reach-cost.txt
+          test -s bench/reach-cost.results.json
 
       - name: Step summary
         run: |

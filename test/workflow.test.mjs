@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,59 @@ const ci = fs.readFileSync(path.join(here, '..', '.github/workflows/ci.yml'), 'u
 const playwrightConfig = fs.readFileSync(path.join(here, '..', 'playwright.ci.config.ts'), 'utf8');
 const release = fs.readFileSync(path.join(here, '..', '.github/workflows/release.yml'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
+
+test('reach-cost measurement fails on benchmark errors or missing fresh receipts', async (t) => {
+  const workflow = fs.readFileSync(path.join(here, '..', '.github/workflows/reach-cost.yml'), 'utf8');
+  const measure = workflow.match(/ {6}- name: Measure\n([\s\S]*?)(?=\n {6}- )/)?.[1];
+  assert.ok(measure, 'reach-cost workflow must have a Measure step');
+  const run = measure.match(/^ {8}run: (.+)$/m)?.[1];
+  assert.ok(run, 'Measure must have a run body');
+  const body = run === '|' ? measure.split('        run: |\n')[1].replace(/^ {10}/gm, '') : run;
+  // Mirror Actions: the unspecified Linux shell uses bash -e without pipefail.
+  const args = /shell: bash\b/.test(measure) ? ['--noprofile', '--norc', '-eo', 'pipefail'] : ['-e'];
+  const cases = [
+    { name: 'benchmark fails without a receipt', status: 23, receipt: undefined, passes: false },
+    { name: 'benchmark writes a receipt then fails', status: 23, receipt: '{"fresh":true}', passes: false },
+    {
+      name: 'benchmark succeeds without replacing the committed receipt',
+      status: 0,
+      receipt: undefined,
+      passes: false,
+    },
+    { name: 'benchmark writes an empty receipt', status: 0, receipt: '', passes: false },
+    { name: 'benchmark succeeds with a fresh receipt', status: 0, receipt: '{"fresh":true}', passes: true },
+  ];
+  fs.mkdirSync(path.join(here, '..', '.takeover'), { recursive: true });
+  for (const { name, status, receipt, passes } of cases) {
+    await t.test(name, () => {
+      const dir = fs.mkdtempSync(path.join(here, '..', '.takeover', 'reach-cost-test-'));
+      try {
+        fs.mkdirSync(path.join(dir, 'bench'));
+        const receiptPath = path.join(dir, 'bench/reach-cost.results.json');
+        fs.writeFileSync(receiptPath, '{"stale":true}');
+        fs.writeFileSync(
+          path.join(dir, 'bench/reach-cost.mjs'),
+          `import fs from 'node:fs';
+console.log('benchmark output');
+${receipt === undefined ? '' : `fs.writeFileSync('bench/reach-cost.results.json', ${JSON.stringify(receipt)});`}
+process.exit(${status});
+`,
+        );
+        const result = spawnSync('bash', [...args, '-c', body], { cwd: dir, encoding: 'utf8', timeout: 10_000 });
+        assert.ifError(result.error);
+        assert.equal(result.status === 0, passes, `${name}: ${result.stdout}${result.stderr}`);
+        if (status !== 0) assert.equal(result.status, status, 'benchmark failure must propagate through tee');
+        assert.equal(fs.readFileSync(path.join(dir, 'reach-cost.txt'), 'utf8'), 'benchmark output\n');
+        if (passes) assert.equal(fs.readFileSync(receiptPath, 'utf8'), receipt);
+        if (receipt === undefined) assert.equal(fs.existsSync(receiptPath), false, 'stale receipt must be removed');
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
+  assert.match(measure, /shell: bash\b/);
+  assert.doesNotMatch(workflow, /continue-on-error: true|if:.*(?:always\(|failure\()/);
+});
 
 test('CI runs E2E in parallel without deleting unit, platform, or determinism evidence', () => {
   const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
