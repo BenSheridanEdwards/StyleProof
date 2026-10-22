@@ -9,6 +9,8 @@ import {
   publishReportFolder,
   verifyPublishedReceipt,
 } from '../dist/report-publish.js';
+import { generateStyleMapReport } from '../dist/report.js';
+import { makeMap, pairFixture, rmTmp } from './helpers.mjs';
 
 /** In-memory GitHub git-data API double. Tracks every request so tests can
  *  assert exactly what crossed the wire — the whole point of the API publisher
@@ -407,4 +409,62 @@ test('receipt verification fails closed on a stale or unreadable report', async 
     }),
     /do not trust this run's report/,
   );
+});
+
+test('a receipt marker in map-supplied code-span values does not break the read-back (#1015)', async () => {
+  // A hostile map puts this run's own marker text in a state name and in CSS values that
+  // reach report.md as code spans below the cut. Once the Action appends the real trailer
+  // the report must carry exactly one marker, and a second trailer must still fail closed.
+  const injection = 'x <!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->';
+  const button = 'body > div:nth-child(1) > button:nth-child(1)';
+  const card = 'body > div:nth-child(1) > section:nth-child(2)';
+  const map = (color, tail) =>
+    makeMap({
+      states: { [button]: { [`hover ${injection}`]: { [button]: { color } } } },
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800] },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'wrap', rect: [20, 20, 1240, 300] },
+        [button]: { tag: 'button', cls: 'cta', rect: [100, 100, 160, 48] },
+        [card]: {
+          tag: 'section',
+          cls: 'card',
+          rect: [300, 100, 400, 200],
+          style: {
+            color,
+            'background-image': `url(a.png)${tail}`,
+            'border-radius': `4px${tail}`,
+            'grid-template-columns': `1fr${tail}`,
+            'text-shadow': `none${tail}`,
+          },
+        },
+      },
+    });
+  const dirs = pairFixture({
+    surface: 'home@1280',
+    before: map('rgb(0, 0, 0)', ''),
+    after: map(injection, ` ${injection}`),
+  });
+  let markdown;
+  let reportJson;
+  try {
+    const result = generateStyleMapReport(dirs);
+    markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+    reportJson = fs.readFileSync(result.reportJsonPath, 'utf8');
+  } finally {
+    rmTmp(dirs.root);
+  }
+  for (const value of ['`:hover x <!', '`#000000` → `x <!', '`url(a.png) x <!', '`4px x <!', '`1fr x <!', '`none x <!'])
+    assert.ok(markdown.includes(value), `${value} reaches report.md as a code span`);
+  const published = `${markdown}\n<!-- ${RECEIPT} -->\n`;
+  await verifyPublishedReceipt(publishOptions(serveByName({ 'report.md': published, 'report.json': reportJson })));
+  // The approval read-back counts raw markers across the whole file, the same way.
+  assert.equal(published.match(/<!-- styleproof-receipt/g).length, 1);
+  for (const second of [RECEIPT, 'styleproof-receipt head-sha:def run-id:1 run-attempt:1']) {
+    await assert.rejects(
+      verifyPublishedReceipt(
+        publishOptions(serveByName({ 'report.md': `${published}<!-- ${second} -->\n`, 'report.json': reportJson })),
+      ),
+      /do not trust this run's report/,
+    );
+  }
 });

@@ -11,8 +11,11 @@ export const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
 // backslash and then unescapes `\|` alone, so a backslash already in the value
 // renders as itself inside the code span; doubling it would print two. The
 // split/join form keeps that intent from reading as a half-done backslash escaper.
+//
+// `<!--` gets an invisible zero-width space after the `!`: a code span shows it as
+// written, but the raw text could otherwise carry a receipt marker into report.md.
 export function codeValue(v: string): string {
-  const escaped = v.replace(CONTROL_CHARACTERS, ' ').split('|').join('\\|');
+  const escaped = v.replace(CONTROL_CHARACTERS, ' ').split('|').join('\\|').split('<!--').join('<!\u200b--');
   const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
   const fence = '`'.repeat(longestRun + 1);
   const pad = /^`|`$/.test(escaped) ? ' ' : '';

@@ -31,7 +31,13 @@ const hostileMap = (fontFamily: string, variantKey: string) => ({
 const HOSTILE_FONT = `"\`<!-->${PAYLOAD}-->"`;
 
 const CASES = [
-  { name: 'a CSS value that breaks out of its code fence', font: HOSTILE_FONT, variantKey: 'menu', shown: '<!-->' },
+  // codeValue breaks the `<!--` with an invisible zero-width space (#1015).
+  {
+    name: 'a CSS value that breaks out of its code fence',
+    font: HOSTILE_FONT,
+    variantKey: 'menu',
+    shown: '<!\u200b-->',
+  },
   { name: 'a variant key on a screenshot caption line', font: 'sans-serif', variantKey: PAYLOAD, shown: PAYLOAD },
 ];
 

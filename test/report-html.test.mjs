@@ -138,7 +138,8 @@ test('report.html keeps an author-controlled comment inside a double-fenced valu
   const html = renderReportHtml(md);
   assert.doesNotMatch(html, /<img src=x/, 'a CSS value must never become live markup');
   assert.doesNotMatch(html, /<!-->/);
-  assert.match(html, /<code>&quot;`&lt;!--&gt;&lt;img src=x onerror=alert\(1\)&gt;--&gt;&quot;<\/code>/);
+  // codeValue breaks the `<!--` with an invisible zero-width space (#1015).
+  assert.match(html, /<code>&quot;`&lt;!\u200b--&gt;&lt;img src=x onerror=alert\(1\)&gt;--&gt;&quot;<\/code>/);
   // A single-fenced value holding a comment keeps its text instead of a stray placeholder.
   assert.match(renderReportHtml('`a<!-- x -->b`'), /<code>a&lt;!-- x --&gt;b<\/code>/);
   assert.match(renderReportHtml('`` `x` ``'), /<code>`x`<\/code>/);
