@@ -2,8 +2,8 @@
 
 - **Status:** Proposed (accepted by approving the PR)
 - **Date:** 2026-10-21
-- **Builds on:** [ADR 0007](0007-adopt-the-agentic-repo-template.md), which
-  deferred this gate, and [ADR 0005](0005-commit-statuses-over-checks-api.md)
+- **Builds on:** [ADR 0007](0007-adopt-the-agentic-repo-template.md), whose
+  decision 8 this records, and [ADR 0005](0005-commit-statuses-over-checks-api.md)
 - **Source:** the public AgenticRepoTemplate repository, its ADRs 0023 and 0024,
   `scripts/enforcement-approval.mjs`, its test, and
   `.github/workflows/enforcement-approval.yml`
@@ -18,8 +18,8 @@ hits a red gate is the author most likely to write that PR.
 
 The template's gate asks its maintainer to sign off such a change, binds the
 sign-off to the head commit, and was hardened against a series of wrong-tick
-paths on real PRs (template ADR 0024 lists them). ADR 0007 deferred it because it
-needs a workflow, a script and a branch-protection change.
+paths on real PRs (template ADR 0024 lists them). It needs a workflow, a script
+and a branch-protection change, so it has its own ADR.
 
 ## Decision
 

@@ -64,6 +64,11 @@ Adopt the template's principles where StyleProof can run and prove them:
 7. **`npm run verify`** runs the context and suppression checks, typecheck,
    lint, format check, privacy scan and unit tests. The Definition of Done names
    it. CI runs the two new checks in the Node 22 build job.
+8. **Enforcement sign-off (template ADRs 0023, 0024).** A change to a gate file
+   gets a pending `enforcement-approval` status until the maintainer ticks a
+   sign-off bound to the head commit. It lands in this PR;
+   [ADR 0008](0008-sign-off-enforcement-changes.md) records how it works.
+   Making it a required check is a branch-protection change, outside this PR.
 
 ## Not adopted, or not yet
 
@@ -71,10 +76,6 @@ Adopt the template's principles where StyleProof can run and prove them:
   local hooks and kept CI as the gate. `pre-push` stays `npm test` plus the
   staged e2e; the new checks run in CI. Revisit if CI catches what a local
   `verify` would have.
-- **Enforcement sign-off (template ADRs 0023, 0024).** A status that waits for
-  the maintainer's tick before a change that loosens a gate lands. It needs a
-  workflow, a script and a branch-protection change; it is a separate PR,
-  [ADR 0008](0008-sign-off-enforcement-changes.md).
 - **PR body names its head commit (template ADR 0029).** The PR-body validator
   is shared with other repos through `pr-body-reusable.yml`; changing its
   contract is a separate PR.
