@@ -142,10 +142,14 @@ export function defineStyleMapCapture(options: DefineOptions): void {
         }
       } else {
         // Auto widths: load once, detect the breakpoints, then sweep each band in one test.
+        // A load or detection failure is ledgered as `<key>@auto`; tolerated, it sweeps nothing.
         const ordinal: HeartbeatOrdinal = { index: ++unit, total };
         test(`${surface.key} @ auto`, async ({ page, baseURL, contextOptions }) => {
-          await surface.go(page);
-          const widths = await detectViewportWidths(page);
+          let widths: number[] = [];
+          await withSurfaceFailureTolerance(settings, `${surface.key}@auto`, async () => {
+            await surface.go(page);
+            widths = await detectViewportWidths(page);
+          });
           test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs, widths.length));
           for (const width of widths) await capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);
         });

@@ -766,6 +766,78 @@ defineStyleMapCapture({
   }
 });
 
+// A surface without `widths` loads and detects its breakpoints inside its `<key> @ auto`
+// test. A throw from either step must be ledgered as `<key>@auto` like a per-width
+// failure, so --tolerate-surface-failures still publishes the survivors (#975).
+for (const [step, go, reason] of [
+  [
+    'go()',
+    `async (page) => { await page.goto('/'); throw new Error('catalog API returned 503'); }`,
+    /catalog API returned 503/,
+  ],
+  ['breakpoint detection', `async (page) => { await page.goto('/catalog'); }`, /unreadable \(cross-origin, no CORS\)/],
+] as const) {
+  test(`a failing ${step} on an auto-width surface is ledgered as <key>@auto and the survivors publish`, async () => {
+    const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-auto-tolerate-'));
+    const port = await freePort();
+    const cssPort = await freePort();
+    try {
+      writeMultiPageApp(app, port);
+      // /catalog links a cross-origin stylesheet served with no CORS header: the browser
+      // applies it, but breakpoint detection cannot read its rules and throws.
+      const server = path.join(app, 'server.mjs');
+      fs.writeFileSync(
+        server,
+        fs
+          .readFileSync(server, 'utf8')
+          .replace(
+            'const pages = {',
+            `const pages = { '/catalog': '<link rel="stylesheet" href="http://127.0.0.1:${cssPort}/third.css"><h1>Catalog</h1>',`,
+          ) +
+          `http.createServer((req, res) => {\n  res.setHeader('content-type', 'text/css');\n  res.end('h1{color:rgb(200,0,0)}');\n}).listen(${cssPort}, '127.0.0.1');\n`,
+      );
+      git(app, ['init', '-q']);
+      git(app, ['config', 'user.email', 'styleproof@example.test']);
+      git(app, ['config', 'user.name', 'StyleProof Test']);
+      git(app, ['checkout', '-qb', 'main']);
+      const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+      expect(init.status, init.stderr).toBe(0);
+      fs.writeFileSync(
+        path.join(app, 'e2e/styleproof.spec.ts'),
+        `import { defineStyleMapCapture } from 'styleproof';
+defineStyleMapCapture({
+  surfaces: [
+    { key: 'index', widths: [1280], go: async (page) => { await page.goto('/'); } },
+    { key: 'catalog', go: ${go} },
+  ],
+  screenshots: false,
+  dir: process.env.STYLEMAP_DIR,
+});
+`,
+      );
+      git(app, ['add', '-A']);
+      git(app, ['commit', '-qm', 'styleproof setup']);
+
+      const tolerated = run(app, process.execPath, [MAP, '--tolerate-surface-failures']);
+      expect(tolerated.status, tolerated.stderr + tolerated.stdout).toBe(0);
+      const mapsDir = path.join(app, '.styleproof/maps/current');
+      const files = fs.readdirSync(mapsDir);
+      expect(files.includes('index@1280.json.gz'), 'the working surface is published').toBe(true);
+      expect(files.filter((f) => f.startsWith('catalog@'))).toEqual([]);
+      const manifest = JSON.parse(fs.readFileSync(path.join(mapsDir, 'styleproof-manifest.json'), 'utf8'));
+      expect(manifest.surfaceCaptureFailures.map((f: { key: string }) => f.key)).toEqual(['catalog@auto']);
+      expect(manifest.surfaceCaptureFailures[0].reason).toMatch(reason);
+
+      // Without the flag the same failure still fails the run (Soft-pass HOLD).
+      const held = run(app, process.execPath, [MAP]);
+      expect(held.status, 'an untolerated surface failure keeps the run red').not.toBe(0);
+      expect(held.stderr).toContain('Soft-pass HOLD');
+    } finally {
+      fs.rmSync(app, { recursive: true, force: true });
+    }
+  });
+}
+
 test('zero-config: init on a multi-page app crawls and captures every page — no spec editing', async () => {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-zeroconfig-'));
   const port = await freePort();

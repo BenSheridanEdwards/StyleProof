@@ -425,6 +425,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `✓ No reviewable computed-style changes` line and had no banner. The CLI now
   renders `report.html` again from the relabelled markdown, so both files show
   the same report. Bound runs, exit codes and `report.json` are unchanged (#964).
+- **`--tolerate-surface-failures` now covers a surface with no `widths`.** That
+  surface's `<key> @ auto` test ran its `go()` and breakpoint detection outside the
+  failure ledger, so a throw from either step recorded nothing. `styleproof-map`
+  then saw an unexplained failed test, exited 1 and published no partial baseline.
+  A load or detection failure is now ledgered as `<key>@auto`. Under the flag the
+  test passes with no widths swept and the survivors publish; without it the run
+  still exits non-zero (Soft-pass HOLD), as a fixed-width surface's would (#975).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
