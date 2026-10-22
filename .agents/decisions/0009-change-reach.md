@@ -1,9 +1,9 @@
-# ADR 0006: Diff-bounded completeness (Change Reach)
+# ADR 0009: Diff-bounded completeness (Change Reach)
 
-- **Status:** proposed (2026-10-21). The default levels below need a maintainer's decision (#990).
+- **Status:** Proposed (2026-10-21). The default levels below need a maintainer's decision (#990).
 - **Date:** 2026-10-21
 - **Epic:** #934
-- **Depends on:** #988 reach corpus, #989 reach cost receipt
+- **Depends on:** #988 reach corpus, #989 reach cost receipt, #991 served-rule ledger (merged in #1045)
 
 ## Context
 
@@ -92,6 +92,10 @@ the evidence adds to a capture on a GitHub runner:
 - Capture records CSS rule usage per surface@width (#991). The Action refuses a
   capture file over 16 MiB, so the served-rule ledger stores rule keys and
   declaration hashes, not full rule bodies.
+- With `captureReach` on, a stylesheet the ledger cannot parse exactly (nested
+  CSS, unbalanced or unsupported escapes, identical ambiguous sheets) fails the
+  capture with "served CSS reach is unknown" rather than recording partial
+  evidence, and the self-check fails when two captures' ledgers differ (#1045).
 - The report gains a "Changed but never rendered" section, and the confidence
   strip may say 100% confidence only when reach is complete. Without source maps,
   markup reach reads as `unmeasured` and the strip names the setting to enable.
