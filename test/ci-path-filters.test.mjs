@@ -4,14 +4,16 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { PATH_FILTERS_FILE, isSafePath, needsBrowserLanes, readSafeGlobs } from '../scripts/ci-path-filters.mjs';
+import * as policy from '../scripts/ci-path-filters.mjs';
+
+const { PATH_FILTERS_FILE, needsBrowserLanes } = policy;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const cases = [
-  ['top-level prose-only', ['README.md', 'CHANGELOG.md'], false],
+  ['top-level prose-only', ['README.md', 'CHANGELOG.md'], true],
   ['documentation prose', ['docs/NORTH_STAR.md'], true],
   ['committed demo report', ['docs/demo/report.html'], true],
   ['documentation stylesheet', ['docs/demo/theme.css'], true],
@@ -24,11 +26,11 @@ const cases = [
   ['documentation asset renamed to top-level prose', ['docs/demo/report.html', 'report.md'], true],
   ['top-level prose renamed to documentation', ['README.md', 'docs/new/report.html'], true],
   ['documentation asset renamed within docs', ['docs/demo/report.html', 'docs/demo/new.html'], true],
-  ['changelog plus unit tests', ['CHANGELOG.md', 'test/release-notes.test.mjs', 'test/report.test.mjs'], false],
-  ['agent tooling and lint config', ['.claude/skills/good-css/SKILL.md', 'AGENTS.md', 'eslint.config.js'], false],
-  ['PR-body and privacy tooling', ['scripts/validate-pr-body.mjs', 'scripts/privacy-check.mjs'], false],
-  ['context and suppression checks', ['scripts/check-context-layer.mjs', 'scripts/check-suppressions.mjs'], false],
-  ['codex hook registration', ['.codex/hooks.json', '.claude/hooks/block-gate-bypass.sh'], false],
+  ['changelog plus unit tests', ['CHANGELOG.md', 'test/release-notes.test.mjs', 'test/report.test.mjs'], true],
+  ['agent tooling and lint config', ['.claude/skills/good-css/SKILL.md', 'AGENTS.md', 'eslint.config.js'], true],
+  ['PR-body and privacy tooling', ['scripts/validate-pr-body.mjs', 'scripts/privacy-check.mjs'], true],
+  ['context and suppression checks', ['scripts/check-context-layer.mjs', 'scripts/check-suppressions.mjs'], true],
+  ['codex hook registration', ['.codex/hooks.json', '.claude/hooks/block-gate-bypass.sh'], true],
   ['demo page CSS', ['example/demo/index.html'], true],
   ['known-truth CSS fixture', ['test/fixtures/known-truth-css/style.css'], true],
   ['detection corpus fixture', ['bench/detection-fixture.html'], true],
@@ -64,42 +66,70 @@ for (const [name, files, expected] of cases) {
   });
 }
 
-test('Windows separators classify like POSIX paths', () => {
-  assert.equal(isSafePath('docs\\setup.md'), false);
-  assert.equal(needsBrowserLanes(['docs\\demo\\report.html']), true);
-  assert.equal(isSafePath('README.md'), true);
-  assert.equal(needsBrowserLanes(['src\\diff.ts']), true);
+test('literal backslashes and line terminators never exempt a changed Git filename', () => {
+  for (const file of [
+    'docs\\setup.md',
+    'docs\\demo\\report.html',
+    'README.md',
+    'src\\diff.ts',
+    '.agents\\theme.css',
+    '.agents\\nested\\theme.css',
+    '.github\\ISSUE_TEMPLATE\\theme.css',
+    ...['\n', '\r', '\u2028', '\u2029'].flatMap((term) => [`docs/theme${term}.css`, `src/${term}/theme.css`]),
+  ])
+    assert.equal(needsBrowserLanes([file]), true, JSON.stringify(file));
 });
 
-test('every safe glob carries a reason and stays in the subset dorny and this module agree on', () => {
-  const lines = read(PATH_FILTERS_FILE).split('\n');
-  for (const glob of readSafeGlobs()) {
-    const at = lines.indexOf(`  - '!${glob}'`);
-    assert.match(lines[at - 1], /^ {2}# \S/, `${glob} needs a reason comment above it`);
-    assert.match(
-      glob,
-      /^(?:[\w.-]+\/)*(?:[\w.-]+|\*\*|\*\.[\w.]+)$/,
-      `${glob} uses glob syntax the local matcher does not model`,
-    );
-    assert.ok(!glob.startsWith('src/') && !glob.startsWith('bin/'), `${glob} is product code`);
-  }
+test('the shared filter has one documented universal positive pattern and no exemptions', () => {
+  const text = read(PATH_FILTERS_FILE);
+  const lines = text.split(/\r?\n/).filter((line) => line.trim() && !line.trimStart().startsWith('#'));
+  assert.deepEqual(lines, ['lanes:', "  - '([\\s\\S]+)'"]);
+  assert.match(text, /#.*line terminators/i);
 });
 
 test('a filter file that is not one fail-closed lanes filter is rejected', () => {
-  assert.throws(() => readSafeGlobs("lanes:\n  - '!docs/**'\n"));
-  assert.throws(() => readSafeGlobs("lanes:\n  - '**'\n  - 'src/**'\n"));
-  assert.throws(() => readSafeGlobs("lanes:\n  - '**'\nother:\n  - '**'\n"));
-  assert.deepEqual(readSafeGlobs("# why\nlanes:\n  - '**'\n  # docs\n  - '!docs/**'\n"), ['docs/**']);
+  assert.equal(typeof policy.validatePathFilters, 'function');
+  const valid = "lanes:\n  - '([\\s\\S]+)'\n";
+  for (const text of [
+    '',
+    '# comments only\n',
+    'lanes:\n',
+    "lanes:\n  - '!docs/**'\n",
+    "lanes:\n  - '**'\n",
+    "lanes:\n  - '**'\n  - 'src/**'\n",
+    "lanes:\n  - '**'\nother:\n  - '**'\n",
+    `${valid}  - '!README.md'\n`,
+    `${valid}other:\n  - '**'\n`,
+    `${valid}${valid}`,
+    valid.replace('  -', ' -'),
+    valid.replace('+', '*'),
+    `${valid}# comment\r  - '!**'\n`,
+    `${valid}# comment\0\n`,
+    `${valid}\u00a0# comment\n`,
+  ])
+    assert.throws(() => policy.validatePathFilters(text), /lanes/i, JSON.stringify(text));
+  assert.doesNotThrow(() => policy.validatePathFilters(`# why\n${valid}# end\n`));
+  assert.doesNotThrow(() => policy.validatePathFilters(valid.replaceAll('\n', '\r\n')));
+  assert.doesNotThrow(() => policy.validatePathFilters(valid.replaceAll('\n', '\r')));
 });
 
-test('no tracked e2e spec sits on a safe path (Playwright collects **/*.e2e.spec.ts anywhere)', () => {
-  const tracked = spawnSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).stdout.split('\n');
+test('only a proven empty inventory skips; malformed inventories fail closed', () => {
+  assert.equal(needsBrowserLanes([]), false);
+  for (const files of [null, undefined, '', {}, [''], [null], [undefined], [42], new Array(1)]) {
+    assert.throws(() => needsBrowserLanes(files), /path|file|array/i);
+  }
+});
+
+test('every tracked e2e spec runs browsers (Playwright collects **/*.e2e.spec.ts anywhere)', () => {
+  const result = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const tracked = result.stdout.split('\0');
   const specs = tracked.filter((f) => f.endsWith('.e2e.spec.ts'));
   assert.ok(specs.length > 0, 'git ls-files listed the e2e specs');
-  assert.deepEqual(specs.filter(isSafePath), []);
+  for (const spec of specs) assert.equal(needsBrowserLanes([spec]), true, spec);
 });
 
-test('no browser-lane entry file imports a path the classifier calls safe', () => {
+test('every browser-lane entry import runs browsers', () => {
   const entries = fs
     .readdirSync(path.join(root, 'test'))
     .filter((f) => f.endsWith('.e2e.spec.ts'))
@@ -108,7 +138,7 @@ test('no browser-lane entry file imports a path the classifier calls safe', () =
   for (const entry of entries) {
     for (const [, spec] of read(entry).matchAll(/(?:from|import\()\s*['"](\.[^'"]+)['"]/g)) {
       const target = path.posix.join(path.posix.dirname(entry), spec);
-      assert.equal(isSafePath(target), false, `${entry} imports ${target}, which the path filter would skip`);
+      assert.equal(needsBrowserLanes([target]), true, `${entry} imports ${target}, which the path filter would skip`);
     }
   }
 });

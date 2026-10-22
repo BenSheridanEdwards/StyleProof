@@ -92,7 +92,7 @@ async function resolveChromiumPath() {
 async function main() {
   const files = collectPrePushFiles({ readStdin: !process.stdin.isTTY });
   if (!shouldRunStagedE2e(files)) {
-    console.log('  › pre-push e2e — skipped (all staged and pushed paths are browser-safe)');
+    console.log('  › pre-push e2e — skipped (no staged or pushed paths)');
     return;
   }
 

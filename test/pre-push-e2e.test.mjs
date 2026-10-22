@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -18,8 +19,8 @@ import { needsBrowserLanes } from '../scripts/ci-path-filters.mjs';
 
 const hook = readFileSync(new URL('../.husky/pre-push', import.meta.url), 'utf8');
 
-test('shouldRunStagedE2e matches capture/diff/report/engine and ignores README-only', () => {
-  assert.equal(shouldRunStagedE2e(['README.md', 'CONTRIBUTING.md']), false);
+test('shouldRunStagedE2e matches capture/diff/report/engine and README-only changes', () => {
+  assert.equal(shouldRunStagedE2e(['README.md', 'CONTRIBUTING.md']), true);
   assert.equal(shouldRunStagedE2e(['src/capture.ts']), true);
   assert.equal(shouldRunStagedE2e(['src/capture/browser.ts']), true);
   assert.equal(shouldRunStagedE2e(['src/diff.ts']), true);
@@ -197,13 +198,12 @@ test('missing push stdin runs the browser gate instead of pretending the diff is
   }
 });
 
-test('verified empty, README-only and deletion-only ranges may skip', (t) => {
+test('verified empty and deletion-only ranges may skip', (t) => {
   const f = fixture(t);
   f.write('README.md', 'Prose');
   const head = f.commit();
   for (const input of [
     f.pushed(head, head),
-    f.pushed(head, f.base),
     f.pushed('0'.repeat(40), head, '(delete)'),
     f.pushed(f.base, f.base, 'HEAD~'),
     f.pushed(head, head, head),
@@ -215,7 +215,16 @@ test('verified empty, README-only and deletion-only ranges may skip', (t) => {
   }
 });
 
-test('a known range retains the old style path when renamed to a safe documentation path', (t) => {
+test('a README-only push runs the full browser gate', (t) => {
+  const f = fixture(t);
+  f.write('README.md', 'Prose');
+  const head = f.commit();
+  const result = f.run(f.pushed(head, f.base));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('a known range retains the old style path when renamed to a documentation path', (t) => {
   const f = fixture(t);
   f.write('old theme.css', 'body { color: red }');
   const base = f.commit();
@@ -237,9 +246,11 @@ test('multiple push records cannot hide unknown, browser-changing, or malformed 
     f.pushed(head, '0'.repeat(40)).replace('refs/heads/test', 'refs/heads/new'),
     f.pushed(head, docs).replace('refs/heads/test', 'refs/heads/theme'),
   ]) {
-    const result = f.run(safe + second);
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    for (const first of [safe, f.pushed(docs, docs, 'HEAD~')]) {
+      const result = f.run(first + second);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    }
   }
   const malformed = f.run(safe + 'malformed second record\n');
   assert.equal(malformed.status, 1, malformed.stdout + malformed.stderr);
@@ -261,9 +272,15 @@ test('annotated tags work for both known ranges and unknown first pushes', (t) =
   }
 });
 
-test('staged paths preserve spaces and newlines that would otherwise resemble safe files', (t) => {
+test('staged paths preserve literal spaces, line terminators and backslashes', (t) => {
   const f = fixture(t);
-  const files = [' README.md', 'README.md\nCHANGELOG.md', 'README.md '];
+  const files = [
+    ' README.md',
+    'README.md\nCHANGELOG.md',
+    'README.md ',
+    '.agents\\theme.css',
+    ...['\n', '\r', '\u2028', '\u2029'].map((term) => `docs/theme${term}.css`),
+  ];
   for (const file of files) f.write(file, 'fixture');
   f.git('add', '.');
   const collected = spawnSync(
@@ -281,6 +298,61 @@ test('staged paths preserve spaces and newlines that would otherwise resemble sa
   const result = f.run(f.pushed());
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+for (const file of [
+  '.agents\\theme.css',
+  '.github\\ISSUE_TEMPLATE\\theme.css',
+  ...['\n', '\r', '\u2028', '\u2029'].map((term) => `docs/theme${term}.css`),
+]) {
+  test(`a CSS-only push of ${JSON.stringify(file)} preserves the Git filename and runs browsers`, (t) => {
+    const f = fixture(t);
+    f.write(file, 'body { color: red }');
+    const base = f.commit();
+    f.write(file, 'body { color: blue }');
+    const head = f.commit();
+    const collected = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        'import { collectPrePushFiles } from "./scripts/pre-push-e2e.mjs"; ' +
+          `console.log(JSON.stringify(collectPrePushFiles({ stagedFiles: [], pushRanges: [{ remoteOid: ${JSON.stringify(base)}, localOid: ${JSON.stringify(head)} }] })));`,
+      ],
+      { cwd: f.root, encoding: 'utf8' },
+    );
+    assert.equal(collected.status, 0, collected.stderr);
+    assert.deepEqual(JSON.parse(collected.stdout), [file]);
+    assert.deepEqual(Buffer.from(JSON.parse(collected.stdout)[0]), Buffer.from(file));
+    const result = f.run(f.pushed(head, base));
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  });
+}
+
+test('a Git type-change record still runs browsers', (t) => {
+  const f = fixture(t);
+  f.write('theme.css', 'body { color: red }');
+  const base = f.commit();
+  rmSync(join(f.root, 'theme.css'));
+  symlinkSync('other.css', join(f.root, 'theme.css'));
+  const head = f.commit();
+  assert.equal(f.git('diff', '--name-status', base, head), 'T\ttheme.css');
+  const result = f.run(f.pushed(head, base));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('empty or malformed shared policy aborts the real hook process, including an empty diff', (t) => {
+  const f = fixture(t);
+  for (const text of ['', 'lanes:\n', "lanes:\n  - '**'\n", "lanes:\n  - '!README.md'\n"]) {
+    f.write('.github/path-filters.yml', text);
+    const head = f.commit();
+    const result = f.run(f.pushed(head, head));
+    assert.equal(result.status, 1, JSON.stringify(text) + result.stdout + result.stderr);
+    assert.match(result.stderr, /lanes/);
+    assert.equal(f.npmArgs(), null);
+  }
 });
 
 test('selected browser tests fail closed when Chromium is missing', (t) => {
