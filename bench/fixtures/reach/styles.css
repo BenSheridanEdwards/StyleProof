@@ -1,3 +1,4 @@
+/* fallow-ignore-file css-dead-surface -- the fixture applies these classes through h() string arguments and module constants, which the CSS analysis cannot follow */
 :root {
   --ok: #16a34a;
   --warn: #16a34a;
