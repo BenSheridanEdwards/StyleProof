@@ -446,3 +446,29 @@ test('affectedSurfaces roots a computed import() at the last / of its prefix, fo
     'a stylesheet target',
   );
 });
+
+test('an asset placed only by a computed import() fails closed; one with a static importer also gets the context importer', () => {
+  const run = (changed) => {
+    const sources = {
+      'src/pages/Home.tsx': 'const I = await import(`../assets/${name}.svg`);',
+      'src/pages/Settings.tsx': 'export default function Settings(){return null}',
+      'src/assets/bg.svg': '<svg/>',
+      'src/assets/Inter.woff2': '',
+      'src/assets/logo.svg': '<svg/>',
+    };
+    return affectedSurfaces({
+      changedFiles: [changed],
+      surfaces: { home: 'src/pages/Home.tsx', settings: 'src/pages/Settings.tsx' },
+      graph: [{ from: 'src/pages/Settings.tsx', to: 'src/assets/logo.svg' }],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    });
+  };
+  assert.equal(run('src/assets/bg.svg'), 'all', 'an asset no module imports statically');
+  assert.equal(run('src/assets/Inter.woff2'), 'all');
+  assert.deepEqual(
+    sorted(run('src/assets/logo.svg')),
+    ['home', 'settings'],
+    'a statically imported asset also gets the context importer',
+  );
+});

@@ -203,8 +203,11 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
   const placeable = new Set<string>([...canonFiles, ...graph.flatMap((e) => [e.from, e.to])]);
   if ([...entryFiles].some((f) => !placeable.has(f))) return 'all';
 
+  const staticTargets = new Set(graph.map((e) => e.to));
   const affectedFiles = new Set<string>();
   for (const f of changed) {
+    // CSS url()/@font-face edges are absent, so context alone cannot place an asset.
+    if (!isCode(f) && !isStyleSheet(f) && !entryFiles.has(f) && !staticTargets.has(f)) return 'all';
     const reach = reverseReach(f, rev);
     if (reach.size === 0 && !entryFiles.has(f)) return 'all';
     for (const src of [f, ...reach]) affectedFiles.add(src);
