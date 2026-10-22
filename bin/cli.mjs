@@ -13,6 +13,16 @@ export function fail(name, message, code = 2) {
   process.exit(code);
 }
 
+/** End the command with `code` once pending work drains, instead of process.exit(). Calling
+ *  process.exit() right after heavy work can deadlock inside Node: it joins V8's worker threads
+ *  while one of them waits for the main thread to collect garbage (the nodejs/node#54918 class of
+ *  shutdown hang), leaving the process idle at 0% CPU forever. A natural exit tears V8 down first.
+ *  The unref'd fallback fires only if a leaked handle still holds the event loop open by then. */
+export function exitWhenDrained(code, fallbackMs = 10_000) {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), fallbackMs).unref();
+}
+
 export function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }

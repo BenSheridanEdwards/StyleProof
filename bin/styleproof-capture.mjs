@@ -26,7 +26,7 @@ import {
   CONFIDENCE_LEDGER,
 } from '../dist/confidence-ledger.js';
 import * as report from '../dist/crawl/report.js';
-import { errorMessage } from './cli.mjs';
+import { errorMessage, exitWhenDrained } from './cli.mjs';
 
 const COMMAND = 'styleproof-capture';
 
@@ -262,27 +262,27 @@ async function runCrawl() {
   try {
     const page = await browser.newPage();
     const { reports, scopeGaps } = await sweepPages(browser, page);
-    const code = reportCrawl(reports, scopeGaps);
-    if (code !== 0) process.exit(code);
+    return reportCrawl(reports, scopeGaps);
   } finally {
     await browser.close();
   }
 }
 
+// After the capture work, exit by draining rather than process.exit(), which can deadlock.
 try {
   clearCaptureOutput(opts.out);
   if (opts.crawl) {
-    await runCrawl();
-    process.exit(0);
+    exitWhenDrained(await runCrawl());
+  } else {
+    const results = await runCaptureUrl(opts, () => chromium.launch());
+    for (const r of results) console.log(`captured ${r.map}${r.screenshot ? ` (+ ${r.screenshot})` : ''}`);
+    console.log(`✓ ${results.length} capture(s) → ${opts.out}`);
+    exitWhenDrained(0);
   }
-  const results = await runCaptureUrl(opts, () => chromium.launch());
-  for (const r of results) console.log(`captured ${r.map}${r.screenshot ? ` (+ ${r.screenshot})` : ''}`);
-  console.log(`✓ ${results.length} capture(s) → ${opts.out}`);
-  process.exit(0);
 } catch (e) {
   console.error(`${COMMAND}: capture failed: ${errorMessage(e)}`);
   console.error(
     'Next: check the URL is reachable and run `npx playwright install chromium` if the browser is missing.',
   );
-  process.exit(3);
+  exitWhenDrained(3);
 }
