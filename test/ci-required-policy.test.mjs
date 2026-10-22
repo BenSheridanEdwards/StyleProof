@@ -4,13 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { needsBrowserLanes } from '../scripts/ci-path-filters.mjs';
 
 /**
  * The stable `required` check must explain why browser proof was either
  * required and complete, or legitimately unnecessary (#839). It used to accept
  * `success` or `skipped` for every browser lane without reading the path
  * filter's `e2e` decision, so browser work that was unexpectedly skipped looked
- * the same as a docs-only change.
+ * the same as a top-level prose-only change.
  *
  * These tests EXECUTE the real step from ci.yml. Each case builds a GitHub
  * `needs` context, resolves the step's own `env:` expressions against it, and
@@ -72,8 +73,8 @@ function productChange(overrides = {}) {
   };
 }
 
-/** A docs-only change: the filter said false and the browser lanes skipped. */
-function docsOnlyChange(overrides = {}) {
+/** A top-level prose-only change: the filter said false and the browser lanes skipped. */
+function proseOnlyChange(overrides = {}) {
   return productChange({
     changes: { result: 'success', outputs: { e2e: 'false' } },
     e2e: { result: 'skipped' },
@@ -102,11 +103,33 @@ test('product change with complete browser proof passes', () => {
   assert.match(output, /browser paths changed; e2e shards, evidence and detection corpus must succeed/);
 });
 
-test('docs-only change with planned browser skips passes', () => {
-  const { passed, output } = runRequired(docsOnlyChange());
+test('top-level prose-only change with planned browser skips passes', () => {
+  const { passed, output } = runRequired(
+    proseOnlyChange({ changes: { result: 'success', outputs: { e2e: String(needsBrowserLanes(['README.md'])) } } }),
+  );
   assert.ok(passed, output);
   assert.match(output, /no browser paths changed; browser lanes may skip/);
 });
+
+for (const file of [
+  'docs/demo/report.html',
+  'docs/demo/theme.css',
+  'docs/demo/theme.js',
+  'docs/demo/tokens.json',
+  'docs/demo/theme.svg',
+  'docs/proof/new/report.png',
+  'docs/new/theme.future',
+  'docs/setup.md',
+]) {
+  test(`${file}: the shared path policy makes required reject skipped browser proof`, () => {
+    const { passed, output } = runRequired(
+      proseOnlyChange({ changes: { result: 'success', outputs: { e2e: String(needsBrowserLanes([file])) } } }),
+    );
+    assert.equal(passed, false, output);
+    assert.match(output, /browser paths changed; e2e shards, evidence and detection corpus must succeed/);
+    assert.match(output, /E2E_RESULT was 'skipped' \(want success\)/);
+  });
+}
 
 test('product change rejects all browser lanes skipped', () => {
   const skipped = { result: 'skipped' };
@@ -126,8 +149,8 @@ for (const lane of browserLanes) {
     });
   }
   for (const result of ['cancelled', 'failure', '']) {
-    test(`docs-only change still rejects ${lane} = '${result}'`, () => {
-      const { passed, output } = runRequired(docsOnlyChange({ [lane]: { result } }));
+    test(`top-level prose-only change still rejects ${lane} = '${result}'`, () => {
+      const { passed, output } = runRequired(proseOnlyChange({ [lane]: { result } }));
       assert.equal(passed, false, output);
       assert.match(output, new RegExp(`was '${result}' \\(want success or skipped\\)`));
     });
@@ -136,7 +159,7 @@ for (const lane of browserLanes) {
 
 for (const result of ['failure', 'cancelled', 'skipped']) {
   test(`a path filter that ended '${result}' is not trusted, even if it said false`, () => {
-    const { passed, output } = runRequired(docsOnlyChange({ changes: { result, outputs: { e2e: 'false' } } }));
+    const { passed, output } = runRequired(proseOnlyChange({ changes: { result, outputs: { e2e: 'false' } } }));
     assert.equal(passed, false, output);
     assert.match(output, /CHANGES_RESULT was/);
     assert.match(output, /untrusted \(path filter did not succeed\)/);
@@ -153,7 +176,7 @@ for (const [label, changes] of [
   ['malformed e2e output 0', { result: 'success', outputs: { e2e: '0' } }],
 ]) {
   test(`${label}: fails closed with skipped browser lanes`, () => {
-    const { passed, output } = runRequired(docsOnlyChange({ changes }));
+    const { passed, output } = runRequired(proseOnlyChange({ changes }));
     assert.equal(passed, false, output);
     assert.match(output, /want true or false/);
   });
@@ -168,7 +191,7 @@ for (const job of ['build', 'cli-smoke']) {
   for (const result of badResults) {
     for (const [kind, change] of [
       ['product', productChange],
-      ['docs-only', docsOnlyChange],
+      ['top-level prose-only', proseOnlyChange],
     ]) {
       test(`${kind} change still requires ${job} (node matrix / platform smoke) to succeed, rejecting '${result}'`, () => {
         const { passed, output } = runRequired(change({ [job]: { result } }));
