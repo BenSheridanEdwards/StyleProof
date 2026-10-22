@@ -455,8 +455,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reused its stale base map. The prefix is now cut back to its last `/`, so it
   covers `src/widgets/`. Every file kind under that directory is now a possible
   target, so ``import(`../themes/${t}.module.css`)`` selects its importer when a
-  stylesheet there changes. A prefix that ends in `.` or `..` now re-captures
-  every surface, because the import can leave that directory.
+  stylesheet there changes. A code file or stylesheet reached only by the
+  computed import now selects that importer instead of every surface. An asset
+  such as an `.svg` or font that no module imports statically still re-captures
+  every surface, because CSS can load it. A prefix that ends in `.` or `..` now
+  re-captures every surface, because the import can leave that directory.
 - **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
   surface under selective remap (#942).** These single-file components carry
   their own `<style>` blocks, which can be global: an unscoped Vue `<style>`,
