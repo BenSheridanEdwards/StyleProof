@@ -235,6 +235,125 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   same selectors given as separate entries. A pseudo-element entry such as
   `.card::before` no longer makes the capture throw a `SyntaxError`; it matches
   no element.
+- **Re-running `styleproof-init` with a new mode no longer reports a gate the
+  workflow does not run (#939).** On an existing scaffold, `--mode`,
+  `--workflow` or `--storage` with a different value left `styleproof.yml` on
+  its old mode. Init still added `styleproof-approve.yml` or
+  `styleproof-report.yml` beside it and printed the new `Gate mode`, and
+  `--check` then reported every file as current. Now init exits 2 before
+  writing anything and names the command that switches, for example
+  `styleproof-init --upgrade --mode review-gate`. The advisory gate hint and the
+  fork hint name `--upgrade` too.
+- **A drifting age label no longer hides an authored `min-*`/`max-*` size
+  change on its ancestor (#982).** With `liveText` declared, a change to
+  `min-width`, `max-width`, `min-height`, `max-height` or their logical
+  `-block-size`/`-inline-size` forms on a live element or its ancestor was
+  excused as text reflow. `styleproof-diff` then reported 0 reviewable changes,
+  exited 0 and set `certifiesFully: true`, and `styleproof-report` passed too.
+  These properties report their authored value, so a longer or shorter age can
+  never change them. They are now always reviewable, and that run exits 1. An
+  age drift with no stylesheet change still passes.
+- **A `:hover`, `:focus` or `:active` change on a `::before` or `::after` now
+  fails certification (#948).** Forced-state targets are keyed `path::before` or
+  `path::after`, but certify mode looked that whole key up in the element map,
+  which never holds a `::` key. So `styleproof-diff` and the Action skipped every
+  pseudo-element state change and certified the run. Certify mode now pairs the
+  target by its host element, and reports it when the host has the same tag on
+  both sides. A content-shift or own-text move now also carries a `::before` /
+  `::after` target to the host's new path, so an unchanged target does not turn
+  into a one-sided pair. `--migration` findings are unchanged.
+- **A change on a hidden element no longer drops the PR comment verdict.** When
+  no changed element in a change group was exposed in the capture, such as a
+  `display: none` drawer whose colour changed, report.md printed the
+  misleading-crop note and the property table with no `### ` heading and no
+  surface name. The Action ends the PR comment summary at the first `### `
+  line, so the comment kept only the bare title and lost the verdict and the
+  **What changed** block. When such a group sorted before a visible group, its
+  unlabelled body was pasted into the summary instead. The group now opens with the same heading
+  and surface line as a visible group. It still has no crops and keeps
+  `visualEvidence: 'not-rendered'` in `report.json` (#952).
+- **A change below the screenshot canvas gets the "not visible" note, not an
+  unrelated crop (#955).** The report's crop check bounded a changed element's
+  box on the left, top and right of the screenshot, but not below it. An element
+  that starts at or past the bottom of the full-page screenshot, such as a fixed
+  sheet translated just off the page, got a crop of the page's last rows: the
+  same pixels on both sides and no highlight. The check now stops at each side's
+  screenshot height. That element gets the `MISLEADING_CROP_REASON` note and
+  `visualEvidence: 'not-rendered'` in `report.json`, and no crop is written.
+  Elements that intersect the screenshot keep their crops, and the verdict and
+  counts are unchanged.
+- **The review gate no longer goes green with no approver after a clean or
+  advisory run on the same commit (#936).** The Action's gate step counted any
+  successful StyleProof status from `github-actions[bot]` as a sign-off. The
+  Action writes that status itself for a clean verdict ("No reviewable
+  computed-style changes") and for every advisory-mode verdict. A later run on
+  the same head SHA that found changes therefore read it as approved, set the
+  status to "StyleProof changes approved", ticked the box and skipped "Block on
+  unapproved changes". Now only the approve workflow's `Approved by @<login>`, as
+  the whole description, or the Action carrying that approval forward as
+  "StyleProof changes approved", counts. Such a run stays red until a reviewer
+  ticks the box. In advisory mode it stays green but says the changes need
+  sign-off.
+- **A visible element added or removed inside a zero-size wrapper now needs
+  review (#950).** The report folds a one-sided subtree into its added or
+  removed root, and the visible-structure gate checked only that root's box. A
+  `display: contents` wrapper, or a wrapper whose only child is
+  `position: fixed`, has no box of its own, so `styleproof-diff` and
+  `styleproof-report` certified the change with exit 0. Such a root now
+  elevates when a same-direction change folded into it is visible. It still
+  counts once in `reviewableCounts.dom`. A wrapper whose children are hidden or
+  zero-size stays advisory. So does wrapping an existing element whose own text
+  pairs it across the move.
+- **Content-layer crops are capped per surface, and a capped entry says so
+  (#971).** `--max-crops` is documented as a per-surface limit, but the content
+  section spent one budget across every surface. After 8 crops anywhere, later
+  changes on any surface got no crop and no note, including visible additions
+  that gate the check. Each surface now gets its own `--max-crops` crops. An
+  entry past the cap, including a Global chrome entry, now says the crop was
+  omitted because of `--max-crops`. The counts and the verdict are unchanged.
+- **An empty `STYLEPROOF_REPLAY_URL` no longer replays the base's code on head.**
+  An empty value was kept as the data-boundary glob, and Playwright reads an
+  empty HAR `url` as "match every request". The base HAR then recorded the
+  document, CSS and JS, the head capture was served the base's copies, and a
+  real change diffed as zero changes with exit 0. An empty or blank
+  `STYLEPROOF_REPLAY_URL` (such as an unset `${{ vars.* }}` in CI) now counts as
+  unset and falls back to `**/api/**`. An empty or blank `replayUrl` in the spec
+  now throws `styleproof: replayUrl must be a non-empty URL glob` (#956).
+- **A multi-page `--crawl` no longer overwrites a state's map with a linked page's.**
+  Each page's crawl made its keys unique only within that page, and linked-page
+  prefixes were checked only against other prefixes. So a "Plans" panel on
+  `/pricing` (`pricing-plans`) and a `/pricing/plans` page wrote the same file,
+  and the later capture won. The crawl still reported every surface as captured,
+  but a change to the lost state never reached the diff. The whole sweep now
+  shares one key set, so the key claimed second gets a `-2` suffix, in either
+  discovery order. Keys that do not collide stay the same (#944).
+- **`styleproof-map --upload` no longer reports `uploaded` when the map-store
+  commit fails (#960).** The upload never checked `git add` or `git commit` in
+  its temporary map-store clone, and that clone inherits the publisher's global
+  Git config. A commit rejected by `commit.gpgsign` with a failing signer, or by
+  a global `core.hooksPath` commit-msg hook, left the clone on the existing
+  branch tip. The push then succeeded with nothing new, and the CLI printed
+  `uploaded` for a SHA that was never stored. The machine commit now skips
+  commit signing and Git hooks, and a failed add or commit is retried and then
+  ends in `upload failed` (exit 5). Republishing an identical bundle still
+  succeeds.
+- **A cached diff or report with an absolute `--spec` finds the base bundle (#965).**
+  `styleproof-diff <base-ref> --spec /abs/path` and `styleproof-report` with the
+  same flag used to exit 2 with "cached maps are not available". The base
+  compatibility key hashed the head checkout's spec instead of the spec in the
+  base worktree, so it never matched the published bundle. An absolute `--spec`
+  inside the project, including one reached through a symlinked folder, now gives
+  the same keys as the relative path. One outside the project fails with an error
+  that names it.
+- **Pages whose style CSP disallows `'unsafe-inline'` now capture (#977).**
+  `captureStyleMap` added its motion freeze as an inline `<style>`, so a CSP
+  such as `default-src 'self'` blocked it and the whole capture threw.
+  `styleproof-capture` then exited 3 with a hint about reachability and a
+  missing Chromium. The freeze is now an adopted constructed stylesheet and the
+  hover sink is positioned through `element.style`, and a page's CSP governs
+  neither. Under `style-src-attr 'none'` the sink now stays fixed at (0,0), so
+  the pointer no longer really hovers a top-left element into the resting map.
+  Pages with no CSP or with `'unsafe-inline'` capture as before.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
@@ -456,6 +575,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   box lies in the area both screenshots cover, the pair now clamps one origin to
   the smaller screenshot; a change past the shorter page's end keeps per-side
   cropping so it stays visible.
+- **Crop pairs for full-width and right-edge elements show the same page rows on
+  both sides (#954).** The check for whether both screenshots cover a crop box
+  measured the box with its crop padding (`--pad`, 12px by default). A
+  full-width header, section or footer, an element at the right edge, or one
+  flush with the shorter page's bottom has padding past the screenshot edge, so
+  it fell back to per-side cropping. When the page height changed, the two
+  panels then started at different page rows, and the content layer wrote a
+  changed pair over identical pixels. The check now measures the element inside
+  the padding. A change that really lies past the shorter page's end still
+  crops each side on its own.
 - **report.html no longer turns a CSS value into a live link.** A value
   carrying `|` is written as `\|` so the report.md table row survives on
   GitHub, but report.html split the row on every pipe. Text after the pipe left

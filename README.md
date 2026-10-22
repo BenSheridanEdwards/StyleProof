@@ -364,7 +364,10 @@ Opt-in flags reproduce the heavier architectures:
 
 Existing scaffolds keep their architecture: a marker in the generated workflow
 records the chosen mode, and `styleproof-init --check` / `--upgrade` verify
-that mode's file set instead of rewriting it.
+that mode's file set instead of rewriting it. To switch an existing scaffold,
+pass the new flag to `--upgrade`, for example
+`styleproof-init --upgrade --mode review-gate`. A plain re-run with a different
+flag stops before writing anything.
 
 In cache-first CI, ancestor baseline reuse requires no capture-relevant changes.
 Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,

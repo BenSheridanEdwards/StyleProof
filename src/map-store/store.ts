@@ -110,6 +110,23 @@ function pushMapStoreCommit(target: StoreTarget, checkout: string, authenticatio
   return pushViaConsumerCheckout(target, checkout, failures);
 }
 
+/** Stage and commit the bundle. A byte-identical republish stages nothing and pushes the
+ *  stored tip as is. The machine commit skips the publisher's signing and hooks; a rejected
+ *  commit would leave HEAD on the branch tip, and the push would then succeed empty. */
+function commitMapStoreBundle(checkout: string, bundlePath: string, message: string): void {
+  const add = git(checkout, ['add', '-A', '--sparse', '--', 'README.md', bundlePath]);
+  if (add.status !== 0) throw new MapStoreError(describeFailure('map-store add', add));
+  const diff = git(checkout, ['diff', '--cached', '--quiet', '--no-ext-diff', '--no-textconv']);
+  if (diff.status === 0) return;
+  if (diff.status !== 1) throw new MapStoreError(describeFailure('map-store diff', diff));
+  const commit = git(
+    checkout,
+    ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message],
+    1 << 20,
+  );
+  if (commit.status !== 0) throw new MapStoreError(describeFailure('map-store commit', commit));
+}
+
 type PublishAttempt = {
   target: StoreTarget;
   sha: string;
@@ -134,8 +151,7 @@ function publishMapStoreAttempt(options: PublishAttempt): { ok: boolean; phase: 
     if (!options.includeHar) {
       fs.writeFileSync(path.join(bundle, MAP_MANIFEST), JSON.stringify({ ...options.manifest, har: false }, null, 2));
     }
-    git(checkout, ['add', '-A', '--sparse', '--', 'README.md', bundlePath]);
-    git(checkout, ['commit', '-q', '-m', mapPublishCommitMessage(options.sha, options.compatibilityKey)], 1 << 20);
+    commitMapStoreBundle(checkout, bundlePath, mapPublishCommitMessage(options.sha, options.compatibilityKey));
     const push = pushMapStoreCommit(options.target, checkout, options.authenticationArguments);
     return { ok: push.status === 0, phase: 'publish', error: push.stderr.trim() || `git exited ${push.status}` };
   } catch (error) {
@@ -290,6 +306,25 @@ export function listMapStoreBundleShas(options: StoreOptions = {}): Set<string> 
   }
 }
 
+/** An absolute spec re-anchored to `cwd`, so the base key resolves it inside the base worktree
+ *  instead of hashing the head checkout's file (#965). Resolve checkout aliases only: directory
+ *  symlinks below the project must retain their logical paths in both keys. */
+function projectRelativeSpec(command: string, cwd: string, spec: string): string {
+  if (!path.isAbsolute(spec)) return spec;
+  const projectRoot = fs.realpathSync(cwd);
+  let relative: string | undefined;
+  let directory = path.dirname(spec);
+  while (true) {
+    // Keep the outermost checkout match so an in-project link back to the root stays logical too.
+    if (fs.realpathSync(directory) === projectRoot) relative = path.relative(directory, spec);
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  if (relative) return relative;
+  throw new MapStoreError(`${command}: --spec ${spec} is outside the project at ${cwd}`);
+}
+
 /** Restore the base and head bundles for a cached compare into a fresh temp root. The base
  *  key is computed from a detached base worktree so its spec/lockfile match what was published. */
 export function resolveCachedCaptureDirs(
@@ -306,11 +341,12 @@ export function resolveCachedCaptureDirs(
   if (!fs.existsSync(path.resolve(cwd, options.spec))) {
     throw new MapStoreError(`${options.command}: no StyleProof spec at ${options.spec}`);
   }
+  const spec = projectRelativeSpec(options.command, cwd, options.spec);
   const baseRef = options.args[0] ?? inferBaseRef();
   const baseSha = gitStdout(cwd, ['rev-parse', `${baseRef}^{commit}`]);
   if (!baseSha) throw new MapStoreError(`could not resolve ${baseRef} to a commit`);
   const headSha = currentGitSha(cwd);
-  const compatibilityKey = expectedCompatibilityKey({ cwd, spec: options.spec, baseUrl: options.baseUrl });
+  const compatibilityKey = expectedCompatibilityKey({ cwd, spec, baseUrl: options.baseUrl });
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const dirs = { beforeDir: path.join(tmpRoot, 'base'), afterDir: path.join(tmpRoot, 'head') };
   const restore = (sha: string, outDir: string, key: string) =>
@@ -330,11 +366,7 @@ export function resolveCachedCaptureDirs(
     worktrees = new CiWorktreeSession(repoRoot);
     const baseWorktree = worktrees.addDetached(baseSha, 'cache-base');
     const baseCwd = worktreeRunCwd(baseWorktree, consumerRel);
-    restore(
-      baseSha,
-      dirs.beforeDir,
-      expectedCompatibilityKey({ cwd: baseCwd, spec: options.spec, baseUrl: options.baseUrl }),
-    );
+    restore(baseSha, dirs.beforeDir, expectedCompatibilityKey({ cwd: baseCwd, spec, baseUrl: options.baseUrl }));
     restore(headSha, dirs.afterDir, compatibilityKey);
     return { ...dirs, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };
   } catch (error) {

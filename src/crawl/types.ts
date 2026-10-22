@@ -66,12 +66,15 @@ export type SurfaceCrawlOptions = {
   resetStorage: boolean;
   /** Called as each surface is recorded (captured=false when its full capture failed). */
   onSurface?: (surface: CrawledSurface, captured: boolean) => void;
-  /** Concurrent sweep workers (default 4). Same surface SET as a serial crawl; use 1 for byte-stable dup-key suffixes. */
+  /** Concurrent reset workers (default 4); surface sweeps and key allocation follow queue order. */
   workers?: number;
   /** Factory for worker pages — each in its OWN browser context so storage resets cannot interfere. */
   newPage?: () => Promise<Page>;
   /** Namespace for derived surface keys (multi-page sweeps): root = prefix, sub-states = `<prefix>-<label>`. */
   keyPrefix?: string;
+  /** Keys already taken in a multi-page sweep's shared --out, including every queued page's prefix.
+   *  Sub-state keys skip them and are added; the root key is the caller's reserved prefix (or `base`). */
+  usedKeys?: Set<string>;
   /** Auth boundaries deliberately outside scope (`key → non-empty reason`). Exclusions never claim full certification. */
   authBoundaryExclude?: Record<string, string>;
 };
