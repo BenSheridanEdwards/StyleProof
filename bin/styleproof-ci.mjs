@@ -25,6 +25,7 @@ import {
   CiWorktreeError,
   CiWorktreeSession,
   assertResolvableCommit,
+  ciWorktreeScratchParent,
   consumerRelativeFromRepoRoot,
   ensureConsumerAtHead,
   gitRepoRoot,
@@ -40,6 +41,7 @@ import {
 import { planAncestorBaselineReuse, repoRelativePath } from '../dist/ancestor-baseline.js';
 import { classifyAncestorCaptureColdReason, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
 import { captureKeysIn } from '../dist/capture.js';
+import { isWithinDirectory } from '../dist/safe-filesystem.js';
 import {
   decideSelectiveRemap,
   formatSelectiveRemapPlan,
@@ -147,6 +149,16 @@ if (!process.env.CI && !opts.force) {
 const OWN_VERSION = JSON.parse(fs.readFileSync(path.join(binDir, '..', 'package.json'), 'utf8')).version;
 const root = path.resolve(baseDir);
 const consumerCwd = process.cwd();
+// Refuse a map root that holds the checkout or the temp folder this run's worktrees go
+// in (#943). Real paths, so a symlinked spelling of either cannot slip past.
+const realPath = (p) => (fs.existsSync(p) ? fs.realpathSync(p) : p);
+for (const [held, what] of [
+  [consumerCwd, 'the checkout'],
+  [ciWorktreeScratchParent(), "the temp folder that holds this run's worktrees"],
+]) {
+  if (isWithinDirectory(realPath(root), realPath(held)))
+    fail(NAME, `--base-dir ${root} is or contains ${what} (${held}); use a folder that holds only StyleProof maps`);
+}
 const env = childEnv(consumerCwd);
 const log = (message) => console.error(`${NAME}: ${message}`);
 const bail = (code) => {
@@ -158,6 +170,28 @@ let consumerRel;
 let worktrees;
 try {
   repoRoot = gitRepoRoot(consumerCwd);
+  // Git metadata may live outside the checkout (linked worktrees/separate git dirs).
+  // Resolve missing descendants through their existing parent so aliases cannot bypass the guard.
+  let mapRootAncestor = root;
+  while (!fs.existsSync(mapRootAncestor)) mapRootAncestor = path.dirname(mapRootAncestor);
+  const resolvedMapRoot = path.resolve(fs.realpathSync(mapRootAncestor), path.relative(mapRootAncestor, root));
+  for (const flag of ['--git-dir', '--git-common-dir']) {
+    const result = spawnSync('git', ['rev-parse', '--path-format=absolute', flag], {
+      cwd: consumerCwd,
+      encoding: 'utf8',
+    });
+    if (result.status !== 0 || !result.stdout?.trim())
+      throw new CiWorktreeError(
+        `could not resolve ${flag}: ${result.stderr?.trim() || 'git returned no directory'}`,
+        2,
+      );
+    const gitDir = fs.realpathSync(result.stdout.trim());
+    if (isWithinDirectory(gitDir, resolvedMapRoot))
+      fail(
+        NAME,
+        `--base-dir ${root} is within a Git directory (${gitDir}); use a folder that holds only StyleProof maps`,
+      );
+  }
   consumerRel = consumerRelativeFromRepoRoot(repoRoot, consumerCwd);
   assertResolvableCommit(base, repoRoot);
   assertResolvableCommit(head, repoRoot);
@@ -531,9 +565,15 @@ function planHeadSelectiveRemap(baseMapsDir, consumerRoot, loaded) {
   });
 }
 
+/** Clear what an earlier run wrote under the map root, never the root itself: it may hold other files. */
+function clearOwnedMapRoot() {
+  for (const owned of ['base', 'head', 'styleproof-ci-outputs.json'])
+    fs.rmSync(path.join(root, owned), { recursive: true, force: true });
+}
+
 /** Rebuild the base cold inside its own worktree; returns true when the capture failed. */
 async function captureColdBase() {
-  fs.rmSync(root, { recursive: true, force: true });
+  clearOwnedMapRoot();
   const coldBaseCwd = worktreeRunCwd(worktrees.addDetached(base, 'cold-base'), consumerRel);
   const pm = detectPackageManagerPlan(coldBaseCwd);
   log(`base miss — rebuilding the pair cold (${pm.name})`);
@@ -623,7 +663,7 @@ function writeOutputs(baseCaptureFailed = false) {
 }
 
 try {
-  fs.rmSync(root, { recursive: true, force: true });
+  clearOwnedMapRoot();
   if (noStore) {
     log('no map store (--no-store) — capturing base and head in this job');
     // Soft-pass HOLD: structured cold reason for consumer Visual (#734).

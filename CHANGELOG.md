@@ -432,6 +432,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   A load or detection failure is now ledgered as `<key>@auto`. Under the flag the
   test passes with no widths swept and the survivors publish; without it the run
   still exits non-zero (Soft-pass HOLD), as a fixed-width surface's would (#975).
+- **`styleproof-ci` no longer deletes the folder passed as `--base-dir`.** Each
+  run recursively removed the whole map root, so `--base-dir .` deleted the
+  checkout and its `.git`. `--base-dir "$RUNNER_TEMP"` deleted every other
+  step's files there. A run now clears only `base/`, `head/` and
+  `styleproof-ci-outputs.json` under the root, so other files survive. A root
+  that is or contains the checkout or the temp folder that holds the run's
+  worktrees now exits 2 before any git or filesystem work. Real paths are
+  compared, so a symlinked spelling is refused too (#943).
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

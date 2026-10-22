@@ -1847,6 +1847,202 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
   },
 );
 
+/** A two-commit consumer with npm and Playwright shims; returns its path and the --no-store args. */
+function noStoreConsumer(root) {
+  const repo = path.join(root, 'consumer');
+  const git = (args) => {
+    const result = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  fs.mkdirSync(repo);
+  git(['init', '-q', '-b', 'main']);
+  git(['config', 'user.email', 'styleproof@example.test']);
+  git(['config', 'user.name', 'StyleProof Test']);
+  fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+  fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// base\n');
+  git(['add', '-A']);
+  git(['commit', '-qm', 'base']);
+  const base = git(['rev-parse', 'HEAD']);
+  fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// head\n');
+  git(['commit', '-qam', 'head']);
+  const head = git(['rev-parse', 'HEAD']);
+  const bin = path.join(repo, 'node_modules', '.bin');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(bin, 'npm'), npmShim());
+  fs.writeFileSync(
+    path.join(bin, 'playwright'),
+    `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+`,
+  );
+  fs.chmodSync(path.join(bin, 'npm'), 0o755);
+  fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+  return { repo, args: ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--no-store', '--force'] };
+}
+
+test(
+  'styleproof-ci: a --base-dir that holds the checkout or the worktree scratch folder exits 2 and deletes nothing (#943)',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-shared-map-root-');
+    try {
+      const { repo, args } = noStoreConsumer(root);
+      fs.writeFileSync(path.join(repo, 'NOTES.txt'), 'uncommitted work\n');
+      const runnerTemp = path.join(root, 'runner-temp');
+      fs.mkdirSync(runnerTemp);
+      fs.writeFileSync(path.join(runnerTemp, 'other-step.json'), '{}\n');
+      fs.symlinkSync(root, path.join(root, 'alias'));
+      for (const [baseDir, extraEnv, held] of [
+        ['.', {}, /contains the checkout/],
+        ['..', {}, /contains the checkout/],
+        [path.join(root, 'alias', 'consumer'), {}, /contains the checkout/],
+        [runnerTemp, { RUNNER_TEMP: runnerTemp }, /contains the temp folder that holds this run's worktrees/],
+      ]) {
+        const result = runCi(
+          [...args, '--base-dir', baseDir],
+          { CI: '1', STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1', ...extraEnv },
+          repo,
+        );
+        assert.ok(
+          fs.existsSync(path.join(repo, '.git')),
+          `--base-dir ${baseDir} must keep the repository and its .git`,
+        );
+        assert.ok(fs.existsSync(path.join(repo, 'NOTES.txt')), `--base-dir ${baseDir} must keep the uncommitted file`);
+        assert.equal(result.status, 2, result.stderr + result.stdout);
+        assert.match(result.stderr, held);
+      }
+      assert.deepEqual(
+        fs.readdirSync(runnerTemp),
+        ['other-step.json'],
+        'no scratch folder was created before refusing',
+      );
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
+for (const linkedWorktree of [false, true]) {
+  test(`styleproof-ci: map roots inside Git metadata are rejected before mutation (linked worktree: ${linkedWorktree})`, () => {
+    const root = mkTmp('styleproof-ci-git-map-root-');
+    try {
+      const { repo, args } = noStoreConsumer(root);
+      const git = (cwd, ...gitArgs) => {
+        const result = spawnSync('git', gitArgs, { cwd, encoding: 'utf8' });
+        assert.equal(result.status, 0, result.stderr);
+        return result.stdout.trim();
+      };
+      const cwd = linkedWorktree ? path.join(root, 'linked-worktree') : repo;
+      if (linkedWorktree) git(repo, 'worktree', 'add', '--detach', cwd, 'HEAD');
+      const headBefore = git(cwd, 'rev-parse', 'HEAD');
+      // A different requested head proves rejection happens before force-checkout too.
+      const ciArgs = [...args];
+      ciArgs[ciArgs.indexOf('--head') + 1] = git(cwd, 'rev-parse', 'HEAD~1');
+      const runnerTemp = path.join(root, 'runner-temp');
+      fs.mkdirSync(runnerTemp);
+      const gitDirs = new Set(
+        ['--git-dir', '--git-common-dir'].map((flag) => git(cwd, 'rev-parse', '--path-format=absolute', flag)),
+      );
+      for (const [index, gitDir] of [...gitDirs].entries()) {
+        const headFile = path.join(gitDir, 'HEAD');
+        const headBytes = fs.readFileSync(headFile);
+        const nested = path.join(gitDir, 'maps');
+        fs.mkdirSync(path.join(nested, 'head'), { recursive: true });
+        const sentinel = path.join(nested, 'head', 'keep.txt');
+        fs.writeFileSync(sentinel, 'Git metadata\n');
+        const alias = path.join(root, `git-alias-${index}`);
+        fs.symlinkSync(gitDir, alias, 'dir');
+        for (const mapRoot of [alias, gitDir, nested, path.join(alias, 'maps'), path.join(alias, 'missing')]) {
+          const result = runCi([...ciArgs, '--base-dir', mapRoot], { CI: '1', RUNNER_TEMP: runnerTemp }, cwd);
+          assert.deepEqual(
+            fs.readFileSync(headFile),
+            headBytes,
+            'HEAD bytes survive, including on case-insensitive filesystems',
+          );
+          assert.equal(git(cwd, 'rev-parse', 'HEAD'), headBefore, 'the checkout did not move');
+          assert.equal(fs.readFileSync(sentinel, 'utf8'), 'Git metadata\n');
+          assert.equal(fs.lstatSync(alias).isSymbolicLink(), true, 'the map-root symlink survives');
+          assert.equal(result.status, 2, result.stderr + result.stdout);
+          assert.match(result.stderr, /--base-dir .* is within a Git directory/);
+          assert.deepEqual(fs.readdirSync(runnerTemp), [], 'no worktree scratch directory was created');
+        }
+      }
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+test('styleproof-ci: unresolved Git directories fail closed before mutation', () => {
+  const root = mkTmp('styleproof-ci-unknown-git-dir-');
+  try {
+    const { repo, args } = noStoreConsumer(root);
+    const mapRoot = path.join(root, 'maps');
+    fs.mkdirSync(path.join(mapRoot, 'head'), { recursive: true });
+    const sentinel = path.join(mapRoot, 'head', 'keep.txt');
+    fs.writeFileSync(sentinel, 'keep\n');
+    const runnerTemp = path.join(root, 'runner-temp');
+    fs.mkdirSync(runnerTemp);
+    const headFile = path.join(repo, '.git', 'HEAD');
+    const headBytes = fs.readFileSync(headFile);
+    const ciArgs = [...args];
+    ciArgs[ciArgs.indexOf('--head') + 1] = ciArgs[ciArgs.indexOf('--base') + 1];
+    for (const flag of ['--git-dir', '--git-common-dir']) {
+      for (const exitCode of [0, 42]) {
+        const result = runCi(
+          [...ciArgs, '--base-dir', mapRoot],
+          ciEnvWithGitWrapper(root, `case " $* " in *" ${flag} "*) exit ${exitCode} ;; esac`, {
+            CI: '1',
+            RUNNER_TEMP: runnerTemp,
+          }),
+          repo,
+        );
+        assert.equal(result.status, 2, result.stderr + result.stdout);
+        assert.ok(result.stderr.includes(`could not resolve ${flag}`), result.stderr);
+        assert.deepEqual(fs.readFileSync(headFile), headBytes, 'the checkout did not move');
+        assert.equal(fs.readFileSync(sentinel, 'utf8'), 'keep\n', 'no map cleanup ran');
+        assert.deepEqual(fs.readdirSync(runnerTemp), [], 'no worktree scratch directory was created');
+      }
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test(
+  'styleproof-ci: a map root keeps files styleproof-ci did not write and still clears stale base/ and head/ (#943)',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-owned-map-root-');
+    try {
+      const { repo, args } = noStoreConsumer(root);
+      const mapRoot = path.join(root, 'maps');
+      // Named outside the capture-artifact pattern, so only styleproof-ci's own clear can remove them.
+      for (const side of ['base', 'head']) {
+        fs.mkdirSync(path.join(mapRoot, side), { recursive: true });
+        fs.writeFileSync(path.join(mapRoot, side, 'leftover.txt'), 'stale\n');
+      }
+      fs.writeFileSync(path.join(mapRoot, 'keep.txt'), 'not ours\n');
+      const result = runCi(
+        [...args, '--base-dir', mapRoot],
+        { CI: '1', STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1', GITHUB_OUTPUT: path.join(root, 'github-output') },
+        repo,
+      );
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.ok(fs.existsSync(path.join(mapRoot, 'keep.txt')), 'a file styleproof-ci did not write survives');
+      assert.ok(!fs.existsSync(path.join(mapRoot, 'base', 'leftover.txt')), 'stale base/ dir cleared');
+      assert.ok(!fs.existsSync(path.join(mapRoot, 'head', 'leftover.txt')), 'stale head/ dir cleared');
+      assert.ok(fs.existsSync(path.join(mapRoot, 'base', 'home@900.json')));
+      assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')));
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
 test('styleproof-ci: mid-run worktree add failure exits 2 and removes ephemeral worktrees', () => {
   const root = mkTmp('styleproof-ci-wt-add-fail-');
   const remote = path.join(root, 'remote.git');
