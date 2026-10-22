@@ -364,7 +364,10 @@ Opt-in flags reproduce the heavier architectures:
 
 Existing scaffolds keep their architecture: a marker in the generated workflow
 records the chosen mode, and `styleproof-init --check` / `--upgrade` verify
-that mode's file set instead of rewriting it.
+that mode's file set instead of rewriting it. To switch an existing scaffold,
+pass the new flag to `--upgrade`, for example
+`styleproof-init --upgrade --mode review-gate`. A plain re-run with a different
+flag stops before writing anything.
 
 In cache-first CI, ancestor baseline reuse requires no capture-relevant changes.
 Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
@@ -548,13 +551,13 @@ The `browser-evidence-node-22` artifact retains the inventory, shard results, an
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
 
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
-for the dev loop, and [AGENTS.md](https://github.com/BenSheridanEdwards/StyleProof/blob/main/AGENTS.md)
-(the same file as `CLAUDE.md`) for the operating rules and agent tooling. The repo
+for the dev loop, and [`.agents/README.md`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/.agents/README.md)
+(where `AGENTS.md` and `CLAUDE.md` point) for the operating rules and agent tooling. The repo
 is wired for Claude Code with **Ponytail** (default lazy-coding mode), **GitNexus**
 (code-intelligence graph — MCP server in [`.mcp.json`](.mcp.json), skills in
 `.claude/skills/gitnexus/`), and **Graphify** (`/graphify` knowledge graph). The
 GitNexus index (`.gitnexus/`) and Graphify output (`graphify-out/`) are gitignored;
-build the index with `npx gitnexus analyze`.
+build the index with `npx gitnexus analyze --skip-agents-md`.
 
 ## License
 

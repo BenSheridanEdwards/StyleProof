@@ -53,10 +53,17 @@ class AuthBoundaryObserveError extends Error {
 }
 
 /** A prefixed crawl (one page of a multi-page sweep) keys its root as the prefix itself and
- *  namespaces sub-states under it, so two pages never overwrite each other in a shared --out. */
+ *  namespaces sub-states under it. The sweep shares `used` across pages, so a sub-state never
+ *  takes a key another page's surface (or queued prefix) already holds in the shared --out. */
 function deriveKey(steps: CrawlStep[], { opts, st }: Ctx): string {
-  const bare = steps.length === 0 ? 'base' : slug(steps[steps.length - 1].label);
   const prefix = opts.keyPrefix ?? '';
+  // The root is a page's first key; a sweep reserved it when queuing the page, so it is never suffixed.
+  if (steps.length === 0) {
+    const root = prefix || 'base';
+    st.used.add(root);
+    return root;
+  }
+  const bare = slug(steps[steps.length - 1].label);
   return uniqueKeyFor(prefix === '' ? bare : bare === 'base' ? prefix : `${prefix}-${bare}`, st.used);
 }
 
@@ -282,10 +289,9 @@ async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'):
   }
 }
 
-/** Sweep the queue with N workers, each on its own page. FIFO → breadth-first: shallow surfaces
- *  (nav tabs, opened panels) are exhausted before drilling; dedup is set-based, so order never
- *  changes WHAT is found. Coverage early-stop (opt-in) fires the moment every defined class has
- *  been SEEN — no plateau stop, since a productive deep state can add vocabulary late. */
+/** Reset N worker pages concurrently, then sweep in queue order so shared dedup, key allocation,
+ *  and child enqueueing never depend on browser timing. Coverage early-stop (opt-in) fires when
+ *  every defined class has been SEEN — no plateau stop, since deep states can add vocabulary late. */
 async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: string[]): Promise<void> {
   const { opts, st } = ctx;
   const pages: Page[] = [primary];
@@ -306,16 +312,25 @@ async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: strin
   };
   let active = 0;
   let fatalError: unknown;
+  let turn = Promise.resolve();
   const sweepEntry = async (page: Page, entry: QueueEntry): Promise<void> => {
     const sink: QueueEntry[] = [];
+    const previous = turn;
+    let finish!: () => void;
+    turn = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
     active++;
     try {
-      if (await resetToState(page, opts, entry)) {
+      const reset = await resetToState(page, opts, entry);
+      await previous;
+      if (!fatalError && st.surfaces.length < opts.maxStates && !converged() && reset) {
         const r = await sweepCandidatesHere(page, ctx, entry, sink);
         counters.tried += r.tried;
         counters.skipped += r.skipped;
       }
     } catch (err) {
+      await previous;
       // Observation failures are never fail-soft; anything else — the state's surface was already captured.
       if (err instanceof AuthBoundaryObserveError) {
         fatalError = err;
@@ -324,6 +339,7 @@ async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: strin
     } finally {
       st.queue.push(...sink);
       active--;
+      finish();
     }
   };
   // An idle worker waits while a sibling's sweep may still buffer children into the queue.
@@ -361,7 +377,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   fs.mkdirSync(opts.out, { recursive: true });
   const st: CrawlState = {
     seen: new Set(),
-    used: new Set(),
+    used: opts.usedKeys ?? new Set(),
     tried: new Set(),
     changersFrom: new Map(),
     classes: new Set(),

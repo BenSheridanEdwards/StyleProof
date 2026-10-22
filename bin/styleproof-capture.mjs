@@ -73,8 +73,8 @@ whole surface: --crawl
   --no-data-states  skip the automatic loading/error captures of the entry page
                     (on by default: data requests stalled → loading skeleton;
                     fulfilled with 500 → error render)
-  --workers <n>     concurrent sweep workers (default 4); same surface set as a
-                    serial crawl — pass 1 for byte-stable key attribution
+  --workers <n>     concurrent page resets (default 4); surfaces and keys are
+                    allocated in deterministic queue order
   --no-follow-links crawl the entry page's interactive surface only. By default
                     every same-origin page the nav links to is crawled too,
                     each keyed by its route (about, pricing, blog-post, ...)
@@ -152,34 +152,35 @@ async function harvestPageLinks(page, url) {
 // Empty widths = auto-detect the page's real breakpoints. Each worker page gets its OWN context so
 // storage resets can't interfere; surfaces stream as they are captured, so an interrupted run still
 // shows what it mapped.
-const pageCrawlOptions = (browser, url, prefix, statesLeft) => ({
+const pageCrawlOptions = (browser, url, prefix, statesLeft, usedKeys) => ({
   ...opts,
   url,
   maxStates: statesLeft,
   stopWhenCovered: opts.untilCovered,
   keyPrefix: prefix,
+  usedKeys,
   newPage: async () => (await browser.newContext()).newPage(),
   onSurface: (s, ok) =>
     console.log(`  ${'·'.repeat(s.depth)}${s.key} (${s.elements} elements)${ok ? '' : ' — CAPTURE FAILED'}`),
 });
 
 // Enqueue every not-yet-seen page the just-crawled page links to, giving each a
-// unique route-key prefix ('base' is reserved for the entry crawl's root).
+// route-key prefix no surface key already holds ('base' is the entry crawl's root).
 function enqueueLinkedPages(links, sweep) {
   for (const link of links) {
     const id = dedupIdentity(link.url);
     if (sweep.seenPages.has(id)) continue;
     sweep.seenPages.add(id);
-    const prefix = uniqueKeyFor(link.key, sweep.usedPrefixes);
+    const prefix = uniqueKeyFor(link.key, sweep.usedKeys);
     sweep.queue.push({ url: new URL(link.url, sweep.entry).href, prefix });
   }
 }
 
 // The entry page failing is a broken run (rethrow); a LINKED page failing (e.g. an
 // off-origin redirect) returns null after warning, and the sweep continues.
-async function crawlPage(browser, page, url, prefix, statesLeft) {
+async function crawlPage(browser, page, url, prefix, statesLeft, usedKeys) {
   try {
-    return await crawlAndCapture(page, pageCrawlOptions(browser, url, prefix, statesLeft));
+    return await crawlAndCapture(page, pageCrawlOptions(browser, url, prefix, statesLeft, usedKeys));
   } catch (e) {
     if (prefix === '') throw e;
     console.log(`⚠ ${url}: ${errorMessage(e)} — page skipped`);
@@ -188,14 +189,15 @@ async function crawlPage(browser, page, url, prefix, statesLeft) {
 }
 
 // Page-level breadth-first sweep: the entry page's whole interactive surface, then every
-// same-origin page its nav links to (and theirs), each namespaced by its route key.
+// same-origin page its nav links to (and theirs), each namespaced by its route key. All
+// pages write one --out, so surface keys and queued prefixes share one namespace (#944).
 async function sweepPages(browser, page) {
   const entry = new URL(opts.url);
   const sweep = {
     entry,
     queue: [{ url: opts.url, prefix: '' }],
     seenPages: new Set([dedupIdentity(entry.pathname + entry.search)]),
-    usedPrefixes: new Set(['base']),
+    usedKeys: new Set(['base']),
   };
   const reports = [];
   const scopeGaps = [];
@@ -203,7 +205,7 @@ async function sweepPages(browser, page) {
   let statesLeft = opts.maxStates;
   while (sweep.queue.length > 0 && statesLeft > 0) {
     const { url, prefix } = sweep.queue.shift();
-    const crawled = await crawlPage(browser, page, url, prefix, statesLeft);
+    const crawled = await crawlPage(browser, page, url, prefix, statesLeft, sweep.usedKeys);
     if (!crawled) {
       scopeGaps.push(gap(prefix, 'linked page was discovered but could not be crawled'));
       continue;

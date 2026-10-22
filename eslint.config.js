@@ -20,6 +20,10 @@ export default tseslint.config(
       'coverage/**',
     ],
   },
+  // An inline disable that no longer suppresses anything fails lint, so stale
+  // exceptions cannot pile up. scripts/check-suppressions.mjs requires each
+  // remaining one to name its rules and give a reason.
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   js.configs.recommended,
   // TypeScript sources: the library and any .ts specs. Browser + node globals
   // because src/capture.ts ships functions that run in the page via

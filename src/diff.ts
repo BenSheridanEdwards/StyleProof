@@ -368,9 +368,11 @@ function stateTargetFindings(
   let autoMarginEchoDropped = false;
   for (const sub of unionKeys(da, db)) {
     // A target inside a live region never diffs, like its element layer. Targets are keyed
-    // `path` or `path::before` / `path::after`, so the pseudo suffix is dropped for the check.
-    if (!ctx.live(sub.replace(/::[\w-]+$/, ''))) continue;
-    if (!ctx.includeStructure && !pairedSameTag(ctx, sub)) continue;
+    // `path` or `path::before` / `path::after`; both checks run on the host element path,
+    // since `elements` never holds a `::` key (#948).
+    const host = sub.replace(/::[\w-]+$/, '');
+    if (!ctx.live(host)) continue;
+    if (!ctx.includeStructure && !pairedSameTag(ctx, host)) continue;
     // No rect-based margin drop here (#877); only a Typed OM `auto` proof drops an echo (#917).
     const rawProps = diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, STATE_ADDS, STATE_DROPS);
     const withoutAutoMargins = dropAutoEchoMarginPairs(ctx, owner, sub, rawProps);

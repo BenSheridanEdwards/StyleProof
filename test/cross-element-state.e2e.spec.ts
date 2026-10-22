@@ -130,7 +130,7 @@ test('bounds document-wide forced-state work on a moderate multi-control page', 
     Object.values(states.hover ?? {}).some((delta) => delta.color === 'rgb(0, 128, 0)'),
   ).length;
 
-  // eslint-disable-next-line no-console
+  // eslint-disable-next-line no-console -- the benchmark prints its timing for the CI log
   console.log(
     `cross-element-state benchmark: controls=24 elements=290 elapsedMs=${elapsedMs.toFixed(1)} captured=${crossElementHoverTargets}`,
   );

@@ -512,6 +512,8 @@ test('a group without an exposed changed element keeps audit details but omits m
   const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   assert.match(markdown, /before\/after crop would be misleading/);
+  assert.match(markdown, /^### /m, 'the group keeps its heading (#952)');
+  assert.match(markdown, /^_page @ 1024_$/m, 'the group names its surface (#952)');
   assert.doesNotMatch(markdown, /!\[before/);
   assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
   assert.equal(
@@ -519,6 +521,41 @@ test('a group without an exposed changed element keeps audit details but omits m
     0,
     'no duplicate crop files are emitted',
   );
+  rmTmp(root);
+});
+
+test('a change only on a display: none element keeps the PR comment verdict and digest (#952)', () => {
+  const drawerPath = 'body > nav:nth-child(1)';
+  const map = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 390, 800], style: { display: 'block' } },
+        [drawerPath]: { tag: 'nav', cls: 'drawer', rect: [0, 0, 0, 0], style: { display: 'none', color } },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'settings@390',
+    before: map('rgb(0, 0, 0)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(390, 800),
+    afterPng: solidPng(390, 800),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  // The PR comment summary, sliced exactly as action.yml does.
+  const lines = markdown.split('\n');
+  const headEnd = lines.findIndex((l) => l.startsWith('### '));
+  const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
+  assert.match(summary, /\*\*1 change needs review\*\*/);
+  assert.match(summary, /\*\*What changed\*\*/);
+  assert.match(lines[headEnd], /`nav\.drawer`/, 'the heading names the changed element');
+  assert.match(markdown, /^_settings @ 390_$/m, 'the group names its surface');
+  assert.match(markdown, /before\/after crop would be misleading/);
+  assert.doesNotMatch(markdown, /!\[before/);
+  assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
+  assert.ok(report.surfaces[0].reason, 'report.json keeps the not-rendered reason');
   rmTmp(root);
 });
 

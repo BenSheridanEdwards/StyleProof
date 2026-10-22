@@ -37,15 +37,24 @@ function remapKeys<V>(record: Record<string, V>, remap: PathRemap, value: (v: V)
   return out;
 }
 
+/** Rewrite a forced-state target key (`path` or `path::before` / `path::after`) by its host path, keeping the suffix. */
+function remapTargetKey(target: string, remap: PathRemap): string | null {
+  const pseudoAt = target.indexOf('::');
+  if (pseudoAt === -1) return remap(target);
+  const host = remap(target.slice(0, pseudoAt));
+  return host === null ? null : host + target.slice(pseudoAt);
+}
+
 /** Clone a map with every element, forced-state owner/target, volatile, live-candidate and overlay path rewritten. */
 function remapStyleMap(before: StyleMap, remap: PathRemap): StyleMap {
   // Owner and target paths remap independently; an unmatched target keeps its
   // concrete before path and surfaces as a one-sided state inventory.
   type Targets = NonNullable<StyleMap['states']>[string][string];
+  const remapTarget: PathRemap = (target) => remapTargetKey(target, remap);
   const remapStateLayer = (layer: StyleMap['states']): StyleMap['states'] =>
     remapKeys(layer, remap, (byState) =>
       Object.fromEntries(
-        Object.entries(byState).map(([name, targets]) => [name, remapKeys<Targets[string]>(targets, remap)]),
+        Object.entries(byState).map(([name, targets]) => [name, remapKeys<Targets[string]>(targets, remapTarget)]),
       ),
     );
   const states = remapStateLayer(before.states ?? {});
@@ -222,18 +231,10 @@ export function correspondElementPaths(
   return mapping;
 }
 
-/** Rewrite an element path, preserving a `::pseudo` suffix when present. */
-function remapPath(elementPath: string, beforeToAfter: Map<string, string>): string {
-  const pseudoAt = elementPath.indexOf('::');
-  if (pseudoAt === -1) return beforeToAfter.get(elementPath) ?? elementPath;
-  const base = elementPath.slice(0, pseudoAt);
-  return (beforeToAfter.get(base) ?? base) + elementPath.slice(pseudoAt);
-}
-
 /** Clone a before map with matched element (and forced-state) paths rewritten; unmatched paths stay put. */
 export function remapBeforeStyleMap(before: StyleMap, beforeToAfter: Map<string, string>): StyleMap {
   if (beforeToAfter.size === 0) return before;
-  return remapStyleMap(before, (p) => remapPath(p, beforeToAfter));
+  return remapStyleMap(before, (p) => beforeToAfter.get(p) ?? p);
 }
 
 // ─── pass 0: own-text identity ─────────────────────────────────────────────────

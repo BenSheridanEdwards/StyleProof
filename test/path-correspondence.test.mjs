@@ -417,6 +417,32 @@ test('correspondBeforeMap runs the nth-child shift first, then geometry among wh
   );
 });
 
+test('a content-shifted owner carries its ::after hover target to the head path (#948)', () => {
+  // A banner row inserted first shifts both rows down one nth-child; each row's
+  // :hover recolours its own ::after.
+  const item = (n) => `body > ul:nth-child(1) > li:nth-child(${n})`;
+  const row = { tag: 'li', cls: 'row', ownTextLength: 4, style: {} };
+  const hoverAfter = (n, color) => ({ [item(n)]: { hover: { [`${item(n)}::after`]: { color } } } });
+  const before = makeMap({
+    elements: { [item(1)]: row, [item(2)]: row },
+    states: { ...hoverAfter(1, 'rgb(0, 0, 200)'), ...hoverAfter(2, 'rgb(0, 0, 200)') },
+  });
+  const after = (lastColor) =>
+    makeMap({
+      elements: { [item(1)]: { ...row, cls: 'banner' }, [item(2)]: row, [item(3)]: row },
+      states: { ...hoverAfter(2, 'rgb(0, 0, 200)'), ...hoverAfter(3, lastColor) },
+    });
+  const certify = (head) =>
+    diffStyleMaps(correspondBeforeMap(before, head), head, { includeStructure: false }).map((f) => [
+      f.kind,
+      f.path,
+      f.sub,
+      f.props.map((p) => p.prop),
+    ]);
+  assert.deepEqual(certify(after('rgb(0, 0, 200)')), [], 'an unchanged ::after target is not one-sided');
+  assert.deepEqual(certify(after('rgb(200, 0, 0)')), [['state', item(3), `${item(3)}::after`, ['color']]]);
+});
+
 test('an ambiguous geometry signature stays one-sided (fails closed) even when re-nested', () => {
   const button = {
     tag: 'button',

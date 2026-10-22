@@ -1,6 +1,6 @@
 /** Capture-side warnings go to stderr through one hook (tests spy on console.warn). */
 export function warn(message: string): void {
-  // eslint-disable-next-line no-console
+  // eslint-disable-next-line no-console -- the one stderr channel for capture-side warnings
   console.warn(message);
 }
 

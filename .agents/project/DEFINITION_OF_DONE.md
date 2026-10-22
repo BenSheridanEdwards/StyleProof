@@ -8,10 +8,9 @@ report excerpt, or screenshots/video for UI behaviour. "The gates are green" and
 
 ## Required proof
 
-- `npm run build && npm run typecheck && npm run lint && npm run format:check`
-  pass.
-- `npm run privacy:check` passes.
-- `npm test` passes.
+- `npm run verify` passes: the context and suppression checks, typecheck,
+  lint (zero warnings), format check, privacy scan, and `npm test` (which
+  builds first).
 - `npm run test:e2e` passes when capture, diff, report, Action, or engine
   behaviour changes.
 - For package/release changes, `npm pack --dry-run --json` succeeds and the packed
@@ -20,13 +19,13 @@ report excerpt, or screenshots/video for UI behaviour. "The gates are green" and
 ## Local gates
 
 - `commit-msg` runs commitlint (Conventional Commits).
-- `pre-commit` runs build, typecheck, lint, format check, a staged-diff
-  gitleaks scan (skipped with a warning if gitleaks is not installed locally;
-  never skipped in CI), Fallow audit, and `fallow health --production` on the
-  staged diff.
-- No hook runs `npm run privacy:check`; run it yourself (CI and
-  `prepublishOnly` enforce it).
-- `pre-push` runs `npm test`.
+- `pre-commit` runs lint, format check, a staged-diff gitleaks scan (skipped
+  with a warning if gitleaks is not installed locally; never skipped in CI),
+  Fallow audit, and `fallow health --production` on the staged diff.
+- No hook runs typecheck, `npm run privacy:check`, or the context and
+  suppression checks; `npm run verify` runs them all (CI and `prepublishOnly`
+  enforce them).
+- `pre-push` runs `npm test` and a path-filtered e2e smoke.
 - `npm run test:e2e` and `npm pack --dry-run --json` stay explicit because they
   depend on the touched surface.
 

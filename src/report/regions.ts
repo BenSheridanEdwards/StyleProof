@@ -150,7 +150,7 @@ type CropPack = { md: string[]; images: CropImages; visualEvidence?: 'not-render
 /** Crop one region's pair (or explain why there is none). */
 function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, state?: string): CropPack {
   const { g, region, mapA, mapB, cg } = a;
-  if (!region || !pngA || !pngB || !hasExposedChangedEntry(mapA, mapB, g.paths)) {
+  if (!region || !pngA || !pngB || !hasExposedChangedEntry(mapA, mapB, g.paths, [pngA, pngB])) {
     const note = cropNote(region, pngA, pngB);
     return {
       md: note ? ['', note] : [],
@@ -278,10 +278,29 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const findingCount = findings.length;
   // The raw base: a geometry correspondence can move part of a run and split it.
   const spacing = siblingSpacingChanges(ctx.load(ctx.beforeDir, sd.surface), mapB);
-  if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
+  const surfaceList =
+    cg.surfaces.length > 1
+      ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
+      : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
+  const pngs = screenshotPair(ctx, sd.surface);
+  if (
+    !hasExposedChangedEntry(mapA, mapB, changedPaths, pngs) &&
+    !STATE_LAYER_NAMES.some((state) => {
+      const statePaths = findings.filter((f) => f.kind === 'state' && f.state === state).map((f) => f.path);
+      return (
+        statePaths.length > 0 &&
+        hasExposedChangedEntry(mapA, mapB, statePaths, screenshotPair(ctx, sd.surface, `.${state}`))
+      );
+    })
+  ) {
     const reason = MISLEADING_CROP_REASON;
     return {
       md: [
+        // The heading also ends the Action's PR comment summary (#952).
+        '',
+        `### ${regionHeading(changedPaths, findings)}`,
+        '',
+        surfaceList,
         '',
         `_${reason}_`,
         ...spacingLines(spacing),
@@ -298,15 +317,10 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       findingCount,
     };
   }
-  const pngs = screenshotPair(ctx, sd.surface);
   let groups = groupRegions(changedPaths, mapA, mapB, ctx.padBy);
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);
   const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
   groups.sort((l, r) => topY(l) - topY(r));
-  const surfaceList =
-    cg.surfaces.length > 1
-      ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
-      : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
   const claimed = new Set<SiblingSpacingChange>();
   const rendered = groups.map((g) => {
     const region = visible(g.after) ? g.after : g.before;

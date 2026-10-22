@@ -609,10 +609,13 @@ runs:
             // the approve workflow both write as github-actions[bot]. A success status from any
             // other integration or user with statuses:write is not a sign-off.
             const canonical = !!mine && mine.creator?.type === 'Bot' && mine.creator.login === 'github-actions[bot]';
-            approved = canonical && mine.state === 'success';
-            // The approve workflow stamps "Approved by @x" into the status description.
-            const m = approved && (mine.description || '').match(/Approved by @([A-Za-z0-9-]+)/);
-            if (m) approver = m[1];
+            // Only a sign-off counts: the approve workflow's "Approved by @x", or this Action
+            // carrying that identity forward. Legacy anonymous approvals are ambiguous:
+            // older versions could write them without a sign-off after a clean success.
+            // Enterprise Managed User logins carry an underscore (octocat_acme).
+            const m = (mine?.description || '').match(/^Approved by @([A-Za-z0-9_-]+)$/);
+            approved = canonical && mine.state === 'success' && !!m;
+            if (approved) approver = m[1];
           }
           core.setOutput('approved', approved ? 'true' : 'false');
           core.setOutput('approver', approver);
@@ -931,6 +934,7 @@ runs:
           const fs = require('fs');
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
+          const approver = '${{ steps.gate.outputs.approver }}';
           const trustState = '${{ steps.verdict.outputs.state }}';
           const sha = '${{ steps.context.outputs.head-sha }}';
           // Same report target as the comment: branch blob URL, artifact entry,
@@ -960,7 +964,7 @@ runs:
           const descriptions = {
             NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
             STYLE_REVIEW_REQUIRED: approved
-              ? 'StyleProof changes approved'
+              ? `Approved by @${approver}`
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
@@ -976,7 +980,7 @@ runs:
             description: decision.awaitingMaintainer
               ? UNTRUSTED_CAPTURE_STATUS_DESCRIPTION
               : untrustedCapture && decision.state === 'success'
-                ? 'StyleProof changes approved'
+                ? `Approved by @${approver}`
                 : descriptions[trustState] || `StyleProof trust failure: ${trustState}`,
             // The approve workflow binds a tick to this target_url, so every approvable
             // pending/red status carries it.
