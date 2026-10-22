@@ -118,6 +118,7 @@ test('writeReportArtifacts emits report.html beside report.md and report.json (#
 test('the committed demo report renders completely (#698)', () => {
   const md = fs.readFileSync(path.join(here, '..', 'docs/demo/report.md'), 'utf8');
   const html = renderReportHtml(md);
+  assert.equal(html, fs.readFileSync(path.join(here, '..', 'docs/demo/report.html'), 'utf8'));
   assert.match(html, /<h2>🗺️ StyleProof report<\/h2>/);
   for (const crop of fs.readdirSync(path.join(here, '..', 'docs/demo/crops')).filter((f) => f.endsWith('.png'))) {
     assert.ok(
