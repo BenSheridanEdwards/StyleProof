@@ -43,9 +43,11 @@ is listed here only if it exists and runs on a clean checkout.
   a local hook; run `npm run privacy:check` (or `npm run verify`) yourself
   before pushing.
 - **`.husky/pre-push`** — `npm test` (git hook env is unset first so it does not
-  leak into the CLI tests' temp repos), then `scripts/pre-push-e2e.mjs`, a
-  path-filtered Playwright smoke when the pushed files touch the browser
-  capture surface (skipped with a warning when Chromium is missing).
+  leak into the CLI tests' temp repos), then `scripts/pre-push-e2e.mjs`, the
+  shared CI path policy over staged and pushed files. It runs the full browser
+  suite for matching paths (including all `docs/`) or a first push without a
+  remote base. Missing Chromium, malformed push metadata and Git read failures
+  block the push.
 - **`npm run verify`** — every local gate in one command: context and
   suppression checks, typecheck, lint, format check, privacy scan, and
   `npm test`. No hook runs it
