@@ -74,17 +74,44 @@ function actionCommentScript({
   return new AsyncFunction('require', 'github', 'context', 'core', script);
 }
 
-async function executeActionComment({ repositoryPrivate, url, sha, reportStorage, artifactDigest, created = [] } = {}) {
+async function executeActionComment({
+  repositoryPrivate,
+  url,
+  sha,
+  reportStorage,
+  artifactDigest,
+  created = [],
+  thread = [],
+} = {}) {
   const outputs = new Map();
+  const updated = [];
+  const paginated = [];
+  // GitHub's issue-comment list: oldest first, at most 100 a page, page 1 unless asked.
+  const listComments = async ({ per_page: perPage = 30, page = 1 }) => {
+    const size = Math.min(perPage, 100);
+    return { data: thread.slice((page - 1) * size, page * size) };
+  };
   const github = {
+    paginate: async (route, params) => {
+      paginated.push(route);
+      const all = [];
+      for (let page = 1; ; page += 1) {
+        const { data } = await route({ ...params, page });
+        all.push(...data);
+        if (data.length < Math.min(params.per_page ?? 30, 100)) return all;
+      }
+    },
     rest: {
       issues: {
-        listComments: async () => ({ data: [] }),
+        listComments,
         createComment: async (input) => {
           created.push(input);
         },
-        updateComment: async () => {
-          throw new Error('unexpected comment update');
+        updateComment: async (input) => {
+          const comment = thread.find(({ id }) => id === input.comment_id);
+          if (!comment) throw new Error(`unexpected update of comment ${input.comment_id}`);
+          comment.body = input.body;
+          updated.push(input);
         },
       },
     },
@@ -109,8 +136,17 @@ async function executeActionComment({ repositoryPrivate, url, sha, reportStorage
     if (previousActionPath === undefined) delete process.env.GITHUB_ACTION_PATH;
     else process.env.GITHUB_ACTION_PATH = previousActionPath;
   }
-  return { created, outputs };
+  return { created, updated, paginated, listComments, outputs };
 }
+
+const MARKER = '<!-- styleproof-report -->';
+const BOT = { login: 'github-actions[bot]', type: 'Bot' };
+const discussion = (count) =>
+  Array.from({ length: count }, (_, index) => ({
+    id: index + 1,
+    user: { login: 'reviewer', type: 'User' },
+    body: `review note ${index + 1}`,
+  }));
 
 test('public and private reports use one commit-bound linked-delivery contract', () => {
   const publicDelivery = buildReportDelivery({
@@ -155,6 +191,51 @@ test('literal Action comment uses the same one-link body for public and private 
   assert.match(publicBody, /- \[ \] \*\*Approve all changes\*\*/);
   assert.doesNotMatch(publicBody, /!\[|raw\.githubusercontent|\]\(crops\//);
   assert.equal(publicRun.outputs.get('stale-delivery'), 'false');
+});
+
+test('a report comment after the first 100 thread comments is updated, not posted again (#968)', async () => {
+  const thread = [...discussion(100), { id: 101, user: BOT, body: `${MARKER}\n## earlier report` }];
+  const run = await executeActionComment({ repositoryPrivate: false, thread });
+  assert.deepEqual(run.created, []);
+  assert.deepEqual(
+    run.updated.map(({ comment_id }) => comment_id),
+    [101],
+  );
+  assert.match(thread[100].body, /- \[ \] \*\*Approve all changes\*\*/);
+});
+
+test('a contributor comment that quotes the marker is never overwritten (#968)', async () => {
+  const quoted = `The bot finds its report by \`${MARKER}\` — please do not edit it.`;
+  const pasted = `${MARKER}\n## Report pasted for discussion`;
+  const thread = [
+    { id: 1, user: { login: 'contributor', type: 'User' }, body: quoted },
+    { id: 2, user: { login: 'contributor', type: 'User' }, body: pasted },
+  ];
+  const run = await executeActionComment({ repositoryPrivate: false, thread });
+  assert.deepEqual(run.updated, []);
+  assert.equal(run.created.length, 1);
+  assert.deepEqual(
+    thread.map(({ body }) => body),
+    [quoted, pasted],
+  );
+});
+
+test('the comment upsert lists the thread through github.paginate (#968)', async () => {
+  const run = await executeActionComment({ repositoryPrivate: false });
+  assert.deepEqual(run.paginated, [run.listComments]);
+});
+
+test('the oldest bot report comment keeps its id, even after a later step prefixed it (#968)', async () => {
+  const thread = [
+    { id: 7, user: BOT, body: `> [!NOTE]\n> Synthetic dogfood receipt.\n\n${MARKER}\n## earlier report` },
+    { id: 9, user: BOT, body: `${MARKER}\n## duplicate left by an older release` },
+  ];
+  const run = await executeActionComment({ repositoryPrivate: false, thread });
+  assert.deepEqual(run.created, []);
+  assert.deepEqual(
+    run.updated.map(({ comment_id }) => comment_id),
+    [7],
+  );
 });
 
 test('literal Action comment makes no GitHub write without exact delivery identity', async () => {

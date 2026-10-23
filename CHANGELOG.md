@@ -440,6 +440,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that is or contains the checkout or the temp folder that holds the run's
   worktrees now exits 2 before any git or filesystem work. Real paths are
   compared, so a symlinked spelling is refused too (#943).
+- **The report comment is updated in place on long threads, and a person's
+  comment is never overwritten (#968).** The Action read only the first 100
+  comments on the pull request. Once 100 came before its report comment, every
+  run posted another one, and the approve workflow, which needs exactly one,
+  ignored the reviewer's tick. It also edited the first comment by any author
+  that contained the marker, so a contributor who quoted
+  `<!-- styleproof-report -->` lost their text to the report. The Action now
+  reads every page and only updates a comment written by a bot, the oldest if
+  there are several. A comment posted with a personal access token belongs to
+  a user account, so it is no longer reused: use `github.token` or a GitHub
+  App token. Reports from bots and from accounts with write access (such as
+  one posted with a personal access token) still count for the rerun guard,
+  including user-authored comments that are never edited, so a late earlier
+  attempt cannot overwrite a newer attempt's comment or status. A comment
+  from an account without write access cannot suppress a delivery.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

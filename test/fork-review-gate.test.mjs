@@ -21,6 +21,7 @@ const HEAD_SHA = 'c'.repeat(40);
 const REPOSITORY = 'acme/app';
 const ARTIFACT_URL = `https://github.com/${REPOSITORY}/actions/runs/9001/artifacts/77`;
 const UNTRUSTED_DESCRIPTION = 'Fork PR — maps captured in an untrusted job; maintainer approval required';
+const MARKER = '<!-- styleproof-report -->';
 
 /** Compile one github-script step with its env: block, substituting every expression. */
 function stepProgram(stepName, values) {
@@ -46,7 +47,15 @@ function stepProgram(stepName, values) {
   return { environment, program: new AsyncFunction('require', 'github', 'context', 'core', script) };
 }
 
-function values({ untrusted, trustState, changed, approved = false, approver = 'maintainer', mode = 'review-gate' }) {
+function values({
+  untrusted,
+  trustState,
+  changed,
+  approved = false,
+  approver = 'maintainer',
+  mode = 'review-gate',
+  runAttempt = '1',
+}) {
   return {
     'steps.context.outputs.pr-number': '42',
     'steps.context.outputs.head-sha': HEAD_SHA,
@@ -60,9 +69,9 @@ function values({ untrusted, trustState, changed, approved = false, approver = '
     'steps.report-artifact.outputs.artifact-digest': 'd'.repeat(64),
     'steps.publish.outputs.sha': '',
     'steps.report.outputs.content-changes': '0',
-    'toJSON(inputs.comment-marker)': JSON.stringify('<!-- styleproof-report -->'),
+    'toJSON(inputs.comment-marker)': JSON.stringify(MARKER),
     'github.run_id': '9001',
-    'github.run_attempt': '1',
+    'github.run_attempt': runAttempt,
     'inputs.mode': mode,
     'inputs.status-context': 'StyleProof',
     'inputs.base-capture-failed': 'false',
@@ -74,21 +83,29 @@ function values({ untrusted, trustState, changed, approved = false, approver = '
 }
 
 /** `prior` is what GitHub already holds for HEAD_SHA, newest first. */
-async function run(stepName, scenario, prior = []) {
+async function run(stepName, scenario, prior = [], thread = []) {
   const { environment, program } = stepProgram(stepName, values(scenario));
   const statuses = [];
   const comments = [];
+  const updated = [];
   const outputs = {};
   const github = {
+    paginate: async (route, params) => (await route(params)).data,
     rest: {
       repos: {
         createCommitStatus: async (input) => statuses.push(input),
         listCommitStatusesForRef: async () => ({ data: prior }),
       },
       issues: {
-        listComments: async () => ({ data: [] }),
+        listComments: async () => ({ data: thread }),
         createComment: async (input) => comments.push(input),
-        updateComment: async () => assert.fail('unexpected comment update'),
+        updateComment: async (input) => {
+          assert.ok(
+            thread.some(({ id }) => id === input.comment_id),
+            'unexpected comment update',
+          );
+          updated.push(input);
+        },
       },
     },
   };
@@ -103,7 +120,18 @@ async function run(stepName, scenario, prior = []) {
     for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
     Object.assign(process.env, previous);
   }
-  return { statuses, comments, outputs };
+  return { statuses, comments, updated, outputs };
+}
+
+/** Execute comment delivery and respect the status step's stale-delivery condition. */
+async function deliver(scenario, thread) {
+  const statusStep = actionYml.match(/- name: Set review status\n[\s\S]*?(?=\n {4}#|\n {4}- name:|\n {4}- id:)/);
+  assert.ok(statusStep, 'action.yml should contain the Set review status step');
+  assert.match(statusStep[0], /steps\.comment\.outputs\.stale-delivery != 'true'/);
+  const { comments, updated, outputs } = await run('Upsert PR comment', scenario, [], thread);
+  const stale = outputs['stale-delivery'] === 'true';
+  const { statuses } = stale ? { statuses: [] } : await run('Set review status', scenario);
+  return { comments, updated, statuses, stale };
 }
 
 const APPROVE_BOX = /^- \[ \] \*\*Approve all changes\*\*$/m;
@@ -185,6 +213,66 @@ test('same-repo verdicts are unchanged: clean is green with no box, changes are 
 });
 
 const BOT = { login: 'github-actions[bot]', type: 'Bot' };
+const receipt = (attempt) => `<!-- styleproof-run-id:9001 run-attempt:${attempt} -->`;
+
+test('a later PAT report prevents an earlier clean attempt from writing a comment or success status', async () => {
+  const result = await deliver(
+    { untrusted: false, trustState: 'NO_REVIEWABLE_STYLE_CHANGES', changed: false, runAttempt: '1' },
+    [
+      {
+        id: 5,
+        user: { login: 'maintainer', type: 'User' },
+        author_association: 'MEMBER',
+        body: `${MARKER}\n## needs sign-off\n${receipt(2)}`,
+      },
+    ],
+  );
+  assert.deepEqual(result, { comments: [], updated: [], statuses: [], stale: true });
+});
+
+test('a newer attempt creates a report and failure status without editing an earlier PAT report', async () => {
+  const result = await deliver(
+    { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true, runAttempt: '2' },
+    [
+      {
+        id: 5,
+        user: { login: 'maintainer', type: 'User' },
+        author_association: 'MEMBER',
+        body: `${MARKER}\n## needs sign-off\n${receipt(1)}`,
+      },
+    ],
+  );
+  assert.equal(result.comments.length, 1);
+  assert.deepEqual(result.updated, []);
+  assert.equal(result.statuses.length, 1);
+  assert.equal(result.statuses[0].state, 'failure');
+  assert.equal(result.stale, false);
+});
+
+test('forged later receipts from accounts without write access cannot suppress a review-required delivery', async () => {
+  const result = await deliver(
+    { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true, runAttempt: '1' },
+    ['CONTRIBUTOR', 'NONE'].map((association, index) => ({
+      id: index + 1,
+      user: { login: `contributor-${index}`, type: 'User' },
+      author_association: association,
+      body: `${MARKER}\n${receipt(99)}`,
+    })),
+  );
+  assert.equal(result.comments.length, 1);
+  assert.deepEqual(result.updated, []);
+  assert.equal(result.statuses.length, 1);
+  assert.equal(result.statuses[0].state, 'failure');
+  assert.equal(result.stale, false);
+});
+
+test('a later bot report prevents an earlier clean attempt from writing a comment or success status', async () => {
+  const result = await deliver(
+    { untrusted: false, trustState: 'NO_REVIEWABLE_STYLE_CHANGES', changed: false, runAttempt: '1' },
+    [{ id: 6, user: BOT, author_association: 'NONE', body: `${MARKER}\n${receipt(2)}` }],
+  );
+  assert.deepEqual(result, { comments: [], updated: [], statuses: [], stale: true });
+});
 
 /** A later same-repo review-gate run with changes on HEAD_SHA, which already carries `prior`. */
 async function rerunWithChanges(prior) {

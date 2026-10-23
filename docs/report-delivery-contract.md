@@ -24,7 +24,7 @@ Regardless of storage mode, the Action also appends `report.md` to the GitHub jo
 
 ## Pull-request comment
 
-The Action upserts one comment identified by `<!-- styleproof-report -->`. It contains:
+The Action upserts one comment identified by `<!-- styleproof-report -->`. It reads every page of the thread and only reuses a comment a bot account wrote, so a person's comment that quotes the marker is never edited. It contains:
 
 - the bounded report summary;
 - the approval checkbox when review-gate mode requires one;
@@ -85,7 +85,7 @@ No publication receipt means no new delivery claim for that run.
 - A failed publish or artifact upload produces no new comment and terminal state `REPORT_PUBLICATION_FAILED`.
 - A failed comment or review-status update after publication also produces `REPORT_PUBLICATION_FAILED`.
 - A skipped or cancelled publish caused by an earlier evidence failure preserves the earlier bounded trust verdict when available; otherwise it reports `CERTIFICATION_FAILED`.
-- A late earlier run attempt cannot overwrite the comment or status from a newer attempt.
+- A late earlier run attempt cannot overwrite the comment or status from a newer attempt. The guard checks every marker comment written by a bot or by an `OWNER`/`MEMBER`/`COLLABORATOR` account, including user-authored comments it would never edit, and ignores comments from other accounts.
 - A prior valid report or approval for the same immutable source commit is not described as newly delivered by the failed run.
 
 ## Approval binding
