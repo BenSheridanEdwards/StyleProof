@@ -575,6 +575,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   physical and checkout-alias spellings of one spec share a key. A symlink
   inside the project, such as `e2e -> suite-a`, keeps its logical path, and a
   spec outside the project still keys separately.
+- **Auto-width surfaces replay their detection load from the base (#974).**
+  A surface with no `widths` loads once to read its `@media` bands,
+  and that load ran before any HAR replay was in place. Under
+  `STYLEPROOF_REPLAY_FROM` it called the live backend, so with the backend down
+  the head run failed for auto-width surfaces only, in `defineStyleMapCapture`
+  and `defineCrawlCapture` alike. The base now records that detection load as
+  `<key>@auto-<W>x<H>.har`, at the project viewport, also for every surface in
+  a crawl. The head replays that recording at the same viewport, with the
+  frozen clock and reduced motion, then drops the routes so each width pins
+  its own HAR. With no matching recording (an older base or another viewport),
+  detection warns and loads live at that viewport, as before. It never moves
+  to a narrower width, which could hide a band that only the head adds.
+  Recording runs write one extra HAR per auto-width surface. A missing width
+  HAR clears earlier replay routes before the warned live fallback, so a new
+  head-only band can capture. Fixed-width surfaces with matching HARs are
+  unchanged. If a crawl starts with a null viewport and an earlier capture
+  resizes the page, later auto-width detection fails with guidance to configure
+  a project viewport or explicit widths, rather than detecting at the stale size.
+  Failed data requests during detection now fail the surface, even if the app
+  handles the error, because its fallback could hide a breakpoint band.
+  `styleproof-map` also removes HAR files before exiting a failed capture unless
+  `--keep-har` was requested, so rejected detection loads leave no default recording.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
@@ -3710,11 +3732,6 @@ in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
   `STYLEPROOF_MAP_STORE_TOKEN`, so cold-cache uploads do not depend on private
   `actions/checkout` credential-storage details. Local hooks continue to reuse
   normal Git credentials without requiring this variable.
-- **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
-  Checkout v7 keeps its HTTP header in an included temporary config rather than
-  directly in `.git/config`; StyleProof now explicitly enables Git config includes
-  and falls back to its locally registered checkout config before carrying that
-  header into the isolated clone and push.
 - **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
   Checkout v7 keeps its HTTP header in an included temporary config rather than
   directly in `.git/config`; StyleProof now explicitly enables Git config includes

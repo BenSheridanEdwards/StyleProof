@@ -1,6 +1,5 @@
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { detectViewportWidths } from '../breakpoints.js';
 import { crawlCoverageError, dedupIdentity, selectCrawlLinks, selectObservedNavs, type CrawlLink } from '../crawl.js';
 import { captureTestBudgetMs } from '../surface-progress.js';
 import { NAV_OBSERVER_FN, NAV_OBSERVER_SNIPPET } from './browser.js';
@@ -8,6 +7,7 @@ import { withSurfaceFailureTolerance } from './self-check.js';
 import { resolveSettings } from './settings.js';
 import {
   captureSurface,
+  detectSurfaceWidths,
   heartbeatUnitCount,
   writeBrowserBuildTest,
   recordCaptureTestOutcomes,
@@ -48,6 +48,7 @@ async function sweepCrawlSurfaces(
   captureSurfaces: ExpandedSurface[],
   settings: Settings,
   baseURL: string | undefined,
+  detectionViewport: { width: number; height: number } | null,
 ): Promise<void> {
   const failures: string[] = [];
   const aggregate = (line: string): void => {
@@ -64,8 +65,7 @@ async function sweepCrawlSurfaces(
         settings,
         `${surface.key}@auto`,
         async () => {
-          await surface.go(page);
-          widths = await detectViewportWidths(page);
+          widths = await detectSurfaceWidths(page, surface, settings, detectionViewport, baseURL);
         },
         aggregate,
       );
@@ -168,6 +168,8 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     writeBrowserBuildTest(settings);
     test('discover surfaces by crawling links, then capture each', async ({ page, baseURL, contextOptions }) => {
       const testStart = Date.now();
+      // One detection viewport for every surface, so crawl order never changes which bands are found.
+      const detectionViewport = page.viewportSize();
       const observed = new Set<string>();
       if (observeNavigation) await installNavObserver(page, observed);
       const links = await discoverCrawlLinks(page, { from, match, key, linkTimeout });
@@ -205,7 +207,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
         // from test start; a breach is still reported by the NAMED per-surface timeout.
         const units = captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0);
         test.setTimeout(Date.now() - testStart + captureTestBudgetMs(settings.surfaceTimeoutMs, units));
-        await sweepCrawlSurfaces(page, captureSurfaces, settings, baseURL ?? contextOptions.baseURL);
+        await sweepCrawlSurfaces(page, captureSurfaces, settings, baseURL ?? contextOptions.baseURL, detectionViewport);
         frontier = observer.merge();
       }
       observer.finish();

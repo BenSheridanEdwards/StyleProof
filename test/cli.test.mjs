@@ -191,6 +191,59 @@ test('styleproof-map keeps HAR files only when explicitly requested', () => {
   }
 });
 
+test('styleproof-map cleans failed capture HARs unless explicitly retained', async (t) => {
+  for (const survivingMap of [false, true]) {
+    for (const keepHar of [false, true]) {
+      await t.test(`surviving map: ${survivingMap}, keep HAR: ${keepHar}`, () => {
+        const root = mkTmp();
+        try {
+          const spec = path.join(root, 'e2e/styleproof.spec.ts');
+          fs.mkdirSync(path.dirname(spec), { recursive: true });
+          fs.writeFileSync(spec, '// fake spec');
+          // Model Playwright flushing HARs before returning a failed capture. Stub Git too,
+          // so this regression needs neither a browser nor a repository in its fixture.
+          const bootstrap = `
+            import childProcess from 'node:child_process';
+            import fs from 'node:fs';
+            import path from 'node:path';
+            import { syncBuiltinESMExports } from 'node:module';
+            childProcess.spawnSync = (command, args, options) => {
+              if (command === 'git') return { status: null, error: new Error('git unavailable') };
+              if (command !== 'playwright' && command !== 'playwright.cmd') {
+                throw new Error('unexpected subprocess: ' + command);
+              }
+              const dir = path.join(options.env.STYLEPROOF_BASEDIR, options.env.STYLEMAP_DIR);
+              fs.mkdirSync(dir, { recursive: true });
+              for (const name of ['away@auto-1280x720.har', 'home@720.har']) {
+                fs.writeFileSync(path.join(dir, name), '{}');
+              }
+              if (${survivingMap}) fs.writeFileSync(path.join(dir, 'home@720.json'), '{}');
+              return { status: 1 };
+            };
+            syncBuiltinESMExports();
+            process.argv = [process.execPath, ${JSON.stringify(MAP)}, ...process.argv.slice(1)];
+            await import(${JSON.stringify(new URL('../bin/styleproof-map.mjs', import.meta.url).href)});
+          `;
+          const result = spawnSync(
+            process.execPath,
+            ['--input-type=module', '--eval', bootstrap, '--', '--no-upload', ...(keepHar ? ['--keep-har'] : [])],
+            { cwd: root, encoding: 'utf8', env: { ...process.env, STYLEPROOF_KEEP_HAR: '0' } },
+          );
+          assert.equal(result.status, 1, result.stderr);
+          const maps = path.join(root, '.styleproof/maps/current');
+          for (const name of ['away@auto-1280x720.har', 'home@720.har']) {
+            assert.equal(fs.existsSync(path.join(maps, name)), keepHar, name);
+          }
+          assert.equal(fs.existsSync(path.join(maps, 'home@720.json')), survivingMap);
+          assert.equal(fs.existsSync(path.join(maps, MAP_MANIFEST)), false, 'a failed capture cannot publish');
+        } finally {
+          rmTmp(root);
+        }
+      });
+    }
+  }
+});
+
 test('styleproof-map writes no manifest when the capture produced zero surfaces', () => {
   // A manifest over an empty bundle would read as "a bundle that claims to exist
   // yet holds nothing", which the diff refuses as a missing base map (exit 2). A
