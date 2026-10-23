@@ -25,8 +25,9 @@ report excerpt, or screenshots/video for UI behaviour. "The gates are green" and
 - No hook runs typecheck, `npm run privacy:check`, or the context and
   suppression checks; `npm run verify` runs them all (CI and `prepublishOnly`
   enforce them).
-- `pre-push` runs `npm test`, then the full browser suite for staged or pushed
-  paths or unknown push inventories; see the collection rules in `QUALITY_GATES.md`.
+- `pre-push` runs `npm test`, then the full browser suite unless pushed and
+  staged tree proofs permit a skip; unknown evidence runs or blocks. See
+  `QUALITY_GATES.md` for the proof rules.
 - `npm run test:e2e` and `npm pack --dry-run --json` stay explicit because they
   depend on the touched surface.
 

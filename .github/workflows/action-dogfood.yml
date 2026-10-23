@@ -2,9 +2,9 @@ name: Action dogfood
 
 on:
   # Every pull request must report this required check. The `changes` job selects
-  # dogfood for every nonempty API path inventory, including docs and unit tests.
-  # For eligible PRs, an empty inventory may skip the work; a missing or failed
-  # filter runs it. The job's fork and cancellation guards still apply.
+  # dogfood unless the merge tree is proven identical to the current base tree.
+  # Missing or failed decisions run it. The job's fork and cancellation guards
+  # still apply.
   pull_request:
 
 permissions:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   changes:
-    name: Action dogfood path filter
+    name: Action dogfood tree proof
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -26,14 +26,13 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      dogfood: ${{ steps.filter.outputs.lanes }}
+      dogfood: ${{ steps.decide.outputs.lanes }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
-        id: filter
         with:
-          predicate-quantifier: every
-          filters: .github/path-filters.yml
+          fetch-depth: 2
+      - id: decide
+        run: node scripts/browser-lanes.mjs --github
 
   action-dogfood:
     needs: changes
