@@ -91,18 +91,32 @@ test('the shared decider uses only Node builtins and never enumerates paths', ()
   assert.doesNotMatch(source, /ci-path-filters|path-filters\.yml|picomatch/);
 });
 
+const identityRepositories = new Map();
+
 function identityFixture(t, { format, reverted = false } = {}) {
   const fixture = createFixture(t, { format });
-  fixture.setEntry('theme.css', '100644', 'body { color: black; }');
-  fixture.base = fixture.commit([], 'base');
-  if (reverted) {
-    fixture.setEntry('theme.css', '100644', 'body { color: magenta; }');
-    const changed = fixture.commit([fixture.base], 'change');
+  const key = JSON.stringify([format ?? 'sha1', Boolean(reverted)]);
+  const prepared = identityRepositories.get(key);
+  if (prepared) {
+    // Copy only pre-merge setup. Every fixture owns its objects, refs and index.
+    fs.cpSync(prepared.directory, fixture.directory, { recursive: true, mode: fs.constants.COPYFILE_FICLONE });
+    fixture.base = prepared.base;
+    fixture.head = prepared.head;
+  } else {
+    fixture.setEntry('theme.css', '100644', 'body { color: black; }');
+    fixture.base = fixture.commit([], 'base');
+    if (reverted) {
+      fixture.setEntry('theme.css', '100644', 'body { color: magenta; }');
+      const changed = fixture.commit([fixture.base], 'change');
+      fixture.git(['read-tree', fixture.base]);
+      fixture.head = fixture.commit([changed], 'revert change');
+    } else fixture.head = fixture.commit([fixture.base], 'empty PR');
     fixture.git(['read-tree', fixture.base]);
-    fixture.head = fixture.commit([changed], 'revert change');
-  } else fixture.head = fixture.commit([fixture.base], 'empty PR');
-  fixture.git(['read-tree', fixture.base]);
-  fixture.git(['checkout', '-q', '-B', 'main', fixture.base]);
+    fixture.git(['checkout', '-q', '-B', 'main', fixture.base]);
+    const template = createFixture({ after: (cleanup) => process.once('exit', cleanup) }, { format });
+    fs.cpSync(fixture.directory, template.directory, { recursive: true, mode: fs.constants.COPYFILE_FICLONE });
+    identityRepositories.set(key, { directory: template.directory, base: fixture.base, head: fixture.head });
+  }
   fixture.git(['merge', '--no-ff', '-m', 'merge identical tree', fixture.head]);
   fixture.merge = fixture.git(['rev-parse', 'HEAD']);
   return fixture;
@@ -311,5 +325,26 @@ test('malformed hosted decision arguments never throw or authorize a skip', () =
     },
   ]) {
     assert.equal(decideGithub(options).lanes, true);
+  }
+});
+
+test('identity fixture templates keep objects, refs, config and index independent', (t) => {
+  const first = identityFixture(t);
+  const existing = identityFixture(t);
+  const tree = first.git(['rev-parse', `${first.base}^{tree}`]);
+  first.setEntry('private.css', '100644', 'body { color: purple; }');
+  first.git(['config', 'fixture.private', 'changed']);
+  first.git(['update-ref', 'refs/heads/private-fixture', first.head]);
+  const object = path.join(first.directory, '.git/objects', tree.slice(0, 2), tree.slice(2));
+  fs.chmodSync(object, 0o644);
+  fs.writeFileSync(object, 'corrupt only this fixture object\n');
+  assert.throws(() => first.git(['cat-file', '-p', tree]), /git cat-file/);
+  const fresh = identityFixture(t);
+  for (const fixture of [existing, fresh]) {
+    assert.equal(fixture.git(['cat-file', '-t', tree]), 'tree');
+    assert.equal(fixture.git(['write-tree']), tree);
+    assert.doesNotMatch(fixture.git(['config', '--list']), /fixture\.private/);
+    assert.equal(fixture.git(['for-each-ref', '--format=%(refname)', 'refs/heads/private-fixture']), '');
+    assert.deepEqual(parentsOf(makeGit(fixture.directory), fixture.merge), [fixture.base, fixture.head]);
   }
 });
