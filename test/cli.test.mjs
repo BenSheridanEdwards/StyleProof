@@ -1605,23 +1605,30 @@ test('report CLI names a collapsed style presentation as a consistency failure, 
       style: { color: 'rgb(0, 0, 0)' },
     };
     const label = {
-      tag: 'button',
+      tag: 'span',
       cls: 'label',
       rect: [10, 50, 80, 24],
       ownTextLength: 4,
       style: { color: 'rgb(255, 255, 255)' },
     };
-    // The class identities swap, but colors stay fixed at each path. Certification
-    // retains the identity-based restyles while presentation finds no path restyle.
+    // The two elements swap places, but colors and boxes stay fixed at each position.
+    // Certification retains the nth-child-shift restyles while presentation finds no path restyle.
     for (const [dir, first, second, sha] of [
       [A, action, label, 'base-sha'],
-      [B, { ...label, style: action.style }, { ...action, style: label.style }, 'head-sha'],
+      [
+        B,
+        { ...label, rect: action.rect, style: action.style },
+        { ...action, rect: label.rect, style: label.style },
+        'head-sha',
+      ],
     ]) {
       writeCapture(
         dir,
         'home@400',
         {
-          ...makeMap({ elements: { 'body > button:nth-child(1)': first, 'body > button:nth-child(2)': second } }),
+          ...makeMap({
+            elements: { [`body > ${first.tag}:nth-child(1)`]: first, [`body > ${second.tag}:nth-child(2)`]: second },
+          }),
           metadata: { productState: { id: 'reordered-buttons', revision: 'fixture-v1' } },
         },
         null,
