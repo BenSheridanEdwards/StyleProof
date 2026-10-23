@@ -21,6 +21,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RESULTS_PATH = path.join(ROOT, 'bench', 'reach-cost.results.json');
 const runsArg = process.argv.indexOf('--runs');
 const RUNS = runsArg === -1 ? 7 : Number(process.argv[runsArg + 1]);
+if (!Number.isInteger(RUNS) || RUNS < 1) {
+  throw new Error(`--runs must be a positive integer, got ${JSON.stringify(process.argv[runsArg + 1])}`);
+}
 const MODES = ['off', 'J1', 'J1+J2'];
 // Proposed in #989, agreed before measuring: overhead of each mode over `off`.
 const THRESHOLDS = { J1: 0.05, 'J1+J2': 0.15 };
