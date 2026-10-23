@@ -83,14 +83,21 @@ older Node exits non-zero with a clear message instead of silently skipping.
 `pre-push` always runs `npm test`. It uses `.github/path-filters.yml`, the same
 path policy as CI, to select `npm run test:e2e -- --workers=4` for any staged or
 pushed path, including prose and tooling files. There are no filename exemptions,
-and Git filenames retain literal backslashes and line terminators. Unknown
-inventories, including a new branch without a remote base, run the full suite;
-only a proven empty path inventory may skip it. A ref-deletion-only push with no
+and Git filenames retain literal backslashes and line terminators. Staged and
+pushed diffs use `--ignore-submodules=none` to include changed gitlinks despite
+tracked or local submodule ignore settings, and disable replacement objects so
+local replacement refs cannot substitute unchanged trees. Unknown inventories, including a
+new branch without a remote base, run the full suite; a successful empty
+collection may skip it. A ref-deletion-only push with no
 staged paths has no changed paths; deleting a tracked file still runs browsers.
 Missing Chromium,
 unreadable Git changes or malformed push metadata fail the push. Install Chromium
 with `npx playwright install chromium` before pushing changes.
 `npm run demo:check` verifies demo Markdown, HTML and decoded crop pixels.
+
+Hosted push CI always requires browser lanes, including empty-tree pushes, so
+Git's changed-file collector cannot omit them. Pull-request CI retains the
+pinned API-based path filter; every nonempty filename it receives selects lanes.
 
 The unit suite imports the **built `dist/`** (the same surface the bins and consumers
 use), so a stale build can't yield a false green — `npm test` rebuilds first. Add or

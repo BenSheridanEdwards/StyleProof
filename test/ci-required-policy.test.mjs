@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { needsBrowserLanes } from '../scripts/ci-path-filters.mjs';
 
 /**
@@ -86,6 +87,47 @@ function emptyChange(overrides = {}) {
 
 const browserLanes = ['e2e', 'e2e-evidence', 'detection-corpus'];
 const badResults = ['skipped', 'cancelled', 'failure', ''];
+
+// This deliberately evaluates only the workflow's string equality/&&/||
+// expression, whose semantics match JavaScript for these string inputs. It is
+// not a GitHub Actions runner or a general Actions expression evaluator. The
+// legacy expression is accepted here so the regression fails on its false
+// decision, while ci-path-filters.test.mjs locks the new wiring exactly.
+function changesDecision(eventName, filterOutput = '') {
+  const expression = ci.match(/^ {6}e2e: \$\{\{ (.+) \}\}$/m)?.[1];
+  assert.match(expression, /^(?:github\.event_name == 'push' && 'true' \|\| )?steps\.filter\.outputs\.lanes$/);
+  return runInNewContext(expression, {
+    github: { event_name: eventName },
+    steps: { filter: { outputs: { lanes: filterOutput } } },
+  });
+}
+
+for (const filterOutput of ['false', '', 'malformed', 'true']) {
+  test(`push requires browser proof independently of a Git collector output ${JSON.stringify(filterOutput)}`, () => {
+    const decision = changesDecision('push', filterOutput);
+    assert.equal(decision, 'true');
+    const { passed, output } = runRequired(emptyChange({ changes: { result: 'success', outputs: { e2e: decision } } }));
+    assert.equal(passed, false, output);
+    assert.match(output, /E2E_RESULT was 'skipped' \(want success\)/);
+    const complete = runRequired(productChange({ changes: { result: 'success', outputs: { e2e: decision } } }));
+    assert.equal(complete.passed, true, complete.output);
+  });
+}
+
+for (const [filterOutput, plannedSkipsPass] of [
+  ['true', false],
+  ['false', true],
+  ['', false],
+  ['malformed', false],
+]) {
+  test(`PR preserves the API selector output ${JSON.stringify(filterOutput)} for required validation`, () => {
+    const decision = changesDecision('pull_request', filterOutput);
+    assert.equal(decision, filterOutput);
+    const { passed, output } = runRequired(emptyChange({ changes: { result: 'success', outputs: { e2e: decision } } }));
+    assert.equal(passed, plannedSkipsPass, output);
+    if (filterOutput === '' || filterOutput === 'malformed') assert.match(output, /want true or false/);
+  });
+}
 
 // Replay compiler output captured from the integrity-verified picomatch 2.3.1
 // locked by this action revision. This is not a dynamic execution of dorny.

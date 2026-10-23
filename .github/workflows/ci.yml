@@ -21,14 +21,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      e2e: ${{ steps.filter.outputs.lanes }}
+      # Push collection can hide gitlinks through tracked submodule settings.
+      # Require proof on every main push; PRs use the API file inventory.
+      e2e: ${{ github.event_name == 'push' && 'true' || steps.filter.outputs.lanes }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
         id: filter
+        if: github.event_name == 'pull_request'
         with:
           predicate-quantifier: every
-          # On push to main, compare against the previous commit; on PR, against the base.
           filters: .github/path-filters.yml
 
   build:
@@ -266,11 +268,11 @@ jobs:
       - name: Detection-rate corpus
         run: node bench/detection-rate.mjs --check
 
-  # Stable branch-protection context. Browser lanes skip only when the path
-  # filter succeeded AND said e2e == 'false' (docs-only / pure unit tests). A
-  # 'true' decision requires the e2e shards, the evidence check and the detection
-  # corpus to succeed. An empty, missing or malformed decision, or a failed
-  # filter, fails this check outright.
+  # Stable branch-protection context. Every main push requires browser proof.
+  # PR browser lanes may skip only when the API path filter succeeds and says
+  # e2e == 'false' for an empty file inventory. A 'true' decision requires the
+  # e2e shards, evidence check and detection corpus to succeed. An empty, missing
+  # or malformed decision, or a failed changes job, fails this check outright.
   # test/ci-required-policy.test.mjs executes this step against a table of cases.
   required:
     name: required

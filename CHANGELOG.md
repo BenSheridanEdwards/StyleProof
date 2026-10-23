@@ -208,7 +208,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   compares committed HTML, so CSS-only drift or a missing HTML report fails.
   The local pre-push check shares the CI path policy, runs the full browser suite
   for new branches without a remote base, and fails on missing Chromium or
-  unreadable Git change information. The served-rules browser spec uses a
+  unreadable Git change information. Its staged and pushed diffs include changed
+  gitlinks regardless of submodule ignore settings and compare actual Git
+  objects without local replacement refs. Hosted push CI always runs
+  browser lanes, including empty-tree pushes, without relying on Git's changed-file
+  collector; pull requests retain the pinned API-based filter.
+  The served-rules browser spec uses a
   per-test loopback server so inspector re-fetches no longer depend on fake-host
   DNS. Product capture and report behavior are unchanged.
 
