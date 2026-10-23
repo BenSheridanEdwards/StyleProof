@@ -1594,9 +1594,11 @@ test('gate honours a prior approval only from the canonical github-actions[bot] 
 test('composite action retries transient GitHub API failures on networked github-script steps', () => {
   const networkedSteps = [
     /- id: context[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Mark certify status pending[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
     /- id: gate[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
     /- name: Upsert PR comment[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
     /- name: Set review status[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Set certify failure status[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
   ];
   for (const pattern of networkedSteps) assert.match(actionYml, pattern);
 });

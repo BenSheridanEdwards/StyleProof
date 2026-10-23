@@ -535,7 +535,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `workflow_run`, the Action now sets that status on the trusted PR head:
   `failure` on any style diff or evidence failure, with a description the
   approve workflow does not accept, `success` when clean, and `pending` for a
-  fork PR's clean capture. Certify from `pull_request` is unchanged, and init's
+  fork PR's clean capture. The status is `pending` while the report runs;
+  a failed publish, comment or status write sets it to `failure`, so an earlier
+  `success` on the same commit cannot stand. A report already superseded by a
+  newer capture run or attempt for the same head commit skips its status write.
+  Successful writes recheck that order: if superseded during the write, or if
+  order cannot be proved, the status turns red so a delayed API response cannot
+  leave stale green. A failed status request also triggers corrective `failure`
+  even when superseded, since a lost response may hide an applied `success`.
+  Certify from `pull_request` is unchanged, and init's
   output and report-workflow header now say what the split certify gate does;
   run `styleproof-init --upgrade` to refresh an existing scaffold.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
