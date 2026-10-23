@@ -19,6 +19,8 @@ const nativeRequire = createRequire(import.meta.url);
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const REPOSITORY = 'acme/app';
 const ARTIFACT_URL = `https://github.com/${REPOSITORY}/actions/runs/9001/artifacts/77`;
+const CERTIFY_GATE_EXPRESSION =
+  "inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'";
 
 /** Compile the comment step with its env: block, substituting every expression. */
 function commentProgram(values) {
@@ -45,6 +47,8 @@ function commentProgram(values) {
 async function commentBody({
   mode = 'certify',
   failOnDiff = 'true',
+  requireApproval = 'false',
+  untrusted = false,
   blocking = 'true',
   changed,
   trustState = changed ? 'STYLE_REVIEW_REQUIRED' : 'NO_REVIEWABLE_STYLE_CHANGES',
@@ -52,7 +56,7 @@ async function commentBody({
   const { environment, program } = commentProgram({
     'steps.context.outputs.pr-number': '42',
     'steps.context.outputs.head-sha': 'c'.repeat(40),
-    'steps.context.outputs.untrusted-capture': 'false',
+    'steps.context.outputs.untrusted-capture': untrusted ? 'true' : 'false',
     'steps.diff.outputs.changed': changed ? 'true' : 'false',
     'steps.gate.outputs.approved': 'false',
     'steps.gate.outputs.approver': '',
@@ -66,16 +70,21 @@ async function commentBody({
     'github.run_id': '9001',
     'github.run_attempt': '1',
     'inputs.mode': mode,
-    'inputs.fail-on-diff': failOnDiff,
+    [CERTIFY_GATE_EXPRESSION]: String(
+      failOnDiff.toLowerCase() === 'true' &&
+        requireApproval.toLowerCase() !== 'true' &&
+        mode.toLowerCase() === 'certify',
+    ),
     'inputs.status-context': 'StyleProof',
     'inputs.base-capture-failed': 'false',
     'inputs.report-storage': 'artifact',
-    'inputs.require-approval': 'false',
+    'inputs.require-approval': requireApproval,
     'inputs.include-content': 'false',
     'inputs.report-retention-days': '30',
   });
   const comments = [];
   const github = {
+    paginate: async (route, params) => (await route(params)).data,
     rest: {
       issues: {
         listComments: async () => ({ data: [] }),
@@ -133,4 +142,54 @@ test('a certify evidence failure keeps its own trust guidance', async () => {
   const body = await commentBody({ changed: true, trustState: 'CERTIFICATION_FAILED' });
   assert.match(body, /reviewer approval cannot clear this failure/);
   assert.doesNotMatch(body, /certify gate/);
+});
+
+test('a fork capture in certify mode never says certification passes', async () => {
+  for (const blocking of ['true', 'advisory']) {
+    for (const changed of [false, true]) {
+      const body = await commentBody({ untrusted: true, blocking, changed });
+      assert.match(body, /Fork PR — .*StyleProof cannot certify this pull request/);
+      assert.doesNotMatch(body, /certification passes|remains green/i);
+      if (changed) assert.match(body, /the certify gate fails this job/);
+      else assert.doesNotMatch(body, /certify gate fails/);
+      assert.doesNotMatch(body, /Approve all changes/);
+    }
+  }
+});
+
+test('a fork capture with fail-on-diff disabled never claims certification or a failing gate', async () => {
+  const body = await commentBody({ untrusted: true, failOnDiff: 'false', changed: true });
+  assert.match(body, /StyleProof cannot certify this pull request/);
+  assert.doesNotMatch(body, /certify gate fails|certification passes/);
+});
+
+test('mixed-case fail-on-diff matches the Fail on diff gate', async () => {
+  for (const failOnDiff of ['True', 'TRUE']) {
+    const body = await commentBody({ failOnDiff, changed: true });
+    assert.match(body, /the certify gate fails this job/);
+    assert.doesNotMatch(body, ADVISORY);
+  }
+  const body = await commentBody({ failOnDiff: 'False', changed: true });
+  assert.match(body, /Advisory-only mode: StyleProof is advisory/);
+});
+
+test('mixed-case require-approval shows the approval box', async () => {
+  const body = await commentBody({
+    mode: 'certify',
+    requireApproval: 'True',
+    changed: true,
+    trustState: 'STYLE_REVIEW_REQUIRED',
+  });
+  assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+  assert.match(body, /Tick \*\*Approve all changes\*\*/);
+  assert.doesNotMatch(body, /certify gate/);
+});
+
+test("the comment's certify gate is the Fail on diff condition", () => {
+  const failIf = actionYml.match(/- name: Fail on diff\n\s+if: (.+)\n/)?.[1];
+  const gateExpression = actionYml
+    .match(/- name: Upsert PR comment\n[\s\S]*?(?=\n {4}#|\n {4}- name:|\n {4}- id:)/)?.[0]
+    .match(/STYLEPROOF_CERTIFY_GATE: \$\{\{ (.+?) \}\}/)?.[1];
+  assert.equal(gateExpression, CERTIFY_GATE_EXPRESSION);
+  assert.equal(failIf, `steps.diff.outputs.changed == 'true' && ${gateExpression}`);
 });

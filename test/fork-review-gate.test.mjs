@@ -77,7 +77,8 @@ function values({
     'inputs.base-capture-failed': 'false',
     'inputs.report-storage': 'artifact',
     'inputs.require-approval': 'false',
-    'inputs.fail-on-diff': 'true',
+    "inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'":
+      mode === 'certify' ? 'true' : 'false',
     'inputs.include-content': 'false',
     'inputs.report-retention-days': '30',
   };

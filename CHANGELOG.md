@@ -503,6 +503,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof.config` set `blocking: 'advisory'`, which `styleproof-init`
   writes and "Fail on diff" does not read. The footer now says the certify gate
   fails the job and how to accept the change, or that certification passes.
+  A fork PR's untrusted capture in certify mode now says StyleProof cannot
+  certify the pull request, even when the maps are identical, instead of
+  "certification passes". The footer uses the same case-insensitive condition
+  as "Fail on diff", so `fail-on-diff: 'True'` no longer gets the advisory footer
+  on a failing job, and `require-approval: 'True'` shows the approval box.
   `mode: advisory` and certify with `fail-on-diff: false` keep the advisory
   footer.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
