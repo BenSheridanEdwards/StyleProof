@@ -54,6 +54,8 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<bool
     // notFound:'abort' — an unrecorded request fails deterministically rather than hitting the live backend.
     await page.routeFromHAR(path.join(s.replayFrom, harName), { url: s.replayUrl, update: false, notFound: 'abort' });
   } else {
+    // A new width must really run live, not inherit an earlier width's replay router.
+    await page.unroute(s.replayUrl);
     warn(`styleproof: no replay HAR at ${path.join(s.replayFrom, harName)} — capturing live (NON-deterministic)`);
     intercepting = false;
   }
@@ -66,36 +68,40 @@ function viewportHeight(surface: ExpandedSurface, width: number): number {
   return typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
 }
 
-/** The width of the base's `<key>@<width>.har` for the band `viewportWidth` is in (else its narrowest). */
-function baseHarWidth(replayFrom: string, key: string, viewportWidth = 0): number | undefined {
-  const prefix = `${key}@`;
-  const widths = (fs.existsSync(replayFrom) ? fs.readdirSync(replayFrom) : [])
-    .filter((f) => f.startsWith(prefix) && /^\d+\.har$/.test(f.slice(prefix.length)))
-    .map((f) => parseInt(f.slice(prefix.length), 10))
-    .sort((a, b) => a - b);
-  return widths.filter((w) => w <= viewportWidth).pop() ?? widths[0];
+/** A detection recording only matches a head using the same viewport as the base. */
+function autoHarName(key: string, viewport: { width: number; height: number } | null): string {
+  return viewport ? `${key}@auto-${viewport.width}x${viewport.height}.har` : `${key}@auto.har`;
 }
 
 /**
- * Load an auto-width surface once and read its `@media` bands. Under replay the load repeats the
- * base's capture of the band the viewport is in, so detection never reaches the live backend; with
- * no base recording it runs live, as each width's capture then will.
+ * Load an auto-width surface at one fixed viewport and read its `@media` bands. Record the base's
+ * detection load, then replay that same load on the head. With no matching recording, warn and
+ * detect live at that viewport, never at a narrower capture width that could hide a new band.
  */
-export async function detectSurfaceWidths(page: Page, surface: ExpandedSurface, s: Settings): Promise<number[]> {
-  const width = s.replayFrom ? baseHarWidth(s.replayFrom, surface.key, page.viewportSize()?.width) : undefined;
-  if (width !== undefined) {
-    // Load as the base's capture did: reduced motion, its recorded data, the frozen clock, and its
-    // viewport, since a request keyed on the window size must match the recording or it is aborted.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await pinInputs(page, `${surface.key}@${width}.har`, s);
-    await page.setViewportSize({ width, height: viewportHeight(surface, width) });
+export async function detectSurfaceWidths(
+  page: Page,
+  surface: ExpandedSurface,
+  s: Settings,
+  viewport: { width: number; height: number } | null = page.viewportSize(),
+): Promise<number[]> {
+  if (viewport === null && page.viewportSize() !== null) {
+    throw new Error(
+      'styleproof: cannot restore the original null viewport for auto-width detection after a capture resized ' +
+        'the page. Configure a project viewport or explicit surface widths.',
+    );
   }
+  // Base and head load with the same viewport, reduced motion, pinned data and frozen clock.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (viewport) await page.setViewportSize(viewport);
+  // Drop routes an earlier surface left on a shared crawl page before pinning this detection load.
+  await page.unroute(s.replayUrl);
+  await pinInputs(page, autoHarName(surface.key, viewport), s);
   try {
     await surface.go(page);
     return await detectViewportWidths(page);
   } finally {
     // Drop every route on the replay URL (other URL patterns' routes survive); each width pins its own HAR.
-    if (width !== undefined) await page.unroute(s.replayUrl);
+    await page.unroute(s.replayUrl);
   }
 }
 
