@@ -85,6 +85,54 @@ test('a changed custom property is reached only when every rule that reads it ma
   assert.equal(statusOf(classifyRuleReach([base], [rendered]), ':root').status, 'reached');
 });
 
+test('a custom property head deletes is a change its consumers must render', () => {
+  const base = map(
+    rule(':root', 'h1', { used: true, vars: { '--warn': 'g' } }),
+    rule('.fault', 'f', { uses: ['--warn'] }),
+  );
+  const head = map(rule(':root', 'h2', { used: true }), rule('.fault', 'f', { uses: ['--warn'] }));
+  assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--warn changed, and its consumer .fault never matched',
+    sheet: '/app.css',
+  });
+  const rendered = map(rule(':root', 'h2', { used: true }), rule('.fault', 'f', { used: true, uses: ['--warn'] }));
+  assert.equal(statusOf(classifyRuleReach([base], [rendered]), ':root').status, 'reached');
+});
+
+test('a changed token reaches through aliases to every consumer', () => {
+  const sameRule = (warn) =>
+    map(
+      rule(':root', warn, { used: true, vars: { '--warn': warn, '--badge': 'w' }, uses: ['--warn'] }),
+      rule('.fault', 'f', { uses: ['--badge'] }),
+    );
+  const aliased = statusOf(classifyRuleReach([sameRule('g')], [sameRule('a')]), ':root');
+  assert.equal(aliased.status, 'never-rendered');
+  assert.equal(aliased.why, '--warn changed through --badge, and its consumer .fault never matched');
+
+  const theme = (warn, used) =>
+    map(
+      rule(':root', warn, { used: true, vars: { '--warn': warn } }),
+      rule('.theme', 't', { used: true, vars: { '--badge': 'w' }, uses: ['--warn'] }),
+      rule('.fault', 'f', { ...(used ? { used: true } : {}), uses: ['--badge'] }),
+    );
+  const crossRule = statusOf(classifyRuleReach([theme('g', false)], [theme('a', false)]), ':root');
+  assert.equal(crossRule.status, 'never-rendered');
+  assert.equal(crossRule.why, '--warn changed through --badge, and its consumer .fault never matched');
+  assert.equal(statusOf(classifyRuleReach([theme('g', true)], [theme('a', true)]), ':root').status, 'reached');
+
+  // A matched body without the read cannot vouch for another route's unmatched consumer.
+  const routes = (warn) => [
+    map(rule(':root', warn, { used: true, vars: { '--warn': warn } }), rule('.fault', 'f1', { used: true })),
+    map(rule(':root', warn, { used: true, vars: { '--warn': warn } }), rule('.fault', 'f2', { uses: ['--warn'] })),
+  ];
+  const split = statusOf(classifyRuleReach(routes('g'), routes('a')), ':root');
+  assert.equal(split.status, 'never-rendered');
+  assert.equal(split.why, '--warn changed, and its consumer .fault never matched');
+});
+
 test('a changed @keyframes is a blind channel when a rendered rule references it', () => {
   const base = map(rule('@keyframes pulse', 'k1'), rule('.badge', 'b', { used: true, refs: ['pulse'] }));
   const head = map(rule('@keyframes pulse', 'k2'), rule('.badge', 'b', { used: true, refs: ['pulse'] }));
@@ -97,6 +145,18 @@ test('a changed @keyframes is a blind channel when a rendered rule references it
   });
   const unreferenced = map(rule('@keyframes pulse', 'k2'), rule('.badge', 'b', { refs: ['pulse'] }));
   assert.equal(statusOf(classifyRuleReach([base], [unreferenced]), '@keyframes pulse').status, 'never-rendered');
+
+  // Only the unmatched body references pulse; the matched route's body cannot vouch for it.
+  const routes = (hash, used) => [
+    map(rule('@keyframes pulse', hash), rule('.badge', 'b1', { used: true })),
+    map(rule('@keyframes pulse', hash), rule('.badge', 'b2', { ...(used ? { used: true } : {}), refs: ['pulse'] })),
+  ];
+  const split = statusOf(classifyRuleReach(routes('k1', false), routes('k2', false)), '@keyframes pulse');
+  assert.deepEqual([split.status, split.why], ['never-rendered', 'no rendered rule references it']);
+  assert.equal(
+    statusOf(classifyRuleReach(routes('k1', false), routes('k2', true)), '@keyframes pulse').status,
+    'blind-channel',
+  );
 });
 
 test('a side with any map lacking a ledger classifies nothing', () => {
@@ -113,7 +173,15 @@ test('a side with any map lacking a ledger classifies nothing', () => {
 test('unreadable stylesheets on either side are counted', () => {
   const base = { ...map(rule('.a', 'h1', { used: true })), reach: { sheets: [], rules: [], unreadable: 2 } };
   const head = { ...map(), reach: { sheets: [], rules: [], unreadable: 1 } };
-  assert.equal(classifyRuleReach([base], [head]).unreadableSheets, 3);
+  const result = classifyRuleReach([base], [head]);
+  assert.equal(result.unreadableSheets, 3);
+  assert.equal(result.ledger, 'partial');
+  const legacy = { defaults: {}, elements: {}, states: {} };
+  const missing = classifyRuleReach([base, legacy], [head]);
+  assert.deepEqual(missing, { ledger: 'missing', rules: [], unreadableSheets: 3 });
+  assert.deepEqual(classifyRuleReach([legacy, base], [head]), missing);
+  assert.deepEqual(classifyRuleReach([base], [legacy, head]), missing);
+  assert.deepEqual(classifyRuleReach([base], [head, legacy]), missing);
 });
 
 test('a range media query stays one condition; a quoted combinator stays in its selector', () => {
@@ -141,6 +209,18 @@ test('a body only one route serves is compared on its own, not hidden by another
   assert.deepEqual([seen.change, seen.status], ['changed', 'reached']);
   const unseen = classifyRuleReach([route1, oldRoute2(false)], [route1, route1]).rules[0];
   assert.deepEqual([unseen.change, unseen.status], ['changed', 'never-rendered']);
+
+  // Head replaces route 1's body and drops route 2's: the dropped body is still judged on base.
+  const replacedHead = [map(rule('.x', 'B', { used: true })), map()];
+  const dropped = classifyRuleReach([route1, oldRoute2(false)], replacedHead).rules[0];
+  assert.deepEqual([dropped.change, dropped.status], ['changed', 'never-rendered']);
+  const droppedSeen = classifyRuleReach([route1, oldRoute2(true)], replacedHead).rules[0];
+  assert.deepEqual([droppedSeen.change, droppedSeen.status], ['changed', 'reached']);
+  // A one-for-one edit is judged where head renders it.
+  assert.equal(
+    classifyRuleReach([map(rule('.x', 'A'))], [map(rule('.x', 'B', { used: true }))]).rules[0].status,
+    'reached',
+  );
 });
 
 test('a changed @font-face is a blind channel only when a rendered rule uses its family', () => {
@@ -156,4 +236,69 @@ test('a changed @font-face is a blind channel only when a rendered rule uses its
   const brandBase = map(...faces('b1'), rule('.brand', 'r', { used: true, refs: ['Brand Sans'] }));
   const brandHead = map(...faces('b2'), rule('.brand', 'r', { used: true, refs: ['Brand Sans'] }));
   assert.equal(statusOf(classifyRuleReach([brandBase], [brandHead]), '@font-face').status, 'blind-channel');
+
+  const second = (hash) =>
+    map(
+      rule('@font-face', 'b', { refs: ['Brand Sans'] }),
+      rule('@font-face #2', hash, { refs: ['Other Serif'] }),
+      rule('.title', 't', { used: true, refs: ['Other Serif'] }),
+    );
+  assert.deepEqual(statusOf(classifyRuleReach([second('o1')], [second('o2')]), '@font-face #2'), {
+    key: '@font-face #2',
+    change: 'changed',
+    status: 'blind-channel',
+    why: 'referenced by .title, which rendered',
+    sheet: '/app.css',
+  });
+  const pulses = (hash) =>
+    map(
+      rule('@keyframes pulse', 'k'),
+      rule('@keyframes pulse #2', hash),
+      rule('.badge', 'b', { used: true, refs: ['pulse'] }),
+    );
+  assert.equal(
+    statusOf(classifyRuleReach([pulses('p1')], [pulses('p2')]), '@keyframes pulse #2').status,
+    'blind-channel',
+  );
+});
+
+test('the same maps in any order give the same result', () => {
+  const side = (sheet, referrer, consumer, k, r, warn) => ({
+    ...map(),
+    reach: {
+      sheets: [sheet],
+      rules: [
+        rule('@keyframes pulse', k),
+        rule(referrer, 'ref', { used: true, refs: ['pulse'] }),
+        rule(':root', r, { used: true, vars: { '--warn': warn } }),
+        rule(consumer, 'c', { uses: ['--warn'] }),
+      ],
+    },
+  });
+  const base = [side('/b.css', '.b', '.y', 'k1', 'r1', 'g'), side('/a.css', '.a', '.x', 'k1', 'r1', 'g')];
+  const head = [side('/b.css', '.b', '.y', 'k2', 'r2', 'a'), side('/a.css', '.a', '.x', 'k2', 'r2', 'a')];
+  const forward = classifyRuleReach(base, head);
+  assert.deepEqual(classifyRuleReach([...base].reverse(), [...head].reverse()), forward);
+  assert.deepEqual(statusOf(forward, '@keyframes pulse'), {
+    key: '@keyframes pulse',
+    change: 'changed',
+    status: 'blind-channel',
+    why: 'referenced by .a, which rendered',
+    sheet: '/a.css',
+  });
+  assert.equal(statusOf(forward, ':root').why, '--warn changed, and its consumer .x never matched');
+  assert.equal(statusOf(forward, ':root').sheet, '/a.css');
+
+  // Multiple bodies for one key choose the same result and sheet regardless of route order.
+  const split = (hash, sheet, used) => ({
+    ...map(),
+    reach: { sheets: [sheet], rules: [rule('.split', hash, used ? { used: true } : {})] },
+  });
+  for (const used of [true, false]) {
+    const variants = [split('B', '/b.css', used), split('A', '/a.css', used)];
+    const result = classifyRuleReach([map()], variants);
+    assert.deepEqual(classifyRuleReach([map()], [...variants].reverse()), result);
+    assert.equal(statusOf(result, '.split').sheet, '/a.css');
+    assert.deepEqual(classifyRuleReach(variants, [map()]), classifyRuleReach([...variants].reverse(), [map()]));
+  }
 });
