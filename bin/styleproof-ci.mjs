@@ -445,17 +445,6 @@ function recordBaselineProvenance(provenance) {
   }
 }
 
-/** An absolute spec with its folder's symlinks resolved, so it compares against git's physical
- *  repository root (#962). A relative spec, or one whose folder is missing, is returned as-is. */
-function physicalSpecPath(spec) {
-  if (!path.isAbsolute(spec)) return spec;
-  try {
-    return path.join(fs.realpathSync(path.dirname(spec)), path.basename(spec));
-  } catch {
-    return spec;
-  }
-}
-
 /** Reuse the nearest ancestor's bundle when nothing capture-relevant changed since it.
  *  Returns `{ ancestorSha }` on reuse, or `{ ancestorSha: '', coldReason }` for the cold path.
  *  Fail-safe: errors only log. */
@@ -495,8 +484,7 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
       );
     // An absolute explicit --spec names the consumer checkout, not the probe worktree.
     const repoSpec =
-      repoRelativePath(probeRoot, baseProbeCwd, probeSpec) ||
-      repoRelativePath(repoRoot, consumerCwd, physicalSpecPath(probeSpec));
+      repoRelativePath(probeRoot, baseProbeCwd, probeSpec) || repoRelativePath(repoRoot, consumerCwd, probeSpec);
     // Like the roots, the as-written relative spec and its directory stay relevant too.
     // An empty root list already makes every path relevant, so leave it empty.
     const writtenSpec =

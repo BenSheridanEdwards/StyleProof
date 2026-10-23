@@ -1641,6 +1641,17 @@ test('assertCompatibleMapDirs: differing runtime refuses privately without echoi
   }
 });
 
+test('assertCompatibleMapDirs: an empty BASE_URL and an unset one are different runtime environments', () => {
+  const before = manifestDir({ baseUrl: '' });
+  const after = manifestDir({ sha: 'b'.repeat(40) });
+  try {
+    assert.throws(() => assertCompatibleMapDirs(before, after), /different runtime environments/);
+  } finally {
+    rmTmp(before);
+    rmTmp(after);
+  }
+});
+
 test('assertCompatibleMapDirs: both sides missing browser build stay compatible', () => {
   const before = manifestDir();
   const after = manifestDir();

@@ -563,18 +563,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof-map --upload` keyed the bundle by the job's `BASE_URL`, but
   `styleproof-map --restore` and the `styleproof-ci` ancestor restore looked it
   up without one. Every restore missed with `cold_reason=compat_mismatch` and
-  recaptured the base cold. Both lookups now use the same `BASE_URL`, and an
-  empty `BASE_URL` keys like an unset one, so its manifest fields reproduce its
-  key. Keys for jobs without `BASE_URL` are unchanged.
+  recaptured the base cold. Both lookups now use the same `BASE_URL`. An empty
+  `BASE_URL` is stored in the manifest as `""` and keeps its own key, separate
+  from an unset one, so the manifest fields reproduce the key. Keys for jobs
+  with or without `BASE_URL` are unchanged.
 - **An absolute `--spec` reached through a symlinked folder keeps its map-store
-  key (#962).** The key stored the spec relative to the physical working
-  directory, so a spec spelled through a symlink (a linked checkout, or macOS's
-  `/var/folders` temp directory) keyed as a `../..` path and missed every
-  bundle. Both paths are now resolved to real paths first, so the relative,
-  physical and symlinked spellings of one spec share a key. A spec outside the
-  project still keys separately. `styleproof-ci` ancestor reuse resolves the
-  same way, so a change under that spec's folder counts as capture-relevant
-  again; before, only the cache miss kept the ancestor from being reused.
+  key (#962).** The key stored the spec relative to the working directory as
+  written, so a spec spelled through a symlinked checkout (a linked checkout,
+  or macOS's `/var/folders` temp directory) keyed as a `../..` path and missed
+  every bundle. The key now resolves only that checkout alias: the relative,
+  physical and checkout-alias spellings of one spec share a key. A symlink
+  inside the project, such as `e2e -> suite-a`, keeps its logical path, and a
+  spec outside the project still keys separately.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
