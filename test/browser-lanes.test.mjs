@@ -10,11 +10,10 @@ import {
   createContentFixture,
   createFixture,
   fileChangeCase,
-  legacyPathCases,
   runHosted,
-  trackedBrowserCases,
 } from './helpers/browser-lanes-fixtures.mjs';
 import { runRequired, sameTreeChange } from './helpers/ci-required.mjs';
+import { assertHosted } from './helpers/hosted-browser-lanes.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const tree = 'a'.repeat(40);
@@ -41,47 +40,11 @@ for (const [name, proofs, expected] of [
 ])
   test(`pure browserLanesRequired: ${name}`, () => assert.equal(browserLanesRequired(proofs), expected));
 
-function assertHosted(fixture, expected = true, options = {}) {
-  const result = runHosted(fixture, options);
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.decision.lanes, expected);
-  assert.equal(result.output.lanes, String(expected));
-  assert.equal(result.output.proof, result.decision.proof);
-  const required = runRequired(
-    sameTreeChange({
-      changes: { result: 'success', outputs: { e2e: result.output.lanes, e2e_proof: result.output.proof } },
-    }),
-  );
-  assert.equal(required.passed, !expected, required.output);
-  return result;
-}
-
-for (const row of contentCases) {
-  test(`H ${row.id}: ${row.title} runs browsers and required rejects skipped lanes`, (t) => {
-    const fixture = createContentFixture(t, row);
-    assertHosted(fixture);
-  });
-}
-
-for (const [title, files] of legacyPathCases) {
-  test(`${title} runs the browser lanes`, (t) => {
-    for (const [i, name] of files.entries()) assertHosted(createContentFixture(t, fileChangeCase(`legacy-${i}`, name)));
-  });
-}
-
 test('literal backslashes and line terminators never exempt a changed Git filename', (t) => {
   for (const name of ['docs\\setup.md', 'src\\diff.ts', '.agents\\nested\\theme.css'])
     assertHosted(createContentFixture(t, fileChangeCase('literal', name)));
   assert.ok(contentCases.filter((row) => row.id.startsWith('C2-')).length >= 39);
   assert.equal(contentCases.filter((row) => row.id.startsWith('C3-')).length, 3);
-});
-
-const tracked = trackedBrowserCases();
-test('every tracked e2e spec runs browsers (Playwright collects **/*.e2e.spec.ts anywhere)', (t) => {
-  for (const row of tracked.specs) assertHosted(createContentFixture(t, row));
-});
-test('every browser-lane entry import runs browsers', (t) => {
-  for (const row of tracked.imports) assertHosted(createContentFixture(t, row));
 });
 
 test('the shared decider uses only Node builtins and never enumerates paths', () => {
