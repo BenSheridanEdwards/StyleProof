@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {
   chmodSync,
+  constants,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -197,6 +199,8 @@ function localProcess(root, { browser = true, npmExit = 0 } = {}) {
   return { root, write, run, npmArgs };
 }
 
+let fixtureRepository;
+
 function fixture(t, options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'styleproof-pre-push-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -212,8 +216,20 @@ function fixture(t, options = {}) {
     git('-c', 'user.name=StyleProof Tests', '-c', 'user.email=tests@example.test', 'commit', '-m', 'test: fixture');
     return git('rev-parse', 'HEAD');
   };
-  git('init', '-q');
-  const base = commit();
+  let base;
+  if (fixtureRepository) {
+    // Runtime scripts and sentinels above remain fresh for each caller's options.
+    cpSync(fixtureRepository, join(root, '.git'), { recursive: true, mode: constants.COPYFILE_FICLONE });
+    base = git('rev-parse', 'HEAD');
+  } else {
+    git('init', '-q');
+    base = commit();
+    const template = mkdtempSync(join(tmpdir(), 'styleproof-pre-push-base-'));
+    process.once('exit', () => rmSync(template, { recursive: true, force: true }));
+    const repository = join(template, '.git');
+    cpSync(join(root, '.git'), repository, { recursive: true, mode: constants.COPYFILE_FICLONE });
+    fixtureRepository = repository;
+  }
   const pushed = (localOid = base, remoteOid = base, localRef = 'HEAD') =>
     `${localRef} ${localOid} refs/heads/test ${remoteOid}\n`;
   return { root, write, git, commit, base, run, pushed, npmArgs };
@@ -816,4 +832,29 @@ test('M15: deletion-only metadata cannot hide an actual staged CSS tree change',
   const result = f.run(f.pushed('0'.repeat(40), f.base, '(delete)'));
   assert.equal(result.status, 37, result.stdout + result.stderr);
   assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('pre-push fixture templates keep objects, refs, config and index independent', (t) => {
+  const first = fixture(t);
+  const existing = fixture(t);
+  const tree = first.git('rev-parse', `${first.base}^{tree}`);
+  first.write('private.css', 'body { color: purple; }');
+  first.git('add', 'private.css');
+  first.git('config', 'fixture.private', 'changed');
+  first.git('update-ref', 'refs/heads/private-fixture', first.base);
+  const object = join(first.root, '.git/objects', tree.slice(0, 2), tree.slice(2));
+  chmodSync(object, 0o644);
+  writeFileSync(object, 'corrupt only this fixture object\n');
+  assert.throws(() => first.git('cat-file', '-p', tree), /git cat-file/);
+  const fresh = fixture(t);
+  for (const f of [existing, fresh]) {
+    assert.equal(f.git('cat-file', '-t', tree), 'tree');
+    assert.equal(f.git('write-tree'), tree);
+    assert.doesNotMatch(f.git('config', '--list'), /fixture\.private/);
+    assert.equal(f.git('for-each-ref', '--format=%(refname)', 'refs/heads/private-fixture'), '');
+    const result = f.run(f.pushed());
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /skipped/);
+    assert.equal(f.npmArgs(), null);
+  }
 });
