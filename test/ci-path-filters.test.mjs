@@ -178,10 +178,20 @@ for (const [workflow, output, gate] of workflows) {
       if (line.trim() !== '' && line.search(/\S/) <= indent) break;
       if (line.trim() !== '' && !line.trimStart().startsWith('#')) body.push(line.trim());
     }
-    assert.deepEqual(body, ['id: filter', 'with:', 'predicate-quantifier: every', `filters: ${PATH_FILTERS_FILE}`]);
+    assert.deepEqual(body, [
+      'id: filter',
+      ...(workflow === 'ci.yml' ? ["if: github.event_name == 'pull_request'"] : []),
+      'with:',
+      'predicate-quantifier: every',
+      `filters: ${PATH_FILTERS_FILE}`,
+    ]);
+    const decision =
+      workflow === 'ci.yml'
+        ? "github.event_name == 'push' && 'true' || steps.filter.outputs.lanes"
+        : 'steps.filter.outputs.lanes';
     assert.ok(
-      yml.includes(`      ${output}: \${{ steps.filter.outputs.lanes }}\n`),
-      `${workflow} exposes the lanes verdict`,
+      yml.includes(`      ${output}: \${{ ${decision} }}\n`),
+      `${workflow} requires push proof or exposes the PR API verdict without coercing missing output to false`,
     );
     if (gate) assert.ok(yml.includes(`    needs: changes\n`) && yml.includes(`    if: ${gate}\n`), `${workflow} gate`);
   });

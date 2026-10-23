@@ -18,15 +18,16 @@ export function chromiumInstalled({ executablePath, existsSync = fs.existsSync }
 }
 
 function gitOutput(...args) {
-  const result = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  const gitArgs = ['--no-replace-objects', ...args];
+  const result = spawnSync('git', gitArgs, { cwd: ROOT, encoding: 'utf8' });
   if (result.error || result.status !== 0) {
-    throw new Error(`git ${args.join(' ')} failed: ${result.error?.message ?? result.stderr.trim()}`);
+    throw new Error(`git ${gitArgs.join(' ')} failed: ${result.error?.message ?? result.stderr.trim()}`);
   }
   return result.stdout;
 }
 
 function gitPaths(...args) {
-  return gitOutput('diff', '--name-only', '--no-renames', '-z', ...args)
+  return gitOutput('diff', '--ignore-submodules=none', '--name-only', '--no-renames', '-z', ...args)
     .split('\0')
     .filter(Boolean);
 }

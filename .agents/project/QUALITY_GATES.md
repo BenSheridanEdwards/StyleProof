@@ -47,8 +47,11 @@ is listed here only if it exists and runs on a clean checkout.
   shared CI path policy over staged and pushed files. Every nonempty changed
   path selects the full browser suite, including prose and tooling files;
   filenames have no exemptions. Unknown inventories, including a first push
-  without a remote base, also run it. Only a proven empty path inventory may
-  skip it, including a ref-deletion-only push with no staged paths. Deleted files
+  without a remote base, also run it. Staged and pushed diffs use
+  `--ignore-submodules=none` to include changed gitlinks despite tracked or local
+  submodule ignore settings, and disable Git replacement objects so local refs
+  cannot substitute unchanged trees. A successful empty collection may skip it,
+  including a ref-deletion-only push with no staged paths. Deleted files
   still require browser checks. Missing Chromium, malformed push metadata and
   Git read failures block the push.
 - **`npm run verify`** — every local gate in one command: context and
@@ -61,9 +64,11 @@ is listed here only if it exists and runs on a clean checkout.
   Node 22 shards (`playwright.ci.config.ts`, which adds a Firefox project) plus
   an `e2e-evidence` job that verifies shard coverage and prints the determinism
   receipt; CLI smoke on macOS + Windows; one stable `required` check that fails
-  unless the path filter, `build` and `cli-smoke` succeed. The browser lanes
-  (`e2e`, `e2e-evidence`, `detection-corpus`) must succeed too. They may skip
-  only when the path filter succeeded and its `e2e` output is exactly `false`.
+  unless the `changes`, `build` and `cli-smoke` jobs succeed. The browser lanes
+  (`e2e`, `e2e-evidence`, `detection-corpus`) must succeed too. Push events always
+  select these lanes, including empty-tree pushes, without consulting the Git
+  path collector. Pull requests use the pinned GitHub-API path filter; browser
+  lanes may skip only when that job succeeded and its `e2e` output is exactly `false`.
   An empty, missing or malformed decision fails closed.
   `test/ci-required-policy.test.mjs` executes the step against a table of
   cases.
