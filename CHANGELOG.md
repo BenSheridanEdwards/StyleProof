@@ -510,6 +510,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   on a failing job, and `require-approval: 'True'` shows the approval box.
   `mode: advisory` and certify with `fail-on-diff: false` keep the advisory
   footer.
+- **Crawlers no longer click "Check out", "Submit payment" or "Place order"
+  (#973).** The shared destructive-action guard listed `checkout` but not the
+  two-word `check out`, and `pay` and `purchase` matched only as whole words, so
+  "Payment", "Payments" and "Purchases" passed. Nothing covered order
+  placement. `--crawl`, the variant crawler and state recipes all share the
+  guard, so they drove those controls; in a `--crawl` run each click reached
+  the server. The guard now also matches `check out`, `payment`, `payments`,
+  `purchases` and `place order`, so those controls are recorded but not
+  clicked. Words that only contain the letters, such as "Display", "Replay"
+  and "Payload", stay clickable. A skipped destructive-looking control is
+  no longer silent: `--crawl` names it as incomplete UI (`destructive-label`,
+  redacted selector, never the label) on the surface where it was found,
+  sets crawl confidence to `incomplete-unknown` when no auth boundary exists
+  (`certifiesFully: false`), and exits 6 unless the surface is acknowledged
+  with `--incomplete-ui-exclude` and a reason. Capture the states behind
+  those controls with a spec fixture. This also applies to labels that were
+  already unsafe, such as "Delete" and "Log out".
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

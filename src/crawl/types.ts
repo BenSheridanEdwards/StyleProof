@@ -27,7 +27,7 @@ export type CrawlReport = {
   captured: number;
   failed: string[];
   coverage: CrawlCoverage;
-  /** Always present: `status: 'complete'` without auth walls. */
+  /** Always present: `status: 'complete'` without auth walls or skipped unsafe controls. */
   confidence: CrawlConfidence;
   /** Privacy-safe blocked continuations observed on each captured surface. */
   incompleteUi: IncompleteUiObservation[];
@@ -100,7 +100,15 @@ export type Fingerprint = { sig: string; elements: number; classes: string[] };
 
 /** retryOnly: reached through a CONSUMING action (approve/dismiss) — swept with the parent's
  *  persistent mode-switchers only, never fresh candidates, so decision lattices don't multiply. */
-export type QueueEntry = { path: CrawlStep[]; depth: number; sig: string; retryOnly: boolean; viaRetry: boolean };
+export type QueueEntry = {
+  path: CrawlStep[];
+  depth: number;
+  sig: string;
+  retryOnly: boolean;
+  viaRetry: boolean;
+  /** Surface key assigned by `record()`; names this state's incomplete-UI gaps. */
+  key?: string;
+};
 
 export type CrawlState = {
   /** Fingerprints already captured — a surface is captured once. */

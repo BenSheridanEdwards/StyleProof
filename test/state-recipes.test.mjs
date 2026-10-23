@@ -700,6 +700,17 @@ test('isUnsafeStateLabel: matches the shared destructive vocabulary', () => {
   assert.equal(isUnsafeStateLabel('Revoke access'), true);
   assert.equal(isUnsafeStateLabel('Open menu'), false);
   assert.equal(isUnsafeStateLabel('Save draft'), false);
+  // Two-word and noun forms of checkout, payment and order placement (#973).
+  for (const label of ['Check out', 'Submit payment', 'Confirm payment', 'Payments', 'Purchases', 'Place order']) {
+    assert.equal(isUnsafeStateLabel(label), true, label);
+  }
+  for (const label of ['Checkout', 'Pay now', 'Purchase', 'Log out', 'Sign out']) {
+    assert.equal(isUnsafeStateLabel(label), true, label);
+  }
+  // Words that only contain the letters stay clickable.
+  for (const label of ['Display settings', 'Replay intro', 'Payload preview']) {
+    assert.equal(isUnsafeStateLabel(label), false, label);
+  }
 });
 
 test('classifyStateRecipe: soft-skips unsafe labels; validates shape first', () => {

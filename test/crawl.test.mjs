@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   selectCrawlLinks,
   defaultLinkKey,
@@ -137,6 +140,119 @@ test('queued workers recheck coverage and state limits in deterministic sweep or
     assert.equal(alphaFirst.keys.length, options.maxStates ?? 5);
     assert.ok(!alphaFirst.keys.some(([selector]) => selector === 'beta/beta-pricing'));
   }
+});
+
+// Browser-free unsafe-control fixture: captures fail explicitly while discovery
+// visits both the root and an in-place child with a repeated control identity.
+async function crawlUnsafeControls(unsafe = true) {
+  const candidate = (selector, label, isUnsafe = false) => ({
+    action: 'click',
+    selector,
+    label,
+    reason: 'button',
+    identity: `button|${label}|`,
+    unsafe: isUnsafe,
+  });
+  const controls = {
+    root: [candidate('#payments', 'Payments', unsafe), candidate('#open', 'Open details')],
+    '#open': [
+      candidate('#payments', 'Payments', unsafe),
+      candidate('#open', 'Open details'),
+      candidate('button[aria-label="Delete draft"]', 'Delete draft', unsafe),
+    ],
+  };
+  const clicked = [];
+  let state = 'root';
+  const page = {
+    on() {},
+    off() {},
+    url: () => BASE,
+    async setViewportSize() {},
+    async waitForTimeout() {},
+    async goto() {
+      state = 'root';
+    },
+    locator(selector) {
+      return {
+        first() {
+          return this;
+        },
+        async waitFor() {},
+        async scrollIntoViewIfNeeded() {},
+        async isVisible() {
+          return true;
+        },
+        async evaluate() {
+          clicked.push(selector);
+          if (controls[selector]) state = selector;
+          return true;
+        },
+      };
+    },
+    async evaluate(fn) {
+      if (fn.name === 'collectBoundaryMetadata') return { auth: [], incompleteUi: [] };
+      if (fn.name === 'collectDefinedClasses') return { classes: [], unreadable: [] };
+      if (fn.name === 'collectClickable') return controls[state] ?? [];
+      if (fn.name === 'domShape') return { shape: state, elements: 10, classes: [state] };
+      if (fn.name === 'installHoverSink') throw new Error('capture unavailable in unsafe-control fixture');
+      return 10;
+    },
+  };
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-unsafe-'));
+  try {
+    const report = await crawlAndCapture(page, {
+      url: BASE,
+      out,
+      widths: [1280],
+      height: 800,
+      ignore: [],
+      screenshots: false,
+      dataStates: false,
+      resetStorage: false,
+      stopWhenCovered: false,
+      workers: 1,
+      maxDepth: 3,
+      maxActionsPerState: 10,
+      maxStates: 20,
+    });
+    return { report, clicked };
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+}
+
+test('crawl names unsafe skips once on their surfaces and never certifies them as complete', async () => {
+  const { report, clicked } = await crawlUnsafeControls();
+  assert.equal(clicked.includes('#payments'), false);
+  assert.equal(clicked.includes('button[aria-label="Delete draft"]'), false);
+  assert.deepEqual(report.incompleteUi, [
+    {
+      surface: 'base',
+      diagnostics: [{ kind: 'unsafe-control', reason: 'destructive-label', selector: '#payments' }],
+    },
+    {
+      surface: 'open-details',
+      diagnostics: [{ kind: 'unsafe-control', reason: 'destructive-label' }],
+    },
+  ]);
+  assert.equal(report.actionsTried, 1);
+  assert.equal(report.skipped, 2);
+  assert.equal(report.confidence.status, 'incomplete-unknown');
+  assert.equal(report.confidence.certifiesFully, false);
+  const serialized = JSON.stringify({ incompleteUi: report.incompleteUi, confidence: report.confidence });
+  assert.equal(serialized.includes('Payments'), false);
+  assert.equal(serialized.includes('Delete draft'), false);
+});
+
+test('crawl with only safe controls has no unsafe gaps and retains complete confidence', async () => {
+  const { report, clicked } = await crawlUnsafeControls(false);
+  assert.ok(clicked.includes('#payments'));
+  assert.ok(clicked.includes('button[aria-label="Delete draft"]'));
+  assert.deepEqual(report.incompleteUi, []);
+  assert.equal(report.actionsTried, 3);
+  assert.equal(report.skipped, 0);
+  assert.equal(report.confidence.status, 'complete');
+  assert.equal(report.confidence.certifiesFully, true);
 });
 
 // ------------------------------------------------------- selectCrawlLinks

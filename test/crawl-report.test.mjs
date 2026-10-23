@@ -10,7 +10,7 @@ import {
   crawlSummaryLine,
   incompleteUiLines,
 } from '../dist/crawl/report.js';
-import { resolveCrawlConfidence } from '../dist/crawl-confidence.js';
+import { crawlCaptureExitCode, resolveCrawlConfidence } from '../dist/crawl-confidence.js';
 
 const confidence = (over = {}) => ({
   status: 'complete',
@@ -110,6 +110,30 @@ test('aggregateIncompleteUi: reasons merge per surface, sorted, with acknowledge
     { surface: 'a', reasons: ['inert'], acknowledgedReason: 'out of scope' },
     { surface: 'z', reasons: ['form-present', 'inert'] },
   ]);
+});
+
+test('aggregateIncompleteUi: destructive skips fail closed unless the surface is acknowledged', () => {
+  const reports = [
+    report({
+      incompleteUi: [{ surface: 'base', diagnostics: [{ kind: 'unsafe-control', reason: 'destructive-label' }] }],
+    }),
+  ];
+  const entries = aggregateIncompleteUi(reports);
+  assert.deepEqual(entries, [{ surface: 'base', reasons: ['destructive-label'] }]);
+  const lines = incompleteUiLines(entries);
+  assert.match(lines[0], /✗ incomplete UI/);
+  assert.equal(lines[1], '    base (destructive-label)');
+  const acknowledged = aggregateIncompleteUi(reports, { base: 'reason' });
+  assert.match(incompleteUiLines(acknowledged)[1], /acknowledged: reason/);
+  assert.equal(
+    crawlCaptureExitCode({
+      requireFullCoverage: false,
+      hasCoverageResidue: false,
+      incompleteUiBlocked: true,
+      authBlocked: false,
+    }),
+    6,
+  );
 });
 
 test('coverageLines: full coverage, residue, and unreadable sheets keep their wording', () => {
