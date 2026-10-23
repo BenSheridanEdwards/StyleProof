@@ -31,13 +31,13 @@ Only the files that run the gates. Any change to one asks: adding, editing,
 deleting or renaming it, and a mode-only change. The first matching row in
 `GUARDS` names the area.
 
-| Area                      | Files                                                                                                                  |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Area | Files |
+| --- | --- |
 | Enforcement-approval gate | `.github/workflows/enforcement-approval.yml`, `scripts/enforcement-approval.mjs`, `test/enforcement-approval.test.mjs` |
-| CI workflows              | the rest of `.github/workflows/**`                                                                                     |
-| Git hooks                 | `.husky/**`                                                                                                            |
-| Lint config               | `eslint.config.js`, `commitlint.config.js`                                                                             |
-| Repo checks               | `scripts/check-suppressions.mjs`, `scripts/check-context-layer.mjs`                                                    |
+| CI workflows | the rest of `.github/workflows/**` |
+| Git hooks | `.husky/**` |
+| Lint config | `eslint.config.js`, `commitlint.config.js` |
+| Repo checks | `scripts/check-suppressions.mjs`, `scripts/check-context-layer.mjs` |
 
 Each is code or shell, which can loosen a gate in ways a text diff cannot rank,
 and the gate never runs PR code. So unlike the template, which ranks
