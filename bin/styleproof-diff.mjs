@@ -5,52 +5,41 @@
 // Exit 0 = identical (certified only when source-bound; an unbound run is a labelled
 // diagnostic), 1 = reviewable differences or non-certifying evidence,
 // 2 = usage/capture error, 3 = only NEW surfaces with no baseline.
+//
+// Reading order: read the evidence (bin/diff/read.mjs), audit the declared ledgers,
+// print each block (bin/diff/print-*.mjs), apply the gate table, write the --json
+// receipt, print the summary, then write the audit trail (bin/diff/audit-trail.mjs).
 import fs from 'node:fs';
 import path from 'node:path';
-import { auditLiveTextDirs, diffStyleMapDirs, findingLabel, summarizeComparability } from '../dist/diff.js';
-import { liveTextFreezeError } from '../dist/live-text.js';
+import { summarizeComparability } from '../dist/diff.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
-import {
-  collectElevatedNavigableChromeAdds,
-  withElevatedChromeReviewableCounts,
-} from '../dist/chrome-navigable-gate.js';
-import {
-  collectElevatedVisibleStructure,
-  combinedStructureElevationCount,
-  withElevatedVisibleStructureCounts,
-} from '../dist/visible-structure-gate.js';
-import {
-  assessComparisonTruth,
-  chromeSpanLabel,
-  classifyChrome,
-  cleanFindingsForDisplay,
-  countCapturedSurfaceBases,
-  countChangedSurfaceScope,
-  derivedLonghandCount,
-  formatSurfaceList,
-  groupByPath,
-  groupBySignature,
-  groupTitle,
-  rawFindingsExplainedByLiveText,
-  summarizeProps,
-} from '../dist/change-groups.js';
-import { honestBaselineCompareAttribution, readBaselineProvenance } from '../dist/map-store.js';
-import {
-  captureKeysIn,
-  mergeSurfaceKeyLookup,
-  readInventories,
-  readResidue,
-  surfaceElementPaths,
-} from '../dist/capture.js';
-import { auditRunInventory, hasCapturedInventory, readAckFile } from '../dist/inventory.js';
-import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
+import { collectStructureElevation, elevateReviewable } from '../dist/structure-elevation.js';
+import { assessComparisonTruth, rawFindingsExplainedByLiveText } from '../dist/change-groups.js';
+import { honestBaselineCompareAttribution } from '../dist/map-store.js';
 import { applyLegacyPairReceipts, auditLegacyPairs } from '../dist/legacy-pairs.js';
 import { applyCriticalObligationReceipts, auditCriticalObligations } from '../dist/critical-obligations.js';
-import { COVERAGE_LEDGER, auditCoverage, auditDeterminism } from '../dist/coverage.js';
-import { readConfidenceLedger, summarizeConfidence, withCaptureDeterminism } from '../dist/confidence-ledger.js';
 import { AUDIT_FILE_NAME, createAudit } from '../dist/audit.js';
 import { defineCli, errorMessage, fail, number } from './cli.mjs';
 import { compareFlags, resolveCompareInputs, withCaptureDirs } from './compare.mjs';
+import { readCompareEvidence } from './diff/read.mjs';
+import { printSection } from './diff/output.mjs';
+import {
+  printBaselineNotes,
+  printChangeGroups,
+  printComparability,
+  printOneSidedSurfaces,
+} from './diff/print-changes.mjs';
+import {
+  printCoverageVerdict,
+  printDeterminismVerdict,
+  printInventoryAudit,
+  printLiveText,
+  printPixelGate,
+  printResidueAudit,
+  printStructureElevation,
+  printUncomparedWarnings,
+} from './diff/print-gates.mjs';
+import { baselineSource, exitReason, trustReasons } from './diff/audit-trail.mjs';
 
 const NAME = 'styleproof-diff';
 const cli = defineCli({
@@ -100,75 +89,8 @@ const inputs = resolveCompareInputs(NAME, {
 });
 const { requireStateIdentity, expectedBeforeSha, expectedAfterSha } = inputs;
 
-const print = (...lines) => lines.forEach((line) => console.log(line));
-/** A titled block: the title opens a paragraph, its lines follow. */
-const printSection = (title, lines = []) => print(`\n${title}`, ...lines);
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
 // ── read everything while the (possibly restored) dirs still exist ─────────────
-
-/** `key -> reason` ledgers fail loud (exit 2) so a broken file can't silently un-acknowledge a real gap. */
-function readLedgerOrExit(read) {
-  try {
-    return read();
-  } catch (error) {
-    return fail(NAME, errorMessage(error));
-  }
-}
-
-function readCoverageLedger(dir) {
-  const file = path.join(dir, COVERAGE_LEDGER);
-  if (!fs.existsSync(file)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    // Reading a corrupt ledger as "no registry" would silently disarm the coverage, determinism, and residue gates.
-    return fail(
-      NAME,
-      `corrupt coverage ledger: ${file} — recapture the bundle; refusing to compare with disarmed gates.`,
-    );
-  }
-}
-
-const surfaceKeysIn = (dir) => [...new Set(captureKeysIn(dir).map((key) => key.replace(/@\d+$/, '')))];
-
-function readInventoryAudit(dirA, dirB) {
-  const baseInv = readInventories(dirA);
-  const headInv = readInventories(dirB);
-  if (!hasCapturedInventory(baseInv, headInv)) return null;
-  const allowed = readLedgerOrExit(readAckFile);
-  return { allowed, ...auditRunInventory(baseInv, headInv, allowed) };
-}
-
-function readResidueAudit(dirB, headLedger) {
-  const armed = headLedger?.dataResidue === 'gate';
-  const headResidue = readResidue(dirB);
-  if (!armed && !headResidue.some((m) => m.dataResidue?.length)) return null;
-  const acknowledged = readLedgerOrExit(readResidueAckFile);
-  return { acknowledged, hasLedger: headLedger != null, ...auditRunResidue(headResidue, acknowledged, armed) };
-}
-
-const read = withCaptureDirs(NAME, inputs, () => {
-  const { beforeDir: dirA, afterDir: dirB } = inputs;
-  const headLedger = readCoverageLedger(dirB);
-  return {
-    result: diffStyleMapDirs(dirA, dirB, { includeStructure: migration, pixels }),
-    inventoryAudit: readInventoryAudit(dirA, dirB),
-    residueAudit: readResidueAudit(dirB, headLedger),
-    coverageExclusions: headLedger?.exclude ?? {},
-    coverageVerdict: auditCoverage(surfaceKeysIn(dirB), headLedger),
-    determinismVerdict: auditDeterminism(
-      withCaptureDeterminism(dirA, readCoverageLedger(dirA)),
-      withCaptureDeterminism(dirB, headLedger),
-    ),
-    confidenceSummary: summarizeConfidence(readConfidenceLedger(dirB)),
-    liveTextAudit: auditLiveTextDirs(dirA, dirB),
-    surfacePaths: surfaceElementPaths(dirA, dirB),
-    surfaceKeyOf: mergeSurfaceKeyLookup(dirA, dirB),
-    baselineProvenance: readBaselineProvenance(dirA),
-    baseMapCount: captureKeysIn(dirA).length,
-  };
-});
+const read = withCaptureDirs(NAME, inputs, () => readCompareEvidence(NAME, inputs, { migration, pixels }));
 const {
   result,
   inventoryAudit,
@@ -226,32 +148,19 @@ const truth = assessComparisonTruth(surfaces, counts, comparability, {
   ...(liveTextAudit ? { liveText: liveTextAudit } : {}),
 });
 // #766 navigable Global chrome + visible paired-surface add/remove elevate into reviewableCounts / exit 1.
-const { count: elevatedNavigableChromeAdds, elevated: elevatedChromeEntries } = migration
-  ? { count: 0, elevated: [] }
-  : collectElevatedNavigableChromeAdds({
-      beforeDir: inputs.beforeDir,
-      afterDir: inputs.afterDir,
-      surfacePaths,
-      surfaceKeyOf,
-    });
-const visibleElevated = migration
-  ? { count: 0, elevated: [] }
-  : collectElevatedVisibleStructure({
-      beforeDir: inputs.beforeDir,
-      afterDir: inputs.afterDir,
-      surfacePaths,
-      surfaceKeyOf,
-    });
-const elevatedVisibleStructure = visibleElevated.count;
-const elevatedStructureDom = combinedStructureElevationCount(
-  visibleElevated,
-  elevatedChromeEntries.map((e) => e.change),
+const elevation = collectStructureElevation({
+  beforeDir: inputs.beforeDir,
+  afterDir: inputs.afterDir,
+  migration,
+  surfacePaths,
+  surfaceKeyOf,
+});
+const elevatedNavigableChromeAdds = elevation.chrome.count;
+const elevatedVisibleStructure = elevation.visible.count;
+const { reviewableCounts: gateReviewableCounts, hasReviewableEvidence: gateHasReviewableEvidence } = elevateReviewable(
+  truth,
+  elevation,
 );
-const gateReviewableCounts = withElevatedVisibleStructureCounts(
-  withElevatedChromeReviewableCounts(truth.reviewableCounts, 0),
-  elevatedStructureDom,
-);
-const gateHasReviewableEvidence = truth.hasReviewableEvidence || elevatedStructureDom > 0;
 const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = surfaces
   .filter((s) => s.classification === 'baseline-repair-debt')
@@ -261,288 +170,23 @@ const partialBaseline = baselineFailures.length > 0;
 const baselineAttribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: baselineFailures });
 
 // ── human output ───────────────────────────────────────────────────────────────
-if (partialBaseline) {
-  printSection(`⚠ ${baselineFailures.length} baseline capture failure(s): ${baselineAttribution.summary}`, [
-    '  Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.',
-  ]);
-}
-if (undeclaredOnBase.length) {
-  printSection(
-    `ℹ ${undeclaredOnBase.length} base capture attempt(s) not counted as baseline failures — the base commit never declared: ${undeclaredOnBase.join(', ')}`,
-  );
-}
-
-function comparabilityHeadline() {
-  const c = comparison.counts;
-  if (comparison.status === 'comparable')
-    return `✓ product-state identity comparable on ${c.comparable} paired capture(s)`;
-  if (comparison.status === 'not-required')
-    return 'ℹ product-state comparison not required — no paired capture obligation';
-  if (!comparison.blocksCertification) {
-    return declaredLegacyPairs
-      ? `⚠ product-state identity unproven on ${legacyPairAudit.declared.length} declared legacy pair(s) — ` +
-          'on the record, advisory, not certified. Stamp productState {id, revision} to certify.'
-      : `⚠ product-state identity unproven on ${c.unproven} legacy paired capture(s) — ` +
-          'legacy compatibility mode keeps the existing verdict, but this is not proof of same product state. ' +
-          'Pass --require-state-identity to make it non-certifying, or declare known pairs in styleproof.product-state.json.';
-  }
-  const reasons = [
-    [c.incomparable, 'explicit mismatch(es)'],
-    [c.requiredUnproven, 'required-unproven pair(s)'],
-    [c.globalRequiredUnproven, 'globally-required legacy pair(s)'],
-    [legacyPairAudit.armed ? legacyPairAudit.undeclared.length : 0, 'undeclared legacy pair(s)'],
-  ]
-    .filter(([n]) => n)
-    .map(([n, what]) => `${n} ${what}`);
-  return `✗ product-state identity ${comparison.status.toUpperCase()} — ${reasons.join(', ')}. Raw style deltas remain diagnostic only; they are not approval evidence.`;
-}
-
-function obligationLines() {
-  const lines = [];
-  if (legacyPairAudit.armed) {
-    for (const key of legacyPairAudit.undeclared)
-      lines.push(
-        `undeclared legacy pair: ${key} — stamp productState {id, revision}, or record it in styleproof.product-state.json {"<surface>":"<why>"}.`,
-      );
-    for (const key of legacyPairAudit.staleAcknowledgements)
-      lines.push(`stale legacy-pair declaration: ${key} — prune it from styleproof.product-state.json`);
-  }
-  if (criticalAudit.armed) {
-    const meta = (key) => {
-      const record = inputs.criticalObligations[key];
-      return `owner ${record?.owner ?? 'unknown'}: ${record?.reason ?? 'no reason recorded'}`;
-    };
-    for (const key of criticalAudit.failing)
-      lines.push(
-        `critical obligation ${key} is not certifying — ${meta(key)}. Stamp matching productState {id, revision} to certify.`,
-      );
-    for (const key of criticalAudit.unresolved)
-      lines.push(
-        `unresolved critical obligation ${key} — no paired surface evidence (lost capture, removed surface, or unknown ID). ${meta(key)}.`,
-      );
-    for (const key of criticalAudit.contradictory)
-      lines.push(
-        `contradictory critical obligation ${key} — declared critical and coverage-excluded. A state cannot both certify and opt out.`,
-      );
-  }
-  return lines.map((line) => `  ✗ ${line}`);
-}
-printSection(comparabilityHeadline(), obligationLines());
-
-// One finding's lines: a heading, then its summarised property deltas. `inventory` =
-// one-sided added path: head-side values with no baseline, never before → after restyles.
-function findingLines(f, inventory = false) {
-  if (f.kind === 'dom') return [];
-  const rows = summarizeProps(f.props);
-  if (!rows.length) return [];
-  const head =
-    f.kind === 'state'
-      ? `  [:${f.state}] ${findingLabel(f.path, f.cls)}${f.sub !== f.path ? ` ⇒ ${f.sub}` : ''}`
-      : `  ${findingLabel(f.path, f.cls)}${f.pseudo || ''}`;
-  const note = inventory ? '  (head-side inventory — no baseline)' : '';
-  return [
-    head + note,
-    ...rows.map((p) => (inventory ? `    ${p.prop}: ${p.after}` : `    ${p.prop}: ${p.before} → ${p.after}`)),
-  ];
-}
-
-function elementLines(findings) {
-  const lines = [];
-  for (const group of groupByPath(findings)) {
-    const dom = group.find((f) => f.kind === 'dom');
-    if (dom) {
-      lines.push(
-        dom.change === 'retagged'
-          ? `  DOM retagged: ${dom.path} ${dom.detail ?? ''}`
-          : `  DOM ${dom.change}: ${findingLabel(dom.path, dom.cls)}`,
-      );
-    }
-    for (const f of group) lines.push(...findingLines(f, dom?.change === 'added'));
-  }
-  return lines;
-}
-
-// One-sided surfaces keep their own line. A baseline-capture failure is repair debt,
-// not first adoption; only an unexplained after-only surface is NEW.
-const ONE_SIDED = {
-  removed: (s) => `${s}: ✗ REMOVED surface — captured only in the before set; the head no longer renders it`,
-  'baseline-repair-debt': (s, sha) =>
-    `${s}: ✗ baseline repair debt — captured only in the after set because ${s} failed${sha ? ` at ${sha}` : ''}; not a base recapture failure — repair that surface on the named SHA`,
-  'genuinely-new': (s) =>
-    `${s}: new surface — captured only in the after set, no baseline to compare; review before baselining`,
-};
-for (const sd of surfaces) {
-  if (sd.missing) printSection(ONE_SIDED[sd.classification](sd.surface, baselineFailures[0]?.sha));
-}
-
-// Group the changed surfaces the way the report does, so an identical change across
-// N surfaces prints once (with the count). Carry the raw findings to report the fold.
-const nonCertifying = (receipt) =>
-  receipt?.status === 'incomparable' || (receipt?.status === 'unproven' && (receipt.required || requireStateIdentity));
-const preparedForGrouping = surfaces
-  .filter((sd) => !sd.missing && !nonCertifying(displayComparability.find((entry) => entry.surface === sd.surface)))
-  .map((sd) => ({ surface: sd.surface, findings: cleanFindingsForDisplay(sd.findings), raw: sd.findings }))
-  .filter((p) => p.findings.length > 0);
-
-function printGroup(cg) {
-  const lines = elementLines(cg.findings);
-  const derived = derivedLonghandCount(cg.rep.raw) - derivedLonghandCount(cg.findings);
-  const foldNote = derived > 0 ? ` (+${plural(derived, 'derived longhand')})` : '';
-  const others = cg.surfaces.length - 1;
-  const scope =
-    others > 0
-      ? `${cg.rep.surface} (+${plural(others, 'more surface')}: ${formatSurfaceList(cg.surfaces)})`
-      : cg.rep.surface;
-  printSection(`${scope}: ${groupTitle(cg.findings)}${foldNote}`, lines.slice(0, MAX));
-  if (lines.length > MAX) console.log(`  ... and ${lines.length - MAX} more lines (re-run with --max ${lines.length})`);
-}
-
-// Shared-chrome tier: a change that rode the shared frame gets one banner.
-const { chrome, rest } = classifyChrome(groupBySignature(preparedForGrouping), surfacePaths, surfaceKeyOf);
-if (chrome.length) {
-  const bases = countCapturedSurfaceBases([...surfacePaths.keys()], surfaceKeyOf);
-  const span = chromeSpanLabel(countChangedSurfaceScope(chrome, surfaceKeyOf).bases, bases);
-  printSection(
-    `🧱 Global chrome change(s) — across ${span} captured surface base(s): ${chrome.length} change(s) rode the shared frame (a persistent nav, header, or footer).`,
-  );
-}
-for (const cg of [...chrome, ...rest]) printGroup(cg);
+printBaselineNotes({ baselineFailures, baselineAttribution, undeclaredOnBase });
+printComparability({
+  comparison,
+  legacyPairAudit,
+  declaredLegacyPairs,
+  criticalAudit,
+  criticalObligations: inputs.criticalObligations,
+});
+printOneSidedSurfaces(surfaces, baselineFailures);
+printChangeGroups({ surfaces, displayComparability, requireStateIdentity, surfacePaths, surfaceKeyOf, max: MAX });
 
 // ── gates ──────────────────────────────────────────────────────────────────────
-function printInventoryAudit(audit) {
-  if (!audit) return 0;
-  const { delta, unexplained, staleAllowances, allowed } = audit;
-  if (!delta.added.length && !delta.removed.length && !staleAllowances.length) {
-    printSection('📐 Inventory: navigable set unchanged across captured surfaces');
-    return 0;
-  }
-  printSection('📐 Inventory (navigable affordances — route links, tabs, menu items, nav buttons):', [
-    ...delta.removed.map((it) =>
-      allowed[it.key]
-        ? `  removed: ${it.key} ("${it.label}") — acknowledged: ${allowed[it.key]}`
-        : `  ✗ REMOVED, unacknowledged: ${it.key} ("${it.label}")`,
-    ),
-    ...delta.added.map((it) => `  + added: ${it.key} ("${it.label}")`),
-    ...staleAllowances.map(
-      (k) => `  ✗ stale allowRemoved (key is not actually removed): ${k} — prune it from styleproof.inventory.json`,
-    ),
-    ...(unexplained.length
-      ? [
-          `  → ${unexplained.length} unacknowledged removal(s): restore the affordance, or record the decision in styleproof.inventory.json {"<key>":"<why>"}.`,
-        ]
-      : []),
-  ]);
-  // A stale allowance blocks like a stale residue acknowledgement: it pre-acknowledges the next removal.
-  return unexplained.length + staleAllowances.length;
-}
-
-const RESIDUE_NEXT = {
-  armed:
-    '  → {n} unacknowledged failing endpoint(s): fixture each (page.route / liveStates), acknowledge intentional ones in styleproof.data-residue.json {"<key>":"<why>"}, or opt down with `dataResidue: "warn"` in the capture spec.',
-  warn: '  → recorded and warned (dataResidue: "warn" — the opt-out). Remove it to restore the default gate that BLOCKS on these.',
-  noLedger:
-    '  → recorded and warned — the head bundle carries no coverage ledger (ad-hoc or pre-3.10 capture), so the residue gate cannot arm. A spec-driven capture records the ledger and gates by default.',
-};
-
-function residueLine(r, ack, armed) {
-  if (ack !== undefined) return `  ${r.surface} · ${r.endpoint} (${r.reason}) — acknowledged: ${ack}`;
-  return `  ${armed ? '✗ ' : '⚠ '}${r.surface} · ${r.endpoint} (${r.reason})${armed ? ', unacknowledged' : ''}`;
-}
-
-function printResidueAudit(audit) {
-  if (!audit) return 0;
-  const { residue, unacknowledged, staleAcknowledgements, armed, hasLedger, acknowledged } = audit;
-  if (!residue.length && !staleAcknowledgements.length) {
-    printSection('Failed data request: no API failed during capture');
-    return 0;
-  }
-  const next = RESIDUE_NEXT[armed ? 'armed' : hasLedger ? 'warn' : 'noLedger'];
-  printSection('Failed data request (an API failed during capture, so the screenshot is the fallback UI):', [
-    ...residue.map((r) => residueLine(r, acknowledged[r.key], armed)),
-    ...staleAcknowledgements.map((k) => `  ⚠ stale acknowledgement (endpoint no longer failing/present): ${k}`),
-    ...(unacknowledged.length ? [next.replace('{n}', String(unacknowledged.length))] : []),
-  ]);
-  return armed ? unacknowledged.length + staleAcknowledgements.length : 0;
-}
-
-/** Coverage and determinism share one shape: proven / unknown (diagnostic escape) / failed. Returns "blocks". */
-function printVerdict(status, { ok, unknown, okLine, unknownDiagnostic, unknownRefuse, failedLines }) {
-  if (status === ok) {
-    console.log(okLine);
-    return false;
-  }
-  if (status === unknown) {
-    console.log(allowUnasserted ? unknownDiagnostic : unknownRefuse);
-    return !allowUnasserted;
-  }
-  console.log(failedLines);
-  return true;
-}
-
-function printCoverageVerdict(v) {
-  const stale = (v.staleExclusions ?? [])
-    .map((k) => `\n  ⚠ stale exclude (not in the registry): ${k} — prune it from the spec`)
-    .join('');
-  const uncovered = v.uncovered ?? [];
-  return printVerdict(v.basis, {
-    ok: 'complete',
-    unknown: 'unasserted',
-    okLine: `\n✓ coverage complete — all ${v.registrySize} registered surface(s) captured or explicitly excluded${stale}`,
-    unknownDiagnostic:
-      '\n⚠ completeness NOT asserted — diagnostic mode (--allow-unasserted): comparing captured surfaces only.\n' +
-      '  This run does NOT certify fully. Declare `expected` for certifying captures.',
-    unknownRefuse:
-      '\n✗ completeness NOT asserted — refusing certification. A filtered, crawl, or registry-less\n' +
-      '  capture cannot share exit 0 with a complete asserted capture. Declare `expected`, or pass\n' +
-      '  --allow-unasserted for an explicit diagnostic comparison (certifiesFully: false).',
-    failedLines:
-      `\n✗ coverage INCOMPLETE — ${uncovered.length} registered surface(s) not captured (of ${v.registrySize}):` +
-      uncovered.map((k) => `\n  ✗ missing: ${k}`).join('') +
-      "\n  → capture each (or move it to `exclude` with a reason). A green can't certify what was never captured.",
-  });
-}
-
-function printDeterminismVerdict(v) {
-  return printVerdict(v.status, {
-    ok: 'proven',
-    unknown: 'unknown',
-    okLine: `\n✓ determinism proven — base ${v.base}, head ${v.head}`,
-    unknownDiagnostic:
-      '\n⚠ determinism basis unknown — diagnostic mode (--allow-unasserted): comparing as-is.\n' +
-      '  This run does NOT certify fully. Spec-driven captures self-check and record the basis.',
-    unknownRefuse:
-      '\n✗ determinism basis unknown — refusing certification. A side carries no proven determinism\n' +
-      '  ledger (filtered map, ad-hoc capture, or pre-ledger bundle). Spec-driven styleproof-map\n' +
-      '  self-checks and records it; pass --allow-unasserted only for explicit diagnostic compares.',
-    failedLines:
-      `\n✗ determinism NOT proven — base ${v.base}, head ${v.head}. An unproven capture can drift, so a clean\n` +
-      '  diff might be two matching NONDETERMINISTIC reads. Enable selfCheck (default) or replay a recorded HAR.',
-  });
-}
-
 const invRemovals = printInventoryAudit(inventoryAudit);
-if (elevatedNavigableChromeAdds > 0) {
-  printSection(
-    `🧱 Global chrome navigable addition(s) — ${elevatedNavigableChromeAdds} shared navigable affordance(s) added across surface bases; reviewable (STYLE_REVIEW_REQUIRED), Approve clears with other reviewable changes (#766).`,
-  );
-  for (const entry of elevatedChromeEntries) {
-    console.log(`  + ${entry.change.path} (${entry.change.cls || 'no-class'}) on ${entry.bases} surface base(s)`);
-  }
-}
-if (elevatedVisibleStructure > 0) {
-  printSection(
-    `🧱 Visible element addition(s)/removal(s) — ${elevatedVisibleStructure} visible DOM structure change(s) on paired surfaces; reviewable (STYLE_REVIEW_REQUIRED), Approve clears with other reviewable changes.`,
-  );
-  for (const entry of visibleElevated.elevated) {
-    console.log(
-      `  ${entry.change.change === 'added' ? '+' : '-'} ${entry.change.path} (${entry.change.cls || 'no-class'}) on ${entry.surface}`,
-    );
-  }
-}
-
+printStructureElevation(elevation);
 const residueFails = printResidueAudit(residueAudit);
-const coverageFails = printCoverageVerdict(coverageVerdict);
-const determinismFails = printDeterminismVerdict(determinismVerdict);
+const coverageFails = printCoverageVerdict(coverageVerdict, allowUnasserted);
+const determinismFails = printDeterminismVerdict(determinismVerdict, allowUnasserted);
 const inaccessible = confidenceSummary?.counts.inaccessible ?? 0;
 if (inaccessible > 0) {
   printSection(
@@ -554,57 +198,12 @@ if (inaccessible > 0) {
 // a layer captured on one side only cannot be certified and blocks too.
 const pixelRegions = pixelSurfaces.reduce((n, s) => n + s.regionCount, 0);
 const pixelUncompared = pixelSurfaces.reduce((n, s) => n + s.uncompared.length, 0);
-function pixelLayerLines(surface, layer) {
-  if (layer.status === 'missing-both') {
-    return [`  ${surface}: ✗ no screenshot on either side — nothing compared, surface uncertified`];
-  }
-  if (layer.status !== 'compared') {
-    return [
-      `  ${surface} [${layer.layer}]: ✗ screenshot ${layer.status.replace('-', ' on the ')} side — layer uncertified`,
-    ];
-  }
-  const lines = layer.comparison.regions.map((region) => {
-    const [x, y, w, h] = region.rect;
-    const who = region.elements.length
-      ? region.elements.map((e) => findingLabel(e.path, e.cls)).join(', ')
-      : 'no captured element under the region';
-    return `  ${surface} [${layer.layer}]: ${w}×${h} at ${x},${y} (${region.changedPixels} px) — ${who}`;
-  });
-  const mismatch = layer.comparison.sizeMismatch;
-  if (mismatch) {
-    lines.push(
-      `    screenshot size ${mismatch.before[0]}×${mismatch.before[1]} → ${mismatch.after[0]}×${mismatch.after[1]}`,
-    );
-  }
-  return lines;
-}
-if (pixels) {
-  const flagged = pixelSurfaces.filter((s) => s.regionCount > 0 || s.uncompared.length > 0);
-  if (!pixelSurfaces.length) {
-    printSection('✗ pixel gate: no paired capture to compare — nothing certified');
-  } else if (!flagged.length) {
-    printSection(
-      `🖼 pixel gate: 0 changed region(s) across ${pixelSurfaces.length} paired capture(s), every screenshot layer compared`,
-    );
-  } else {
-    printSection(
-      `🖼 pixel gate: ${pixelRegions} changed region(s) in ${flagged.filter((s) => s.regionCount > 0).length} surface(s)` +
-        (pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''),
-      flagged.flatMap((s) => s.layers.flatMap((layer) => pixelLayerLines(s.surface, layer))),
-    );
-  }
-}
+if (pixels) printPixelGate({ surfaces: pixelSurfaces, regions: pixelRegions, uncompared: pixelUncompared });
 // Armed with no paired capture compares nothing: fail closed rather than pass vacuously.
 const pixelBlocks = pixelRegions > 0 || pixelUncompared > 0 || (pixels && !pixelSurfaces.length);
 
 const liveTextFreezeViolated = Boolean(liveTextAudit?.freeze && liveTextAudit.violations.length);
-if (liveTextFreezeViolated) {
-  console.error(liveTextFreezeError(liveTextAudit));
-} else if (liveTextAudit?.declared && liveTextAudit.livePaths.length) {
-  printSection(
-    `⏱ live/age/clock text: ${liveTextAudit.livePaths.length} declared live-text change(s) kept advisory — not a stylesheet regression`,
-  );
-}
+printLiveText(liveTextAudit, liveTextFreezeViolated);
 
 // ── verdict ────────────────────────────────────────────────────────────────────
 const reviewableTotal = gateReviewableCounts.dom + gateReviewableCounts.style + gateReviewableCounts.state;
@@ -824,58 +423,15 @@ if (jsonOut) {
   }
 }
 
-if (volatile > 0) {
-  printSection(
-    `⚠ ${volatile} auto-detected volatile subtree(s) excluded from the comparison (still mutating at capture\n` +
-      '  settle) — changes inside them are NOT certified. Fixture the region, or `ignore` it deliberately.',
-  );
-}
-if (headOnlyVolatile.length > 0) {
-  printSection(
-    `✗ ${headOnlyVolatile.length} subtree(s) newly volatile on head — still mutating at capture settle on the head but\n` +
-      '  settled and compared on the base, so they were excluded and whatever changed inside them is NOT certified:',
-    [
-      ...headOnlyVolatile.slice(0, MAX).map((v) => `  ✗ ${v.surface}: ${v.path}`),
-      ...(headOnlyVolatile.length > MAX ? [`  ... and ${headOnlyVolatile.length - MAX} more`] : []),
-      '  → stop the head-side churn (a timer, stream, or animation the PR added), fixture it, or `ignore` the region on both sides.',
-    ],
-  );
-}
-if (documentRootVolatile.length > 0) {
-  printSection(
-    `✗ ${documentRootVolatile.length} document root(s) volatile on head — html or body was still mutating at capture settle,\n` +
-      '  so the whole page under it was excluded and NOT certified:',
-    [
-      ...documentRootVolatile.slice(0, MAX).map((v) => `  ✗ ${v.surface}: ${v.path}`),
-      ...(documentRootVolatile.length > MAX ? [`  ... and ${documentRootVolatile.length - MAX} more`] : []),
-      '  → fixture the churning region, or `ignore` it so the rest of the page is compared.',
-    ],
-  );
-}
-if (baseOnlyVolatile.length > 0) {
-  printSection(
-    `⚠ ${baseOnlyVolatile.length} subtree(s) volatile on the base only — still mutating at capture settle on the base but\n` +
-      '  settled on the head, so they were excluded and whatever the head renders inside them is NOT checked (review required):',
-    [
-      ...baseOnlyVolatile.slice(0, MAX).map((v) => `  ⚠ ${v.surface}: ${v.path}`),
-      ...(baseOnlyVolatile.length > MAX ? [`  ... and ${baseOnlyVolatile.length - MAX} more`] : []),
-      '  → review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.',
-    ],
-  );
-}
-if (statesUncertified > 0) {
-  printSection(
-    `⚠ forced-state layer uncertified on ${statesUncertified} surface(s): at least one capture skipped or did not support it, so\n` +
-      '  :hover/:focus/:active differences there were not fully compared.',
-  );
-}
-if (truth.rawOnlyNoReviewable) {
-  printSection(
-    '⚠ report consistency: raw certification delta(s) have no reviewable rendering — the visual ' +
-      'report would show nothing for a gating change. Failing closed as a certification inconsistency ' +
-      '(not STYLE_REVIEW_REQUIRED, not a base recapture failure). Re-run with styleproof-report --include-layout-noise to inspect.',
-  );
-}
+printUncomparedWarnings({
+  volatile,
+  headOnlyVolatile,
+  documentRootVolatile,
+  baseOnlyVolatile,
+  statesUncertified,
+  rawOnlyNoReviewable: truth.rawOnlyNoReviewable,
+  max: MAX,
+});
 
 const repairDebtOnly = partialBaseline && greenfieldNewSurfaces === 0;
 function summaryLine() {
@@ -902,60 +458,6 @@ printSection(summaryLine());
 const exitCode = !clean || liveTextFreezeViolated ? 1 : greenfieldNewSurfaces > 0 ? 3 : 0;
 
 // ── durable audit trail ────────────────────────────────────────────────────────
-const check = (name, result, detail) => ({ check: name, result, detail });
-/** One trust check per evidence class, keyed by the verdict's own status (`other` = failed). */
-const TRUST_CHECKS = {
-  coverage: {
-    complete: (v) => check('coverage', 'complete', `${v.registrySize}/${v.registrySize} expected captured`),
-    unasserted: () => check('coverage', 'unknown', 'completeness not asserted'),
-    other: (v) => check('coverage', 'failed', `${v?.uncovered?.length ?? 0} uncaptured`),
-  },
-  determinism: {
-    proven: () => check('determinism', 'proven', 'self-check passed'),
-    unknown: () => check('determinism', 'unknown', 'determinism basis unknown'),
-    other: () => check('determinism', 'failed', 'determinism unproven'),
-  },
-};
-const trustCheck = (name, status, verdict) => (TRUST_CHECKS[name][status] ?? TRUST_CHECKS[name].other)(verdict);
-const BASELINE_SOURCES = new Set(['exact-restore', 'ancestor-reuse', 'captured']);
-
-function trustReasons() {
-  const reasons = [
-    sourceBinding.status === 'bound'
-      ? check('source-binding', 'bound', 'both SHAs matched')
-      : check('source-binding', 'failed', 'source SHAs not verified'),
-    trustCheck('coverage', coverageVerdict?.basis, coverageVerdict),
-    trustCheck('determinism', determinismVerdict?.status, determinismVerdict),
-    check('data-residue', residueFails ? 'failed' : 'clean', `${residueFails} unacknowledged`),
-    check(
-      'inventory',
-      invRemovals ? 'failed' : 'clean',
-      invRemovals ? `${invRemovals} unacknowledged removal(s)` : '0 removals',
-    ),
-  ];
-  if (total > 0 || greenfieldNewSurfaces > 0) {
-    reasons.push(check('reviewable-changes', 'found', `${total} style, ${greenfieldNewSurfaces} new surface(s)`));
-  }
-  if (partialBaseline) reasons.push(check('baseline-surface-capture', 'failed', baselineAttribution.summary));
-  if (headOnlyVolatile.length > 0) {
-    reasons.push(check('volatility', 'failed', `${headOnlyVolatile.length} subtree(s) newly volatile on head`));
-  }
-  if (documentRootVolatile.length > 0) {
-    reasons.push(
-      check('document-root-volatility', 'failed', `${documentRootVolatile.length} document root(s) volatile on head`),
-    );
-  }
-  if (baseOnlyVolatile.length > 0) {
-    reasons.push(check('base-volatility', 'found', `${baseOnlyVolatile.length} subtree(s) volatile on the base only`));
-  }
-  return reasons;
-}
-
-function baselineSource() {
-  if (BASELINE_SOURCES.has(baselineProvenance?.baseline)) return baselineProvenance.baseline;
-  return !baselineProvenance && baseMapCount > 0 ? 'captured' : 'none';
-}
-
 const auditPath = opts['audit-json'] ?? (jsonOut ? path.join(path.dirname(jsonOut), AUDIT_FILE_NAME) : AUDIT_FILE_NAME);
 try {
   const verdict = classifyStyleProofVerdict(
@@ -975,16 +477,6 @@ try {
     },
     { gateInventoryRemovals: true, baseCaptureFailed: false, changed: exitCode === 1 || exitCode === 3 },
   );
-  const exitReason = {
-    // Exit 0 is certification only when certifiesFully; say which diagnostic it is otherwise.
-    0: certifiesFully
-      ? 'certified — no reviewable changes'
-      : sourceBinding.status !== 'bound'
-        ? 'not certified: unbound — no reviewable changes, but trusted source SHAs were not supplied'
-        : 'not certified: diagnostic or advisory — no reviewable changes',
-    1: clean ? 'non-certifying evidence' : 'reviewable differences found',
-    3: 'new surfaces only — review before baselining',
-  };
   const observedBaseSha = expectedBeforeSha || sourceBinding.before?.observed || null;
   const audit = createAudit({
     runId: process.env.GITHUB_RUN_ID
@@ -993,7 +485,7 @@ try {
     headSha: expectedAfterSha || sourceBinding.after?.observed || '',
     baseSha: observedBaseSha,
     comparison: {
-      baselineSource: baselineSource(),
+      baselineSource: baselineSource(baselineProvenance, baseMapCount),
       baselineSha: baselineProvenance?.restoredSha || observedBaseSha,
       surfacesCompared: compared,
       surfacesNew: greenfieldNewSurfaces,
@@ -1004,9 +496,22 @@ try {
     trustDecision: {
       finalState: verdict.state,
       gateMode: migration ? 'migration' : 'certify',
-      reasons: trustReasons(),
+      reasons: trustReasons({
+        sourceBinding,
+        coverageVerdict,
+        determinismVerdict,
+        residueFails,
+        invRemovals,
+        total,
+        greenfieldNewSurfaces,
+        partialBaseline,
+        baselineAttribution,
+        headOnlyVolatile,
+        documentRootVolatile,
+        baseOnlyVolatile,
+      }),
       exitCode,
-      exitReason: exitReason[exitCode] || 'unknown',
+      exitReason: exitReason(exitCode, { certifiesFully, bound: sourceBinding.status === 'bound', clean }),
     },
   });
   fs.writeFileSync(auditPath, `${JSON.stringify(audit, null, 2)}\n`);

@@ -136,9 +136,10 @@ Wired and tested in this change:
 - `src/runner.ts` (3.8.0) — `defineStyleMapCapture` / `defineCrawlCapture` forward the
   `inventory` option to the capture, so a spec turns the guard on with one line;
   `styleproof-init` sets it on by default.
-- `bin/styleproof-diff.mjs` — reads both sides' `inventory`, runs `auditRunInventory`
-  against the `styleproof.inventory.json` ledger, prints the 📐 Inventory section, and
-  **folds unacknowledged removals into exit code 1**.
+- `bin/styleproof-diff.mjs` — reads both sides' `inventory` and runs `auditRunInventory`
+  against the `styleproof.inventory.json` ledger (`bin/diff/read.mjs`), prints the
+  📐 Inventory section (`bin/diff/print-gates.mjs`), and **folds unacknowledged removals
+  into exit code 1**.
 - `test/inventory.test.mjs` — 6 unit tests (a Model-Config removal, the failing
   guard, the acknowledgement ledger, stale-allowance detection, parallel-route
   staging, union dedup).

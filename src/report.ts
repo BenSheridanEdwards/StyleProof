@@ -1,12 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
-import { collectElevatedNavigableChromeAdds, withElevatedChromeReviewableCounts } from './chrome-navigable-gate.js';
-import {
-  collectElevatedVisibleStructure,
-  combinedStructureElevationCount,
-  withElevatedVisibleStructureCounts,
-} from './visible-structure-gate.js';
+import { collectStructureElevation, elevateReviewable, type StructureElevation } from './structure-elevation.js';
 import { readBaselineProvenance, type BaselineFailureReceipt } from './map-store.js';
 import {
   diffStyleMapDirs,
@@ -368,55 +363,16 @@ function presentSurfaces(
   return { prepared, missing, certifyingShown, changeGroups, chrome, shown: countShownChanges(changeGroups) };
 }
 
-type StructureElevation = {
-  /** Navigable Global chrome additions (#766). */
-  navigableChromeAdds: number;
-  /** Visible element adds/removes on paired surfaces. */
-  visibleStructure: number;
-  /** DOM changes the two elevate, each counted once. */
-  dom: number;
-};
-
-/**
- * Navigable Global chrome (#766) and visible paired-surface add/remove elevate into
- * reviewableCounts even when --include-content is off: structure is always on the maps.
- * Migration mode elevates nothing.
- */
-function collectStructureElevation(
-  { beforeDir, afterDir, migration }: { beforeDir: string; afterDir: string; migration: boolean },
-  surfacePaths: Map<string, Set<string>>,
-  surfaceKeyOf: SurfaceKeyOf,
-): StructureElevation {
-  const dirs = { beforeDir, afterDir, surfacePaths, surfaceKeyOf };
-  const chrome = migration ? { count: 0, elevated: [] } : collectElevatedNavigableChromeAdds(dirs);
-  const visible = migration ? { count: 0, elevated: [] } : collectElevatedVisibleStructure(dirs);
-  return {
-    navigableChromeAdds: chrome.count,
-    visibleStructure: visible.count,
-    dom: combinedStructureElevationCount(
-      visible,
-      chrome.elevated.map((e) => e.change),
-    ),
-  };
-}
-
 /** The certification differ's truth, adjusted for the presentation, with elevated structure counted as reviewable. */
 function reportComparison(
   raw: ComparisonTruth,
   summary: ComparabilitySummary,
   includeNoise: boolean,
   certifyingShown: number,
-  elevatedStructureDom: number,
+  elevation: StructureElevation,
 ): ReportComparison {
   const base: ReportComparison = { ...comparisonForReport(raw, includeNoise, certifyingShown), ...summary };
-  return {
-    ...base,
-    reviewableCounts: withElevatedVisibleStructureCounts(
-      withElevatedChromeReviewableCounts(base.reviewableCounts, 0),
-      elevatedStructureDom,
-    ),
-    hasReviewableEvidence: base.hasReviewableEvidence || elevatedStructureDom > 0,
-  };
+  return { ...base, ...elevateReviewable(base, elevation) };
 }
 
 /**
@@ -516,13 +472,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const surfacePaths = surfaceElementPaths(beforeDir, afterDir);
   const view = presentSurfaces(ctx, diff.surfaces, gates, includeStructure, surfacePaths, surfaceKeyOf);
   const baseline = readBaselineInfo(beforeDir, afterDir);
-  const elevation = collectStructureElevation({ beforeDir, afterDir, migration }, surfacePaths, surfaceKeyOf);
+  const elevation = collectStructureElevation({ beforeDir, afterDir, migration, surfacePaths, surfaceKeyOf });
   const comparison = reportComparison(
     rawComparison,
     comparabilitySummary,
     ctx.includeNoise,
     view.certifyingShown,
-    elevation.dom,
+    elevation,
   );
   // Elevated visible structure / navigable chrome is reviewable presentation evidence even
   // when matched-element style changeGroups are empty (no restyle sections to crop).
@@ -536,8 +492,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     { includeContent, migration },
     surfacePaths,
     surfaceKeyOf,
-    elevation.navigableChromeAdds,
-    elevation.visibleStructure,
+    elevation.chrome.count,
+    elevation.visible.count,
   );
   // Confidence is resolved once and shared with report.json so badge and JSON can never disagree.
   const confidenceLedger = resolveBundleConfidence(afterDir);
@@ -564,8 +520,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
     contentCount: content.contentSection.count,
     globalChromeCount: content.globalChrome,
-    elevatedNavigableChromeAdds: elevation.navigableChromeAdds,
-    elevatedVisibleStructure: elevation.visibleStructure,
+    elevatedNavigableChromeAdds: elevation.chrome.count,
+    elevatedVisibleStructure: elevation.visible.count,
     elevatedStructureDom: elevation.dom,
     contentEvaluated: includeContent,
     reportConsistency,
@@ -599,7 +555,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     beforeDir,
     afterDir,
     { ledger: confidenceLedger, summary: confidence },
-    elevation.navigableChromeAdds,
+    elevation.chrome.count,
   );
   // "Nothing else" when restyles exist but no advisory content / inventory issues.
   const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
@@ -641,8 +597,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       changes: content.total,
       advisory: true,
       ...(content.globalChrome ? { globalChrome: content.globalChrome } : {}),
-      ...(elevation.navigableChromeAdds ? { elevatedNavigableChromeAdds: elevation.navigableChromeAdds } : {}),
-      ...(elevation.visibleStructure ? { elevatedVisibleStructure: elevation.visibleStructure } : {}),
+      ...(elevation.chrome.count ? { elevatedNavigableChromeAdds: elevation.chrome.count } : {}),
+      ...(elevation.visible.count ? { elevatedVisibleStructure: elevation.visible.count } : {}),
     },
     surfaces: out.json,
     confidence,
