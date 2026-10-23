@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { browserLanesRequired, decideGithub, makeGit, parentsOf, treeOf } from '../scripts/browser-lanes.mjs';
 import {
   contentCases,
@@ -158,7 +158,7 @@ for (const base of [undefined, null, '', 'a'.repeat(7), {}, [], 42]) {
 test('H M4: fetch-depth 1 with a missing parent requires browsers', (t) => {
   const fixture = identityFixture(t);
   const clone = path.join(fixture.workspace, 'shallow');
-  const result = spawnSync('git', ['clone', '--depth=1', `file://${fixture.directory}`, clone], {
+  const result = spawnSync('git', ['clone', '--depth=1', pathToFileURL(fixture.directory).href, clone], {
     env: fixture.env,
     encoding: 'utf8',
   });
