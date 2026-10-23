@@ -3726,11 +3726,6 @@ in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
   directly in `.git/config`; StyleProof now explicitly enables Git config includes
   and falls back to its locally registered checkout config before carrying that
   header into the isolated clone and push.
-- **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
-  Checkout v7 keeps its HTTP header in an included temporary config rather than
-  directly in `.git/config`; StyleProof now explicitly enables Git config includes
-  and falls back to its locally registered checkout config before carrying that
-  header into the isolated clone and push.
 - **Map-store uploads now reuse the HTTP authentication persisted by
   `actions/checkout`.** The isolated `styleproof-maps` clone carries the
   checkout's URL-scoped extra header through clone and push, so cache-miss
