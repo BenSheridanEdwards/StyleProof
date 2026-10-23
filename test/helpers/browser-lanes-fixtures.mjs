@@ -105,9 +105,11 @@ export function createFixture(t, options = {}) {
     return typeof result.stdout === 'string' ? result.stdout.trim() : result.stdout;
   };
   git(['init', '-q', ...(options.format ? [`--object-format=${options.format}`] : [])]);
-  git(['config', 'user.email', 'fixture@example.test']);
-  git(['config', 'user.name', 'Tree fixture']);
-  git(['config', 'commit.gpgSign', 'false']);
+  // This is disposable fixture configuration, not a behavior under test.
+  fs.appendFileSync(
+    path.join(directory, '.git/config'),
+    '\n[user]\n\temail = fixture@example.test\n\tname = Tree fixture\n[commit]\n\tgpgSign = false\n',
+  );
   const blob = (contents) => git(['hash-object', '-w', '--stdin'], { input: contents });
   const setEntry = (name, mode, contents) => {
     const oid = mode === '160000' ? contents : blob(contents);
@@ -127,11 +129,51 @@ export function createFixture(t, options = {}) {
   return { workspace, directory, git, env, blob, setEntry, removeEntry, commit };
 }
 
+/** Batch object construction; real merges and both gate entrypoints still run per case. */
+function importContent(fixture, row) {
+  const chunks = [];
+  const line = (text) => chunks.push(Buffer.from(`${text}\n`));
+  const data = (contents) => {
+    const bytes = Buffer.from(contents);
+    line(`data ${bytes.length}`);
+    chunks.push(bytes, Buffer.from('\n'));
+  };
+  // Fast-import's C-quoted path syntax preserves every Git-legal name byte.
+  const quotedPath = (name) =>
+    `"${[...Buffer.from(name)].map((byte) => `\\${byte.toString(8).padStart(3, '0')}`).join('')}"`;
+  const entry = (name, mode, contents) => {
+    line(`M ${mode} inline ${quotedPath(name)}`);
+    data(contents);
+  };
+  const commit = (ref, mark, message, parent) => {
+    line(`commit refs/heads/${ref}`);
+    line(`mark :${mark}`);
+    line('committer Tree fixture <fixture@example.test> 1 +0000');
+    data(message);
+    if (parent) line(`from :${parent}`);
+  };
+  commit('fixture-base', 1, 'base');
+  entry('fixture.txt', '100644', 'stable tree fixture\n');
+  if (row.attributes) entry('.gitattributes', '100644', row.attributes);
+  entry(row.name, row.beforeMode ?? '100644', row.before ?? baseCss);
+  line('');
+  commit('fixture-head', 2, 'changed content', 1);
+  if (row.remove || row.target) line(`D ${quotedPath(row.name)}`);
+  if (!row.remove) entry(row.target ?? row.name, row.afterMode ?? '100644', row.after ?? changedCss);
+  line('');
+  fixture.git(['-c', 'core.ignoreCase=false', 'fast-import', '--quiet'], { input: Buffer.concat(chunks) });
+  [fixture.base, fixture.head, fixture.baseTree, fixture.headTree] = fixture
+    .git(['rev-parse', 'fixture-base', 'fixture-head', 'fixture-base^{tree}', 'fixture-head^{tree}'])
+    .split('\n');
+  // The plumbing-only merge rows use the index; ordinary rows check out base below.
+  if (row.plumbingMerge) fixture.git(['read-tree', fixture.head]);
+}
+
 export function createContentFixture(t, row) {
   const fixture = createFixture(t);
   const { git, setEntry, removeEntry, commit, workspace } = fixture;
-  setEntry('fixture.txt', '100644', 'stable tree fixture\n');
   if (row.gitlink) {
+    setEntry('fixture.txt', '100644', 'stable tree fixture\n');
     const child = path.join(workspace, 'child');
     fs.mkdirSync(child);
     const childGit = (args, input) => {
@@ -165,19 +207,17 @@ export function createContentFixture(t, row) {
     if (row.gitlink !== 'remove') setEntry('styles', '160000', fixture.childHead);
     fixture.head = commit([fixture.base], 'changed gitlink');
   } else {
-    if (row.attributes) setEntry('.gitattributes', '100644', row.attributes);
-    setEntry(row.name, row.beforeMode ?? '100644', row.before ?? baseCss);
-    fixture.base = commit([], 'base');
-    if (row.remove || row.target) removeEntry(row.name);
-    if (!row.remove) setEntry(row.target ?? row.name, row.afterMode ?? '100644', row.after ?? changedCss);
-    fixture.head = commit([fixture.base], 'changed content');
+    importContent(fixture, row);
     if (row.drivers) {
       git(['config', 'diff.external', 'true']);
       git(['config', 'diff.empty.textconv', 'true']);
     }
   }
-  fixture.baseTree = git(['rev-parse', `${fixture.base}^{tree}`]);
-  fixture.headTree = git(['rev-parse', `${fixture.head}^{tree}`]);
+  if (row.gitlink) {
+    [fixture.baseTree, fixture.headTree] = git(['rev-parse', `${fixture.base}^{tree}`, `${fixture.head}^{tree}`]).split(
+      '\n',
+    );
+  }
   assert.notEqual(fixture.baseTree, fixture.headTree, row.id);
   if (row.plumbingMerge) {
     // These paths are legal tree bytes but cannot all be checked out on every supported filesystem.
