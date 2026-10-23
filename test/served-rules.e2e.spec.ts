@@ -56,9 +56,22 @@ const APP_CSS = `
 @keyframes pulse { to { opacity: 0.5; } }`;
 
 async function serve() {
-  let sheetAvailable = true;
+  let sheetPending = false;
   const server = http.createServer((req, res) => {
-    const css = new URL(req.url ?? '/', 'http://127.0.0.1').pathname === '/assets/app.css';
+    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+    if (
+      req.method === 'GET' &&
+      pathname === '/' &&
+      req.headers['sec-fetch-mode'] === 'navigate' &&
+      req.headers['sec-fetch-dest'] === 'document'
+    ) {
+      sheetPending = true;
+    }
+    const css = pathname === '/assets/app.css';
+    // Only the page's load gets the sheet: inspector re-fetches must fail, so a
+    // tracker armed after navigation cannot recover text it failed to record.
+    const sheetAvailable = css && sheetPending;
+    if (css) sheetPending = false;
     res.writeHead(css && !sheetAvailable ? 404 : 200, {
       'content-type': css ? 'text/css' : 'text/html',
       'cache-control': 'no-store',
@@ -68,9 +81,6 @@ async function serve() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return {
     url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`,
-    dropSheet: () => {
-      sheetAvailable = false;
-    },
     close: () => {
       server.close();
       server.closeAllConnections();
@@ -149,8 +159,7 @@ test('a tracker armed after load counts linked stylesheets unreadable instead of
   const early = await open(page, site.url);
   await early.dispose();
   await page.reload({ waitUntil: 'load' });
-  // The late tracker's re-fetch must fail so the sheet is genuinely unreadable.
-  site.dropSheet();
+  // Reload consumes the sheet; the fixture rejects every inspector re-fetch.
   // No caller-armed tracker: captureReach arms one now, after app.css has loaded.
   const map = await captureStyleMap(page, { stabilize: false, captureReach: true });
   expect(map.reach?.unreadable).toBe(1);
