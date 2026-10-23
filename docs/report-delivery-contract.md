@@ -85,7 +85,7 @@ No publication receipt means no new delivery claim for that run.
 - A failed publish or artifact upload produces no new comment and terminal state `REPORT_PUBLICATION_FAILED`.
 - A failed comment or review-status update after publication also produces `REPORT_PUBLICATION_FAILED`.
 - A skipped or cancelled publish caused by an earlier evidence failure preserves the earlier bounded trust verdict when available; otherwise it reports `CERTIFICATION_FAILED`.
-- A late earlier run attempt cannot overwrite the comment or status from a newer attempt.
+- A late earlier run attempt cannot overwrite the comment or status from a newer attempt. The guard checks every marker comment written by a bot or by an `OWNER`/`MEMBER`/`COLLABORATOR` account, including user-authored comments it would never edit, and ignores comments from other accounts.
 - A prior valid report or approval for the same immutable source commit is not described as newly delivered by the failed run.
 
 ## Approval binding

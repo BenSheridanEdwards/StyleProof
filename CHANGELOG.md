@@ -450,7 +450,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reads every page and only updates a comment written by a bot, the oldest if
   there are several. A comment posted with a personal access token belongs to
   a user account, so it is no longer reused: use `github.token` or a GitHub
-  App token.
+  App token. Reports from bots and from accounts with write access (such as
+  one posted with a personal access token) still count for the rerun guard,
+  including user-authored comments that are never edited, so a late earlier
+  attempt cannot overwrite a newer attempt's comment or status. A comment
+  from an account without write access cannot suppress a delivery.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

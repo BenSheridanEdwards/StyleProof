@@ -769,20 +769,28 @@ runs:
           // `changed` = review required: before/after differences OR new surfaces with no baseline.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           // Every page, oldest first (#968): a report comment past the first 100 must be
-          // found, or each run posts another. Only a bot's comment is ours, never a
-          // person's that quotes the marker; find() keeps the oldest, so its id is stable.
-          // The marker is matched anywhere because the dogfood workflows prefix a notice.
+          // found, or each run posts another. The marker is matched anywhere because the
+          // dogfood workflows prefix a notice.
           const comments = await github.paginate(github.rest.issues.listComments, {
             ...context.repo, issue_number: prNumber, per_page: 100,
           });
-          const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+          const markerComments = comments.filter((c) => c.body?.includes(marker));
+          // Only a bot's comment is ours to edit, never a person's that quotes the marker;
+          // find() keeps the oldest, so its id is stable.
+          const existing = markerComments.find((c) => c.user?.type === 'Bot');
           // Rerun-attempt ordering guard: a late delivery from an earlier attempt of THIS run
-          // must not overwrite the verdict a newer attempt already published.
+          // must not overwrite the verdict a newer attempt already published. Its evidence is
+          // every marker comment from a bot or from an account with write access: a report
+          // posted with a personal access token is authored by its user and still counts,
+          // though it is never edited. An account without write access cannot suppress a
+          // delivery with a forged receipt.
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
-          if (existing && !shouldSupersedeExistingComment({
-            existingCommentBody: existing.body, runId, runAttempt,
-          })) {
+          const publishers = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+          const laterAttempt = markerComments.find((c) =>
+            (c.user?.type === 'Bot' || publishers.has(c.author_association)) &&
+            !shouldSupersedeExistingComment({ existingCommentBody: c.body, runId, runAttempt }));
+          if (laterAttempt) {
             core.setOutput('stale-delivery', 'true');
             core.info(`StyleProof: the report comment was already published by a later attempt of run ${runId} — leaving it (and the commit status) in place.`);
             return;
