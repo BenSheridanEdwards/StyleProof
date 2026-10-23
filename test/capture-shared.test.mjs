@@ -182,22 +182,46 @@ for (const { name, tag, property, hostValue, value, ua } of [
 }
 
 test('capture prunes inherited and currentcolor values against their single reference (#979)', () => {
-  const host = { color: 'rgb(200, 0, 0)', 'font-family': 'serif', 'border-top-color': 'rgb(200, 200, 200)' };
+  const host = {
+    color: 'rgb(200, 0, 0)',
+    'font-family': 'serif',
+    'border-top-color': 'rgb(200, 200, 200)',
+    'row-rule-color': 'rgb(200, 200, 200)',
+  };
   const pseudo = {
     content: 'none',
     color: host.color,
     'font-family': host['font-family'],
     'border-top-color': host.color,
+    'row-rule-color': host.color,
   };
+  const ua = { content: 'none', 'row-rule-color': 'rgb(0, 0, 0)' };
   const { run } = pseudoPageHarness({
     host,
     pseudos: { '::first-letter': pseudo, '::first-line': pseudo },
-    defaults: { '::first-letter': { content: 'none' }, '::first-line': { content: 'none' } },
+    defaults: { '::first-letter': ua, '::first-line': ua },
   });
   const map = run(capturePage, pageCaptureArgs);
   assert.equal(map.elements.target.pseudo, undefined);
   assert.equal(map.defaults['p::first-letter'], undefined);
   assert.equal(map.defaults['p::first-line'], undefined);
+});
+
+test('capture retains explicit row-rule colours matching the host or UA default (#979)', () => {
+  const host = { color: 'rgb(200, 0, 0)', 'row-rule-color': 'rgb(200, 200, 200)' };
+  const ua = { content: 'none', 'row-rule-color': 'rgb(0, 0, 0)' };
+  for (const value of [host['row-rule-color'], ua['row-rule-color']]) {
+    const pseudo = { color: 'rgb(0, 128, 0)', 'row-rule-color': value };
+    const { run } = pseudoPageHarness({
+      host,
+      pseudos: { '::first-letter': pseudo, '::first-line': pseudo },
+      defaults: { '::first-letter': ua, '::first-line': ua },
+    });
+    const map = run(capturePage, pageCaptureArgs);
+    for (const ps of ['::first-letter', '::first-line']) {
+      assert.equal(map.elements.target.pseudo[ps]['row-rule-color'], value, ps);
+    }
+  }
 });
 
 for (const display of ['flow-root list-item', 'inline list-item', 'block ruby']) {

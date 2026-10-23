@@ -224,7 +224,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `::file-selector-button` on a file input. Each value is compared with what
   the pseudo-element shows with no rule of its own: the element's value for
   an inherited property, the pseudo-element's own colour for a currentcolor
-  property such as a border colour, and the UA default for everything else.
+  property (including border colours and `row-rule-color`), and the UA
+  default for everything else.
   The diff refills a missing value from the same reference, so removing a
   pseudo-element rule is reported even when the old value matched the
   element or the UA default. An element with no override still gets no new

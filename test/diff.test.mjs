@@ -1034,36 +1034,53 @@ for (const { name, tag, pseudo, prop, host, ua, before, after } of [
   });
 }
 
-test('generated pseudo currentcolor refills from its own color', () => {
-  const path = 'body > p:nth-child(1)';
-  const makePseudo = (props) =>
-    makeMap({
-      defaults: {
-        p: { color: 'rgb(200, 0, 0)' },
-        'p::first-letter': { color: 'rgb(0, 0, 0)', 'border-top-color': 'rgb(0, 0, 0)' },
-      },
-      elements: { [path]: { tag: 'p', pseudo: { '::first-letter': { color: 'rgb(0, 128, 0)', ...props } } } },
-    });
-  const a = makePseudo({});
-  const same = makePseudo({ 'border-top-color': 'rgb(0, 128, 0)' });
-  const changed = makePseudo({ 'border-top-color': 'rgb(0, 0, 255)' });
-  for (const includeStructure of [true, false]) {
-    assert.deepEqual(diffStyleMaps(a, same, { includeStructure }), [], `includeStructure=${includeStructure}`);
-    assert.deepEqual(
-      diffStyleMaps(a, changed, { includeStructure }),
-      [
-        {
-          kind: 'style',
-          path,
-          cls: '',
-          pseudo: '::first-letter',
-          props: [{ prop: 'border-top-color', before: 'rgb(0, 128, 0)', after: 'rgb(0, 0, 255)' }],
+for (const prop of ['border-top-color', 'row-rule-color']) {
+  test(`generated pseudo ${prop} refills from its own color`, () => {
+    const path = 'body > p:nth-child(1)';
+    const makePseudo = (props) =>
+      makeMap({
+        defaults: {
+          p: { color: 'rgb(200, 0, 0)' },
+          'p::first-letter': { color: 'rgb(0, 0, 0)', [prop]: 'rgb(0, 0, 0)' },
         },
-      ],
-      `includeStructure=${includeStructure}`,
-    );
-  }
-});
+        elements: { [path]: { tag: 'p', pseudo: { '::first-letter': { color: 'rgb(0, 128, 0)', ...props } } } },
+      });
+    const a = makePseudo({});
+    const same = makePseudo({ [prop]: 'rgb(0, 128, 0)' });
+    for (const includeStructure of [true, false]) {
+      assert.deepEqual(diffStyleMaps(a, same, { includeStructure }), [], `includeStructure=${includeStructure}`);
+      for (const after of ['rgb(0, 0, 255)', 'rgb(0, 0, 0)', 'rgb(200, 0, 0)']) {
+        const changed = makePseudo({ [prop]: after });
+        assert.deepEqual(
+          diffStyleMaps(a, changed, { includeStructure }),
+          [
+            {
+              kind: 'style',
+              path,
+              cls: '',
+              pseudo: '::first-letter',
+              props: [{ prop, before: 'rgb(0, 128, 0)', after }],
+            },
+          ],
+          `includeStructure=${includeStructure}`,
+        );
+        assert.deepEqual(
+          diffStyleMaps(changed, a, { includeStructure }),
+          [
+            {
+              kind: 'style',
+              path,
+              cls: '',
+              pseudo: '::first-letter',
+              props: [{ prop, before: after, after: 'rgb(0, 128, 0)' }],
+            },
+          ],
+          `removed override, includeStructure=${includeStructure}`,
+        );
+      }
+    }
+  });
+}
 
 test('generated pseudo inheritance does not duplicate a host color change', () => {
   const path = 'body > p:nth-child(1)';

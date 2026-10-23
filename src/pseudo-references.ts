@@ -144,6 +144,7 @@ export const CURRENTCOLOR_PROPERTIES = [
   'border-inline-end-color',
   'outline-color',
   'column-rule-color',
+  'row-rule-color',
   'text-decoration-color',
 ];
 
