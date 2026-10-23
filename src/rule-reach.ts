@@ -5,9 +5,11 @@
  * and classifies every rule key whose served bodies differ between them. A side can
  * serve one key with different bodies on different surfaces (route-split stylesheets),
  * so each distinct body is compared on its own: every body only head serves must have
- * matched on head; every body only base serves must have matched on base, unless the
- * key's change is one body swapped for one (then the new body is judged where head
- * renders it). Pure: no browser, no I/O.
+ * matched on head; every body only base serves is judged on base. A one-for-one swap
+ * is judged only on head if the old body matched on base, or both bodies were served
+ * in every map of their respective side with equal map counts. Other route pairings
+ * are ambiguous.
+ * Pure: no browser, no I/O.
  *
  * Statuses:
  * - `reached`         a captured state matched each changed body (and every consumer of a
@@ -51,10 +53,13 @@ export type RuleReachResult = {
 
 type Variant = ServedRule & { sheetLabel: string; id: string };
 type Side = {
+  mapCount: number;
   /** Every distinct key + body the side served, by `variantId`. */
   variants: Map<string, Variant>;
   /** Variant ids some map on the side matched. */
   used: Set<string>;
+  /** Variant ids served in every map on the side, independent of map order. */
+  common: Set<string>;
   /** Distinct served bodies per key. */
   byKey: Map<string, Variant[]>;
   /** Every variant ordered by key, then body hash. */
@@ -81,8 +86,10 @@ function recordRule(side: Side, rule: ServedRule, label: string): void {
 
 function sideOf(maps: readonly StyleMap[]): Side {
   const side: Side = {
+    mapCount: maps.length,
     variants: new Map(),
     used: new Set(),
+    common: new Set(maps[0]?.reach?.rules.map(variantId)),
     byKey: new Map(),
     sorted: [],
     complete: maps.length > 0,
@@ -94,6 +101,8 @@ function sideOf(maps: readonly StyleMap[]): Side {
       continue;
     }
     side.unreadable += map.reach.unreadable ?? 0;
+    const served = new Set(map.reach.rules.map(variantId));
+    side.common = new Set([...side.common].filter((id) => served.has(id)));
     for (const rule of map.reach.rules) {
       recordRule(side, rule, map.reach.sheets[rule.sheet] ?? '');
     }
@@ -145,8 +154,9 @@ function referencedNames(variant: Variant): string[] | undefined {
 
 /** Custom properties this body changes: a new value, or one it no longer declares. */
 function changedVars(v: Variant, before: readonly Variant[]): string[] {
+  // Without a unique counterpart, every other-side body must agree to prove no change.
   const own = Object.entries(v.vars ?? {})
-    .filter(([prop, value]) => !before.some((b) => b.vars?.[prop] === value))
+    .filter(([prop, value]) => !before.length || !before.every((b) => b.vars?.[prop] === value))
     .map(([prop]) => prop);
   const dropped = before.flatMap((b) => Object.keys(b.vars ?? {})).filter((prop) => !Object.hasOwn(v.vars ?? {}, prop));
   return [...new Set([...own, ...dropped])].sort();
@@ -209,9 +219,12 @@ function classifyKey(key: string, base: Side, head: Side): RuleReach | undefined
   const removed = was.filter((v) => !head.variants.has(v.id));
   if (!added.length && !removed.length) return undefined;
   const change: RuleReach['change'] = !was.length ? 'added' : !now.length ? 'removed' : 'changed';
-  // Judge head-only bodies on head and base-only bodies on base. A one-for-one swap
-  // is an in-place edit: only its new body needs to render on head.
-  const inPlace = added.length === 1 && removed.length === 1;
+  // Keep ambiguous route-specific removals: order or sheet labels cannot pair them.
+  const inPlace =
+    added.length === 1 &&
+    removed.length === 1 &&
+    (base.used.has(removed[0].id) ||
+      (base.mapCount === head.mapCount && base.common.has(removed[0].id) && head.common.has(added[0].id)));
   const results = [
     ...added.map((v) => shortfall(v, head, was)),
     ...(inPlace ? [] : removed.map((v) => shortfall(v, base, now))),

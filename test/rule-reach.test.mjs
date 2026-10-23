@@ -85,6 +85,48 @@ test('a changed custom property is reached only when every rule that reads it ma
   assert.equal(statusOf(classifyRuleReach([base], [rendered]), ':root').status, 'reached');
 });
 
+test('a token changed on one route is not hidden by another route already serving its new value', () => {
+  const route = (hash, warn, x, used = false) =>
+    map(
+      rule(':root', hash, { used: true, vars: { '--warn': warn, '--x': x } }),
+      rule('.fault', 'f', { ...(used ? { used: true } : {}), uses: ['--warn'] }),
+    );
+  const unchanged = route('a2', 'a', '2');
+  const base = [route('g1', 'g', '1'), unchanged];
+  const head = [route('a1', 'a', '1'), unchanged];
+  const result = classifyRuleReach(base, head);
+  assert.deepEqual(statusOf(result, ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--warn changed, and its consumer .fault never matched',
+    sheet: '/app.css',
+  });
+  for (const before of [base, [...base].reverse()]) {
+    for (const after of [head, [...head].reverse()]) {
+      assert.deepEqual(classifyRuleReach(before, after), result);
+    }
+  }
+  assert.equal(statusOf(classifyRuleReach(base, [route('a1', 'a', '1', true), unchanged]), ':root').status, 'reached');
+});
+
+test('a token with no counterpart body still requires its consumers to render', () => {
+  const consumer = (used) => rule('.fault', 'f', { ...(used ? { used: true } : {}), uses: ['--warn'] });
+  const withoutToken = map(consumer(false));
+  const withToken = (used) => map(rule(':root', 'h1', { used: true, vars: { '--warn': 'g' } }), consumer(used));
+  for (const used of [false, true]) {
+    for (const [before, after, change] of [
+      [withoutToken, withToken(used), 'added'],
+      [withToken(used), withoutToken, 'removed'],
+    ]) {
+      const root = statusOf(classifyRuleReach([before], [after]), ':root');
+      assert.equal(root.change, change);
+      assert.equal(root.status, used ? 'reached' : 'never-rendered');
+      if (!used) assert.equal(root.why, '--warn changed, and its consumer .fault never matched');
+    }
+  }
+});
+
 test('a custom property head deletes is a change its consumers must render', () => {
   const base = map(
     rule(':root', 'h1', { used: true, vars: { '--warn': 'g' } }),
@@ -221,6 +263,43 @@ test('a body only one route serves is compared on its own, not hidden by another
     classifyRuleReach([map(rule('.x', 'A'))], [map(rule('.x', 'B', { used: true }))]).rules[0].status,
     'reached',
   );
+});
+
+test('a one-for-one swap across routes still judges the removed body on base', () => {
+  const added = map(rule('.x', 'B', { used: true }));
+  for (const used of [false, true]) {
+    const removed = map(rule('.x', 'C', used ? { used: true } : {}));
+    for (const [base, head] of [
+      [
+        [removed, map()],
+        [map(), added],
+      ],
+      [
+        [removed, removed],
+        [map(), added],
+      ],
+      [
+        [removed, map()],
+        [added, added],
+      ],
+      [[removed, removed], [added]],
+      [[removed], [added, added]],
+    ]) {
+      const result = classifyRuleReach(base, head);
+      assert.deepEqual(statusOf(result, '.x'), {
+        key: '.x',
+        change: 'changed',
+        status: used ? 'reached' : 'never-rendered',
+        why: used ? 'matched in a captured state' : 'its selector never matched',
+        sheet: '/app.css',
+      });
+      for (const before of [base, [...base].reverse()]) {
+        for (const after of [head, [...head].reverse()]) {
+          assert.deepEqual(classifyRuleReach(before, after), result);
+        }
+      }
+    }
+  }
 });
 
 test('a changed @font-face is a blind channel only when a rendered rule uses its family', () => {
