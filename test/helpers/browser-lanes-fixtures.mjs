@@ -228,7 +228,10 @@ export function runHosted(fixture, options = {}) {
 }
 
 export function fileChangeCase(id, name, title = name) {
-  return fileCase(id, title, name);
+  // Node resolves package scope before loading the inherited test-runner preload.
+  const contents =
+    name === 'package.json' ? { before: '{"description":"base"}', after: '{"description":"changed"}' } : {};
+  return fileCase(id, title, name, contents);
 }
 
 export const legacyPathCases = [
