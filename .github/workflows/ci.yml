@@ -16,22 +16,19 @@ concurrency:
 
 jobs:
   changes:
-    name: Path filter
+    name: Browser tree proof
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      # Push collection can hide gitlinks through tracked submodule settings.
-      # Require proof on every main push; PRs use the API file inventory.
-      e2e: ${{ github.event_name == 'push' && 'true' || steps.filter.outputs.lanes }}
+      e2e: ${{ steps.decide.outputs.lanes }}
+      e2e_proof: ${{ steps.decide.outputs.proof }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
-        id: filter
-        if: github.event_name == 'pull_request'
         with:
-          predicate-quantifier: every
-          filters: .github/path-filters.yml
+          fetch-depth: 2
+      - id: decide
+        run: node scripts/browser-lanes.mjs --github
 
   build:
     name: build (node ${{ matrix.node }})
@@ -269,8 +266,8 @@ jobs:
         run: node bench/detection-rate.mjs --check
 
   # Stable branch-protection context. Every main push requires browser proof.
-  # PR browser lanes may skip only when the API path filter succeeds and says
-  # e2e == 'false' for an empty file inventory. A 'true' decision requires the
+  # PR browser lanes may skip only when the decider succeeds with e2e == 'false'
+  # and a same-tree proof for the merge commit and current base. 'true' requires the
   # e2e shards, evidence check and detection corpus to succeed. An empty, missing
   # or malformed decision, or a failed changes job, fails this check outright.
   # test/ci-required-policy.test.mjs executes this step against a table of cases.
@@ -284,6 +281,7 @@ jobs:
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
           E2E_DECISION: ${{ needs.changes.outputs.e2e }}
+          E2E_PROOF: ${{ needs.changes.outputs.e2e_proof }}
           BUILD_RESULT: ${{ needs.build.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
@@ -297,12 +295,18 @@ jobs:
             val="${!name:-}"
             [ "$val" = success ] || reject "$name was '$val' (want success)"
           done
-          # Trust the filter's decision only when the filter job itself succeeded.
+          # Trust the decision only when the changes job itself succeeded.
           decision="${E2E_DECISION:-}"
           [ "${CHANGES_RESULT:-}" = success ] || decision="untrusted (path filter did not succeed)"
           case "$decision" in
             true) echo "Path filter: browser paths changed; e2e shards, evidence and detection corpus must succeed" ;;
-            false) echo "Path filter: no browser paths changed; browser lanes may skip" ;;
+            false)
+              if [[ "${E2E_PROOF:-}" =~ ^same-tree:([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+                echo "Path filter: no browser paths changed; browser lanes may skip"
+              else
+                reject "Path decision 'false' without same-tree proof ('${E2E_PROOF:-}')"
+              fi
+              ;;
             *) reject "Path filter e2e decision was '$decision' (want true or false); browser lanes must succeed" ;;
           esac
           for name in E2E_RESULT E2E_EVIDENCE_RESULT DETECTION_CORPUS_RESULT; do
