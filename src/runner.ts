@@ -147,7 +147,13 @@ export function defineStyleMapCapture(options: DefineOptions): void {
         test(`${surface.key} @ auto`, async ({ page, baseURL, contextOptions }) => {
           let widths: number[] = [];
           await withSurfaceFailureTolerance(settings, `${surface.key}@auto`, async () => {
-            widths = await detectSurfaceWidths(page, surface, settings);
+            widths = await detectSurfaceWidths(
+              page,
+              surface,
+              settings,
+              page.viewportSize(),
+              baseURL ?? contextOptions.baseURL,
+            );
           });
           test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs, widths.length));
           for (const width of widths) await capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);

@@ -65,7 +65,7 @@ async function sweepCrawlSurfaces(
         settings,
         `${surface.key}@auto`,
         async () => {
-          widths = await detectSurfaceWidths(page, surface, settings, detectionViewport);
+          widths = await detectSurfaceWidths(page, surface, settings, detectionViewport, baseURL);
         },
         aggregate,
       );

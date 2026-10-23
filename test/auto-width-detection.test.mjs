@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,7 +19,7 @@ function fixture(t, { recordings = [], replay = true, viewport = { width: 720, h
   for (const name of recordings) fs.writeFileSync(path.join(replayFrom, name), '{}');
   const calls = [];
   const warnings = t.mock.method(console, 'warn', () => {});
-  const page = {
+  const page = Object.assign(new EventEmitter(), {
     viewportSize: () => viewport,
     async emulateMedia(options) {
       calls.push(['emulateMedia', options]);
@@ -49,9 +50,7 @@ function fixture(t, { recordings = [], replay = true, viewport = { width: 720, h
         unreadable: [],
       };
     },
-    on() {},
-    off() {},
-  };
+  });
   const surface = {
     key: 'widget',
     async go() {
@@ -164,8 +163,8 @@ test('a null detection viewport fails explicitly after an earlier capture resize
   );
 });
 
-test('navigation and detection errors propagate after clearing replay routes', async (t) => {
-  for (const phase of ['go', 'evaluate']) {
+test('input, navigation and detection errors propagate after clearing replay routes', async (t) => {
+  for (const phase of ['routeFromHAR', 'go', 'evaluate']) {
     const { page, surface, settings, calls } = fixture(t, { recordings: ['widget@auto-1280x720.har'] });
     const failure = new Error(`${phase} failed`);
     (phase === 'go' ? surface : page)[phase] = async () => {
@@ -173,7 +172,86 @@ test('navigation and detection errors propagate after clearing replay routes', a
     };
     await assert.rejects(detectSurfaceWidths(page, surface, settings, VIEWPORT), (error) => error === failure);
     assert.deepEqual(calls.at(-1), ['unroute', REPLAY_URL]);
+    assert.equal(calls.filter(([name]) => name === 'unroute').length, 2);
+    assert.deepEqual(page.eventNames(), []);
   }
+});
+
+const dataRequest = (url) => ({
+  url: () => url,
+  resourceType: () => 'fetch',
+  isNavigationRequest: () => false,
+  failure: () => ({ errorText: 'net::ERR_FAILED' }),
+});
+
+test('failed detection data cannot hide a head-only band even when navigation resolves', async (t) => {
+  for (const replay of [false, true]) {
+    for (const failure of ['abort', 'HTTP 503']) {
+      const { page, surface, settings, calls } = fixture(t, {
+        replay,
+        recordings: ['widget@auto-1280x720.har'],
+      });
+      surface.go = async () => {
+        const request = dataRequest('https://app.test/api/head-band?private=value');
+        page.emit('request', request);
+        if (failure === 'abort') page.emit('requestfailed', request);
+        else page.emit('response', { request: () => request, status: () => 503 });
+        // The app catches the fetch failure and never mounts its new 1100px band.
+      };
+      page.evaluate = async () => ({ mediaTexts: ['(min-width: 720px)'], unreadable: [] });
+      await assert.rejects(detectSurfaceWidths(page, surface, settings, VIEWPORT), (error) => {
+        assert.match(error.message, /cannot detect breakpoints for 'widget'.*\/api\/head-band/);
+        assert.ok(error.message.includes(failure === 'abort' ? 'net::ERR_FAILED' : failure));
+        assert.equal(error.message.includes('private=value'), false);
+        return true;
+      });
+      assert.deepEqual(calls.at(-1), ['unroute', REPLAY_URL]);
+      assert.deepEqual(page.eventNames(), []);
+    }
+  }
+});
+
+test('successful detection data keeps all bands and disposes the watcher', async (t) => {
+  const { page, surface, settings } = fixture(t, { recordings: ['widget@auto-1280x720.har'] });
+  surface.go = async () => {
+    const request = dataRequest('https://app.test/api/head-band');
+    page.emit('request', request);
+    page.emit('response', { request: () => request, status: () => 200 });
+  };
+  assert.deepEqual(await detectSurfaceWidths(page, surface, settings, VIEWPORT), [360, 720, 1100]);
+  assert.deepEqual(page.eventNames(), []);
+});
+
+test('detection uses the configured baseURL to match relative replay URLs', async (t) => {
+  const { page, surface, settings } = fixture(t, { recordings: ['widget@auto-1280x720.har'] });
+  settings.replayUrl = '/api/**';
+  let origin = 'https://unrelated.test';
+  surface.go = async () => {
+    const request = dataRequest(`${origin}/api/head-band`);
+    page.emit('request', request);
+    page.emit('requestfailed', request);
+  };
+  assert.deepEqual(await detectSurfaceWidths(page, surface, settings, VIEWPORT, 'https://app.test'), [360, 720, 1100]);
+  origin = 'https://app.test';
+  await assert.rejects(
+    detectSurfaceWidths(page, surface, settings, VIEWPORT, 'https://app.test'),
+    /data requests failed during detection: \/api\/head-band \(net::ERR_FAILED\)\. Failed data/,
+  );
+  assert.deepEqual(page.eventNames(), []);
+});
+
+test('a navigation failure stays original when detection also observed a failed request', async (t) => {
+  const { page, surface, settings, calls } = fixture(t, { recordings: ['widget@auto-1280x720.har'] });
+  const failure = new Error('surface navigation failed');
+  surface.go = async () => {
+    const request = dataRequest('https://app.test/api/head-band');
+    page.emit('request', request);
+    page.emit('requestfailed', request);
+    throw failure;
+  };
+  await assert.rejects(detectSurfaceWidths(page, surface, settings, VIEWPORT), (error) => error === failure);
+  assert.deepEqual(calls.at(-1), ['unroute', REPLAY_URL]);
+  assert.deepEqual(page.eventNames(), []);
 });
 
 test('a new width without a HAR clears the previous width replay before its live load', async (t) => {

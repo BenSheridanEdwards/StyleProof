@@ -77,12 +77,14 @@ function autoHarName(key: string, viewport: { width: number; height: number } | 
  * Load an auto-width surface at one fixed viewport and read its `@media` bands. Record the base's
  * detection load, then replay that same load on the head. With no matching recording, warn and
  * detect live at that viewport, never at a narrower capture width that could hide a new band.
+ * Failed data requests reject detection: a fallback state may omit bands even when go() resolves.
  */
 export async function detectSurfaceWidths(
   page: Page,
   surface: ExpandedSurface,
   s: Settings,
   viewport: { width: number; height: number } | null = page.viewportSize(),
+  baseURL?: string,
 ): Promise<number[]> {
   if (viewport === null && page.viewportSize() !== null) {
     throw new Error(
@@ -95,11 +97,22 @@ export async function detectSurfaceWidths(
   if (viewport) await page.setViewportSize(viewport);
   // Drop routes an earlier surface left on a shared crawl page before pinning this detection load.
   await page.unroute(s.replayUrl);
-  await pinInputs(page, autoHarName(surface.key, viewport), s);
+  const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key, baseURL);
   try {
+    await pinInputs(page, autoHarName(surface.key, viewport), s);
     await surface.go(page);
-    return await detectViewportWidths(page);
+    const widths = await detectViewportWidths(page);
+    const failures = residue.residue();
+    if (failures.length) {
+      throw new Error(
+        `styleproof: cannot detect breakpoints for '${surface.key}' — data requests failed during detection: ` +
+          failures.map(({ endpoint, reason }) => `${endpoint} (${reason})`).join('; ') +
+          '. Failed data may hide viewport bands; fix the data load or set explicit widths.',
+      );
+    }
+    return widths;
   } finally {
+    residue.dispose();
     // Drop every route on the replay URL (other URL patterns' routes survive); each width pins its own HAR.
     await page.unroute(s.replayUrl);
   }

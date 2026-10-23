@@ -593,6 +593,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   unchanged. If a crawl starts with a null viewport and an earlier capture
   resizes the page, later auto-width detection fails with guidance to configure
   a project viewport or explicit widths, rather than detecting at the stale size.
+  Failed data requests during detection now fail the surface, even if the app
+  handles the error, because its fallback could hide a breakpoint band.
+  `styleproof-map` also removes HAR files before exiting a failed capture unless
+  `--keep-har` was requested, so rejected detection loads leave no default recording.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

@@ -438,8 +438,9 @@ if (status !== 0 && captured > 0) {
     );
   }
 }
-if (status !== 0 && !publishPartial) process.exit(status);
+// Playwright flushes detection HARs even when navigation fails; honor default cleanup before exiting.
 if (!keepHar) removeHarFiles(targetDir);
+if (status !== 0 && !publishPartial) process.exit(status);
 // Zero maps must not stamp a manifest: a bare dir means "no baseline yet" (first adoption).
 if (captured === 0) {
   console.error(
