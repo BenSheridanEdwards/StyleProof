@@ -513,7 +513,7 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
       remote,
       gitTimeoutMs,
       cwd: baseProbeCwd,
-      compatibilityKey: expectedCompatibilityKey({ cwd: baseProbeCwd, spec: probeSpec }),
+      compatibilityKey: expectedCompatibilityKey({ cwd: baseProbeCwd, spec: probeSpec, baseUrl: env.BASE_URL }),
     });
     recordBaselineProvenance({
       baseline: 'ancestor-reuse',

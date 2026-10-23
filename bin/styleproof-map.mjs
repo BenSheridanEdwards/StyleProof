@@ -278,7 +278,8 @@ if (opts.restore) {
       branch: cacheBranch,
       remote,
       gitTimeoutMs: projectConfig.mapStore?.gitTimeoutMs,
-      compatibilityKey: expectedCompatibilityKey({ spec }),
+      // The upload keyed the bundle by this job's BASE_URL (writeMapManifest), so the lookup must too.
+      compatibilityKey: expectedCompatibilityKey({ spec, baseUrl: env.BASE_URL }),
     });
     // Greppable exact-hit line for consumer Visual / CI watchers (#734). Soft-pass HOLD: observe only.
     // CI suppresses this when it emits the final decision line itself.
