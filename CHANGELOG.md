@@ -473,7 +473,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   rule counted as global only right after the start of the file or a `{`, `}`,
   `,` or `(`. A `/* … */` comment, a Sass `//` comment or a statement such as
   `@charset "utf-8";` or `@layer components;` in front of it made the module
-  read as scoped. `styleproof-affected` exited 0 and every surface that does not
+  read as scoped. So did a comment straight after the selector, as in
+  `body/* note */ {`. `styleproof-affected` exited 0 and every surface that does not
   import the module reused its stale base map. These cases now resolve to
   `'all'`, and comments around class-only rules still stay scoped.
 - **A computed `import()` whose prefix stops inside a filename, or that loads a
@@ -483,7 +484,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reused its stale base map. The prefix is now cut back to its last `/`, so it
   covers `src/widgets/`. Every file kind under that directory is now a possible
   target, so ``import(`../themes/${t}.module.css`)`` selects its importer when a
-  stylesheet there changes.
+  stylesheet there changes. A prefix whose last segment is `.` or `..`
+  (``import(`../widgets/..${s}`)``) can climb out of that directory, so it now
+  resolves to `'all'`.
 - **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
   surface under selective remap (#942).** These single-file components carry
   their own `<style>` blocks, which can be global: an unscoped Vue `<style>`,

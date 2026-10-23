@@ -102,6 +102,36 @@ test('styleproof-affected: a :root rule after a comment in a CSS Module exits 3 
   }
 });
 
+test('styleproof-affected: a global rule followed by a comment in a CSS Module exits 3 (re-capture all)', () => {
+  const dir = mkTmp('styleproof-affected-trailing-comment-');
+  try {
+    fs.cpSync(FIXTURE, dir, { recursive: true });
+    fs.appendFileSync(
+      path.join(dir, 'src/components/Chart.module.css'),
+      '/* reset */ body/* note */ {\n  color: red;\n}\n',
+    );
+    const res = run(
+      [
+        '--graph',
+        'graph.depcruise.json',
+        ...Object.entries(SURFACES).flatMap(([k, p]) => ['--surface', `${k}=${p}`]),
+        '--changed',
+        'src/components/Chart.module.css',
+        '--json',
+      ],
+      dir,
+    );
+    assert.equal(res.status, 3, res.stderr);
+    const verdict = JSON.parse(res.stdout);
+    assert.equal(verdict.verdict, 'all');
+    assert.deepEqual(verdict.recapture, ['dashboard', 'home', 'pricing']);
+    assert.deepEqual(verdict.reuse, []);
+    assert.match(verdict.reason, /Chart\.module\.css/);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
 test('styleproof-affected: an unscoped <style> change in a .vue component exits 3 (re-capture all)', () => {
   const dir = mkTmp('styleproof-affected-vue-');
   try {

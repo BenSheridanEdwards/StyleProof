@@ -39,12 +39,20 @@ test('classify: a comment or `;` statement before a global rule cannot hide it i
     ['Card.module.css', '@charset "utf-8";\n:root{}'],
     ['Card.module.css', '@layer components;\nhtml{}'],
     ['Card.module.scss', '.card{}\n// tokens\n:root{}'],
+    ['Card.module.css', '/* reset */ body/* note */ { color:red }'],
+    ['Card.module.css', 'html/**/.dark{}'],
+    ['Card.module.css', '*/* x */{}'],
+    ['Card.module.scss', '.card{}\nbody// note\n{}'],
   ]) {
     assert.equal(classifyStyleChange(file, read(src)), 'all', src);
   }
   // Guard against over-widening: comments around class-only rules stay scoped.
   assert.equal(
     classifyStyleChange('Card.module.scss', read('/**\n * Card\n */\n.card{}\n// title\n.title{}')),
+    'scope',
+  );
+  assert.equal(
+    classifyStyleChange('Card.module.css', read('.card{}\n/* a, b; */\n.title{ color: red; /* x, */ }')),
     'scope',
   );
 });
@@ -405,6 +413,21 @@ test('affectedSurfaces roots a computed import() at the last / of its prefix, fo
     });
   };
   const widget = 'src/components/Widget.tsx';
+  assert.equal(
+    run('const D = lazy(() => import(`../themes/..${suffix}`));', widget),
+    'all',
+    'a prefix ending in a .. segment can reach outside its directory',
+  );
+  assert.equal(
+    run('const D = lazy(() => import(`../components/.${x}`));', widget),
+    'all',
+    'a prefix ending in a . segment can join into ..',
+  );
+  assert.deepEqual(
+    sorted(run('const D = lazy(() => import(`../components/.W${x}`));', widget)),
+    ['dashboard', 'pricing'],
+    'a filename that starts with a dot stays scoped',
+  );
   assert.deepEqual(
     sorted(run('const D = lazy(() => import(`../components/Wid${name}`));', widget)),
     ['dashboard', 'pricing'],

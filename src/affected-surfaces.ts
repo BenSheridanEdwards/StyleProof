@@ -38,9 +38,10 @@ export type AffectedSurfacesInput = {
 export type AffectedSurfaces = Set<string> | 'all';
 
 // Selectors/at-rules whose scope escapes the importing file. A global selector
-// counts after a rule boundary, a `;` statement, or a `/* */` or `//` comment.
+// counts after a rule boundary, a `;` statement, or a `/* */` or `//` comment,
+// and one followed straight by a comment (`body/* x */`) still counts.
 const GLOBAL_CSS =
-  /(^|[{},(;]|\*\/|\/\/[^\n]*\n)\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
+  /(^|[{},(;]|\*\/|\/\/[^\n]*\n)\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~]|\/[*/])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
 // CSS-in-JS global APIs. Soundness depends on this list being complete for the
 // libraries in use: an unlisted global API in a .tsx would be misread as scoped.
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;
@@ -118,14 +119,17 @@ function safeRead(readFile: (p: string) => string, path: string): string | undef
   }
 }
 
-/** Directory a computed `import()` argument is rooted at: null for a string literal, `'unbounded'` without a static relative prefix. */
+/** Directory a computed `import()` argument is rooted at: null for a string literal, `'unbounded'` without a static relative prefix, or when the prefix ends in a `.`/`..` segment. */
 function contextDir(arg: string, fromDir: string): string | null | 'unbounded' {
   if (/^(['"])[^'"]*\1$/.test(arg)) return null; // the whole argument is one plain string literal
   const prefix = arg.match(/^`([^$`]*)/)?.[1]; // static head of a template literal
   // import(name), import('../x/' + name), or an alias (`@/x/${n}`) the graph cannot place: fail closed.
   if (!prefix || !prefix.includes('/') || !/^\.\.?\//.test(prefix)) return 'unbounded';
+  const cut = prefix.lastIndexOf('/') + 1;
+  // A head ending in a `.`/`..` segment (`../widgets/..${s}`) can climb out of any directory: fail closed.
+  if (/^\.{1,2}$/.test(prefix.slice(cut))) return 'unbounded';
   // A head that ends inside a filename (`../widgets/card-`) is rooted at its directory.
-  return normalizeDir(fromDir, prefix.slice(0, prefix.lastIndexOf('/') + 1));
+  return normalizeDir(fromDir, prefix.slice(0, cut));
 }
 
 /** Recover computed `import()`s the resolver dropped as bundler context-module edges; `'unbounded'` when any has no static prefix. */
