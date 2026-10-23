@@ -550,15 +550,21 @@ skipped, failed, or retried tests fail verification.
 The `browser-evidence-node-22` artifact retains the inventory, shard results, and
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
 
-The shared CI policy selects browser lanes for every nonempty changed path,
-including prose and tooling files. It has no filename exemptions; line
-terminators and literal backslashes cannot make a style change appear safe.
+Pull-request CI selects browser lanes for every nonempty path supplied by the
+GitHub changed-file API, including prose and tooling files. The shared filename
+policy has no exemptions for line terminators or literal backslashes. Push CI
+always requires browser lanes, including empty-tree pushes, without relying on
+Git's changed-file inventory.
 `npm run demo:check` compares demo Markdown and HTML plus decoded crop pixels.
 The local pre-push check runs the full browser suite for staged or pushed changes
-and unknown inventories, including a new branch with no remote base. Only a
-proven empty path inventory can skip it, including a ref-deletion-only push with
-no staged paths. Deleted files still require browser checks. Missing Chromium,
-malformed push metadata and unreadable Git changes block the push. Install Chromium with
+and unknown inventories, including a new branch with no remote base. Its staged
+and pushed diffs use `--ignore-submodules=none`, so tracked or local submodule
+ignore settings cannot hide changed gitlinks. They also disable Git replacement
+objects so local replacement refs cannot substitute unchanged trees.
+A successful empty collection may
+skip it, including a ref-deletion-only push with no staged paths. Deleted files
+still require browser checks. Missing Chromium, malformed push metadata and
+unreadable Git changes block the push. Install Chromium with
 `npx playwright install chromium` before pushing changes.
 
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
