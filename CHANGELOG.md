@@ -495,6 +495,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   surfaces that render the same selectors reused their base maps. Any change to
   one of these files now resolves to `'all'`. Changes to scripts, stylesheets,
   configs and assets keep their current verdicts.
+- **A failing certify run's PR comment no longer says StyleProof is advisory
+  (#938).** In certify mode with `fail-on-diff: true` (the Action default),
+  "Fail on diff" fails the job on any reviewable change. The comment footer
+  still said StyleProof was advisory and that the **StyleProof** check stayed
+  green, but certify mode never sets that status. The same footer appeared when
+  `styleproof.config` set `blocking: 'advisory'`, which `styleproof-init`
+  writes and "Fail on diff" does not read. The footer now says the certify gate
+  fails the job and how to accept the change, or that certification passes.
+  A fork PR's untrusted capture in certify mode now says StyleProof cannot
+  certify the pull request, even when the maps are identical, instead of
+  "certification passes". The footer uses the same case-insensitive condition
+  as "Fail on diff", so `fail-on-diff: 'True'` no longer gets the advisory footer
+  on a failing job, and `require-approval: 'True'` shows the approval box.
+  `mode: advisory` and certify with `fail-on-diff: false` keep the advisory
+  footer.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

@@ -741,6 +741,7 @@ runs:
       env:
         STYLEPROOF_REPORT_STORAGE: ${{ inputs.report-storage }}
         STYLEPROOF_REQUIRE_APPROVAL: ${{ inputs.require-approval }}
+        STYLEPROOF_CERTIFY_GATE: ${{ inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify' }}
         STYLEPROOF_MODE: ${{ inputs.mode }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
@@ -839,11 +840,15 @@ runs:
           const headEnd = lines.findIndex((l) => l.startsWith('### '));
           const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
 
-          const requireApproval = process.env.STYLEPROOF_REQUIRE_APPROVAL === 'true';
+          const requireApproval = (process.env.STYLEPROOF_REQUIRE_APPROVAL || '').toLowerCase() === 'true';
           const mode = process.env.STYLEPROOF_MODE;
           const blocking = '${{ steps.config.outputs.blocking }}';
           const migrationMode = mode === 'migration';
           const advisoryMode = mode === 'advisory' || blocking === 'advisory';
+          // GitHub evaluates the same condition as the "Fail on diff" `if:`
+          // (case-insensitive, ignores config `blocking`): a
+          // reviewable change fails this job, so the footer must never call it advisory.
+          const certifyGate = process.env.STYLEPROOF_CERTIFY_GATE === 'true';
           // Review-gate and migration modes use the approval box; advisory never shows it.
           const useReviewGate = !advisoryMode && (requireApproval || mode === 'review-gate' || migrationMode);
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
@@ -862,6 +867,9 @@ runs:
           const setsReviewStatus = requireApproval || mode === 'review-gate' || migrationMode || mode === 'advisory';
           const untrustedReview = untrustedCapture && setsReviewStatus &&
             decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture }).approvable;
+          // Certify mode sets no review status, so a fork capture has no approval box; it
+          // still must never read as certified, because the fork produced both map sets.
+          const untrustedCertify = untrustedCapture && !setsReviewStatus;
           // One box signs off every change; an already-approved re-run renders it pre-ticked.
           const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
           const box = (useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED') || untrustedReview
@@ -892,6 +900,10 @@ runs:
           const advisoryGuidance = changed
             ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
             : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;
+          const certifyGuidance = changed
+            ? '_Certify mode: the report shows changed or new surfaces, so the certify gate fails this job. Review them; to accept, rebuild the map with `styleproof-map` and rerun the report._'
+            : '_Certify mode: no reviewable computed-style changes — certification passes._';
+          const untrustedCertifyGuidance = `_Fork PR — these maps were captured in an untrusted job that ran the fork's code, so StyleProof cannot certify this pull request${changed && certifyGate ? '; the certify gate fails this job on the changed or new surfaces' : ''}. A maintainer must review the report before merging._`;
           const migrationPendingGuidance = `_Migration mode: tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. The report shows **Changed styles**, **New surfaces**, and **New/removed elements**. A new push that changes styles or structure re-opens it._`;
           const untrustedGuidance = approved
             ? `_Fork PR — signed off by a maintainer; the **${statusContext}** check is green. A new push re-opens it._`
@@ -901,6 +913,10 @@ runs:
             '---',
             trustGuidance || (untrustedReview
               ? untrustedGuidance
+              : untrustedCertify
+              ? untrustedCertifyGuidance
+              : certifyGate
+              ? certifyGuidance
               : advisoryMode
               ? advisoryGuidance
               : useReviewGate
