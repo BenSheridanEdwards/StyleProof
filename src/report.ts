@@ -15,6 +15,7 @@ import {
   summarizeComparability,
   type ComparabilitySummary,
   type BaseOnlyVolatile,
+  type DiffCounts,
   type HeadOnlyVolatile,
   type SurfaceComparability,
   type SurfaceDiff,
@@ -45,6 +46,7 @@ import { dropDeclaredLiveTextGeometry } from './findings-clean.js';
 import {
   collectLiveCandidateLabels,
   createMapLoader,
+  type ChangeGroup,
   type PreparedSurface,
   type RenderCtx,
   type ReportConsistency,
@@ -71,7 +73,13 @@ import {
   productStateWarningLines,
 } from './report/certification.js';
 import { buildDigest, digestLines } from './report/digest.js';
-import { baselineFailureDetailLines, oneSidedStatus, readBaselineInfo, reportHeadline } from './report/headline.js';
+import {
+  baselineFailureDetailLines,
+  oneSidedStatus,
+  readBaselineInfo,
+  reportHeadline,
+  type BaselineInfo,
+} from './report/headline.js';
 import { countShownChanges, groupBySignature } from './report/regions.js';
 import {
   ReportMarkdown,
@@ -324,112 +332,241 @@ function renderContentLayer(
   return { withContent, contentSection, chromeMd, globalChrome, total: contentSection.count + globalChrome };
 }
 
+type SurfaceKeyOf = (captureKey: string) => string | undefined;
+
+type Presentation = {
+  prepared: PreparedSurface[];
+  /** One-sided surfaces: new, removed, or baseline repair debt. */
+  missing: PreparedSurface[];
+  /** Paired surfaces shown that also certify; advisory-only (diagnostic display) surfaces are not
+   *  presentation evidence for the consistency receipt. */
+  certifyingShown: number;
+  changeGroups: ChangeGroup[];
+  /** Shared-chrome tier (#193): purely presentational — only render order and one banner differ. */
+  chrome: { chrome: ChangeGroup[]; rest: ChangeGroup[] };
+  shown: DiffCounts;
+};
+
+/** What the report shows: prepared surfaces, grouped by change signature and split into the chrome tier. */
+function presentSurfaces(
+  ctx: RenderCtx,
+  surfaces: SurfaceDiff[],
+  gates: Gates,
+  includeStructure: boolean,
+  surfacePaths: Map<string, Set<string>>,
+  surfaceKeyOf: SurfaceKeyOf,
+): Presentation {
+  const prepared = prepareReportSurfaces(ctx, surfaces, gates.displayComparability, includeStructure);
+  const missing = prepared.filter((s) => s.sd.missing);
+  const paired = prepared.filter((s) => !s.sd.missing);
+  const certifyingReceipts = new Map(gates.comparability.map((entry) => [entry.surface, entry]));
+  const certifyingShown = paired.filter(
+    (s) => !nonCertifying(certifyingReceipts.get(s.sd.surface), ctx.requireStateIdentity),
+  ).length;
+  const changeGroups = groupBySignature(ctx, paired);
+  const chrome = classifyChrome(changeGroups, surfacePaths, surfaceKeyOf);
+  return { prepared, missing, certifyingShown, changeGroups, chrome, shown: countShownChanges(changeGroups) };
+}
+
+type StructureElevation = {
+  /** Navigable Global chrome additions (#766). */
+  navigableChromeAdds: number;
+  /** Visible element adds/removes on paired surfaces. */
+  visibleStructure: number;
+  /** DOM changes the two elevate, each counted once. */
+  dom: number;
+};
+
+/**
+ * Navigable Global chrome (#766) and visible paired-surface add/remove elevate into
+ * reviewableCounts even when --include-content is off: structure is always on the maps.
+ * Migration mode elevates nothing.
+ */
+function collectStructureElevation(
+  { beforeDir, afterDir, migration }: { beforeDir: string; afterDir: string; migration: boolean },
+  surfacePaths: Map<string, Set<string>>,
+  surfaceKeyOf: SurfaceKeyOf,
+): StructureElevation {
+  const dirs = { beforeDir, afterDir, surfacePaths, surfaceKeyOf };
+  const chrome = migration ? { count: 0, elevated: [] } : collectElevatedNavigableChromeAdds(dirs);
+  const visible = migration ? { count: 0, elevated: [] } : collectElevatedVisibleStructure(dirs);
+  return {
+    navigableChromeAdds: chrome.count,
+    visibleStructure: visible.count,
+    dom: combinedStructureElevationCount(
+      visible,
+      chrome.elevated.map((e) => e.change),
+    ),
+  };
+}
+
+/** The certification differ's truth, adjusted for the presentation, with elevated structure counted as reviewable. */
+function reportComparison(
+  raw: ComparisonTruth,
+  summary: ComparabilitySummary,
+  includeNoise: boolean,
+  certifyingShown: number,
+  elevatedStructureDom: number,
+): ReportComparison {
+  const base: ReportComparison = { ...comparisonForReport(raw, includeNoise, certifyingShown), ...summary };
+  return {
+    ...base,
+    reviewableCounts: withElevatedVisibleStructureCounts(
+      withElevatedChromeReviewableCounts(base.reviewableCounts, 0),
+      elevatedStructureDom,
+    ),
+    hasReviewableEvidence: base.hasReviewableEvidence || elevatedStructureDom > 0,
+  };
+}
+
+/**
+ * Everything below the headline, in render order: baseline failure receipts, one-sided and
+ * changed surfaces, Global chrome, the migration gallery, and advisory content. Budget-aware:
+ * past the display budget, each block collapses to its one-line notice (report.json keeps it all).
+ */
+function renderReportBody(
+  ctx: RenderCtx,
+  out: SectionState,
+  input: {
+    view: Presentation;
+    baseline: BaselineInfo;
+    content: ReturnType<typeof renderContentLayer>;
+    migrationGallery: MigrationGallery | undefined;
+    surfaceKeyOf: SurfaceKeyOf;
+  },
+) {
+  const { view, baseline, content, migrationGallery, surfaceKeyOf } = input;
+  const { md } = out;
+  if (baseline.failures.length > 0) {
+    md.detail(
+      baselineFailureDetailLines(baseline.failures),
+      `- ${baseline.failures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
+    );
+  }
+  const oneSided = renderOneSidedSections(ctx, out, view.missing, baseline.surfaceFailures);
+  const changed = renderChangedSections(
+    ctx,
+    out,
+    view.chrome,
+    countChangedSurfaceScope(view.chrome.chrome, surfaceKeyOf).bases,
+    countCapturedSurfaceBases(captureKeysIn(ctx.afterDir), surfaceKeyOf),
+  );
+  md.detail(
+    content.chromeMd,
+    `- ${content.globalChrome} global chrome element change(s) on every surface base that renders its container`,
+  );
+  if (migrationGallery) {
+    const g = migrationGallery;
+    md.detail(
+      renderMigrationGallerySections(g),
+      `- Migration gallery: ${g.changedStyles.length} changed styles, ${g.newSurfaces.length} new surfaces, ${g.newRemovedElements.length} surfaces with element changes`,
+    );
+  }
+  if (content.contentSection.md.length > 0 && !migrationGallery) {
+    md.detail(
+      content.contentSection.md,
+      `- ${content.contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
+    );
+  }
+  return { oneSided, changed };
+}
+
+/** Evidence lists failures and warnings only; passing checks stay out. */
+function evidenceLines(input: {
+  certIssues: string[];
+  liveText: LiveTextAudit;
+  provenanceLine: string;
+  comparison: ReportComparison;
+  gates: Gates;
+  criticalObligations: DeclaredCriticalObligations | undefined;
+}): string[] {
+  const { certIssues, liveText, provenanceLine, comparison, gates } = input;
+  const comparabilityText = comparabilityLine(comparison, gates.legacyPairs);
+  // Proven / not-required stay out of Evidence; the above-the-fold warning covers unproven cases.
+  const comparabilityEvidence = /✓ comparable|not required/.test(comparabilityText) ? [] : [comparabilityText, ''];
+  return [
+    ...certIssues,
+    ...liveTextFreezeLines(liveText),
+    ...(provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
+    ...comparabilityEvidence,
+    ...criticalObligationLines(gates.criticalStates, input.criticalObligations),
+  ];
+}
+
 function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: boolean): ReportResult {
   const { beforeDir, afterDir, outDir, gateMode = 'certify' } = opts;
   const includeContent = opts.includeContent === true;
   const migration = opts.migration === true;
+
+  // 1. Compare the maps and audit the declare gates.
   // Base first, head second: current capture metadata wins when a surface's product key changed.
   const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
   const diff = diffStyleMapDirs(beforeDir, afterDir, { includeStructure });
   const gates = auditGates(opts, diff.comparability);
   const liveText = auditLiveTextDirs(beforeDir, afterDir);
   const ctx = buildContext(opts, liveText);
-  const { requireStateIdentity } = ctx;
   const rawComparison = assessComparisonTruth(diff.surfaces, diff.counts, gates.comparability, {
-    requireStateIdentity,
+    requireStateIdentity: ctx.requireStateIdentity,
     liveText,
   });
-  const comparabilitySummary = summarizeComparability(gates.comparability, requireStateIdentity);
+  const comparabilitySummary = summarizeComparability(gates.comparability, ctx.requireStateIdentity);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
-  const prepared = prepareReportSurfaces(ctx, diff.surfaces, gates.displayComparability, includeStructure);
-  const missing = prepared.filter((s) => s.sd.missing);
-  // Advisory-only surfaces (diagnostic display) are not presentation evidence for the consistency receipt.
-  const certifyingReceipts = new Map(gates.comparability.map((entry) => [entry.surface, entry]));
-  const certifyingShown = prepared.filter(
-    (s) => !s.sd.missing && !nonCertifying(certifyingReceipts.get(s.sd.surface), requireStateIdentity),
-  ).length;
-  const changeGroups = groupBySignature(
-    ctx,
-    prepared.filter((s) => !s.sd.missing),
-  );
-  // Shared-chrome tier (#193): purely presentational — only render order and one banner differ.
+  // 2. Decide what the report shows, and what it may claim about it.
   const surfacePaths = surfaceElementPaths(beforeDir, afterDir);
-  const chrome = classifyChrome(changeGroups, surfacePaths, surfaceKeyOf);
-  const shown = countShownChanges(changeGroups);
+  const view = presentSurfaces(ctx, diff.surfaces, gates, includeStructure, surfacePaths, surfaceKeyOf);
   const baseline = readBaselineInfo(beforeDir, afterDir);
-  // #766 navigable Global chrome + visible paired-surface add/remove elevate into
-  // reviewableCounts even when --include-content is off (structure is always on the maps).
-  const chromeElevated = migration
-    ? { count: 0, elevated: [] }
-    : collectElevatedNavigableChromeAdds({ beforeDir, afterDir, surfacePaths, surfaceKeyOf });
-  const elevatedNavigableChromeAdds = chromeElevated.count;
-  const visibleElevated = migration
-    ? { count: 0, elevated: [] }
-    : collectElevatedVisibleStructure({ beforeDir, afterDir, surfacePaths, surfaceKeyOf });
-  const elevatedVisibleStructure = visibleElevated.count;
-  const elevatedStructureDom = combinedStructureElevationCount(
-    visibleElevated,
-    chromeElevated.elevated.map((e) => e.change),
+  const elevation = collectStructureElevation({ beforeDir, afterDir, migration }, surfacePaths, surfaceKeyOf);
+  const comparison = reportComparison(
+    rawComparison,
+    comparabilitySummary,
+    ctx.includeNoise,
+    view.certifyingShown,
+    elevation.dom,
   );
-  const baseComparison: ReportComparison = {
-    ...comparisonForReport(rawComparison, ctx.includeNoise, certifyingShown),
-    ...comparabilitySummary,
-  };
-  const comparison: ReportComparison = {
-    ...baseComparison,
-    reviewableCounts: withElevatedVisibleStructureCounts(
-      withElevatedChromeReviewableCounts(baseComparison.reviewableCounts, 0),
-      elevatedStructureDom,
-    ),
-    hasReviewableEvidence: baseComparison.hasReviewableEvidence || elevatedStructureDom > 0,
-  };
   // Elevated visible structure / navigable chrome is reviewable presentation evidence even
   // when matched-element style changeGroups are empty (no restyle sections to crop).
   const reportConsistency = assessReportConsistency(
     comparison,
-    certifyingShown > 0 || missing.length > 0 || elevatedStructureDom > 0,
+    view.certifyingShown > 0 || view.missing.length > 0 || elevation.dom > 0,
   );
-
   // Content layer: advisory per-surface + Global chrome display; elevated count colours copy.
   const content = renderContentLayer(
     ctx,
     { includeContent, migration },
     surfacePaths,
     surfaceKeyOf,
-    elevatedNavigableChromeAdds,
-    elevatedVisibleStructure,
+    elevation.navigableChromeAdds,
+    elevation.visibleStructure,
   );
-  const { withContent, contentSection } = content;
-
   // Confidence is resolved once and shared with report.json so badge and JSON can never disagree.
   const confidenceLedger = resolveBundleConfidence(afterDir);
   const confidence = summarizeConfidence(confidenceLedger);
   const baselineProvenance = readBaselineProvenance(beforeDir);
-  const provenanceLine = baselineProvenanceLine(baselineProvenance);
   const digest = buildDigest(
     ctx,
-    missing.map((p) => ({ surface: p.sd.surface, status: oneSidedStatus(p, baseline.surfaceFailures) })),
-    chrome,
+    view.missing.map((p) => ({ surface: p.sd.surface, status: oneSidedStatus(p, baseline.surfaceFailures) })),
+    view.chrome,
   );
+
+  // 3. Render report.md: verdict first (above the fold), then the product-state warning when it
+  // fires — never the certification checklist first, and never a green product-state peer card.
   const md = new ReportMarkdown(opts.maxReportBytes ?? 400_000);
-  // Verdict first (above the fold), then the product-state warning when it fires —
-  // never certification checklist first, and never a green product-state peer card.
   const headline = reportHeadline({
-    changeGroups,
-    missing,
-    shown,
-    changedScope: countChangedSurfaceScope(changeGroups, surfaceKeyOf),
+    changeGroups: view.changeGroups,
+    missing: view.missing,
+    shown: view.shown,
+    changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
     whatChanged: digestLines(digest),
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
     liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
-    contentCount: contentSection.count,
+    contentCount: content.contentSection.count,
     globalChromeCount: content.globalChrome,
-    elevatedNavigableChromeAdds,
-    elevatedVisibleStructure,
-    elevatedStructureDom,
+    elevatedNavigableChromeAdds: elevation.navigableChromeAdds,
+    elevatedVisibleStructure: elevation.visibleStructure,
+    elevatedStructureDom: elevation.dom,
     contentEvaluated: includeContent,
     reportConsistency,
     rawCounts: comparison.rawCounts,
@@ -448,81 +585,52 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   md.trimToBudget();
 
   const out: SectionState = { md, json: [], seq: { crop: 0 } };
-  // Budget-aware: large failure receipts collapse under the display-budget notice (report.json keeps full list).
-  if (baseline.failures.length > 0) {
-    md.detail(
-      baselineFailureDetailLines(baseline.failures),
-      `- ${baseline.failures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
-    );
-  }
-  const oneSided = renderOneSidedSections(ctx, out, missing, baseline.surfaceFailures);
-  const changed = renderChangedSections(
-    ctx,
-    out,
-    chrome,
-    countChangedSurfaceScope(chrome.chrome, surfaceKeyOf).bases,
-    countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf),
-  );
-
-  md.detail(
-    content.chromeMd,
-    `- ${content.globalChrome} global chrome element change(s) on every surface base that renders its container`,
-  );
-  const migrationGallery = migration ? buildMigrationGallery(diff.surfaces, withContent) : undefined;
-  if (migrationGallery) {
-    const g = migrationGallery;
-    md.detail(
-      renderMigrationGallerySections(g),
-      `- Migration gallery: ${g.changedStyles.length} changed styles, ${g.newSurfaces.length} new surfaces, ${g.newRemovedElements.length} surfaces with element changes`,
-    );
-  }
-  if (contentSection.md.length > 0 && !migration) {
-    md.detail(
-      contentSection.md,
-      `- ${contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
-    );
-  }
+  const migrationGallery = migration ? buildMigrationGallery(diff.surfaces, content.withContent) : undefined;
+  const { oneSided, changed } = renderReportBody(ctx, out, {
+    view,
+    baseline,
+    content,
+    migrationGallery,
+    surfaceKeyOf,
+  });
 
   // Evidence (failures/warnings only) collapses by default under the fold.
   const certIssues = certificationLines(
     beforeDir,
     afterDir,
     { ledger: confidenceLedger, summary: confidence },
-    elevatedNavigableChromeAdds,
+    elevation.navigableChromeAdds,
   );
-  const comparabilityEvidence = (() => {
-    const line = comparabilityLine(comparison, gates.legacyPairs);
-    // Proven / not-required stay out of Evidence; the above-the-fold warning covers unproven cases.
-    if (/✓ comparable|not required/.test(line)) return [];
-    return [line, ''];
-  })();
-  const evidenceBody = [
-    ...certIssues,
-    ...liveTextFreezeLines(liveText),
-    ...(provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
-    ...comparabilityEvidence,
-    ...criticalObligationLines(gates.criticalStates, opts.criticalObligations),
-  ];
-
   // "Nothing else" when restyles exist but no advisory content / inventory issues.
   const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
   if (
-    changeGroups.length > 0 &&
-    missing.length === 0 &&
+    view.changeGroups.length > 0 &&
+    view.missing.length === 0 &&
     content.total === 0 &&
     !migrationGallery &&
     !inventoryTouched
   ) {
     md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
   }
+  md.finish(
+    evidenceSection(
+      evidenceLines({
+        certIssues,
+        liveText,
+        provenanceLine: baselineProvenanceLine(baselineProvenance),
+        comparison,
+        gates,
+        criticalObligations: opts.criticalObligations,
+      }),
+    ),
+  );
 
-  md.finish(evidenceSection(evidenceBody));
-
+  // 4. Write report.md and report.json, and return the result.
   const paths = writeReportArtifacts({
     outDir,
     md: md.lines,
     gateMode,
-    counts: shown,
+    counts: view.shown,
     comparison,
     comparability: gates.comparability,
     reportConsistency,
@@ -533,8 +641,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       changes: content.total,
       advisory: true,
       ...(content.globalChrome ? { globalChrome: content.globalChrome } : {}),
-      ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
-      ...(elevatedVisibleStructure ? { elevatedVisibleStructure } : {}),
+      ...(elevation.navigableChromeAdds ? { elevatedNavigableChromeAdds: elevation.navigableChromeAdds } : {}),
+      ...(elevation.visibleStructure ? { elevatedVisibleStructure: elevation.visibleStructure } : {}),
     },
     surfaces: out.json,
     confidence,
@@ -547,9 +655,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     digest,
   });
   return {
-    changedSurfaces: prepared.length - missing.length,
+    changedSurfaces: view.prepared.length - view.missing.length,
     newSurfaces: oneSided.greenfieldNewSurfaces,
-    oneSidedSurfaces: missing.length,
+    oneSidedSurfaces: view.missing.length,
     totalFindings: changed.totalFindings,
     contentChanges: content.total,
     comparison,
