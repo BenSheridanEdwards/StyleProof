@@ -384,7 +384,7 @@ test('keeps a real (> epsilon) single-value transform-origin change', () => {
   assert.deepEqual(f[0].props, [{ prop: 'transform-origin', before: '50px', after: '80px' }]);
 });
 
-test('ignores layout-equivalent horizontal margin drift when the element rect is unchanged', () => {
+test('reports balanced horizontal margin drift on a legacy map even when the element rect is unchanged', () => {
   const a = makeMap({
     elements: {
       'body > div:nth-child(1)': {
@@ -418,7 +418,118 @@ test('ignores layout-equivalent horizontal margin drift when the element rect is
     },
   });
 
-  assert.deepEqual(diffStyleMaps(a, b), []);
+  // No per-property Typed OM proof, so an unchanged rect cannot drop it (#951).
+  const f = diffStyleMaps(a, b);
+  assert.equal(f.length, 1);
+  assert.deepEqual(f[0].props.map((p) => `${p.prop}:${p.before}->${p.after}`).sort(), [
+    'margin-inline-end:0px->40px',
+    'margin-inline-start:0px->40px',
+    'margin-left:0px->40px',
+    'margin-right:0px->40px',
+  ]);
+});
+
+// A centred flex row absorbs a balanced margin growth on its middle item: the item's rect
+// stays put and its neighbours move instead (#951). A margin row drops only when both
+// sides carry the same computed value for that property.
+const centredItem = (margin, computedValueStyle) =>
+  makeMap({
+    elements: {
+      'body > nav:nth-child(1) > a:nth-child(2)': {
+        tag: 'a',
+        cls: 'chip middle',
+        rect: [360, 0, 80, 30],
+        style: {
+          'margin-left': margin,
+          'margin-right': margin,
+          'margin-inline-start': margin,
+          'margin-inline-end': margin,
+        },
+        computedValueStyle,
+      },
+    },
+  });
+
+const autoMargins = {
+  'margin-left': 'auto',
+  'margin-right': 'auto',
+  'margin-inline-start': 'auto',
+  'margin-inline-end': 'auto',
+};
+const changedMarginRows = [
+  'margin-inline-end:8px->48px',
+  'margin-inline-start:8px->48px',
+  'margin-left:8px->48px',
+  'margin-right:8px->48px',
+];
+const marginRows = (findings) =>
+  findings
+    .flatMap((finding) => finding.props)
+    .map((property) => `${property.prop}:${property.before}->${property.after}`)
+    .sort();
+
+test('reports a balanced px margin change with an unchanged rect when both sides carry Typed OM proof', () => {
+  const typedOm = { 'animation-duration': 'auto' };
+  const f = diffStyleMaps(centredItem('8px', typedOm), centredItem('48px', typedOm));
+  assert.equal(f.length, 1);
+  assert.deepEqual(f[0].props.map((p) => `${p.prop}:${p.before}->${p.after}`).sort(), [
+    'margin-inline-end:8px->48px',
+    'margin-inline-start:8px->48px',
+    'margin-left:8px->48px',
+    'margin-right:8px->48px',
+  ]);
+});
+
+test('still drops a balanced auto-margin echo with an unchanged rect when both sides prove auto', () => {
+  assert.deepEqual(diffStyleMaps(centredItem('8px', autoMargins), centredItem('48px', autoMargins)), []);
+});
+
+test('reports a balanced px margin change with an unchanged rect on a legacy pair', () => {
+  const findings = diffStyleMaps(centredItem('8px'), centredItem('48px'));
+  assert.equal(findings.length, 1);
+  assert.deepEqual(marginRows(findings), changedMarginRows);
+});
+
+test('reports a balanced px margin change when only the base carries Typed OM proof', () => {
+  const findings = diffStyleMaps(centredItem('8px', { 'animation-duration': 'auto' }), centredItem('48px'));
+  assert.deepEqual(marginRows(findings), changedMarginRows);
+});
+
+test('reports a balanced px margin change when only the head carries Typed OM proof', () => {
+  const findings = diffStyleMaps(centredItem('8px'), centredItem('48px', { 'animation-duration': 'auto' }));
+  assert.deepEqual(marginRows(findings), changedMarginRows);
+});
+
+test('reports a balanced px margin change when one side proves auto and the other has no proof', () => {
+  for (const [baseProof, headProof] of [
+    [autoMargins, undefined],
+    [undefined, autoMargins],
+  ]) {
+    const findings = diffStyleMaps(centredItem('8px', baseProof), centredItem('48px', headProof));
+    assert.deepEqual(marginRows(findings), changedMarginRows);
+  }
+});
+
+test('reports a balanced px margin change when both sides carry empty proof', () => {
+  const findings = diffStyleMaps(centredItem('8px', {}), centredItem('48px', {}));
+  assert.deepEqual(marginRows(findings), changedMarginRows);
+});
+
+test('drops only the margin rows both sides prove; unproven logical margins still report', () => {
+  const physicalAutoMargins = { 'margin-left': 'auto', 'margin-right': 'auto' };
+  const findings = diffStyleMaps(centredItem('8px', physicalAutoMargins), centredItem('48px', physicalAutoMargins));
+  assert.deepEqual(marginRows(findings), ['margin-inline-end:8px->48px', 'margin-inline-start:8px->48px']);
+});
+
+test('reports a margin pair whose computed value differs between sides', () => {
+  const pixelMargins = {
+    'margin-left': '48px',
+    'margin-right': '48px',
+    'margin-inline-start': '48px',
+    'margin-inline-end': '48px',
+  };
+  const findings = diffStyleMaps(centredItem('8px', autoMargins), centredItem('48px', pixelMargins));
+  assert.deepEqual(marginRows(findings), changedMarginRows);
 });
 
 test('keeps a one-sided margin change even when the rect is unchanged (external compensation is not layout-equivalent)', () => {

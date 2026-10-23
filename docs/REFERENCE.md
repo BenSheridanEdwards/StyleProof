@@ -909,15 +909,17 @@ defineStyleMapCapture({
 
 - **Self-check** — captures each surface twice and fails if they differ, so a replay gap or unseeded randomness surfaces as a clear _"non-deterministic capture"_ error, never as a phantom change on an unrelated PR. **On by default while recording** (where live nondeterminism shows up); off on the replay run, which renders against the recorded HAR and is deterministic by construction. `STYLEPROOF_SELFCHECK=1` forces it on for both; `selfCheck: false` opts out.
 - **Framework noise is skipped by default.** Non-visual and framework-injected elements never count as a change — `<meta>`/`<title>`/`<script>`/`<style>`/… (which Next.js streams into the body then hoists) and live regions like Next's `next-route-announcer`. A real stylesheet change still shows up in the affected elements' computed styles, not in the `<style>` tag. Add your own selectors with `ignore` — they extend this default, they don't replace it.
-- **Layout-equivalent margin noise is normalised.** If the browser reports
-  horizontal auto-centering margins (`margin-left`/`margin-right` and logical
-  equivalents) differently but the captured document-space rectangle is
-  identical, StyleProof treats that as the same rendered layout. The suppression
-  only fires when the sides drift **together** (no demonstrable px imbalance
-  between a side and its opposite): a one-sided change like
-  `margin-left: 0 → 40px` still reports even when something else compensates and
-  the box doesn't move, and if the box moves or resizes, any margin change
-  reports. Forced `:hover`/`:focus`/`:active` deltas never use the rectangle:
+- **Layout-equivalent margin noise is normalised.** On the element layer, a
+  horizontal margin row (`margin-left`/`margin-right` and logical equivalents)
+  drops only when both captures carry a CSS Typed OM computed value
+  (`computedValueStyle`) for that property and the values are equal, such as
+  `auto`. The used px then only echoes a container change. The element's own
+  rectangle never proves a margin change is layout-equivalent: a centring
+  parent can absorb a balanced margin change and move the siblings instead
+  (#951). A side without that per-property proof (a map captured before the
+  proof existed, a browser without `computedStyleMap`, or one side of a mixed
+  pair) keeps that margin row. Re-capture both sides to get the filter.
+  Forced `:hover`/`:focus`/`:active` deltas never use the rectangle:
   it is the resting one, so it cannot prove a state's margin change left the box
   in place. A state's horizontal margin pair drops only when both captures prove,
   from CSS Typed OM computed values, that the pair is `auto` at rest **and**
@@ -939,16 +941,16 @@ Anything still moving on its own after that is detected as a volatile region and
 
 **At a glance — almost everything is automatic.** The few knobs exist only for what StyleProof can't know about your app, and each says why:
 
-| Handled for you — zero config                               | How                                                                                                                             |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| In-flight data, fonts, late layout                          | network-aware settle holds until requests finish _and_ the computed styles stop changing                                        |
-| Animations, transitions, real hover/focus, caret            | frozen / neutralised before the map is read; forced states are captured separately                                              |
-| Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                                                           |
-| Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                                                              |
-| Layout-equivalent horizontal auto margins                   | unchanged rectangle (element layer) or Typed OM `auto` proof (forced states), **and** the sides drift together                  |
-| Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                                                                  |
-| Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison; head-only volatility blocks; base-only is reviewable |
-| Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                                                       |
+| Handled for you — zero config                               | How                                                                                                                                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| In-flight data, fonts, late layout                          | network-aware settle holds until requests finish _and_ the computed styles stop changing                                                                   |
+| Animations, transitions, real hover/focus, caret            | frozen / neutralised before the map is read; forced states are captured separately                                                                         |
+| Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                                                                                      |
+| Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                                                                                         |
+| Layout-equivalent horizontal auto margins                   | the same Typed OM computed value on both sides (element layer), or Typed OM `auto` at rest and forced on both sides **and** balanced sides (forced states) |
+| Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                                                                                             |
+| Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison; head-only volatility blocks; base-only is reviewable                            |
+| Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                                                                                  |
 
 | You set this — only because it's app-specific | Why it exists                                                                                                                                                                                                                                                                                            |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

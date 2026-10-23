@@ -149,10 +149,6 @@ const LAYOUT_EQUIVALENT_MARGIN_PROPS = new Set(HORIZONTAL_MARGIN_PAIRS.flat());
 const SUBPIXEL_ORIGIN_PROPS = new Set(['perspective-origin', 'transform-origin']);
 const ORIGIN_EPSILON_PX = 0.05;
 
-function sameRect(a?: [number, number, number, number], b?: [number, number, number, number]): boolean {
-  return !!a && !!b && a.every((v, i) => v === b[i]);
-}
-
 /** 1–3 px components, else null (a single-value origin jitters like the 2/3-component form). */
 function pxParts(value: string): number[] | null {
   const parts = value.trim().split(/\s+/);
@@ -185,16 +181,6 @@ function marginChangeHasPxImbalance(props: PropChange[]): boolean {
   });
 }
 
-/** A balanced horizontal margin change with an unchanged rect is layout-equivalent drift. */
-function dropLayoutEquivalentMarginProps(
-  props: PropChange[],
-  a?: StyleMap['elements'][string],
-  b?: StyleMap['elements'][string],
-): PropChange[] {
-  if (!sameRect(a?.rect, b?.rect) || marginChangeHasPxImbalance(props)) return props;
-  return props.filter((p) => !LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop));
-}
-
 function sameSubpixelOrigin(before: string, after: string): boolean {
   const a = pxParts(before);
   const b = pxParts(after);
@@ -210,6 +196,9 @@ function dropSubpixelOriginProps(props: PropChange[]): PropChange[] {
  * change can move an `auto` margin without changing its CSS computed value. When
  * BOTH sides prove the computed value is unchanged, the pixel delta is reflow.
  * Legacy captures have no such proof and remain fail-closed.
+ * This is the only resting-layer margin filter: an unchanged rect cannot prove
+ * a margin change is layout-equivalent, because a centring parent can absorb it
+ * and move the siblings instead (#951).
  */
 function dropUsedValueOnlyProps(
   props: PropChange[],
@@ -304,9 +293,7 @@ function pairedFindings(p: string, a: StyleMap, b: StyleMap, ea: Element, eb: El
     const [propsA, pdefsA] = layer(a, ea, pseudo);
     const [propsB, pdefsB] = layer(b, eb, pseudo);
     const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
-    const restingProps = pseudo
-      ? rawProps
-      : dropUsedValueOnlyProps(dropLayoutEquivalentMarginProps(rawProps, ea, eb), ea, eb);
+    const restingProps = pseudo ? rawProps : dropUsedValueOnlyProps(rawProps, ea, eb);
     const props = dropSubpixelOriginProps(restingProps);
     if (!props.length) continue;
     const signal = pseudo === null ? contentLengthSignal(ea, eb) : undefined;

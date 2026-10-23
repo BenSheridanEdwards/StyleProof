@@ -76,9 +76,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     keyed like `constructor` now fails closed with exit 6, as any other blocked
     surface does. Make its setup deterministic, or acknowledge it explicitly
     with `crawl.incompleteUiExclude` / `--incomplete-ui-exclude`.
-13. **Forced-state margins (#914, #886).** A `:hover`/`:focus`/`:active`
-    margin change the old filter dropped is now reported, so a run that passed
-    can now need review. Review the change; no re-capture is needed.
+13. **Forced-state and resting margins (#914, #886, #951).** A
+    `:hover`/`:focus`/`:active` margin change, or a balanced resting margin change
+    with an unchanged rectangle, that the old filter dropped is now reported,
+    so a run that passed can now need review. Review the change. An `auto`-centred
+    margin row against an 8.x baseline clears once the baseline is re-captured
+    (step 1).
 14. **Ancestor baseline roots (#826, PR #927; drop this step if #927 does not
     ship in 9.0.0).** With no roots declared, every changed path now counts as
     capture-relevant, so ancestor baseline reuse fires less often. To keep the
@@ -651,6 +654,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   produced no finding. Forced-state deltas now keep every horizontal margin row.
   An `auto`-centred child whose margins only follow a width change under hover
   now also reports its margin rows until the capture can prove that echo.
+- **BREAKING: A balanced margin change on a centred item that moves its siblings now
+  reports (#951).** The layout-equivalent margin filter dropped a matching
+  left/right margin change whenever the element's own rectangle was unchanged.
+  In a centring container (`justify-content: center`, `text-align: center`) the
+  item stays put while its neighbours move, so `margin: 0 8px` → `margin: 0 48px`
+  on the middle item produced no finding and `styleproof-diff` exited 0. The
+  rectangle check is gone. A horizontal margin row now reports on every map
+  unless both sides carry the same CSS Typed OM computed value for that property,
+  such as `auto`. An authored margin change
+  that moves nothing, such as on a lone centred item, now also reports. Maps
+  captured without that proof (an older map, a browser without `computedStyleMap`,
+  or one side of a mixed pair) can show new margin rows where an `auto`-centred
+  element's container changed. Re-capture the baseline to restore the `auto`
+  echo filter.
 - **BREAKING: Visible elements added below the first screen now require review.** The
   visible-structure gate intersected each added or removed element with the
   window-sized viewport, so a visible element added further down a tall page
