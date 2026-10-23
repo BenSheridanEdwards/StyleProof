@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -32,10 +33,9 @@ test('reach-cost measurement fails on benchmark errors or missing fresh receipts
     { name: 'benchmark writes an empty receipt', status: 0, receipt: '', passes: false },
     { name: 'benchmark succeeds with a fresh receipt', status: 0, receipt: '{"fresh":true}', passes: true },
   ];
-  fs.mkdirSync(path.join(here, '..', '.takeover'), { recursive: true });
   for (const { name, status, receipt, passes } of cases) {
     await t.test(name, () => {
-      const dir = fs.mkdtempSync(path.join(here, '..', '.takeover', 'reach-cost-test-'));
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-reach-cost-'));
       try {
         fs.mkdirSync(path.join(dir, 'bench'));
         const receiptPath = path.join(dir, 'bench/reach-cost.results.json');
