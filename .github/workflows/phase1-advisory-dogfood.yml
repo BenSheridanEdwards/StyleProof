@@ -23,21 +23,20 @@ concurrency:
 
 jobs:
   changes:
-    name: Phase 1 dogfood path filter
+    name: Phase 1 dogfood tree proof
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      dogfood: ${{ steps.filter.outputs.lanes }}
+      dogfood: ${{ steps.decide.outputs.lanes }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
-        id: filter
         with:
-          predicate-quantifier: every
-          filters: .github/path-filters.yml
+          fetch-depth: 2
+      - id: decide
+        run: node scripts/browser-lanes.mjs --github
 
   phase1-mapping:
     name: Phase 1 mapping (advisory)

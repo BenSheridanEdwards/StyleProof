@@ -80,24 +80,28 @@ baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
 it on the Node 22 matrix leg. Develop with Node 22.13+ so the floor flags exist;
 older Node exits non-zero with a clear message instead of silently skipping.
 
-`pre-push` always runs `npm test`. It uses `.github/path-filters.yml`, the same
-path policy as CI, to select `npm run test:e2e -- --workers=4` for any staged or
-pushed path, including prose and tooling files. There are no filename exemptions,
-and Git filenames retain literal backslashes and line terminators. Staged and
-pushed diffs use `--ignore-submodules=none` to include changed gitlinks despite
-tracked or local submodule ignore settings, and disable replacement objects so
-local replacement refs cannot substitute unchanged trees. Unknown inventories, including a
-new branch without a remote base, run the full suite; a successful empty
-collection may skip it. A ref-deletion-only push with no
-staged paths has no changed paths; deleting a tracked file still runs browsers.
-Missing Chromium,
-unreadable Git changes or malformed push metadata fail the push. Install Chromium
+`pre-push` always runs `npm test`. It shares `browserLanesRequired` in
+`scripts/browser-lanes.mjs` with CI and runs `npm run test:e2e -- --workers=4`
+unless every pushed range has equal root trees or deletes a ref, and the staged
+index is proven equal to `HEAD`. The index proof uses `write-tree` plus a
+`diff-index --cached --quiet --ignore-submodules=none` cross-check; disagreement
+or error cannot justify a skip. There are no filename exemptions or path lists.
+Raw Git reads disable replacement objects and clear repository-local Git
+environment variables, including leaked index and repository overrides.
+First pushes, absent stdin and unknown evidence run the full suite; malformed
+records, missing Chromium and unreadable pushed objects block the push.
+Deleting a tracked file changes the tree and runs browsers. The command tests
+the current checkout, not a separate checkout of each pushed ref. Install Chromium
 with `npx playwright install chromium` before pushing changes.
 `npm run demo:check` verifies demo Markdown, HTML and decoded crop pixels.
 
-Hosted push CI always requires browser lanes, including empty-tree pushes, so
-Git's changed-file collector cannot omit them. Pull-request CI retains the
-pinned API-based path filter; every nonempty filename it receives selects lanes.
+Hosted pushes always require browser lanes, including empty-tree pushes. PRs
+may skip only with a verified two-parent merge of the event's base whose root
+tree equals that base. `required` also demands a successful decision job and
+`same-tree:<tree-oid>` proof for a `false` decision. Missing or malformed proof
+fails. The live StyleProof dogfood job always runs for eligible PRs: its head/base
+capture cannot reuse a merge/base identity proof. See [quality gates](docs/quality-gates.md)
+for the scope and proposed follow-ups.
 
 The unit suite imports the **built `dist/`** (the same surface the bins and consumers
 use), so a stale build can't yield a false green — `npm test` rebuilds first. Add or
