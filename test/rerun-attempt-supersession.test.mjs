@@ -26,6 +26,8 @@ const CAPTURE_RUN = {
   run_attempt: 1,
   created_at: '2026-10-20T10:00:00Z',
   event: 'pull_request',
+  status: 'completed',
+  conclusion: 'success',
   workflow_id: 7,
   head_sha: 'a'.repeat(40),
 };
@@ -55,6 +57,36 @@ test('a newer capture attempt supersedes only older attempts of the same run', (
   const rerun = { ...CAPTURE_RUN, run_attempt: 2 };
   assert.equal(isSupersededCaptureRun(CAPTURE_RUN, [rerun]), true);
   assert.equal(isSupersededCaptureRun(rerun, [CAPTURE_RUN, rerun]), false);
+});
+
+test('a newer capture without successful completion cannot silently suppress a status', () => {
+  for (const lifecycle of [
+    { status: 'completed', conclusion: 'failure' },
+    { status: 'completed', conclusion: 'cancelled' },
+    { status: 'completed', conclusion: 'timed_out' },
+    { status: 'queued', conclusion: null },
+    { status: 'in_progress', conclusion: null },
+    { status: undefined, conclusion: undefined },
+  ]) {
+    for (const newer of [NEWER_CAPTURE_RUN, { ...CAPTURE_RUN, run_attempt: 2 }]) {
+      assert.throws(
+        () => isSupersededCaptureRun(CAPTURE_RUN, [{ ...newer, ...lifecycle }]),
+        /newer capture run has not completed successfully/,
+        JSON.stringify({ id: newer.id, attempt: newer.run_attempt, ...lifecycle }),
+      );
+    }
+  }
+});
+
+test('an unsuccessful newer capture fails closed regardless of the API list order', () => {
+  const failed = { ...NEWER_CAPTURE_RUN, id: 102, conclusion: 'failure' };
+  for (const runs of [
+    [NEWER_CAPTURE_RUN, failed],
+    [failed, NEWER_CAPTURE_RUN],
+  ]) {
+    assert.throws(() => isSupersededCaptureRun(CAPTURE_RUN, runs), /newer capture run has not completed successfully/);
+  }
+  assert.equal(isSupersededCaptureRun(NEWER_CAPTURE_RUN, [{ ...CAPTURE_RUN, conclusion: 'failure' }]), false);
 });
 
 test('capture run ids deterministically break equal creation timestamps', () => {

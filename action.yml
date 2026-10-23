@@ -1210,6 +1210,18 @@ runs:
           core.setOutput('state', state);
           core.info(`StyleProof terminal trust state: ${state}`);
 
+    # Status functions are only valid in if:, not script expressions. Preserve
+    # success positively so a skipped or failed confirmation cannot keep green.
+    - name: Confirm certify run success
+      id: certify-success
+      if: >-
+        success() &&
+        steps.context.outputs.pr-number != '' &&
+        inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' &&
+        github.event_name == 'workflow_run'
+      shell: bash
+      run: echo 'succeeded=true' >> "$GITHUB_OUTPUT"
+
     # A failed delivery can skip the verdict step. Fail closed so an earlier
     # success cannot survive a failed rerun, even if capture ordering is unknown.
     # Recheck a successful write too: a delayed API request may have landed after
@@ -1237,7 +1249,7 @@ runs:
         script: |
           const mayHaveWrittenSuccess = '${{ steps.status.outputs.state }}' === 'success' ||
             '${{ steps.status.outcome }}' === 'failure';
-          const runFailed = '${{ failure() }}' === 'true';
+          const runSucceeded = '${{ steps.certify-success.outputs.succeeded }}' === 'true';
           const trust = process.env.STYLEPROOF_TRUST_STATE;
           try {
             const { captureRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
@@ -1246,7 +1258,7 @@ runs:
               core.info('StyleProof: a newer capture run supersedes this report — status unchanged.');
               return;
             }
-            if (!superseded && mayHaveWrittenSuccess && !runFailed && trust === 'NO_REVIEWABLE_STYLE_CHANGES') return;
+            if (!superseded && '${{ steps.status.outputs.state }}' === 'success' && runSucceeded && trust === 'NO_REVIEWABLE_STYLE_CHANGES') return;
             if (superseded) core.warning('StyleProof: capture order changed during status delivery; replacing stale success with failure.');
           } catch (error) {
             core.warning(`StyleProof: capture order could not be proven; failing closed: ${error.message}`);

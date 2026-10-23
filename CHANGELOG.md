@@ -538,7 +538,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   fork PR's clean capture. The status is `pending` while the report runs;
   a failed publish, comment or status write sets it to `failure`, so an earlier
   `success` on the same commit cannot stand. A report already superseded by a
-  newer capture run or attempt for the same head commit skips its status write.
+  newer successful capture run or attempt for the same head commit skips its status
+  write. A newer failed, cancelled, unfinished or unknown capture instead triggers
+  `failure`, since it cannot be relied on to deliver a replacement verdict.
   Successful writes recheck that order: if superseded during the write, or if
   order cannot be proved, the status turns red so a delayed API response cannot
   leave stale green. A failed status request also triggers corrective `failure`

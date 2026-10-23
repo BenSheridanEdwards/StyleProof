@@ -53,7 +53,7 @@ function stepRuns(stepName, scenario) {
     new RegExp(`- name: ${stepName}\\n[\\s\\S]*?(?=\\n {4}#|\\n {4}- name:|\\n {4}- id:|$)`),
   );
   assert.ok(step, `action.yml should contain the ${stepName} step`);
-  const condition = step[0].match(/\n {6}if: >-\n([\s\S]*?)\n {6}uses:/)[1];
+  const condition = step[0].match(/\n {6}if: >-\n([\s\S]*?)\n {6}(?:uses|shell):/)[1];
   const given = values(scenario);
   const expression = condition
     .replace(/always\(\)/g, 'true')
@@ -85,9 +85,10 @@ function values({
   statusOutcome = '',
   trust,
   failed = false,
+  runSucceeded = !failed,
 }) {
   return {
-    'failure()': failed ? 'true' : 'false',
+    'steps.certify-success.outputs.succeeded': runSucceeded ? 'true' : '',
     'github.event_name': event,
     'inputs.fail-on-diff': failOnDiff ? 'true' : 'false',
     'steps.comment.outputs.stale-delivery': staleDelivery,
@@ -138,6 +139,8 @@ async function run(stepName, scenario, prior = [], thread = []) {
     workflow_id: 7,
     head_sha: HEAD_SHA,
     event: 'pull_request',
+    status: 'completed',
+    conclusion: 'success',
     ...scenario.workflowRun,
   };
   const github = {
@@ -512,6 +515,7 @@ test('a failed split certify rerun cannot leave an earlier success on the PR hea
   // Publish/comment failure skips the verdict status, so the final step must replace the old green.
   const failed = { ...clean, failed: true };
   assert.equal(stepRuns('Set certify failure status', failed), true);
+  assert.equal(stepRuns('Confirm certify run success', failed), false);
   const failure = await run('Set certify failure status', failed, [...pending.statuses, ...prior]);
   assert.equal(failure.statuses.length, 1);
   assert.equal(failure.statuses[0].state, 'failure');
@@ -540,6 +544,8 @@ test('a failed split certify rerun cannot leave an earlier success on the PR hea
     'a successful write requires a final freshness check',
   );
   const confirmedClean = await run('Set certify failure status', { ...clean, statusState: 'success' });
+  assert.equal(stepRuns('Confirm certify run success', clean), true);
+  assert.match(actionYml, /- name: Confirm certify run success[\s\S]*?run: echo 'succeeded=true' >> "\$GITHUB_OUTPUT"/);
   assert.equal(confirmedClean.runsLookups.length, 1);
   assert.deepEqual(confirmedClean.statuses, [], 'a current clean success stays green without another write');
   const failedAfterSuccess = await run('Set certify failure status', { ...failed, statusState: 'success' });
@@ -549,6 +555,12 @@ test('a failed split certify rerun cannot leave an earlier success on the PR hea
     'failure',
     'a later run failure invalidates even a current success',
   );
+  const unconfirmed = await run('Set certify failure status', {
+    ...clean,
+    statusState: 'success',
+    runSucceeded: false,
+  });
+  assert.equal(unconfirmed.statuses[0].state, 'failure', 'missing success confirmation must fail closed');
   assert.equal(stepRuns('Set certify failure status', { ...clean, untrusted: true, statusState: 'pending' }), false);
   for (const stale of [{ staleDelivery: 'true' }, { pendingSuperseded: 'true' }, { statusSuperseded: 'true' }]) {
     assert.equal(stepRuns('Set certify failure status', { ...failed, ...stale }), false);
@@ -561,14 +573,22 @@ test('a failed split certify rerun cannot leave an earlier success on the PR hea
     { mode: 'migration' },
     { mode: 'advisory' },
   ]) {
-    for (const step of ['Mark certify status pending', 'Set certify failure status']) {
+    for (const step of ['Mark certify status pending', 'Set certify failure status', 'Confirm certify run success']) {
       assert.equal(stepRuns(step, { ...failed, ...outsideScope }), false, `${step}: ${JSON.stringify(outsideScope)}`);
+      assert.equal(stepRuns(step, { ...clean, ...outsideScope }), false, `${step}: ${JSON.stringify(outsideScope)}`);
     }
   }
 });
 
 test("a superseded capture run's report writes no certify status, in either delivery order", async () => {
-  const older = { id: 500, run_attempt: 1, created_at: '2026-10-20T10:00:00Z', event: 'pull_request' };
+  const older = {
+    id: 500,
+    run_attempt: 1,
+    created_at: '2026-10-20T10:00:00Z',
+    event: 'pull_request',
+    status: 'completed',
+    conclusion: 'success',
+  };
   const newer = { ...older, id: 501, created_at: '2026-10-20T10:01:00Z' };
   const clean = {
     mode: 'certify',
@@ -611,8 +631,59 @@ test("a superseded capture run's report writes no certify status, in either deli
   }
 });
 
+test('a newer unsuccessful or unfinished capture cannot leave an earlier certify success standing', async () => {
+  const clean = {
+    mode: 'certify',
+    event: 'workflow_run',
+    untrusted: false,
+    trustState: 'NO_REVIEWABLE_STYLE_CHANGES',
+    changed: false,
+  };
+  for (const lifecycle of [
+    { status: 'completed', conclusion: 'failure' },
+    { status: 'completed', conclusion: 'cancelled' },
+    { status: 'queued', conclusion: null },
+    { status: 'in_progress', conclusion: null },
+    {},
+  ]) {
+    const statuses = (await run('Set review status', clean)).statuses;
+    const scenario = {
+      ...clean,
+      statuses,
+      workflowRuns: [
+        {
+          id: 501,
+          run_attempt: 1,
+          created_at: '2026-10-20T10:01:00Z',
+          event: 'pull_request',
+          ...lifecycle,
+        },
+      ],
+    };
+    for (const step of ['Mark certify status pending', 'Set review status']) {
+      await assert.rejects(run(step, scenario), /newer capture run has not completed successfully/);
+    }
+    const failed = { ...scenario, failed: true };
+    assert.equal(stepRuns('Set certify failure status', failed), true);
+    await run('Set certify failure status', failed);
+    assert.deepEqual(
+      statuses.map(({ state }) => state),
+      ['success', 'failure'],
+      JSON.stringify(lifecycle),
+    );
+    assert.equal(statuses.at(-1).sha, HEAD_SHA);
+  }
+});
+
 test('a delayed older success is replaced with failure after a newer capture verdict lands', async () => {
-  const older = { id: 500, run_attempt: 1, created_at: '2026-10-20T10:00:00Z', event: 'pull_request' };
+  const older = {
+    id: 500,
+    run_attempt: 1,
+    created_at: '2026-10-20T10:00:00Z',
+    event: 'pull_request',
+    status: 'completed',
+    conclusion: 'success',
+  };
   const newer = { ...older, id: 501, created_at: '2026-10-20T10:01:00Z' };
   const statuses = [];
   const clean = {
@@ -663,7 +734,14 @@ test('a delayed older success is replaced with failure after a newer capture ver
 });
 
 test('a superseded status write with a lost response cannot leave its applied success standing', async () => {
-  const older = { id: 500, run_attempt: 1, created_at: '2026-10-20T10:00:00Z', event: 'pull_request' };
+  const older = {
+    id: 500,
+    run_attempt: 1,
+    created_at: '2026-10-20T10:00:00Z',
+    event: 'pull_request',
+    status: 'completed',
+    conclusion: 'success',
+  };
   const newer = { ...older, id: 501, created_at: '2026-10-20T10:01:00Z' };
   const statuses = [];
   const clean = {

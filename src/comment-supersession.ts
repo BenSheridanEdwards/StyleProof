@@ -44,6 +44,8 @@ export type CaptureRunIdentity = {
   run_attempt: number;
   created_at: string;
   event?: string;
+  status?: string;
+  conclusion?: string | null;
 };
 
 function captureRunCreatedAt(capture: CaptureRunIdentity): number {
@@ -60,15 +62,21 @@ function captureRunCreatedAt(capture: CaptureRunIdentity): number {
   return created;
 }
 
-/** True when a newer pull_request capture run or attempt exists; throws when order cannot be proven. */
+/** True when newer pull_request captures completed successfully; throws when ordering or their delivery is unproven. */
 export function isSupersededCaptureRun(capture: CaptureRunIdentity, runs: readonly CaptureRunIdentity[]): boolean {
   const created = captureRunCreatedAt(capture);
-  return runs.some((run) => {
+  const newerRuns = runs.filter((run) => {
     if (run.event !== 'pull_request') return false;
     const candidateCreated = captureRunCreatedAt(run);
     if (run.id === capture.id) return run.run_attempt > capture.run_attempt;
     return candidateCreated > created || (candidateCreated === created && run.id > capture.id);
   });
+  // Only successful captures trigger the report workflow. A failed, cancelled,
+  // unfinished or unknown newer run cannot be trusted to replace an old green.
+  if (newerRuns.some((run) => run.status !== 'completed' || run.conclusion !== 'success')) {
+    throw new Error('StyleProof: a newer capture run has not completed successfully; status must fail closed');
+  }
+  return newerRuns.length > 0;
 }
 
 type CaptureWorkflowRun = CaptureRunIdentity & { workflow_id: number; head_sha: string };
