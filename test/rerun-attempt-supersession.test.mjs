@@ -11,13 +11,171 @@ import test from 'node:test';
 import { publishReportFolder, verifyPublishedReceipt } from '../dist/report-publish.js';
 import { buildReportDelivery } from '../dist/report-delivery.js';
 import {
+  captureRunSuperseded,
   formatRunAttemptReceiptMarker,
+  isSupersededCaptureRun,
   parseRunAttemptReceiptMarker,
   shouldSupersedeExistingComment,
 } from '../dist/comment-supersession.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
+
+const CAPTURE_RUN = {
+  id: 100,
+  run_attempt: 1,
+  created_at: '2026-10-20T10:00:00Z',
+  event: 'pull_request',
+  status: 'completed',
+  conclusion: 'success',
+  workflow_id: 7,
+  head_sha: 'a'.repeat(40),
+};
+const NEWER_CAPTURE_RUN = { ...CAPTURE_RUN, id: 101, created_at: '2026-10-20T10:01:00Z' };
+
+test('a newer capture failure survives either delivery order for the same head commit', () => {
+  const runs = [CAPTURE_RUN, NEWER_CAPTURE_RUN];
+  assert.equal(isSupersededCaptureRun(CAPTURE_RUN, runs), true);
+  assert.equal(isSupersededCaptureRun(NEWER_CAPTURE_RUN, runs), false);
+  for (const deliveries of [runs, [...runs].reverse()]) {
+    const statuses = [];
+    for (const capture of deliveries) {
+      if (!isSupersededCaptureRun(capture, runs)) {
+        statuses.push({ sha: capture.head_sha, state: capture.id === CAPTURE_RUN.id ? 'success' : 'failure' });
+      }
+    }
+    assert.deepEqual(statuses, [{ sha: CAPTURE_RUN.head_sha, state: 'failure' }]);
+  }
+  // A clean result written before the next capture exists is replaced by its failure.
+  const statuses = [];
+  if (!isSupersededCaptureRun(CAPTURE_RUN, [CAPTURE_RUN])) statuses.push('success');
+  if (!isSupersededCaptureRun(NEWER_CAPTURE_RUN, runs)) statuses.push('failure');
+  assert.deepEqual(statuses, ['success', 'failure']);
+});
+
+test('a newer capture attempt supersedes only older attempts of the same run', () => {
+  const rerun = { ...CAPTURE_RUN, run_attempt: 2 };
+  assert.equal(isSupersededCaptureRun(CAPTURE_RUN, [rerun]), true);
+  assert.equal(isSupersededCaptureRun(rerun, [CAPTURE_RUN, rerun]), false);
+});
+
+test('a newer capture without successful completion cannot silently suppress a status', () => {
+  for (const lifecycle of [
+    { status: 'completed', conclusion: 'failure' },
+    { status: 'completed', conclusion: 'cancelled' },
+    { status: 'completed', conclusion: 'timed_out' },
+    { status: 'queued', conclusion: null },
+    { status: 'in_progress', conclusion: null },
+    { status: undefined, conclusion: undefined },
+  ]) {
+    for (const newer of [NEWER_CAPTURE_RUN, { ...CAPTURE_RUN, run_attempt: 2 }]) {
+      assert.throws(
+        () => isSupersededCaptureRun(CAPTURE_RUN, [{ ...newer, ...lifecycle }]),
+        /newer capture run has not completed successfully/,
+        JSON.stringify({ id: newer.id, attempt: newer.run_attempt, ...lifecycle }),
+      );
+    }
+  }
+});
+
+test('an unsuccessful newer capture fails closed regardless of the API list order', () => {
+  const failed = { ...NEWER_CAPTURE_RUN, id: 102, conclusion: 'failure' };
+  for (const runs of [
+    [NEWER_CAPTURE_RUN, failed],
+    [failed, NEWER_CAPTURE_RUN],
+  ]) {
+    assert.throws(() => isSupersededCaptureRun(CAPTURE_RUN, runs), /newer capture run has not completed successfully/);
+  }
+  assert.equal(isSupersededCaptureRun(NEWER_CAPTURE_RUN, [{ ...CAPTURE_RUN, conclusion: 'failure' }]), false);
+});
+
+test('capture run ids deterministically break equal creation timestamps', () => {
+  const laterId = { ...CAPTURE_RUN, id: CAPTURE_RUN.id + 1 };
+  assert.equal(isSupersededCaptureRun(CAPTURE_RUN, [laterId]), true);
+  assert.equal(isSupersededCaptureRun(laterId, [CAPTURE_RUN, laterId]), false);
+});
+
+test('push captures cannot supersede a pull_request report', () => {
+  assert.equal(isSupersededCaptureRun(CAPTURE_RUN, [{ ...NEWER_CAPTURE_RUN, event: 'push' }]), false);
+  assert.equal(isSupersededCaptureRun(CAPTURE_RUN, [{ ...NEWER_CAPTURE_RUN, event: undefined }]), false);
+});
+
+test('malformed capture identities and counted timestamps cannot establish a fresh report', () => {
+  for (const invalid of [
+    { id: 0 },
+    { id: 1.5 },
+    { id: '100' },
+    { run_attempt: 0 },
+    { run_attempt: NaN },
+    { run_attempt: '1' },
+    { created_at: 'not a timestamp' },
+    { created_at: undefined },
+  ]) {
+    assert.throws(() => isSupersededCaptureRun({ ...CAPTURE_RUN, ...invalid }, []), /cannot prove delivery order/);
+    assert.throws(
+      () => isSupersededCaptureRun(CAPTURE_RUN, [{ ...NEWER_CAPTURE_RUN, ...invalid }]),
+      /cannot prove delivery order/,
+    );
+  }
+});
+
+function captureRunsApi(data) {
+  const calls = [];
+  return {
+    calls,
+    github: {
+      rest: {
+        actions: {
+          listWorkflowRuns: async (parameters) => {
+            calls.push(parameters);
+            return { data };
+          },
+        },
+      },
+    },
+  };
+}
+
+test('capture ordering queries GitHub by workflow and head commit', async () => {
+  const { github, calls } = captureRunsApi({ total_count: 2, workflow_runs: [CAPTURE_RUN, NEWER_CAPTURE_RUN] });
+  const repo = { owner: 'acme', repo: 'widgets' };
+  assert.equal(await captureRunSuperseded({ github, repo, workflowRun: CAPTURE_RUN }), true);
+  assert.deepEqual(calls, [{ ...repo, workflow_id: 7, head_sha: CAPTURE_RUN.head_sha, per_page: 100 }]);
+  assert.equal(await captureRunSuperseded({ github, repo, workflowRun: NEWER_CAPTURE_RUN }), false);
+});
+
+test('incomplete or malformed capture run lists fail closed', async () => {
+  for (const data of [
+    { total_count: 2, workflow_runs: [CAPTURE_RUN] },
+    { total_count: undefined, workflow_runs: [CAPTURE_RUN] },
+    { total_count: -1, workflow_runs: [] },
+    { total_count: 1, workflow_runs: undefined },
+  ]) {
+    const { github } = captureRunsApi(data);
+    await assert.rejects(
+      captureRunSuperseded({ github, repo: { owner: 'acme', repo: 'widgets' }, workflowRun: CAPTURE_RUN }),
+      /capture run list is incomplete/,
+    );
+  }
+});
+
+test('a missing capture workflow or head commit fails before querying GitHub', async () => {
+  const { github, calls } = captureRunsApi({ total_count: 1, workflow_runs: [CAPTURE_RUN] });
+  for (const workflowRun of [
+    undefined,
+    null,
+    { ...CAPTURE_RUN, workflow_id: undefined },
+    { ...CAPTURE_RUN, workflow_id: 0 },
+    { ...CAPTURE_RUN, head_sha: undefined },
+    { ...CAPTURE_RUN, head_sha: ' ' },
+  ]) {
+    await assert.rejects(
+      captureRunSuperseded({ github, repo: { owner: 'acme', repo: 'widgets' }, workflowRun }),
+      /workflow_run payload cannot order this capture run/,
+    );
+  }
+  assert.deepEqual(calls, []);
+});
 
 /** Stateful in-memory GitHub double covering the git-data API (blobs, trees,
  *  commits, refs) plus the raw-contents read-back. Unlike the per-call double

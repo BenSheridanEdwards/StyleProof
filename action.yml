@@ -215,6 +215,38 @@ runs:
             core.info('StyleProof: no PR context resolved — comment/status steps will be skipped.');
           }
 
+    # Split certify's status is the PR verdict (#937). Mark it pending before any
+    # processing: a run that fails before its verdict must never leave an earlier
+    # success standing on the same commit.
+    - name: Mark certify status pending
+      id: certify-pending
+      if: >-
+        steps.context.outputs.pr-number != '' &&
+        inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' &&
+        github.event_name == 'workflow_run'
+      uses: actions/github-script@v9
+      env:
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        retries: 3
+        script: |
+          const { captureRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
+          const superseded = await captureRunSuperseded({ github, repo: context.repo, workflowRun: context.payload.workflow_run });
+          core.setOutput('superseded', superseded ? 'true' : 'false');
+          if (superseded) {
+            core.info('StyleProof: a newer capture run supersedes this report — status unchanged.');
+            return;
+          }
+          await github.rest.repos.createCommitStatus({
+            ...context.repo,
+            sha: '${{ steps.context.outputs.head-sha }}',
+            context: process.env.STYLEPROOF_STATUS_CONTEXT,
+            state: 'pending',
+            description: 'StyleProof certify report running — no verdict yet',
+            target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+          });
+
     # Policy config: an optional styleproof.config.json at the consumer repo root.
     # Today it carries one setting — `blocking` — but it's the home for future gate
     # policy. Absent → all defaults (blocking on; opt out with "blocking": false);
@@ -941,17 +973,24 @@ runs:
     # can flip, instead of failing the job. Green when nothing changed; red ("needs
     # sign-off") until a write-access reviewer ticks the box. PR events only. A fork
     # (untrusted) capture is pending — never auto-green — until a maintainer approves.
+    # Certify mode sets it too when run from workflow_run (#937): that job runs on the
+    # default branch, so "Fail on diff" never reaches the PR and the status is its only
+    # verdict — pending first, then red on any diff, never approvable. A newer
+    # capture run supersedes this report and prevents its status write.
+    # "Set certify failure status" turns any failed run red.
     # Skipped when the comment step classified this delivery as a stale earlier
     # attempt, so a late attempt-1 retry cannot clobber attempt 2's status either.
     - name: Set review status
       id: status
       if: >-
         steps.context.outputs.pr-number != '' &&
-        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
+        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory' ||
+        (inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && github.event_name == 'workflow_run')) &&
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       env:
         STYLEPROOF_MODE: ${{ inputs.mode }}
+        STYLEPROOF_REQUIRE_APPROVAL: ${{ inputs.require-approval }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
         STYLEPROOF_UNTRUSTED_CAPTURE: ${{ steps.context.outputs.untrusted-capture }}
@@ -971,14 +1010,16 @@ runs:
             `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
           const mode = process.env.STYLEPROOF_MODE;
           const blocking = '${{ steps.config.outputs.blocking }}';
-          const advisoryMode = mode === 'advisory' || blocking === 'advisory';
+          // Certify fails on any diff whatever the config says, exactly as "Fail on diff" does.
+          const certify = mode === 'certify' && process.env.STYLEPROOF_REQUIRE_APPROVAL !== 'true';
+          const advisoryMode = !certify && (mode === 'advisory' || blocking === 'advisory');
           // Same-repo: advisory mode is always green; otherwise green when no review is needed
           // or a prior sign-off approved this commit. Fork (untrusted) capture: never green
           // automatically — pending until a maintainer approves, even on zero diff.
           const { decideReviewStatus, UNTRUSTED_CAPTURE_STATUS_DESCRIPTION } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-status.js`);
           const untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
-          const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture });
+          const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture, certify });
           const {
             formatPartialBaselineStatusDescription,
             formatDegradedBaselineStatusDescription,
@@ -991,15 +1032,26 @@ runs:
           const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
           const descriptions = {
             NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
-            STYLE_REVIEW_REQUIRED: approved
-              ? `Approved by @${approver}`
-              : 'StyleProof changes need sign-off — tick the box in the report comment',
+            STYLE_REVIEW_REQUIRED: certify
+              ? 'Style changes detected — certify mode fails on any diff'
+              : approved
+                ? `Approved by @${approver}`
+                : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
             CERTIFICATION_FAILED: 'Evidence incomplete on named surface+SHA — not a base recapture failure',
             PARTIAL_BASELINE: formatPartialBaselineStatusDescription(baselineFailures),
             DEGRADED_BASELINE: formatDegradedBaselineStatusDescription(baseCaptureFailed),
           };
+          if (certify && context.eventName === 'workflow_run') {
+            const { captureRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
+            const superseded = await captureRunSuperseded({ github, repo: context.repo, workflowRun: context.payload.workflow_run });
+            core.setOutput('superseded', superseded ? 'true' : 'false');
+            if (superseded) {
+              core.info('StyleProof: a newer capture run supersedes this report — status unchanged.');
+              return;
+            }
+          }
           await github.rest.repos.createCommitStatus({
             ...context.repo,
             sha,
@@ -1014,6 +1066,7 @@ runs:
             // pending/red status carries it.
             ...((changed || decision.awaitingMaintainer) && !approved && url ? { target_url: url } : {}),
           });
+          core.setOutput('state', decision.state);
 
     # A failed base capture still publishes useful head evidence, but that receipt
     # is not a comparison and must never become green through reviewer approval.
@@ -1156,3 +1209,65 @@ runs:
           else state = deliveryFailed ? 'REPORT_PUBLICATION_FAILED' : (diffState || 'CERTIFICATION_FAILED');
           core.setOutput('state', state);
           core.info(`StyleProof terminal trust state: ${state}`);
+
+    # Status functions are only valid in if:, not script expressions. Preserve
+    # success positively so a skipped or failed confirmation cannot keep green.
+    - name: Confirm certify run success
+      id: certify-success
+      if: >-
+        success() &&
+        steps.context.outputs.pr-number != '' &&
+        inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' &&
+        github.event_name == 'workflow_run'
+      shell: bash
+      run: echo 'succeeded=true' >> "$GITHUB_OUTPUT"
+
+    # A failed delivery can skip the verdict step. Fail closed so an earlier
+    # success cannot survive a failed rerun, even if capture ordering is unknown.
+    # Recheck a successful write too: a delayed API request may have landed after
+    # a newer capture's verdict. In that case replace the stale green with failure.
+    # A failed status request may still have applied before its response was lost.
+    - name: Set certify failure status
+      id: certify-failure
+      if: >-
+        always() &&
+        steps.context.outputs.pr-number != '' &&
+        inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' &&
+        github.event_name == 'workflow_run' &&
+        steps.comment.outputs.stale-delivery != 'true' &&
+        steps.certify-pending.outputs.superseded != 'true' &&
+        steps.status.outputs.superseded != 'true' &&
+        steps.status.outputs.state != 'failure' &&
+        (failure() || steps.trust.outputs.state != 'NO_REVIEWABLE_STYLE_CHANGES' || steps.status.outputs.state == 'success')
+      uses: actions/github-script@v9
+      env:
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+        STYLEPROOF_TRUST_STATE: ${{ steps.trust.outputs.state }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        retries: 3
+        script: |
+          const mayHaveWrittenSuccess = '${{ steps.status.outputs.state }}' === 'success' ||
+            '${{ steps.status.outcome }}' === 'failure';
+          const runSucceeded = '${{ steps.certify-success.outputs.succeeded }}' === 'true';
+          const trust = process.env.STYLEPROOF_TRUST_STATE;
+          try {
+            const { captureRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
+            const superseded = await captureRunSuperseded({ github, repo: context.repo, workflowRun: context.payload.workflow_run });
+            if (superseded && !mayHaveWrittenSuccess) {
+              core.info('StyleProof: a newer capture run supersedes this report — status unchanged.');
+              return;
+            }
+            if (!superseded && '${{ steps.status.outputs.state }}' === 'success' && runSucceeded && trust === 'NO_REVIEWABLE_STYLE_CHANGES') return;
+            if (superseded) core.warning('StyleProof: capture order changed during status delivery; replacing stale success with failure.');
+          } catch (error) {
+            core.warning(`StyleProof: capture order could not be proven; failing closed: ${error.message}`);
+          }
+          await github.rest.repos.createCommitStatus({
+            ...context.repo,
+            sha: '${{ steps.context.outputs.head-sha }}',
+            context: process.env.STYLEPROOF_STATUS_CONTEXT,
+            state: 'failure',
+            description: `StyleProof certify run failed (${trust || 'no verdict'}) — see the run`.slice(0, 140),
+            target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+          });

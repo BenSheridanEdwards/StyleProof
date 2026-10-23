@@ -359,8 +359,10 @@ Opt-in flags reproduce the heavier architectures:
   of recapturing them.
 - `--mode certify` / `--mode review-gate` — fail on any diff, or hold the
   `StyleProof` status red until a reviewer approves (scaffolds the approval
-  workflow). `split + branch + review-gate` reproduces the pre-v7 scaffold
-  exactly.
+  workflow). Under `--workflow split`, the failing report job runs on the
+  default branch, so certify also sets the PR's `StyleProof` status red on any
+  diff; certify approves nothing, so a fork PR's status stays `pending`.
+  `split + branch + review-gate` reproduces the pre-v7 scaffold exactly.
 
 Existing scaffolds keep their architecture: a marker in the generated workflow
 records the chosen mode, and `styleproof-init --check` / `--upgrade` verify

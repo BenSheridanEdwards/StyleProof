@@ -1540,6 +1540,47 @@ function inputsInScriptBodies(yml) {
   return found;
 }
 
+/** Status functions are only available in the composite action's step conditions. */
+function statusChecksOutsideStepConditions(yml) {
+  // Step keys are indented six spaces; condition continuations are indented at
+  // least eight. In particular, an `if:` inside script text is not a step key.
+  const withoutConditions = yml.replace(/^ {6}if:[^\n]*(?:\n(?: {8}[^\n]*|[ \t]*(?=\n|$)))*/gm, '');
+  return [...withoutConditions.matchAll(/\$\{\{([\s\S]*?)\}\}/g)]
+    .filter(([, expression]) =>
+      /\b(?:always|success|failure|cancelled)\s*\(/i.test(expression.replace(/'(?:[^']|'')*'/g, '')),
+    )
+    .map(([expression]) => expression);
+}
+
+test('composite action uses status functions only in step if conditions', () => {
+  assert.deepEqual(statusChecksOutsideStepConditions(actionYml), []);
+});
+
+test('status function validation covers script, env, input and output expressions', () => {
+  for (const name of ['always', 'success', 'failure', 'cancelled']) {
+    const expression = `\${{ ${name}() }}`;
+    for (const source of [
+      `      with:\n        script: |\n          const failed = '${expression}';`,
+      `      with:\n        script: |\n          if: ${expression}`,
+      `      env:\n        FAILED: ${expression}`,
+      `      with:\n        result: ${expression}`,
+      `inputs:\n  result:\n    default: ${expression}`,
+      `outputs:\n  result:\n    value: ${expression}`,
+      `      with:\n        script: |\n          const failed = '\${{\n            ${name}()\n          }}';`,
+    ]) {
+      assert.equal(statusChecksOutsideStepConditions(source).length, 1, source);
+    }
+    for (const source of [
+      `      if: ${expression}\n      uses: actions/github-script@v9`,
+      `      if: >-\n        ${expression}\n      uses: actions/github-script@v9`,
+      `      if: |\n        \${{\n          ${name}()\n        }}\n      uses: actions/github-script@v9`,
+    ]) {
+      assert.deepEqual(statusChecksOutsideStepConditions(source), [], source);
+    }
+  }
+  assert.deepEqual(statusChecksOutsideStepConditions("      env:\n        TEXT: ${{ 'failure()' }}"), []);
+});
+
 test('composite action never splices string inputs into run or script bodies', () => {
   // A crafted input spliced into bash or JavaScript source executes as code; inputs
   // travel through env: instead. toJSON() is the one safe literal form.
@@ -1594,9 +1635,11 @@ test('gate honours a prior approval only from the canonical github-actions[bot] 
 test('composite action retries transient GitHub API failures on networked github-script steps', () => {
   const networkedSteps = [
     /- id: context[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Mark certify status pending[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
     /- id: gate[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
     /- name: Upsert PR comment[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
     /- name: Set review status[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Set certify failure status[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
   ];
   for (const pattern of networkedSteps) assert.match(actionYml, pattern);
 });

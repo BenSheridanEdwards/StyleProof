@@ -382,6 +382,27 @@ test('styleproof-init: --mode certify emits a blocking gate without an approval 
     rmTmp(root);
   }
 
+  // Split + certify (#937): the trusted workflow_run job fails on the default branch,
+  // so the Action carries the verdict to the PR head as the StyleProof status, and the
+  // scaffold says so instead of promising a failing job or an approval box.
+  const splitRoot = mkTmp();
+  try {
+    const split = runInit(splitRoot, [...SPLIT, '--mode', 'certify', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(split.status, 0, split.stderr);
+    const report = readFile(splitRoot, '.github/workflows/styleproof-report.yml');
+    assert.match(report, /workflow_run:/);
+    assert.match(report, /statuses: write/);
+    assert.match(report, /mode: certify/);
+    assert.doesNotMatch(report, /require-approval|fail-on-diff/);
+    assert.match(report, /the StyleProof status on the PR head carries the verdict/);
+    assert.doesNotMatch(report, /Approve all changes/);
+    assert.match(split.stdout, /Gate mode: certify — sets a red StyleProof status on any style diff/);
+    assert.doesNotMatch(split.stdout, /fails the job/);
+    assert.equal(fs.existsSync(path.join(splitRoot, '.github/workflows/styleproof-approve.yml')), false);
+  } finally {
+    rmTmp(splitRoot);
+  }
+
   // Review-gate is the only mode that needs the approval caller.
   const reviewRoot = mkTmp();
   try {

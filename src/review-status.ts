@@ -1,6 +1,7 @@
 /**
  * The review-gate commit-status decision, shared by the Action's comment and status
- * steps so the approval box and the status can never disagree.
+ * steps so the approval box and the status can never disagree. Certify mode reuses it
+ * from a `workflow_run` report job, where the status is the PR's only verdict.
  *
  * Untrusted capture (a fork PR in the capture/report split): both the base and the
  * head maps were produced by a job that ran the fork's code, so the fork controls the
@@ -20,6 +21,8 @@ export type ReviewStatusInput = {
   advisoryMode: boolean;
   /** The maps were captured by a job that ran untrusted (fork) code. */
   untrustedCapture: boolean;
+  /** Certify mode: a style diff fails like a certification failure and is never approvable. */
+  certify?: boolean;
 };
 
 export type ReviewStatusDecision = {
@@ -35,14 +38,15 @@ export function decideReviewStatus({
   approved,
   advisoryMode,
   untrustedCapture,
+  certify = false,
 }: ReviewStatusInput): ReviewStatusDecision {
+  const reviewable = trustState === 'STYLE_REVIEW_REQUIRED' && !certify;
   if (!untrustedCapture) {
-    const approvable = trustState === 'STYLE_REVIEW_REQUIRED';
-    const green = advisoryMode || trustState === 'NO_REVIEWABLE_STYLE_CHANGES' || (approvable && approved);
-    return { state: green ? 'success' : 'failure', approvable, awaitingMaintainer: false };
+    const green = advisoryMode || trustState === 'NO_REVIEWABLE_STYLE_CHANGES' || (reviewable && approved);
+    return { state: green ? 'success' : 'failure', approvable: reviewable, awaitingMaintainer: false };
   }
   // A clean fork verdict is only the fork's own claim, so it needs sign-off too.
-  const approvable = trustState === 'STYLE_REVIEW_REQUIRED' || trustState === 'NO_REVIEWABLE_STYLE_CHANGES';
+  const approvable = reviewable || trustState === 'NO_REVIEWABLE_STYLE_CHANGES';
   if (approvable && approved) return { state: 'success', approvable, awaitingMaintainer: false };
   if (approvable) return { state: 'pending', approvable, awaitingMaintainer: true };
   // Certification failures stay red; advisory mode never blocks, so it waits instead.

@@ -527,6 +527,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   with `--incomplete-ui-exclude` and a reason. Capture the states behind
   those controls with a spec fixture. This also applies to labels that were
   already unsafe, such as "Delete" and "Log out".
+- **A split-layout certify scaffold now puts a red `StyleProof` status on the
+  PR (#937).** `styleproof-init --workflow split --mode certify` runs the
+  Action from a `workflow_run` job, which runs on the default branch, so its
+  "Fail on diff" failure never showed on the PR and no `StyleProof` status
+  existed for branch protection to require. In certify mode run from
+  `workflow_run`, the Action now sets that status on the trusted PR head:
+  `failure` on any style diff or evidence failure, with a description the
+  approve workflow does not accept, `success` when clean, and `pending` for a
+  fork PR's clean capture. The status is `pending` while the report runs;
+  a failed publish, comment or status write sets it to `failure`, so an earlier
+  `success` on the same commit cannot stand. A report already superseded by a
+  newer successful capture run or attempt for the same head commit skips its status
+  write. A newer failed, cancelled, unfinished or unknown capture instead triggers
+  `failure`, since it cannot be relied on to deliver a replacement verdict.
+  Successful writes recheck that order: if superseded during the write, or if
+  order cannot be proved, the status turns red so a delayed API response cannot
+  leave stale green. A failed status request also triggers corrective `failure`
+  even when superseded, since a lost response may hide an applied `success`.
+  Certify from `pull_request` is unchanged, and init's
+  output and report-workflow header now say what the split certify gate does;
+  run `styleproof-init --upgrade` to refresh an existing scaffold.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

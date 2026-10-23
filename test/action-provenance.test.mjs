@@ -15,7 +15,9 @@ const { makeMap, writeCapture, solidPng } = await moduleAt('test/helpers.mjs');
 const { COVERAGE_LEDGER } = await moduleAt('dist/coverage.js');
 const { decideReviewStatus } = await moduleAt('dist/review-status.js');
 const action = fs.readFileSync(path.join(checkout, 'action.yml'), 'utf8');
-const contextStep = action.split('    - id: context\n')[1].split('    # Policy config:')[0];
+// Stop at the YAML step boundary so a following status step cannot enter the script.
+const contextStep = action.match(/^ {4}- id: context\n(?: {6}[^\n]*\n|\n)+/m)?.[0];
+assert.ok(contextStep, 'actual context step exists');
 const script = contextStep
   .split('        script: |\n')[1]
   .split('\n')

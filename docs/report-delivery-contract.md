@@ -54,7 +54,9 @@ The generated trusted report workflow requests only the capabilities used by del
 - `actions: read` to retrieve the untrusted capture artifact;
 - `contents: write` only in branch mode, to publish the report-branch commit — artifact mode runs `contents: read`;
 - `pull-requests: write` to create or update the report comment;
-- `statuses: write` to set the optional review-gate commit status.
+- `statuses: write` to set the `StyleProof` commit status, which carries the verdict to the PR head.
+
+Under split + certify, requiring `StyleProof` in branch protection blocks every fork PR: even a clean fork capture stays `pending`, because certify approves nothing. Use `--mode review-gate` to let a maintainer sign forks off. Before each certify status write, the report checks for a newer capture run or attempt for the same head commit and skips the write only when superseded by successfully completed captures. A newer failed, cancelled, unfinished or unknown capture instead triggers `failure`, since it cannot be relied on to deliver a replacement verdict. After writing `success`, it checks again and writes `failure` if now superseded or ordering cannot be proved, so a delayed API response cannot leave stale green. A failed status request also triggers corrective `failure` even when superseded, since a lost response may hide an applied `success`. This conservatively fails even if the newer capture is also clean.
 
 The capture workflow remains read-only and never receives report-publication credentials.
 
