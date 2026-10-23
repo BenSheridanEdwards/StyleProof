@@ -463,7 +463,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and report held the maps they had already parsed. The read buffer is now sized
   from the file's `fstat` size plus one byte. A file that grows after it is sized
   is refused as `changed-during-read`, or as `oversized` once it passes the cap,
-  instead of being read past its checked size.
+  instead of being read past its checked size. A file rewritten or truncated
+  after it is read, or whose size or modification times no longer match the
+  opened file, is refused as `changed-during-read` (or `oversized` past the cap).
+  Uncapped no-follow reads, used for the confidence ledger and bundle markers,
+  now take the same checks instead of returning whatever bytes they read.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

@@ -69,12 +69,17 @@ function assertStableIdentity(filePath: string, first: fs.Stats, second: fs.Stat
   if (!sameFileIdentity(first, second)) throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
 }
 
+function assertUnchangedSnapshot(filePath: string, opened: fs.Stats, later: fs.Stats): void {
+  if (later.size !== opened.size || later.mtimeMs !== opened.mtimeMs || later.ctimeMs !== opened.ctimeMs) {
+    throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
+  }
+}
+
 function readDescriptor(filePath: string, descriptor: number, size: number, maximumBytes?: number): Buffer {
-  if (maximumBytes === undefined) return fs.readFileSync(descriptor);
-  const bytes = readBoundedDescriptor(descriptor, size);
+  const bytes = maximumBytes === undefined ? fs.readFileSync(descriptor) : readBoundedDescriptor(descriptor, size);
   assertWithinMaximum(filePath, bytes.length, maximumBytes);
-  // The identity checks cannot see an append, so a file that grew after fstat is refused here.
-  if (bytes.length > size) throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
+  // Identity checks cannot see an in-place append or truncate, so the bytes must match the sized snapshot.
+  if (bytes.length !== size) throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
   return bytes;
 }
 
@@ -99,6 +104,10 @@ export function readRegularFileNoFollow(filePath: string, maximumBytes?: number)
     assertRegularPath(filePath, pathAfterRead);
     assertStableIdentity(filePath, opened, afterRead);
     assertStableIdentity(filePath, pathAfterRead, afterRead);
+    assertWithinMaximum(filePath, afterRead.size, maximumBytes);
+    assertWithinMaximum(filePath, pathAfterRead.size, maximumBytes);
+    assertUnchangedSnapshot(filePath, opened, afterRead);
+    assertUnchangedSnapshot(filePath, opened, pathAfterRead);
     return bytes;
   } finally {
     fs.closeSync(descriptor);
