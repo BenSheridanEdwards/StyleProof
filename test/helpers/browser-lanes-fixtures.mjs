@@ -93,6 +93,31 @@ export const contentCases = [
   }),
 ];
 
+const emptyRepositories = new Map();
+const copy = (source, target) => fs.cpSync(source, target, { recursive: true, mode: fs.constants.COPYFILE_FICLONE });
+
+function initializeRepository(directory, env, format = 'sha1') {
+  if (!emptyRepositories.has(format)) {
+    const template = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-tree-empty-'));
+    process.once('exit', () => fs.rmSync(template, { recursive: true, force: true }));
+    const result = spawnSync('git', ['init', '-q', `--object-format=${format}`], {
+      cwd: template,
+      env,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    // This is disposable fixture configuration, not a behavior under test.
+    fs.appendFileSync(
+      path.join(template, '.git/config'),
+      '\n[user]\n\temail = fixture@example.test\n\tname = Tree fixture\n[commit]\n\tgpgSign = false\n',
+    );
+    emptyRepositories.set(format, path.join(template, '.git'));
+  }
+  // Copies have independent inodes, refs, config and index. Copy-on-write is an
+  // optimization where supported; ordinary copies are the filesystem fallback.
+  copy(emptyRepositories.get(format), path.join(directory, '.git'));
+}
+
 export function createFixture(t, options = {}) {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-tree-'));
   t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
@@ -104,12 +129,7 @@ export function createFixture(t, options = {}) {
     assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
     return typeof result.stdout === 'string' ? result.stdout.trim() : result.stdout;
   };
-  git(['init', '-q', ...(options.format ? [`--object-format=${options.format}`] : [])]);
-  // This is disposable fixture configuration, not a behavior under test.
-  fs.appendFileSync(
-    path.join(directory, '.git/config'),
-    '\n[user]\n\temail = fixture@example.test\n\tname = Tree fixture\n[commit]\n\tgpgSign = false\n',
-  );
+  initializeRepository(directory, env, options.format);
   const blob = (contents) => git(['hash-object', '-w', '--stdin'], { input: contents });
   const setEntry = (name, mode, contents) => {
     const oid = mode === '160000' ? contents : blob(contents);
@@ -129,8 +149,8 @@ export function createFixture(t, options = {}) {
   return { workspace, directory, git, env, blob, setEntry, removeEntry, commit };
 }
 
-/** Batch object construction; real merges and both gate entrypoints still run per case. */
-function importContent(fixture, row) {
+/** Batch only immutable object setup; every case still performs its own merge. */
+function importContents(fixture, rows) {
   const chunks = [];
   const line = (text) => chunks.push(Buffer.from(`${text}\n`));
   const data = (contents) => {
@@ -152,19 +172,91 @@ function importContent(fixture, row) {
     data(message);
     if (parent) line(`from :${parent}`);
   };
-  commit('fixture-base', 1, 'base');
-  entry('fixture.txt', '100644', 'stable tree fixture\n');
-  if (row.attributes) entry('.gitattributes', '100644', row.attributes);
-  entry(row.name, row.beforeMode ?? '100644', row.before ?? baseCss);
-  line('');
-  commit('fixture-head', 2, 'changed content', 1);
-  if (row.remove || row.target) line(`D ${quotedPath(row.name)}`);
-  if (!row.remove) entry(row.target ?? row.name, row.afterMode ?? '100644', row.after ?? changedCss);
-  line('');
+  const refs = rows.map((row, index) => {
+    const baseRef = rows.length === 1 ? 'fixture-base' : `fixture-${index}-base`;
+    const headRef = rows.length === 1 ? 'fixture-head' : `fixture-${index}-head`;
+    const baseMark = index * 2 + 1;
+    commit(baseRef, baseMark, 'base');
+    entry('fixture.txt', '100644', 'stable tree fixture\n');
+    if (row.attributes) entry('.gitattributes', '100644', row.attributes);
+    entry(row.name, row.beforeMode ?? '100644', row.before ?? baseCss);
+    line('');
+    commit(headRef, baseMark + 1, 'changed content', baseMark);
+    if (row.remove || row.target) line(`D ${quotedPath(row.name)}`);
+    if (!row.remove) entry(row.target ?? row.name, row.afterMode ?? '100644', row.after ?? changedCss);
+    line('');
+    return { baseRef, headRef };
+  });
   fixture.git(['-c', 'core.ignoreCase=false', 'fast-import', '--quiet'], { input: Buffer.concat(chunks) });
-  [fixture.base, fixture.head, fixture.baseTree, fixture.headTree] = fixture
-    .git(['rev-parse', 'fixture-base', 'fixture-head', 'fixture-base^{tree}', 'fixture-head^{tree}'])
+  const oids = fixture
+    .git([
+      'rev-parse',
+      ...refs.flatMap(({ baseRef, headRef }) => [baseRef, headRef, `${baseRef}^{tree}`, `${headRef}^{tree}`]),
+    ])
     .split('\n');
+  assert.equal(oids.length, rows.length * 4);
+  return refs.map((ref, index) => {
+    const [base, head, baseTree, headTree] = oids.slice(index * 4, index * 4 + 4);
+    return { ...ref, base, head, baseTree, headTree };
+  });
+}
+
+const contentKey = (row) =>
+  JSON.stringify([
+    Buffer.from(row.name).toString('hex'),
+    row.beforeMode ?? '100644',
+    Buffer.from(row.before ?? baseCss).toString('base64'),
+    row.target == null ? null : Buffer.from(row.target).toString('hex'),
+    row.afterMode ?? '100644',
+    Buffer.from(row.after ?? changedCss).toString('base64'),
+    Boolean(row.remove),
+    row.attributes ?? null,
+  ]);
+let contentRepository;
+
+function preparedContent() {
+  if (!contentRepository) {
+    const tracked = trackedBrowserCases();
+    const rows = [
+      ...new Map(
+        [
+          ...contentCases.filter((row) => !row.gitlink),
+          ...legacyPathCases.flatMap(([, files]) => files.map((name) => fileChangeCase('prepared', name))),
+          ...tracked.specs,
+          ...tracked.imports,
+          ...['docs\\setup.md', 'src\\diff.ts', '.agents\\nested\\theme.css'].map((name) =>
+            fileChangeCase('prepared', name),
+          ),
+        ].map((row) => [contentKey(row), row]),
+      ).values(),
+    ];
+    const fixture = createFixture({ after: (cleanup) => process.once('exit', cleanup) });
+    const objects = importContents(fixture, rows);
+    contentRepository = { fixture, rows: new Map(rows.map((row, index) => [contentKey(row), objects[index]])) };
+  }
+  return contentRepository;
+}
+
+function importContent(fixture, row) {
+  const prepared = preparedContent();
+  const objects = prepared.rows.get(contentKey(row));
+  if (objects) {
+    copy(path.join(prepared.fixture.directory, '.git/objects'), path.join(fixture.directory, '.git/objects'));
+    for (const [source, destination] of [
+      [objects.baseRef, 'fixture-base'],
+      [objects.headRef, 'fixture-head'],
+    ]) {
+      fs.copyFileSync(
+        path.join(prepared.fixture.directory, '.git/refs/heads', source),
+        path.join(fixture.directory, '.git/refs/heads', destination),
+        fs.constants.COPYFILE_FICLONE,
+      );
+    }
+    Object.assign(fixture, objects);
+  } else {
+    // Callers may supply new rows. They still construct their actual objects.
+    Object.assign(fixture, importContents(fixture, [row])[0]);
+  }
   // The plumbing-only merge rows use the index; ordinary rows check out base below.
   if (row.plumbingMerge) fixture.git(['read-tree', fixture.head]);
 }
@@ -181,10 +273,7 @@ export function createContentFixture(t, row) {
       assert.equal(result.status, 0, result.stderr);
       return result.stdout.trim();
     };
-    childGit(['init', '-q']);
-    childGit(['config', 'user.email', 'fixture@example.test']);
-    childGit(['config', 'user.name', 'Tree fixture']);
-    childGit(['config', 'commit.gpgSign', 'false']);
+    initializeRepository(child, fixture.env);
     for (const css of [baseCss, changedCss]) {
       fs.writeFileSync(path.join(child, 'theme.css'), css);
       childGit(['add', 'theme.css']);
@@ -225,13 +314,18 @@ export function createContentFixture(t, row) {
     git(['update-ref', 'refs/heads/base', fixture.merge]);
     git(['symbolic-ref', 'HEAD', 'refs/heads/base']);
   } else {
-    git(['read-tree', fixture.base]);
+    // Fresh ordinary fixtures have no index. Gitlink construction used the
+    // index already, so restore its base before the same real checkout/merge.
+    if (row.gitlink) git(['read-tree', fixture.base]);
     git(['checkout', '-q', '-B', 'base', fixture.base]);
     git(['merge', '--no-ff', '-m', 'merge fixture', fixture.head]);
-    fixture.merge = git(['rev-parse', 'HEAD']);
+    const [merge, mergeTree] = git(['rev-parse', 'HEAD', 'HEAD^{tree}']).split('\n');
+    fixture.merge = merge;
+    assert.equal(mergeTree, fixture.headTree);
   }
   if (row.initialized) git(['-c', 'protocol.file.allow=always', 'submodule', 'update', '--init']);
-  assert.equal(git(['rev-parse', `${fixture.merge}^{tree}`]), fixture.headTree);
+  if (row.plumbingMerge || row.initialized)
+    assert.equal(git(['rev-parse', `${fixture.merge}^{tree}`]), fixture.headTree);
   return fixture;
 }
 
