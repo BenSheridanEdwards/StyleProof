@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
 import { captureStyleMap } from '../dist/capture.js';
-import { freezeMotion, injectPathOf, snapSubtree } from '../dist/capture/browser.js';
+import { capturePage, freezeMotion, injectPathOf, snapSubtree } from '../dist/capture/browser.js';
+import { PSEUDO_REFERENCES } from '../dist/pseudo-references.js';
 import { skipSelector } from '../dist/capture/shared.js';
 
 test('skipSelector: a selector-list entry skips the descendants of every selector in it (#981)', () => {
@@ -17,8 +18,9 @@ test('skipSelector: nothing ignored is the empty selector', () => {
 
 // Execute the serialized callbacks in an isolated page realm; no browser or timing races.
 function capturePageHarness() {
-  const appSheet = {};
+  const appSheet = { cssRules: [] };
   const document = {
+    styleSheets: [],
     adoptedStyleSheets: [appSheet],
     documentElement: { scrollHeight: 600, matches: () => true },
     body: { matches: () => true, appendChild() {} },
@@ -31,6 +33,7 @@ function capturePageHarness() {
     document,
     CSSStyleSheet: class {
       disabled = false;
+      cssRules = [];
       replaceSync() {}
     },
   });
@@ -80,8 +83,180 @@ function capturePageHarness() {
       return result;
     },
   };
-  return { ...harness, page, hooks: harness };
+  return { ...harness, page, hooks: harness, context };
 }
+
+function computedStyle(properties) {
+  const names = Object.keys(properties);
+  return {
+    ...properties,
+    length: names.length,
+    item: (index) => names[index],
+    getPropertyValue: (name) => properties[name] ?? '',
+  };
+}
+
+function pseudoPageHarness({ tag = 'p', display = 'block', host = {}, pseudos = {}, defaults = {} } = {}) {
+  const harness = capturePageHarness();
+  const { context, document } = harness;
+  const element = {
+    tagName: tag.toUpperCase(),
+    getAttribute: () => null,
+    matches: (selector) => tag === 'dialog' && selector === ':modal',
+    childNodes: [],
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 100, height: 20 }),
+    querySelectorAll: () => [],
+  };
+  const reads = [];
+  context.HTMLInputElement = class {};
+  context.HTMLTextAreaElement = class {};
+  context.CSSImportRule = class {};
+  context.window.__spPathOf = () => 'target';
+  context.window.__spAssertFrozen = () => {};
+  context.getComputedStyle = (_element, pseudo) => {
+    reads.push(pseudo ?? null);
+    return computedStyle(pseudo ? { content: 'none', ...pseudos[pseudo] } : { display, ...host });
+  };
+  document.styleSheets = [{ cssRules: [{ cssText: 'p::first-letter {}' }] }];
+  document.querySelectorAll = () => [element];
+  document.querySelector = () => element;
+  document.createElement = () => ({
+    style: {},
+    remove() {},
+    contentDocument: {
+      createElement: () => ({}),
+      body: { appendChild() {} },
+      defaultView: {
+        getComputedStyle: (_element, pseudo) => computedStyle(defaults[pseudo ?? 'host'] ?? {}),
+      },
+    },
+  });
+  return { ...harness, reads };
+}
+
+const pageCaptureArgs = {
+  skipSel: '.skip',
+  motionOnly: false,
+  captureText: false,
+  pseudoReferences: PSEUDO_REFERENCES,
+};
+
+for (const { name, tag, property, hostValue, value, ua } of [
+  {
+    name: 'first-letter colour equal to the UA default',
+    tag: 'p',
+    property: 'color',
+    hostValue: 'rgb(200, 0, 0)',
+    value: 'rgb(0, 0, 0)',
+    ua: 'rgb(0, 0, 0)',
+  },
+  {
+    name: 'first-letter padding equal to the host',
+    tag: 'p',
+    property: 'padding-top',
+    hostValue: '10px',
+    value: '10px',
+    ua: '0px',
+  },
+  {
+    name: 'backdrop background equal to the host',
+    tag: 'dialog',
+    property: 'background-color',
+    hostValue: 'rgb(255, 255, 255)',
+    value: 'rgb(255, 255, 255)',
+    ua: 'rgba(0, 0, 0, 0.1)',
+  },
+]) {
+  test(`capture retains ${name} (#979)`, () => {
+    const pseudo = tag === 'dialog' ? '::backdrop' : '::first-letter';
+    const { run } = pseudoPageHarness({
+      tag,
+      host: { [property]: hostValue },
+      pseudos: { [pseudo]: { [property]: value } },
+      defaults: { [pseudo]: { [property]: ua } },
+    });
+    const map = run(capturePage, pageCaptureArgs);
+    assert.equal(map.elements.target.pseudo[pseudo][property], value);
+    assert.equal(map.defaults[tag + pseudo][property], ua);
+  });
+}
+
+test('capture prunes inherited and currentcolor values against their single reference (#979)', () => {
+  const host = { color: 'rgb(200, 0, 0)', 'font-family': 'serif', 'border-top-color': 'rgb(200, 200, 200)' };
+  const pseudo = {
+    content: 'none',
+    color: host.color,
+    'font-family': host['font-family'],
+    'border-top-color': host.color,
+  };
+  const { run } = pseudoPageHarness({
+    host,
+    pseudos: { '::first-letter': pseudo, '::first-line': pseudo },
+    defaults: { '::first-letter': { content: 'none' }, '::first-line': { content: 'none' } },
+  });
+  const map = run(capturePage, pageCaptureArgs);
+  assert.equal(map.elements.target.pseudo, undefined);
+  assert.equal(map.defaults['p::first-letter'], undefined);
+  assert.equal(map.defaults['p::first-line'], undefined);
+});
+
+for (const display of ['flow-root list-item', 'inline list-item', 'block ruby']) {
+  test(`capture reads first boxes on ${display} (#979)`, () => {
+    const { run } = pseudoPageHarness({
+      display,
+      pseudos: { '::first-letter': { color: 'rgb(0, 128, 0)' }, '::first-line': { color: 'rgb(0, 0, 255)' } },
+    });
+    const map = run(capturePage, pageCaptureArgs);
+    assert.equal(map.elements.target.pseudo['::first-letter'].color, 'rgb(0, 128, 0)');
+    assert.equal(map.elements.target.pseudo['::first-line'].color, 'rgb(0, 0, 255)');
+  });
+}
+
+for (const display of ['block', 'flow-root list-item', 'inline list-item']) {
+  test(`resting and forced-state capture read markers only on list items: ${display} (#979)`, () => {
+    const { run, reads, context } = pseudoPageHarness({
+      display,
+      pseudos: { '::marker': { color: 'rgb(0, 128, 0)' } },
+    });
+    const listItem = display.includes('list-item');
+    const map = run(capturePage, pageCaptureArgs);
+    assert.equal(reads.includes('::marker'), listItem);
+    assert.equal(map.elements.target.pseudo?.['::marker']?.color, listItem ? 'rgb(0, 128, 0)' : undefined);
+    reads.length = 0;
+    const args = {
+      selector: 'p',
+      skipSel: '',
+      skipPaths: [],
+      maxElements: 10,
+      baselineKey: 'baseline',
+      scope: 'target',
+    };
+    run(snapSubtree, { ...args, saveBaseline: true });
+    assert.equal(reads.includes('::marker'), listItem);
+    assert.equal(reads.filter((pseudo) => pseudo === null).length, 1, 'host style is read once per element');
+    if (listItem) {
+      context.getComputedStyle = (_element, pseudo) =>
+        computedStyle(pseudo ? { content: 'none' } : { display: 'block' });
+      const { delta } = run(snapSubtree, { ...args, saveBaseline: false });
+      assert.equal(delta['target::marker'].color, '(gone)');
+    }
+  });
+}
+
+test('forced-state placeholders remain captured when computed content is none (#979)', () => {
+  const { run, context, document } = pseudoPageHarness({ pseudos: { '::placeholder': { color: 'rgb(0, 128, 0)' } } });
+  Object.setPrototypeOf(document.querySelector(), context.HTMLInputElement.prototype);
+  run(snapSubtree, {
+    selector: 'input',
+    skipSel: '',
+    skipPaths: [],
+    maxElements: 10,
+    baselineKey: 'baseline',
+    scope: 'target',
+    saveBaseline: true,
+  });
+  assert.equal(context.window.baseline['target::placeholder'].color, 'rgb(0, 128, 0)');
+});
 
 const captureOptions = { captureStates: false, stabilize: false };
 const freezeError = /styleproof: motion freeze was removed or disabled during capture/;

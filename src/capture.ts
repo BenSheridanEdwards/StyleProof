@@ -4,6 +4,7 @@
 import type { Page } from '@playwright/test';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
 import { realNow } from './spec-clock.js';
+import { PSEUDO_REFERENCES } from './pseudo-references.js';
 import {
   capturePage,
   capturePageTokens,
@@ -172,7 +173,8 @@ async function stabilizePage(
 ): Promise<string[]> {
   // captureText participates so text-only churn (a clock) is excluded like style churn.
   const snap = async (): Promise<Elements> =>
-    (await page.evaluate(capturePage, { skipSel, motionOnly: false, captureText })).elements as Elements;
+    (await page.evaluate(capturePage, { skipSel, motionOnly: false, captureText, pseudoReferences: PSEUDO_REFERENCES }))
+      .elements as Elements;
   // realNow: under STYLEPROOF_FREEZE_SPEC_CLOCK a frozen Date would never advance these windows.
   const start = realNow();
   let prev = await snap();
@@ -302,6 +304,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     motionOnly: false,
     captureText: options.captureText ?? true,
     captureComponent: options.captureComponent ?? false,
+    pseudoReferences: PSEUDO_REFERENCES,
   });
   for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
   // Full-page geometry for report crops and visible-structure gating.
@@ -376,7 +379,14 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
   // mounts during the settle must be seen), then the freeze is re-applied for every other read.
   await page.evaluate(unfreezeMotion, true);
-  const motion = (await page.evaluate(capturePage, { skipSel, motionOnly: true, captureText: false })).elements;
+  const motion = (
+    await page.evaluate(capturePage, {
+      skipSel,
+      motionOnly: true,
+      captureText: false,
+      pseudoReferences: PSEUDO_REFERENCES,
+    })
+  ).elements;
   // Removed again below so a page reused without a reload (SPA go(), self-check) starts unfrozen.
   await page.evaluate(freezeMotion, FREEZE_CSS);
   // Rule usage starts after the settle, so a rule matched only while the page was still

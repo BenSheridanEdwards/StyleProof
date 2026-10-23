@@ -969,6 +969,161 @@ test('a pseudo-element pruned against its OWN ua default (tag::pseudo) is not a 
   assert.deepEqual(diffStyleMaps(a, b), []);
 });
 
+for (const { name, tag, pseudo, prop, host, ua, before, after } of [
+  {
+    name: 'inherited first-letter color refills from the host',
+    tag: 'p',
+    pseudo: '::first-letter',
+    prop: 'color',
+    host: 'rgb(200, 0, 0)',
+    ua: 'rgb(0, 0, 0)',
+    before: 'rgb(0, 0, 0)',
+    after: 'rgb(200, 0, 0)',
+  },
+  {
+    name: 'non-inherited first-letter padding refills from its UA default',
+    tag: 'p',
+    pseudo: '::first-letter',
+    prop: 'padding-top',
+    host: '10px',
+    ua: '0px',
+    before: '10px',
+    after: '0px',
+  },
+  {
+    name: 'missing first-letter defaults refill from the other map before host defaults',
+    tag: 'p',
+    pseudo: '::first-letter',
+    prop: 'margin-top',
+    host: '16px',
+    ua: '0px',
+    before: '16px',
+    after: '0px',
+  },
+  {
+    name: 'backdrop background matching its host still reports a removed override',
+    tag: 'dialog',
+    pseudo: '::backdrop',
+    prop: 'background-color',
+    host: 'rgb(255, 255, 255)',
+    ua: 'rgba(0, 0, 0, 0.1)',
+    before: 'rgb(255, 255, 255)',
+    after: 'rgba(0, 0, 0, 0.1)',
+  },
+]) {
+  test(name, () => {
+    const path = `body > ${tag}:nth-child(1)`;
+    const element = { tag, style: { [prop]: host } };
+    const a = makeMap({
+      defaults: { [tag]: { [prop]: host }, [tag + pseudo]: { [prop]: ua } },
+      elements: { [path]: { ...element, pseudo: { [pseudo]: { [prop]: before } } } },
+    });
+    const b = makeMap({ defaults: { [tag]: { [prop]: host } }, elements: { [path]: element } });
+    for (const includeStructure of [true, false]) {
+      assert.deepEqual(
+        diffStyleMaps(a, b, { includeStructure }),
+        [{ kind: 'style', path, cls: '', pseudo, props: [{ prop, before, after }] }],
+        `includeStructure=${includeStructure}`,
+      );
+      assert.deepEqual(
+        diffStyleMaps(b, a, { includeStructure }),
+        [{ kind: 'style', path, cls: '', pseudo, props: [{ prop, before: after, after: before }] }],
+        `reverse, includeStructure=${includeStructure}`,
+      );
+    }
+  });
+}
+
+test('generated pseudo currentcolor refills from its own color', () => {
+  const path = 'body > p:nth-child(1)';
+  const makePseudo = (props) =>
+    makeMap({
+      defaults: {
+        p: { color: 'rgb(200, 0, 0)' },
+        'p::first-letter': { color: 'rgb(0, 0, 0)', 'border-top-color': 'rgb(0, 0, 0)' },
+      },
+      elements: { [path]: { tag: 'p', pseudo: { '::first-letter': { color: 'rgb(0, 128, 0)', ...props } } } },
+    });
+  const a = makePseudo({});
+  const same = makePseudo({ 'border-top-color': 'rgb(0, 128, 0)' });
+  const changed = makePseudo({ 'border-top-color': 'rgb(0, 0, 255)' });
+  for (const includeStructure of [true, false]) {
+    assert.deepEqual(diffStyleMaps(a, same, { includeStructure }), [], `includeStructure=${includeStructure}`);
+    assert.deepEqual(
+      diffStyleMaps(a, changed, { includeStructure }),
+      [
+        {
+          kind: 'style',
+          path,
+          cls: '',
+          pseudo: '::first-letter',
+          props: [{ prop: 'border-top-color', before: 'rgb(0, 128, 0)', after: 'rgb(0, 0, 255)' }],
+        },
+      ],
+      `includeStructure=${includeStructure}`,
+    );
+  }
+});
+
+test('generated pseudo inheritance does not duplicate a host color change', () => {
+  const path = 'body > p:nth-child(1)';
+  const map = (color, padding) =>
+    makeMap({
+      defaults: { p: { color: 'rgb(0, 0, 0)' }, 'p::first-letter': { 'padding-top': '0px' } },
+      elements: {
+        [path]: {
+          tag: 'p',
+          ownTextLength: 5,
+          style: { color },
+          pseudo: { '::first-letter': { 'padding-top': padding } },
+        },
+      },
+    });
+  const a = map('rgb(200, 0, 0)', '10px');
+  const b = map('rgb(0, 0, 255)', '20px');
+  for (const includeStructure of [true, false]) {
+    assert.deepEqual(
+      diffStyleMaps(a, b, { includeStructure }),
+      [
+        {
+          kind: 'style',
+          path,
+          cls: '',
+          pseudo: null,
+          props: [{ prop: 'color', before: 'rgb(200, 0, 0)', after: 'rgb(0, 0, 255)' }],
+        },
+        {
+          kind: 'style',
+          path,
+          cls: '',
+          pseudo: '::first-letter',
+          props: [{ prop: 'padding-top', before: '10px', after: '20px' }],
+        },
+      ],
+      `includeStructure=${includeStructure}`,
+    );
+  }
+});
+
+test('a pseudo default on its own map takes precedence over the other map', () => {
+  const path = 'body > div:nth-child(1)';
+  const a = makeMap({
+    defaults: { 'div::before': { content: '"a"' } },
+    elements: { [path]: { tag: 'div', pseudo: { '::before': {} } } },
+  });
+  const b = makeMap({
+    defaults: { 'div::before': { content: '"b"' } },
+    elements: { [path]: { tag: 'div', pseudo: { '::before': { content: '"b"' } } } },
+  });
+  for (const includeStructure of [true, false]) {
+    assert.deepEqual(
+      diffStyleMaps(a, b, { includeStructure }),
+      [{ kind: 'style', path, cls: '', pseudo: '::before', props: [{ prop: 'content', before: '"a"', after: '"b"' }] }],
+      `includeStructure=${includeStructure}`,
+    );
+  }
+});
+
 // ------------------------------------------------------- re-nesting (#472)
 // A wrapper added around (or removed from around) an element changes the path of
 // every descendant. Certification excludes structure, so before the fix a real

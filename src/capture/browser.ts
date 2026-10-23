@@ -1,6 +1,7 @@
 // Functions serialized into the page (page.evaluate / CDP Runtime.evaluate).
 // Each must stay self-contained: no module-scope helpers, imports, or closures.
 import type { CapturedOverlay, ElementEntry, LiveRegionCandidate, Props } from './types.js';
+import type { PseudoReferences } from '../pseudo-references.js';
 
 /** In-page shape of the window after {@link injectPathOf} runs. */
 type WithPathOf = { __spPathOf?: (el: Element) => string };
@@ -95,7 +96,13 @@ export function injectPathOf(): void {
   };
 }
 
-export type CaptureArgs = { skipSel: string; motionOnly: boolean; captureText: boolean; captureComponent?: boolean };
+export type CaptureArgs = {
+  skipSel: string;
+  motionOnly: boolean;
+  captureText: boolean;
+  captureComponent?: boolean;
+  pseudoReferences: PseudoReferences;
+};
 
 export type PageCapture = {
   defaults: Record<string, Props>;
@@ -109,7 +116,13 @@ export type PageCapture = {
 
 // Pre-existing, grandfathered in the health baseline.
 // fallow-ignore-next-line complexity
-export function capturePage({ skipSel, motionOnly, captureText, captureComponent }: CaptureArgs): PageCapture {
+export function capturePage({
+  skipSel,
+  motionOnly,
+  captureText,
+  captureComponent,
+  pseudoReferences,
+}: CaptureArgs): PageCapture {
   const assertFrozen = motionOnly ? (): void => {} : (window as unknown as Required<WithFreeze>).__spAssertFrozen;
   assertFrozen();
   // Keep the document origin in the same browser snapshot as every bounding box.
@@ -118,8 +131,9 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   const documentHeight = (document.scrollingElement ?? document.documentElement).scrollHeight;
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
-  const GENERATED_PSEUDOS = ['::first-letter', '::first-line', '::backdrop', '::file-selector-button'];
-  const BLOCK_CONTAINER = /^(block|inline-block|list-item|flow-root|table-cell|table-caption)$/;
+  const inherited = new Set(pseudoReferences.inherited);
+  const currentColor = new Set(pseudoReferences.currentColor);
+  const BLOCK_CONTAINER = new Set(['block', 'inline-block', 'list-item', 'flow-root', 'table-cell', 'table-caption']);
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
 
   // Per-tag (and per-tag-per-pseudo) UA defaults from a stylesheet-free iframe prune the maps.
@@ -156,15 +170,16 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
     if (!(key in defaults)) defaults[key] = readDefault(tag, pseudo);
     return defaults[key];
   };
-  // GENERATED_PSEUDOS inherit from their element, so pruning against the UA default alone
-  // would record every inherited longhand. A value is kept only when it differs from the
-  // element too, and a default joins the map only once an entry uses it (#979).
+  // Prune each property against exactly one reference that diff can reconstruct: the
+  // host for inherited properties, the pseudo's colour for currentcolor, or its UA default.
+  // A default joins the map only once an entry uses it (#979).
   const unusedDefaults: Record<string, Props> = Object.create(null);
   const overridesOf = (el: Element, tag: string, pseudo: string, origin: CSSStyleDeclaration): Props => {
     const key = `${tag}${pseudo}`;
     const def = defaults[key] ?? (unusedDefaults[key] ??= readDefault(tag, pseudo));
-    const own = snap(getComputedStyle(el, pseudo), def);
-    for (const p of Object.keys(own)) if (own[p] === origin.getPropertyValue(p)) delete own[p];
+    const cs = getComputedStyle(el, pseudo);
+    const color = cs.getPropertyValue('color');
+    const own = snap(cs, (p) => (inherited.has(p) ? origin.getPropertyValue(p) : currentColor.has(p) ? color : def[p]));
     if (Object.keys(own).length) defaults[key] = def;
     return own;
   };
@@ -194,16 +209,20 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   const generates = (el: Element, pseudo: string, display: string): boolean => {
     if (pseudo === '::backdrop') return matchesSafely(el, ':modal') || matchesSafely(el, ':popover-open');
     if (pseudo === '::file-selector-button') return el instanceof HTMLInputElement && el.type === 'file';
-    return readFirstBoxes && BLOCK_CONTAINER.test(display); // ::first-letter, ::first-line
+    return readFirstBoxes && display.split(' ').some((keyword) => BLOCK_CONTAINER.has(keyword)); // ::first-letter, ::first-line
   };
 
-  const snap = (cs: CSSStyleDeclaration, def: Props | null): Props => {
+  const snap = (
+    cs: CSSStyleDeclaration,
+    reference: Props | null | ((property: string) => string | undefined),
+  ): Props => {
     const o: Props = {};
     for (let i = 0; i < cs.length; i++) {
       const p = cs.item(i);
       if (motionOnly !== MOTION.test(p)) continue;
       const v = cs.getPropertyValue(p);
-      if (!def || def[p] !== v) o[p] = v;
+      const baseline = typeof reference === 'function' ? reference(p) : reference?.[p];
+      if (baseline !== v) o[p] = v;
     }
     return o;
   };
@@ -309,14 +328,14 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
       }
     }
     for (const ps of PSEUDOS) {
-      if (ps === '::marker' && getComputedStyle(el).display !== 'list-item') continue;
+      if (ps === '::marker' && !usedStyle.display.split(' ').includes('list-item')) continue;
       if (ps === '::placeholder' && !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) continue;
       const cs = getComputedStyle(el, ps);
       if ((ps === '::before' || ps === '::after') && cs.getPropertyValue('content') === 'none') continue;
       const props = snap(cs, defaultFor(tag, ps));
       if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
     }
-    for (const ps of GENERATED_PSEUDOS) {
+    for (const ps of pseudoReferences.generated) {
       if (!generates(el, ps, usedStyle.display)) continue;
       const props = overridesOf(el, tag, ps, usedStyle);
       if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
@@ -596,15 +615,15 @@ export function snapSubtree({
   };
   for (const { element, path: elementPath } of elements) {
     const field = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+    const usedStyle = getComputedStyle(element);
+    const listItem = usedStyle.display.split(' ').includes('list-item');
     for (const pseudo of [null, '::before', '::after', field ? '::placeholder' : '::marker']) {
-      const style = getComputedStyle(element, pseudo);
       const key = elementPath + (pseudo || '');
       // Fields read ::placeholder, other elements ::marker, which exists only on a list item
       // (#979); a ::before/::after exists only with content.
+      const style = pseudo === '::marker' && !listItem ? null : pseudo ? getComputedStyle(element, pseudo) : usedStyle;
       const absent =
-        pseudo === '::marker'
-          ? getComputedStyle(element).display !== 'list-item'
-          : !!pseudo && style.getPropertyValue('content') === 'none';
+        !style || ((pseudo === '::before' || pseudo === '::after') && style.getPropertyValue('content') === 'none');
       if (absent) {
         if (!saveBaseline && baseline?.[key]) {
           result[key] = Object.fromEntries(Object.keys(baseline[key]).map((property) => [property, '(gone)']));

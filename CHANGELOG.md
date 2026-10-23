@@ -221,11 +221,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `::marker` and `::placeholder` at rest, and only `::before` and `::after`
   under a forced state. It now also reads `::first-letter` and `::first-line`
   on block containers, `::backdrop` on a modal or open popover, and
-  `::file-selector-button` on a file input. A value is kept only when it
-  differs from both the element and the UA default, so an element with no
-  override gets no new entry. The forced-state read now includes
+  `::file-selector-button` on a file input. Each value is compared with what
+  the pseudo-element shows with no rule of its own: the element's value for
+  an inherited property, the pseudo-element's own colour for a currentcolor
+  property such as a border colour, and the UA default for everything else.
+  The diff refills a missing value from the same reference, so removing a
+  pseudo-element rule is reported even when the old value matched the
+  element or the UA default. An element with no override still gets no new
+  entry. The forced-state read now includes
   `::placeholder` on inputs and textareas and `::marker` on list items, keyed
-  `path::placeholder` / `path::marker`. The pseudo-elements that stay unread
+  `path::placeholder` / `path::marker`. `::marker` is now read on any
+  `list-item` display, such as `flow-root list-item`. The pseudo-elements that stay unread
   are listed in `docs/what-it-catches.md`.
 - **The Node 22 unit-coverage leg no longer waits on one test file.**
   `test/report.test.mjs` ran its 130 tests in one process, about 430 s under

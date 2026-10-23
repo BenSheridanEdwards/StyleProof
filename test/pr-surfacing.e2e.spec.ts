@@ -309,14 +309,24 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     const list = '<ul><li>One</li></ul>';
     const base = await cap(page, 'li::marker{color:rgb(200,0,0)}', list);
     const head = await cap(page, 'li::marker{color:rgb(0,0,200)}', list);
-    expect(colorOf(diffStyleMaps(base, head), '::marker'), 'the marker recolour is surfaced').toBeTruthy();
+    for (const includeStructure of [true, false]) {
+      expect(
+        colorOf(diffStyleMaps(base, head, { includeStructure }), '::marker'),
+        `the marker recolour is surfaced (includeStructure: ${includeStructure})`,
+      ).toBeTruthy();
+    }
   });
 
   test('an input ::placeholder colour change → a style finding with pseudo="::placeholder"', async ({ page }) => {
     const field = '<input name="email" placeholder="Email">';
     const base = await cap(page, 'input::placeholder{color:rgb(200,0,0)}', field);
     const head = await cap(page, 'input::placeholder{color:rgb(0,0,200)}', field);
-    expect(colorOf(diffStyleMaps(base, head), '::placeholder'), 'the placeholder recolour is surfaced').toBeTruthy();
+    for (const includeStructure of [true, false]) {
+      expect(
+        colorOf(diffStyleMaps(base, head, { includeStructure }), '::placeholder'),
+        `the placeholder recolour is surfaced (includeStructure: ${includeStructure})`,
+      ).toBeTruthy();
+    }
   });
 
   // #979: these pseudo-elements were never read, so their restyle passed as no change.
@@ -332,10 +342,61 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     test(`a ${pseudo} ${prop} change → a style finding with pseudo="${pseudo}"`, async ({ page }) => {
       const base = await cap(page, rule.replace('VALUE', 'rgb(200,0,0)'), markup);
       const head = await cap(page, rule.replace('VALUE', 'rgb(0,0,200)'), markup);
-      const f = diffStyleMaps(base, head).find(
-        (x) => x.kind === 'style' && x.pseudo === pseudo && x.props.some((p) => p.prop === prop),
-      );
-      expect(f, `the ${pseudo} restyle is surfaced with its pseudo tag`).toBeTruthy();
+      for (const includeStructure of [true, false]) {
+        const f = diffStyleMaps(base, head, { includeStructure }).find(
+          (x) => x.kind === 'style' && x.pseudo === pseudo && x.props.some((p) => p.prop === prop),
+        );
+        expect(
+          f,
+          `the ${pseudo} restyle is surfaced with its pseudo tag (includeStructure: ${includeStructure})`,
+        ).toBeTruthy();
+      }
+    });
+  }
+
+  for (const [scenario, pseudo, baseCss, headCss, markup, prop] of [
+    [
+      'a UA-default colour override is removed',
+      '::first-letter',
+      'p{color:rgb(200,0,0)}p::first-letter{color:rgb(0,0,0)}',
+      'p{color:rgb(200,0,0)}',
+      PARAGRAPH,
+      'color',
+    ],
+    [
+      'padding equal to the host is removed',
+      '::first-letter',
+      'p{padding:10px}p::first-letter{padding:10px}',
+      'p{padding:10px}',
+      PARAGRAPH,
+      'padding-top',
+    ],
+    [
+      'a background equal to the host is removed',
+      '::backdrop',
+      'dialog{background:rgb(255,255,255)}dialog::backdrop{background:rgb(255,255,255)}',
+      'dialog{background:rgb(255,255,255)}',
+      MODAL,
+      'background-color',
+    ],
+    [
+      'a margin equal to the host UA default is removed',
+      '::first-letter',
+      'p::first-letter{margin-top:16px}',
+      'blockquote::first-letter{}',
+      PARAGRAPH,
+      'margin-top',
+    ],
+  ]) {
+    test(`${pseudo}: ${scenario} → a style finding`, async ({ page }) => {
+      const base = await cap(page, baseCss, markup);
+      const head = await cap(page, headCss, markup);
+      for (const includeStructure of [true, false]) {
+        const f = diffStyleMaps(base, head, { includeStructure }).find(
+          (x) => x.kind === 'style' && x.pseudo === pseudo && x.props.some((p) => p.prop === prop),
+        );
+        expect(f, `${pseudo}: ${scenario} (includeStructure: ${includeStructure})`).toBeTruthy();
+      }
     });
   }
 
@@ -346,11 +407,16 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     test(`a :${state}${pseudo} colour change → a ${state} state finding on the ${pseudo}`, async ({ page }) => {
       const base = await cap(page, rule.replace('VALUE', 'rgb(200,0,0)'), markup);
       const head = await cap(page, rule.replace('VALUE', 'rgb(0,0,200)'), markup);
-      const f = diffStyleMaps(base, head).find(
-        (x) => x.kind === 'state' && x.state === state && x.props.some((p) => p.prop === 'color'),
-      );
-      expect(f, `the :${state}${pseudo} restyle is surfaced as a state finding`).toBeTruthy();
-      expect(f!.kind === 'state' && f!.sub).toMatch(new RegExp(`${pseudo}$`));
+      for (const includeStructure of [true, false]) {
+        const f = diffStyleMaps(base, head, { includeStructure }).find(
+          (x) => x.kind === 'state' && x.state === state && x.props.some((p) => p.prop === 'color'),
+        );
+        expect(
+          f,
+          `the :${state}${pseudo} restyle is surfaced as a state finding (includeStructure: ${includeStructure})`,
+        ).toBeTruthy();
+        expect(f!.kind === 'state' && f!.sub).toMatch(new RegExp(`${pseudo}$`));
+      }
     });
   }
 
@@ -360,7 +426,9 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     // The unmatched blockquote rule makes capture read these pseudo-elements on every block box.
     const styled =
       'blockquote::first-letter{color:rgb(200,0,0)}' +
-      'p{color:rgb(0,0,200);padding:10px;background:rgb(240,240,240);font-weight:700}';
+      'p{color:rgb(0,0,200);padding:10px;background:rgb(240,240,240);font-weight:700;' +
+      'font-family:serif;line-height:30px;letter-spacing:1px;text-transform:uppercase;' +
+      'border:1px solid rgb(200,200,200)}';
     const plain = await cap(page, styled, '<div>' + PARAGRAPH + '</div><ul><li>One</li></ul>');
     const generated = Object.values(plain.elements).flatMap((e) =>
       Object.keys(e.pseudo ?? {}).filter((ps) => ps === '::first-letter' || ps === '::first-line'),
