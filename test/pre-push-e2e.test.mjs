@@ -343,6 +343,103 @@ test('a Git type-change record still runs browsers', (t) => {
   assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
 });
 
+function submoduleFixture(t, ignoreSource) {
+  const f = fixture(t);
+  f.write('.gitignore', readFileSync(join(f.root, '.gitignore'), 'utf8') + 'child-source/\n');
+  f.git('init', '-q', 'child-source');
+  const childGit = (...args) => f.git('-C', 'child-source', ...args);
+  const commitChild = () => {
+    childGit('add', 'theme.css');
+    childGit(
+      '-c',
+      'user.name=StyleProof Tests',
+      '-c',
+      'user.email=tests@example.test',
+      'commit',
+      '-s',
+      '-m',
+      'test: child style change',
+    );
+    return childGit('rev-parse', 'HEAD');
+  };
+  f.write('child-source/theme.css', 'body { color: red }\n');
+  const childBase = commitChild();
+  f.git('-c', 'protocol.file.allow=always', 'submodule', 'add', '--name', 'styles', './child-source', 'palette');
+  if (ignoreSource === '.gitmodules') {
+    f.git('config', '--file', '.gitmodules', 'submodule.styles.ignore', 'all');
+  } else {
+    f.git('config', ignoreSource, 'all');
+  }
+  const base = f.commit();
+  f.write('child-source/theme.css', 'body { color: blue }\n');
+  const childHead = commitChild();
+  f.git('-C', 'palette', 'fetch', 'origin');
+  f.git('-C', 'palette', 'checkout', '-q', childHead);
+  f.git('update-index', '--cacheinfo', `160000,${childHead},palette`);
+  const childPatch = childGit('diff', childBase, childHead, '--', 'theme.css');
+  assert.match(childPatch, /-body \{ color: red \}/);
+  assert.match(childPatch, /\+body \{ color: blue \}/);
+  return { ...f, base };
+}
+
+for (const ignoreSource of ['.gitmodules', 'diff.ignoreSubmodules', 'submodule.styles.ignore']) {
+  for (const inventory of ['staged', 'pushed']) {
+    test(`${ignoreSource} cannot hide a ${inventory} CSS submodule update from browsers`, (t) => {
+      const f = submoduleFixture(t, ignoreSource);
+      const head = inventory === 'pushed' ? f.commit() : f.base;
+      const range = inventory === 'pushed' ? [f.base, head] : ['--cached'];
+      assert.equal(f.git('diff', '--name-only', '--no-renames', '-z', ...range), '');
+      assert.equal(
+        f.git('diff', '--ignore-submodules=none', '--name-only', '--no-renames', '-z', ...range),
+        'palette\0',
+      );
+      const result = f.run(f.pushed(head, f.base));
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.doesNotMatch(result.stdout, /skipped/);
+      assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    });
+  }
+}
+
+for (const replacedObject of ['commit', 'tree']) {
+  for (const inventory of ['staged', 'pushed']) {
+    test(`a replacement ${replacedObject} cannot hide a ${inventory} CSS change from browsers`, (t) => {
+      const f = fixture(t);
+      f.write('theme.css', 'body { color: red }\n');
+      const base = f.commit();
+      f.write('theme.css', 'body { color: blue }\n');
+      const head = f.commit();
+      const baseObject = replacedObject === 'tree' ? f.git('rev-parse', `${base}^{tree}`) : base;
+      const headObject = replacedObject === 'tree' ? f.git('rev-parse', `${head}^{tree}`) : head;
+      let input;
+      let range;
+      if (inventory === 'staged') {
+        f.git('checkout', '-q', base);
+        f.write('theme.css', 'body { color: blue }\n');
+        f.git('add', 'theme.css');
+        f.git('replace', baseObject, headObject);
+        range = ['--cached'];
+        input = f.pushed(base, base);
+      } else {
+        f.git('branch', 'pushed-style', head);
+        f.git('checkout', '-q', base);
+        f.git('replace', headObject, baseObject);
+        range = [base, head];
+        input = f.pushed(head, base, 'refs/heads/pushed-style');
+      }
+      assert.equal(f.git('diff', '--ignore-submodules=none', '--name-only', '-z', ...range), '');
+      assert.equal(
+        f.git('--no-replace-objects', 'diff', '--ignore-submodules=none', '--name-only', '-z', ...range),
+        'theme.css\0',
+      );
+      const result = f.run(input);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.doesNotMatch(result.stdout, /skipped/);
+      assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    });
+  }
+}
+
 test('empty or malformed shared policy aborts the real hook process, including an empty diff', (t) => {
   const f = fixture(t);
   for (const text of ['', 'lanes:\n', "lanes:\n  - '**'\n", "lanes:\n  - '!README.md'\n"]) {
@@ -402,7 +499,7 @@ test('Git failures abort both staged and push-range inventory collection', (t) =
   const f = fixture(t);
   const missingRange = f.run(f.pushed(f.base, 'a'.repeat(40)));
   assert.equal(missingRange.status, 1, missingRange.stdout + missingRange.stderr);
-  assert.match(missingRange.stderr, /git diff .*failed/i);
+  assert.match(missingRange.stderr, /git --no-replace-objects diff .*failed/i);
   f.write('fake-bin/git', '#!/bin/sh\necho "fixture Git failed" >&2\nexit 69\n');
   chmodSync(join(f.root, 'fake-bin/git'), 0o755);
   const brokenGit = f.run(f.pushed());
