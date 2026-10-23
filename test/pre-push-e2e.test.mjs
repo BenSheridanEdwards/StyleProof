@@ -13,6 +13,7 @@ import {
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { chromiumInstalled, collectPrePushProofs } from '../scripts/pre-push-e2e.mjs';
 import { browserLanesRequired, makeGit } from '../scripts/browser-lanes.mjs';
@@ -684,7 +685,7 @@ test('M14: a real shallow clone with a missing remote object blocks rather than 
   f.write('theme.css', 'body { color: magenta }');
   const head = f.commit();
   const shallow = join(f.root, 'shallow');
-  f.git('clone', '-q', '--depth=1', `file://${f.root}`, shallow);
+  f.git('clone', '-q', '--depth=1', pathToFileURL(f.root).href, shallow);
   const p = localProcess(shallow, { npmExit: 37 });
   const missing = spawnSync('git', ['cat-file', '-e', f.base], { cwd: shallow, encoding: 'utf8' });
   assert.notEqual(missing.status, 0);
