@@ -32,6 +32,30 @@ test('classify: nested and selector-list global elements escape a CSS Module', (
   );
   assert.equal(classifyStyleChange('Theme.module.css', read('.local, :where(BODY) { color: red }')), 'all');
 });
+test('classify: a comment or `;` statement before a global rule cannot hide it in a CSS Module', () => {
+  for (const [file, src] of [
+    ['Card.module.css', '.card{}\n/* tokens */\n:root{--b:red}'],
+    ['Card.module.css', '/* reset */\n*{box-sizing:border-box}'],
+    ['Card.module.css', '@charset "utf-8";\n:root{}'],
+    ['Card.module.css', '@layer components;\nhtml{}'],
+    ['Card.module.scss', '.card{}\n// tokens\n:root{}'],
+    ['Card.module.css', '/* reset */ body/* note */ { color:red }'],
+    ['Card.module.css', 'html/**/.dark{}'],
+    ['Card.module.css', '*/* x */{}'],
+    ['Card.module.scss', '.card{}\nbody// note\n{}'],
+  ]) {
+    assert.equal(classifyStyleChange(file, read(src)), 'all', src);
+  }
+  // Guard against over-widening: comments around class-only rules stay scoped.
+  assert.equal(
+    classifyStyleChange('Card.module.scss', read('/**\n * Card\n */\n.card{}\n// title\n.title{}')),
+    'scope',
+  );
+  assert.equal(
+    classifyStyleChange('Card.module.css', read('.card{}\n/* a, b; */\n.title{ color: red; /* x, */ }')),
+    'scope',
+  );
+});
 test('classify: CSS Module using `composes … from` pulls in outside scope', () => {
   assert.equal(classifyStyleChange('Btn.module.css', read('.btn{composes: base from "./shared.css"}')), 'all');
 });
@@ -219,6 +243,33 @@ test('a global token stylesheet forces a full re-capture', () => {
 test('a createGlobalStyle change forces a full re-capture (not a local .tsx edit)', () => {
   assert.equal(run(['src/components/GlobalStyle.tsx']), 'all');
 });
+test('a global style change in a .vue, .svelte or .astro component forces a full re-capture', () => {
+  const affected = (file, src) => {
+    const sources = { 'src/pages/Home.ts': "import '../components/Panel';", 'src/pages/Settings.ts': '', [file]: src };
+    return affectedSurfaces({
+      changedFiles: [file],
+      surfaces: { home: 'src/pages/Home.ts', settings: 'src/pages/Settings.ts' },
+      graph: [{ from: 'src/pages/Home.ts', to: file }],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    });
+  };
+  const panel = '<div class="panel">panel</div>';
+  assert.equal(
+    affected('src/components/Panel.vue', `<template>${panel}</template>\n<style>\n.panel{padding:24px}\n</style>`),
+    'all',
+  );
+  assert.equal(
+    affected('src/components/Panel.svelte', `${panel}\n<style>\n:global(.panel){padding:24px}\n</style>`),
+    'all',
+  );
+  assert.equal(
+    affected('src/components/Panel.astro', `${panel}\n<style is:global>\n.panel{padding:24px}\n</style>`),
+    'all',
+  );
+  // A pure asset still follows the import graph.
+  assert.deepEqual(sorted(affected('src/components/panel.svg', '<svg/>')), ['home']);
+});
 test('a shared static component → every surface that imports it', () => {
   assert.deepEqual(sorted(run(['src/components/Header.tsx'])), ['dashboard', 'home', 'pricing']);
 });
@@ -338,5 +389,58 @@ test('affectedSurfaces fails closed on a computed import() it cannot place', () 
     [...run('const D = lazy(() => import(`../components/${name}`));')].sort(),
     ['dashboard', 'pricing'],
     'a relative template prefix is still recovered as a context module',
+  );
+});
+
+test('affectedSurfaces roots a computed import() at the last / of its prefix, for any file kind', () => {
+  const run = (dashboardSrc, changed) => {
+    const sources = {
+      'src/pages/Pricing.tsx':
+        "import {Widget} from '../components/Widget';\nimport t from '../themes/dark.module.css';",
+      'src/pages/Dashboard.tsx': dashboardSrc,
+      'src/components/Widget.tsx': 'export default function Widget(){return null}',
+      'src/themes/dark.module.css': '.panel{color:#fff}',
+    };
+    return affectedSurfaces({
+      changedFiles: [changed],
+      surfaces: { pricing: 'src/pages/Pricing.tsx', dashboard: 'src/pages/Dashboard.tsx' },
+      graph: [
+        { from: 'src/pages/Pricing.tsx', to: 'src/components/Widget.tsx' },
+        { from: 'src/pages/Pricing.tsx', to: 'src/themes/dark.module.css' },
+      ],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    });
+  };
+  const widget = 'src/components/Widget.tsx';
+  assert.equal(
+    run('const D = lazy(() => import(`../themes/..${suffix}`));', widget),
+    'all',
+    'a prefix ending in a .. segment can reach outside its directory',
+  );
+  assert.equal(
+    run('const D = lazy(() => import(`../components/.${x}`));', widget),
+    'all',
+    'a prefix ending in a . segment can join into ..',
+  );
+  assert.deepEqual(
+    sorted(run('const D = lazy(() => import(`../components/.W${x}`));', widget)),
+    ['dashboard', 'pricing'],
+    'a filename that starts with a dot stays scoped',
+  );
+  assert.deepEqual(
+    sorted(run('const D = lazy(() => import(`../components/Wid${name}`));', widget)),
+    ['dashboard', 'pricing'],
+    'a prefix that ends inside a filename',
+  );
+  assert.deepEqual(
+    sorted(run('const D = lazy(() => import(`../components/Wid${name}.tsx`));', widget)),
+    ['dashboard', 'pricing'],
+    'the same prefix with an extension suffix',
+  );
+  assert.deepEqual(
+    sorted(run('const T = await import(`../themes/${t}.module.css`);', 'src/themes/dark.module.css')),
+    ['dashboard', 'pricing'],
+    'a stylesheet target',
   );
 });
