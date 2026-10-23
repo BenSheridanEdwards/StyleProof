@@ -5,13 +5,15 @@
  * control is driven once by identity; a surface is captured once); `max*` options are throttles.
  * The sweep is IN-PLACE with lazy, VERIFIED resets: a no-op click costs nothing, a state-changing
  * click pays a fresh navigation + replay checked against the state's fingerprint, and new
- * surfaces are captured the moment they're reached. Destructive-looking controls are never clicked.
+ * surfaces are captured the moment they're reached. Destructive-looking controls are never clicked
+ * and are named as incomplete UI so the run fails closed.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { detectViewportWidths } from '../breakpoints.js';
 import { DANGER_SOURCE } from '../danger.js';
+import { unsafeControlDiagnostic } from '../incomplete-ui.js';
 import { classifyAuthBoundary, type AuthBoundaryMetadata } from '../auth-boundary.js';
 import { resolveCrawlConfidence, redactedRoutePath, shouldRetainAuthRedirects } from '../crawl-confidence.js';
 import { uniqueKeyFor } from '../crawl.js';
@@ -42,7 +44,7 @@ import type {
 type Ctx = { opts: SurfaceCrawlOptions; st: CrawlState };
 type Counts = { tried: number; skipped: number };
 /** One state's sweep: its queue entry, the child buffer, and the control identities present in it. */
-type Sweep = { entry: QueueEntry; sink: QueueEntry[]; presentIds: Set<string> };
+type Sweep = { entry: QueueEntry; sink: QueueEntry[]; presentIds: Set<string>; counts: Counts };
 
 /** Observation failed after a surface was recorded — never fail-soft, or the report reads falsely complete. */
 class AuthBoundaryObserveError extends Error {
@@ -115,6 +117,7 @@ async function captureAndReport(page: Page, { opts, st }: Ctx, surface: CrawledS
 async function record(page: Page, ctx: Ctx, entry: QueueEntry, fp: Fingerprint, sink: QueueEntry[]): Promise<void> {
   const { opts, st } = ctx;
   const key = deriveKey(entry.path, ctx);
+  entry.key = key;
   const surface: CrawledSurface = { key, depth: entry.depth, path: entry.path, elements: fp.elements };
   st.surfaces.push(surface);
   await observeInto(page, st, key, `after recording surface ${key}`);
@@ -149,13 +152,20 @@ function registerChanger(st: CrawlState, from: string, c: RawCandidate, persists
   st.changersFrom.set(from, list);
 }
 
+/** A destructive-looking control is never clicked, so whatever it opens stays uncaptured: name it as a
+ *  blocked continuation on the state it sits in (redacted selector only, never the label). */
+function recordUnsafeSkip({ opts, st }: Ctx, entry: QueueEntry, c: RawCandidate): void {
+  const surface = entry.key ?? (opts.keyPrefix || 'base');
+  st.incompleteUiObservations.push({ surface, diagnostics: [unsafeControlDiagnostic(c.selector)] });
+}
+
 /** Drive one candidate from where the page stands: `noop` left the page in the swept state (no reset
  *  needed), `skipped` failed or navigated away, `changed` opened a surface (recorded, and descended
  *  in place). */
 async function driveCandidate(
   page: Page,
   ctx: Ctx,
-  { entry, sink, presentIds }: Sweep,
+  { entry, sink, presentIds, counts }: Sweep,
   c: RawCandidate,
   viaRetry: boolean,
 ): Promise<'noop' | 'skipped' | 'changed'> {
@@ -186,10 +196,15 @@ async function driveCandidate(
   // are breadth, owned by the queued family retry. --until-covered skips this: the breadth-first
   // queue reaches every distinct component faster.
   if (!ctx.opts.stopWhenCovered && persists && child.depth < ctx.opts.maxDepth) {
-    await sweepCandidatesHere(page, ctx, child, sink, presentIds).catch((err: unknown) => {
-      // Observation failures are fatal (runPool stops the crawl); anything else is fail-soft — the surface was already captured.
-      if (err instanceof AuthBoundaryObserveError) throw err;
-    });
+    await sweepCandidatesHere(page, ctx, child, sink, presentIds)
+      .then((nested) => {
+        counts.tried += nested.tried;
+        counts.skipped += nested.skipped;
+      })
+      .catch((err: unknown) => {
+        // Observation failures are fatal (runPool stops the crawl); anything else is fail-soft — the surface was already captured.
+        if (err instanceof AuthBoundaryObserveError) throw err;
+      });
   }
   return 'changed';
 }
@@ -238,8 +253,8 @@ async function sweepCandidatesHere(
   const { opts, st } = ctx;
   const all = await page.evaluate(collectClickable, DANGER_SOURCE).catch(() => [] as RawCandidate[]);
   const work = sweepWorkList(entry, all, ctx, excludeIds);
-  const sweep: Sweep = { entry, sink, presentIds: new Set(all.map((c) => c.identity)) };
   const counts: Counts = { tried: 0, skipped: 0 };
+  const sweep: Sweep = { entry, sink, presentIds: new Set(all.map((c) => c.identity)), counts };
   let inState = true;
   for (const { c, retry } of work) {
     if (st.surfaces.length >= opts.maxStates) break;
@@ -250,6 +265,7 @@ async function sweepCandidatesHere(
     if (!retry) st.tried.add(c.identity);
     if (c.unsafe) {
       counts.skipped++;
+      recordUnsafeSkip(ctx, entry, c);
       continue;
     }
     counts.tried++;
@@ -430,7 +446,13 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
       unreadable,
       renderedClasses,
     },
-    confidence: resolveCrawlConfidence({ observations: st.authObservations, exclude: opts.authBoundaryExclude }),
+    confidence: resolveCrawlConfidence({
+      observations: st.authObservations,
+      exclude: opts.authBoundaryExclude,
+      unknownIncompleteness: st.incompleteUiObservations.some((o) =>
+        o.diagnostics.some((d) => d.kind === 'unsafe-control'),
+      ),
+    }),
     incompleteUi: st.incompleteUiObservations,
   };
 }

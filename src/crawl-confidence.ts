@@ -132,7 +132,7 @@ function matchExclusion(
 export function resolveCrawlConfidence(input: {
   observations: AuthBoundaryObservation[];
   exclude?: Record<string, string>;
-  /** Other incompleteness with no auth signal (reserved; the crawl does not emit it). */
+  /** Other incompleteness with no auth signal, such as a skipped unsafe control. */
   unknownIncompleteness?: boolean;
 }): CrawlConfidence {
   const exclude = normalizeAuthBoundaryExclude(input.exclude);

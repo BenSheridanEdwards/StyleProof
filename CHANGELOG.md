@@ -519,7 +519,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the server. The guard now also matches `check out`, `payment`, `payments`,
   `purchases` and `place order`, so those controls are recorded but not
   clicked. Words that only contain the letters, such as "Display", "Replay"
-  and "Payload", stay clickable.
+  and "Payload", stay clickable. A skipped destructive-looking control is
+  no longer silent: `--crawl` names it as incomplete UI (`destructive-label`,
+  redacted selector, never the label) on the surface where it was found,
+  sets crawl confidence to `incomplete-unknown` when no auth boundary exists
+  (`certifiesFully: false`), and exits 6 unless the surface is acknowledged
+  with `--incomplete-ui-exclude` and a reason. Capture the states behind
+  those controls with a spec fixture. This also applies to labels that were
+  already unsafe, such as "Delete" and "Log out".
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched

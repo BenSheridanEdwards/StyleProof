@@ -1,8 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyIncompleteUi } from '../dist/incomplete-ui.js';
+import { classifyIncompleteUi, unsafeControlDiagnostic } from '../dist/incomplete-ui.js';
 
 const candidate = (overrides = {}) => ({ selector: 'main > form:nth-child(1)', ...overrides });
+
+test('unsafeControlDiagnostic: names a destructive control by redacted selector only', () => {
+  assert.deepEqual(unsafeControlDiagnostic('#pay-tab'), {
+    kind: 'unsafe-control',
+    reason: 'destructive-label',
+    selector: '#pay-tab',
+  });
+  const diagnostic = unsafeControlDiagnostic('button[aria-label="Delete account"]');
+  assert.deepEqual(diagnostic, { kind: 'unsafe-control', reason: 'destructive-label' });
+  assert.equal(JSON.stringify(diagnostic).includes('Delete'), false);
+});
 
 test('flags a form even when no password field is present', () => {
   const [diagnostic] = classifyIncompleteUi([candidate({ tag: 'form', value: 'do-not-record-this' })]);

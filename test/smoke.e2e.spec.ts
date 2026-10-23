@@ -1708,6 +1708,13 @@ test('crawl never clicks destructive-looking controls, and the verifier names wh
     });
     expect(report.skipped, 'the delete button was skipped, not clicked').toBeGreaterThanOrEqual(1);
     expect(report.surfaces.length, 'no nuked state was ever created').toBe(1);
+    expect(report.incompleteUi, 'the skipped control is named, not silently dropped').toContainEqual({
+      surface: 'base',
+      diagnostics: [{ kind: 'unsafe-control', reason: 'destructive-label', selector: '#del' }],
+    });
+    expect(report.confidence.status).toBe('incomplete-unknown');
+    expect(report.confidence.certifiesFully).toBe(false);
+    expect(JSON.stringify(report.incompleteUi)).not.toContain('Delete everything');
     // The guard is SAFE because the verifier is honest: the state class the
     // destructive click would have added is named as never-seen.
     expect(report.coverage.missing).toContain('nuked');

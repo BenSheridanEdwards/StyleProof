@@ -30,7 +30,8 @@ export type IncompleteUiDiagnostic =
       selector?: string;
     }
   | { kind: 'required-empty'; reason: 'required-input-empty'; selector?: string }
-  | { kind: 'closed-disclosure'; reason: 'aria-collapsed' | 'details-closed'; selector?: string };
+  | { kind: 'closed-disclosure'; reason: 'aria-collapsed' | 'details-closed'; selector?: string }
+  | { kind: 'unsafe-control'; reason: 'destructive-label'; selector?: string };
 
 const REASON_ORDER: IncompleteUiDiagnostic['reason'][] = [
   'form-present',
@@ -41,6 +42,7 @@ const REASON_ORDER: IncompleteUiDiagnostic['reason'][] = [
   'required-input-empty',
   'aria-collapsed',
   'details-closed',
+  'destructive-label',
 ];
 
 /** Boolean flags that block a control outright, in precedence order. */
@@ -52,6 +54,11 @@ const BLOCKED_FLAGS: [keyof IncompleteUiMetadata, 'disabled-control' | 'aria-dis
 
 function withSelector<T extends IncompleteUiDiagnostic>(diagnostic: T, selector?: string): T {
   return selector ? { ...diagnostic, selector } : diagnostic;
+}
+
+/** A destructive-looking control the crawl refused to click. Redacted selector only, never the label. */
+export function unsafeControlDiagnostic(selector?: string): IncompleteUiDiagnostic {
+  return withSelector({ kind: 'unsafe-control', reason: 'destructive-label' }, redactedSelector(selector));
 }
 
 function classifyForm(candidate: IncompleteUiMetadata, selector?: string): IncompleteUiDiagnostic[] {
