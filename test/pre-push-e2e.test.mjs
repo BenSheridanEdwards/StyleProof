@@ -14,22 +14,45 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
-import { chromiumInstalled, collectPrePushFiles, shouldRunStagedE2e } from '../scripts/pre-push-e2e.mjs';
-import { needsBrowserLanes } from '../scripts/ci-path-filters.mjs';
+import { chromiumInstalled, collectPrePushProofs } from '../scripts/pre-push-e2e.mjs';
+import { browserLanesRequired, makeGit } from '../scripts/browser-lanes.mjs';
+import {
+  contentCases,
+  createContentFixture,
+  createFixture,
+  fileChangeCase,
+  legacyPathCases,
+  trackedBrowserCases,
+} from './helpers/browser-lanes-fixtures.mjs';
 
 const hook = readFileSync(new URL('../.husky/pre-push', import.meta.url), 'utf8');
 
-test('shouldRunStagedE2e matches capture/diff/report/engine and README-only changes', () => {
-  assert.equal(shouldRunStagedE2e(['README.md', 'CONTRIBUTING.md']), true);
-  assert.equal(shouldRunStagedE2e(['src/capture.ts']), true);
-  assert.equal(shouldRunStagedE2e(['src/capture/browser.ts']), true);
-  assert.equal(shouldRunStagedE2e(['src/diff.ts']), true);
-  assert.equal(shouldRunStagedE2e(['src/report.ts']), true);
-  assert.equal(shouldRunStagedE2e(['src/report/html.ts']), true);
-  assert.equal(shouldRunStagedE2e(['src/runner.ts']), true);
-  assert.equal(shouldRunStagedE2e(['src/runner/browser.ts']), true);
-  assert.equal(shouldRunStagedE2e(['src/config.ts', 'package.json']), true);
-  assert.equal(shouldRunStagedE2e(['src/capture.ts.bak']), true);
+test('local tree proofs require browsers for capture/diff/report/engine and README-only changes', (t) => {
+  const f = fixture(t);
+  for (const file of [
+    'README.md',
+    'CONTRIBUTING.md',
+    'src/capture.ts',
+    'src/capture/browser.ts',
+    'src/diff.ts',
+    'src/report.ts',
+    'src/report/html.ts',
+    'src/runner.ts',
+    'src/runner/browser.ts',
+    'src/config.ts',
+    'package.json',
+    'src/capture.ts.bak',
+  ]) {
+    f.write(file, file === 'package.json' ? '{"private":true}' : 'changed fixture');
+    f.git('add', file);
+    const proofs = collectPrePushProofs({ stdinText: f.pushed(), git: makeGit(f.root) });
+    assert.equal(browserLanesRequired(proofs), true, file);
+    assert.equal(proofs.at(-1).kind, 'differs', file);
+    const result = f.run(f.pushed());
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n', file);
+    f.git('read-tree', f.base);
+  }
 });
 
 test('chromiumInstalled is true only when the resolved executable exists', () => {
@@ -39,21 +62,20 @@ test('chromiumInstalled is true only when the resolved executable exists', () =>
   assert.equal(chromiumInstalled({ executablePath: '/present/chrome', existsSync: () => true }), true);
 });
 
-test('collectPrePushFiles unions staged paths with push-range diffs', () => {
-  assert.deepEqual(
-    collectPrePushFiles({
-      stagedFiles: ['README.md', 'src/capture.ts'],
-      pushRanges: [],
-    }),
-    ['README.md', 'src/capture.ts'],
-  );
-  assert.deepEqual(
-    collectPrePushFiles({
-      stagedFiles: ['README.md'],
-      pushRanges: [{ remoteOid: '0'.repeat(40), localOid: 'a'.repeat(40) }],
-    }),
-    null,
-  );
+test('collector retains both staged and pushed tree proofs', (t) => {
+  const f = fixture(t);
+  f.write('README.md', 'A pushed change');
+  const head = f.commit();
+  f.write('src/capture.ts', 'A staged change');
+  f.git('add', 'src/capture.ts');
+  assert.deepEqual(collectPrePushProofs({ stdinText: f.pushed(head, f.base), git: makeGit(f.root) }), [
+    { kind: 'differs' },
+    { kind: 'differs' },
+  ]);
+  const firstPush = collectPrePushProofs({ stdinText: f.pushed(head, '0'.repeat(40)), git: makeGit(f.root) });
+  assert.equal(firstPush[0].kind, 'unknown');
+  assert.equal(firstPush[1].kind, 'differs');
+  assert.equal(browserLanesRequired(firstPush), true);
 });
 
 test('pre-push runs unit tests then the staged e2e gate', () => {
@@ -89,7 +111,8 @@ test('pre-push e2e gate explains how to repair missing Chromium without skipping
   assert.match(hook, /scripts\/pre-push-e2e\.mjs/);
 });
 
-test('local selection shares the hosted browser policy, including fixtures and e2e-only changes', () => {
+test('local selection shares the hosted tree policy, including fixtures and e2e-only changes', (t) => {
+  const f = fixture(t);
   for (const file of [
     'test/fixtures/theme.css',
     'example/demo/index.html',
@@ -98,50 +121,60 @@ test('local selection shares the hosted browser policy, including fixtures and e
     'styles/theme.scss',
     'new-surface.custom',
     'test\\fixtures\\theme.css',
+    'README.md',
+    'docs/demo/report.html',
+    'test/report.test.mjs',
+    '.github/path-filters.yml',
   ]) {
-    assert.equal(shouldRunStagedE2e([file]), true, file);
+    f.write(file, 'fixture');
+    const head = f.commit();
+    const proofs = collectPrePushProofs({ stdinText: f.pushed(head, f.base), git: makeGit(f.root) });
+    assert.equal(browserLanesRequired(proofs), true, file);
+    const result = f.run(f.pushed(head, f.base));
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n', file);
   }
-  for (const file of ['README.md', 'docs/demo/report.html', 'test/report.test.mjs', '.github/path-filters.yml']) {
-    assert.equal(shouldRunStagedE2e([file]), needsBrowserLanes([file]), file);
-  }
-  assert.equal(shouldRunStagedE2e(null), true, 'unknown inventory must run');
-  assert.equal(shouldRunStagedE2e([]), false, 'a proven empty diff may skip');
-});
-
-test('collector distinguishes deletion and empty diffs from unknown or malformed ranges', () => {
-  assert.deepEqual(collectPrePushFiles({ stagedFiles: [], pushRanges: [] }), []);
-  assert.deepEqual(
-    collectPrePushFiles({ stagedFiles: [], pushRanges: [{ remoteOid: 'a'.repeat(40), localOid: '0'.repeat(40) }] }),
-    [],
-  );
-  assert.equal(collectPrePushFiles({ stagedFiles: [], readStdin: false }), null);
-  for (const range of [
-    { remoteOid: 'main', localOid: 'a'.repeat(40) },
-    { remoteOid: 'a'.repeat(40), localOid: '' },
-    { remoteOid: '0'.repeat(40), localOid: '0'.repeat(40) },
-    { remoteOid: '0'.repeat(40), localOid: 'a'.repeat(64) },
-    { remoteOid: '0'.repeat(40), localOid: 'g'.repeat(40) },
-  ]) {
-    assert.throws(() => collectPrePushFiles({ stagedFiles: [], pushRanges: [range] }), /OID|object/i);
-  }
+  assert.equal(browserLanesRequired(collectPrePushProofs({ git: makeGit(f.root) })), true);
+  const head = f.git('rev-parse', 'HEAD');
   assert.equal(
-    collectPrePushFiles({ stagedFiles: [], pushRanges: [{ remoteOid: '0'.repeat(64), localOid: 'a'.repeat(64) }] }),
-    null,
+    browserLanesRequired(collectPrePushProofs({ stdinText: f.pushed(head, head), git: makeGit(f.root) })),
+    false,
   );
 });
 
-function fixture(t, { browser = true, npmExit = 0 } = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'styleproof-pre-push-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+test('collector distinguishes deletion and same trees from unknown or malformed records', (t) => {
+  const f = fixture(t);
+  const git = makeGit(f.root);
+  const tree = f.git('rev-parse', 'HEAD^{tree}');
+  assert.deepEqual(collectPrePushProofs({ stdinText: f.pushed(), git }), [
+    { kind: 'same-tree', tree },
+    { kind: 'same-tree', tree },
+  ]);
+  assert.deepEqual(collectPrePushProofs({ stdinText: f.pushed('0'.repeat(40), f.base, '(delete)'), git }), [
+    { kind: 'deleted' },
+    { kind: 'same-tree', tree },
+  ]);
+  assert.equal(collectPrePushProofs({ git })[0].kind, 'unknown');
+  for (const [remote, local] of [
+    ['main', f.base],
+    [f.base, ''],
+    ['0'.repeat(40), '0'.repeat(40)],
+    ['0'.repeat(40), 'a'.repeat(64)],
+    ['0'.repeat(40), 'g'.repeat(40)],
+  ]) {
+    assert.throws(() => collectPrePushProofs({ stdinText: f.pushed(local, remote), git }), /OID|object|record/i);
+  }
+});
+
+function localProcess(root, { browser = true, npmExit = 0 } = {}) {
   const write = (file, content) => {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), content);
   };
-  for (const file of ['scripts/pre-push-e2e.mjs', 'scripts/ci-path-filters.mjs', '.github/path-filters.yml']) {
+  for (const file of ['scripts/pre-push-e2e.mjs', 'scripts/browser-lanes.mjs']) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     copyFileSync(new URL(`../${file}`, import.meta.url), join(root, file));
   }
-  write('.gitignore', 'node_modules/\nfake-bin/\nnpm-args\nchrome\n');
   write('node_modules/@playwright/test/package.json', '{"type":"module","exports":"./index.mjs"}');
   write(
     'node_modules/@playwright/test/index.mjs',
@@ -150,6 +183,24 @@ function fixture(t, { browser = true, npmExit = 0 } = {}) {
   if (browser) write('chrome', 'browser presence fixture; never executed');
   write('fake-bin/npm', `#!/bin/sh\nprintf '%s\\n' "$@" > npm-args\nexit ${npmExit}\n`);
   chmodSync(join(root, 'fake-bin/npm'), 0o755);
+  const run = (input = '', extraEnv = {}) => {
+    rmSync(join(root, 'npm-args'), { force: true });
+    return spawnSync(process.execPath, ['scripts/pre-push-e2e.mjs'], {
+      cwd: root,
+      input,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${join(root, 'fake-bin')}:${process.env.PATH}`, ...extraEnv },
+    });
+  };
+  const npmArgs = () => (existsSync(join(root, 'npm-args')) ? readFileSync(join(root, 'npm-args'), 'utf8') : null);
+  return { root, write, run, npmArgs };
+}
+
+function fixture(t, options = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'styleproof-pre-push-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { write, run, npmArgs } = localProcess(root, options);
+  write('.gitignore', 'node_modules/\nfake-bin/\nnpm-args\nchrome\n');
   const git = (...args) => {
     const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stdout}\n${result.stderr}`);
@@ -162,18 +213,8 @@ function fixture(t, { browser = true, npmExit = 0 } = {}) {
   };
   git('init', '-q');
   const base = commit();
-  const run = (input = '', extraEnv = {}) => {
-    rmSync(join(root, 'npm-args'), { force: true });
-    return spawnSync(process.execPath, ['scripts/pre-push-e2e.mjs'], {
-      cwd: root,
-      input,
-      encoding: 'utf8',
-      env: { ...process.env, PATH: `${join(root, 'fake-bin')}:${process.env.PATH}`, ...extraEnv },
-    });
-  };
   const pushed = (localOid = base, remoteOid = base, localRef = 'HEAD') =>
     `${localRef} ${localOid} refs/heads/test ${remoteOid}\n`;
-  const npmArgs = () => (existsSync(join(root, 'npm-args')) ? readFileSync(join(root, 'npm-args'), 'utf8') : null);
   return { root, write, git, commit, base, run, pushed, npmArgs };
 }
 
@@ -288,13 +329,14 @@ test('staged paths preserve literal spaces, line terminators and backslashes', (
     [
       '--input-type=module',
       '-e',
-      'import { collectPrePushFiles } from "./scripts/pre-push-e2e.mjs"; ' +
-        'console.log(JSON.stringify(collectPrePushFiles({ pushRanges: [] })));',
+      'import { collectPrePushProofs } from "./scripts/pre-push-e2e.mjs"; ' +
+        `console.log(JSON.stringify(collectPrePushProofs({ stdinText: ${JSON.stringify(f.pushed())} })));`,
     ],
     { cwd: f.root, encoding: 'utf8' },
   );
   assert.equal(collected.status, 0, collected.stderr);
-  assert.deepEqual(JSON.parse(collected.stdout).sort(), files.sort());
+  assert.equal(JSON.parse(collected.stdout).at(-1).kind, 'differs');
+  assert.notEqual(f.git('write-tree'), f.git('rev-parse', 'HEAD^{tree}'));
   const result = f.run(f.pushed());
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
@@ -316,14 +358,14 @@ for (const file of [
       [
         '--input-type=module',
         '-e',
-        'import { collectPrePushFiles } from "./scripts/pre-push-e2e.mjs"; ' +
-          `console.log(JSON.stringify(collectPrePushFiles({ stagedFiles: [], pushRanges: [{ remoteOid: ${JSON.stringify(base)}, localOid: ${JSON.stringify(head)} }] })));`,
+        'import { collectPrePushProofs } from "./scripts/pre-push-e2e.mjs"; ' +
+          `console.log(JSON.stringify(collectPrePushProofs({ stdinText: ${JSON.stringify(f.pushed(head, base))} })));`,
       ],
       { cwd: f.root, encoding: 'utf8' },
     );
     assert.equal(collected.status, 0, collected.stderr);
-    assert.deepEqual(JSON.parse(collected.stdout), [file]);
-    assert.deepEqual(Buffer.from(JSON.parse(collected.stdout)[0]), Buffer.from(file));
+    assert.equal(JSON.parse(collected.stdout)[0].kind, 'differs');
+    assert.notEqual(f.git('rev-parse', `${head}^{tree}`), f.git('rev-parse', `${base}^{tree}`));
     const result = f.run(f.pushed(head, base));
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
@@ -440,14 +482,15 @@ for (const replacedObject of ['commit', 'tree']) {
   }
 }
 
-test('empty or malformed shared policy aborts the real hook process, including an empty diff', (t) => {
+test('missing or malformed shared decider aborts the real hook process, including equal trees', (t) => {
   const f = fixture(t);
-  for (const text of ['', 'lanes:\n', "lanes:\n  - '**'\n", "lanes:\n  - '!README.md'\n"]) {
-    f.write('.github/path-filters.yml', text);
+  for (const contents of [null, 'export function {']) {
+    if (contents === null) rmSync(join(f.root, 'scripts/browser-lanes.mjs'));
+    else f.write('scripts/browser-lanes.mjs', contents);
     const head = f.commit();
     const result = f.run(f.pushed(head, head));
-    assert.equal(result.status, 1, JSON.stringify(text) + result.stdout + result.stderr);
-    assert.match(result.stderr, /lanes/);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /ERR_MODULE_NOT_FOUND|SyntaxError/);
     assert.equal(f.npmArgs(), null);
   }
 });
@@ -487,6 +530,9 @@ test('malformed push metadata fails rather than returning a docs-only success', 
     f.pushed().replace('refs/heads/test', 'heads/test'),
     f.pushed(f.base, f.base, 'refs/heads/missing'),
     f.pushed('a'.repeat(40), f.base),
+    f.pushed('0'.repeat(40), '0'.repeat(40), '(delete)'),
+    f.pushed('a'.repeat(64), '0'.repeat(40)),
+    f.pushed('g'.repeat(40), '0'.repeat(40)),
   ]) {
     const result = f.run(input);
     assert.equal(result.status, 1, `${JSON.stringify(input)}: ${result.stdout}\n${result.stderr}`);
@@ -499,11 +545,274 @@ test('Git failures abort both staged and push-range inventory collection', (t) =
   const f = fixture(t);
   const missingRange = f.run(f.pushed(f.base, 'a'.repeat(40)));
   assert.equal(missingRange.status, 1, missingRange.stdout + missingRange.stderr);
-  assert.match(missingRange.stderr, /git --no-replace-objects diff .*failed/i);
+  assert.match(missingRange.stderr, /git|tree/i);
   f.write('fake-bin/git', '#!/bin/sh\necho "fixture Git failed" >&2\nexit 69\n');
   chmodSync(join(f.root, 'fake-bin/git'), 0o755);
   const brokenGit = f.run(f.pushed());
   assert.equal(brokenGit.status, 1, brokenGit.stdout + brokenGit.stderr);
   assert.match(brokenGit.stderr, /fixture Git failed/);
   assert.equal(f.npmArgs(), null);
+});
+
+for (const row of [
+  ...contentCases,
+  ...legacyPathCases.flatMap(([title, files], i) =>
+    files.map((name, j) => ({
+      ...fileChangeCase(`legacy-${i + 1}-${j + 1}`, name, title),
+      ...(name === 'package.json' ? { before: '{"description":"base"}', after: '{"description":"changed"}' } : {}),
+    })),
+  ),
+  ...trackedBrowserCases().specs,
+  ...trackedBrowserCases().imports,
+]) {
+  test(`L ${row.id}: ${row.title} invokes the full browser gate`, (t) => {
+    const f = createContentFixture(t, row);
+    const process = localProcess(f.directory, { npmExit: 37 });
+    const result = process.run(`${f.head} ${f.head} refs/heads/pushed ${f.base}\n`);
+    assert.notEqual(f.baseTree, f.headTree, 'the real root trees differ');
+    assert.equal(result.status, 37, result.stdout + result.stderr);
+    assert.doesNotMatch(result.stdout, /skipped/);
+    assert.equal(process.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  });
+}
+
+test('M5: grafted parents cannot hide a pushed or staged CSS tree change', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  f.write('theme.css', 'body { color: black }');
+  const base = f.commit();
+  f.write('theme.css', 'body { color: magenta }');
+  const head = f.commit();
+  f.write('.git/info/grafts', `${head}\n${base} ${head}\n`);
+  for (const input of [f.pushed(head, base), f.pushed(head, head)]) {
+    if (input === f.pushed(head, head)) {
+      f.write('theme.css', 'body { color: yellow }');
+      f.git('add', 'theme.css');
+    }
+    const result = f.run(input);
+    assert.equal(result.status, 37, result.stdout + result.stderr);
+    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  }
+});
+
+for (const variable of ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE']) {
+  test(`M6: leaked ${variable} cannot hide the canonical staged CSS tree`, (t) => {
+    const f = fixture(t, { npmExit: 37 });
+    f.write('theme.css', 'body { color: black }');
+    const base = f.commit();
+    const clean = fixture(t);
+    // A real clone has the same object IDs and clean index, so ref validation alone cannot catch the leak.
+    const other = join(clean.root, 'clean-clone');
+    f.git('clone', '-q', f.root, other);
+    const savedIndex = join(clean.root, 'saved-index');
+    copyFileSync(join(f.root, '.git/index'), savedIndex);
+    f.write('theme.css', 'body { color: magenta }');
+    f.git('add', 'theme.css');
+    assert.notEqual(f.git('write-tree'), f.git('rev-parse', 'HEAD^{tree}'));
+    const value = variable === 'GIT_INDEX_FILE' ? savedIndex : variable === 'GIT_DIR' ? join(other, '.git') : other;
+    const result = f.run(f.pushed(base, base), { [variable]: value });
+    assert.equal(result.status, 37, result.stdout + result.stderr);
+    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  });
+}
+
+test('M6: core.worktree and diff.relative cannot hide a staged CSS tree', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  f.write('theme.css', 'body { color: black }');
+  const base = f.commit();
+  f.write('theme.css', 'body { color: magenta }');
+  f.git('add', 'theme.css');
+  f.git('config', 'core.worktree', dirname(f.root));
+  f.git('config', 'diff.relative', 'true');
+  assert.notEqual(f.git('write-tree'), f.git('rev-parse', 'HEAD^{tree}'));
+  const result = f.run(f.pushed(base, base));
+  assert.equal(result.status, 37, result.stdout + result.stderr);
+  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('M10: an ignored stdin descriptor still requires browser verification', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  const result = spawnSync(process.execPath, ['scripts/pre-push-e2e.mjs'], {
+    cwd: f.root,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PATH: `${join(f.root, 'fake-bin')}:${process.env.PATH}` },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 37, result.stdout + result.stderr);
+  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('M11: deletion plus a changed tree or a first push still requires browsers', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  f.write('theme.css', 'body { color: magenta }');
+  const head = f.commit();
+  const deletion = f.pushed('0'.repeat(40), f.base, '(delete)');
+  for (const remote of [f.base, '0'.repeat(40)]) {
+    const result = f.run(deletion + f.pushed(head, remote).replace('refs/heads/test', 'refs/heads/changed'));
+    assert.equal(result.status, 37, result.stdout + result.stderr);
+    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  }
+});
+
+test('M12: a tag pointing at a blob blocks a known comparison and runs on first push', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  const blob = f.git('rev-parse', 'HEAD:.gitignore');
+  f.git(
+    '-c',
+    'user.name=StyleProof Tests',
+    '-c',
+    'user.email=tests@example.test',
+    'tag',
+    '-a',
+    'blob',
+    blob,
+    '-m',
+    'blob tag',
+  );
+  const tag = f.git('rev-parse', 'refs/tags/blob');
+  for (const [remote, expected] of [
+    [f.base, 1],
+    ['0'.repeat(40), 37],
+  ]) {
+    const result = f.run(f.pushed(tag, remote, 'refs/tags/blob'));
+    assert.equal(result.status, expected, result.stdout + result.stderr);
+    assert.equal(f.npmArgs(), expected === 37 ? 'run\ntest:e2e\n--\n--workers=4\n' : null);
+  }
+});
+
+test('M14: a real shallow clone with a missing remote object blocks rather than skipping', (t) => {
+  const f = fixture(t);
+  f.write('theme.css', 'body { color: magenta }');
+  const head = f.commit();
+  const shallow = join(f.root, 'shallow');
+  f.git('clone', '-q', '--depth=1', `file://${f.root}`, shallow);
+  const p = localProcess(shallow, { npmExit: 37 });
+  const missing = spawnSync('git', ['cat-file', '-e', f.base], { cwd: shallow, encoding: 'utf8' });
+  assert.notEqual(missing.status, 0);
+  const result = p.run(`HEAD ${head} refs/heads/test ${f.base}\n`);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(p.npmArgs(), null);
+});
+
+test('M15: an unmerged index cannot supply a same-tree proof', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  const blob = f.git('rev-parse', 'HEAD:.gitignore');
+  const result = spawnSync('git', ['update-index', '--index-info'], {
+    cwd: f.root,
+    input: `100644 ${blob} 1\ttheme.css\n100644 ${blob} 2\ttheme.css\n100644 ${blob} 3\ttheme.css\n`,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const proofs = collectPrePushProofs({ stdinText: f.pushed(), git: makeGit(f.root) });
+  assert.equal(proofs.at(-1).kind, 'unknown');
+  const run = f.run(f.pushed());
+  assert.equal(run.status, 37, run.stdout + run.stderr);
+  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('M15: an unborn HEAD with staged CSS requires browsers', (t) => {
+  const f = createFixture(t);
+  const p = localProcess(f.directory, { npmExit: 37 });
+  f.setEntry('theme.css', '100644', 'body { color: magenta }');
+  const result = p.run('');
+  assert.equal(result.status, 37, result.stdout + result.stderr);
+  assert.equal(p.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('M16: missing Chromium blocks changed, first-push, and unknown-stdin paths', (t) => {
+  const f = fixture(t, { browser: false });
+  f.write('theme.css', 'body { color: magenta }');
+  const head = f.commit();
+  for (const input of [f.pushed(head, f.base), f.pushed(head, '0'.repeat(40)), '', '\n']) {
+    const result = f.run(input);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /Playwright Chromium not installed/);
+    assert.equal(f.npmArgs(), null);
+  }
+});
+
+test('M17: the full shell hook propagates e2e exit 37 after unit success', (t) => {
+  const f = fixture(t);
+  f.write('.husky/pre-push', hook);
+  f.write('fake-bin/npm', '#!/bin/sh\nprintf "%s\\n" "$*" >> npm-args\nif [ "$1" = test ]; then exit 0; fi\nexit 37\n');
+  chmodSync(join(f.root, 'fake-bin/npm'), 0o755);
+  const head = f.commit();
+  const result = spawnSync('sh', ['.husky/pre-push'], {
+    cwd: f.root,
+    input: f.pushed(head, '0'.repeat(40)),
+    env: { ...process.env, PATH: `${join(f.root, 'fake-bin')}:${process.env.PATH}` },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 37, result.stdout + result.stderr);
+  assert.equal(f.npmArgs(), 'test\nrun test:e2e -- --workers=4\n');
+});
+
+test('M7: distinct commits with an identical root tree may skip with a clean index', (t) => {
+  const f = fixture(t);
+  f.git(
+    '-c',
+    'user.name=StyleProof Tests',
+    '-c',
+    'user.email=tests@example.test',
+    'commit',
+    '--allow-empty',
+    '-m',
+    'test: metadata only',
+  );
+  const head = f.git('rev-parse', 'HEAD');
+  assert.notEqual(head, f.base);
+  assert.equal(f.git('rev-parse', `${head}^{tree}`), f.git('rev-parse', `${f.base}^{tree}`));
+  const result = f.run(f.pushed(head, f.base));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /skipped/);
+  assert.equal(f.npmArgs(), null);
+});
+
+test('M12: an annotated tag with a changed target tree runs browsers', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  f.write('theme.css', 'body { color: magenta }');
+  const head = f.commit();
+  f.git(
+    '-c',
+    'user.name=StyleProof Tests',
+    '-c',
+    'user.email=tests@example.test',
+    'tag',
+    '-a',
+    'changed',
+    head,
+    '-m',
+    'changed tag',
+  );
+  const tag = f.git('rev-parse', 'refs/tags/changed');
+  const result = f.run(f.pushed(tag, f.base, 'refs/tags/changed'));
+  assert.equal(result.status, 37, result.stdout + result.stderr);
+  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+});
+
+test('M13: full SHA-256 records retain same-tree and first-push behavior but reject mixed formats', (t) => {
+  const f = createFixture(t, { format: 'sha256' });
+  const p = localProcess(f.directory, { npmExit: 37 });
+  f.setEntry('theme.css', '100644', 'body { color: black }');
+  const base = f.commit();
+  f.git(['update-ref', 'refs/heads/test', base]);
+  f.git(['symbolic-ref', 'HEAD', 'refs/heads/test']);
+  assert.equal(base.length, 64);
+  for (const [remote, expected] of [
+    [base, 0],
+    ['0'.repeat(64), 37],
+    ['0'.repeat(40), 1],
+  ]) {
+    const result = p.run(`HEAD ${base} refs/heads/test ${remote}\n`);
+    assert.equal(result.status, expected, result.stdout + result.stderr);
+    assert.equal(p.npmArgs(), expected === 37 ? 'run\ntest:e2e\n--\n--workers=4\n' : null);
+  }
+});
+
+test('M15: deletion-only metadata cannot hide an actual staged CSS tree change', (t) => {
+  const f = fixture(t, { npmExit: 37 });
+  f.write('theme.css', 'body { color: magenta }');
+  f.git('add', 'theme.css');
+  const result = f.run(f.pushed('0'.repeat(40), f.base, '(delete)'));
+  assert.equal(result.status, 37, result.stdout + result.stderr);
+  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
 });

@@ -1465,10 +1465,11 @@ test('composite action requires approval for new-surface-only reports', () => {
   assert.match(diffStep[0], /echo "changed=true"/);
 });
 
-test('dogfood workflow path-skips non-visual PRs (lean gates)', () => {
-  // Same-repo gate stays. The path filter now lives in a `changes` job, not the trigger, so the required
-  // action-dogfood check still reports (as skipped) on docs/changelog/unit-only PRs.
-  assert.match(dogfoodYml, / {2}changes:\n[\s\S]*dorny\/paths-filter@/);
+test('dogfood workflow skips only with a tree-identity decision', () => {
+  // The same-repo guard remains. The changes job verifies the merge tree before
+  // permitting a skip, including for docs, changelog and unit-test changes.
+  assert.match(dogfoodYml, / {2}changes:\n[\s\S]*fetch-depth: 2/);
+  assert.match(dogfoodYml, /run: node scripts\/browser-lanes\.mjs --github/);
   assert.match(dogfoodYml, /needs\.changes\.outputs\.dogfood != 'false'/);
   assert.match(dogfoodYml, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
 });

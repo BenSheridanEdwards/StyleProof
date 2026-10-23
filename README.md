@@ -552,21 +552,22 @@ skipped, failed, or retried tests fail verification.
 The `browser-evidence-node-22` artifact retains the inventory, shard results, and
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
 
-Pull-request CI selects browser lanes for every nonempty path supplied by the
-GitHub changed-file API, including prose and tooling files. The shared filename
-policy has no exemptions for line terminators or literal backslashes. Push CI
-always requires browser lanes, including empty-tree pushes, without relying on
-Git's changed-file inventory.
+Pull-request CI skips browser lanes only after proving that the checked-out
+two-parent merge has the event's base as its first parent and exactly the same
+root Git tree as that base. `scripts/browser-lanes.mjs` makes this decision
+without listing filenames or querying the changed-file API. Any tracked content,
+name, mode or gitlink difference runs the lanes, including prose and tooling
+changes. Unknown or invalid evidence runs them too. Push CI always runs them,
+including empty-tree pushes. The live StyleProof dogfood job always runs for
+eligible PRs because it compares the PR head with its base, not the merge tree.
 `npm run demo:check` compares demo Markdown and HTML plus decoded crop pixels.
-The local pre-push check runs the full browser suite for staged or pushed changes
-and unknown inventories, including a new branch with no remote base. Its staged
-and pushed diffs use `--ignore-submodules=none`, so tracked or local submodule
-ignore settings cannot hide changed gitlinks. They also disable Git replacement
-objects so local replacement refs cannot substitute unchanged trees.
-A successful empty collection may
-skip it, including a ref-deletion-only push with no staged paths. Deleted files
-still require browser checks. Missing Chromium, malformed push metadata and
-unreadable Git changes block the push. Install Chromium with
+The local pre-push check uses the same proof policy over pushed endpoint trees
+and the staged index. Git reads disable replacement objects and remove local Git
+environment overrides. An up-to-date or deletion-only push may skip browsers
+only with an unchanged staged tree; first pushes and missing metadata run them.
+A file deletion still changes the tree. Missing Chromium or malformed push
+records block the push; unreadable Git evidence runs browsers or blocks it.
+The browser command checks the current checkout. Install Chromium with
 `npx playwright install chromium` before pushing changes.
 
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)

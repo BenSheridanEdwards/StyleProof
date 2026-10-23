@@ -7,7 +7,7 @@ unset $(git rev-parse --local-env-vars)
 npm test
 
 echo "› browser e2e (shared path policy)"
-# Use the shared CI path policy for staged and pushed files. Unknown first-push
-# ranges require the full browser suite; missing Chromium or unreadable inputs
-# fail the push instead of silently skipping browser verification.
+# Share CI's tree-proof decision for staged and pushed content. Only proven
+# equal trees or deletions may skip; unknown ranges require the full browser
+# suite, and missing Chromium or unreadable inputs fail the push.
 node scripts/pre-push-e2e.mjs
