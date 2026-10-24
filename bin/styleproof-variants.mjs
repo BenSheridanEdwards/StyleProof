@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { chromium } from '@playwright/test';
 import { harvestStyleVariants } from '../dist/variant-crawler.js';
 import { defaultLinkKey } from '../dist/crawl.js';
-import { defineCli, number } from './cli.mjs';
+import { defineCli, exitWhenDrained, number } from './cli.mjs';
 
 const NAME = 'styleproof-variants';
 const OUTCOMES = ['captured', 'deduplicated', 'skipped', 'timed-out', 'requires-fixture'];
@@ -65,7 +65,8 @@ try {
     `${sum((route) => route.variants)} variant(s), ${liveStates} live-state candidate(s), ${skipped} skipped candidate(s)`,
   );
   console.log(`state coverage: ${OUTCOMES.map((outcome) => `${count(outcome)} ${outcome}`).join(', ')}`);
-  if (opts.strict && (liveStates || skipped || unresolved)) process.exit(1);
+  // Drain rather than process.exit(), which can deadlock after the crawl and would skip closing the browser.
+  if (opts.strict && (liveStates || skipped || unresolved)) exitWhenDrained(1);
 } finally {
   await browser.close();
 }

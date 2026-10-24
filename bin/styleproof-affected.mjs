@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { projectConfigOrExit } from '../dist/cli-errors.js';
 import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 import { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from '../dist/affected-surfaces.js';
-import { defineCli, fail, gitOutput, readJson } from './cli.mjs';
+import { defineCli, exitWhenDrained, fail, gitOutput, readJson } from './cli.mjs';
 
 const NAME = 'styleproof-affected';
 const cli = defineCli({
@@ -132,4 +132,5 @@ if (opts.json) {
 } else {
   console.log(explanation);
 }
-process.exit(result === 'all' ? 3 : 0);
+// After the git and import-graph work, exit by draining rather than process.exit(), which can deadlock.
+exitWhenDrained(result === 'all' ? 3 : 0);
