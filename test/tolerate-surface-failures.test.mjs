@@ -437,6 +437,66 @@ exit 1
   }
 });
 
+/** A checkout whose stub Playwright writes one map and a fatal self-check marker, then fails. */
+function fatalCaptureCheckout(root) {
+  const spec = path.join(root, 'e2e/styleproof.spec.ts');
+  fs.mkdirSync(path.dirname(spec), { recursive: true });
+  fs.writeFileSync(spec, '// fake spec');
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  const binDir = path.join(root, 'fake-bin');
+  fs.mkdirSync(binDir);
+  const fakePlaywright = path.join(binDir, 'playwright');
+  fs.writeFileSync(
+    fakePlaywright,
+    `#!/bin/sh
+case "$STYLEMAP_DIR" in /*) out="$STYLEMAP_DIR" ;; *) out="$STYLEPROOF_BASEDIR/$STYLEMAP_DIR" ;; esac
+mkdir -p "$out"
+touch "$out/home@900.json"
+printf '%s\\n' 'styleproof self-check failed: home is non-deterministic' > "$out/styleproof-fatal-capture.flag"
+exit 1
+`,
+  );
+  fs.chmodSync(fakePlaywright, 0o755);
+  return { spec, env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` } };
+}
+
+test('styleproof-map: a --dir that holds the checkout exits 2 before capture, so a fatal failure cannot delete it (#1065)', () => {
+  const root = mkTmp();
+  try {
+    const { spec, env } = fatalCaptureCheckout(root);
+    fs.writeFileSync(path.join(root, 'NOTES.txt'), 'uncommitted work\n');
+    const r = run(MAP, ['--spec', spec, '--dir', root, '--no-upload'], env, root);
+    assert.ok(fs.existsSync(path.join(root, '.git')), 'the checkout keeps .git');
+    assert.ok(fs.existsSync(path.join(root, 'NOTES.txt')), 'the checkout keeps the uncommitted file');
+    assert.equal(r.status, 2, r.stderr + r.stdout);
+    assert.match(r.stderr, /is or contains the working directory/);
+    assert.doesNotMatch(r.stderr, /fatal self-check failure/, 'refused before any capture ran');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: a fatal self-check failure discards only the files the capture wrote (#1065)', () => {
+  const root = mkTmp();
+  try {
+    const { spec, env } = fatalCaptureCheckout(root);
+    const targetDir = path.join(root, 'maps', 'base');
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'NOTES.txt'), 'kept\n');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'base', '--base-dir', path.join(root, 'maps'), '--no-upload'],
+      env,
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.match(r.stderr, /fatal self-check failure/i);
+    assert.deepEqual(fs.readdirSync(targetDir), ['NOTES.txt'], 'the maps go, the file StyleProof did not write stays');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map: an unreadable fatal marker is still fatal, never "no failure"', () => {
   const root = mkTmp();
   try {

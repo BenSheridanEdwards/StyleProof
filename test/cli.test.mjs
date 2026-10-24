@@ -1316,6 +1316,95 @@ test('styleproof-map --restore exits 4 when the map store branch does not exist'
   rmTmp(repo);
 });
 
+// #1065: a restore clears its target, so the target must be a folder that holds only maps.
+const restoreInto = (repo, sha, dirArgs) =>
+  runIn(repo, MAP, ['--restore', '--sha', sha, ...dirArgs], {
+    env: { BASE_URL: undefined, STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+  });
+
+test('styleproof-map --restore refuses a --dir that holds the checkout, --base-dir or Git metadata and deletes nothing (#1065)', () => {
+  const { repo, headSha } = setupCachedComparison();
+  const scratch = mkTmp('styleproof-map-alias-');
+  try {
+    fs.writeFileSync(path.join(repo, 'NOTES.txt'), 'uncommitted work\n');
+    const otherLabel = path.join(repo, '.styleproof', 'maps', 'other', 'home@1280.json.gz');
+    fs.mkdirSync(path.dirname(otherLabel), { recursive: true });
+    fs.writeFileSync(otherLabel, 'another label\n');
+    const headFile = path.join(repo, '.git', 'HEAD');
+    const headBytes = fs.readFileSync(headFile);
+    const alias = path.join(scratch, 'checkout');
+    fs.symlinkSync(repo, alias, 'dir');
+    for (const [dirArgs, held] of [
+      [['--dir', repo], /is or contains the working directory/],
+      [['--dir', alias], /is or contains the working directory/],
+      [['--base-dir', '.', '--dir', '.'], /is or contains the working directory/],
+      [['--dir', '.'], /is or contains --base-dir/],
+      [['--base-dir', '.git', '--dir', 'maps'], /is within or contains a Git directory/],
+      [['--dir', path.join(alias, '.git', 'missing')], /is within or contains a Git directory/],
+    ]) {
+      const label = dirArgs.join(' ');
+      const r = restoreInto(repo, headSha, dirArgs);
+      assert.ok(fs.existsSync(path.join(repo, 'e2e', 'styleproof.spec.ts')), `${label} must keep the checkout`);
+      assert.ok(fs.existsSync(path.join(repo, 'NOTES.txt')), `${label} must keep the uncommitted file`);
+      assert.ok(fs.existsSync(headFile), `${label} must keep .git`);
+      assert.deepEqual(fs.readFileSync(headFile), headBytes, `${label} must keep .git/HEAD`);
+      assert.ok(fs.existsSync(otherLabel), `${label} must keep every other label's maps`);
+      assert.equal(r.status, 2, `${label}: ${r.stderr}`);
+      assert.match(r.stderr, held, label);
+    }
+  } finally {
+    rmTmp(repo);
+    rmTmp(scratch);
+  }
+});
+
+test('styleproof-map --restore into a label folder replaces stale maps and keeps files it did not write (#1065)', () => {
+  const { repo, headSha } = setupCachedComparison();
+  try {
+    const label = path.join(repo, '.styleproof', 'maps', 'head');
+    fs.mkdirSync(label, { recursive: true });
+    for (const stale of ['home@1280.json.gz', 'gone@1280.json.gz', 'gone@1280.png', 'gone@1280.har'])
+      fs.writeFileSync(path.join(label, stale), 'an earlier run\n');
+    fs.writeFileSync(path.join(label, 'NOTES.txt'), 'kept\n');
+    const r = restoreInto(repo, headSha, ['--dir', 'head']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(fs.readdirSync(label).sort(), [
+      'NOTES.txt',
+      'home@1280.json.gz',
+      'styleproof-coverage.json',
+      MAP_MANIFEST,
+    ]);
+    assert.notEqual(fs.readFileSync(path.join(label, 'home@1280.json.gz'), 'utf8'), 'an earlier run\n');
+    assert.equal(fs.readFileSync(path.join(label, 'NOTES.txt'), 'utf8'), 'kept\n');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
+test('styleproof-map --restore of a bundle with an invalid manifest leaves the folder as it was (#1065)', () => {
+  const { repo, headSha } = setupCachedComparison({
+    seedHead: (dir) => fs.writeFileSync(path.join(dir, MAP_MANIFEST), '{"version":1}\n'),
+  });
+  try {
+    const label = path.join(repo, '.styleproof', 'maps', 'head');
+    fs.mkdirSync(label, { recursive: true });
+    fs.writeFileSync(path.join(label, 'home@1280.json.gz'), 'the previous restore\n');
+    fs.writeFileSync(path.join(label, MAP_MANIFEST), 'the previous manifest\n');
+    const snapshot = () =>
+      fs
+        .readdirSync(label)
+        .sort()
+        .map((name) => [name, fs.readFileSync(path.join(label, name), 'utf8')]);
+    const before = snapshot();
+    const r = restoreInto(repo, headSha, ['--dir', 'head']);
+    assert.equal(r.status, 5, r.stderr);
+    assert.match(r.stderr, /invalid styleproof-manifest\.json/);
+    assert.deepEqual(snapshot(), before, 'a bundle that fails validation must not clear the folder');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
 // #959: the upload keys the bundle by the job's BASE_URL, so the restore lookup must too.
 for (const baseUrl of ['http://127.0.0.1:3000', '', undefined]) {
   test(`styleproof-map --restore finds the bundle --upload published with BASE_URL=${JSON.stringify(baseUrl)} (#959)`, () => {
