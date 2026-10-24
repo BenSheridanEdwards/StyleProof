@@ -538,7 +538,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   refused too. A restore now checks the manifest first, so an invalid bundle
   leaves the folder as it was. A restore or a discarded capture now clears only
   the files a capture writes (maps, screenshots, HAR recordings and
-  StyleProof's sidecars), so other files in the folder survive (#1065).
+  StyleProof's sidecars), so other files in the folder survive. HAR cleanup
+  after a capture now removes only the recordings at the top of the folder, so
+  HAR files in its subfolders survive too. A `--dir` that is a file exits 2
+  instead of reporting a map-store fault (#1065).
 - **The report comment is updated in place on long threads, and a person's
   comment is never overwritten (#968).** The Action read only the first 100
   comments on the pull request. Once 100 came before its report comment, every
