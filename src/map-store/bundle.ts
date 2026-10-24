@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { COVERAGE_LEDGER } from '../coverage.js';
-import { sha256 } from '../node-util.js';
+import { removeDirRecursive, sha256 } from '../node-util.js';
 import { readRegularFileNoFollow } from '../safe-filesystem.js';
 import { boundedText, readJsonSidecar } from './json.js';
 
@@ -90,6 +90,15 @@ export function clearCaptureOutput(dir: string): void {
   for (const { name, target, stat } of classified) {
     const recursive = name === SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory() && !stat.isSymbolicLink();
     fs.rmSync(target, { force: true, recursive });
+  }
+}
+
+/** Remove every top-level entry a capture or restore writes (maps, screenshots, HAR recordings,
+ *  sidecars), whatever its type, and keep every other file and the folder itself (#1065). */
+export function removeOwnedBundleEntries(dir: string): void {
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir)) {
+    if (isOwnedCaptureArtifact(name) || name.endsWith('.har')) removeDirRecursive(path.join(dir, name));
   }
 }
 

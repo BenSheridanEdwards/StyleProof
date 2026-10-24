@@ -30,6 +30,7 @@ import {
   readCaptureTestOutcomes,
   readFatalCaptureFailure,
   readSurfaceCaptureFailures,
+  removeOwnedBundleEntries,
   restoreMapBundle,
   workingTreeDirty,
   writeMapManifest,
@@ -45,6 +46,7 @@ import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determin
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
 import { classifyColdReasonFromMissMessage, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
+import { isWithinDirectory } from '../dist/safe-filesystem.js';
 import { defineCli, errorMessage, fail, filesUnder, runBin } from './cli.mjs';
 import { decodeSpecPathEnv } from './spec-path-env.mjs';
 
@@ -268,6 +270,48 @@ function runVariantCrawl(captureEnvironment) {
 
 // An absolute --dir is respected as-is; a relative one nests under baseDir.
 const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
+// A restore or a failed capture clears targetDir, so refuse one that holds the checkout, the map
+// root or Git metadata before touching anything (#1065, as #943 for styleproof-ci). Real paths,
+// resolved through the nearest existing parent, so a symlinked or missing spelling cannot slip past.
+const realPath = (p) => {
+  let existing = path.resolve(p);
+  while (!fs.existsSync(existing)) existing = path.dirname(existing);
+  return path.join(fs.realpathSync(existing), path.relative(existing, path.resolve(p)));
+};
+const realTarget = realPath(targetDir);
+for (const [held, what] of [
+  [process.cwd(), 'the working directory'],
+  [baseDir, '--base-dir'],
+]) {
+  const realHeld = realPath(held);
+  if (isWithinDirectory(realTarget, realHeld))
+    fail(
+      NAME,
+      `--dir ${realTarget} is or contains ${what} (${realHeld}); use a folder that holds only StyleProof maps`,
+    );
+}
+// Outside a Git repository rev-parse fails and there is no Git metadata to protect.
+const gitDirs = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir'], {
+  encoding: 'utf8',
+});
+for (const gitDir of gitDirs.status === 0 ? gitDirs.stdout.split(/\r?\n/).filter(Boolean) : []) {
+  const realGitDir = realPath(gitDir);
+  if (isWithinDirectory(realGitDir, realTarget) || isWithinDirectory(realTarget, realGitDir))
+    fail(
+      NAME,
+      `--dir ${realTarget} is within or contains a Git directory (${realGitDir}); use a folder that holds only StyleProof maps`,
+    );
+}
+
+/** Discard a capture that must not publish: only what a capture writes, then the folder if that emptied it. */
+function discardCapture() {
+  removeOwnedBundleEntries(targetDir);
+  try {
+    fs.rmdirSync(targetDir);
+  } catch {
+    // Files StyleProof did not write are still there; they stay.
+  }
+}
 
 if (opts.restore) {
   const restoreSide = dir === 'base' || dir === 'head' ? dir : 'restore';
@@ -408,7 +452,7 @@ if (fatalCaptureFailure) {
   console.error(
     `${NAME}: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
   );
-  removeTree(targetDir);
+  discardCapture();
   process.exit(status || 1);
 }
 // Publish survivors ONLY when EVERY failed test is a ledgered surface failure (head/default AND tolerate).
@@ -523,7 +567,7 @@ function proveDeterminismOrDie() {
   }
   if (oracleExit !== 0) {
     console.error(`${NAME}: discarding the capture — an unproven bundle must never become a baseline`);
-    removeTree(targetDir);
+    discardCapture();
     process.exit(oracleExit);
   }
 }
