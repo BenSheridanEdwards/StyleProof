@@ -5,7 +5,7 @@ import path from 'node:path';
 import { validateComponentManifest } from '../dist/component-manifest.js';
 import { componentManifestInventory } from '../dist/component-inventory.js';
 import { discoverComponentFiles } from '../dist/components.js';
-import { defineCli, readJson, run } from './cli.mjs';
+import { defineCli, exitWhenDrained, readJson, run } from './cli.mjs';
 
 const NAME = 'styleproof-components';
 const cli = defineCli({
@@ -33,7 +33,7 @@ await run(
       discoverComponentFiles({ cwd, roots: opts['component-root'] }),
     );
     process.stdout.write(`${JSON.stringify(inventory, null, 2)}\n`);
-    if (inventory.uncovered.length && !opts['uncovered-ok']) process.exit(1);
+    if (inventory.uncovered.length && !opts['uncovered-ok']) exitWhenDrained(1);
   },
   { exitCode: 2 },
 );

@@ -13,21 +13,29 @@ export function fail(name, message, code = 2) {
   process.exit(code);
 }
 
+/** End the command with `code` once pending work drains, instead of process.exit(). Calling
+ *  process.exit() right after heavy work can deadlock inside Node: it joins V8's worker threads
+ *  while one of them waits for the main thread to collect garbage (the nodejs/node#54918 class of
+ *  shutdown hang), leaving the process idle at 0% CPU forever. A natural exit tears V8 down first.
+ *  The unref'd fallback fires only if a leaked handle still holds the event loop open by then. */
+export function exitWhenDrained(code, fallbackMs = 10_000) {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), fallbackMs).unref();
+}
+
 export function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Run `main`; any thrown error becomes `<name>: <message>` + exit code.
+/** Run `main`; any thrown error becomes `<name>: <message>` + exit code, set to take effect once
+ *  pending work drains (exitWhenDrained), so `await run(…)` must be the command's last statement.
  *  `annotate` prints `::error::StyleProof: <message>` instead, so a workflow shows it inline. */
 export async function run(name, main, { exitCode = 1, annotate = false } = {}) {
   try {
     await main();
   } catch (error) {
-    if (annotate) {
-      console.error(`::error::StyleProof: ${errorMessage(error)}`);
-      process.exit(error?.exitCode ?? exitCode);
-    }
-    fail(name, errorMessage(error), error?.exitCode ?? exitCode);
+    console.error(annotate ? `::error::StyleProof: ${errorMessage(error)}` : `${name}: ${errorMessage(error)}`);
+    exitWhenDrained(error?.exitCode ?? exitCode);
   }
 }
 

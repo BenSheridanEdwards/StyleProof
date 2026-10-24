@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { defineCli } from '../bin/cli.mjs';
+import { spawnSyncBounded } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CLI_KIT = path.join(here, '..', 'bin', 'cli.mjs');
@@ -88,6 +89,71 @@ test('cli kit: run() with annotate prints a GitHub Actions error annotation', ()
   );
   assert.equal(res.status, 1);
   assert.match(res.stderr, /^::error::StyleProof: boom$/m);
+});
+
+// Reports every process.exit() call on stderr, then exits as asked.
+const EXIT_SPY = `const exit = process.exit;
+  process.exit = (code) => { process.stderr.write('process.exit(' + code + ') called\\n'); exit(code); };`;
+
+test('cli kit: exitWhenDrained exits with the code once work drains, never through process.exit()', () => {
+  const started = Date.now();
+  const res = spawnSyncBounded(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { exitWhenDrained } from ${JSON.stringify(CLI_KIT)};
+       ${EXIT_SPY}
+       exitWhenDrained(4);
+       setTimeout(() => console.log('pending work finished'), 50);`,
+    ],
+    { encoding: 'utf8' },
+  );
+  assert.equal(res.status, 4, res.stderr);
+  assert.match(res.stdout, /pending work finished/);
+  assert.doesNotMatch(res.stderr, /process\.exit/);
+  assert.ok(Date.now() - started < 5_000, 'a drained loop exits at once, not at the fallback');
+});
+
+test('cli kit: exitWhenDrained forces the exit when a leaked handle holds the loop open', () => {
+  const started = Date.now();
+  const res = spawnSyncBounded(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { exitWhenDrained } from ${JSON.stringify(CLI_KIT)};
+       ${EXIT_SPY}
+       setInterval(() => {}, 1_000);
+       exitWhenDrained(5, 300);`,
+    ],
+    { encoding: 'utf8', timeout: 10_000 },
+  );
+  assert.equal(res.status, 5, res.stderr || res.error?.message);
+  assert.match(res.stderr, /process\.exit\(5\) called/);
+  assert.ok(Date.now() - started < 5_000, `fallback exit took ${Date.now() - started}ms`);
+});
+
+test('cli kit: run() ends a failed command with its exit code by draining, never through process.exit()', () => {
+  for (const [annotate, line] of [
+    [false, /^kit: boom$/m],
+    [true, /^::error::StyleProof: boom$/m],
+  ]) {
+    const res = spawnSyncBounded(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `import { run } from ${JSON.stringify(CLI_KIT)};
+         ${EXIT_SPY}
+         await run('kit', async () => { throw Object.assign(new Error('boom'), { exitCode: 5 }); }, { annotate: ${annotate} });`,
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.equal(res.status, 5, res.stderr);
+    assert.match(res.stderr, line);
+    assert.doesNotMatch(res.stderr, /process\.exit/);
+  }
 });
 
 test('the publish and report-prune commands keep the ::error:: annotation on failure', async () => {
