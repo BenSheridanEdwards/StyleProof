@@ -22,7 +22,8 @@ evidence a real browser records during capture:
 - **J1**: a changed served CSS rule must match an element StyleProof compares
   (CSS rule usage).
 - **J2**: a changed line of render code must run (V8 block coverage resolved
-  through source maps).
+  through source maps). For a non-class value, running alone does not prove it
+  rendered (item 5).
 - **J3**: a changed class token must land on a captured element (a class-list
   delta between base and head).
 
@@ -31,7 +32,7 @@ the joins on a fixture whose spec opens only the healthy state:
 
 | Scenario                    | Today's diff shows | Prototype reach joins                           |
 | --------------------------- | ------------------ | ----------------------------------------------- |
-| declared (healthy state)    | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR |
+| declared (healthy state)    | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (non-class value, rendering not proved) |
 | complete (all five states)  | 12 of 13 changes   | mark every rendered change reached              |
 
 The same corpus pins one noise case: a changed error-handler string that never
@@ -66,7 +67,9 @@ the evidence adds to a capture on a GitHub runner:
    was cleared by approval, and no run-level evidence gap remains (item 4).
    An empty unit list alone proves nothing. Only a reach-complete green means:
    every changed served CSS rule matched an element StyleProof compared, every
-   changed line of render code ran, every changed class token reached a captured
+   changed line of render code ran, every changed non-class value (item 5) was
+   corroborated as rendered by a `reached` J1 or J3 unit from the same changed
+   line, every changed class token reached a captured
    element, and every computed-style difference those states produced is in the
    report. Every other green carries a visible,
    non-certifying **"Reach incomplete"** status with a count per status and every
@@ -151,11 +154,19 @@ the evidence adds to a capture on a GitHub runner:
    likewise produces a run-level `unmeasured` row naming the missing evidence.
    Those rows stay at `'warn'` under either level and prevent reach-complete.
 5. **Named residuals.** These stay documented, not hidden:
-   - non-class values defined at module scope (style objects, runtime CSS-in-JS
-     templates, numeric theme constants). J3 cannot see them, and J2 sees only
-     module evaluation. A changed line whose only J2 evidence is module evaluation,
-     with no J1 or J3 corroboration, reads `unknown` ("module-scope value;
-     rendering not proved"), never `reached`, so it surfaces in the report;
+   - non-class values (style objects, inline `style` values, runtime CSS-in-JS
+     templates, numeric theme constants) at any lexical scope: module, component
+     or render body, hook, helper or memo. J3 cannot see them, and J2 proves only
+     that the line executed, not that the value reached a rendered element. A
+     value computed on every render but applied only inside an uncaptured branch
+     (for example, `const faultStyle = { color: 'red' }` in `App()`, used only by
+     an unopened fault overlay) executes on healthy captures without rendering.
+     A changed line that defines or changes such a value reads `unknown`
+     ("non-class value; rendering not proved"), never `reached`, unless a J1 or
+     J3 unit derived from that same changed line is `reached`. A J1 or J3 unit
+     from another line or hunk never corroborates it (item 4). When reach cannot
+     tell whether a changed line defines a value, it treats the line as one. The
+     line surfaces in the report and prevents reach-complete;
    - consequences of a reached change in uncaptured states (item 2);
    - dependency JavaScript that changed without a source diff cannot be
      attributed to a unit until a served-sources diff exists. Until then it is a
@@ -177,7 +188,7 @@ the evidence adds to a capture on a GitHub runner:
    | `never-rendered` | named finding "Changed but never rendered" | certify: `CERTIFICATION_FAILED`; review-gate: needs review | named finding | no |
    | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
    | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
-   | `unknown` | named finding with the reason (legacy or partial ledger, module-scope value) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
+   | `unknown` | named finding with the reason (legacy or partial ledger, non-class value without rendering proof) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
    | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
    | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
    | `unknown`, run-level dependency gap | named finding naming the changed packages (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
@@ -228,8 +239,10 @@ the evidence adds to a capture on a GitHub runner:
   report, including on a reach-complete run.
 - `bench/reach-corpus.mjs --check` is the oracle. Phase 1 and 2 replace its
   prototype joins with `src/` code and keep its expectations, with one change:
-  the `runtime-css-in-js` scenario is expected as `unknown`, not `reached`
-  (follow-up on PR #1031 / Phase 1).
+  the `runtime-css-in-js` scenario is expected as `unknown`, not `reached`, and
+  a scenario is added for a render-scope value applied only in an unopened
+  state (a component-body `faultStyle` used only by the fault overlay),
+  expected as `unknown` (follow-up on PR #1031 / Phase 1).
 
 ## Alternatives rejected
 
@@ -250,5 +263,5 @@ the evidence adds to a capture on a GitHub runner:
   default level and whether J2 can gate;
 - a served-sources diff exists: dependency changes can be attributed to units
   instead of a run-level gap;
-- J2 can attribute a module-scope value to a rendered element: module-scope
-  lines can move from `unknown` to `reached`.
+- J2 can attribute a non-class value to a rendered element: such lines, at any
+  scope, can move from `unknown` to `reached`.
