@@ -27,13 +27,13 @@ test('the required step reads the tree decision, proof and every needed job resu
 test('product change with complete browser proof passes', () => {
   const { passed, output } = runRequired(productChange());
   assert.ok(passed, output);
-  assert.match(output, /browser paths changed; e2e shards, evidence and detection corpus must succeed/);
+  assert.match(output, /trees differ or are unproven; e2e shards, evidence and detection corpus must succeed/);
 });
 
 test('proven identical trees with planned browser skips pass', () => {
   const { passed, output } = runRequired(sameTreeChange());
   assert.ok(passed, output);
-  assert.match(output, /no browser paths changed; browser lanes may skip/);
+  assert.match(output, /same-tree proof present; browser lanes may skip/);
 });
 
 test('product change rejects all browser lanes skipped', () => {
@@ -63,13 +63,13 @@ for (const lane of browserLanes) {
 }
 
 for (const result of ['failure', 'cancelled', 'skipped']) {
-  test(`a path filter that ended '${result}' is not trusted, even if it said false`, () => {
+  test(`a tree proof job that ended '${result}' is not trusted, even if it said false`, () => {
     const { passed, output } = runRequired(
       sameTreeChange({ changes: { result, outputs: { e2e: 'false', e2e_proof: `same-tree:${'a'.repeat(40)}` } } }),
     );
     assert.equal(passed, false, output);
     assert.match(output, /CHANGES_RESULT was/);
-    assert.match(output, /untrusted \(path filter did not succeed\)/);
+    assert.match(output, /untrusted \(tree proof job did not succeed\)/);
   });
 }
 
@@ -133,7 +133,7 @@ for (const [label, proof] of [
       const outputs = { e2e: 'false', ...(proof === undefined ? {} : { e2e_proof: proof }) };
       const { passed, output } = runRequired(fixture({ changes: { result: 'success', outputs } }));
       assert.equal(passed, false, output);
-      assert.match(output, /Path decision 'false' without same-tree proof/);
+      assert.match(output, /Tree proof decision 'false' without same-tree proof/);
     });
   }
 }

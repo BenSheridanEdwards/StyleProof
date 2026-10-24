@@ -51,7 +51,14 @@ export const GUARDS = [
   { area: 'CI workflows', paths: [/^\.github\/workflows\//] },
   { area: 'Git hooks', paths: [/^\.husky\//] },
   { area: 'Lint config', paths: [/^eslint\.config\.js$/, /^commitlint\.config\.js$/] },
-  { area: 'Repo checks', paths: [/^scripts\/check-suppressions\.mjs$/, /^scripts\/check-context-layer\.mjs$/] },
+  {
+    area: 'Repo checks',
+    paths: [
+      /^scripts\/check-suppressions\.mjs$/,
+      /^scripts\/check-context-layer\.mjs$/,
+      /^scripts\/browser-lanes\.mjs$/,
+    ],
+  },
 ];
 
 /** The most files "list pull request files" returns; past it, guarded files can hide. */

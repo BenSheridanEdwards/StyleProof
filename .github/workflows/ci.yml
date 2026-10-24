@@ -302,17 +302,17 @@ jobs:
           done
           # Trust the decision only when the changes job itself succeeded.
           decision="${E2E_DECISION:-}"
-          [ "${CHANGES_RESULT:-}" = success ] || decision="untrusted (path filter did not succeed)"
+          [ "${CHANGES_RESULT:-}" = success ] || decision="untrusted (tree proof job did not succeed)"
           case "$decision" in
-            true) echo "Path filter: browser paths changed; e2e shards, evidence and detection corpus must succeed" ;;
+            true) echo "Tree proof: trees differ or are unproven; e2e shards, evidence and detection corpus must succeed" ;;
             false)
               if [[ "${E2E_PROOF:-}" =~ ^same-tree:([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
-                echo "Path filter: no browser paths changed; browser lanes may skip"
+                echo "Tree proof: same-tree proof present; browser lanes may skip"
               else
-                reject "Path decision 'false' without same-tree proof ('${E2E_PROOF:-}')"
+                reject "Tree proof decision 'false' without same-tree proof ('${E2E_PROOF:-}')"
               fi
               ;;
-            *) reject "Path filter e2e decision was '$decision' (want true or false); browser lanes must succeed" ;;
+            *) reject "Tree proof e2e decision was '$decision' (want true or false); browser lanes must succeed" ;;
           esac
           for name in E2E_RESULT E2E_EVIDENCE_RESULT DETECTION_CORPUS_RESULT; do
             val="${!name:-}"

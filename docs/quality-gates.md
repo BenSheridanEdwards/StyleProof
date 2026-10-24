@@ -64,7 +64,7 @@ These proposals await maintainer agreement; they are not implemented here:
 
 - F1: restore reviewed path exemptions only with a reconstructed-tree proof.
 - F2: run local browsers against each pushed commit instead of the current checkout.
-- F3: guard the decider under ADR 0008 and consider evaluating base-owned code.
+- F3: evaluate the decider from base-owned code (guarding it under ADR 0008 is done).
 - F4: correct the separate late-tracker wording in `docs/REFERENCE.md`.
 
 ## Shared PR body

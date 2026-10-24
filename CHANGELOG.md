@@ -383,6 +383,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The served-rules browser spec uses a
   per-test loopback server so inspector re-fetches no longer depend on fake-host
   DNS. Product capture and report behavior are unchanged.
+  Edits to `scripts/browser-lanes.mjs` now require enforcement sign-off.
 
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed

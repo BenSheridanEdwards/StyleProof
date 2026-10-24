@@ -62,6 +62,7 @@ for (const [file, area] of [
   ['commitlint.config.js', 'Lint config'],
   ['scripts/check-suppressions.mjs', 'Repo checks'],
   ['scripts/check-context-layer.mjs', 'Repo checks'],
+  ['scripts/browser-lanes.mjs', 'Repo checks'],
 ]) {
   test(`guards ${file} as ${area}`, () => {
     assert.deepEqual(guardedPaths([{ filename: file }]), [file]);

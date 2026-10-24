@@ -1,8 +1,75 @@
 import assert from 'node:assert/strict';
+import childProcess from 'node:child_process';
 import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
-import { contentCases, createContentFixture, fileChangeCase } from './helpers/browser-lanes-fixtures.mjs';
+import { fileURLToPath } from 'node:url';
+import {
+  contentCases,
+  createContentFixture,
+  fileChangeCase,
+  trackedBrowserCases,
+} from './helpers/browser-lanes-fixtures.mjs';
+
+function mockTrackedInputs(t, files, untracked = []) {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const entries = new Map([
+    ['test/helpers.mjs', ''],
+    ['test/phase1-foundation-harness-lib.ts', ''],
+    ['bench/detection-rate.mjs', ''],
+    ...Object.entries(files),
+  ]);
+  t.mock.method(childProcess, 'spawnSync', (command, args) => {
+    assert.equal(command, 'git');
+    assert.deepEqual(args, ['ls-files', '-z']);
+    return { status: 0, stdout: [...entries.keys()].filter((name) => !untracked.includes(name)).join('\0') };
+  });
+  t.mock.method(fs, 'existsSync', (file) => entries.has(path.relative(root, file)));
+  t.mock.method(fs, 'readFileSync', (file, encoding) => {
+    const name = path.relative(root, file);
+    assert.ok(entries.has(name), `fixture contains ${name}`);
+    return encoding ? entries.get(name) : Buffer.from(entries.get(name));
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
+}
+
+test('tracked browser imports use source files without a built dist', (t) => {
+  mockTrackedInputs(t, {
+    'test/tracked.e2e.spec.ts': [
+      "import { capture } from '../dist/index.js';",
+      "import { runner } from '../dist/runner/capture.js';",
+      "import { shared } from '../dist/report/shared.js';",
+      "import { support } from './support.js';",
+    ].join('\n'),
+    'src/index.ts': 'export const capture = 1;',
+    'src/runner/capture.ts': 'export const runner = 2;',
+    'src/report/shared.ts': 'export const shared = 3;',
+    'test/support.ts': 'export const support = 4;',
+  });
+  const { imports } = trackedBrowserCases();
+  assert.deepEqual(
+    imports.map(({ name }) => name),
+    ['src/index.ts', 'src/report/shared.ts', 'src/runner/capture.ts', 'test/support.ts'],
+  );
+  assert.equal(imports[0].before.toString(), 'export const capture = 1;');
+});
+
+test('tracked browser imports reject existing files that are not tracked', (t) => {
+  mockTrackedInputs(
+    t,
+    {
+      'test/tracked.e2e.spec.ts': "import { ignored } from './ignored.mjs';",
+      'test/ignored.mjs': 'export const ignored = true;',
+    },
+    ['test/ignored.mjs'],
+  );
+  assert.throws(() => trackedBrowserCases(), /test\/tracked\.e2e\.spec\.ts imports tracked test\/ignored\.mjs/);
+});
 
 test('prepared content fixtures keep independent objects, refs, config and index', (t) => {
   const first = createContentFixture(t, contentCases[0]);

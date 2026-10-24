@@ -433,10 +433,13 @@ export function trackedBrowserCases() {
       .matchAll(/(?:from|import\()\s*['"](\.[^'"]+)['"]/g)) {
       const target = path.posix.join(path.posix.dirname(entry), imported);
       const source =
-        !tracked.includes(target) && target.endsWith('.js') && tracked.includes(target.slice(0, -3) + '.ts')
-          ? target.slice(0, -3) + '.ts'
-          : target;
+        target.startsWith('dist/') && target.endsWith('.js')
+          ? `src/${target.slice('dist/'.length, -'.js'.length)}.ts`
+          : !tracked.includes(target) && target.endsWith('.js') && tracked.includes(target.slice(0, -3) + '.ts')
+            ? target.slice(0, -3) + '.ts'
+            : target;
       assert.ok(fs.existsSync(path.join(root, source)), `${entry} imports existing ${source}`);
+      assert.ok(tracked.includes(source), `${entry} imports tracked ${source}`);
       imports.add(source);
     }
   }
