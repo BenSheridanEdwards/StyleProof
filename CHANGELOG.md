@@ -203,6 +203,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-capture` (`styleproof crawl`) no longer hangs after it
+  finishes.** It called `process.exit()` straight after the capture, which can
+  deadlock inside Node: exit waits for a V8 worker thread that is itself waiting
+  for the main thread to collect garbage. About one loaded run in a hundred
+  printed its whole report and then sat at 0% CPU with no browser, until a CI
+  job timed out. The command now sets the exit code and lets Node exit on its
+  own, with a forced exit only if something still holds the process open 10 s
+  later. Exit codes are unchanged; a crawl that ends 4, 5 or 6 now closes the
+  browser before exiting.
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
@@ -530,6 +539,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   with `--incomplete-ui-exclude` and a reason. Capture the states behind
   those controls with a spec fixture. This also applies to labels that were
   already unsafe, such as "Delete" and "Log out".
+  On upgrade, a state recipe whose label (or `stateKey` when no label is
+  set), or whose live target label, contains one of the new terms now fails
+  with "refusing unsafe state recipe" instead of capturing; if that control
+  is not destructive, declare the state as an explicit `variants` entry.
 - **A split-layout certify scaffold now puts a red `StyleProof` status on the
   PR (#937).** `styleproof-init --workflow split --mode certify` runs the
   Action from a `workflow_run` job, which runs on the default branch, so its
@@ -551,6 +564,52 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Certify from `pull_request` is unchanged, and init's
   output and report-workflow header now say what the split certify gate does;
   run `styleproof-init --upgrade` to refresh an existing scaffold.
+- **pnpm, yarn and bun maps stay comparable when a package named like
+  `playwright` is bumped (#958).** The Playwright runtime descriptor of a text
+  lockfile also matched the `playwright@<version>` tail of names such as
+  `@axe-core/playwright` and `eslint-plugin-playwright`. Bumping one of them
+  changed the compatibility key, so `styleproof-diff` refused the pair and
+  exited 2 on every run. Only `@playwright/test`, `playwright` and
+  `playwright-core` now count, as they already did for `package-lock.json`;
+  other packages show up as changed lockfile provenance.
+- **Bundles published with `BASE_URL` set or empty are found again (#959).**
+  `styleproof-map --upload` keyed the bundle by the job's `BASE_URL`, but
+  `styleproof-map --restore` and the `styleproof-ci` ancestor restore looked it
+  up without one. Every restore missed with `cold_reason=compat_mismatch` and
+  recaptured the base cold. Both lookups now use the same `BASE_URL`. An empty
+  `BASE_URL` is stored in the manifest as `""` and keeps its own key, separate
+  from an unset one, so the manifest fields reproduce the key. Keys for jobs
+  with or without `BASE_URL` are unchanged.
+- **An absolute `--spec` reached through a symlinked folder keeps its map-store
+  key (#962).** The key stored the spec relative to the working directory as
+  written, so a spec spelled through a symlinked checkout (a linked checkout,
+  or macOS's `/var/folders` temp directory) keyed as a `../..` path and missed
+  every bundle. The key now resolves only that checkout alias: the relative,
+  physical and checkout-alias spellings of one spec share a key. A symlink
+  inside the project, such as `e2e -> suite-a`, keeps its logical path, and a
+  spec outside the project still keys separately.
+- **Auto-width surfaces replay their detection load from the base (#974).**
+  A surface with no `widths` loads once to read its `@media` bands,
+  and that load ran before any HAR replay was in place. Under
+  `STYLEPROOF_REPLAY_FROM` it called the live backend, so with the backend down
+  the head run failed for auto-width surfaces only, in `defineStyleMapCapture`
+  and `defineCrawlCapture` alike. The base now records that detection load as
+  `<key>@auto-<W>x<H>.har`, at the project viewport, also for every surface in
+  a crawl. The head replays that recording at the same viewport, with the
+  frozen clock and reduced motion, then drops the routes so each width pins
+  its own HAR. With no matching recording (an older base or another viewport),
+  detection warns and loads live at that viewport, as before. It never moves
+  to a narrower width, which could hide a band that only the head adds.
+  Recording runs write one extra HAR per auto-width surface. A missing width
+  HAR clears earlier replay routes before the warned live fallback, so a new
+  head-only band can capture. Fixed-width surfaces with matching HARs are
+  unchanged. If a crawl starts with a null viewport and an earlier capture
+  resizes the page, later auto-width detection fails with guidance to configure
+  a project viewport or explicit widths, rather than detecting at the stale size.
+  Failed data requests during detection now fail the surface, even if the app
+  handles the error, because its fallback could hide a breakpoint band.
+  `styleproof-map` also removes HAR files before exiting a failed capture unless
+  `--keep-har` was requested, so rejected detection loads leave no default recording.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
@@ -863,6 +922,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   invisible zero-width space, and the publish read-back counts only the full
   `<!-- … -->` trailer for this run. A second real trailer, duplicate or stale,
   still fails.
+- **A modifier class moved between same-shape siblings is no longer certified
+  as no change (#949).** Moving `active`, `featured` or `current` from one tab,
+  card or row to another, with no sibling inserted or removed, re-paired the
+  siblings k-th to k-th by class. The re-pairing cancelled every difference, so
+  `styleproof-diff` certified a real visual change. The nth-child shift pass now
+  drops moves that only permute paths present on both sides, and never moves an
+  element whose own text shows it stayed in place. Both siblings are reported.
+  A sibling that was really inserted or removed still pairs as before.
 
 ## [8.0.1] - 2026-10-17
 
@@ -3686,11 +3753,6 @@ in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
   `STYLEPROOF_MAP_STORE_TOKEN`, so cold-cache uploads do not depend on private
   `actions/checkout` credential-storage details. Local hooks continue to reuse
   normal Git credentials without requiring this variable.
-- **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
-  Checkout v7 keeps its HTTP header in an included temporary config rather than
-  directly in `.git/config`; StyleProof now explicitly enables Git config includes
-  and falls back to its locally registered checkout config before carrying that
-  header into the isolated clone and push.
 - **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
   Checkout v7 keeps its HTTP header in an included temporary config rather than
   directly in `.git/config`; StyleProof now explicitly enables Git config includes

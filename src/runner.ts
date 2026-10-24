@@ -4,11 +4,11 @@ import { loadStyleProofConfigWithLocation } from './config.js';
 import { coverageGaps, coverageKeys, mergeCoverageConfig } from './coverage.js';
 import { requireLiveTextCapture, validateLiveText } from './live-text.js';
 import { captureTestBudgetMs } from './surface-progress.js';
-import { detectViewportWidths } from './breakpoints.js';
 import { withSurfaceFailureTolerance } from './runner/self-check.js';
 import { resolveSettings } from './runner/settings.js';
 import {
   captureSurface,
+  detectSurfaceWidths,
   heartbeatUnitCount,
   writeBrowserBuildTest,
   recordCaptureTestOutcomes,
@@ -147,8 +147,13 @@ export function defineStyleMapCapture(options: DefineOptions): void {
         test(`${surface.key} @ auto`, async ({ page, baseURL, contextOptions }) => {
           let widths: number[] = [];
           await withSurfaceFailureTolerance(settings, `${surface.key}@auto`, async () => {
-            await surface.go(page);
-            widths = await detectViewportWidths(page);
+            widths = await detectSurfaceWidths(
+              page,
+              surface,
+              settings,
+              page.viewportSize(),
+              baseURL ?? contextOptions.baseURL,
+            );
           });
           test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs, widths.length));
           for (const width of widths) await capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);

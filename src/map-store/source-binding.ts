@@ -118,7 +118,7 @@ function runtimeIdentity(manifest: MapManifest, includeBrowser: boolean): string
     arch: manifest.arch,
     nodeMajor: manifest.nodeMajor,
     playwrightVersion: manifest.playwrightVersion ?? '',
-    baseUrl: manifest.baseUrl ?? '',
+    baseUrl: manifest.baseUrl ?? null,
     ...(includeBrowser ? { browserVersion: manifest.browserVersion } : {}),
   });
 }

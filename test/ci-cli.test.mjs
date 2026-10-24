@@ -2310,7 +2310,8 @@ function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.
     git(repo, ['push', '-q', '-u', 'origin', 'main']);
 
     const spec = 'e2e/styleproof.spec.ts';
-    const compatibilityKey = expectedCompatibilityKey({ cwd: web, spec });
+    // Seeded as `styleproof-map --upload` would key it under the run's BASE_URL.
+    const compatibilityKey = expectedCompatibilityKey({ cwd: web, spec, baseUrl: env.BASE_URL });
     const seed = path.join(root, 'seed');
     git(root, ['clone', '-q', remote, seed]);
     git(seed, ['checkout', '-q', '-b', 'styleproof-maps']);
@@ -2342,13 +2343,13 @@ function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.
     git(seed, ['add', '-A']);
     git(seed, ['commit', '-qm', 'seed']);
     git(seed, ['push', '-q', 'origin', 'styleproof-maps']);
-
-    // An absolute --spec through a symlink keeps the link while git names the real path.
-    const linkedCheckout = () => {
-      const linked = path.join(root, 'linked');
-      fs.symlinkSync(repo, linked, 'dir');
-      return linked;
+    // The same checkout reached through a symlinked folder, like a linked checkout (#962).
+    fs.symlinkSync(repo, path.join(root, 'linked'), 'dir');
+    const specPaths = {
+      absolute: path.join(web, spec),
+      symlinked: path.join(root, 'linked', 'packages', 'web', spec),
     };
+
     // A cold base capture cannot run in this fixture; only the reuse decision matters.
     const result = runCi(
       [
@@ -2357,11 +2358,7 @@ function runSubdirectoryAncestorReuse({ changed, specArg = 'e2e/styleproof.spec.
         '--head',
         head,
         '--spec',
-        specArg === 'absolute'
-          ? path.join(web, spec)
-          : specArg === 'symlinked'
-            ? path.join(linkedCheckout(), 'packages', 'web', spec)
-            : specArg,
+        specPaths[specArg] ?? specArg,
         '--base-dir',
         path.join(root, 'maps'),
         '--force',
@@ -2396,6 +2393,10 @@ for (const [name, options] of [
     { changed: 'packages/web/e2e/fixtures.ts', specArg: 'symlinked' },
   ],
   [
+    'its spec directory under an absolute --spec through a symlinked folder (#962)',
+    { changed: 'packages/web/e2e/fixtures.ts', specArg: 'symlinked', config: SRC_ROOTS },
+  ],
+  [
     'a config root resolved from its config file',
     { changed: 'packages/web/styles/tokens.css', config: { ancestorBaseline: { roots: ['styles'] } } },
   ],
@@ -2422,6 +2423,19 @@ test(
       /reused the baseline of nearest ancestor \w+ \(depth 1; 1 changed path\(s\), none capture-relevant\)/,
       stderr,
     );
+  },
+);
+
+test(
+  'styleproof-ci: ancestor reuse restores a bundle published under the same BASE_URL (#959)',
+  { timeout: 60_000 },
+  () => {
+    const stderr = runSubdirectoryAncestorReuse({
+      changed: 'docs/notes.md',
+      config: SRC_ROOTS,
+      env: { BASE_URL: 'http://127.0.0.1:3000' },
+    });
+    assert.match(stderr, /reused the baseline of nearest ancestor \w+/, stderr);
   },
 );
 

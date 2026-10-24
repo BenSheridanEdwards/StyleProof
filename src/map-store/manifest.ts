@@ -79,16 +79,21 @@ function packageLockPlaywrightHash(content: Buffer): string | undefined {
 }
 
 /** Playwright descriptors of a text lockfile (pnpm, yarn, bun): `name@version` matches plus
- *  each Playwright block header with its resolved version. */
+ *  each Playwright block header with its resolved version. Only the exact package names
+ *  count: `@scope/playwright` or `plugin-playwright` is application provenance (#958). A
+ *  key-leading `/` (pnpm v6) or a peer-suffix `(` may precede a name; a name character or
+ *  a scope's `name/` may not. */
 function textLockfilePlaywrightHash(content: Buffer): string | undefined {
   const text = content.toString('utf8');
   const descriptors = new Set<string>();
-  for (const match of text.matchAll(/(?:@playwright\/test|playwright(?:-core)?)@(?:npm:)?([0-9][0-9A-Za-z.+-]*)/g)) {
+  const exactDescriptors =
+    /(?<![\w@.-]|[\w.-]\/)(?:@playwright\/test|playwright(?:-core)?)@(?:npm:)?([0-9][0-9A-Za-z.+-]*)/g;
+  for (const match of text.matchAll(exactDescriptors)) {
     descriptors.add(match[0]);
   }
   for (const block of text.split(/\r?\n\s*\r?\n/)) {
     const header = block.split(/\r?\n/, 1)[0] ?? '';
-    if (!/(?:@playwright\/test|playwright(?:-core)?)[@:"]/i.test(header)) continue;
+    if (!/^\s*['"]?\/?(?:@playwright\/test|playwright(?:-core)?)[@:"]/i.test(header)) continue;
     const version = block.match(/^\s*version:\s*['"]?([^'"\s]+)|^\s*version\s+['"]([^'"]+)/m);
     const resolvedVersion = version?.[1] ?? version?.[2];
     if (resolvedVersion) descriptors.add(`${header.trim()}=${resolvedVersion}`);
@@ -121,11 +126,30 @@ function hasHar(dir: string): boolean {
 
 type CompatibilityInput = ReturnType<typeof compatibilityInput>;
 
+function realPath(target: string): string {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return target;
+  }
+}
+
 function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: string }) {
   // Resolve FIRST: a relative cwd made createRequire throw inside playwrightVersion, so
   // publish and restore stamped different keys for one environment and every lookup missed.
   const cwd = path.resolve(options.cwd);
   const specPath = path.resolve(cwd, options.spec);
+  // Resolve checkout aliases only, preserving logical spec paths below the project root.
+  // Use the outermost matching ancestor so an in-project link to the root stays logical.
+  const projectRoot = realPath(cwd);
+  let spec = path.relative(cwd, specPath) || options.spec;
+  let directory = path.dirname(specPath);
+  while (true) {
+    if (realPath(directory) === projectRoot) spec = path.relative(directory, specPath);
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
   const lock = detectLockfile(cwd);
   let specHash: string;
   try {
@@ -135,7 +159,7 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
   }
   return {
     packageVersion: styleProofPackageVersion(),
-    spec: path.relative(cwd, specPath) || options.spec,
+    spec,
     specHash,
     lockfile: lock.file,
     lockfileHash: lock.hash,
@@ -144,6 +168,7 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
     platform: process.platform,
     arch: process.arch,
     nodeMajor: process.versions.node.split('.')[0] ?? process.versions.node,
+    // Custom capture configs can distinguish an empty BASE_URL from an unset one.
     baseUrl: options.baseUrl,
   };
 }
@@ -240,7 +265,7 @@ export function workingTreeDirty(
   return porcelainEntries(status).some((files) => !files.every(allowed));
 }
 
-/** Drop undefined/empty optional fields so the serialized manifest carries only what was known. */
+/** Drop undefined optional fields so the serialized manifest carries only what was known. */
 const compact = <T extends object>(value: T): T =>
   Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined)) as T;
 
@@ -267,7 +292,7 @@ function stampManifest(
     platform: input.platform,
     arch: input.arch,
     nodeMajor: input.nodeMajor,
-    baseUrl: input.baseUrl || undefined,
+    baseUrl: input.baseUrl,
     screenshots: options.screenshots,
     har: hasHar(options.dir),
     compatibilityKey: compatibilityKeyForInput(input),
@@ -360,7 +385,7 @@ const MANIFEST_FIELD_RULES: Record<keyof MapManifest, FieldRule> = {
   platform: (value) => matchesBoundedString(value, SAFE_NAME, 128),
   arch: (value) => matchesBoundedString(value, SAFE_NAME, 128),
   nodeMajor: (value) => matchesBoundedString(value, /^\d+$/, 16),
-  baseUrl: (value) => optionalBoundedString(value),
+  baseUrl: (value) => value === '' || optionalBoundedString(value),
   screenshots: (value) => typeof value === 'boolean',
   har: (value) => typeof value === 'boolean',
   compatibilityKey: (value) => matchesBoundedString(value, /^[0-9a-f]{16}$/, 16),

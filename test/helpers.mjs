@@ -7,17 +7,41 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
-/** Default bound for CLI-test children so a leaked handle cannot hang the suite forever. */
+/** Default bound for CLI-test children so a leaked handle cannot hang the suite forever. It sits
+ *  below Playwright's 120 s e2e test timeout, which cannot interrupt a blocking spawnSync. */
 export const CLI_SPAWN_TIMEOUT_MS = 60_000;
 
 /**
  * spawnSync with a hard wall-clock timeout. On expiry Node kills the child
- * (SIGTERM by default) and returns status=null with error.code === 'ETIMEDOUT'.
- * Call sites may override `timeout`; omitting it applies CLI_SPAWN_TIMEOUT_MS.
+ * (SIGKILL by default) and returns status=null with error.code === 'ETIMEDOUT'.
+ * Not SIGTERM: a CLI that launched a browser through Playwright handles SIGTERM
+ * by closing the browser and keeps running, so a hung one outlives a SIGTERM.
+ * Call sites may override `timeout` and `killSignal`; omitting `timeout` applies
+ * CLI_SPAWN_TIMEOUT_MS.
  */
 export function spawnSyncBounded(command, args = [], options = {}) {
   const timeout = options.timeout ?? CLI_SPAWN_TIMEOUT_MS;
-  return spawnSync(command, args, { ...options, timeout });
+  return spawnSync(command, args, { killSignal: 'SIGKILL', ...options, timeout });
+}
+
+/** The named failure for a CLI-test child still running at its bound, with its last output. */
+export function childTimeoutError(command, args, timeout, output = '') {
+  const tail = String(output).trim().split('\n').slice(-20).join('\n');
+  const run = [path.basename(command), ...args].join(' ');
+  return new Error(
+    `${run} was still running after ${timeout} ms and was killed${tail ? `; last output:\n${tail}` : ''}`,
+  );
+}
+
+/** spawnSyncBounded for a test that needs the child to finish: a child killed at the bound
+ *  throws childTimeoutError instead of returning a null status for the test to misread. */
+export function spawnSyncToCompletion(command, args = [], options = {}) {
+  const result = spawnSyncBounded(command, args, options);
+  if (result.error?.code === 'ETIMEDOUT') {
+    const timeout = options.timeout ?? CLI_SPAWN_TIMEOUT_MS;
+    throw childTimeoutError(command, args, timeout, `${result.stdout ?? ''}${result.stderr ?? ''}`);
+  }
+  return result;
 }
 
 /** Parse a spawned CLI's `--json` output file. A child that exits early never writes

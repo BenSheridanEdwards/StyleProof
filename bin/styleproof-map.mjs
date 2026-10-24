@@ -278,7 +278,8 @@ if (opts.restore) {
       branch: cacheBranch,
       remote,
       gitTimeoutMs: projectConfig.mapStore?.gitTimeoutMs,
-      compatibilityKey: expectedCompatibilityKey({ spec }),
+      // The upload keyed the bundle by this job's BASE_URL (writeMapManifest), so the lookup must too.
+      compatibilityKey: expectedCompatibilityKey({ spec, baseUrl: env.BASE_URL }),
     });
     // Greppable exact-hit line for consumer Visual / CI watchers (#734). Soft-pass HOLD: observe only.
     // CI suppresses this when it emits the final decision line itself.
@@ -437,8 +438,9 @@ if (status !== 0 && captured > 0) {
     );
   }
 }
-if (status !== 0 && !publishPartial) process.exit(status);
+// Playwright flushes detection HARs even when navigation fails; honor default cleanup before exiting.
 if (!keepHar) removeHarFiles(targetDir);
+if (status !== 0 && !publishPartial) process.exit(status);
 // Zero maps must not stamp a manifest: a bare dir means "no baseline yet" (first adoption).
 if (captured === 0) {
   console.error(

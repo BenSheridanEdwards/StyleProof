@@ -4,9 +4,10 @@ import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadStyleMap } from '../dist/index.js';
+import { CLI_SPAWN_TIMEOUT_MS, childTimeoutError, spawnSyncToCompletion } from './helpers.mjs';
 
 // Every test here builds its own fixture (mkdtemp / own page); none reads another
 // test's output. Declare the file parallel so its tests spread across workers —
@@ -79,8 +80,10 @@ function commandEnv(env: NodeJS.ProcessEnv = {}) {
   return merged;
 }
 
+// Bounded: a blocking spawnSync cannot be interrupted by the test timeout, so a hung
+// CLI would hold this worker forever. One past the bound is killed and fails by name.
 function run(cwd: string, command: string, args: string[], env: NodeJS.ProcessEnv = {}) {
-  return spawnSync(command, args, {
+  return spawnSyncToCompletion(command, args, {
     cwd,
     encoding: 'utf8',
     env: commandEnv(env),
@@ -89,19 +92,27 @@ function run(cwd: string, command: string, args: string[], env: NodeJS.ProcessEn
 
 // Non-blocking variant: use when an HTTP server hosted IN THIS PROCESS must keep
 // serving while the CLI runs (spawnSync blocks the event loop, starving it).
+// Same bound and failure as run(), so a hung child is killed rather than leaked.
 function runAsync(
   cwd: string,
   command: string,
   args: string[],
   env: NodeJS.ProcessEnv = {},
 ): Promise<{ status: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env: commandEnv(env) });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => (stdout += d));
     child.stderr.on('data', (d) => (stderr += d));
-    child.on('close', (status) => resolve({ status, stdout, stderr }));
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(childTimeoutError(command, args, CLI_SPAWN_TIMEOUT_MS, stdout + stderr));
+    }, CLI_SPAWN_TIMEOUT_MS);
+    child.on('close', (status) => {
+      clearTimeout(timer);
+      resolve({ status, stdout, stderr });
+    });
   });
 }
 
@@ -257,6 +268,50 @@ test('styleproof-capture --crawl --require-full-coverage: exit 0 when covered, e
     ]);
     expect(gap.stdout).toContain('ghost');
     expect(gap.status, 'coverage residue exits 4').toBe(4);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// process.exit() straight after the crawl could deadlock Node's teardown (a V8 worker waiting for
+// a main-thread GC while exit joins it): the CLI printed its whole report, then sat at 0% CPU with
+// no browser left, forever. Every post-capture exit drains instead, so this spy must never fire.
+test('styleproof-capture exits without process.exit() after a crawl, a failed crawl, or a capture', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-capture-exit-'));
+  const spy = path.join(dir, 'exit-spy.mjs');
+  fs.writeFileSync(
+    spy,
+    'const exit = process.exit;\nprocess.exit = (code) => { process.stderr.write(`process.exit(${code}) called\\n`); exit(code); };\n',
+  );
+  const page = path.join(dir, 'residue.html');
+  fs.writeFileSync(
+    page,
+    '<!doctype html><html><head><style>.card { padding: 8px; } .ghost { color: rgb(9,9,9); }</style></head><body><main class="card">card</main></body></html>',
+  );
+  const cases = [
+    {
+      name: 'crawl with coverage residue',
+      args: ['file://' + page, '--crawl', '--no-screenshots', '--require-full-coverage', '--out', path.join(dir, 'a')],
+      status: 4,
+    },
+    {
+      name: 'crawl of a missing page',
+      args: ['file://' + path.join(dir, 'missing.html'), '--crawl', '--out', path.join(dir, 'b')],
+      status: 3,
+    },
+    {
+      name: 'single-state capture',
+      args: ['file://' + page, '--widths', '800', '--no-screenshots', '--out', path.join(dir, 'c')],
+      status: 0,
+    },
+  ];
+  try {
+    for (const { name, args, status } of cases) {
+      const result = run(dir, 'node', ['--import', pathToFileURL(spy).href, CAPTURE, ...args]);
+      expect(result.status, `${name}: ${result.stderr}`).toBe(status);
+      expect(result.stderr, `${name} exited through process.exit()`).not.toContain('process.exit(');
+    }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -1116,7 +1171,7 @@ test('CI base publisher: the generated push job publishes by SHA and a fresh clo
     );
     fs.chmodSync(path.join(publisher, 'node_modules/.bin/playwright'), 0o755);
     expect(git(remote, ['branch', '--list', 'styleproof-maps']).stdout, 'only the CI job publishes').toBe('');
-    const published = spawnSync('/bin/bash', ['-c', publishBaseScript(workflow)], {
+    const published = spawnSyncToCompletion('/bin/bash', ['-c', publishBaseScript(workflow)], {
       cwd: publisher,
       encoding: 'utf8',
       env: commandEnv({
