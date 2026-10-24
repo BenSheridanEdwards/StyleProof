@@ -703,6 +703,85 @@ test('styleproof-capture --crawl never lets a sub-state and a linked page share 
   }
 });
 
+// Every route serves one shell whose nav mounts late: 150 ms after `load`
+// ('late'), or only once the --setup steps enter the unlock code ('gate').
+// The entry `/start` redirects to `/`, whose nav links back to `/`.
+function writeSettledNavServer(dir: string) {
+  fs.writeFileSync(
+    path.join(dir, 'server.mjs'),
+    `import http from 'node:http';
+const [port, mode] = [Number(process.argv[2]), process.argv[3]];
+const shell = mode === 'late'
+  ? '<h1>Shell</h1><p>Loading</p>'
+  : '<input id="code"><button id="enter">Enter</button><p>Locked</p><p>Enter the code</p>';
+const show = mode === 'late'
+  ? "addEventListener('load', () => setTimeout(mount, 150));"
+  : "document.getElementById('enter').onclick = () => { if (document.getElementById('code').value === 'open') mount(); };";
+http.createServer((req, res) => {
+  if (req.url === '/start') { res.statusCode = 302; res.setHeader('location', '/'); return res.end(); }
+  const title = req.url.split('?')[0] === '/child' ? 'Child' : 'Home';
+  res.setHeader('content-type', 'text/html');
+  res.end(\`<!doctype html><html><head><meta charset="utf-8"><style>main{padding:16px;color:rgb(20,20,30)}</style></head>
+<body><main>\${shell}</main><script>
+function mount() { document.querySelector('main').innerHTML = '<nav><a href="/">Home</a> <a href="/child">Child</a></nav><h1>\${title}</h1>'; }
+\${show}
+</script></body></html>\`);
+}).listen(port, '127.0.0.1');
+`,
+  );
+}
+
+// The sweep follows the nav the crawl SETTLED on, not a bare reload of the page:
+// a client-rendered nav, or one behind the --setup gate, is followed like a
+// server-rendered one (#945). Before, both linked pages went uncrawled while the
+// run still reported complete confidence.
+for (const { mode, title, setup } of [
+  { mode: 'late', title: 'a nav that mounts after load', setup: null },
+  {
+    mode: 'gate',
+    title: 'a nav rendered only after --setup',
+    setup: [
+      { action: 'fill', selector: '#code', value: 'open' },
+      { action: 'click', selector: '#enter' },
+    ],
+  },
+]) {
+  test(`styleproof-capture --crawl follows ${title}`, async () => {
+    const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+    const app = fs.mkdtempSync(path.join(os.tmpdir(), `styleproof-settled-nav-${mode}-`));
+    const port = await freePort();
+    try {
+      writeSettledNavServer(app);
+      const setupFile = path.join(app, 'setup.json');
+      if (setup) fs.writeFileSync(setupFile, JSON.stringify(setup));
+      const server = spawn('node', ['server.mjs', String(port), mode], { cwd: app });
+      try {
+        await waitForPort(port);
+        const out = path.join(app, 'maps');
+        const result = await runAsync(app, process.execPath, [
+          CAPTURE,
+          `http://127.0.0.1:${port}/start`,
+          '--crawl',
+          '--no-screenshots',
+          '--widths',
+          '1280',
+          '--out',
+          out,
+          ...(setup ? ['--setup', setupFile] : []),
+        ]);
+        expect(result.status, result.stderr + result.stdout).toBe(0);
+        expect(fs.readdirSync(out), 'the linked page is crawled and captured').toContain('child@1280.json.gz');
+        // Two pages, not three: the landed `/` is the base already, so no nav link to it is crawled again.
+        expect(result.stdout).toContain('across 2 page(s)');
+      } finally {
+        server.kill();
+      }
+    } finally {
+      fs.rmSync(app, { recursive: true, force: true });
+    }
+  });
+}
+
 // A same-origin href can still 302 off-origin (SSO, /out?url=…). External
 // content is nondeterministic and must never enter a map: the CLI sweep skips
 // the page loudly and continues; a spec-driven capture fails naming the surface.

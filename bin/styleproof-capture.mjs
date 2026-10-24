@@ -15,7 +15,7 @@ import {
 } from '../dist/capture-url.js';
 import { BrowserStallError, watchBrowserProgress } from '../dist/browser-stall.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
-import { selectCrawlLinks, dedupIdentity, uniqueKeyFor } from '../dist/crawl.js';
+import { dedupIdentity, uniqueKeyFor } from '../dist/crawl.js';
 import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
 import { loadStyleProofConfigWithLocation } from '../dist/config.js';
 import path from 'node:path';
@@ -152,13 +152,6 @@ try {
   process.exit(2);
 }
 
-// Read the freshly-loaded page's same-origin nav links, keyed by route.
-async function harvestPageLinks(page, url) {
-  await page.goto(url, { waitUntil: 'load' });
-  const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href'))).catch(() => []);
-  return selectCrawlLinks(hrefs, { base: page.url() });
-}
-
 // Empty widths = auto-detect the page's real breakpoints. Each worker page gets its OWN context so
 // storage resets can't interfere; surfaces stream as they are captured, so an interrupted run still
 // shows what it mapped.
@@ -222,7 +215,10 @@ async function sweepPages(browser, page) {
     }
     reports.push(crawled);
     statesLeft -= crawled.surfaces.length;
-    if (opts.followLinks) enqueueLinkedPages(await harvestPageLinks(page, url), sweep);
+    // Links come from the settled base state (after --wait, settle, --setup, reveal). The page it
+    // settled on is done too, even when a redirect or setup moved it off the queued URL.
+    sweep.seenPages.add(dedupIdentity(crawled.landed));
+    if (opts.followLinks) enqueueLinkedPages(crawled.links, sweep);
   }
   if (sweep.queue.length > 0) {
     console.log(`⚠ --max-states reached: ${sweep.queue.length} linked page(s) left uncrawled — raise --max-states`);

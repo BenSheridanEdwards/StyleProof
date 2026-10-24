@@ -1006,7 +1006,7 @@ You watch one number as you implement: the diff starts large and shrinks toward 
 
 A design is mostly _behind clicks_ — modals, drawers, popovers, tabs that don't exist in the DOM until you open them. A single capture sees only the landing state. `--crawl` maps the rest for you: point it at the URL and it drives every non-destructive control, keeps whatever opens a structurally new surface, and recurses into it — a modal's tabs, a drawer's sub-views, a popover's panels — capturing each under a derived key. No spec, no selectors, no hand-holding.
 
-It follows the nav too: every same-origin page the site links to is crawled the same way, keyed by its route (`about`, `pricing`, `blog-post`, …), with class coverage aggregated across the pages that share stylesheets. `--no-follow-links` keeps the sweep to the entry page's interactive surface only.
+It follows the nav too: every same-origin page the site links to is crawled the same way, keyed by its route (`about`, `pricing`, `blog-post`, …), with class coverage aggregated across the pages that share stylesheets. Links are read from the same settled state the crawl captures (after `--wait`, the settle, `--setup` and the scroll reveal), so a client-rendered or setup-gated nav is followed too; a page whose links cannot be read is reported, never treated as linking nowhere. `--no-follow-links` skips the link read and keeps the sweep to the entry page's interactive surface only.
 
 ```bash
 styleproof-capture https://example.com --crawl --out design    # maps every reachable surface
@@ -1025,7 +1025,7 @@ What makes exhaustive affordable is that the sweep works **in place**: standing 
 
 ### Data states, out of the box
 
-Every data-driven page has states that almost never sit on a click path: the **loading skeleton** and the **error render**. The crawl captures both automatically — it watches the entry page's data requests, then re-loads once with them **stalled** (the skeleton is the settled state, captured as `loading`) and once with them **fulfilled as 500** (captured as `error`). States that render identically to the base (e.g. server-rendered pages) dedup away silently. On by default; `--no-data-states` to skip. Deeper data states — a specific empty list, a partial payload — are fixture territory: model them as `liveStates`/`variants` in a spec.
+Every data-driven page has states that almost never sit on a click path: the **loading skeleton** and the **error render**. The crawl captures both automatically — it watches the entry page's data requests, then re-loads once with them **stalled** (the skeleton is the settled state, captured as `loading`) and once with them **fulfilled as 500** (captured as `error`). With `--setup`, those re-loads keep the session the setup stored (a login token in `localStorage`; the app's host carries a `styleproof-keep-storage` cookie until each re-load is done). One that still lands on a sign-in wall, such as a session held only in memory, still blocks confidence as `incomplete-auth`, the same as without `--setup`: acknowledge it with `--auth-boundary-exclude`, or skip data states with `--no-data-states`. States that render identically to the base (e.g. server-rendered pages) dedup away silently. On by default; `--no-data-states` to skip. Deeper data states — a specific empty list, a partial payload — are fixture territory: model them as `liveStates`/`variants` in a spec.
 
 ### Input-gated states: `--setup`
 

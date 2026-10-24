@@ -212,14 +212,38 @@ export async function captureInPlace(page: Page, key: string, opts: SurfaceCrawl
   }
 }
 
-/** Clear storage before the app's code runs on EVERY load, so each gotoFresh is a clean slate in one navigation. */
+/** Cookie that spares loads from the armed reset while keepStorage holds (see dropKeepStorage). A cookie,
+ *  not page storage: the crawl can clear it with no document, and a reload that fails before committing
+ *  leaves only an error page, which cannot reach the app's storage to withdraw a flag kept there. */
+const KEEP_STORAGE = 'styleproof-keep-storage';
+const armed = new WeakSet<Page>();
+
+/** Clear storage before the app's code runs on EVERY load, so each gotoFresh is a clean slate in one navigation.
+ *  Armed once per page: the CLI reuses one page for every crawled page, so copies would pile up. */
 export async function armResetStorage(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+  if (armed.has(page)) return;
+  armed.add(page);
+  await page.addInitScript((keep) => {
+    // An about:blank frame (the capture's UA-defaults probe) shares the page's storage but is no load.
+    if (location.protocol === 'about:') return;
     try {
+      if (document.cookie.split('; ').includes(`${keep}=1`)) return;
       localStorage.clear();
       sessionStorage.clear();
     } catch {
       /* storage unavailable (e.g. file://) */
     }
-  });
+  }, KEEP_STORAGE);
+}
+
+/** Let loads on `url`'s host keep their storage until dropKeepStorage, so a session the setup steps
+ *  stored (a login token) survives a reload. */
+export async function keepStorage(page: Page, url: string): Promise<void> {
+  if (!armed.has(page) || !/^https?:$/.test(new URL(url).protocol)) return; // nothing clears it, or no cookies
+  await page.context().addCookies([{ name: KEEP_STORAGE, value: '1', url: new URL('/', url).href }]);
+}
+
+/** End keepStorage, whether or not the load it was for ever committed a document. */
+export async function dropKeepStorage(page: Page): Promise<void> {
+  await page.context().clearCookies({ name: KEEP_STORAGE });
 }

@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import type { CrawlLink } from '../crawl.js';
 import type { IncompleteUiDiagnostic } from '../incomplete-ui.js';
 import type { AuthBoundaryObservation, CrawlConfidence } from '../crawl-confidence.js';
 
@@ -31,6 +32,10 @@ export type CrawlReport = {
   confidence: CrawlConfidence;
   /** Privacy-safe blocked continuations observed on each captured surface. */
   incompleteUi: IncompleteUiObservation[];
+  /** Same-origin pages the settled base state links to — what a multi-page sweep follows. Empty when `followLinks` is false. */
+  links: CrawlLink[];
+  /** Path+query the base state settled on (after redirects and setup); `links` were read there. */
+  landed: string;
 };
 
 /** One deterministic step run after every fresh navigation — how input-gated states become
@@ -56,6 +61,8 @@ export type SurfaceCrawlOptions = {
   setup?: SetupStep[];
   /** Also capture the entry page's `loading` and `error` data states (default true). */
   dataStates?: boolean;
+  /** Read the settled base state's same-origin links into `CrawlReport.links` (default true; the CLI's --no-follow-links). */
+  followLinks?: boolean;
   /** Stop as soon as every stylesheet class has rendered — a fast coverage check, not an exhaustive map. */
   stopWhenCovered?: boolean;
   /** Throttles: recursion depth (base = 0), fresh controls per state, total surfaces. */
