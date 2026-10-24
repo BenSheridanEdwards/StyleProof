@@ -134,6 +134,28 @@ test('cli kit: exitWhenDrained forces the exit when a leaked handle holds the lo
   assert.ok(Date.now() - started < 5_000, `fallback exit took ${Date.now() - started}ms`);
 });
 
+test('cli kit: run() ends a failed command with its exit code by draining, never through process.exit()', () => {
+  for (const [annotate, line] of [
+    [false, /^kit: boom$/m],
+    [true, /^::error::StyleProof: boom$/m],
+  ]) {
+    const res = spawnSyncBounded(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `import { run } from ${JSON.stringify(CLI_KIT)};
+         ${EXIT_SPY}
+         await run('kit', async () => { throw Object.assign(new Error('boom'), { exitCode: 5 }); }, { annotate: ${annotate} });`,
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.equal(res.status, 5, res.stderr);
+    assert.match(res.stderr, line);
+    assert.doesNotMatch(res.stderr, /process\.exit/);
+  }
+});
+
 test('the publish and report-prune commands keep the ::error:: annotation on failure', async () => {
   const fs = await import('node:fs');
   for (const bin of ['styleproof-publish-report.mjs', 'styleproof-prune-reports.mjs']) {

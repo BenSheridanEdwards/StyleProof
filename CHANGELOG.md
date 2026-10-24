@@ -212,6 +212,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   own, with a forced exit only if something still holds the process open 10 s
   later. Exit codes are unchanged; a crawl that ends 4, 5 or 6 now closes the
   browser before exiting.
+- **The other commands no longer risk the same hang on exit.** `styleproof-map`
+  (`styleproof capture`), `styleproof-diff` (`styleproof compare`),
+  `styleproof-report`, `styleproof-ci`, `styleproof-variants`,
+  `styleproof-affected`, `styleproof-components`, `styleproof setup` and the
+  `styleproof` dispatcher now exit the same way once their work is done, as do
+  `styleproof-publish-report`, `styleproof-prune-reports` and
+  `styleproof-prune-maps` when they fail. Exit codes are unchanged;
+  `styleproof-variants --strict` now closes the browser before it exits 1.
+  Usage errors, and failures before any work starts, still exit at once.
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
