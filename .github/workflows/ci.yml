@@ -223,8 +223,10 @@ jobs:
       - run: node --test test/package-smoke.test.mjs
 
   # Detection-rate corpus: the seeded-mutation measurement must stay green, or a
-  # detector regression lands silently. Needs Chromium, so it mirrors the e2e
-  # browser setup (chromium only — the fixture has no firefox path).
+  # detector regression lands silently. The reach corpus (#988) runs here too: it
+  # pins today's un-exercised-state miss and the prototype reach joins. Needs
+  # Chromium, so it mirrors the e2e browser setup (chromium only — the fixtures
+  # have no firefox path).
   detection-corpus:
     name: detection corpus
     needs: changes
@@ -265,6 +267,9 @@ jobs:
 
       - name: Detection-rate corpus
         run: node bench/detection-rate.mjs --check
+
+      - name: Reach corpus
+        run: node bench/reach-corpus.mjs --check
 
   # Stable branch-protection context. Browser lanes skip only when the path
   # filter succeeded AND said e2e == 'false' (docs-only / pure unit tests). A
