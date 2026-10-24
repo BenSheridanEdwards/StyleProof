@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
 import { renderReportHtml } from '../dist/report/html.js';
-import { defineCli, number } from './cli.mjs';
+import { defineCli, exitWhenDrained, number } from './cli.mjs';
 import { compareFlags, coverageExclusions, resolveCompareInputs, withCaptureDirs } from './compare.mjs';
 
 const NAME = 'styleproof-report';
@@ -155,4 +155,5 @@ const clean =
   !armedFailure(result.legacyPairs, ['undeclared', 'staleAcknowledgements']) &&
   !armedFailure(result.criticalStates, ['failing', 'unresolved', 'contradictory']) &&
   !sourceBindingFailed;
-process.exit(clean ? 0 : 1);
+// After the report work, exit by draining rather than process.exit(), which can deadlock.
+exitWhenDrained(clean ? 0 : 1);
