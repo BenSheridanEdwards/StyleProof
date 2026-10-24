@@ -22,9 +22,10 @@ import { collectClickable, collectDefinedClasses } from './browser.js';
 import {
   armResetStorage,
   captureInPlace,
+  dropKeepStorage,
   fingerprint,
   gotoFresh,
-  keepStorageOnNextLoad,
+  keepStorage,
   observeBoundaries,
   pathAndSearch,
   perform,
@@ -282,8 +283,6 @@ async function sweepCandidatesHere(
 async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'): Promise<void> {
   const { opts, st } = ctx;
   const gated = Boolean(opts.setup?.length);
-  // The page stands in the gated base state: keep the session setup stored (setup itself would stall).
-  if (gated) await keepStorageOnNextLoad(page);
   // Match by resource TYPE, not URL: apps cache-bust, so the re-load's data URLs never equal the observed ones.
   await page.route('**/*', async (route) => {
     const kind = route.request().resourceType();
@@ -293,10 +292,11 @@ async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'):
   });
   try {
     await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
+    // The page stands in the gated base state: keep the session setup stored (setup itself would stall).
+    if (gated) await keepStorage(page, opts.url);
     await page.goto(opts.url, { waitUntil: 'load' });
     await settleDom(page, 2500); // no networkidle — a stalled request never goes idle
-    // Walled anyway: the session did not survive the reload. That is the setup's gate, not a data state.
-    if (gated && (await observeBoundaries(page)).auth) return;
+    // A wall here blocks confidence, setup or not: the app's own loading and error renders went uncaptured.
     await observeInto(page, st, null, `during data-state ${mode}`);
     const fp = await fingerprint(page);
     if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
@@ -307,6 +307,8 @@ async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'):
     st.surfaces.push(surface);
     await captureAndReport(page, ctx, surface);
   } finally {
+    // Dropped here, not by the load, so the keep also ends when the reload failed before committing.
+    if (gated) await dropKeepStorage(page);
     await page.unroute('**/*');
   }
 }

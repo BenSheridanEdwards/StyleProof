@@ -288,37 +288,55 @@ const FETCH_LOGIN_SPA = `<!doctype html><html><head><meta charset="utf-8"><style
     token ? dashboard() : signin();
   </script></body></html>`;
 
-// Setup's login must hold through the loading/error data-state reloads (#947): they capture the
-// app's own skeleton and error render, and a session that cannot survive a reload lands back on
-// the sign-in form — the setup gate, never an unacknowledged wall or a data-state surface.
-test('setup login holds through synthetic data states → complete, never the sign-in form', async ({ page }) => {
-  const server = http.createServer((req, res) => {
+const SETUP_LOGIN = [
+  { action: 'fill' as const, selector: '#user', value: 'demo' },
+  { action: 'fill' as const, selector: '#pw', value: 'synthetic-pass' },
+  { action: 'click' as const, selector: '#sign-in' },
+  { action: 'waitFor' as const, selector: '.dashboard' },
+];
+
+// Serves FETCH_LOGIN_SPA. With `failAfterLogin`, every document load of `/` after the next login
+// drops its connection unanswered, so that navigation fails before a document commits.
+function serveFetchLogin(state = { failAfterLogin: false, failing: false }): http.Server {
+  return http.createServer((req, res) => {
     res.setHeader('content-type', req.url?.startsWith('/api/') ? 'application/json' : 'text/html; charset=utf-8');
-    if (req.url === '/api/login') return res.end('{"token":"t-synthetic"}');
+    if (req.url === '/api/login') {
+      if (state.failAfterLogin) state.failing = true;
+      return res.end('{"token":"t-synthetic"}');
+    }
     if (req.url === '/api/items') return res.end('["alpha","beta"]');
+    if (state.failing && req.url === '/') return req.socket.destroy();
     res.end(FETCH_LOGIN_SPA);
   });
+}
+
+// Setup's login must hold through the loading/error data-state reloads (#947): a stored session
+// captures the app's own skeleton and error render. A session that cannot survive a reload lands
+// back on the sign-in form, and that wall blocks confidence like any other: the data states behind
+// it were never captured.
+test('setup login: a stored session holds through data states; one that cannot survive the reload blocks', async ({
+  page,
+}) => {
+  const server = serveFetchLogin();
   const port = await listen(server);
-  const setup = [
-    { action: 'fill' as const, selector: '#user', value: 'demo' },
-    { action: 'fill' as const, selector: '#pw', value: 'synthetic-pass' },
-    { action: 'click' as const, selector: '#sign-in' },
-    { action: 'waitFor' as const, selector: '.dashboard' },
-  ];
   const outs: string[] = [];
   const crawl = (route: string) => {
     outs.push(path.join(os.tmpdir(), `styleproof-auth-setup-data-${Math.random().toString(36).slice(2)}`));
     return crawlAndCapture(page, {
       ...baseOpts(`http://127.0.0.1:${port}${route}`, outs[outs.length - 1]),
       dataStates: true,
-      setup,
+      setup: SETUP_LOGIN,
     });
   };
   try {
     const inMemory = await crawl('/memory');
-    expect(inMemory.confidence.status).toBe('complete');
-    expect(inMemory.confidence.blocked).toBe(false);
-    expect(inMemory.coverage.renderedClasses).not.toContain('signin');
+    expect(inMemory.confidence.status).toBe('incomplete-auth');
+    expect(inMemory.confidence.blocked).toBe(true);
+    expect(
+      inMemory.confidence.authBoundaries.some((boundary) =>
+        boundary.diagnostics.some((diagnostic) => diagnostic.reason === 'password-input'),
+      ),
+    ).toBe(true);
 
     // A second crawl on the same page (as a multi-page sweep does) still keeps the stored session.
     const stored = await crawl('/');
@@ -330,6 +348,39 @@ test('setup login holds through synthetic data states → complete, never the si
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     for (const out of outs) fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+// The setup session is kept for the data-state reloads and nothing after them: the next fresh load
+// starts from cleared storage, also when a data-state reload failed before its document committed.
+// A kept session leaking into a later load would capture that state logged in by accident.
+test('the setup session kept for data states never outlives the reload, even one that fails', async ({ page }) => {
+  const state = { failAfterLogin: false, failing: false };
+  const server = serveFetchLogin(state);
+  const port = await listen(server);
+  const url = `http://127.0.0.1:${port}/`;
+  const out = path.join(os.tmpdir(), `styleproof-auth-keep-once-${Math.random().toString(36).slice(2)}`);
+  const crawl = () => crawlAndCapture(page, { ...baseOpts(url, out), dataStates: true, setup: SETUP_LOGIN });
+  // What the next fresh load starts from: the stored token, and whether the app came up signed in.
+  const nextLoad = async () => {
+    await page.goto(url);
+    return {
+      token: await page.evaluate(() => localStorage.getItem('token')),
+      signin: await page.locator('.signin').count(),
+    };
+  };
+  try {
+    const stored = await crawl();
+    expect(stored.surfaces.map((s) => s.key)).toEqual(expect.arrayContaining(['loading', 'error']));
+    expect(await nextLoad()).toEqual({ token: null, signin: 1 });
+
+    state.failAfterLogin = true;
+    await expect(crawl()).rejects.toThrow(/net::ERR_/);
+    state.failAfterLogin = state.failing = false;
+    expect(await nextLoad()).toEqual({ token: null, signin: 1 });
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    fs.rmSync(out, { recursive: true, force: true });
   }
 });
 
