@@ -6,8 +6,8 @@
 <summary>Evidence (warnings & failures)</summary>
 
 **Certification**
-- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
+- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
 
 </details>
 
-<!-- styleproof-receipt head-sha:12e850038b301acbcb00fa6f680d0a700a269b23 run-id:40092792691 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:4ba17e2a87ea8dbcb5ae32e8771d7d39b64e6ed1 run-id:40092891902 run-attempt:1 -->
