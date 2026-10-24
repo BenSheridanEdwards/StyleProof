@@ -11,7 +11,7 @@
     "state": 0
   },
   "reviewableCounts": {
-    "dom": 1,
+    "dom": 0,
     "style": 0,
     "state": 0
   },
@@ -22,7 +22,7 @@
       "state": 0
     },
     "reviewableCounts": {
-      "dom": 1,
+      "dom": 0,
       "style": 0,
       "state": 0
     },
@@ -30,7 +30,7 @@
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
@@ -65,10 +65,9 @@
   "baselineFailures": [],
   "partialBaseline": false,
   "content": {
-    "evaluated": true,
-    "changes": 1,
-    "advisory": true,
-    "elevatedVisibleStructure": 1
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
   },
   "surfaces": [],
   "confidence": {
@@ -92,13 +91,13 @@
     "status": "bound",
     "compatibility": "matched",
     "before": {
-      "expected": "3fde74b001180a0fcf3cb63d97be312c18ed24de",
-      "observed": "3fde74b001180a0fcf3cb63d97be312c18ed24de",
+      "expected": "04dd9f7254cc4230789a5bec1d0d49799bb6224e",
+      "observed": "04dd9f7254cc4230789a5bec1d0d49799bb6224e",
       "result": "matched"
     },
     "after": {
-      "expected": "8d1243462ed18b25f103d57dd4f0428ab709abe4",
-      "observed": "8d1243462ed18b25f103d57dd4f0428ab709abe4",
+      "expected": "aea5cb0f9eacbd72052cd2f35ca3f09d2e7aab57",
+      "observed": "aea5cb0f9eacbd72052cd2f35ca3f09d2e7aab57",
       "result": "matched"
     }
   },
@@ -106,19 +105,19 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "caf920ad3d89ea84e4945105cfdde7021a7b691e4e5ddad75136646c16ed5a3f",
+      "digest": "c5c4de84b5511b98b70bd96d186323cf7cc79dfb6f385c2fd9b9a4a0b542b441",
       "fileCount": 5,
       "mapCount": 1,
       "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "1c39d3292c7538994dedc601d6e798f16010dd9f1fb30920a0d8465d8db2233e",
+      "digest": "4c4cfefb1b62656fa6ec4a80e0d1cc607abfec84b96e3a9e3c9416d3e39d4f91",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1555
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED",
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES",
   "untrustedCapture": false
 }
