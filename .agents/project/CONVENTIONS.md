@@ -10,6 +10,11 @@
   (`--max-warnings=0`), so `no-console` in `src/` (the library must not print)
   blocks like an error; it is off in CLIs/tests/scripts (console is the
   interface there).
+- **Declarative-style rules are advisory.** `npm run lint:declarative`
+  (`eslint.declarative.config.js`) warns on loops, parameter reassignment,
+  `++`/`--`, `var`, non-`const` bindings, function-expression callbacks and
+  array callbacks that return nothing. It is not part of `npm run lint`, CI or
+  any hook, because its warnings would fail the zero-warning gate.
 - **Every suppression says why.** An inline `eslint-disable*` names its rules
   and ends in `-- <reason>`; a type suppression is `@ts-expect-error <reason>`,
   never `@ts-ignore` or `@ts-nocheck`. `npm run check:suppressions` enforces it,
