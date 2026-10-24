@@ -116,6 +116,20 @@ test('--prove-determinism discards the bundle when the fifth run drifts', () => 
   }
 });
 
+test('--prove-determinism discards only the files the capture wrote (#1065)', () => {
+  const dirs = fixture({ driftOnRun: 5 });
+  const bundle = path.join(dirs.maps, 'head');
+  fs.mkdirSync(bundle, { recursive: true });
+  fs.writeFileSync(path.join(bundle, 'NOTES.txt'), 'kept\n');
+  const { code, out } = runMap(dirs, ['--prove-determinism']);
+  try {
+    assert.equal(code, 1, `a flake must never become a baseline\n${out}`);
+    assert.deepEqual(fs.readdirSync(bundle), ['NOTES.txt'], 'the maps go, the file StyleProof did not write stays');
+  } finally {
+    fs.rmSync(dirs.root, { recursive: true, force: true });
+  }
+});
+
 test('without the flag the capture stays a single self-checked run', () => {
   const dirs = fixture();
   const { code, out } = runMap(dirs, []);

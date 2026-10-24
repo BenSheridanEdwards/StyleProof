@@ -14,6 +14,7 @@ import {
   MapStoreError,
   MapStoreNotFoundError,
   MapStorePreconditionError,
+  removeOwnedBundleEntries,
 } from './bundle.js';
 import {
   type GitResult,
@@ -234,10 +235,14 @@ function copyRestoredBundle(tmp: string, { sha, branch, compatibilityKey, outDir
       : `map bundle under ${sha}`;
     return miss(`no cached ${scope} on ${branch}`, compatibilityKey ? 'compat_mismatch' : 'no_bundle');
   }
-  removeDirRecursive(outDir);
-  copyDir(path.join(shaDir, candidates[0]), outDir, true);
-  const manifest = readMapManifest(outDir);
-  return manifest ? { status: 'hit', manifest } : miss(`cached map for ${sha} is missing ${MAP_MANIFEST}`, 'no_bundle');
+  // Validate before clearing, then clear only what a capture or restore writes: a bad bundle
+  // leaves outDir as it was, and files StyleProof did not write there survive (#1065).
+  const bundleDir = path.join(shaDir, candidates[0]);
+  const manifest = readMapManifest(bundleDir);
+  if (!manifest) return miss(`cached map for ${sha} is missing ${MAP_MANIFEST}`, 'no_bundle');
+  removeOwnedBundleEntries(outDir);
+  copyDir(bundleDir, outDir, true);
+  return { status: 'hit', manifest };
 }
 
 /** One restore attempt: probe the branch, check out the one SHA's tree, copy the bundle. */
