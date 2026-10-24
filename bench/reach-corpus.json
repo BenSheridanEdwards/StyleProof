@@ -1,0 +1,439 @@
+{
+  "fixture": "bench/fixtures/reach",
+  "surfaces": {
+    "home": {
+      "query": "",
+      "width": 900,
+      "colorScheme": "light"
+    },
+    "fault": {
+      "query": "?fault=1",
+      "width": 900,
+      "colorScheme": "light"
+    },
+    "status-bad": {
+      "query": "?status=bad",
+      "width": 900,
+      "colorScheme": "light"
+    },
+    "dark": {
+      "query": "",
+      "width": 900,
+      "colorScheme": "dark"
+    },
+    "wide": {
+      "query": "",
+      "width": 1440,
+      "colorScheme": "light"
+    }
+  },
+  "scenarios": {
+    "declared": ["home"],
+    "complete": ["home", "fault", "status-bad", "dark", "wide"]
+  },
+  "expectations": {
+    "today": "shown = today's diffStyleMaps puts a finding on the marker element (with an expected prop); missed = it does not",
+    "reach": "reached / never-rendered / blind-channel: the prototype joins' verdict for the case's changed unit",
+    "edit": "the seeded change: each `from` must occur exactly once in the base file; the head side is base plus every case edit"
+  },
+  "cases": [
+    {
+      "id": "hover-rule",
+      "category": "css",
+      "desc": "link :hover colour (forced :hover reaches it)",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": ".link:hover {\n  color: #1d4ed8;",
+          "to": ".link:hover {\n  color: #7c3aed;"
+        }
+      ],
+      "unit": {
+        "css": "^\\.link:hover$"
+      },
+      "sel": ".sp-link",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "shown",
+          "reach": "reached"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "fault-rule",
+      "category": "css",
+      "desc": "fault overlay indicator green → amber",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": ".panel--fault .indicator {\n  color: #16a34a;",
+          "to": ".panel--fault .indicator {\n  color: #f59e0b;"
+        }
+      ],
+      "unit": {
+        "css": "^\\.panel--fault \\.indicator$"
+      },
+      "sel": ".sp-indicator",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "token-consumer",
+      "category": "css",
+      "desc": "--warn token changed; only the fault badge consumes it",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": "  --warn: #16a34a;",
+          "to": "  --warn: #f59e0b;"
+        }
+      ],
+      "unit": {
+        "css": "^:root$"
+      },
+      "sel": ".sp-fault-badge",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "ternary-arm",
+      "category": "css",
+      "desc": "status=bad badge colour (the unrendered ternary arm)",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": ".badge--bad {\n  color: #dc2626;",
+          "to": ".badge--bad {\n  color: #b91c1c;"
+        }
+      ],
+      "unit": {
+        "css": "^\\.badge--bad$"
+      },
+      "sel": ".sp-badge",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "keyframes",
+      "category": "css",
+      "desc": "@keyframes body changed; a rendered badge references it",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": "opacity: 0.5;",
+          "to": "opacity: 0.6;"
+        }
+      ],
+      "unit": {
+        "css": "^@keyframes pulse$"
+      },
+      "sel": ".sp-badge",
+      "props": ["opacity"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "blind-channel"
+        },
+        "complete": {
+          "today": "missed",
+          "reach": "blind-channel"
+        }
+      }
+    },
+    {
+      "id": "dark-mode",
+      "category": "css",
+      "desc": "dark-mode panel background",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": "background: #1f2937;",
+          "to": "background: #111827;"
+        }
+      ],
+      "unit": {
+        "css": "^@media \\(prefers-color-scheme: dark\\) > \\.panel$"
+      },
+      "sel": ".sp-panel",
+      "props": ["background-color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "wide-media",
+      "category": "css",
+      "desc": "panel padding in the 1440px band",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": "padding: 16px;",
+          "to": "padding: 20px;"
+        }
+      ],
+      "unit": {
+        "css": "^@media \\(min-width: 1440px\\) > \\.panel$"
+      },
+      "sel": ".sp-panel",
+      "props": ["padding"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "removed-rule",
+      "category": "css",
+      "desc": "fault panel border rule removed (judged on base)",
+      "edit": [
+        {
+          "file": "styles.css",
+          "from": ".panel--fault {\n  border-color: #f59e0b;\n}\n\n",
+          "to": ""
+        }
+      ],
+      "unit": {
+        "css": "^\\.panel--fault$"
+      },
+      "sel": ".sp-fault-panel",
+      "props": ["border"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "css-module",
+      "category": "css",
+      "desc": "CSS Module class in the fault overlay (hashed served selector)",
+      "edit": [
+        {
+          "file": "card.module.css",
+          "from": "color: #16a34a;",
+          "to": "color: #f59e0b;"
+        }
+      ],
+      "unit": {
+        "css": "^\\.card_alert$"
+      },
+      "sel": ".sp-card-alert",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "runtime-css-in-js",
+      "category": "residual",
+      "desc": "runtime CSS-in-JS style string for a component only the fault overlay renders",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "styled('span', 'color: #16a34a;')",
+          "to": "styled('span', 'color: #f59e0b;')"
+        }
+      ],
+      "unit": {
+        "js": "styled('span'",
+        "css": "^\\.css-"
+      },
+      "sel": ".sp-probe",
+      "props": ["color"],
+      "residual": "The definition runs at load (J2 ran), the rule is injected only on render (J1 sees nothing), and the changed value is no class token (J3 has no signal). Pinned as the named residual: a fix must update this expectation on purpose.",
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "reached",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "branch-class",
+      "category": "markup",
+      "desc": "fault badge gains an existing uppercase class",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "{ className: 'fault-badge sp-fault-badge' }",
+          "to": "{ className: 'fault-badge fault-badge--loud sp-fault-badge' }"
+        }
+      ],
+      "unit": {
+        "js": "fault-badge--loud"
+      },
+      "sel": ".sp-fault-badge",
+      "props": ["text-transform"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "never-ran"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "module-constant",
+      "category": "markup",
+      "desc": "module-scope TONES.bad class, rendered only when status=bad",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "bad: 'tone-red' }",
+          "to": "bad: 'tone-amber' }"
+        }
+      ],
+      "unit": {
+        "js": "bad: 'tone-"
+      },
+      "sel": ".sp-tone",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "ran",
+            "J3": "never-rendered"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "colliding-constant",
+      "category": "markup",
+      "desc": "module-scope ALERT.critical moves to a class another element already renders",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "critical: 'tone-amber' }",
+          "to": "critical: 'tone-red' }"
+        }
+      ],
+      "unit": {
+        "js": "critical: 'tone-"
+      },
+      "sel": ".sp-alert",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "ran",
+            "J3": "never-rendered"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached"
+        }
+      }
+    },
+    {
+      "id": "error-handler",
+      "category": "noise",
+      "desc": "console.warn text in an error handler (not visual)",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "console.warn('render failed', err)",
+          "to": "console.warn('render failed:', err)"
+        }
+      ],
+      "unit": {
+        "js": "console.warn("
+      },
+      "noise": "Changed code that never runs during capture and has no visual effect. Flagged by J2 today; the client-bundle filter (#1000) and acknowledgements (#1006) address it.",
+      "expect": {
+        "declared": {
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "never-ran"
+          }
+        },
+        "complete": {
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "never-ran"
+          }
+        }
+      }
+    }
+  ]
+}

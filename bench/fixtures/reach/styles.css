@@ -1,0 +1,93 @@
+/* fallow-ignore-file css-dead-surface -- the fixture applies these classes through h() string arguments and module constants, which the CSS analysis cannot follow */
+:root {
+  --ok: #16a34a;
+  --warn: #16a34a;
+}
+
+body {
+  font-family: sans-serif;
+  margin: 24px;
+}
+
+main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: start;
+}
+
+.link {
+  color: #2563eb;
+}
+
+.link:hover {
+  color: #1d4ed8;
+}
+
+.panel {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+}
+
+.panel--fault {
+  border-color: #f59e0b;
+}
+
+.indicator {
+  color: var(--ok);
+}
+
+.panel--fault .indicator {
+  color: #16a34a;
+}
+
+.fault-badge {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.fault-badge--loud {
+  text-transform: uppercase;
+}
+
+.badge {
+  animation: pulse 2s paused;
+}
+
+.badge--ok {
+  color: var(--ok);
+}
+
+.badge--bad {
+  color: #dc2626;
+}
+
+.tone-ok {
+  color: #16a34a;
+}
+
+.tone-red {
+  color: #dc2626;
+}
+
+.tone-amber {
+  color: #f59e0b;
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.5;
+  }
+}
+
+@media (min-width: 1440px) {
+  .panel {
+    padding: 16px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .panel {
+    background: #1f2937;
+  }
+}

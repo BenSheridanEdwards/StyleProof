@@ -17,6 +17,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { captureStyleMap } from '../dist/capture.js';
 import { diffContentMaps, diffStyleMaps } from '../dist/diff.js';
+import { hasProp, markerOf, onTarget } from './finding-match.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CORPUS_PATH = path.join(ROOT, 'bench', 'detection-corpus.json');
@@ -33,13 +34,6 @@ function caseUrl(c) {
   if (c.text) params.set('text', c.text.map(b64).join(':'));
   return params.size ? `${FIXTURE_URL}?${params}` : FIXTURE_URL;
 }
-
-// A finding lands on the target when its class attribute carries the marker.
-const markerOf = (sel) => sel.replace(/^\./, '');
-const onTarget = (f, marker) => (f.cls ?? '').split(/\s+/).includes(marker);
-const hasProp = (f, props) =>
-  !props?.length ||
-  (f.props ?? []).some((p) => props.some((want) => p.prop === want || p.prop.startsWith(`${want}-`)));
 
 function verdict(c, findings) {
   const marker = c.sel ? markerOf(c.sel) : null;
