@@ -203,6 +203,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-diff <baseRef>` no longer certifies an added or removed
+  visible element.** In cached-map mode the restored maps live in a temp
+  workspace that is deleted once the evidence is read. The visible-structure
+  and navigable-chrome elevation (#766) ran after that, found no maps and
+  counted zero, so a structure change exited 0 instead of 1. The two-directory
+  form, which the Action uses, was not affected. Elevation is now read with
+  the rest of the evidence.
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
