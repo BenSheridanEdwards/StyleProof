@@ -571,23 +571,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reused its stale base map. The prefix is now cut back to its last `/`, so it
   covers `src/widgets/`. Every file kind under that directory is now a possible
   target, so ``import(`../themes/${t}.module.css`)`` selects its importer when a
-  stylesheet there changes. A prefix whose last segment is `.` or `..`
+  stylesheet there changes and that stylesheet also has a resolved importer
+  (see the context-only change entry below). A prefix whose last segment is `.` or `..`
   (``import(`../widgets/..${s}`)``) can climb out of that directory, so it now
   resolves to `'all'`.
-  stylesheet there changes. A prefix that ends in `.` or `..` now re-captures
-  every surface, because the import can leave that directory.
-  stylesheet there changes. A code file or stylesheet reached only by the
-  computed import now selects that importer instead of every surface. An asset
-  such as an `.svg` or font that no module imports statically still re-captures
-  every surface, because CSS can load it. A prefix that ends in `.` or `..` now
-  stylesheet there changes. Context recovery only widens changes already placed
-  by a resolved source import or declared surface entry. A code file, stylesheet
-  or asset reached only by a computed import re-captures every surface; ignored
-  `node_modules` edges cannot establish placement. This also makes previously
-  scoped context-only code changes conservative. CSS `url()` and `@font-face`
-  dependencies remain unmodelled, so assets without resolved source importers
-  still re-capture every surface. A prefix that ends in `.` or `..` now
-  re-captures every surface, because the import can leave that directory.
 - **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
   surface under selective remap (#942).** These single-file components carry
   their own `<style>` blocks, which can be global: an unscoped Vue `<style>`,
@@ -596,6 +583,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   surfaces that render the same selectors reused their base maps. Any change to
   one of these files now resolves to `'all'`. Changes to scripts, stylesheets,
   configs and assets keep their current verdicts.
+- **Selective remap now re-captures every surface for a changed file that
+  only a computed `import()` reaches.** Recovering a computed import's
+  context directory now only widens a change that a resolved source import
+  or a declared surface entry already places. A changed code file, CSS
+  Module or asset with neither, including one whose only importer is in
+  `node_modules`, now resolves to `'all'`. Before, a file reached only
+  through ``import(`../components/${name}`)`` selected just that importer's
+  surface. This deliberately widens context-only changes that used to be
+  scoped, so they cost a full re-capture. CSS `url()` and `@font-face`
+  dependencies are still not modelled, so an asset with no resolved source
+  importer keeps re-capturing every surface.
 - **A failing certify run's PR comment no longer says StyleProof is advisory
   (#938).** In certify mode with `fail-on-diff: true` (the Action default),
   "Fail on diff" fails the job on any reviewable change. The comment footer
@@ -699,7 +697,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   handles the error, because its fallback could hide a breakpoint band.
   `styleproof-map` also removes HAR files before exiting a failed capture unless
   `--keep-har` was requested, so rejected detection loads leave no default recording.
-  one of these files now resolves to `'all'`.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
