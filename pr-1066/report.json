@@ -39,7 +39,7 @@
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
     "status": "comparable",
-    "requireStateIdentity": false,
+    "requireStateIdentity": true,
     "blocksCertification": false,
     "counts": {
       "comparable": 1,
@@ -105,19 +105,19 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "bedc9346ba928a70ca2012de674449c6bb50f70e69ea4c7114d214714fea83fb",
+      "digest": "14a5cd40180cde9e634055b324fba63998d7d4b68e9e0c09a2fabebb98bf084a",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "25153047c40f310dcb8e81df18d566e65d3c6dde8427901edb5b88525cdf7426",
+      "digest": "125d5a926b44d96d7c82dfbc9a17ac4a1c2b19e114d5b8aabbe8309f53621b80",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED",
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES",
   "untrustedCapture": false
 }
