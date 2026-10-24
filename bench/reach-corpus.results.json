@@ -1,0 +1,378 @@
+{
+  "generated": "2026-10-21T12:04:03.702Z",
+  "browser": "chromium 149.0.7827.55",
+  "fixture": "bench/fixtures/reach",
+  "totals": {
+    "cases": 14,
+    "visual": 13,
+    "todayShownDeclared": "1/13",
+    "todayShownComplete": "12/13",
+    "missesNamedByReach": "11/12",
+    "residual": [
+      "runtime-css-in-js"
+    ],
+    "failed": []
+  },
+  "cases": [
+    {
+      "id": "hover-rule",
+      "category": "css",
+      "desc": "link :hover colour (forced :hover reaches it)",
+      "scenarios": {
+        "declared": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            ".link:hover: reached (matched in a captured state)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            ".link:hover: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "fault-rule",
+      "category": "css",
+      "desc": "fault overlay indicator green → amber",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "units": [
+            ".panel--fault .indicator: never-rendered (selector never matched)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            ".panel--fault .indicator: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "token-consumer",
+      "category": "css",
+      "desc": "--warn token changed; only the fault badge consumes it",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "units": [
+            ":root: never-rendered (consumer of --warn never matched: .fault-badge)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            ":root: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "ternary-arm",
+      "category": "css",
+      "desc": "status=bad badge colour (the unrendered ternary arm)",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "units": [
+            ".badge--bad: never-rendered (selector never matched)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            ".badge--bad: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "keyframes",
+      "category": "css",
+      "desc": "@keyframes body changed; a rendered badge references it",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "blind-channel",
+          "units": [
+            "@keyframes pulse: blind-channel (referenced by .badge)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "missed",
+          "reach": "blind-channel",
+          "units": [
+            "@keyframes pulse: blind-channel (referenced by .badge)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "dark-mode",
+      "category": "css",
+      "desc": "dark-mode panel background",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "units": [
+            "@media (prefers-color-scheme: dark) > .panel: never-rendered (gated by @media (prefers-color-scheme: dark))"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            "@media (prefers-color-scheme: dark) > .panel: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "wide-media",
+      "category": "css",
+      "desc": "panel padding in the 1440px band",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "units": [
+            "@media (min-width: 1440px) > .panel: never-rendered (gated by @media (min-width: 1440px))"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            "@media (min-width: 1440px) > .panel: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "removed-rule",
+      "category": "css",
+      "desc": "fault panel border rule removed (judged on base)",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "units": [
+            ".panel--fault: never-rendered (selector never matched)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            ".panel--fault: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "css-module",
+      "category": "css",
+      "desc": "CSS Module class in the fault overlay (hashed served selector)",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "units": [
+            ".card_alert: never-rendered (selector never matched)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "units": [
+            ".card_alert: reached (matched in a captured state)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "runtime-css-in-js",
+      "category": "residual",
+      "desc": "runtime CSS-in-JS style string for a component only the fault overlay renders",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "reached",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:40: reached"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:40: reached"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "branch-class",
+      "category": "markup",
+      "desc": "fault badge gains an existing uppercase class",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "never-ran",
+            "J3": "never-rendered"
+          },
+          "units": [
+            "app.jsx:51: never-rendered"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "joins": {
+            "J2": "ran",
+            "J3": "reached"
+          },
+          "units": [
+            "app.jsx:51: reached"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "module-constant",
+      "category": "markup",
+      "desc": "module-scope TONES.bad class, rendered only when status=bad",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "ran",
+            "J3": "never-rendered"
+          },
+          "units": [
+            "app.jsx:8: never-rendered"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "joins": {
+            "J2": "ran",
+            "J3": "reached"
+          },
+          "units": [
+            "app.jsx:8: reached"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "colliding-constant",
+      "category": "markup",
+      "desc": "module-scope ALERT.critical moves to a class another element already renders",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "ran",
+            "J3": "never-rendered"
+          },
+          "units": [
+            "app.jsx:9: never-rendered"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "reached",
+          "joins": {
+            "J2": "ran",
+            "J3": "reached"
+          },
+          "units": [
+            "app.jsx:9: reached"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "error-handler",
+      "category": "noise",
+      "desc": "console.warn text in an error handler (not visual)",
+      "scenarios": {
+        "declared": {
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "never-ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:63: never-rendered"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "reach": "never-rendered",
+          "joins": {
+            "J2": "never-ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:63: never-rendered"
+          ],
+          "ok": true
+        }
+      }
+    }
+  ]
+}
