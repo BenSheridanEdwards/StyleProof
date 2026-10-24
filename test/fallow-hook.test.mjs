@@ -60,9 +60,9 @@ test('CI complexity uses the exact pinned CLI and its baseline-aware exit semant
 });
 
 test('local Fallow is exactly pinned so pre-commit and CI resolve the same release', () => {
-  assert.equal(pkg.devDependencies.fallow, '3.19.0');
-  assert.equal(lock.packages[''].devDependencies.fallow, '3.19.0');
-  assert.equal(lock.packages['node_modules/fallow'].version, '3.19.0');
+  assert.equal(pkg.devDependencies.fallow, '3.34.0');
+  assert.equal(lock.packages[''].devDependencies.fallow, '3.34.0');
+  assert.equal(lock.packages['node_modules/fallow'].version, '3.34.0');
 });
 
 test('fallow suppression comments carry only issue kinds, with any explanation on its own line', () => {
