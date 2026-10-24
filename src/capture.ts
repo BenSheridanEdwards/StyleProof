@@ -111,7 +111,12 @@ export function validateProductStateIdentity(value: unknown): ProductStateIdenti
 }
 
 // Motion is frozen so every captured value is a settled end state.
-const FREEZE_CSS = '*,*::before,*::after{animation:none!important;transition:none!important}';
+// One rule per pseudo-element: an unsupported one in a selector list voids the whole rule, and an
+// animated ::backdrop would mark its dialog volatile. ::first-letter/::first-line stay out: a rule
+// matching them makes every block box generate the pseudo-element, which changes what it computes.
+const FREEZE_CSS = ['*,*::before,*::after', '::backdrop', '::file-selector-button']
+  .map((selector) => `${selector}{animation:none!important;transition:none!important}`)
+  .join('');
 
 // Always skipped: non-rendered elements frameworks stream into <body> and reorder, plus
 // framework-injected live regions. A real stylesheet change still shows in element styles.

@@ -420,6 +420,22 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     });
   }
 
+  // The motion freeze must reach the newly read pseudo-elements: an animated ::backdrop that keeps
+  // changing would mark its dialog volatile, and a volatile subtree is dropped from the comparison.
+  test('an animated ::backdrop does not hide a restyle of its dialog', async ({ page }) => {
+    const pulse =
+      '@keyframes pulse{from{background-color:rgb(0,0,0)}to{background-color:rgb(255,255,255)}}' +
+      'dialog::backdrop{animation:pulse .3s linear infinite alternate}';
+    const base = await cap(page, pulse + 'dialog{color:rgb(200,0,0)}', MODAL);
+    const head = await cap(page, pulse + 'dialog{color:rgb(0,0,200)}', MODAL);
+    for (const includeStructure of [true, false]) {
+      const f = diffStyleMaps(base, head, { includeStructure }).find(
+        (x) => x.kind === 'style' && !x.pseudo && x.props.some((p) => p.prop === 'color'),
+      );
+      expect(f, `the dialog recolour is surfaced (includeStructure: ${includeStructure})`).toBeTruthy();
+    }
+  });
+
   test('no ::first-letter / ::first-line entry without an override, and identical pages stay silent', async ({
     page,
   }) => {
