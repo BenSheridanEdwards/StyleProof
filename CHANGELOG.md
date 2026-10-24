@@ -539,6 +539,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   with `--incomplete-ui-exclude` and a reason. Capture the states behind
   those controls with a spec fixture. This also applies to labels that were
   already unsafe, such as "Delete" and "Log out".
+  On upgrade, a state recipe whose label (or `stateKey` when no label is
+  set), or whose live target label, contains one of the new terms now fails
+  with "refusing unsafe state recipe" instead of capturing; if that control
+  is not destructive, declare the state as an explicit `variants` entry.
 - **A split-layout certify scaffold now puts a red `StyleProof` status on the
   PR (#937).** `styleproof-init --workflow split --mode certify` runs the
   Action from a `workflow_run` job, which runs on the default branch, so its
