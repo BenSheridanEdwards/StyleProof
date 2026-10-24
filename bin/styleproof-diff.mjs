@@ -19,7 +19,7 @@ import { honestBaselineCompareAttribution } from '../dist/map-store.js';
 import { applyLegacyPairReceipts, auditLegacyPairs } from '../dist/legacy-pairs.js';
 import { applyCriticalObligationReceipts, auditCriticalObligations } from '../dist/critical-obligations.js';
 import { AUDIT_FILE_NAME, createAudit } from '../dist/audit.js';
-import { defineCli, errorMessage, fail, number } from './cli.mjs';
+import { defineCli, errorMessage, exitWhenDrained, fail, number } from './cli.mjs';
 import { compareFlags, resolveCompareInputs, withCaptureDirs } from './compare.mjs';
 import { readCompareEvidence } from './diff/read.mjs';
 import { printSection } from './diff/output.mjs';
@@ -524,4 +524,5 @@ try {
   console.error(`${NAME}: could not write audit trail to ${auditPath}: ${errorMessage(error)}`);
 }
 
-process.exit(exitCode);
+// After the diff work, exit by draining rather than process.exit(), which can deadlock.
+exitWhenDrained(exitCode);

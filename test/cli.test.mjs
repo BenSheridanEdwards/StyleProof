@@ -191,6 +191,59 @@ test('styleproof-map keeps HAR files only when explicitly requested', () => {
   }
 });
 
+test('styleproof-map cleans failed capture HARs unless explicitly retained', async (t) => {
+  for (const survivingMap of [false, true]) {
+    for (const keepHar of [false, true]) {
+      await t.test(`surviving map: ${survivingMap}, keep HAR: ${keepHar}`, () => {
+        const root = mkTmp();
+        try {
+          const spec = path.join(root, 'e2e/styleproof.spec.ts');
+          fs.mkdirSync(path.dirname(spec), { recursive: true });
+          fs.writeFileSync(spec, '// fake spec');
+          // Model Playwright flushing HARs before returning a failed capture. Stub Git too,
+          // so this regression needs neither a browser nor a repository in its fixture.
+          const bootstrap = `
+            import childProcess from 'node:child_process';
+            import fs from 'node:fs';
+            import path from 'node:path';
+            import { syncBuiltinESMExports } from 'node:module';
+            childProcess.spawnSync = (command, args, options) => {
+              if (command === 'git') return { status: null, error: new Error('git unavailable') };
+              if (command !== 'playwright' && command !== 'playwright.cmd') {
+                throw new Error('unexpected subprocess: ' + command);
+              }
+              const dir = path.join(options.env.STYLEPROOF_BASEDIR, options.env.STYLEMAP_DIR);
+              fs.mkdirSync(dir, { recursive: true });
+              for (const name of ['away@auto-1280x720.har', 'home@720.har']) {
+                fs.writeFileSync(path.join(dir, name), '{}');
+              }
+              if (${survivingMap}) fs.writeFileSync(path.join(dir, 'home@720.json'), '{}');
+              return { status: 1 };
+            };
+            syncBuiltinESMExports();
+            process.argv = [process.execPath, ${JSON.stringify(MAP)}, ...process.argv.slice(1)];
+            await import(${JSON.stringify(new URL('../bin/styleproof-map.mjs', import.meta.url).href)});
+          `;
+          const result = spawnSync(
+            process.execPath,
+            ['--input-type=module', '--eval', bootstrap, '--', '--no-upload', ...(keepHar ? ['--keep-har'] : [])],
+            { cwd: root, encoding: 'utf8', env: { ...process.env, STYLEPROOF_KEEP_HAR: '0' } },
+          );
+          assert.equal(result.status, 1, result.stderr);
+          const maps = path.join(root, '.styleproof/maps/current');
+          for (const name of ['away@auto-1280x720.har', 'home@720.har']) {
+            assert.equal(fs.existsSync(path.join(maps, name)), keepHar, name);
+          }
+          assert.equal(fs.existsSync(path.join(maps, 'home@720.json')), survivingMap);
+          assert.equal(fs.existsSync(path.join(maps, MAP_MANIFEST)), false, 'a failed capture cannot publish');
+        } finally {
+          rmTmp(root);
+        }
+      });
+    }
+  }
+});
+
 test('styleproof-map writes no manifest when the capture produced zero surfaces', () => {
   // A manifest over an empty bundle would read as "a bundle that claims to exist
   // yet holds nothing", which the diff refuses as a missing base map (exit 2). A
@@ -1318,6 +1371,59 @@ test('styleproof-map --restore exits 4 when the map store branch does not exist'
   rmTmp(repo);
 });
 
+// #959: the upload keys the bundle by the job's BASE_URL, so the restore lookup must too.
+for (const baseUrl of ['http://127.0.0.1:3000', '', undefined]) {
+  test(`styleproof-map --restore finds the bundle --upload published with BASE_URL=${JSON.stringify(baseUrl)} (#959)`, () => {
+    const root = mkTmp();
+    const binDir = mkTmp('styleproof-fakebin-');
+    try {
+      gitInit(root);
+      spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+      fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+      writeSpec(root);
+      addBareOrigin(root);
+      const headSha = commitAll(root, 'base');
+      const fakePlaywright = path.join(binDir, 'playwright');
+      fs.writeFileSync(
+        fakePlaywright,
+        '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+      );
+      fs.chmodSync(fakePlaywright, 0o755);
+      const env = cliEnv({
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        BASE_URL: baseUrl,
+        STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+      });
+      const restore = (extra = {}) =>
+        spawnSync(
+          process.execPath,
+          [MAP, '--restore', '--sha', headSha, '--dir', 'base', '--base-dir', path.join(root, '.styleproof', 'out')],
+          { cwd: root, encoding: 'utf8', env: { ...env, ...extra } },
+        );
+
+      const upload = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+        cwd: root,
+        encoding: 'utf8',
+        env,
+      });
+      assert.equal(upload.status, 0, upload.stderr);
+      const sameEnv = restore();
+      assert.equal(sameEnv.status, 0, sameEnv.stderr);
+      assert.match(sameEnv.stderr, /base_hit=exact/);
+
+      for (const otherBaseUrl of ['http://127.0.0.1:4000', '', undefined]) {
+        if (otherBaseUrl === baseUrl) continue;
+        const otherEnv = restore({ BASE_URL: otherBaseUrl });
+        assert.equal(otherEnv.status, 4, `BASE_URL=${JSON.stringify(otherBaseUrl)}: ${otherEnv.stderr}`);
+        assert.match(otherEnv.stderr, /cold_reason=compat_mismatch/);
+      }
+    } finally {
+      rmTmp(root);
+      rmTmp(binDir);
+    }
+  });
+}
+
 /** A local origin whose upload-pack stalls, so every networked map-store git call hangs. */
 function stallingOriginRepo(config) {
   const repo = mkTmp();
@@ -1554,23 +1660,30 @@ test('report CLI names a collapsed style presentation as a consistency failure, 
       style: { color: 'rgb(0, 0, 0)' },
     };
     const label = {
-      tag: 'button',
+      tag: 'span',
       cls: 'label',
       rect: [10, 50, 80, 24],
       ownTextLength: 4,
       style: { color: 'rgb(255, 255, 255)' },
     };
-    // The class identities swap, but colors stay fixed at each path. Certification
-    // retains the identity-based restyles while presentation finds no path restyle.
+    // The two elements swap places, but colors and boxes stay fixed at each position.
+    // Certification retains the nth-child-shift restyles while presentation finds no path restyle.
     for (const [dir, first, second, sha] of [
       [A, action, label, 'base-sha'],
-      [B, { ...label, style: action.style }, { ...action, style: label.style }, 'head-sha'],
+      [
+        B,
+        { ...label, rect: action.rect, style: action.style },
+        { ...action, rect: label.rect, style: label.style },
+        'head-sha',
+      ],
     ]) {
       writeCapture(
         dir,
         'home@400',
         {
-          ...makeMap({ elements: { 'body > button:nth-child(1)': first, 'body > button:nth-child(2)': second } }),
+          ...makeMap({
+            elements: { [`body > ${first.tag}:nth-child(1)`]: first, [`body > ${second.tag}:nth-child(2)`]: second },
+          }),
           metadata: { productState: { id: 'reordered-buttons', revision: 'fixture-v1' } },
         },
         null,

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   correspondBeforeMap,
+  correspondContentShiftedPaths,
   correspondenceSignature,
   correspondElementPaths,
   hasMeaningfulSharedPrefix,
@@ -441,6 +442,29 @@ test('a content-shifted owner carries its ::after hover target to the head path 
     ]);
   assert.deepEqual(certify(after('rgb(0, 0, 200)')), [], 'an unchanged ::after target is not one-sided');
   assert.deepEqual(certify(after('rgb(200, 0, 0)')), [['state', item(3), `${item(3)}::after`, ['color']]]);
+});
+
+test('correspondContentShiftedPaths leaves the base map as it is when the sibling paths are the same on both sides', () => {
+  // A modifier class moved from the first row to the third: every path exists on
+  // both sides, so no sibling was inserted or removed and nothing may be re-paired.
+  const rowPath = (position) => `ul:nth-child(1) > li:nth-child(${position})`;
+  const rows = (current) =>
+    makeMap({
+      elements: Object.fromEntries(
+        [1, 2, 3].map((position) => [
+          rowPath(position),
+          {
+            tag: 'li',
+            cls: position === current ? 'item current' : 'item',
+            rect: [0, (position - 1) * 24, 400, 24],
+            ownTextLength: 0,
+            style: { 'background-color': position === current ? 'rgb(230, 240, 255)' : 'rgba(0, 0, 0, 0)' },
+          },
+        ]),
+      ),
+    });
+  const before = rows(1);
+  assert.deepEqual(correspondContentShiftedPaths(before, rows(3)).elements, before.elements);
 });
 
 test('an ambiguous geometry signature stays one-sided (fails closed) even when re-nested', () => {

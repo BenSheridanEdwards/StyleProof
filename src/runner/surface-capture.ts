@@ -2,6 +2,7 @@ import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { detectViewportWidths } from '../breakpoints.js';
 import {
   captureStyleMap,
   captureSurfaceScreenshots,
@@ -53,12 +54,68 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<bool
     // notFound:'abort' — an unrecorded request fails deterministically rather than hitting the live backend.
     await page.routeFromHAR(path.join(s.replayFrom, harName), { url: s.replayUrl, update: false, notFound: 'abort' });
   } else {
+    // A new width must really run live, not inherit an earlier width's replay router.
+    await page.unroute(s.replayUrl);
     warn(`styleproof: no replay HAR at ${path.join(s.replayFrom, harName)} — capturing live (NON-deterministic)`);
     intercepting = false;
   }
   if (intercepting) await passLiveStreams(page, s.replayUrl);
   if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
   return intercepting;
+}
+
+function viewportHeight(surface: ExpandedSurface, width: number): number {
+  return typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
+}
+
+/** A detection recording only matches a head using the same viewport as the base. */
+function autoHarName(key: string, viewport: { width: number; height: number } | null): string {
+  return viewport ? `${key}@auto-${viewport.width}x${viewport.height}.har` : `${key}@auto.har`;
+}
+
+/**
+ * Load an auto-width surface at one fixed viewport and read its `@media` bands. Record the base's
+ * detection load, then replay that same load on the head. With no matching recording, warn and
+ * detect live at that viewport, never at a narrower capture width that could hide a new band.
+ * Failed data requests reject detection: a fallback state may omit bands even when go() resolves.
+ */
+export async function detectSurfaceWidths(
+  page: Page,
+  surface: ExpandedSurface,
+  s: Settings,
+  viewport: { width: number; height: number } | null = page.viewportSize(),
+  baseURL?: string,
+): Promise<number[]> {
+  if (viewport === null && page.viewportSize() !== null) {
+    throw new Error(
+      'styleproof: cannot restore the original null viewport for auto-width detection after a capture resized ' +
+        'the page. Configure a project viewport or explicit surface widths.',
+    );
+  }
+  // Base and head load with the same viewport, reduced motion, pinned data and frozen clock.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (viewport) await page.setViewportSize(viewport);
+  // Drop routes an earlier surface left on a shared crawl page before pinning this detection load.
+  await page.unroute(s.replayUrl);
+  const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key, baseURL);
+  try {
+    await pinInputs(page, autoHarName(surface.key, viewport), s);
+    await surface.go(page);
+    const widths = await detectViewportWidths(page);
+    const failures = residue.residue();
+    if (failures.length) {
+      throw new Error(
+        `styleproof: cannot detect breakpoints for '${surface.key}' — data requests failed during detection: ` +
+          failures.map(({ endpoint, reason }) => `${endpoint} (${reason})`).join('; ') +
+          '. Failed data may hide viewport bands; fix the data load or set explicit widths.',
+      );
+    }
+    return widths;
+  } finally {
+    residue.dispose();
+    // Drop every route on the replay URL (other URL patterns' routes survive); each width pins its own HAR.
+    await page.unroute(s.replayUrl);
+  }
 }
 
 /** One heartbeat unit per declared surface×width; an auto-width surface is ONE unit. */
@@ -98,7 +155,7 @@ export async function captureSurface(
   const pinned = await pinInputs(page, `${declared.key}@${width}.har`, s);
   // A live fallback is stamped on the map (and its popups) so the gate never reads it as replay-proven.
   const surface = pinned ? declared : { ...declared, metadata: { ...declared.metadata, inputs: 'live' as const } };
-  const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
+  const height = viewportHeight(surface, width);
   await page.setViewportSize({ width, height });
   // Both trackers are armed BEFORE go() so the surface's own load requests are seen. Residue
   // is keyed on the BASE surface key so liveStates splits and widths dedupe to one entry.
