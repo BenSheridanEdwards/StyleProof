@@ -58,7 +58,7 @@ the evidence adds to a capture on a GitHub runner:
    resolved through source maps on both sides, a J3 class-list delta between
    base and head, and no dependency changed without a served-sources
    comparison. Every added or deleted line in each changed hunk must also map
-   to a J1/J2/J3 unit or served source, or belong to a path on the base
+   to a J1/J2/J3 unit or served source (item 4), or belong to a path on the base
    revision's explicit non-visual list (item 4). Changed files without text hunks
    require the same attribution or exemption. That list is unchanged by the
    PR, and every changed file it excuses is named in the report, even on a
@@ -102,18 +102,26 @@ the evidence adds to a capture on a GitHub runner:
    capture served, or that cannot be matched to a served sheet (for example, it
    has no source map), produces the same run-level J1 `unknown` row, such as "N
    changed stylesheets never served during capture; changed rules there cannot
-   be listed", with each file and affected style-block line range named. It
+   be listed", with each file and affected style-block line range named in
+   sorted path and numeric line order. It
    behaves like a missing ledger at both levels, and the remedy is a surface
    that loads the sheet, with source mappings where needed to attribute it.
    When the diff changes a dependency's resolved version or contents (a
    lockfile, a manifest's dependency ranges, a vendored package) and no
    served-sources comparison exists for it, reach produces a run-level `unknown`
-   row, "dependency changed without a served-sources diff: <packages>". The
+   row, "dependency changed without a served-sources diff: <packages>", with
+   packages in sorted name order. The
    change cannot be attributed to J1, J2 or J3, so this row stays at `'warn'`
    under either level, like the J2/J3 gaps, and it prevents reach-complete.
    Every added or deleted line in each changed hunk must map to a J1/J2/J3 unit
    or served source, or belong to an explicitly listed non-visual path. A match
-   for one hunk never attributes another hunk in the same file. Any remaining
+   for one hunk never attributes another hunk in the same file. A changed line
+   is attributed to a **served source** only when it falls inside a served rule
+   or style-block rule that J1 turned into a changed unit. Serving the file
+   alone attributes nothing. Any other changed line in a served sheet, such as
+   an `@layer`, `@import` or `@charset` statement, a comment, or a preprocessor
+   variable or mixin outside any rule, gets the changed-line attribution
+   `unknown` below. Any remaining
    changed lines produce a run-level `unknown` row, "changed lines not
    attributable to any join: <file>:<lines>". The report names each uncovered
    range with its base or head side, in sorted path and numeric line order,
@@ -131,11 +139,12 @@ the evidence adds to a capture on a GitHub runner:
    unreadable or invalid list grants none and produces a run-level `unknown`
    row naming the reason. Any PR change to the list or its location, including
    creation, deletion or renaming, produces a run-level `unknown` row naming
-   the changed configuration and entries. These rows stay at `'warn'` under
+   the changed configuration and entries in sorted order. These rows stay at `'warn'` under
    either level, prevent reach-complete, and cannot be cleared by approval. The
    report names every changed file the base list excuses, its changed line
    ranges where available and matching entry, in sorted path and numeric line
-   order, even on a reach-complete run. Attribution and non-visual exemptions
+   order, even on a reach-complete run. All sorting is by code point, not
+   locale, so the same inputs give byte-identical rows. Attribution and non-visual exemptions
    supplement the join checks: they never mark a unit `reached` or clear another
    evidence gap.
    Missing J2 coverage or source maps, or a missing J3 class-list delta,
@@ -172,7 +181,7 @@ the evidence adds to a capture on a GitHub runner:
    | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
    | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
    | `unknown`, run-level dependency gap | named finding naming the changed packages (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
-   | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
+   | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source (item 4) and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
    | `unknown`, run-level non-visual list gap | named finding for a PR change to the list or its location, or an unreadable or invalid base list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
 
    No status other than `reached` is ever silent, and under `'gate'` the Approve
@@ -207,8 +216,8 @@ the evidence adds to a capture on a GitHub runner:
   or vendored dependency change is a run-level `unknown` finding until a
   served-sources diff exists.
 - Reach accounts for every added or deleted line in each changed hunk. Lines
-  not mapped to a J1/J2/J3 unit or served source and not exempted by the base
-  revision's non-visual list produce a named run-level `unknown` finding with
+  not mapped to a J1/J2/J3 unit or served source (as item 4 defines it) and
+  not exempted by the base revision's non-visual list produce a named run-level `unknown` finding with
   `file:lines` and the base or head side. It stays at `'warn'` under either
   level and prevents reach-complete, including for build inputs and server-side
   templates. Changed files without text hunks still require attribution or a
