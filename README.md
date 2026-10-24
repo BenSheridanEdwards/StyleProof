@@ -246,6 +246,11 @@ The end-to-end catch contract lives in
    someone approves intentional changes, or failing when certification mode is
    configured.
 
+[Selective remap](docs/REFERENCE.md#optional-selective-remap-advisory--ci-opt-in)
+is opt-in. A changed file reached only through a computed import re-captures
+every surface; recovered imports can widen a resolved dependency, but cannot
+make an unplaced change selective.
+
 StyleProof is not a screenshot diff. Screenshots appear in the report so humans
 can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced

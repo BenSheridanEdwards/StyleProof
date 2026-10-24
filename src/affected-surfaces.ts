@@ -203,8 +203,12 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
   const placeable = new Set<string>([...canonFiles, ...graph.flatMap((e) => [e.from, e.to])]);
   if ([...entryFiles].some((f) => !placeable.has(f))) return 'all';
 
+  const staticTargets = new Set(graph.filter((e) => isSource(e.from) && isSource(e.to)).map((e) => e.to));
   const affectedFiles = new Set<string>();
   for (const f of changed) {
+    // Context recovery may widen a resolved dependency, but cannot establish
+    // ownership of an otherwise unplaced change (including CSS url()/font assets).
+    if (!entryFiles.has(f) && !staticTargets.has(f)) return 'all';
     const reach = reverseReach(f, rev);
     if (reach.size === 0 && !entryFiles.has(f)) return 'all';
     for (const src of [f, ...reach]) affectedFiles.add(src);

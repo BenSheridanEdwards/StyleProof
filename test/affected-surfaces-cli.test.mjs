@@ -171,6 +171,61 @@ test('styleproof-affected: an unscoped <style> change in a .vue component exits 
   }
 });
 
+test('styleproof-affected: context-only styles and CSS assets never reuse an unrelated surface', () => {
+  const dir = mkTmp('styleproof-affected-context-');
+  const sources = {
+    'src/pages/Home.tsx': 'const Theme = import(`../themes/card-${name}`);',
+    'src/pages/Settings.tsx': 'import "../styles/settings.css";',
+    'src/styles/settings.css':
+      '.panel { background-image: url("../themes/card-bg.svg"); }\n' +
+      '@font-face { font-family: Inter; src: url("../themes/card-font.woff2") format("woff2"); }',
+    'src/themes/card-dark.tsx': 'export const style = { color: "red" };',
+    'src/themes/card-dark.module.css': '.card { color: red; }',
+    'src/themes/card-bg.svg': '<svg/>',
+    'src/themes/card-font.woff2': '',
+  };
+  try {
+    for (const [file, text] of Object.entries(sources)) {
+      fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+      fs.writeFileSync(path.join(dir, file), text);
+    }
+    for (const changed of Object.keys(sources).filter((file) => file.startsWith('src/themes/'))) {
+      for (const ignoredImporter of [false, true]) {
+        const modules = Object.keys(sources).map((source) => ({
+          source,
+          dependencies: source === 'src/pages/Settings.tsx' ? [{ resolved: 'src/styles/settings.css' }] : [],
+        }));
+        if (ignoredImporter) {
+          modules.push({ source: 'node_modules/pkg/index.js', dependencies: [{ resolved: changed }] });
+        }
+        fs.writeFileSync(path.join(dir, 'graph.json'), JSON.stringify({ modules }));
+        const res = run(
+          [
+            '--graph',
+            'graph.json',
+            '--surface',
+            'home=src/pages/Home.tsx',
+            '--surface',
+            'settings=src/pages/Settings.tsx',
+            '--changed',
+            changed,
+            '--json',
+          ],
+          dir,
+        );
+        assert.equal(res.status, 3, `${changed}, ignored importer: ${ignoredImporter}\n${res.stderr}`);
+        const verdict = JSON.parse(res.stdout);
+        assert.equal(verdict.verdict, 'all');
+        assert.deepEqual(verdict.recapture, ['home', 'settings']);
+        assert.deepEqual(verdict.reuse, []);
+        assert.match(res.stderr, /selective remap: OFF/);
+      }
+    }
+  } finally {
+    rmTmp(dir);
+  }
+});
+
 test('styleproof-affected: inline --surface entries work without a surfaces file', () => {
   const res = run([
     '--graph',
