@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { servedRulesOf, trackServedRules } from '../dist/capture/reach.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
+import { changedRules, cssReach, servedRules } from '../bench/reach-joins.mjs';
 
 // The Change Reach ledger (#991) names every leaf rule of a stylesheet's text and
 // marks it used when a matched rule-usage range overlaps it.
@@ -246,4 +247,125 @@ test('reach self-check rejects ledger drift and missing evidence with unchanged 
     );
   }
   assert.throws(() => assertDeterministicReach({ elements: [] }, { elements: [] }, 'home'), /reach.*missing/);
+});
+
+const benchSheet = (url, text, ...selectors) => ({
+  url,
+  text,
+  ranges: selectors.map((selector) => {
+    const start = text.indexOf(selector);
+    assert.notEqual(start, -1);
+    return { start, end: start + selector.length };
+  }),
+});
+
+test('bench J1 checks removed and renamed custom properties against idle consumers', () => {
+  const base = servedRules([benchSheet('app.css', ':root { --warn: red; } .fault { color: var(--warn); }', ':root')]);
+  for (const declaration of ['color: black;', '--renamed: red;']) {
+    const head = servedRules([
+      benchSheet('app.css', `:root { ${declaration} } .fault { color: var(--warn); }`, ':root'),
+    ]);
+    const change = changedRules(base, head)[0];
+    const verdict = cssReach(change.rule, head, change.before);
+    assert.equal(verdict.status, 'never-rendered');
+    assert.match(verdict.why, /--warn/);
+  }
+});
+
+test('bench J1 follows aliases across sheets and within the changed rule', () => {
+  for (const aliases of [
+    ['--middle: var( --warn ); --tone: var(--middle);', ''],
+    ['', ':root { --middle: var( --warn ); --tone: var(--middle); }'],
+  ]) {
+    const catalog = (value, rendered) =>
+      servedRules([
+        benchSheet('tokens.css', `:root { --warn: ${value}; ${aliases[0]} }`, ':root'),
+        benchSheet(
+          'app.css',
+          `${aliases[1]} .fault { color: var(--tone); } .healthy { color: var(--tone-extra); }`,
+          ...rendered,
+        ),
+      ]);
+    const base = catalog('red', aliases[1] ? [':root'] : []);
+    for (const rendered of [[':root'], [':root', '.fault']]) {
+      // The first variant has its aliases in tokens.css, so app.css has no :root.
+      const selectors = aliases[1] ? rendered : rendered.filter((s) => s !== ':root');
+      const head = catalog('blue', selectors);
+      const change = changedRules(base, head)[0];
+      assert.equal(
+        cssReach(change.rule, head, change.before).status,
+        rendered.includes('.fault') ? 'reached' : 'never-rendered',
+      );
+    }
+  }
+});
+
+test('bench J1 flags missing consumers and cyclic aliases instead of claiming reach', () => {
+  for (const aliases of ['', '--tone: var(--warn);', '--tone: var(--warn); --warn: var(--tone);']) {
+    const base = servedRules([benchSheet('app.css', ':root { --warn: red; }', ':root')]);
+    const head = servedRules([benchSheet('app.css', `:root { --warn: blue; ${aliases} }`, ':root')]);
+    const change = changedRules(base, head)[0];
+    assert.equal(cssReach(change.rule, head, change.before).status, 'never-rendered');
+  }
+});
+
+test('bench catalogs retain a later sheet change and its own usage in either discovery order', () => {
+  const first = benchSheet('first.css', '.a { color: red; }', '.a');
+  const second = benchSheet('second.css', '.a { color: blue; } .a { padding: 1px; }');
+  const changed = benchSheet('second.css', '.a { color: green; } .a { padding: 2px; }');
+  const base = servedRules([first, second]);
+  const head = servedRules([first, changed]);
+  assert.deepEqual(base, servedRules([second, first]));
+  assert.deepEqual(head, servedRules([changed, first]));
+  assert.equal(head.rules.length, 3);
+  const changes = changedRules(base, head);
+  assert.equal(changes.length, 2);
+  assert.deepEqual(
+    changes.map((c) => [c.rule.sheet, c.rule.ordinal]),
+    [
+      ['second.css', 0],
+      ['second.css', 1],
+    ],
+  );
+  for (const change of changes) assert.equal(cssReach(change.rule, head, change.before).status, 'never-rendered');
+});
+
+test('bench catalogs merge repeated captures without borrowing usage from another sheet or ordinal', () => {
+  const text = '.a { color: red; } .a { color: blue; }';
+  const entries = [
+    { ...benchSheet('first.css', text), capture: 0 },
+    { ...benchSheet('first.css', text, '.a { color: blue; }'), capture: 1 },
+    { ...benchSheet('second.css', text), capture: 0 },
+  ];
+  const catalog = servedRules(entries);
+  assert.deepEqual(catalog, servedRules([...entries].reverse()));
+  assert.equal(catalog.rules.length, 4);
+  assert.deepEqual(
+    catalog.rules.filter((r) => catalog.used.has(r.key)).map((r) => [r.sheet, r.ordinal]),
+    [['first.css', 1]],
+  );
+  assert.deepEqual(changedRules(catalog, servedRules([...entries].reverse())), []);
+  const withOtherRule = servedRules([benchSheet('first.css', `.other { margin: 0; } ${text}`)]);
+  const withoutOtherRule = servedRules([benchSheet('first.css', text)]);
+  const removals = changedRules(withOtherRule, withoutOtherRule);
+  assert.equal(removals.length, 1);
+  assert.equal(removals[0].side, 'base');
+  assert.equal(removals[0].rule.selector, '.other');
+});
+
+test('bench catalogs reject missing identities, duplicate sheets and conflicting capture text', () => {
+  const entry = benchSheet('app.css', '.a { color: red; }', '.a');
+  assert.throws(() => servedRules([{ ...entry, url: '' }]), /stylesheet identity/);
+  for (const entries of [
+    [entry, entry],
+    [entry, benchSheet('app.css', '.a { color: blue; }')],
+    [
+      { ...entry, capture: 0 },
+      { ...benchSheet('app.css', '.a { color: blue; }'), capture: 1 },
+    ],
+  ]) {
+    for (const order of [entries, [...entries].reverse()]) {
+      assert.throws(() => servedRules(order), /ambiguous stylesheet/);
+    }
+  }
 });
