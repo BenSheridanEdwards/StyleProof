@@ -203,6 +203,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-capture` (`styleproof crawl`) no longer waits forever on a
+  browser that stops answering.** A frozen or starved renderer, or a page
+  script stuck in a loop, kept Chrome alive while `page.evaluate` waited with no
+  timeout, so the run held a CI job until the runner timed out. The command now
+  exits 3 with `the browser stopped responding: no progress for 300s` once the
+  browser has answered no call for 5 minutes, and the browser exits with it. It
+  is a stall deadline, not a budget: a long exhaustive crawl keeps answering, so
+  it is never capped. `STYLEPROOF_STALL_TIMEOUT_MS` changes the deadline.
 - **`styleproof-capture` (`styleproof crawl`) no longer hangs after it
   finishes.** It called `process.exit()` straight after the capture, which can
   deadlock inside Node: exit waits for a V8 worker thread that is itself waiting
