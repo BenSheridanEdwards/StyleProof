@@ -46,7 +46,7 @@ import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determin
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
 import { classifyColdReasonFromMissMessage, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
-import { isWithinDirectory } from '../dist/safe-filesystem.js';
+import { isWithinDirectoryOnDisk } from '../dist/safe-filesystem.js';
 import { defineCli, errorMessage, exitWhenDrained, fail, runBin } from './cli.mjs';
 import { decodeSpecPathEnv } from './spec-path-env.mjs';
 
@@ -276,12 +276,13 @@ function runVariantCrawl(captureEnvironment) {
 // An absolute --dir is respected as-is; a relative one nests under baseDir.
 const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 // A restore or a failed capture clears targetDir, so refuse one that holds the checkout, the map
-// root or Git metadata before touching anything (#1065, as #943 for styleproof-ci). Real paths,
-// resolved through the nearest existing parent, so a symlinked or missing spelling cannot slip past.
+// root or Git metadata before touching anything (#1065, as #943 for styleproof-ci). Folders are
+// compared by on-disk identity, so a symlinked, differently cased or missing spelling cannot slip
+// past; realPath only gives the messages the on-disk spelling.
 const realPath = (p) => {
   let existing = path.resolve(p);
   while (!fs.existsSync(existing)) existing = path.dirname(existing);
-  return path.join(fs.realpathSync(existing), path.relative(existing, path.resolve(p)));
+  return path.join(fs.realpathSync.native(existing), path.relative(existing, path.resolve(p)));
 };
 const realTarget = realPath(targetDir);
 if (fs.existsSync(targetDir) && !fs.statSync(targetDir).isDirectory())
@@ -291,7 +292,7 @@ for (const [held, what] of [
   [baseDir, '--base-dir'],
 ]) {
   const realHeld = realPath(held);
-  if (isWithinDirectory(realTarget, realHeld))
+  if (isWithinDirectoryOnDisk(targetDir, held))
     fail(
       NAME,
       `--dir ${realTarget} is or contains ${what} (${realHeld}); use a folder that holds only StyleProof maps`,
@@ -303,7 +304,7 @@ const gitDirs = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-
 });
 for (const gitDir of gitDirs.status === 0 ? gitDirs.stdout.split(/\r?\n/).filter(Boolean) : []) {
   const realGitDir = realPath(gitDir);
-  if (isWithinDirectory(realGitDir, realTarget) || isWithinDirectory(realTarget, realGitDir))
+  if (isWithinDirectoryOnDisk(gitDir, targetDir) || isWithinDirectoryOnDisk(targetDir, gitDir))
     fail(
       NAME,
       `--dir ${realTarget} is within or contains a Git directory (${realGitDir}); use a folder that holds only StyleProof maps`,

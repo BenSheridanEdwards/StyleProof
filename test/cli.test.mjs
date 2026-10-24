@@ -1321,12 +1321,24 @@ const restoreInto = (repo, sha, dirArgs) =>
   runIn(repo, MAP, ['--restore', '--sha', sha, ...dirArgs], {
     env: { BASE_URL: undefined, STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
   });
+const seedCheckoutJson = (repo) =>
+  ['package.json', 'tsconfig.json'].map((name) => {
+    const file = path.join(repo, name);
+    fs.writeFileSync(file, `{"fixture":"${name}"}\n`);
+    return [file, fs.readFileSync(file)];
+  });
+const assertCheckoutJsonKept = (checkoutJson, label) => {
+  for (const [file, bytes] of checkoutJson)
+    assert.deepEqual(fs.readFileSync(file), bytes, `${label} must keep ${path.basename(file)}`);
+};
 
 test('styleproof-map --restore refuses a --dir that holds the checkout, --base-dir or Git metadata and deletes nothing (#1065)', () => {
   const { repo, headSha } = setupCachedComparison();
   const scratch = mkTmp('styleproof-map-alias-');
   try {
     fs.writeFileSync(path.join(repo, 'NOTES.txt'), 'uncommitted work\n');
+    // Top-level JSON the scoped clear would read as maps if the guard let the checkout through.
+    const checkoutJson = seedCheckoutJson(repo);
     const otherLabel = path.join(repo, '.styleproof', 'maps', 'other', 'home@1280.json.gz');
     fs.mkdirSync(path.dirname(otherLabel), { recursive: true });
     fs.writeFileSync(otherLabel, 'another label\n');
@@ -1349,12 +1361,83 @@ test('styleproof-map --restore refuses a --dir that holds the checkout, --base-d
       assert.ok(fs.existsSync(headFile), `${label} must keep .git`);
       assert.deepEqual(fs.readFileSync(headFile), headBytes, `${label} must keep .git/HEAD`);
       assert.ok(fs.existsSync(otherLabel), `${label} must keep every other label's maps`);
+      assertCheckoutJsonKept(checkoutJson, label);
       assert.equal(r.status, 2, `${label}: ${r.stderr}`);
       assert.match(r.stderr, held, label);
     }
   } finally {
     rmTmp(repo);
     rmTmp(scratch);
+  }
+});
+
+// A case-insensitive filesystem (macOS, Windows) opens `<tmp>/CHECKOUT` as `<tmp>/checkout`.
+const caseInsensitiveFs = (() => {
+  const probe = mkTmp('styleproof-case-probe-');
+  try {
+    const lower = path.join(probe, 'checkout');
+    fs.mkdirSync(lower);
+    return fs.existsSync(path.join(probe, 'CHECKOUT'));
+  } finally {
+    rmTmp(probe);
+  }
+})();
+
+test(
+  'styleproof-map --restore refuses a differently cased spelling of the checkout and deletes nothing (#1065)',
+  { skip: !caseInsensitiveFs && 'filesystem is case-sensitive' },
+  () => {
+    const { repo, headSha } = setupCachedComparison();
+    try {
+      const upper = path.join(path.dirname(repo), path.basename(repo).toUpperCase());
+      assert.notEqual(upper, repo, 'the checkout name must have a different upper-case spelling');
+      fs.writeFileSync(path.join(repo, 'NOTES.txt'), 'uncommitted work\n');
+      const checkoutJson = seedCheckoutJson(repo);
+      const headFile = path.join(repo, '.git', 'HEAD');
+      const headBytes = fs.readFileSync(headFile);
+      for (const [dirArgs, held] of [
+        [['--dir', upper], /is or contains the working directory/],
+        [['--dir', path.join(upper, '.GIT', 'missing')], /is within or contains a Git directory/],
+      ]) {
+        const label = dirArgs.join(' ');
+        const r = restoreInto(repo, headSha, dirArgs);
+        assert.equal(fs.readFileSync(path.join(repo, 'NOTES.txt'), 'utf8'), 'uncommitted work\n', label);
+        assert.deepEqual(fs.readFileSync(headFile), headBytes, `${label} must keep .git/HEAD`);
+        assertCheckoutJsonKept(checkoutJson, label);
+        assert.equal(r.status, 2, `${label}: ${r.stderr}`);
+        assert.match(r.stderr, held, label);
+      }
+    } finally {
+      rmTmp(repo);
+    }
+  },
+);
+
+test('styleproof-map --restore gives a reused folder the same contents as a clean one (#1065)', () => {
+  // `row` has a map but no screenshot, so the pixel gate must report its screenshot missing.
+  const { repo, headSha } = setupCachedComparison({
+    seedHead: (dir) => writeCapture(dir, 'row', mapWith('rgb(0, 0, 0)'), null),
+  });
+  try {
+    const maps = path.join(repo, '.styleproof', 'maps');
+    const reused = path.join(maps, 'head');
+    fs.mkdirSync(reused, { recursive: true });
+    for (const stale of ['row.png', 'row.hover.png', 'home@1280.png'])
+      fs.writeFileSync(path.join(reused, stale), 'an earlier screenshot\n');
+    const snapshot = (dir) =>
+      fs
+        .readdirSync(dir)
+        .sort()
+        .map((name) => [name, fs.readFileSync(path.join(dir, name)).toString('base64')]);
+    for (const dir of ['fresh', 'head']) {
+      const r = restoreInto(repo, headSha, ['--dir', dir]);
+      assert.equal(r.status, 0, `${dir}: ${r.stderr}`);
+    }
+    assert.deepEqual(snapshot(reused), snapshot(path.join(maps, 'fresh')));
+    assert.equal(fs.existsSync(path.join(reused, 'row.png')), false, 'a stale screenshot must not outlive the restore');
+    assert.equal(fs.existsSync(path.join(reused, 'row.hover.png')), false);
+  } finally {
+    rmTmp(repo);
   }
 });
 
@@ -1371,6 +1454,9 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
       'gone@1280.har',
       'row.json',
       'legacy.json.gz',
+      // The pixel gate would read these as row's screenshots, whatever the bundle holds.
+      'row.png',
+      'row.hover.png',
     ];
     for (const stale of staleFiles) fs.writeFileSync(path.join(label, stale), 'an earlier run\n');
     fs.writeFileSync(path.join(label, 'NOTES.txt'), 'kept\n');

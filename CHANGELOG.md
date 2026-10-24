@@ -534,13 +534,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   deleted the checkout and its `.git`, and `--dir .` deleted every label under
   the map root. A target that is or contains the working directory or
   `--base-dir`, or is within or contains a Git directory, now exits 2 before
-  anything is changed. Real paths are compared, so a symlinked spelling is
-  refused too. A restore now checks the manifest first, so an invalid bundle
-  leaves the folder as it was. A restore or a discarded capture now clears only
-  the files a capture writes or the diff would read as a map (every
-  `.json`/`.json.gz` map, screenshots, HAR recordings and StyleProof's
-  sidecars), so other files in the folder survive, and a stale map from an
-  earlier run cannot outlive a restore and hide a removed surface. HAR cleanup
+  anything is changed. Folders are compared on disk, so a symlinked spelling,
+  or a differently cased one on a case-insensitive filesystem such as macOS or
+  Windows, is refused too. A restore now checks the manifest first, so an
+  invalid bundle leaves the folder as it was. A restore or a discarded capture
+  now clears every top-level `.json`/`.json.gz` file, `.png` screenshot and
+  `.har` recording, whoever wrote it, plus StyleProof's sidecars and failure
+  ledger; other files and subfolders survive. A stale map or screenshot from an
+  earlier run therefore cannot outlive a restore and hide a removed surface or
+  a missing screenshot. HAR cleanup
   after a capture now removes only the recordings at the top of the folder, so
   HAR files in its subfolders survive too. A `--dir` that is a file exits 2
   instead of reporting a map-store fault (#1065).

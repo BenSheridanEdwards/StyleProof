@@ -92,6 +92,12 @@ test('removeOwnedBundleEntries removes every name the diff reads as a map, keeps
       'row.json',
       'legacy.json.gz',
       'home@800.png',
+      // The pixel gate reads `<surface>.png` and `<surface>.<state>.png` for any surface name.
+      'row.png',
+      'row.hover.png',
+      'row.focus.png',
+      'row.active.png',
+      'legacy.png',
       'home@800.har',
       MAP_MANIFEST,
       COVERAGE_LEDGER,

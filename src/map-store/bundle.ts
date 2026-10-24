@@ -93,14 +93,20 @@ export function clearCaptureOutput(dir: string): void {
   }
 }
 
+/** Any top-level PNG: the pixel gate and report read `<surface>.png` and `<surface>.<state>.png`
+ *  for whatever surface name a map carries, so no PNG is safe to keep beside a restored bundle. */
+const isScreenshotFile = (name: string): boolean => name.endsWith('.png');
+
 /** Remove every top-level entry a capture or restore writes (maps, screenshots, HAR recordings,
- *  sidecars), plus every file the diff would read as a surface map (any non-reserved `*.json[.gz]`),
- *  whatever its type, and keep every other file and the folder itself (#1065). A stale `row.json`
- *  left beside a restored manifest would otherwise pair as a surface and hide its removal. */
+ *  sidecars), plus every file the diff or pixel gate would read as a surface map or screenshot (any
+ *  non-reserved `*.json[.gz]`, any `*.png`), whatever its type, and keep every other file and the
+ *  folder itself (#1065). A stale `row.json` left beside a restored manifest would otherwise pair as
+ *  a surface and hide its removal; a stale `row.png` would stand in for a screenshot the bundle
+ *  lacks and turn `missing-after` into "compared, zero changes". */
 export function removeOwnedBundleEntries(dir: string): void {
   if (!fs.existsSync(dir)) return;
   for (const name of fs.readdirSync(dir)) {
-    if (isOwnedCaptureArtifact(name) || isMapFile(name) || name.endsWith('.har')) {
+    if (isOwnedCaptureArtifact(name) || isMapFile(name) || isScreenshotFile(name) || name.endsWith('.har')) {
       removeDirRecursive(path.join(dir, name));
     }
   }
