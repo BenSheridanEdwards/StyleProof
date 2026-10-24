@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import childProcess, { execFileSync } from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
@@ -25,6 +26,7 @@ import {
   readMapManifest,
   readSurfaceCaptureFailures,
   recordSurfaceCaptureFailure,
+  removeOwnedBundleEntries,
   restoreMapBundle,
   DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS,
   SURFACE_CAPTURE_FAILURES_DIR,
@@ -81,6 +83,118 @@ test('clearCaptureOutput preflights malformed generated-file directories before 
     rmTmp(dir);
   }
 });
+
+test('removeOwnedBundleEntries removes every name the diff reads as a map, keeps other files (#1065)', () => {
+  const dir = mkNonGitTmp('styleproof-remove-owned-');
+  const outside = mkNonGitTmp('styleproof-remove-outside-');
+  try {
+    for (const name of [
+      'home@800.json.gz',
+      'row.json',
+      'legacy.json.gz',
+      'home@800.png',
+      // The pixel gate reads `<surface>.png` and `<surface>.<state>.png` for any surface name.
+      'row.png',
+      'row.hover.png',
+      'row.focus.png',
+      'row.active.png',
+      'legacy.png',
+      'home@800.har',
+      MAP_MANIFEST,
+      COVERAGE_LEDGER,
+      'notes.txt',
+      'keep.txt',
+    ])
+      fs.writeFileSync(path.join(dir, name), 'generated');
+    fs.mkdirSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR));
+    fs.writeFileSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR, 'x.json'), '{}');
+    const outsideFile = path.join(outside, 'target.json');
+    fs.writeFileSync(outsideFile, 'outside');
+    fs.symlinkSync(outsideFile, path.join(dir, 'linked.json'));
+
+    removeOwnedBundleEntries(dir);
+
+    const left = fs.readdirSync(dir).filter((name) => name !== '.git');
+    assert.deepEqual(left.sort(), ['keep.txt', 'notes.txt']);
+    assert.equal(fs.readFileSync(outsideFile, 'utf8'), 'outside');
+  } finally {
+    rmTmp(dir);
+    rmTmp(outside);
+  }
+});
+
+test('removeOwnedBundleEntries matches names in any letter case (#1065)', () => {
+  const dir = mkTmp('styleproof-remove-case-');
+  try {
+    for (const name of [
+      'ROW.PNG',
+      'Row.Hover.PNG',
+      'legacy.JSON',
+      'Legacy.Json.Gz',
+      'Home@800.HAR',
+      FATAL_CAPTURE_MARKER.toUpperCase(),
+      'notes.txt',
+    ])
+      fs.writeFileSync(path.join(dir, name), 'generated');
+    fs.mkdirSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR.toUpperCase()));
+    fs.writeFileSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR.toUpperCase(), 'x.json'), '{}');
+
+    removeOwnedBundleEntries(dir);
+
+    assert.deepEqual(fs.readdirSync(dir), ['notes.txt']);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('removeOwnedBundleEntries keeps real folders the diff does not own, removes StyleProof-named ones (#1065)', () => {
+  const dir = mkTmp('styleproof-remove-folders-');
+  const outside = mkTmp('styleproof-remove-folder-target-');
+  try {
+    const userFolders = ['photos.png', 'data.json', 'rec.har'];
+    for (const name of [...userFolders, FATAL_CAPTURE_MARKER]) {
+      fs.mkdirSync(path.join(dir, name));
+      fs.writeFileSync(path.join(dir, name, 'inner.txt'), 'keep');
+    }
+    fs.mkdirSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR));
+    fs.writeFileSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR, 'x.json'), '{}');
+    fs.writeFileSync(path.join(outside, 'inner.txt'), 'outside');
+    fs.symlinkSync(outside, path.join(dir, 'linked.png'), 'dir');
+
+    removeOwnedBundleEntries(dir);
+
+    assert.deepEqual(fs.readdirSync(dir).sort(), userFolders.sort());
+    for (const name of userFolders) assert.equal(fs.readFileSync(path.join(dir, name, 'inner.txt'), 'utf8'), 'keep');
+    assert.equal(fs.readFileSync(path.join(outside, 'inner.txt'), 'utf8'), 'outside');
+  } finally {
+    rmTmp(dir);
+    rmTmp(outside);
+  }
+});
+
+test(
+  'removeOwnedBundleEntries lists and removes the same folder for a link/.. spelling (#1065)',
+  { skip: process.platform === 'win32' },
+  () => {
+    const workspace = mkTmp('styleproof-remove-link-parent-');
+    try {
+      const repo = path.join(workspace, 'repo');
+      const external = path.join(workspace, 'external');
+      fs.mkdirSync(repo);
+      fs.mkdirSync(path.join(external, 'child'), { recursive: true });
+      fs.symlinkSync(path.join(external, 'child'), path.join(repo, 'link'), 'dir');
+      fs.writeFileSync(path.join(repo, 'only-repo.json'), 'repo');
+      fs.writeFileSync(path.join(external, 'only-external.json'), 'external');
+
+      removeOwnedBundleEntries(`${repo}${path.sep}link${path.sep}..`);
+
+      assert.equal(fs.existsSync(path.join(repo, 'only-repo.json')), false);
+      assert.equal(fs.readFileSync(path.join(external, 'only-external.json'), 'utf8'), 'external');
+    } finally {
+      rmTmp(workspace);
+    }
+  },
+);
 
 test('currentGitSha binds pull-request captures to the real head, not the merge commit', () => {
   const dir = mkNonGitTmp('styleproof-event-');
@@ -178,6 +292,49 @@ function manifestDir(overrides = {}) {
   };
   fs.writeFileSync(path.join(dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
   return dir;
+}
+
+for (const suffix of ['', `${path.sep}missing${path.sep}..`]) {
+  test(
+    `restoreMapBundle restores through a symlinked destination${suffix || ' without a suffix'} (#1065)`,
+    { skip: process.platform === 'win32' },
+    (t) => {
+      const workspace = mkTmp('styleproof-restore-symlink-');
+      const bundle = manifestDir();
+      const manifest = readMapManifest(bundle);
+      // Replace only the transport boundary; validation, cleanup and copying use the real filesystem.
+      const transport = t.mock.method(childProcess, 'spawnSync', (command, args) => {
+        assert.equal(command, 'git');
+        if (args.includes('clone')) {
+          fs.cpSync(bundle, path.join(args.at(-1), manifest.sha, manifest.compatibilityKey), { recursive: true });
+        }
+        return { status: 0, stdout: args[0] === 'remote' ? 'fixture-remote\n' : '', stderr: '' };
+      });
+      syncBuiltinESMExports();
+      try {
+        const target = path.join(workspace, 'real-head');
+        const link = path.join(workspace, 'head');
+        fs.mkdirSync(target);
+        fs.symlinkSync(target, link, 'dir');
+        fs.writeFileSync(path.join(bundle, 'home@1280.json.gz'), 'restored map');
+        fs.writeFileSync(path.join(target, 'gone@1280.json.gz'), 'stale map');
+        fs.writeFileSync(path.join(target, 'NOTES.txt'), 'keep');
+
+        const restored = restoreMapBundle({ sha: manifest.sha, outDir: `${link}${suffix}`, cwd: workspace });
+
+        assert.deepEqual(restored, manifest);
+        assert.deepEqual(fs.readdirSync(target).sort(), ['NOTES.txt', 'home@1280.json.gz', MAP_MANIFEST]);
+        assert.equal(fs.readFileSync(path.join(target, 'home@1280.json.gz'), 'utf8'), 'restored map');
+        assert.equal(fs.readFileSync(path.join(target, 'NOTES.txt'), 'utf8'), 'keep');
+        assert.equal(fs.lstatSync(link).isSymbolicLink(), true);
+      } finally {
+        transport.mock.restore();
+        syncBuiltinESMExports();
+        rmTmp(workspace);
+        rmTmp(bundle);
+      }
+    },
+  );
 }
 
 test('readMapManifest rejects a parseable object missing the v1 contract', () => {

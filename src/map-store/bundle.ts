@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { COVERAGE_LEDGER } from '../coverage.js';
-import { sha256 } from '../node-util.js';
+import { removeDirRecursive, sha256 } from '../node-util.js';
 import { readRegularFileNoFollow } from '../safe-filesystem.js';
 import { boundedText, readJsonSidecar } from './json.js';
 
@@ -90,6 +90,32 @@ export function clearCaptureOutput(dir: string): void {
   for (const { name, target, stat } of classified) {
     const recursive = name === SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory() && !stat.isSymbolicLink();
     fs.rmSync(target, { force: true, recursive });
+  }
+}
+
+/** Any top-level PNG: the pixel gate and report read `<surface>.png` and `<surface>.<state>.png`
+ *  for whatever surface name a map carries, so no PNG is safe to keep beside a restored bundle. */
+const isScreenshotFile = (name: string): boolean => name.endsWith('.png');
+
+/** Remove StyleProof-owned top-level names whatever their type, plus files or symlinks named
+ *  `*.json[.gz]`, `*.png` or `*.har`, in any letter case. Keep other files, real folders without
+ *  StyleProof-owned names, and the folder itself (#1065).
+ *  A stale `row.json` left beside a restored manifest would otherwise pair as
+ *  a surface and hide its removal; a stale `row.png` would stand in for a screenshot the bundle
+ *  lacks and turn `missing-after` into "compared, zero changes". */
+export function removeOwnedBundleEntries(dir: string): void {
+  const root = path.resolve(dir);
+  if (!fs.existsSync(root)) return;
+  for (const name of fs.readdirSync(root)) {
+    // A case-insensitive filesystem opens `row.PNG` as `row.png`, so names are matched in lower case.
+    const key = name.toLowerCase();
+    const target = path.join(root, name);
+    if (
+      isOwnedCaptureArtifact(key) ||
+      ((isMapFile(key) || isScreenshotFile(key) || key.endsWith('.har')) && !fs.lstatSync(target).isDirectory())
+    ) {
+      removeDirRecursive(target);
+    }
   }
 }
 

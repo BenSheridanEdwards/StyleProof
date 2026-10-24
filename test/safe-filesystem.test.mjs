@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { isWithinDirectory, readRegularFileNoFollow, UnsafeFilesystemEntryError } from '../dist/safe-filesystem.js';
+import {
+  isWithinDirectory,
+  isWithinDirectoryOnDisk,
+  readRegularFileNoFollow,
+  UnsafeFilesystemEntryError,
+} from '../dist/safe-filesystem.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 const refusedAs = (kind) => (error) => error instanceof UnsafeFilesystemEntryError && error.kind === kind;
@@ -177,4 +182,72 @@ test('isWithinDirectory treats every path as inside the filesystem root', () => 
   assert.equal(isWithinDirectory(root, path.join(root, 'repo', 'app')), true);
   assert.equal(isWithinDirectory(path.join(root, 'repo'), path.join(root, 'repo', 'app')), true);
   assert.equal(isWithinDirectory(path.join(root, 'repo'), path.join(root, 'repo-other')), false);
+});
+
+test('isWithinDirectoryOnDisk compares folders on disk, through missing tails', () => {
+  const workspace = mkTmp('styleproof-on-disk-');
+  try {
+    const root = path.join(workspace, 'foo');
+    fs.mkdirSync(path.join(root, 'a'), { recursive: true });
+    fs.mkdirSync(path.join(workspace, 'foobar'));
+    assert.equal(isWithinDirectoryOnDisk(root, root), true);
+    assert.equal(isWithinDirectoryOnDisk(root, path.join(root, 'a')), true);
+    assert.equal(isWithinDirectoryOnDisk(root, path.join(root, 'a', 'missing', 'b')), true);
+    assert.equal(isWithinDirectoryOnDisk(root, path.join(workspace, 'foobar')), false);
+    assert.equal(isWithinDirectoryOnDisk(root, workspace), false);
+    assert.equal(isWithinDirectoryOnDisk(path.join(root, 'missing'), root), false);
+    assert.equal(isWithinDirectoryOnDisk(path.join(root, 'missing'), path.join(root, 'missing', 'x')), true);
+  } finally {
+    rmTmp(workspace);
+  }
+});
+
+test('isWithinDirectoryOnDisk sees through a symlinked spelling', { skip: process.platform === 'win32' }, () => {
+  const workspace = mkTmp('styleproof-on-disk-link-');
+  try {
+    const root = path.join(workspace, 'checkout');
+    fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+    const alias = path.join(workspace, 'alias');
+    fs.symlinkSync(root, alias, 'dir');
+    assert.equal(isWithinDirectoryOnDisk(root, alias), true);
+    assert.equal(isWithinDirectoryOnDisk(alias, path.join(root, '.git', 'missing')), true);
+    assert.equal(isWithinDirectoryOnDisk(path.join(root, '.git'), alias), false);
+  } finally {
+    rmTmp(workspace);
+  }
+});
+
+test(
+  'isWithinDirectoryOnDisk reads a link/.. spelling by name, as callers join it (#1065)',
+  { skip: process.platform === 'win32' },
+  () => {
+    const workspace = mkTmp('styleproof-on-disk-link-parent-');
+    try {
+      const repo = path.join(workspace, 'repo');
+      const child = path.join(workspace, 'external', 'child');
+      fs.mkdirSync(repo);
+      fs.mkdirSync(child, { recursive: true });
+      fs.symlinkSync(child, path.join(repo, 'link'), 'dir');
+
+      assert.equal(isWithinDirectoryOnDisk(`${repo}${path.sep}link${path.sep}..`, repo), true);
+    } finally {
+      rmTmp(workspace);
+    }
+  },
+);
+
+test('isWithinDirectoryOnDisk sees through a differently cased spelling (#1065)', (t) => {
+  const workspace = mkTmp('styleproof-on-disk-case-');
+  try {
+    const root = path.join(workspace, 'Checkout');
+    fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+    const upper = path.join(workspace, 'CHECKOUT');
+    if (!fs.existsSync(upper)) return t.skip('filesystem is case-sensitive');
+    assert.equal(isWithinDirectory(root, upper), false, 'a spelling comparison misses it');
+    assert.equal(isWithinDirectoryOnDisk(root, upper), true);
+    assert.equal(isWithinDirectoryOnDisk(upper, root), true);
+    assert.equal(isWithinDirectoryOnDisk(path.join(root, '.git'), path.join(upper, '.GIT', 'missing')), true);
+  } finally {
+    rmTmp(workspace);
+  }
 });

@@ -437,6 +437,137 @@ exit 1
   }
 });
 
+/** A checkout whose stub Playwright writes one map and a fatal self-check marker, then fails. */
+function fatalCaptureCheckout(root) {
+  const spec = path.join(root, 'e2e/styleproof.spec.ts');
+  fs.mkdirSync(path.dirname(spec), { recursive: true });
+  fs.writeFileSync(spec, '// fake spec');
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  const binDir = path.join(root, 'fake-bin');
+  fs.mkdirSync(binDir);
+  const fakePlaywright = path.join(binDir, 'playwright');
+  fs.writeFileSync(
+    fakePlaywright,
+    `#!/bin/sh
+case "$STYLEMAP_DIR" in /*) out="$STYLEMAP_DIR" ;; *) out="$STYLEPROOF_BASEDIR/$STYLEMAP_DIR" ;; esac
+mkdir -p "$out"
+touch "$out/home@900.json"
+printf '%s\\n' 'styleproof self-check failed: home is non-deterministic' > "$out/styleproof-fatal-capture.flag"
+exit 1
+`,
+  );
+  fs.chmodSync(fakePlaywright, 0o755);
+  return { spec, env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` } };
+}
+
+test('styleproof-map: a --dir that holds the checkout exits 2 before capture, so a fatal failure cannot delete it (#1065)', () => {
+  const root = mkTmp();
+  try {
+    const { spec, env } = fatalCaptureCheckout(root);
+    fs.writeFileSync(path.join(root, 'NOTES.txt'), 'uncommitted work\n');
+    const r = run(MAP, ['--spec', spec, '--dir', root, '--no-upload'], env, root);
+    assert.ok(fs.existsSync(path.join(root, '.git')), 'the checkout keeps .git');
+    assert.ok(fs.existsSync(path.join(root, 'NOTES.txt')), 'the checkout keeps the uncommitted file');
+    assert.equal(r.status, 2, r.stderr + r.stdout);
+    assert.match(r.stderr, /is or contains the working directory/);
+    assert.doesNotMatch(r.stderr, /fatal self-check failure/, 'refused before any capture ran');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: a fatal self-check failure discards only the files the capture wrote (#1065)', () => {
+  const root = mkTmp();
+  try {
+    const { spec, env } = fatalCaptureCheckout(root);
+    const targetDir = path.join(root, 'maps', 'base');
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'NOTES.txt'), 'kept\n');
+    // A map from an earlier run without the `@<width>` suffix; the diff would still read it.
+    fs.writeFileSync(path.join(targetDir, 'row.json'), '{}');
+    fs.writeFileSync(path.join(targetDir, 'row.png'), 'an earlier screenshot');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'base', '--base-dir', path.join(root, 'maps'), '--no-upload'],
+      env,
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.match(r.stderr, /fatal self-check failure/i);
+    assert.deepEqual(fs.readdirSync(targetDir), ['NOTES.txt'], 'the maps go, the file StyleProof did not write stays');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: HAR cleanup removes only the recordings the capture wrote, not nested HAR fixtures (#1065)', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    // A --dir inside the checkout that already holds the consumer's own recorded HAR fixtures.
+    const targetDir = path.join(root, 'e2e', 'fixtures');
+    const fixture = path.join(targetDir, 'recorded', 'session.har');
+    fs.mkdirSync(path.dirname(fixture), { recursive: true });
+    fs.writeFileSync(fixture, '{"log":{}}\n');
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    // Captures write HAR recordings beside the maps; this run then fails without a ledger.
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+case "$STYLEMAP_DIR" in /*) out="$STYLEMAP_DIR" ;; *) out="$STYLEPROOF_BASEDIR/$STYLEMAP_DIR" ;; esac
+mkdir -p "$out"
+touch "$out/home@900.json" "$out/home@900.har"
+test -f "$out/home@900.har" && touch "$HAR_WRITTEN"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const harWritten = path.join(root, 'har-written');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', targetDir, '--base-dir', path.join(root, 'maps'), '--no-upload'],
+      { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, HAR_WRITTEN: harWritten },
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.ok(fs.existsSync(harWritten), 'the stub really wrote its HAR into --dir');
+    assert.ok(fs.existsSync(path.join(targetDir, 'home@900.json')), 'the stub wrote into --dir');
+    assert.match(r.stderr, /with 1 surface map\(s\)/);
+    assert.equal(fs.existsSync(path.join(targetDir, 'home@900.har')), false, 'the capture’s own HAR is removed');
+    assert.equal(fs.existsSync(fixture), true, 'a nested HAR the capture did not write survives');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: a --dir that is a file exits 2 and leaves the file alone (#1065)', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    const notes = path.join(root, 'NOTES.txt');
+    fs.writeFileSync(notes, 'kept\n');
+    const r = run(
+      MAP,
+      ['--restore', '--sha', 'a'.repeat(40), '--spec', spec, '--dir', notes, '--base-dir', path.join(root, 'maps')],
+      {},
+      root,
+    );
+    assert.equal(r.status, 2, r.stderr + r.stdout);
+    assert.match(r.stderr, /--dir .*NOTES\.txt is a file/);
+    assert.equal(fs.readFileSync(notes, 'utf8'), 'kept\n');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map: an unreadable fatal marker is still fatal, never "no failure"', () => {
   const root = mkTmp();
   try {

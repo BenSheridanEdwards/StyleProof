@@ -31,6 +31,35 @@ function sameFileIdentity(first: fs.Stats, second: fs.Stats): boolean {
   return first.mode === second.mode && first.birthtimeMs === second.birthtimeMs;
 }
 
+/** `p` resolved through its nearest existing parent's real (on-disk) path, missing tail re-joined. */
+function realPathThroughExisting(p: string): { existing: string; real: string } {
+  const resolved = path.resolve(p);
+  let existing = resolved;
+  while (!fs.existsSync(existing)) existing = path.dirname(existing);
+  const realExisting = fs.realpathSync.native(existing);
+  return { existing: realExisting, real: path.join(realExisting, path.relative(existing, resolved)) };
+}
+
+/** True when `candidate` is `root` or lies beneath it on disk. Compares folder identity up the
+ *  candidate's real parents, so a symlinked or differently cased spelling (case-insensitive
+ *  filesystems) is still caught (#1065). A missing tail cannot change the answer: a path below it
+ *  is inside `root` exactly when its nearest existing parent is. Both paths are resolved by name
+ *  first, as callers later join them. */
+export function isWithinDirectoryOnDisk(root: string, candidate: string): boolean {
+  const resolvedRoot = path.resolve(root);
+  if (!fs.existsSync(resolvedRoot)) {
+    return isWithinDirectory(realPathThroughExisting(resolvedRoot).real, realPathThroughExisting(candidate).real);
+  }
+  const rootStat = fs.statSync(resolvedRoot);
+  let current = realPathThroughExisting(candidate).existing;
+  for (;;) {
+    if (sameFileIdentity(fs.statSync(current), rootStat)) return true;
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
 function assertRegularPath(filePath: string, stat: fs.Stats): void {
   if (stat.isSymbolicLink()) throw new UnsafeFilesystemEntryError(filePath, 'symbolic-link');
   if (!stat.isFile()) throw new UnsafeFilesystemEntryError(filePath, 'non-regular');

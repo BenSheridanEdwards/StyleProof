@@ -30,6 +30,7 @@ import {
   readCaptureTestOutcomes,
   readFatalCaptureFailure,
   readSurfaceCaptureFailures,
+  removeOwnedBundleEntries,
   restoreMapBundle,
   workingTreeDirty,
   writeMapManifest,
@@ -45,7 +46,8 @@ import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determin
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
 import { classifyColdReasonFromMissMessage, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
-import { defineCli, errorMessage, exitWhenDrained, fail, filesUnder, runBin } from './cli.mjs';
+import { isWithinDirectoryOnDisk } from '../dist/safe-filesystem.js';
+import { defineCli, errorMessage, exitWhenDrained, fail, runBin } from './cli.mjs';
 import { decodeSpecPathEnv } from './spec-path-env.mjs';
 
 const NAME = 'styleproof-map';
@@ -216,8 +218,10 @@ if (opts.restore && !sha) {
 }
 
 const removeTree = (target) => fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+// Captures write HAR recordings beside the maps, so only the top level is ours to remove (#1065).
 const removeHarFiles = (root) => {
-  for (const file of filesUnder(root)) if (file.endsWith('.har')) fs.rmSync(file, { force: true });
+  if (!fs.existsSync(root)) return;
+  for (const name of fs.readdirSync(root)) if (name.endsWith('.har')) fs.rmSync(path.join(root, name), { force: true });
 };
 
 /** Precedence: explicit config key > env var > default (suppressed). */
@@ -269,8 +273,55 @@ function runVariantCrawl(captureEnvironment) {
   return result.status ?? 1;
 }
 
-// An absolute --dir is respected as-is; a relative one nests under baseDir.
-const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
+// An absolute --dir is used directly; a relative one nests under baseDir. Normalize by name,
+// as every later path.join (and the capture child) reads it, so a link/.. spelling cannot list
+// one folder and delete from another (#1065).
+const targetDir = path.normalize(path.isAbsolute(dir) ? dir : path.join(baseDir, dir));
+// A restore or a failed capture clears targetDir, so refuse one that holds the checkout, the map
+// root or Git metadata before touching anything (#1065, as #943 for styleproof-ci). Folders are
+// compared by on-disk identity, so a symlinked, differently cased or missing spelling cannot slip
+// past; realPath only gives the messages the on-disk spelling.
+const realPath = (p) => {
+  let existing = path.resolve(p);
+  while (!fs.existsSync(existing)) existing = path.dirname(existing);
+  return path.join(fs.realpathSync.native(existing), path.relative(existing, path.resolve(p)));
+};
+const realTarget = realPath(targetDir);
+if (fs.existsSync(targetDir) && !fs.statSync(targetDir).isDirectory())
+  fail(NAME, `--dir ${realTarget} is a file; use a folder that holds only StyleProof maps`);
+for (const [held, what] of [
+  [process.cwd(), 'the working directory'],
+  [baseDir, '--base-dir'],
+]) {
+  const realHeld = realPath(held);
+  if (isWithinDirectoryOnDisk(targetDir, held))
+    fail(
+      NAME,
+      `--dir ${realTarget} is or contains ${what} (${realHeld}); use a folder that holds only StyleProof maps`,
+    );
+}
+// Outside a Git repository rev-parse fails and there is no Git metadata to protect.
+const gitDirs = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir'], {
+  encoding: 'utf8',
+});
+for (const gitDir of gitDirs.status === 0 ? gitDirs.stdout.split(/\r?\n/).filter(Boolean) : []) {
+  const realGitDir = realPath(gitDir);
+  if (isWithinDirectoryOnDisk(gitDir, targetDir) || isWithinDirectoryOnDisk(targetDir, gitDir))
+    fail(
+      NAME,
+      `--dir ${realTarget} is within or contains a Git directory (${realGitDir}); use a folder that holds only StyleProof maps`,
+    );
+}
+
+/** Discard a capture that must not publish: only what a capture writes, then the folder if that emptied it. */
+function discardCapture() {
+  removeOwnedBundleEntries(targetDir);
+  try {
+    fs.rmdirSync(targetDir);
+  } catch {
+    // Files StyleProof did not write are still there; they stay.
+  }
+}
 
 /** Restore a published map by SHA; returns the exit code: 0 restored, 4 cache miss (recapture),
  *  5 map-store or network fault after retries. */
@@ -456,7 +507,7 @@ async function captureAndPublish() {
     console.error(
       `${NAME}: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
     );
-    removeTree(targetDir);
+    discardCapture();
     return captureStatus || 1;
   }
   const { status, publishPartial } = failedCaptureVerdict(
@@ -556,7 +607,7 @@ function proveDeterminism() {
   }
   if (oracleExit !== 0) {
     console.error(`${NAME}: discarding the capture — an unproven bundle must never become a baseline`);
-    removeTree(targetDir);
+    discardCapture();
   }
   return oracleExit;
 }
