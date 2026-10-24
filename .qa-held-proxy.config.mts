@@ -1,0 +1,2 @@
+import original from './playwright.config.ts';
+export default {...original, testDir: '.', testMatch: ['test/served-rules.e2e.spec.ts'], workers: 1, retries: 0, outputDir: "/Users/chief/StyleProof-factory/b-sr/check/round-3/qa/network/head-held-proxy-results", use: {launchOptions: {args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost, EXCLUDE [::1]", "--proxy-server=http://127.0.0.1:55591", "--log-net-log=/Users/chief/StyleProof-factory/b-sr/check/round-3/qa/network/head-held-proxy-netlog.json", "--net-log-capture-mode=Everything"]}}};
