@@ -6,10 +6,8 @@
 <summary>Evidence (warnings & failures)</summary>
 
 **Certification**
-- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Confidence** — ⚠ limited (0 captured, 1 unproven-determinism)
 
 </details>
 
-<!-- styleproof-receipt head-sha:c67478d91b28e2069e0519ee9628a451d13413e2 run-id:40087746488 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:7067ac9b721b50b74ccfc7d9058f0a0769c7a991 run-id:40092179335 run-attempt:1 -->
