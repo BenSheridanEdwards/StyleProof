@@ -537,8 +537,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   anything is changed. Real paths are compared, so a symlinked spelling is
   refused too. A restore now checks the manifest first, so an invalid bundle
   leaves the folder as it was. A restore or a discarded capture now clears only
-  the files a capture writes (maps, screenshots, HAR recordings and
-  StyleProof's sidecars), so other files in the folder survive. HAR cleanup
+  the files a capture writes or the diff would read as a map (every
+  `.json`/`.json.gz` map, screenshots, HAR recordings and StyleProof's
+  sidecars), so other files in the folder survive, and a stale map from an
+  earlier run cannot outlive a restore and hide a removed surface. HAR cleanup
   after a capture now removes only the recordings at the top of the folder, so
   HAR files in its subfolders survive too. A `--dir` that is a file exits 2
   instead of reporting a map-store fault (#1065).

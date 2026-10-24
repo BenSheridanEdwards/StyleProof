@@ -483,6 +483,8 @@ test('styleproof-map: a fatal self-check failure discards only the files the cap
     const targetDir = path.join(root, 'maps', 'base');
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, 'NOTES.txt'), 'kept\n');
+    // A map from an earlier run without the `@<width>` suffix; the diff would still read it.
+    fs.writeFileSync(path.join(targetDir, 'row.json'), '{}');
     const r = run(
       MAP,
       ['--spec', spec, '--dir', 'base', '--base-dir', path.join(root, 'maps'), '--no-upload'],
@@ -516,19 +518,25 @@ test('styleproof-map: HAR cleanup removes only the recordings the capture wrote,
     fs.writeFileSync(
       fakePlaywright,
       `#!/bin/sh
-touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
-touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.har"
+case "$STYLEMAP_DIR" in /*) out="$STYLEMAP_DIR" ;; *) out="$STYLEPROOF_BASEDIR/$STYLEMAP_DIR" ;; esac
+mkdir -p "$out"
+touch "$out/home@900.json" "$out/home@900.har"
+test -f "$out/home@900.har" && touch "$HAR_WRITTEN"
 exit 1
 `,
     );
     fs.chmodSync(fakePlaywright, 0o755);
+    const harWritten = path.join(root, 'har-written');
     const r = run(
       MAP,
       ['--spec', spec, '--dir', targetDir, '--base-dir', path.join(root, 'maps'), '--no-upload'],
-      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, HAR_WRITTEN: harWritten },
       root,
     );
     assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.ok(fs.existsSync(harWritten), 'the stub really wrote its HAR into --dir');
+    assert.ok(fs.existsSync(path.join(targetDir, 'home@900.json')), 'the stub wrote into --dir');
+    assert.match(r.stderr, /with 1 surface map\(s\)/);
     assert.equal(fs.existsSync(path.join(targetDir, 'home@900.har')), false, 'the capture’s own HAR is removed');
     assert.equal(fs.existsSync(fixture), true, 'a nested HAR the capture did not write survives');
   } finally {

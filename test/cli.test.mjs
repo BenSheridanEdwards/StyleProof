@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { saveStyleMap } from '../dist/capture.js';
-import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey } from '../dist/map-store.js';
+import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey, isMapFile } from '../dist/map-store.js';
 import {
   fixtureCommitSha,
   fixtureCompatibilityKey,
@@ -1363,8 +1363,16 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
   try {
     const label = path.join(repo, '.styleproof', 'maps', 'head');
     fs.mkdirSync(label, { recursive: true });
-    for (const stale of ['home@1280.json.gz', 'gone@1280.json.gz', 'gone@1280.png', 'gone@1280.har'])
-      fs.writeFileSync(path.join(label, stale), 'an earlier run\n');
+    // `row.json` and `legacy.json.gz` lack the `@<width>` suffix, but the diff still reads them as maps.
+    const staleFiles = [
+      'home@1280.json.gz',
+      'gone@1280.json.gz',
+      'gone@1280.png',
+      'gone@1280.har',
+      'row.json',
+      'legacy.json.gz',
+    ];
+    for (const stale of staleFiles) fs.writeFileSync(path.join(label, stale), 'an earlier run\n');
     fs.writeFileSync(path.join(label, 'NOTES.txt'), 'kept\n');
     const r = restoreInto(repo, headSha, ['--dir', 'head']);
     assert.equal(r.status, 0, r.stderr);
@@ -1374,6 +1382,11 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
       'styleproof-coverage.json',
       MAP_MANIFEST,
     ]);
+    assert.deepEqual(
+      fs.readdirSync(label).filter(isMapFile),
+      ['home@1280.json.gz'],
+      "only the restored bundle's maps are left for the diff to read",
+    );
     assert.notEqual(fs.readFileSync(path.join(label, 'home@1280.json.gz'), 'utf8'), 'an earlier run\n');
     assert.equal(fs.readFileSync(path.join(label, 'NOTES.txt'), 'utf8'), 'kept\n');
   } finally {

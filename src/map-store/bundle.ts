@@ -94,11 +94,15 @@ export function clearCaptureOutput(dir: string): void {
 }
 
 /** Remove every top-level entry a capture or restore writes (maps, screenshots, HAR recordings,
- *  sidecars), whatever its type, and keep every other file and the folder itself (#1065). */
+ *  sidecars), plus every file the diff would read as a surface map (any non-reserved `*.json[.gz]`),
+ *  whatever its type, and keep every other file and the folder itself (#1065). A stale `row.json`
+ *  left beside a restored manifest would otherwise pair as a surface and hide its removal. */
 export function removeOwnedBundleEntries(dir: string): void {
   if (!fs.existsSync(dir)) return;
   for (const name of fs.readdirSync(dir)) {
-    if (isOwnedCaptureArtifact(name) || name.endsWith('.har')) removeDirRecursive(path.join(dir, name));
+    if (isOwnedCaptureArtifact(name) || isMapFile(name) || name.endsWith('.har')) {
+      removeDirRecursive(path.join(dir, name));
+    }
   }
 }
 

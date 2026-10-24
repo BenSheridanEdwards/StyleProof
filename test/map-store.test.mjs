@@ -25,6 +25,7 @@ import {
   readMapManifest,
   readSurfaceCaptureFailures,
   recordSurfaceCaptureFailure,
+  removeOwnedBundleEntries,
   restoreMapBundle,
   DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS,
   SURFACE_CAPTURE_FAILURES_DIR,
@@ -79,6 +80,39 @@ test('clearCaptureOutput preflights malformed generated-file directories before 
     assert.equal(fs.statSync(path.join(dir, 'z@800.json')).isDirectory(), true);
   } finally {
     rmTmp(dir);
+  }
+});
+
+test('removeOwnedBundleEntries removes every name the diff reads as a map, keeps other files (#1065)', () => {
+  const dir = mkNonGitTmp('styleproof-remove-owned-');
+  const outside = mkNonGitTmp('styleproof-remove-outside-');
+  try {
+    for (const name of [
+      'home@800.json.gz',
+      'row.json',
+      'legacy.json.gz',
+      'home@800.png',
+      'home@800.har',
+      MAP_MANIFEST,
+      COVERAGE_LEDGER,
+      'notes.txt',
+      'keep.txt',
+    ])
+      fs.writeFileSync(path.join(dir, name), 'generated');
+    fs.mkdirSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR));
+    fs.writeFileSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR, 'x.json'), '{}');
+    const outsideFile = path.join(outside, 'target.json');
+    fs.writeFileSync(outsideFile, 'outside');
+    fs.symlinkSync(outsideFile, path.join(dir, 'linked.json'));
+
+    removeOwnedBundleEntries(dir);
+
+    const left = fs.readdirSync(dir).filter((name) => name !== '.git');
+    assert.deepEqual(left.sort(), ['keep.txt', 'notes.txt']);
+    assert.equal(fs.readFileSync(outsideFile, 'utf8'), 'outside');
+  } finally {
+    rmTmp(dir);
+    rmTmp(outside);
   }
 });
 
