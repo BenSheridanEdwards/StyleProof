@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import type { Browser, Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
+import { DEFAULT_STALL_TIMEOUT_MS } from './browser-stall.js';
 import { runSetup } from './crawl/page.js';
 import { CRAWL_DEFAULTS, type SetupStep } from './crawl/types.js';
 import { writeCaptureManifest } from './map-store.js';
@@ -158,6 +159,15 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
   if (positional.length > 1) throw new UsageError(`expected one <url>, got ${positional.length}`);
   o.url = positional[0];
   return o;
+}
+
+/** STYLEPROOF_STALL_TIMEOUT_MS, else the default no-progress deadline. Throws {@link UsageError} on a malformed value. */
+export function resolveStallTimeoutMs(env: string | undefined = process.env.STYLEPROOF_STALL_TIMEOUT_MS): number {
+  if (env === undefined || env === '') return DEFAULT_STALL_TIMEOUT_MS;
+  const parsed = Number(env);
+  if (!Number.isFinite(parsed) || parsed <= 0)
+    throw new UsageError(`STYLEPROOF_STALL_TIMEOUT_MS must be a positive number of milliseconds, got '${env}'`);
+  return parsed;
 }
 
 /** Written artifacts for one width. */
