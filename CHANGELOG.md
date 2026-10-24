@@ -212,21 +212,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   own, with a forced exit only if something still holds the process open 10 s
   later. Exit codes are unchanged; a crawl that ends 4, 5 or 6 now closes the
   browser before exiting.
-- **Repository browser gates reject incomplete verification.** Changes anywhere
-  under `docs/` now require the browser and dogfood lanes. Demo freshness also
-- **Repository browser gates reject incomplete verification.** The shared path
-  policy now selects browser and dogfood lanes for every nonempty changed path,
-  including prose and tooling files. Removing filename exemptions avoids glob
-  gaps for line terminators; the local gate also preserves literal backslashes
-  instead of treating them as directory separators. Demo freshness also
-  compares committed HTML, so CSS-only drift or a missing HTML report fails.
-  The local pre-push check shares the CI path policy, runs the full browser suite
-  for new branches without a remote base, and fails on missing Chromium or
-  unreadable Git change information. Its staged and pushed diffs include changed
-  gitlinks regardless of submodule ignore settings and compare actual Git
-  objects without local replacement refs. Hosted push CI always runs
-  browser lanes, including empty-tree pushes, without relying on Git's changed-file
-  collector; pull requests retain the pinned API-based filter.
 - **Repository browser gates require tree-identity proof before skipping.** The
   shared decider compares raw root Git trees rather than collecting or matching
   filenames. It replaces dorny and the path-policy file in all five workflows.
