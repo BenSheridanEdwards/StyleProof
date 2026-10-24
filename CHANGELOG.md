@@ -188,6 +188,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `ancestorBaseline: { roots: ['src'] }` in `styleproof.config`, or set
   `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`. Add any other directory or file
   that changes how your app renders.
+- The development-only `fallow` CLI is bumped to `3.34.0` (exact pin, still
+  shared by the pre-commit hook and the CI complexity gate) and the
+  transitive `fast-uri` development dependency to `3.1.9`. No runtime or
+  report output changes.
 
 ### Removed
 
