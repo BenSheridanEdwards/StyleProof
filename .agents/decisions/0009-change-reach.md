@@ -51,29 +51,43 @@ the evidence adds to a capture on a GitHub runner:
 ## Decision
 
 1. **The claim.** Each changed unit gets one status: `reached`, `never-rendered`,
-   `blind-channel`, `unmeasured`, or `unknown`. A run is **reach-complete** when
-   every changed unit is `reached` and none was cleared by approval. Only a
+   `blind-channel`, `unmeasured`, or `unknown`. A run is **reach-complete** only
+   when the evidence for all three joins is complete: every base and head capture
+   has a `complete` J1 ledger, J2 block coverage resolved through source maps on
+   both sides, and a J3 class-list delta between base and head. On top of that,
+   every changed unit is `reached`, none was cleared by approval, and no run-level
+   evidence gap remains (item 4). An empty unit list alone proves nothing. Only a
    reach-complete green means: every changed served CSS rule matched an element
    StyleProof compared, every changed line of render code ran, every changed class
    token reached a captured element, and every computed-style difference those
    states produced is in the report. Every other green carries a visible,
    non-certifying **"Reach incomplete"** status with a count per status and every
-   non-`reached` unit named. It never claims completeness.
+   non-`reached` unit and run-level evidence gap named. It never claims
+   completeness.
 2. **The boundary.** Reach means every change was seen at least once, which is the
    visual analogue of diff line coverage. It does not claim the consequences of a
    reached change in states nobody captured. A global rule seen on captured pages
    can still change an uncaptured overlay.
 3. **Monotonic.** Reach only adds findings or lowers confidence. It never turns a
    red into a green, and it never clears what another gate blocks.
-   Approval never upgrades a unit's status: an approved `never-rendered` unit is
-   still `never-rendered`, and the run is still not reach-complete.
+   Approval never upgrades a unit's status or supplies missing evidence: an
+   approved `never-rendered` unit is still `never-rendered`, and the run is still
+   not reach-complete.
 4. **Unknown stays unknown.** `unmeasured` and `unknown` are never reported as
    reached and never count toward reach-complete. A missing ledger (a map captured
    before this feature or without `captureReach`) or a partial ledger (an
-   unreadable stylesheet) makes the affected J1 units `unknown`. Under the default
-   `'warn'` level that changes no verdict but is a named finding; under opt-in
-   `'gate'` a J1 `unknown` blocks like `never-rendered`, and the finding names
-   "recapture with `captureReach`" as the remedy.
+   unreadable stylesheet) can leave changed rules out of the unit list entirely,
+   so it produces a run-level J1 `unknown` row even when no changed unit can be
+   listed or every listed unit is `reached`. The row names the side and the
+   reason, for example "N unreadable stylesheets; changed rules there cannot be
+   listed" or "missing base ledger; changed rules cannot be listed", and it
+   prevents reach-complete. Under the default `'warn'` level it is a named finding
+   with no verdict change; under opt-in `'gate'` it blocks like a `never-rendered`
+   J1 unit. A missing ledger names "recapture with `captureReach`" as the remedy;
+   an unreadable stylesheet must be made readable and recaptured. Missing J2
+   coverage or source maps, or a missing J3 class-list delta, likewise produces a
+   run-level `unmeasured` row naming the missing evidence. Those rows stay at
+   `'warn'` under either level and prevent reach-complete.
 5. **Named residuals.** These stay documented, not hidden:
    - non-class values defined at module scope (style objects, runtime CSS-in-JS
      templates, numeric theme constants). J3 cannot see them, and J2 sees only
@@ -86,8 +100,8 @@ the evidence adds to a capture on a GitHub runner:
      served CSS rather than git.
 6. **Default levels.** `changeReach` takes `'warn'` or `'gate'`.
    - New in a minor release, the default is `'warn'`: the report lists every
-     non-`reached` unit by status (table below), the confidence strip shows
-     "Reach incomplete", and no verdict changes.
+     non-`reached` unit and run-level evidence gap by status (table below), the
+     confidence strip shows "Reach incomplete", and no verdict changes.
      This keeps existing certify and review-gate users backward compatible.
    - `'gate'` is opt-in. In certify mode a `never-rendered` J1 unit fails with
      `CERTIFICATION_FAILED`. In review-gate mode it needs review, and the existing
@@ -100,11 +114,14 @@ the evidence adds to a capture on a GitHub runner:
    | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
    | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
    | `unknown` | named finding with the reason (legacy or partial ledger, module-scope value) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
+   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
+   | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
 
    No status other than `reached` is ever silent, and under `'gate'` the Approve
-   checkbox clears the verdict, not the status (item 3).
+   checkbox clears the verdict, not the status or the evidence-gap finding
+   (item 3).
 
-   - J2 and J3 never-rendered units stay at `'warn'` even under `'gate'` until
+   - J2 and J3 findings stay at `'warn'` even under `'gate'` until
      noise is measured on a consumer app. J1 is visual by definition. J2 also
      flags non-visual code (event handlers, error paths), as the corpus's noise
      case shows; they are still listed and still prevent reach-complete.
@@ -121,8 +138,9 @@ the evidence adds to a capture on a GitHub runner:
   capture with "served CSS reach is unknown" rather than recording partial
   evidence, and the self-check fails when two captures' ledgers differ (#1045).
 - The report gains a "Changed but never rendered" section, and the confidence
-  strip may say 100% confidence only for a reach-complete run (item 1); otherwise
-  it shows "Reach incomplete". Without source maps, markup reach reads as
+  strip may say "Reach complete" only for a reach-complete run (item 1); otherwise
+  it shows "Reach incomplete". Neither label is a percentage or score (see
+  Alternatives rejected). Without source maps, markup reach reads as
   `unmeasured` and the strip names the setting to enable.
 - `bench/reach-corpus.mjs --check` is the oracle. Phase 1 and 2 replace its
   prototype joins with `src/` code and keep its expectations, with one change:
