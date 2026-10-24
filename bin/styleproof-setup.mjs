@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveSpawnCommand } from './platform-command.mjs';
 import { detectPackageManager } from './package-manager.mjs';
-import { binDir, defineCli, errorMessage, fail } from './cli.mjs';
+import { binDir, defineCli, errorMessage, exitWhenDrained, fail } from './cli.mjs';
 
 const NAME = 'styleproof setup';
 const manifest = JSON.parse(fs.readFileSync(path.join(binDir, '..', 'package.json'), 'utf8'));
@@ -97,30 +97,38 @@ const quote = (arg) => {
 };
 const printable = (command, args) => [command, ...args.map(quote)].join(' ');
 
+/** Run one step; returns its exit status (0 under --dry-run, which only prints it). */
 function run(command, args, label, display = printable(command, args)) {
   if (dryRun) {
     process.stdout.write(`${display}\n`);
-    return;
+    return 0;
   }
   process.stdout.write(`\nStyleProof: ${label}\n`);
   const result = spawnSync(resolveSpawnCommand(command), args, { cwd, stdio: 'inherit' });
   if (result.error) fail(NAME, `${label} failed: ${result.error.message}`, 5);
-  if (result.status !== 0) process.exit(result.status ?? 5);
+  return result.status ?? 5;
 }
 
-if (!opts['skip-install']) run(manager, [installVerb, devFlag, ...packages], `installing dependencies with ${manager}`);
-if (!opts['skip-browser'])
-  run(browserCommand, [...browserPrefix, 'playwright', 'install', 'chromium'], 'installing Chromium');
-run(process.execPath, [init, ...initArgs], 'scaffolding project', printable('styleproof-init', initArgs));
-run(
-  process.execPath,
-  [init, ...checkArgs, '--check'],
-  'verifying scaffold',
-  printable('styleproof-init', [...checkArgs, '--check']),
-);
+// The first failing step's status ends setup.
+let status = 0;
+if (!opts['skip-install'])
+  status = run(manager, [installVerb, devFlag, ...packages], `installing dependencies with ${manager}`);
+if (status === 0 && !opts['skip-browser'])
+  status = run(browserCommand, [...browserPrefix, 'playwright', 'install', 'chromium'], 'installing Chromium');
+if (status === 0)
+  status = run(process.execPath, [init, ...initArgs], 'scaffolding project', printable('styleproof-init', initArgs));
+if (status === 0)
+  status = run(
+    process.execPath,
+    [init, ...checkArgs, '--check'],
+    'verifying scaffold',
+    printable('styleproof-init', [...checkArgs, '--check']),
+  );
 
-if (!dryRun) {
+if (status === 0 && !dryRun) {
   process.stdout.write(
     '\nStyleProof setup complete. Next: run `styleproof capture`, then declare expected surfaces before treating evidence as certified.\n',
   );
 }
+// After the install and scaffold work, exit by draining rather than process.exit(), which can deadlock.
+exitWhenDrained(status);
