@@ -53,8 +53,10 @@ the evidence adds to a capture on a GitHub runner:
 1. **The claim.** Each changed unit gets one status: `reached`, `never-rendered`,
    `blind-channel`, `unmeasured`, or `unknown`. A run is **reach-complete** only
    when the evidence for all three joins is complete: every base and head capture
-   has a `complete` J1 ledger, J2 block coverage resolved through source maps on
-   both sides, and a J3 class-list delta between base and head. On top of that,
+   has a `complete` J1 ledger, every changed stylesheet in the diff was served by
+   a base or head capture, J2 block coverage resolved through source maps on
+   both sides, a J3 class-list delta between base and head, and no dependency
+   changed without a served-sources comparison. On top of that,
    every changed unit is `reached`, none was cleared by approval, and no run-level
    evidence gap remains (item 4). An empty unit list alone proves nothing. Only a
    reach-complete green means: every changed served CSS rule matched an element
@@ -84,7 +86,22 @@ the evidence adds to a capture on a GitHub runner:
    prevents reach-complete. Under the default `'warn'` level it is a named finding
    with no verdict change; under opt-in `'gate'` it blocks like a `never-rendered`
    J1 unit. A missing ledger names "recapture with `captureReach`" as the remedy;
-   an unreadable stylesheet must be made readable and recaptured. Missing J2
+   an unreadable stylesheet must be made readable and recaptured. J1 sees only
+   CSS a capture served, so reach also joins the pull request's changed
+   stylesheet sources (CSS, preprocessor and CSS-module files in the diff) with
+   the sheets served on base and head, by URL or source-map `sources`. A changed
+   stylesheet that no base or head capture served, or that cannot be matched to a
+   served sheet (for example, it has no source map), produces the same run-level
+   J1 `unknown` row, such as "N changed stylesheets never served during capture;
+   changed rules there cannot be listed", with each file named. It behaves like a
+   missing ledger at both levels, and the remedy is a surface that loads the
+   sheet. When the diff changes a dependency's resolved version or contents (a
+   lockfile, a manifest's dependency ranges, a vendored package) and no
+   served-sources comparison exists for it, reach produces a run-level `unknown`
+   row, "dependency changed without a served-sources diff: <packages>". The
+   change cannot be attributed to J1, J2 or J3, so this row stays at `'warn'`
+   under either level, like the J2/J3 gaps, and it prevents reach-complete.
+   Missing J2
    coverage or source maps, or a missing J3 class-list delta, likewise produces a
    run-level `unmeasured` row naming the missing evidence. Those rows stay at
    `'warn'` under either level and prevent reach-complete.
@@ -95,9 +112,11 @@ the evidence adds to a capture on a GitHub runner:
      with no J1 or J3 corroboration, reads `unknown` ("module-scope value;
      rendering not proved"), never `reached`, so it surfaces in the report;
    - consequences of a reached change in uncaptured states (item 2);
-   - dependency JavaScript that changed without a source diff, until a
-     served-sources diff exists. Dependency CSS is covered by J1, which diffs
-     served CSS rather than git.
+   - dependency JavaScript that changed without a source diff cannot be
+     attributed to a unit until a served-sources diff exists. Until then it is a
+     run-level `unknown` finding (item 4), and the run is not reach-complete.
+     Dependency CSS is covered by J1 only where a capture served it. Any other
+     dependency change is the same run-level finding.
 6. **Default levels.** `changeReach` takes `'warn'` or `'gate'`.
    - New in a minor release, the default is `'warn'`: the report lists every
      non-`reached` unit and run-level evidence gap by status (table below), the
@@ -114,8 +133,9 @@ the evidence adds to a capture on a GitHub runner:
    | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
    | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
    | `unknown` | named finding with the reason (legacy or partial ledger, module-scope value) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
-   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
+   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet no capture served, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
    | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
+   | `unknown`, run-level dependency gap | named finding naming the changed packages (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
 
    No status other than `reached` is ever silent, and under `'gate'` the Approve
    checkbox clears the verdict, not the status or the evidence-gap finding
@@ -142,6 +162,11 @@ the evidence adds to a capture on a GitHub runner:
   it shows "Reach incomplete". Neither label is a percentage or score (see
   Alternatives rejected). Without source maps, markup reach reads as
   `unmeasured` and the strip names the setting to enable.
+- Reach reads the pull request's changed stylesheet and dependency paths, not
+  only the captures. A changed stylesheet that no capture served (or that cannot
+  be matched to a served sheet) is a run-level J1 `unknown` finding, never a
+  silent omission. A lockfile, manifest or vendored dependency change is a
+  run-level `unknown` finding until a served-sources diff exists.
 - `bench/reach-corpus.mjs --check` is the oracle. Phase 1 and 2 replace its
   prototype joins with `src/` code and keep its expectations, with one change:
   the `runtime-css-in-js` scenario is expected as `unknown`, not `reached`
@@ -164,6 +189,7 @@ the evidence adds to a capture on a GitHub runner:
 
 - noise is measured on a consumer app's merged PRs (#989): reconsider the
   default level and whether J2 can gate;
-- a served-sources diff exists: dependency JavaScript stops being a residual;
+- a served-sources diff exists: dependency changes can be attributed to units
+  instead of a run-level gap;
 - J2 can attribute a module-scope value to a rendered element: module-scope
   lines can move from `unknown` to `reached`.
