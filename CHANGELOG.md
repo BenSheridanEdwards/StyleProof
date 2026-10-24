@@ -379,12 +379,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   objects and clears Git environment overrides. Unknown evidence runs or blocks;
   new branches run the full suite, and missing Chromium or invalid push records
   block the push. No filename has an exemption. Demo freshness also compares
-  committed HTML, so CSS-only drift or a missing HTML report fails.
-  The served-rules browser spec uses a
-  per-test loopback server so inspector re-fetches no longer depend on fake-host
-  DNS. Product capture and report behavior are unchanged.
-  Edits to `scripts/browser-lanes.mjs` now require enforcement sign-off.
-
+  committed HTML, so CSS-only drift or a missing HTML report fails. The
+  served-rules browser spec uses a per-test loopback server so inspector
+  re-fetches no longer depend on fake-host DNS. Product capture and report
+  behavior are unchanged. Edits to `scripts/browser-lanes.mjs` now require
+  enforcement sign-off.
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
