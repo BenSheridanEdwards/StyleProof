@@ -53,13 +53,17 @@ the evidence adds to a capture on a GitHub runner:
 1. **The claim.** Each changed unit gets one status: `reached`, `never-rendered`,
    `blind-channel`, `unmeasured`, or `unknown`. A run is **reach-complete** only
    when the evidence for all three joins is complete: every base and head capture
-   has a `complete` J1 ledger, every changed stylesheet in the diff was served by
-   a base or head capture, J2 block coverage resolved through source maps on
-   both sides, a J3 class-list delta between base and head, and no dependency
-   changed without a served-sources comparison. Every file in the diff must also
-   be matched to a J1/J2/J3 unit or served source, or be on an explicit list of
-   non-visual paths (item 4). On top of that, every changed unit is `reached`,
-   none was cleared by approval, and no run-level evidence gap remains (item 4).
+   has a `complete` J1 ledger, every changed stylesheet or component style
+   block in the diff was served by a base or head capture, J2 block coverage
+   resolved through source maps on both sides, a J3 class-list delta between
+   base and head, and no dependency changed without a served-sources
+   comparison. Every added or deleted line in each changed hunk must also map
+   to a J1/J2/J3 unit or served source, or belong to a path on the base
+   revision's explicit non-visual list (item 4). Changed files without text hunks
+   require the same attribution or exemption. That list is unchanged by the
+   PR, and every changed file it excuses is named in the report, even on a
+   reach-complete run. On top of that, every changed unit is `reached`, none
+   was cleared by approval, and no run-level evidence gap remains (item 4).
    An empty unit list alone proves nothing. Only a reach-complete green means:
    every changed served CSS rule matched an element StyleProof compared, every
    changed line of render code ran, every changed class token reached a captured
@@ -90,32 +94,53 @@ the evidence adds to a capture on a GitHub runner:
    J1 unit. A missing ledger names "recapture with `captureReach`" as the remedy;
    an unreadable stylesheet must be made readable and recaptured. J1 sees only
    CSS a capture served, so reach also joins the pull request's changed
-   stylesheet sources (CSS, preprocessor and CSS-module files in the diff) with
-   the sheets served on base and head, by URL or source-map `sources`. A changed
-   stylesheet that no base or head capture served, or that cannot be matched to a
-   served sheet (for example, it has no source map), produces the same run-level
-   J1 `unknown` row, such as "N changed stylesheets never served during capture;
-   changed rules there cannot be listed", with each file named. It behaves like a
-   missing ledger at both levels, and the remedy is a surface that loads the
-   sheet. When the diff changes a dependency's resolved version or contents (a
+   stylesheet sources (CSS, preprocessor and CSS-module files, plus style
+   blocks in component files such as Vue/Svelte/Astro `<style>` and styled-jsx)
+   with the sheets served on base and head, by URL or source-map `sources` and
+   line mappings. Serving a component's JavaScript alone does not attribute its
+   style blocks. A changed stylesheet or style block that no base or head
+   capture served, or that cannot be matched to a served sheet (for example, it
+   has no source map), produces the same run-level J1 `unknown` row, such as "N
+   changed stylesheets never served during capture; changed rules there cannot
+   be listed", with each file and affected style-block line range named. It
+   behaves like a missing ledger at both levels, and the remedy is a surface
+   that loads the sheet, with source mappings where needed to attribute it.
+   When the diff changes a dependency's resolved version or contents (a
    lockfile, a manifest's dependency ranges, a vendored package) and no
    served-sources comparison exists for it, reach produces a run-level `unknown`
    row, "dependency changed without a served-sources diff: <packages>". The
    change cannot be attributed to J1, J2 or J3, so this row stays at `'warn'`
    under either level, like the J2/J3 gaps, and it prevents reach-complete.
-   Every file in the diff must be matched to a J1/J2/J3 unit or served source,
-   or be on an explicit list of non-visual paths. Any other changed file produces
-   a run-level `unknown` row, "changed file not attributable to any join: <file>".
-   The report names each such file in sorted path order, including design-token
-   JSON/YAML, Tailwind/PostCSS configuration, build-time codegen inputs and
-   server-side templates when they cannot be attributed. A file's extension or
-   absence from captures never makes it non-visual. These rows stay at `'warn'`
-   under either level and prevent reach-complete; approval cannot clear them
-   (item 3). File attribution supplements the join checks: it never marks a unit
-   `reached` or clears another evidence gap. Missing J2 coverage or source maps,
-   or a missing J3 class-list delta, likewise produces a run-level `unmeasured`
-   row naming the missing evidence. Those rows stay at `'warn'` under either
-   level and prevent reach-complete.
+   Every added or deleted line in each changed hunk must map to a J1/J2/J3 unit
+   or served source, or belong to an explicitly listed non-visual path. A match
+   for one hunk never attributes another hunk in the same file. Any remaining
+   changed lines produce a run-level `unknown` row, "changed lines not
+   attributable to any join: <file>:<lines>". The report names each uncovered
+   range with its base or head side, in sorted path and numeric line order,
+   including design-token JSON/YAML, Tailwind/PostCSS configuration, build-time
+   codegen inputs and server-side templates when they cannot be attributed. A
+   file's extension or absence from captures never makes it non-visual. These
+   rows stay at `'warn'` under either level and prevent reach-complete;
+   approval cannot clear them (item 3). Changed files without text hunks (such
+   as binary or metadata-only changes) still require attribution or a base-list
+   exemption; otherwise the same `unknown` finding names the path and reason
+   without inventing line numbers. Repository maintainers own the explicit
+   non-visual list in repository configuration. Reach reads both the list and
+   its configured location only from the comparison's base revision; the PR
+   head cannot supply exemptions. An absent base list means no exemptions. An
+   unreadable or invalid list grants none and produces a run-level `unknown`
+   row naming the reason. Any PR change to the list or its location, including
+   creation, deletion or renaming, produces a run-level `unknown` row naming
+   the changed configuration and entries. These rows stay at `'warn'` under
+   either level, prevent reach-complete, and cannot be cleared by approval. The
+   report names every changed file the base list excuses, its changed line
+   ranges where available and matching entry, in sorted path and numeric line
+   order, even on a reach-complete run. Attribution and non-visual exemptions
+   supplement the join checks: they never mark a unit `reached` or clear another
+   evidence gap.
+   Missing J2 coverage or source maps, or a missing J3 class-list delta,
+   likewise produces a run-level `unmeasured` row naming the missing evidence.
+   Those rows stay at `'warn'` under either level and prevent reach-complete.
 5. **Named residuals.** These stay documented, not hidden:
    - non-class values defined at module scope (style objects, runtime CSS-in-JS
      templates, numeric theme constants). J3 cannot see them, and J2 sees only
@@ -144,10 +169,11 @@ the evidence adds to a capture on a GitHub runner:
    | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
    | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
    | `unknown` | named finding with the reason (legacy or partial ledger, module-scope value) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
-   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet no capture served, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
+   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
    | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
    | `unknown`, run-level dependency gap | named finding naming the changed packages (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
-   | `unknown`, run-level changed-file attribution gap | named finding naming each changed file not attributable to any join or served source and not explicitly listed as non-visual (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
+   | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
+   | `unknown`, run-level non-visual list gap | named finding for a PR change to the list or its location, or an unreadable or invalid base list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
 
    No status other than `reached` is ever silent, and under `'gate'` the Approve
    checkbox clears the verdict, not the status or the evidence-gap finding
@@ -174,15 +200,23 @@ the evidence adds to a capture on a GitHub runner:
   it shows "Reach incomplete". Neither label is a percentage or score (see
   Alternatives rejected). Without source maps, markup reach reads as
   `unmeasured` and the strip names the setting to enable.
-- Reach reads the pull request's changed stylesheet and dependency paths, not
-  only the captures. A changed stylesheet that no capture served (or that cannot
-  be matched to a served sheet) is a run-level J1 `unknown` finding, never a
-  silent omission. A lockfile, manifest or vendored dependency change is a
-  run-level `unknown` finding until a served-sources diff exists.
-- Reach accounts for every file in the diff. A file not matched to a J1/J2/J3
-  unit or served source and not explicitly listed as non-visual produces a
-  named run-level `unknown` finding. It stays at `'warn'` under either level and
-  prevents reach-complete, including for build inputs and server-side templates.
+- Reach reads the pull request's changed stylesheet, component style-block and
+  dependency paths, not only the captures. A changed stylesheet or style block
+  that no capture served (or that cannot be matched to a served sheet) is a
+  run-level J1 `unknown` finding, never a silent omission. A lockfile, manifest
+  or vendored dependency change is a run-level `unknown` finding until a
+  served-sources diff exists.
+- Reach accounts for every added or deleted line in each changed hunk. Lines
+  not mapped to a J1/J2/J3 unit or served source and not exempted by the base
+  revision's non-visual list produce a named run-level `unknown` finding with
+  `file:lines` and the base or head side. It stays at `'warn'` under either
+  level and prevents reach-complete, including for build inputs and server-side
+  templates. Changed files without text hunks still require attribution or a
+  base-list exemption; otherwise the finding names their path and reason.
+- The non-visual list belongs to repository maintainers and is read only from
+  base. Changing it or its location produces a run-level `unknown` finding and
+  prevents reach-complete. Every changed file it excuses remains named in the
+  report, including on a reach-complete run.
 - `bench/reach-corpus.mjs --check` is the oracle. Phase 1 and 2 replace its
   prototype joins with `src/` code and keep its expectations, with one change:
   the `runtime-css-in-js` scenario is expected as `unknown`, not `reached`
