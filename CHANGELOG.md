@@ -536,15 +536,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `--base-dir`, or is within or contains a Git directory, now exits 2 before
   anything is changed. Folders are compared on disk, so a symlinked spelling,
   or a differently cased one on a case-insensitive filesystem such as macOS or
-  Windows, is refused too. A restore now checks the manifest first, so an
-  invalid bundle leaves the folder as it was. A restore or a discarded capture
-  now clears every top-level `.json`/`.json.gz` file, `.png` screenshot and
-  `.har` recording, whoever wrote it, plus StyleProof's sidecars and failure
-  ledger; other files and subfolders survive. A stale map or screenshot from an
-  earlier run therefore cannot outlive a restore and hide a removed surface or
-  a missing screenshot. HAR cleanup
-  after a capture now removes only the recordings at the top of the folder, so
-  HAR files in its subfolders survive too. A `--dir` that is a file exits 2
+  Windows, is refused too. A `link/..` spelling is compared and cleared by
+  name, so it cannot list one folder and delete from another. A restore now
+  checks the manifest first, so an invalid bundle leaves the folder as it was.
+  Restoring through a symlinked folder resolves its target before clearing it,
+  avoiding a clear followed by a failed copy into the symlink. A restore or a
+  discarded capture now clears top-level files and symlinks named
+  `.json`/`.json.gz`, `.png` or `.har`, in any letter case, whoever wrote them,
+  plus StyleProof-owned names (including sidecars and the failure ledger).
+  Other files and user subfolders survive, even folders with those extensions.
+  A stale map or screenshot from an earlier run therefore cannot outlive a
+  restore and hide a removed surface or a missing screenshot. HAR cleanup
+  after a capture now removes only the recordings at the top of the folder,
+  so HAR files in its subfolders survive too. A `--dir` that is a file exits 2
   instead of reporting a map-store fault (#1065).
 - **The report comment is updated in place on long threads, and a person's
   comment is never overwritten (#968).** The Action read only the first 100

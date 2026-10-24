@@ -240,8 +240,11 @@ function copyRestoredBundle(tmp: string, { sha, branch, compatibilityKey, outDir
   const bundleDir = path.join(shaDir, candidates[0]);
   const manifest = readMapManifest(bundleDir);
   if (!manifest) return miss(`cached map for ${sha} is missing ${MAP_MANIFEST}`, 'no_bundle');
-  removeOwnedBundleEntries(outDir);
-  copyDir(bundleDir, outDir, true);
+  // cpSync refuses a symlinked destination, so clear and copy the folder it names on disk (#1065).
+  const resolvedOutDir = path.resolve(outDir);
+  const dest = fs.existsSync(resolvedOutDir) ? fs.realpathSync.native(resolvedOutDir) : resolvedOutDir;
+  removeOwnedBundleEntries(dest);
+  copyDir(bundleDir, dest, true);
   return { status: 'hit', manifest };
 }
 

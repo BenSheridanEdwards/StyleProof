@@ -1346,9 +1346,13 @@ test('styleproof-map --restore refuses a --dir that holds the checkout, --base-d
     const headBytes = fs.readFileSync(headFile);
     const alias = path.join(scratch, 'checkout');
     fs.symlinkSync(repo, alias, 'dir');
+    fs.mkdirSync(path.join(scratch, 'child'));
+    fs.symlinkSync(path.join(scratch, 'child'), path.join(repo, 'link'), 'dir');
+    const scratchJson = seedCheckoutJson(scratch);
     for (const [dirArgs, held] of [
       [['--dir', repo], /is or contains the working directory/],
       [['--dir', alias], /is or contains the working directory/],
+      [['--dir', `${repo}${path.sep}link${path.sep}..`], /is or contains the working directory/],
       [['--base-dir', '.', '--dir', '.'], /is or contains the working directory/],
       [['--dir', '.'], /is or contains --base-dir/],
       [['--base-dir', '.git', '--dir', 'maps'], /is within or contains a Git directory/],
@@ -1365,6 +1369,7 @@ test('styleproof-map --restore refuses a --dir that holds the checkout, --base-d
       assert.equal(r.status, 2, `${label}: ${r.stderr}`);
       assert.match(r.stderr, held, label);
     }
+    assertCheckoutJsonKept(scratchJson, 'link/.. must keep the external folder');
   } finally {
     rmTmp(repo);
     rmTmp(scratch);
@@ -1457,6 +1462,9 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
       // The pixel gate would read these as row's screenshots, whatever the bundle holds.
       'row.png',
       'row.hover.png',
+      'other.PNG',
+      'other.hover.PNG',
+      'other.JSON',
     ];
     for (const stale of staleFiles) fs.writeFileSync(path.join(label, stale), 'an earlier run\n');
     fs.writeFileSync(path.join(label, 'NOTES.txt'), 'kept\n');
@@ -1479,6 +1487,39 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
     rmTmp(repo);
   }
 });
+
+test(
+  'styleproof-map --restore through a symlinked --dir writes into its target and keeps unowned files (#1065)',
+  { skip: process.platform === 'win32' },
+  () => {
+    const { repo, headSha } = setupCachedComparison();
+    const scratch = mkTmp('styleproof-restore-link-');
+    try {
+      const label = path.join(repo, '.styleproof', 'maps', 'head');
+      const target = path.join(scratch, 'real-head');
+      fs.mkdirSync(path.dirname(label), { recursive: true });
+      fs.mkdirSync(target);
+      fs.symlinkSync(target, label, 'dir');
+      fs.writeFileSync(path.join(target, 'gone@1280.json.gz'), 'an earlier run\n');
+      fs.writeFileSync(path.join(target, 'NOTES.txt'), 'kept\n');
+
+      const r = restoreInto(repo, headSha, ['--dir', 'head']);
+
+      assert.equal(r.status, 0, r.stderr);
+      assert.deepEqual(fs.readdirSync(target).sort(), [
+        'NOTES.txt',
+        'home@1280.json.gz',
+        'styleproof-coverage.json',
+        MAP_MANIFEST,
+      ]);
+      assert.equal(fs.readFileSync(path.join(target, 'NOTES.txt'), 'utf8'), 'kept\n');
+      assert.equal(fs.lstatSync(label).isSymbolicLink(), true);
+    } finally {
+      rmTmp(repo);
+      rmTmp(scratch);
+    }
+  },
+);
 
 test('styleproof-map --restore of a bundle with an invalid manifest leaves the folder as it was (#1065)', () => {
   const { repo, headSha } = setupCachedComparison({

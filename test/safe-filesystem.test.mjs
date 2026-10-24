@@ -217,6 +217,25 @@ test('isWithinDirectoryOnDisk sees through a symlinked spelling', { skip: proces
   }
 });
 
+test(
+  'isWithinDirectoryOnDisk reads a link/.. spelling by name, as callers join it (#1065)',
+  { skip: process.platform === 'win32' },
+  () => {
+    const workspace = mkTmp('styleproof-on-disk-link-parent-');
+    try {
+      const repo = path.join(workspace, 'repo');
+      const child = path.join(workspace, 'external', 'child');
+      fs.mkdirSync(repo);
+      fs.mkdirSync(child, { recursive: true });
+      fs.symlinkSync(child, path.join(repo, 'link'), 'dir');
+
+      assert.equal(isWithinDirectoryOnDisk(`${repo}${path.sep}link${path.sep}..`, repo), true);
+    } finally {
+      rmTmp(workspace);
+    }
+  },
+);
+
 test('isWithinDirectoryOnDisk sees through a differently cased spelling (#1065)', (t) => {
   const workspace = mkTmp('styleproof-on-disk-case-');
   try {

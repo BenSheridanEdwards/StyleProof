@@ -43,12 +43,14 @@ function realPathThroughExisting(p: string): { existing: string; real: string } 
 /** True when `candidate` is `root` or lies beneath it on disk. Compares folder identity up the
  *  candidate's real parents, so a symlinked or differently cased spelling (case-insensitive
  *  filesystems) is still caught (#1065). A missing tail cannot change the answer: a path below it
- *  is inside `root` exactly when its nearest existing parent is. */
+ *  is inside `root` exactly when its nearest existing parent is. Both paths are resolved by name
+ *  first, as callers later join them. */
 export function isWithinDirectoryOnDisk(root: string, candidate: string): boolean {
-  if (!fs.existsSync(root)) {
-    return isWithinDirectory(realPathThroughExisting(root).real, realPathThroughExisting(candidate).real);
+  const resolvedRoot = path.resolve(root);
+  if (!fs.existsSync(resolvedRoot)) {
+    return isWithinDirectory(realPathThroughExisting(resolvedRoot).real, realPathThroughExisting(candidate).real);
   }
-  const rootStat = fs.statSync(root);
+  const rootStat = fs.statSync(resolvedRoot);
   let current = realPathThroughExisting(candidate).existing;
   for (;;) {
     if (sameFileIdentity(fs.statSync(current), rootStat)) return true;

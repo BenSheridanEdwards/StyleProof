@@ -273,8 +273,10 @@ function runVariantCrawl(captureEnvironment) {
   return result.status ?? 1;
 }
 
-// An absolute --dir is respected as-is; a relative one nests under baseDir.
-const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
+// An absolute --dir is used directly; a relative one nests under baseDir. Normalize by name,
+// as every later path.join (and the capture child) reads it, so a link/.. spelling cannot list
+// one folder and delete from another (#1065).
+const targetDir = path.normalize(path.isAbsolute(dir) ? dir : path.join(baseDir, dir));
 // A restore or a failed capture clears targetDir, so refuse one that holds the checkout, the map
 // root or Git metadata before touching anything (#1065, as #943 for styleproof-ci). Folders are
 // compared by on-disk identity, so a symlinked, differently cased or missing spelling cannot slip
