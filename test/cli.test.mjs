@@ -1069,6 +1069,7 @@ function setupCachedComparison({
   headColor = 'rgb(0, 0, 0)',
   baseBranch = 'main',
   changeLockfile = false,
+  seedBase = () => {},
   seedHead = () => {},
 } = {}) {
   const repo = mkTmp();
@@ -1113,6 +1114,7 @@ function setupCachedComparison({
     : undefined;
   writeManifest(baseDir, baseRefSha, baseCompatibilityKey, baseLockfileProvenance);
   writeManifest(headDir, headSha, headCompatibilityKey, headLockfileProvenance);
+  seedBase(baseDir);
   seedHead(headDir);
   seedMapStore(repo, [
     {
@@ -1140,6 +1142,59 @@ test('diff defaults to cached maps against the inferred main branch', () => {
   const r = runIn(repo, DIFF, []);
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
+  rmTmp(repo);
+});
+
+test('diff elevates a visible element added between cached maps (restored dirs read before cleanup)', () => {
+  const board = (child) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 400, 300], style: { display: 'block' } },
+        'body > button.setup:nth-child(1)': {
+          tag: 'button',
+          cls: 'setup',
+          rect: [10, 10, 120, 32],
+          style: { display: 'flex' },
+          text: 'Setup',
+        },
+        ...child,
+      },
+    });
+  const { repo } = setupCachedComparison({
+    seedBase: (baseDir) =>
+      writeCapture(
+        baseDir,
+        'home@1280',
+        board({
+          'body > button.setup:nth-child(1) > span.ok:nth-child(1)': {
+            tag: 'span',
+            cls: 'ok',
+            rect: [100, 16, 12, 12],
+            style: { display: 'inline-block' },
+          },
+        }),
+        null,
+      ),
+    seedHead: (headDir) =>
+      writeCapture(
+        headDir,
+        'home@1280',
+        board({
+          'body > button.setup:nth-child(1) > i.warn:nth-child(1)': {
+            tag: 'i',
+            cls: 'warn',
+            rect: [100, 16, 12, 12],
+            style: { display: 'inline-block' },
+          },
+        }),
+        null,
+      ),
+  });
+  const jsonPath = path.join(repo, 'diff.json');
+  const r = runIn(repo, DIFF, ['main', '--json', jsonPath]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.ok((json.elevatedVisibleStructure ?? 0) >= 1, JSON.stringify(json));
   rmTmp(repo);
 });
 

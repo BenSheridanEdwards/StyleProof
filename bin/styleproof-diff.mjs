@@ -90,7 +90,18 @@ const inputs = resolveCompareInputs(NAME, {
 const { requireStateIdentity, expectedBeforeSha, expectedAfterSha } = inputs;
 
 // ── read everything while the (possibly restored) dirs still exist ─────────────
-const read = withCaptureDirs(NAME, inputs, () => readCompareEvidence(NAME, inputs, { migration, pixels }));
+const read = withCaptureDirs(NAME, inputs, () => {
+  const evidence = readCompareEvidence(NAME, inputs, { migration, pixels });
+  // #766 navigable Global chrome + visible paired-surface add/remove, read from the maps before cleanup.
+  const elevation = collectStructureElevation({
+    beforeDir: inputs.beforeDir,
+    afterDir: inputs.afterDir,
+    migration,
+    surfacePaths: evidence.surfacePaths,
+    surfaceKeyOf: evidence.surfaceKeyOf,
+  });
+  return { ...evidence, elevation };
+});
 const {
   result,
   inventoryAudit,
@@ -103,6 +114,7 @@ const {
   surfaceKeyOf,
   baselineProvenance,
   baseMapCount,
+  elevation,
   sourceBinding,
   evidenceBinding,
 } = read;
@@ -149,14 +161,7 @@ const truth = assessComparisonTruth(surfaces, counts, comparability, {
   requireStateIdentity,
   ...(liveTextAudit ? { liveText: liveTextAudit } : {}),
 });
-// #766 navigable Global chrome + visible paired-surface add/remove elevate into reviewableCounts / exit 1.
-const elevation = collectStructureElevation({
-  beforeDir: inputs.beforeDir,
-  afterDir: inputs.afterDir,
-  migration,
-  surfacePaths,
-  surfaceKeyOf,
-});
+// Elevated structure (collected above) counts as reviewable and exits 1.
 const elevatedNavigableChromeAdds = elevation.chrome.count;
 const elevatedVisibleStructure = elevation.visible.count;
 const { reviewableCounts: gateReviewableCounts, hasReviewableEvidence: gateHasReviewableEvidence } = elevateReviewable(
