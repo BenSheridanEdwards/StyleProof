@@ -47,7 +47,7 @@ import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
 import { classifyColdReasonFromMissMessage, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
 import { isWithinDirectory } from '../dist/safe-filesystem.js';
-import { defineCli, errorMessage, fail, filesUnder, runBin } from './cli.mjs';
+import { defineCli, errorMessage, fail, runBin } from './cli.mjs';
 import { decodeSpecPathEnv } from './spec-path-env.mjs';
 
 const NAME = 'styleproof-map';
@@ -218,8 +218,10 @@ if (opts.restore && !sha) {
 }
 
 const removeTree = (target) => fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+// Captures write HAR recordings beside the maps, so only the top level is ours to remove (#1065).
 const removeHarFiles = (root) => {
-  for (const file of filesUnder(root)) if (file.endsWith('.har')) fs.rmSync(file, { force: true });
+  if (!fs.existsSync(root)) return;
+  for (const name of fs.readdirSync(root)) if (name.endsWith('.har')) fs.rmSync(path.join(root, name), { force: true });
 };
 
 /** Precedence: explicit config key > env var > default (suppressed). */
@@ -279,6 +281,8 @@ const realPath = (p) => {
   return path.join(fs.realpathSync(existing), path.relative(existing, path.resolve(p)));
 };
 const realTarget = realPath(targetDir);
+if (fs.existsSync(targetDir) && !fs.statSync(targetDir).isDirectory())
+  fail(NAME, `--dir ${realTarget} is a file; use a folder that holds only StyleProof maps`);
 for (const [held, what] of [
   [process.cwd(), 'the working directory'],
   [baseDir, '--base-dir'],
