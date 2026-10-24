@@ -203,6 +203,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-diff <baseRef>` no longer certifies an added or removed
+  visible element.** In cached-map mode the restored maps live in a temp
+  workspace that is deleted once the evidence is read. The visible-structure
+  and navigable-chrome elevation (#766) ran after that, found no maps and
+  counted zero, so a structure change exited 0 instead of 1. The two-directory
+  form, which the Action uses, was not affected. Elevation is now read with
+  the rest of the evidence.
 - **`styleproof-capture` (`styleproof crawl`) no longer hangs after it
   finishes.** It called `process.exit()` straight after the capture, which can
   deadlock inside Node: exit waits for a V8 worker thread that is itself waiting
