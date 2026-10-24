@@ -37,7 +37,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(buildJob, /npm test|npm run test:e2e|npm run typecheck/);
 
   assert.match(e2eJob, /name: e2e \(node 22, shard/);
-  assert.match(e2eJob, /shard: \[1, 2, 3, 4\]/);
+  assert.match(e2eJob, /shard: \[1, 2, 3, 4, 5, 6\]/);
   assert.match(e2eJob, /node-version: '22'/);
   assert.match(e2eJob, /run: npm ci/);
   assert.match(e2eJob, /run: npm run build/);
@@ -45,7 +45,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(e2eJob, /npx playwright install chromium firefox/);
   assert.match(
     e2eJob,
-    /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/4 --reporter=line,json/,
+    /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/6 --reporter=line,json/,
   );
   assert.match(e2eJob, /needs: changes/);
   assert.match(e2eJob, /if: needs\.changes\.outputs\.e2e == 'true'/);
@@ -55,7 +55,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(e2eJob, /if-no-files-found: error/);
   assert.match(e2eJob, /retention-days: 1\s*$/m);
   assert.match(e2eJob, /Collect test inventory/);
-  assert.match(e2eJob, /if: matrix\.shard == 1/);
+  assert.match(e2eJob, /if: matrix\.shard == 5/);
   assert.match(
     e2eJob,
     /npx playwright test --config=playwright\.ci\.config\.ts --list --reporter=json > \.styleproof\/ci\/inventory\.json/,
@@ -66,7 +66,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(evidenceJob, /npx playwright/);
   assert.match(
     evidenceJob,
-    /node scripts\/verify-e2e-shards.mjs \.styleproof\/ci\/shards\/e2e-shard-1\/inventory\.json/,
+    /node scripts\/verify-e2e-shards.mjs \.styleproof\/ci\/shards\/e2e-shard-5\/inventory\.json \.styleproof\/ci\/shards 6$/m,
   );
   assert.match(evidenceJob, /uses: actions\/download-artifact@/);
   assert.match(evidenceJob, /pattern: e2e-shard-\*/);
