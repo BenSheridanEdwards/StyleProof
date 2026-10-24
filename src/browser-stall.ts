@@ -8,6 +8,9 @@ import { realNow } from './spec-clock.js';
 /** Default no-progress deadline: 5 minutes. A healthy run answers a call every second or so. */
 export const DEFAULT_STALL_TIMEOUT_MS = 300_000;
 
+/** setTimeout's largest delay; a longer one fires after 1 ms, so longer deadlines re-check at this cap. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 export class BrowserStallError extends Error {
   constructor(timeoutMs: number) {
     super(`the browser stopped responding: no progress for ${timeoutMs / 1000}s`);
@@ -43,7 +46,7 @@ export function watchBrowserProgress(timeoutMs: number): BrowserProgressWatch {
           const check = (): void => {
             const idleMs = realNow() - lastProgressAt;
             if (idleMs >= timeoutMs) reject(new BrowserStallError(timeoutMs));
-            else timer = setTimeout(check, timeoutMs - idleMs);
+            else timer = setTimeout(check, Math.min(timeoutMs - idleMs, MAX_TIMER_MS));
           };
           check();
         }),

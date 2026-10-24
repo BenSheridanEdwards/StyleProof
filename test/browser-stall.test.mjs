@@ -57,6 +57,22 @@ test('started and failed calls are not progress', async () => {
   }
 });
 
+// setTimeout cannot hold more than 2^31-1 ms: a larger delay fires after 1 ms and warns, so a huge
+// deadline (someone "turning it off") must not re-arm every millisecond for the whole run.
+test('a deadline beyond the timer limit waits quietly instead of re-arming every millisecond', async () => {
+  const warnings = [];
+  const onWarning = (warning) => warnings.push(warning.name);
+  process.on('warning', onWarning);
+  try {
+    const watch = watchBrowserProgress(99_999_999_999);
+    assert.equal(await watch.race(delay(50, 'done')), 'done');
+    await delay(0);
+  } finally {
+    process.off('warning', onWarning);
+  }
+  assert.deepEqual(warnings, []);
+});
+
 test('the watch subscribes to Playwright api logs only', () => {
   const { logger } = watchBrowserProgress(1_000);
   assert.equal(logger.isEnabled('api', 'info'), true);
