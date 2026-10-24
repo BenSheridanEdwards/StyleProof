@@ -24,15 +24,17 @@ evidence a real browser records during capture:
 - **J2**: a changed line of render code must run (V8 block coverage resolved
   through source maps). For a line that produces a value, running alone does
   not prove the value rendered (item 5).
-- **J3**: a changed class token must land on a captured element (a class-list
-  delta between base and head).
+- **J3**: a changed class-token occurrence must land on a captured element,
+  proved by a class-list delta between base and head tied to that occurrence's
+  source range; a delta for the same token from another occurrence proves
+  nothing.
 
 The reach corpus (#988, `bench/reach-corpus.review.md`) measured the miss and
 the joins on a fixture whose spec opens only the healthy state:
 
 | Scenario                    | Today's diff shows | Prototype reach joins                           |
 | --------------------------- | ------------------ | ----------------------------------------------- |
-| declared (healthy state)    | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (value, rendering not proved); render-scope value, eagerly built JSX element and same-line class-plus-style scenarios not yet measured, expected as `unknown` once PR #1031 adds them |
+| declared (healthy state)    | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (value, rendering not proved); render-scope value, eagerly built JSX element, same-line class-plus-style and same-token collision scenarios not yet measured, expected as `unknown` once PR #1031 adds them |
 | complete (all five states)  | 12 of 13 changes   | mark every rendered change reached              |
 
 The same corpus pins one noise case: a changed error-handler string that never
@@ -57,9 +59,9 @@ the evidence adds to a capture on a GitHub runner:
    has a `complete` J1 ledger, every changed stylesheet or component style
    block in the diff was served by a base or head capture, J2 block coverage
    resolved through source maps on both sides, a J3 class-list delta between
-   base and head, and no dependency changed without a served-sources
-   comparison. Every added or deleted line in each changed hunk must also map
-   to a J1/J2/J3 unit or served source (item 4), or belong to a path on the base
+   base and head, and every changed dependency file was served and attributed
+   to a unit by a served-sources comparison. Every added or deleted line in
+   each changed hunk must also map to a J1/J2/J3 unit or served source (item 4), or belong to a path on the base
    revision's explicit non-visual list (item 4). Changed files without text hunks
    require the same attribution or exemption. That list is unchanged by the
    PR, and every changed file it excuses is named in the report, even on a
@@ -69,8 +71,9 @@ the evidence adds to a capture on a GitHub runner:
    every changed served CSS rule matched an element StyleProof compared, every
    changed line of render code ran, every changed value-producing line (item 5)
    was corroborated as rendered by a `reached` J1 or J3 unit derived from that
-   same value's exact source range, every changed class token reached a captured
-   element, and every computed-style difference those states produced is in the
+   same value's exact source range, every changed class-token occurrence reached
+   a captured element through a delta tied to that occurrence's own source
+   range, and every computed-style difference those states produced is in the
    report. Every other green carries a visible,
    non-certifying **"Reach incomplete"** status with a count per status and every
    non-`reached` unit and run-level evidence gap named. It never claims
@@ -110,12 +113,22 @@ the evidence adds to a capture on a GitHub runner:
    behaves like a missing ledger at both levels, and the remedy is a surface
    that loads the sheet, with source mappings where needed to attribute it.
    When the diff changes a dependency's resolved version or contents (a
-   lockfile, a manifest's dependency ranges, a vendored package) and no
-   served-sources comparison exists for it, reach produces a run-level `unknown`
-   row, "dependency changed without a served-sources diff: <packages>", with
-   packages in sorted name order. The
-   change cannot be attributed to J1, J2 or J3, so this row stays at `'warn'`
-   under either level, like the J2/J3 gaps, and it prevents reach-complete.
+   lockfile, a manifest's dependency ranges, a vendored package), reach must
+   account for every changed file in that dependency's resolved contents (base
+   versus head package files). Each changed file must be served by a base or
+   head capture and attributed to a J1/J2/J3 unit through the served-sources
+   comparison. Any changed dependency file not served, or served but not
+   attributed, produces a run-level `unknown` row, "dependency contents changed
+   but not served or attributed: <package>: <files>", with packages in sorted
+   name order and files in sorted path order. When no served-sources
+   comparison exists, or the changed contents cannot be listed, reach produces
+   the run-level `unknown` row "dependency changed without a served-sources
+   diff: <packages>", with packages in sorted name order. An empty
+   served-sources diff never proves a dependency change invisible. A base
+   non-visual-list match on a lockfile, manifest or vendored path exempts only
+   the changed-line attribution of those lines; it never clears or suppresses
+   a dependency row. These rows stay at `'warn'` under either level, like the
+   J2/J3 gaps, prevent reach-complete, and cannot be cleared by approval.
    Every added or deleted line in each changed hunk must map to a J1/J2/J3 unit
    or served source, or belong to an explicitly listed non-visual path. A match
    for one hunk never attributes another hunk in the same file. A changed line
@@ -156,11 +169,11 @@ the evidence adds to a capture on a GitHub runner:
 5. **Named residuals.** These stay documented, not hidden:
    - value-producing lines at any lexical scope: module, component or render
      body, hook, helper or memo. A value here is anything a line computes that
-     can reach the page other than a class token J3 tracks. Examples, not an
-     exhaustive list: style objects, inline `style` values, runtime CSS-in-JS
-     templates, numeric theme constants, JSX elements and element tags,
-     non-class attributes and props, text, and variant-name strings. J3 cannot
-     see them, and J2 proves only that the line executed, not that the value
+     can reach the page. Examples, not an exhaustive list: style objects,
+     inline `style` values, runtime CSS-in-JS templates, numeric theme
+     constants, JSX elements and element tags, non-class attributes and props,
+     text, and variant-name strings. J3 cannot see most of them, and J2 proves
+     only that the line executed, not that the value
      reached a rendered element. A value computed on every render but applied
      only inside an uncaptured branch executes on healthy captures without
      rendering: `const faultStyle = { color: 'red' }` in `App()`, used only by
@@ -173,16 +186,29 @@ the evidence adds to a capture on a GitHub runner:
      unit from another value, line or hunk never does, including another value
      on the same line: in `<Banner className="new-x" style={{ color: fault ?
      'red' : 'blue' }} />`, a `reached` J3 unit for `new-x` says nothing about
-     the style value, which stays `unknown`. When reach cannot tell whether a
-     changed line produces a value, or where a value's source range ends, it
-     treats the whole line as an uncorroborated value. The line surfaces in the
+     the style value, which stays `unknown`. Class tokens follow the same rule:
+     a J3 delta corroborates only the occurrence whose source range produced
+     it, proved by per-occurrence provenance (for example, source-mapped render
+     provenance linking the captured element's class value to that
+     occurrence's expression). A token-name match never counts, even when the
+     token is unique in the diff, and neither does J2 execution. With `const
+     OK = 'new'` and `const FAULT = 'new'` (both were `'old'`), and `FAULT`
+     used only by an unopened overlay, a delta on the healthy element never
+     clears `FAULT`, which reads `unknown` ("class token; delta not tied to
+     this occurrence"). When reach cannot tie a delta to one occurrence, every
+     occurrence it could belong to reads `unknown`. When reach cannot tell
+     whether a changed line produces a value, or where a value's source range
+     ends, it treats the whole line as an uncorroborated value. The line surfaces in the
      report and prevents reach-complete;
    - consequences of a reached change in uncaptured states (item 2);
    - dependency JavaScript that changed without a source diff cannot be
      attributed to a unit until a served-sources diff exists. Until then it is a
      run-level `unknown` finding (item 4), and the run is not reach-complete.
-     Dependency CSS is covered by J1 only where a capture served it. Any other
-     dependency change is the same run-level finding.
+     Dependency CSS is covered by J1 only where a capture served it. Dependency
+     JavaScript or CSS that changed but was not served, or was served but not
+     attributed, is the same run-level `unknown` finding even when a
+     served-sources diff exists. Any other dependency change is the same
+     run-level finding.
 6. **Default levels.** `changeReach` takes `'warn'` or `'gate'`.
    - New in a minor release, the default is `'warn'`: the report lists every
      non-`reached` unit and run-level evidence gap by status (table below), the
@@ -198,10 +224,10 @@ the evidence adds to a capture on a GitHub runner:
    | `never-rendered` | named finding "Changed but never rendered" | certify: `CERTIFICATION_FAILED`; review-gate: needs review | named finding | no |
    | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
    | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
-   | `unknown` | named finding with the reason (legacy or partial ledger, value without rendering proof) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
+   | `unknown` | named finding with the reason (legacy or partial ledger, value without rendering proof, class-token occurrence without a delta tied to it) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
    | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
    | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
-   | `unknown`, run-level dependency gap | named finding naming the changed packages (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
+   | `unknown`, run-level dependency gap | named finding naming the changed packages, and the unserved or unattributed files when a comparison exists (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
    | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source (item 4) and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
    | `unknown`, run-level non-visual list gap | named finding for a PR change to the list or its location, or an unreadable or invalid base list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
 
@@ -234,8 +260,9 @@ the evidence adds to a capture on a GitHub runner:
   dependency paths, not only the captures. A changed stylesheet or style block
   that no capture served (or that cannot be matched to a served sheet) is a
   run-level J1 `unknown` finding, never a silent omission. A lockfile, manifest
-  or vendored dependency change is a run-level `unknown` finding until a
-  served-sources diff exists.
+  or vendored dependency change is a run-level `unknown` finding unless a
+  served-sources comparison serves and attributes every changed dependency
+  file; a base-list exemption never clears it.
 - Reach accounts for every added or deleted line in each changed hunk. Lines
   not mapped to a J1/J2/J3 unit or served source (as item 4 defines it) and
   not exempted by the base revision's non-visual list produce a named run-level `unknown` finding with
@@ -250,12 +277,19 @@ the evidence adds to a capture on a GitHub runner:
 - `bench/reach-corpus.mjs --check` is the oracle. Phase 1 and 2 replace its
   prototype joins with `src/` code and keep its expectations, with one change:
   the `runtime-css-in-js` scenario is expected as `unknown`, not `reached`.
-  PR #1031 / Phase 1 must also add three scenarios, not yet measured, each
+  PR #1031 / Phase 1 must also add four scenarios, not yet measured, each
   expected as `unknown`: a render-scope value applied only in an unopened state
   (a component-body `faultStyle` used only by the fault overlay), an eagerly
   built JSX element that is never mounted (`const banner = <strong>` shown only
-  by `{fault && banner}`), and a line where a changed class token is `reached`
-  but a changed style value on the same line renders only in an unopened state.
+  by `{fault && banner}`), a line where a changed class token is `reached`
+  but a changed style value on the same line renders only in an unopened state,
+  and two module constants changing the same token `'old'`→`'new'`, one
+  rendered on the healthy page and one only by the unopened fault overlay,
+  where the overlay occurrence is expected as `unknown`, never `reached`. The
+  existing complete-state J3 expectations (`branch-class`, `module-constant`,
+  `colliding-constant`) stay `reached` only through per-occurrence evidence; if
+  Phase 1 cannot record that evidence, they are deliberately re-expected as
+  `unknown`.
 
 ## Alternatives rejected
 
@@ -274,7 +308,8 @@ the evidence adds to a capture on a GitHub runner:
 
 - noise is measured on a consumer app's merged PRs (#989): reconsider the
   default level and whether J2 can gate;
-- a served-sources diff exists: dependency changes can be attributed to units
-  instead of a run-level gap;
-- J2 can attribute a value to a rendered element: such lines, at any scope, can
-  move from `unknown` to `reached`.
+- a served-sources diff exists: dependency changes can be attributed to units,
+  with unserved or unattributed changed files still a run-level gap;
+- J2 can attribute a value to a rendered element, or a class-list delta can be
+  tied to its source occurrence: such lines, at any scope, can move from
+  `unknown` to `reached`.
