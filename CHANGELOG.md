@@ -123,6 +123,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and pass it as `servedRules`. Otherwise linked stylesheets are counted
   `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
   `ServedRuleTracker`.
+- **Reach corpus (`bench/`, #988).** `npm run bench:reach` pins the miss Change
+  Reach (#934) exists to close. A base/head fixture carries 14 seeded changes,
+  13 of them visual. A spec that opens only the healthy state shows 1 of the 13
+  in today's diff. Prototype reach joins (`bench/reach-joins.mjs`) name 11 of
+  the 12 misses from CSS rule usage, V8 block coverage and class-list deltas,
+  and the twelfth is pinned as the named runtime CSS-in-JS residual. Capturing
+  all five states shows 12 of 13. `npm run bench:reach:check` fails on drift in
+  either direction and runs in CI beside the detection corpus. Benchmark only,
+  not part of the published package.
 - **The PR comment names what changed, not just how much (#831).** A **What
   changed** block now follows the headline count. It has one row per one-sided
   surface with its status, and one row per change that names up to three
@@ -208,6 +217,32 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-capture` (`styleproof crawl`) no longer waits forever on a
+  browser that stops answering.** A frozen or starved renderer, or a page
+  script stuck in a loop, kept Chrome alive while `page.evaluate` waited with no
+  timeout, so the run held a CI job until the runner timed out. The command now
+  exits 3 with `the browser stopped responding: no progress for 300s` once the
+  browser has answered no call for 5 minutes, and the browser exits with it. It
+  is a stall deadline, not a budget: a long exhaustive crawl keeps answering, so
+  it is never capped. `STYLEPROOF_STALL_TIMEOUT_MS` changes the deadline.
+- **`styleproof-capture` (`styleproof crawl`) no longer hangs after it
+  finishes.** It called `process.exit()` straight after the capture, which can
+  deadlock inside Node: exit waits for a V8 worker thread that is itself waiting
+  for the main thread to collect garbage. About one loaded run in a hundred
+  printed its whole report and then sat at 0% CPU with no browser, until a CI
+  job timed out. The command now sets the exit code and lets Node exit on its
+  own, with a forced exit only if something still holds the process open 10 s
+  later. Exit codes are unchanged; a crawl that ends 4, 5 or 6 now closes the
+  browser before exiting.
+- **The other commands no longer risk the same hang on exit.** `styleproof-map`
+  (`styleproof capture`), `styleproof-diff` (`styleproof compare`),
+  `styleproof-report`, `styleproof-ci`, `styleproof-variants`,
+  `styleproof-affected`, `styleproof-components`, `styleproof setup` and the
+  `styleproof` dispatcher now exit the same way once their work is done, as do
+  `styleproof-publish-report`, `styleproof-prune-reports` and
+  `styleproof-prune-maps` when they fail. Exit codes are unchanged;
+  `styleproof-variants --strict` now closes the browser before it exits 1.
+  Usage errors, and failures before any work starts, still exit at once.
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
@@ -554,6 +589,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   with `--incomplete-ui-exclude` and a reason. Capture the states behind
   those controls with a spec fixture. This also applies to labels that were
   already unsafe, such as "Delete" and "Log out".
+  On upgrade, a state recipe whose label (or `stateKey` when no label is
+  set), or whose live target label, contains one of the new terms now fails
+  with "refusing unsafe state recipe" instead of capturing; if that control
+  is not destructive, declare the state as an explicit `variants` entry.
 - **A split-layout certify scaffold now puts a red `StyleProof` status on the
   PR (#937).** `styleproof-init --workflow split --mode certify` runs the
   Action from a `workflow_run` job, which runs on the default branch, so its

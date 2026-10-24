@@ -11,7 +11,9 @@ import {
   loadSetupSteps,
   loadAuthBoundaryExclude,
   loadIncompleteUiExclude,
+  resolveStallTimeoutMs,
 } from '../dist/capture-url.js';
+import { BrowserStallError, watchBrowserProgress } from '../dist/browser-stall.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity, uniqueKeyFor } from '../dist/crawl.js';
 import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
@@ -26,7 +28,7 @@ import {
   CONFIDENCE_LEDGER,
 } from '../dist/confidence-ledger.js';
 import * as report from '../dist/crawl/report.js';
-import { errorMessage } from './cli.mjs';
+import { errorMessage, exitWhenDrained } from './cli.mjs';
 
 const COMMAND = 'styleproof-capture';
 
@@ -97,9 +99,15 @@ Then diff against another capture — zero diff = pixel-identical:
   ${COMMAND} https://example.com --crawl --out design
   styleproof-diff design .styleproof/maps/current
 
-exit: 0 captured, 2 usage error, 3 capture failed, 4 coverage gap (--require-full-coverage),
-      5 unacknowledged auth boundary, 6 unacknowledged incomplete UI.
-      Precedence: coverage 4, incomplete UI 6, auth 5.
+env:
+  STYLEPROOF_STALL_TIMEOUT_MS
+                    exit 3 once the browser has answered no call for this long
+                    (default 300000, 5 min): Chrome alive but frozen. It is not a
+                    budget; a long crawl keeps answering, so it never trips this.
+
+exit: 0 captured, 2 usage error, 3 capture failed or the browser stopped responding,
+      4 coverage gap (--require-full-coverage), 5 unacknowledged auth boundary,
+      6 unacknowledged incomplete UI. Precedence: coverage 4, incomplete UI 6, auth 5.
 styleproof-capture is a compatibility alias for the unified CLI: styleproof crawl
 `;
 
@@ -119,8 +127,10 @@ const CRAWL_FILES = [
 ];
 
 let opts;
+let stallTimeoutMs;
 try {
   opts = parseCaptureUrlArgs(argv);
+  stallTimeoutMs = resolveStallTimeoutMs();
   const loaded = loadStyleProofConfigWithLocation(process.cwd());
   for (const [flag, key, load] of CRAWL_FILES) {
     const envName = flag.slice(2).toUpperCase().replaceAll('-', '_');
@@ -257,32 +267,40 @@ function reportCrawl(reports, scopeGaps) {
   });
 }
 
-async function runCrawl() {
-  const browser = await chromium.launch();
+async function runCrawl(launch) {
+  const browser = await launch();
   try {
     const page = await browser.newPage();
     const { reports, scopeGaps } = await sweepPages(browser, page);
-    const code = reportCrawl(reports, scopeGaps);
-    if (code !== 0) process.exit(code);
+    return reportCrawl(reports, scopeGaps);
   } finally {
     await browser.close();
   }
 }
 
+// Chrome can stay alive yet stop answering, and page.evaluate has no timeout: the stall deadline
+// fails such a run closed. A stalled browser holds the event loop open, so exitWhenDrained's forced
+// exit ends the run and Playwright's exit hook kills the browser.
+const stall = watchBrowserProgress(stallTimeoutMs);
+const launch = () => chromium.launch({ logger: stall.logger });
+
+// After the capture work, exit by draining rather than process.exit(), which can deadlock.
 try {
   clearCaptureOutput(opts.out);
   if (opts.crawl) {
-    await runCrawl();
-    process.exit(0);
+    exitWhenDrained(await stall.race(runCrawl(launch)));
+  } else {
+    const results = await stall.race(runCaptureUrl(opts, launch));
+    for (const r of results) console.log(`captured ${r.map}${r.screenshot ? ` (+ ${r.screenshot})` : ''}`);
+    console.log(`✓ ${results.length} capture(s) → ${opts.out}`);
+    exitWhenDrained(0);
   }
-  const results = await runCaptureUrl(opts, () => chromium.launch());
-  for (const r of results) console.log(`captured ${r.map}${r.screenshot ? ` (+ ${r.screenshot})` : ''}`);
-  console.log(`✓ ${results.length} capture(s) → ${opts.out}`);
-  process.exit(0);
 } catch (e) {
   console.error(`${COMMAND}: capture failed: ${errorMessage(e)}`);
   console.error(
-    'Next: check the URL is reachable and run `npx playwright install chromium` if the browser is missing.',
+    e instanceof BrowserStallError
+      ? 'Next: check the page for a script that never yields, or a starved runner; raise STYLEPROOF_STALL_TIMEOUT_MS only if one browser call legitimately takes longer.'
+      : 'Next: check the URL is reachable and run `npx playwright install chromium` if the browser is missing.',
   );
-  process.exit(3);
+  exitWhenDrained(3);
 }

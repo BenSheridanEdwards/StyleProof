@@ -1,6 +1,6 @@
 # StyleProof North Star
 
-> Last updated: 2026-10-05. Drafted from a grilling session with Ben Sheridan-Edwards. Open for review.
+> Last updated: 2026-10-23. Drafted from a grilling session with Ben Sheridan-Edwards. Approved by Ben Sheridan-Edwards.
 
 ## What StyleProof is
 
@@ -47,6 +47,8 @@ The current report is honest and well-engineered, but it is a **markdown comment
 - **Certify mode** (`fail-on-diff: true`) — proves a change touched *nothing* visual. Any difference at all fails the job. Zero diff is the contract.
 
 ## What a green certifies
+
+**A green never hides a reviewable change.** When StyleProof cannot prove a result, it flags or fails; it never passes silently.
 
 A passing check is more than "no style changed." Four gates qualify it:
 

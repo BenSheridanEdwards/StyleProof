@@ -14,7 +14,6 @@
 //                    so the confidence is in the actual PR gate + report, not just
 //                    library calls.
 import { test, expect } from '@playwright/test';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,6 +22,7 @@ import { captureStyleMap, diffStyleMaps, diffStyleMapDirs, type StyleMap } from 
 import { captureSurfaceScreenshots } from '../dist/capture.js';
 import { auditRunInventory } from '../dist/inventory.js';
 import { correspondBeforeMap } from '../dist/path-correspondence.js';
+import { spawnSyncToCompletion } from './helpers.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIFF_BIN = path.join(ROOT, 'bin', 'styleproof-diff.mjs');
@@ -549,7 +549,7 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
 // ── Level 2: the real gate + report surface the change ──────────────────────────
 test.describe('the PR gate + report surface the change through the real CLIs', () => {
   function run(bin: string, args: string[], cwd: string): { status: number; out: string } {
-    const r = spawnSync('node', [bin, ...args], { cwd, encoding: 'utf8' });
+    const r = spawnSyncToCompletion('node', [bin, ...args], { cwd, encoding: 'utf8' });
     return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
   }
   // Since v4 the CLIs refuse a map-bearing dir without styleproof-manifest.json,

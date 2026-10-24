@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { spawnSyncToCompletion } from './helpers.mjs';
 
 const INIT_BIN = path.resolve(import.meta.dirname, '..', 'bin', 'styleproof-init.mjs');
 
@@ -23,7 +24,7 @@ function rmTmp(dir: string): void {
 }
 
 function runInit(cwd: string, args: string[] = [], env: Record<string, string> = {}): ReturnType<typeof spawnSync> {
-  return spawnSync(process.execPath, [INIT_BIN, ...args], {
+  return spawnSyncToCompletion(process.execPath, [INIT_BIN, ...args], {
     cwd,
     encoding: 'utf8',
     env: { ...process.env, ...env },

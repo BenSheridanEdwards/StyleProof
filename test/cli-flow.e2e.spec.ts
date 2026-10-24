@@ -4,9 +4,10 @@ import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadStyleMap } from '../dist/index.js';
+import { CLI_SPAWN_TIMEOUT_MS, childTimeoutError, spawnSyncToCompletion } from './helpers.mjs';
 
 // Every test here builds its own fixture (mkdtemp / own page); none reads another
 // test's output. Declare the file parallel so its tests spread across workers —
@@ -79,8 +80,10 @@ function commandEnv(env: NodeJS.ProcessEnv = {}) {
   return merged;
 }
 
+// Bounded: a blocking spawnSync cannot be interrupted by the test timeout, so a hung
+// CLI would hold this worker forever. One past the bound is killed and fails by name.
 function run(cwd: string, command: string, args: string[], env: NodeJS.ProcessEnv = {}) {
-  return spawnSync(command, args, {
+  return spawnSyncToCompletion(command, args, {
     cwd,
     encoding: 'utf8',
     env: commandEnv(env),
@@ -89,19 +92,27 @@ function run(cwd: string, command: string, args: string[], env: NodeJS.ProcessEn
 
 // Non-blocking variant: use when an HTTP server hosted IN THIS PROCESS must keep
 // serving while the CLI runs (spawnSync blocks the event loop, starving it).
+// Same bound and failure as run(), so a hung child is killed rather than leaked.
 function runAsync(
   cwd: string,
   command: string,
   args: string[],
   env: NodeJS.ProcessEnv = {},
 ): Promise<{ status: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env: commandEnv(env) });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => (stdout += d));
     child.stderr.on('data', (d) => (stderr += d));
-    child.on('close', (status) => resolve({ status, stdout, stderr }));
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(childTimeoutError(command, args, CLI_SPAWN_TIMEOUT_MS, stdout + stderr));
+    }, CLI_SPAWN_TIMEOUT_MS);
+    child.on('close', (status) => {
+      clearTimeout(timer);
+      resolve({ status, stdout, stderr });
+    });
   });
 }
 
@@ -257,6 +268,103 @@ test('styleproof-capture --crawl --require-full-coverage: exit 0 when covered, e
     ]);
     expect(gap.stdout).toContain('ghost');
     expect(gap.status, 'coverage residue exits 4').toBe(4);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// process.exit() straight after the crawl could deadlock Node's teardown (a V8 worker waiting for
+// a main-thread GC while exit joins it): the CLI printed its whole report, then sat at 0% CPU with
+// no browser left, forever. Every post-work exit drains instead, so the spies below must never fire.
+
+/** Write a preload (for `node --import`) that reports every process.exit() call on stderr, then
+ *  exits as asked. exitWhenDrained's fallback also calls process.exit(), so a CLI that lingers
+ *  on a leaked handle until the fallback fires is caught too. Returns its file URL. */
+function writeExitSpy(dir: string) {
+  const spy = path.join(dir, 'exit-spy.mjs');
+  fs.writeFileSync(
+    spy,
+    'const exit = process.exit;\nprocess.exit = (code) => { process.stderr.write(`process.exit(${code}) called\\n`); exit(code); };\n',
+  );
+  return pathToFileURL(spy).href;
+}
+
+test('styleproof-capture exits without process.exit() after a crawl, a failed crawl, or a capture', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-capture-exit-'));
+  const spy = writeExitSpy(dir);
+  const page = path.join(dir, 'residue.html');
+  fs.writeFileSync(
+    page,
+    '<!doctype html><html><head><style>.card { padding: 8px; } .ghost { color: rgb(9,9,9); }</style></head><body><main class="card">card</main></body></html>',
+  );
+  const cases = [
+    {
+      name: 'crawl with coverage residue',
+      args: ['file://' + page, '--crawl', '--no-screenshots', '--require-full-coverage', '--out', path.join(dir, 'a')],
+      status: 4,
+    },
+    {
+      name: 'crawl of a missing page',
+      args: ['file://' + path.join(dir, 'missing.html'), '--crawl', '--out', path.join(dir, 'b')],
+      status: 3,
+    },
+    {
+      name: 'single-state capture',
+      args: ['file://' + page, '--widths', '800', '--no-screenshots', '--out', path.join(dir, 'c')],
+      status: 0,
+    },
+  ];
+  try {
+    for (const { name, args, status } of cases) {
+      const result = run(dir, 'node', ['--import', spy, CAPTURE, ...args]);
+      expect(result.status, `${name}: ${result.stderr}`).toBe(status);
+      expect(result.stderr, `${name} exited through process.exit()`).not.toContain('process.exit(');
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('styleproof-report and styleproof-diff exit without process.exit() after a clean or a changed compare', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const REPORT = path.join(root, 'bin/styleproof-report.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-compare-exit-'));
+  const spy = writeExitSpy(dir);
+  const repo = path.join(dir, 'repo');
+  const page = path.join(repo, 'index.html');
+  const demo = fs.readFileSync(path.join(root, 'example/demo/index.html'), 'utf8');
+  const bodyColor = 'color: rgb(214, 228, 232);';
+  expect(demo).toContain(bodyColor);
+  try {
+    fs.mkdirSync(repo);
+    fs.writeFileSync(page, demo);
+    git(repo, ['init', '-q']);
+    git(repo, ['add', '-A']);
+    git(repo, ['-c', 'user.email=styleproof@example.test', '-c', 'user.name=StyleProof Test', 'commit', '-qm', 'page']);
+    const sha = git(repo, ['rev-parse', 'HEAD']).stdout.trim();
+    // Captures land outside the repository, so the committed page binds both clean manifests to `sha`.
+    const capture = (out: string) => {
+      const result = run(repo, 'node', [CAPTURE, 'file://' + page, '--widths', '1280', '--out', path.join(dir, out)]);
+      expect(result.status, result.stderr).toBe(0);
+    };
+    capture('base');
+    capture('same');
+    fs.writeFileSync(page, demo.replace(bodyColor, 'color: rgb(200, 228, 232);'));
+    capture('changed');
+
+    const trusted = ['--expected-before-sha', sha, '--expected-after-sha', sha];
+    const cases = [
+      { name: 'clean report', bin: REPORT, args: ['base', 'same', '--out', 'clean-report', ...trusted], status: 0 },
+      { name: 'changed report', bin: REPORT, args: ['base', 'changed', '--out', 'changed-report'], status: 1 },
+      { name: 'clean diff', bin: DIFF, args: ['base', 'same', '--allow-unasserted', ...trusted], status: 0 },
+      { name: 'changed diff', bin: DIFF, args: ['base', 'changed', '--allow-unasserted'], status: 1 },
+    ];
+    for (const { name, bin, args, status } of cases) {
+      const result = run(dir, 'node', ['--import', spy, bin, ...args]);
+      expect(result.status, `${name}: ${result.stderr}${result.stdout}`).toBe(status);
+      expect(result.stderr, `${name} exited through process.exit()`).not.toContain('process.exit(');
+    }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -1116,7 +1224,7 @@ test('CI base publisher: the generated push job publishes by SHA and a fresh clo
     );
     fs.chmodSync(path.join(publisher, 'node_modules/.bin/playwright'), 0o755);
     expect(git(remote, ['branch', '--list', 'styleproof-maps']).stdout, 'only the CI job publishes').toBe('');
-    const published = spawnSync('/bin/bash', ['-c', publishBaseScript(workflow)], {
+    const published = spawnSyncToCompletion('/bin/bash', ['-c', publishBaseScript(workflow)], {
       cwd: publisher,
       encoding: 'utf8',
       env: commandEnv({
@@ -1161,6 +1269,52 @@ test('CI base publisher: the generated push job publishes by SHA and a fresh clo
     fs.rmSync(app, { recursive: true, force: true });
     fs.rmSync(remote, { recursive: true, force: true });
     fs.rmSync(ci, { recursive: true, force: true });
+  }
+});
+
+test('styleproof-map exits without process.exit() after a capture and upload, a restore, a miss, or a failed capture', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-exit-'));
+  const app = path.join(dir, 'app');
+  const remote = path.join(dir, 'remote');
+  const spy = writeExitSpy(dir);
+  const port = await freePort();
+  try {
+    fs.mkdirSync(app);
+    fs.mkdirSync(remote);
+    writeFixtureApp(app, port);
+    fs.writeFileSync(path.join(app, '.gitignore'), 'node_modules/\n');
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+    git(remote, ['init', '--bare', '-q']);
+    git(app, ['remote', 'add', 'origin', remote]);
+    const init = run(app, process.execPath, [INIT, '--storage', 'branch', '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'app + styleproof setup']);
+    const sha = git(app, ['rev-parse', 'HEAD']).stdout.trim();
+
+    const cases = [
+      { name: 'capture and upload', args: ['--upload'], status: 0, says: `uploaded ${sha.slice(0, 12)}` },
+      { name: 'restore', args: ['--restore', '--sha', sha, '--dir', 'restored'], status: 0, says: 'restored' },
+      {
+        name: 'restore miss',
+        args: ['--restore', '--sha', 'f'.repeat(40), '--dir', 'missed'],
+        status: 4,
+        says: 'cache miss',
+      },
+      // Last: Playwright fails before any map is written, the capture's own non-zero exit.
+      { name: 'failed capture', args: ['--dir', 'failed', '--', '--config', 'missing.config.ts'], status: 1, says: '' },
+    ];
+    for (const { name, args, status, says } of cases) {
+      const result = run(app, 'node', ['--import', spy, MAP, ...args]);
+      expect(result.status, `${name}: ${result.stderr}${result.stdout}`).toBe(status);
+      expect(result.stderr + result.stdout, name).toContain(says);
+      expect(result.stderr, `${name} exited through process.exit()`).not.toContain('process.exit(');
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

@@ -3,13 +3,13 @@
 // report must name the effect from the rendered boxes: "spacing between `section.group`
 // siblings 14px → 0px". Real fixture pages, real captures, the real report CLI.
 import { test, expect, type Page } from '@playwright/test';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureStyleMap, type StyleMap } from '../dist/index.js';
 import { captureSurfaceScreenshots } from '../dist/capture.js';
+import { spawnSyncToCompletion } from './helpers.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURES = path.join(ROOT, 'test', 'fixtures', 'sibling-spacing');
@@ -47,7 +47,10 @@ async function report(page: Page, headFixture: string): Promise<{ md: string; js
   }
   await captureFixture(page, path.join(root, 'base'), 'before.html');
   await captureFixture(page, path.join(root, 'head'), headFixture);
-  const run = spawnSync('node', [REPORT_BIN, 'base', 'head', '--out', 'report'], { cwd: root, encoding: 'utf8' });
+  const run = spawnSyncToCompletion('node', [REPORT_BIN, 'base', 'head', '--out', 'report'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
   expect(run.status, `${run.stdout}${run.stderr}`).toBe(1);
   const md = fs.readFileSync(path.join(root, 'report', 'report.md'), 'utf8');
   const json = fs.readFileSync(path.join(root, 'report', 'report.json'), 'utf8');

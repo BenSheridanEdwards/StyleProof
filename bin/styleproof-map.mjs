@@ -45,7 +45,7 @@ import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determin
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
 import { classifyColdReasonFromMissMessage, formatMapRestoreDecisionLine } from '../dist/map-hit-observability.js';
-import { defineCli, errorMessage, fail, filesUnder, runBin } from './cli.mjs';
+import { defineCli, errorMessage, exitWhenDrained, fail, filesUnder, runBin } from './cli.mjs';
 import { decodeSpecPathEnv } from './spec-path-env.mjs';
 
 const NAME = 'styleproof-map';
@@ -226,8 +226,9 @@ function suppressPlatformWarning() {
   return env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING !== '0';
 }
 
+/** Publish the bundle when asked; returns the exit code (0 also when no upload was requested). */
 async function upload(dirPath) {
-  if (!uploadRequested) return;
+  if (!uploadRequested) return 0;
   const warning = nonLinuxUploadWarning(process.platform, suppressPlatformWarning());
   if (warning) console.error(warning);
   try {
@@ -238,15 +239,17 @@ async function upload(dirPath) {
       gitTimeoutMs: projectConfig.mapStore?.gitTimeoutMs,
     });
     console.error(`${NAME}: uploaded ${res.sha.slice(0, 12)} (${res.compatibilityKey}) to ${res.branch}`);
+    return 0;
   } catch (error) {
-    const message = errorMessage(error);
+    console.error(`${NAME}: upload failed\n${errorMessage(error)}`);
     // A user-fixable precondition keeps the usage code 2; everything else is the retryable class (5).
-    fail(NAME, `upload failed\n${message}`, error instanceof MapStorePreconditionError ? 2 : 5);
+    return error instanceof MapStorePreconditionError ? 2 : 5;
   }
 }
 
+/** Run the pre-map variant crawl when configured; returns its exit status (0 when off). */
 function runVariantCrawl(captureEnvironment) {
-  if (!crawlEnabled) return;
+  if (!crawlEnabled) return 0;
   console.error(`${NAME}: crawling UI variants before capture`);
   const crawlArgs = [
     '--base-url',
@@ -263,13 +266,15 @@ function runVariantCrawl(captureEnvironment) {
   let result = spawnSync(command, crawlArgs, { stdio: 'inherit', env: captureEnvironment });
   if (result.error?.code === 'ENOENT') result = runBin('styleproof-variants', crawlArgs, { env: captureEnvironment });
   if (result.error) fail(NAME, `could not run styleproof-variants\n${result.error.message}`);
-  if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
+  return result.status ?? 1;
 }
 
 // An absolute --dir is respected as-is; a relative one nests under baseDir.
 const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 
-if (opts.restore) {
+/** Restore a published map by SHA; returns the exit code: 0 restored, 4 cache miss (recapture),
+ *  5 map-store or network fault after retries. */
+function restoreFromStore() {
   const restoreSide = dir === 'base' || dir === 'head' ? dir : 'restore';
   try {
     const manifest = restoreMapBundle({
@@ -294,70 +299,32 @@ if (opts.restore) {
       );
     }
     console.log(`${NAME}: restored ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey}) to ${targetDir}`);
-    process.exit(0);
+    return 0;
   } catch (error) {
     // 4 = bundle absent (expected miss → recapture); 5 = infrastructure fault after retries.
     if (error instanceof MapStoreNotFoundError) {
       const coldReason = error.coldReason ?? classifyColdReasonFromMissMessage(errorMessage(error));
       // Always emit miss lines so styleproof-ci can extract cold_reason= from stderr.
       console.error(formatMapRestoreDecisionLine({ side: restoreSide, sha, baseHit: 'miss', coldReason }));
-      fail(
-        NAME,
-        `no cached map for ${sha} on ${cacheBranch} (cache miss)\n${errorMessage(error)}\n` +
+      console.error(
+        `${NAME}: no cached map for ${sha} on ${cacheBranch} (cache miss)\n${errorMessage(error)}\n` +
           `Next: run ${NAME} at that commit to build/upload the map, or let CI recapture both sides.`,
-        4,
       );
+      return 4;
     }
-    fail(
-      NAME,
-      `could not reach the map store to restore ${sha} from ${cacheBranch}\n${errorMessage(error)}\n` +
+    console.error(
+      `${NAME}: could not reach the map store to restore ${sha} from ${cacheBranch}\n${errorMessage(error)}\n` +
         'Next: retry — this is a transient map-store/network fault, not a missing bundle.',
-      5,
     );
+    return 5;
   }
 }
 
-// Sample the tree state the capture is ABOUT to render: a source edit or HEAD move
-// mid-capture must not let the map publish clean for a SHA it never rendered.
-let dirtyBeforeCapture = false;
-let headBeforeCapture;
-try {
-  dirtyBeforeCapture = workingTreeDirty(process.cwd(), dirtyAllow);
-  headBeforeCapture = currentGitSha(process.cwd());
-} catch {
-  // git unreadable — the manifest falls back to `uncommitted`
-}
-
-// Clear the reserved generated namespace so a smaller capture set cannot leave prior maps looking current.
-try {
-  clearCaptureOutput(targetDir);
-} catch (error) {
-  fail(NAME, `cannot reuse capture directory ${targetDir}\n${errorMessage(error)}`);
-}
-
-// Opt-in selective remap (CI sets STYLEPROOF_REUSE_FROM + STYLEPROOF_ONLY_SURFACES):
-// seed unaffected surfaces from the base dir, then capture only the recapture set.
+// Selective-remap inputs: captureAndPublish seeds the reuse set, captureEnv passes the only-set on.
 const reuseFrom = (env.STYLEPROOF_REUSE_FROM ?? '').trim();
-if (reuseFrom && env.STYLEPROOF_ONLY_SURFACES === undefined) {
-  fail(
-    NAME,
-    'STYLEPROOF_REUSE_FROM requires STYLEPROOF_ONLY_SURFACES (comma-separated recapture keys; empty string = reuse all, capture none)',
-  );
-}
 const onlySurfaces = reuseFrom
   ? parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES)
   : parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES);
-if (reuseFrom) {
-  if (!fs.existsSync(reuseFrom)) {
-    fail(NAME, `STYLEPROOF_REUSE_FROM directory does not exist: ${reuseFrom}`);
-  }
-  const baseKeys = surfaceKeysInMapDir(reuseFrom);
-  const reuseKeys = [...baseKeys].filter((k) => !onlySurfaces || !surfaceMatchesOnlySet(k, onlySurfaces)).sort();
-  const { copied } = copyReuseSurfaceArtifacts({ fromDir: reuseFrom, toDir: targetDir, reuseKeys });
-  console.error(
-    `${NAME}: selective remap seeded ${copied} artifact(s) from base for ${reuseKeys.length} reuse surface(s); capturing ${onlySurfaces ? onlySurfaces.size : 0} surface(s)`,
-  );
-}
 
 const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const hasConfigArg = playwrightArgs.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
@@ -386,46 +353,74 @@ function failureLedgered(outcome, failures) {
   return Boolean(match) && failures.some((f) => baselineFailureMatchesSurface(`${match[1]}@${match[2]}`, f.key));
 }
 
-runVariantCrawl(captureEnv(dir));
-// Even with an empty only-set, run capture so coverage ledger + browser-build tests stamp the dir.
-// Every capture test records its outcome here, so one tolerated failure can never mask another failure.
-const outcomesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-outcomes-'));
-const result = runCapture(dir, { [CAPTURE_OUTCOMES_ENV]: outcomesDir });
-const unsuccessfulTests = readCaptureTestOutcomes(outcomesDir).filter((outcome) => outcome.status !== 'passed');
-removeTree(outcomesDir);
-if (result.error) fail(NAME, playwrightMissingMessage(result.error.message).replace(`${NAME}: `, ''));
-let status = result.status ?? 1;
-const captured = captureKeysIn(targetDir).length;
-const toleratedFailures = readSurfaceCaptureFailures(targetDir);
-let fatalCaptureFailure;
-try {
-  fatalCaptureFailure = readFatalCaptureFailure(targetDir);
-} catch (error) {
-  // A marker that exists but cannot be read is still a fatal marker: fail closed.
-  fatalCaptureFailure = errorMessage(error);
+/** Ready targetDir for a capture: sample the tree state the capture is ABOUT to render (a source
+ *  edit or HEAD move mid-capture must not let the map publish clean for a SHA it never rendered),
+ *  clear old output, and seed reused surfaces. Returns the sample for stampManifest. */
+function prepareCapture() {
+  let dirtyBeforeCapture = false;
+  let headBeforeCapture;
+  try {
+    dirtyBeforeCapture = workingTreeDirty(process.cwd(), dirtyAllow);
+    headBeforeCapture = currentGitSha(process.cwd());
+  } catch {
+    // git unreadable — the manifest falls back to `uncommitted`
+  }
+
+  // Clear the reserved generated namespace so a smaller capture set cannot leave prior maps looking current.
+  try {
+    clearCaptureOutput(targetDir);
+  } catch (error) {
+    fail(NAME, `cannot reuse capture directory ${targetDir}\n${errorMessage(error)}`);
+  }
+
+  // Opt-in selective remap (CI sets STYLEPROOF_REUSE_FROM + STYLEPROOF_ONLY_SURFACES):
+  // seed unaffected surfaces from the base dir, then capture only the recapture set.
+  if (reuseFrom && env.STYLEPROOF_ONLY_SURFACES === undefined) {
+    fail(
+      NAME,
+      'STYLEPROOF_REUSE_FROM requires STYLEPROOF_ONLY_SURFACES (comma-separated recapture keys; empty string = reuse all, capture none)',
+    );
+  }
+  if (reuseFrom) {
+    if (!fs.existsSync(reuseFrom)) {
+      fail(NAME, `STYLEPROOF_REUSE_FROM directory does not exist: ${reuseFrom}`);
+    }
+    const baseKeys = surfaceKeysInMapDir(reuseFrom);
+    const reuseKeys = [...baseKeys].filter((k) => !onlySurfaces || !surfaceMatchesOnlySet(k, onlySurfaces)).sort();
+    const { copied } = copyReuseSurfaceArtifacts({ fromDir: reuseFrom, toDir: targetDir, reuseKeys });
+    console.error(
+      `${NAME}: selective remap seeded ${copied} artifact(s) from base for ${reuseKeys.length} reuse surface(s); capturing ${onlySurfaces ? onlySurfaces.size : 0} surface(s)`,
+    );
+  }
+  return { dirtyBeforeCapture, headBeforeCapture };
 }
-if (fatalCaptureFailure) {
-  console.error(
-    `${NAME}: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
-  );
-  removeTree(targetDir);
-  process.exit(status || 1);
+
+/** The fatal self-check marker the capture left, if any. */
+function fatalCaptureFailureIn(captureDir) {
+  try {
+    return readFatalCaptureFailure(captureDir);
+  } catch (error) {
+    // A marker that exists but cannot be read is still a fatal marker: fail closed.
+    return errorMessage(error);
+  }
 }
-// Publish survivors ONLY when EVERY failed test is a ledgered surface failure (head/default AND tolerate).
-// Soft-pass HOLD: without --tolerate-surface-failures the process stays red after publish;
-// with tolerate, exit becomes 0 (cold-base behavior unchanged).
-const unexplainedTests = unsuccessfulTests.filter((outcome) => !failureLedgered(outcome, toleratedFailures));
-let publishPartial = false;
-if (status !== 0 && captured > 0) {
+
+/** Publish survivors ONLY when EVERY failed test is a ledgered surface failure (head/default AND tolerate).
+ *  Soft-pass HOLD: without --tolerate-surface-failures the process stays red after publish;
+ *  with tolerate, exit becomes 0 (cold-base behavior unchanged). Returns the status to carry and
+ *  whether the survivors publish. */
+function failedCaptureVerdict(status, captured, unsuccessfulTests, toleratedFailures) {
+  if (status === 0 || captured === 0) return { status, publishPartial: false };
+  const unexplainedTests = unsuccessfulTests.filter((outcome) => !failureLedgered(outcome, toleratedFailures));
   if (toleratedFailures.length > 0 && unsuccessfulTests.length > 0 && unexplainedTests.length === 0) {
-    publishPartial = true;
     const label = tolerateSurfaceFailures ? 'tolerated' : 'ledgered';
     console.error(
       `${NAME}: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} ${label} failure(s))` +
         (tolerateSurfaceFailures ? '' : ' — Soft-pass HOLD: exit stays non-zero'),
     );
-    if (tolerateSurfaceFailures) status = 0;
-  } else if (toleratedFailures.length > 0) {
+    return { status: tolerateSurfaceFailures ? 0 : status, publishPartial: true };
+  }
+  if (toleratedFailures.length > 0) {
     const unexplained = unexplainedTests.length
       ? `: ${unexplainedTests.map((outcome) => `"${outcome.title}" (${outcome.status})`).join(', ')}`
       : ' (no failed capture test was recorded — a worker, hook, or config error)';
@@ -437,21 +432,59 @@ if (status !== 0 && captured > 0) {
       `${NAME}: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not publishable; failing the capture.`,
     );
   }
+  return { status, publishPartial: false };
 }
-// Playwright flushes detection HARs even when navigation fails; honor default cleanup before exiting.
-if (!keepHar) removeHarFiles(targetDir);
-if (status !== 0 && !publishPartial) process.exit(status);
-// Zero maps must not stamp a manifest: a bare dir means "no baseline yet" (first adoption).
-if (captured === 0) {
-  console.error(
-    `${NAME}: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline`,
+
+/** Capture this tree through Playwright, decide what the capture may publish, then stamp the
+ *  manifest and upload it; returns the exit code. */
+async function captureAndPublish() {
+  const before = prepareCapture();
+  const crawlStatus = runVariantCrawl(captureEnv(dir));
+  if (crawlStatus !== 0) return crawlStatus;
+  // Even with an empty only-set, run capture so coverage ledger + browser-build tests stamp the dir.
+  // Every capture test records its outcome here, so one tolerated failure can never mask another failure.
+  const outcomesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-outcomes-'));
+  const result = runCapture(dir, { [CAPTURE_OUTCOMES_ENV]: outcomesDir });
+  const unsuccessfulTests = readCaptureTestOutcomes(outcomesDir).filter((outcome) => outcome.status !== 'passed');
+  removeTree(outcomesDir);
+  if (result.error) fail(NAME, playwrightMissingMessage(result.error.message).replace(`${NAME}: `, ''));
+  const captureStatus = result.status ?? 1;
+  const captured = captureKeysIn(targetDir).length;
+  const toleratedFailures = readSurfaceCaptureFailures(targetDir);
+  const fatalCaptureFailure = fatalCaptureFailureIn(targetDir);
+  if (fatalCaptureFailure) {
+    console.error(
+      `${NAME}: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
+    );
+    removeTree(targetDir);
+    return captureStatus || 1;
+  }
+  const { status, publishPartial } = failedCaptureVerdict(
+    captureStatus,
+    captured,
+    unsuccessfulTests,
+    toleratedFailures,
   );
-  process.exit(0);
+  // Playwright flushes detection HARs even when navigation fails; honor default cleanup before exiting.
+  if (!keepHar) removeHarFiles(targetDir);
+  if (status !== 0 && !publishPartial) return status;
+  // Zero maps must not stamp a manifest: a bare dir means "no baseline yet" (first adoption).
+  if (captured === 0) {
+    console.error(
+      `${NAME}: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline`,
+    );
+    return 0;
+  }
+  if (opts['prove-determinism']) {
+    const oracleExit = proveDeterminism();
+    if (oracleExit !== 0) return oracleExit;
+  }
+  // The first failing step's exit code, else the capture's own status.
+  return stampManifest(before) || (await upload(targetDir)) || status;
 }
-if (opts['prove-determinism']) proveDeterminismOrDie();
-stampManifest();
-await upload(targetDir);
-process.exit(status);
+
+// After the restore or capture work, exit by draining rather than process.exit(), which can deadlock.
+exitWhenDrained(opts.restore ? restoreFromStore() : await captureAndPublish());
 
 /** Capture runs 2..N into fresh dirs; returns the first non-zero exit, else 0. */
 function runOracleCaptures(extraRunDirs) {
@@ -509,8 +542,8 @@ function recordOracleVerdict(runDirs) {
 }
 
 /** The five-run oracle: four more captures in fresh contexts must hash identically to the
- *  first, or the bundle is discarded — a flake must never become a baseline. */
-function proveDeterminismOrDie() {
+ *  first, or the bundle is discarded — a flake must never become a baseline. Returns the exit code. */
+function proveDeterminism() {
   const extraRunDirs = [];
   let oracleExit;
   try {
@@ -524,13 +557,13 @@ function proveDeterminismOrDie() {
   if (oracleExit !== 0) {
     console.error(`${NAME}: discarding the capture — an unproven bundle must never become a baseline`);
     removeTree(targetDir);
-    process.exit(oracleExit);
   }
+  return oracleExit;
 }
 
 /** Bind the map to the commit it started rendering; a tree edited or a HEAD moved
- *  mid-capture marks the manifest dirty so publish refuses to push a stale map. */
-function stampManifest() {
+ *  mid-capture marks the manifest dirty so publish refuses to push a stale map. Returns the exit code. */
+function stampManifest({ dirtyBeforeCapture, headBeforeCapture }) {
   const manifestSha = sha || headBeforeCapture || 'uncommitted';
   let dirty = manifestSha === 'uncommitted' ? true : dirtyBeforeCapture;
   try {
@@ -552,7 +585,9 @@ function stampManifest() {
       env: captureEnv(dir),
     });
     console.error(`${NAME}: wrote ${targetDir} for ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey})`);
+    return 0;
   } catch (error) {
-    fail(NAME, `could not write map manifest\n${errorMessage(error)}`);
+    console.error(`${NAME}: could not write map manifest\n${errorMessage(error)}`);
+    return 2;
   }
 }

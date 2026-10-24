@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exitWhenDrained } from './cli.mjs';
 
 const binDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,4 +80,5 @@ if (result.error) {
   process.stderr.write(`styleproof ${command}: ${result.error.message}\n`);
   process.exit(2);
 }
-process.exit(result.status ?? 2);
+// After the command ran, exit by draining rather than process.exit(), which can deadlock.
+exitWhenDrained(result.status ?? 2);

@@ -52,7 +52,7 @@ import {
   tryComputeAffectedVerdict,
 } from '../dist/selective-remap.js';
 import { harnessMissingAtRef } from './spec-path-env.mjs';
-import { binDir, childEnv, defineCli, emitOutputs, errorMessage, fail } from './cli.mjs';
+import { binDir, childEnv, defineCli, emitOutputs, errorMessage, exitWhenDrained, fail } from './cli.mjs';
 import { ExitError, captureMap, checkoutSpec, dirtyAllowArgs, restoreMap } from './ci-shared.mjs';
 
 const NAME = 'styleproof-ci';
@@ -773,4 +773,5 @@ try {
 } finally {
   worktrees.dispose();
 }
-process.exit(exitCode);
+// After the capture work, exit by draining rather than process.exit(), which can deadlock.
+exitWhenDrained(exitCode);
