@@ -309,14 +309,157 @@ test.describe('UI scenario variations are surfaced (and their twins stay silent)
     const list = '<ul><li>One</li></ul>';
     const base = await cap(page, 'li::marker{color:rgb(200,0,0)}', list);
     const head = await cap(page, 'li::marker{color:rgb(0,0,200)}', list);
-    expect(colorOf(diffStyleMaps(base, head), '::marker'), 'the marker recolour is surfaced').toBeTruthy();
+    for (const includeStructure of [true, false]) {
+      expect(
+        colorOf(diffStyleMaps(base, head, { includeStructure }), '::marker'),
+        `the marker recolour is surfaced (includeStructure: ${includeStructure})`,
+      ).toBeTruthy();
+    }
   });
 
   test('an input ::placeholder colour change → a style finding with pseudo="::placeholder"', async ({ page }) => {
     const field = '<input name="email" placeholder="Email">';
     const base = await cap(page, 'input::placeholder{color:rgb(200,0,0)}', field);
     const head = await cap(page, 'input::placeholder{color:rgb(0,0,200)}', field);
-    expect(colorOf(diffStyleMaps(base, head), '::placeholder'), 'the placeholder recolour is surfaced').toBeTruthy();
+    for (const includeStructure of [true, false]) {
+      expect(
+        colorOf(diffStyleMaps(base, head, { includeStructure }), '::placeholder'),
+        `the placeholder recolour is surfaced (includeStructure: ${includeStructure})`,
+      ).toBeTruthy();
+    }
+  });
+
+  // #979: these pseudo-elements were never read, so their restyle passed as no change.
+  const PARAGRAPH = '<p>Hello there</p>';
+  const MODAL = '<dialog>Hi</dialog><script>document.querySelector("dialog").showModal()</script>';
+  const FILE = '<input type="file" name="upload">';
+  for (const [pseudo, rule, markup, prop] of [
+    ['::first-letter', 'p::first-letter{color:VALUE}', PARAGRAPH, 'color'],
+    ['::first-line', 'p::first-line{color:VALUE}', PARAGRAPH, 'color'],
+    ['::backdrop', 'dialog::backdrop{background-color:VALUE}', MODAL, 'background-color'],
+    ['::file-selector-button', 'input::file-selector-button{background-color:VALUE}', FILE, 'background-color'],
+  ]) {
+    test(`a ${pseudo} ${prop} change → a style finding with pseudo="${pseudo}"`, async ({ page }) => {
+      const base = await cap(page, rule.replace('VALUE', 'rgb(200,0,0)'), markup);
+      const head = await cap(page, rule.replace('VALUE', 'rgb(0,0,200)'), markup);
+      for (const includeStructure of [true, false]) {
+        const f = diffStyleMaps(base, head, { includeStructure }).find(
+          (x) => x.kind === 'style' && x.pseudo === pseudo && x.props.some((p) => p.prop === prop),
+        );
+        expect(
+          f,
+          `the ${pseudo} restyle is surfaced with its pseudo tag (includeStructure: ${includeStructure})`,
+        ).toBeTruthy();
+      }
+    });
+  }
+
+  for (const [scenario, pseudo, baseCss, headCss, markup, prop] of [
+    [
+      'a UA-default colour override is removed',
+      '::first-letter',
+      'p{color:rgb(200,0,0)}p::first-letter{color:rgb(0,0,0)}',
+      'p{color:rgb(200,0,0)}',
+      PARAGRAPH,
+      'color',
+    ],
+    [
+      'padding equal to the host is removed',
+      '::first-letter',
+      'p{padding:10px}p::first-letter{padding:10px}',
+      'p{padding:10px}',
+      PARAGRAPH,
+      'padding-top',
+    ],
+    [
+      'a background equal to the host is removed',
+      '::backdrop',
+      'dialog{background:rgb(255,255,255)}dialog::backdrop{background:rgb(255,255,255)}',
+      'dialog{background:rgb(255,255,255)}',
+      MODAL,
+      'background-color',
+    ],
+    [
+      'a margin equal to the host UA default is removed',
+      '::first-letter',
+      'p::first-letter{margin-top:16px}',
+      'blockquote::first-letter{}',
+      PARAGRAPH,
+      'margin-top',
+    ],
+  ]) {
+    test(`${pseudo}: ${scenario} → a style finding`, async ({ page }) => {
+      const base = await cap(page, baseCss, markup);
+      const head = await cap(page, headCss, markup);
+      for (const includeStructure of [true, false]) {
+        const f = diffStyleMaps(base, head, { includeStructure }).find(
+          (x) => x.kind === 'style' && x.pseudo === pseudo && x.props.some((p) => p.prop === prop),
+        );
+        expect(f, `${pseudo}: ${scenario} (includeStructure: ${includeStructure})`).toBeTruthy();
+      }
+    });
+  }
+
+  for (const [state, pseudo, rule, markup] of [
+    ['focus', '::placeholder', 'input:focus::placeholder{color:VALUE}', '<input name="email" placeholder="Email">'],
+    ['hover', '::marker', 'summary:hover::marker{color:VALUE}', '<details><summary>More</summary></details>'],
+  ]) {
+    test(`a :${state}${pseudo} colour change → a ${state} state finding on the ${pseudo}`, async ({ page }) => {
+      const base = await cap(page, rule.replace('VALUE', 'rgb(200,0,0)'), markup);
+      const head = await cap(page, rule.replace('VALUE', 'rgb(0,0,200)'), markup);
+      for (const includeStructure of [true, false]) {
+        const f = diffStyleMaps(base, head, { includeStructure }).find(
+          (x) => x.kind === 'state' && x.state === state && x.props.some((p) => p.prop === 'color'),
+        );
+        expect(
+          f,
+          `the :${state}${pseudo} restyle is surfaced as a state finding (includeStructure: ${includeStructure})`,
+        ).toBeTruthy();
+        expect(f!.kind === 'state' && f!.sub).toMatch(new RegExp(`${pseudo}$`));
+      }
+    });
+  }
+
+  // The motion freeze must reach the newly read pseudo-elements: an animated ::backdrop that keeps
+  // changing would mark its dialog volatile, and a volatile subtree is dropped from the comparison.
+  test('an animated ::backdrop does not hide a restyle of its dialog', async ({ page }) => {
+    const pulse =
+      '@keyframes pulse{from{background-color:rgb(0,0,0)}to{background-color:rgb(255,255,255)}}' +
+      'dialog::backdrop{animation:pulse .3s linear infinite alternate}';
+    const base = await cap(page, pulse + 'dialog{color:rgb(200,0,0)}', MODAL);
+    const head = await cap(page, pulse + 'dialog{color:rgb(0,0,200)}', MODAL);
+    for (const includeStructure of [true, false]) {
+      const f = diffStyleMaps(base, head, { includeStructure }).find(
+        (x) => x.kind === 'style' && !x.pseudo && x.props.some((p) => p.prop === 'color'),
+      );
+      expect(f, `the dialog recolour is surfaced (includeStructure: ${includeStructure})`).toBeTruthy();
+    }
+  });
+
+  test('no ::first-letter / ::first-line entry without an override, and identical pages stay silent', async ({
+    page,
+  }) => {
+    // The unmatched blockquote rule makes capture read these pseudo-elements on every block box.
+    const styled =
+      'blockquote::first-letter{color:rgb(200,0,0)}' +
+      'p{color:rgb(0,0,200);padding:10px;background:rgb(240,240,240);font-weight:700;' +
+      'font-family:serif;line-height:30px;letter-spacing:1px;text-transform:uppercase;' +
+      'border:1px solid rgb(200,200,200)}';
+    const plain = await cap(page, styled, '<div>' + PARAGRAPH + '</div><ul><li>One</li></ul>');
+    const generated = Object.values(plain.elements).flatMap((e) =>
+      Object.keys(e.pseudo ?? {}).filter((ps) => ps === '::first-letter' || ps === '::first-line'),
+    );
+    expect(generated, 'inherited longhands alone record no generated pseudo entry').toEqual([]);
+
+    const css =
+      'p::first-letter{color:rgb(200,0,0)}p::first-line{color:rgb(0,200,0)}' +
+      'dialog::backdrop{background-color:rgb(0,0,200)}input::file-selector-button{color:rgb(200,0,0)}' +
+      'input:focus::placeholder{color:rgb(200,0,0)}summary:hover::marker{color:rgb(200,0,0)}';
+    const markup =
+      PARAGRAPH + FILE + '<input name="email" placeholder="Email">' + '<details><summary>More</summary></details>';
+    const base = await cap(page, css, markup + MODAL);
+    const head = await cap(page, css, markup + MODAL);
+    expect(diffStyleMaps(base, head), 'an identical capture yields no findings').toEqual([]);
   });
 
   test('an ::after added on head only → a style finding with pseudo="::after"', async ({ page }) => {

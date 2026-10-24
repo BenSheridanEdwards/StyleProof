@@ -19,6 +19,7 @@ import {
 } from './map-store.js';
 export type { BaselineFailureReceipt } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
+import { GENERATED_PSEUDOS, INHERITED_PROPERTIES, CURRENTCOLOR_PROPERTIES } from './pseudo-references.js';
 import { addCounts, countFindings } from './findings-clean.js';
 import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { pixelDiffSurface, type PixelOptions, type PixelSurfaceResult } from './pixel-diff.js';
@@ -252,12 +253,26 @@ const sortedUnionKeys = (a: object, b: object): string[] => unionKeys(a, b).sort
 
 type Element = StyleMap['elements'][string];
 
-/** An element's props for one layer plus the UA defaults it was pruned against
- *  (`tag::pseudo` key, falling back to the tag defaults for older maps). */
-function layer(map: StyleMap, e: Element, pseudo: string | null): [Record<string, string>, Record<string, string>] {
+/** Rebuild each layer's pruning references: generated pseudos use host inheritance,
+ *  their own currentcolor, and UA defaults. A missing pseudo default can come from
+ *  the other map before falling back to tag defaults for older maps. */
+function layer(
+  map: StyleMap,
+  other: StyleMap,
+  e: Element,
+  pseudo: string | null,
+): [Record<string, string>, Record<string, string>] {
   const defs = map.defaults[e.tag] ?? {};
   if (!pseudo) return [e.style, defs];
-  return [e.pseudo?.[pseudo] ?? {}, map.defaults[e.tag + pseudo] ?? defs];
+  const props = e.pseudo?.[pseudo] ?? {};
+  const ua = map.defaults[e.tag + pseudo] ?? other.defaults[e.tag + pseudo] ?? defs;
+  if (!GENERATED_PSEUDOS.includes(pseudo)) return [props, ua];
+  const host = { ...defs, ...e.style };
+  const fallback = { ...ua };
+  for (const p of INHERITED_PROPERTIES) fallback[p] = host[p];
+  const color = props.color ?? fallback.color;
+  for (const p of CURRENTCOLOR_PROPERTIES) fallback[p] = color;
+  return [props, fallback];
 }
 
 function contentLengthSignal(ea: Element, eb: Element) {
@@ -279,7 +294,7 @@ function oneSidedFindings(p: string, ea: Element | undefined, eb: Element | unde
   ];
   if (ea || !eb) return findings;
   for (const pseudo of [null, ...Object.keys(eb.pseudo ?? {})]) {
-    const [propsB, pdefsB] = layer(b, eb, pseudo);
+    const [propsB, pdefsB] = layer(b, b, eb, pseudo);
     const props = diffProps({}, propsB, {}, pdefsB, '(unset)', '(unset)');
     if (props.length) findings.push({ kind: 'style', path: p, cls: eb.cls, pseudo, props });
   }
@@ -290,8 +305,8 @@ function oneSidedFindings(p: string, ea: Element | undefined, eb: Element | unde
 function pairedFindings(p: string, a: StyleMap, b: StyleMap, ea: Element, eb: Element): Finding[] {
   const findings: Finding[] = [];
   for (const pseudo of [null, ...unionKeys(ea.pseudo ?? {}, eb.pseudo ?? {})]) {
-    const [propsA, pdefsA] = layer(a, ea, pseudo);
-    const [propsB, pdefsB] = layer(b, eb, pseudo);
+    const [propsA, pdefsA] = layer(a, b, ea, pseudo);
+    const [propsB, pdefsB] = layer(b, a, eb, pseudo);
     const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
     const restingProps = pseudo ? rawProps : dropUsedValueOnlyProps(rawProps, ea, eb);
     const props = dropSubpixelOriginProps(restingProps);
@@ -358,7 +373,7 @@ function stateTargetFindings(
   let autoMarginEchoDropped = false;
   for (const sub of unionKeys(da, db)) {
     // A target inside a live region never diffs, like its element layer. Targets are keyed
-    // `path` or `path::before` / `path::after`; both checks run on the host element path,
+    // `path` or `path::<pseudo>`; both checks run on the host element path,
     // since `elements` never holds a `::` key (#948).
     const host = sub.replace(/::[\w-]+$/, '');
     if (!ctx.live(host)) continue;
