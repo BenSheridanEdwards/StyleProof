@@ -212,6 +212,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   own, with a forced exit only if something still holds the process open 10 s
   later. Exit codes are unchanged; a crawl that ends 4, 5 or 6 now closes the
   browser before exiting.
+- **Repository browser gates require tree-identity proof before skipping.** The
+  shared decider compares raw root Git trees rather than collecting or matching
+  filenames. It replaces dorny and the path-policy file in all five workflows.
+  PR CI verifies the merge SHA and base parent before comparing trees; `required`
+  rejects a `false` decision without a successful decision job and a valid
+  `same-tree:<tree-oid>` proof. Push CI always runs browser lanes, including
+  empty-tree pushes. Live StyleProof dogfood always runs for eligible PRs because
+  its capture compares head/base content rather than the merge tree.
+  The local hook proves pushed and staged tree identity, disables replacement
+  objects and clears Git environment overrides. Unknown evidence runs or blocks;
+  new branches run the full suite, and missing Chromium or invalid push records
+  block the push. No filename has an exemption. Demo freshness also compares
+  committed HTML, so CSS-only drift or a missing HTML report fails.
+  The served-rules browser spec uses a
+  per-test loopback server so inspector re-fetches no longer depend on fake-host
+  DNS. Product capture and report behavior are unchanged.
+
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
@@ -790,16 +807,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   a full URL), pseudo-element headings, and the drifted text in the live/age
   freeze message go through `codeValue` too, so no page-derived string can
   close its code span early.
-- **CI path filters fail closed.** The browser lanes (e2e shards, e2e evidence,
+- **CI browser lanes fail closed.** The browser lanes (e2e shards, e2e evidence,
   detection corpus) and the four dogfood workflows ran only when a changed path
   was on a list of product paths, so anything off the list skipped them. The e2e
   lanes skipped `bin/`, `action.yml`, `tsconfig.json`, workflow changes and a
   helper that e2e specs import; the dogfood workflows skipped `tsconfig.json`,
-  workflow changes and their own e2e specs. Every lane now runs unless each
-  changed file is on a short list of paths that no lane loads, such as docs,
-  top-level Markdown, agent tooling, lint configs and Node unit tests. That list
-  lives in one file, `.github/path-filters.yml`, which all five workflows pass to
-  dorny.
+  workflow changes and their own e2e specs. Tree-identity proofs now replace path
+  filters, with no path exemptions, as described above. Unknown evidence runs
+  the lanes or blocks the check; it never permits a skip.
 
 - **The headline counts every elevated structure change.** It showed the
   visible count or the navigable-chrome count, whichever was non-zero, while

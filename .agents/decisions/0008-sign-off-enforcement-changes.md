@@ -48,7 +48,7 @@ asks, because the gate cannot see every guarded file.
 
 Everything else changes without a sign-off: `src/`, docs, `.agents/`,
 `.claude/`, `package.json`, `tsconfig.json`, `.prettierrc.json`, Fallow config,
-`.github/path-filters.yml`, and the rest of `scripts/` and `test/`.
+and the rest of `scripts/` and `test/`, including `scripts/browser-lanes.mjs`.
 
 ### Who signs off, and for which commit
 
