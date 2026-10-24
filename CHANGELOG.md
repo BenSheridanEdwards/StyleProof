@@ -572,9 +572,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   covers `src/widgets/`. Every file kind under that directory is now a possible
   target, so ``import(`../themes/${t}.module.css`)`` selects its importer when a
   stylesheet there changes and that stylesheet also has a resolved importer
-  (see the context-only change entry below). A prefix whose last segment is `.` or `..`
-  (``import(`../widgets/..${s}`)``) can climb out of that directory, so it now
-  resolves to `'all'`.
+  (see the context-only change entry below). A prefix whose last segment is `.`
+  or `..` (``import(`../widgets/..${s}`)``) can climb out of that directory,
+  so it now resolves to `'all'`.
 - **A changed `.vue`, `.svelte` or `.astro` component now re-captures every
   surface under selective remap (#942).** These single-file components carry
   their own `<style>` blocks, which can be global: an unscoped Vue `<style>`,
