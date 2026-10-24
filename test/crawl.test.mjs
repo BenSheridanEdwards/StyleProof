@@ -38,6 +38,9 @@ async function scheduledSurfaceKeys(first, { defined = ['unrendered'], ...overri
       on() {},
       off() {},
       url: () => BASE,
+      async $$eval() {
+        return []; // No nav links: this fixture exercises one page's in-place sweep.
+      },
       async setViewportSize() {},
       async waitForTimeout() {},
       async goto() {
@@ -167,6 +170,9 @@ async function crawlUnsafeControls(unsafe = true) {
     on() {},
     off() {},
     url: () => BASE,
+    async $$eval() {
+      return []; // No nav links: this fixture exercises one page's in-place sweep.
+    },
     async setViewportSize() {},
     async waitForTimeout() {},
     async goto() {
@@ -253,6 +259,193 @@ test('crawl with only safe controls has no unsafe gaps and retains complete conf
   assert.equal(report.skipped, 0);
   assert.equal(report.confidence.status, 'complete');
   assert.equal(report.confidence.certifiesFully, true);
+});
+
+// Browser-free navigation fixture. Captures fail explicitly; the crawl still
+// exercises link discovery, setup, data-state reloads and their cleanup.
+function navigationPage({ reloadError, cleanupError } = {}) {
+  const jar = new Set();
+  const log = [];
+  const gotos = [];
+  const requestHandlers = new Set();
+  let routed = false;
+  let initScripts = 0;
+  let reloads = 0;
+  let state = 'base';
+  const page = {
+    on(event, handler) {
+      if (event === 'request') requestHandlers.add(handler);
+    },
+    off(event, handler) {
+      if (event === 'request') requestHandlers.delete(handler);
+    },
+    url: () => BASE,
+    async $$eval() {
+      return [];
+    },
+    async setViewportSize() {},
+    async waitForTimeout() {},
+    async addInitScript() {
+      initScripts++;
+    },
+    context() {
+      return {
+        async addCookies(cookies) {
+          log.push('add');
+          for (const cookie of cookies) jar.add(cookie.name);
+        },
+        async clearCookies({ name }) {
+          log.push('clear');
+          if (cleanupError) throw cleanupError;
+          jar.delete(name);
+        },
+      };
+    },
+    async route() {
+      routed = true;
+    },
+    async unroute() {
+      log.push('unroute');
+      routed = false;
+    },
+    async goto() {
+      for (const handler of requestHandlers) handler({ resourceType: () => 'fetch' });
+      gotos.push({ routed, kept: jar.has('styleproof-keep-storage') });
+      if (routed && reloadError) throw reloadError;
+      state = routed ? `data-${++reloads}` : 'base';
+    },
+    locator() {
+      return {
+        first() {
+          return this;
+        },
+        async waitFor() {},
+      };
+    },
+    async evaluate(fn) {
+      if (fn.name === 'collectBoundaryMetadata') return { auth: [], incompleteUi: [] };
+      if (fn.name === 'collectDefinedClasses') return { classes: [], unreadable: [] };
+      if (fn.name === 'collectClickable') return [];
+      if (fn.name === 'domShape') return { shape: state, elements: 10, classes: [state] };
+      if (fn.name === 'installHoverSink') throw new Error('capture unavailable in navigation fixture');
+      return 10;
+    },
+  };
+  return { page, jar, log, gotos, initScripts: () => initScripts, routed: () => routed };
+}
+
+function navigationOptions(out, overrides = {}) {
+  return {
+    url: BASE,
+    out,
+    widths: [1280],
+    height: 800,
+    ignore: [],
+    screenshots: false,
+    dataStates: false,
+    resetStorage: false,
+    workers: 1,
+    maxDepth: 3,
+    maxActionsPerState: 10,
+    maxStates: 20,
+    ...overrides,
+  };
+}
+
+test('a rejected link read fails the crawl instead of reading as no links', async () => {
+  const { page } = navigationPage();
+  page.$$eval = async () => {
+    throw new Error('Execution context was destroyed');
+  };
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-links-'));
+  try {
+    await assert.rejects(crawlAndCapture(page, navigationOptions(out)), /Execution context was destroyed/);
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('followLinks: false never reads links', async () => {
+  const { page } = navigationPage();
+  let reads = 0;
+  page.$$eval = async () => {
+    reads++;
+    return ['/about'];
+  };
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-links-'));
+  try {
+    const disabled = await crawlAndCapture(page, navigationOptions(out, { followLinks: false }));
+    assert.equal(reads, 0);
+    assert.deepEqual(disabled.links, []);
+    const enabled = await crawlAndCapture(page, navigationOptions(out));
+    assert.equal(reads, 1);
+    assert.deepEqual(enabled.links, pick(['/about']));
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('the keep marker spares exactly the data-state reloads and the reset is armed once per page', async () => {
+  const fixture = navigationPage();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-storage-'));
+  try {
+    for (let i = 0; i < 2; i++) {
+      const start = fixture.gotos.length;
+      fixture.log.length = 0;
+      const report = await crawlAndCapture(
+        fixture.page,
+        navigationOptions(out, {
+          resetStorage: true,
+          dataStates: true,
+          setup: [{ action: 'waitFor', selector: '#app' }],
+        }),
+      );
+      const gotos = fixture.gotos.slice(start);
+      assert.ok(
+        gotos.some((load) => !load.routed),
+        'fresh loads must also be checked',
+      );
+      assert.equal(gotos.filter((load) => load.routed).length, 2);
+      assert.ok(gotos.every((load) => load.kept === load.routed));
+      assert.deepEqual(
+        report.surfaces.map((surface) => surface.key),
+        ['base', 'loading', 'error'],
+      );
+      assert.equal(fixture.jar.size, 0);
+      assert.equal(fixture.routed(), false);
+      assert.deepEqual(fixture.log, ['add', 'clear', 'unroute', 'add', 'clear', 'unroute']);
+    }
+    assert.equal(fixture.initScripts(), 1);
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('a data-state reload failing before commit leaves no marker and reports its own error', async () => {
+  const reloadError = new Error('net::ERR_CONNECTION_RESET');
+  const cleanupError = new Error('context closed');
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-storage-'));
+  try {
+    for (const errors of [{ reloadError }, { reloadError, cleanupError }, { cleanupError }]) {
+      const fixture = navigationPage(errors);
+      await assert.rejects(
+        crawlAndCapture(
+          fixture.page,
+          navigationOptions(out, {
+            resetStorage: true,
+            dataStates: true,
+            setup: [{ action: 'waitFor', selector: '#app' }],
+          }),
+        ),
+        (error) => error === (errors.reloadError ?? errors.cleanupError),
+      );
+      if (!errors.cleanupError) assert.equal(fixture.jar.size, 0);
+      assert.equal(fixture.routed(), false);
+      assert.deepEqual(fixture.log, ['add', 'clear', 'unroute']);
+    }
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 });
 
 // ------------------------------------------------------- selectCrawlLinks

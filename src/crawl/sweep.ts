@@ -280,9 +280,27 @@ async function sweepCandidatesHere(
 
 /** Capture one synthetic data state of the entry page (data requests stalled or failed) in place,
  *  deduped like any surface but never queued: a stalled app is not a state to crawl deeper from. */
-async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'): Promise<void> {
+async function captureDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error', gated: boolean): Promise<void> {
   const { opts, st } = ctx;
-  const gated = Boolean(opts.setup?.length);
+  await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
+  // The page stands in the gated base state: keep the session setup stored (setup itself would stall).
+  if (gated) await keepStorage(page, opts.url);
+  await page.goto(opts.url, { waitUntil: 'load' });
+  await settleDom(page, 2500); // no networkidle — a stalled request never goes idle
+  // A wall here blocks confidence, setup or not: the app's own loading and error renders went uncaptured.
+  await observeInto(page, st, null, `during data-state ${mode}`);
+  const fp = await fingerprint(page);
+  if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
+  st.seen.add(fp.sig);
+  for (const c of fp.classes) st.classes.add(c);
+  const key = deriveKey([{ action: 'click', selector: `(data:${mode})`, label: mode, reason: 'data-state' }], ctx);
+  const surface: CrawledSurface = { key, depth: 0, path: [], elements: fp.elements };
+  st.surfaces.push(surface);
+  await captureAndReport(page, ctx, surface);
+}
+
+async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'): Promise<void> {
+  const gated = Boolean(ctx.opts.setup?.length);
   // Match by resource TYPE, not URL: apps cache-bust, so the re-load's data URLs never equal the observed ones.
   await page.route('**/*', async (route) => {
     const kind = route.request().resourceType();
@@ -290,27 +308,16 @@ async function recordDataState(page: Page, ctx: Ctx, mode: 'loading' | 'error'):
     if (mode === 'error') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
     // loading: the request stays pending forever — the skeleton IS the state.
   });
-  try {
-    await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
-    // The page stands in the gated base state: keep the session setup stored (setup itself would stall).
-    if (gated) await keepStorage(page, opts.url);
-    await page.goto(opts.url, { waitUntil: 'load' });
-    await settleDom(page, 2500); // no networkidle — a stalled request never goes idle
-    // A wall here blocks confidence, setup or not: the app's own loading and error renders went uncaptured.
-    await observeInto(page, st, null, `during data-state ${mode}`);
-    const fp = await fingerprint(page);
-    if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
-    st.seen.add(fp.sig);
-    for (const c of fp.classes) st.classes.add(c);
-    const key = deriveKey([{ action: 'click', selector: `(data:${mode})`, label: mode, reason: 'data-state' }], ctx);
-    const surface: CrawledSurface = { key, depth: 0, path: [], elements: fp.elements };
-    st.surfaces.push(surface);
-    await captureAndReport(page, ctx, surface);
-  } finally {
-    // Dropped here, not by the load, so the keep also ends when the reload failed before committing.
-    if (gated) await dropKeepStorage(page);
-    await page.unroute('**/*');
-  }
+  const reload = await captureDataState(page, ctx, mode, gated).then(
+    () => null,
+    (error: unknown) => ({ error }),
+  );
+  // Both always run, and neither hides the reload's own error: a kept cookie or a leftover
+  // stall route would leak into every later state. Dropped here, not by the load, so the keep
+  // also ends when the reload failed before committing.
+  const cleanup = await Promise.allSettled([gated ? dropKeepStorage(page) : undefined, page.unroute('**/*')]);
+  if (reload) throw reload.error;
+  for (const r of cleanup) if (r.status === 'rejected') throw r.reason;
 }
 
 /** Reset N worker pages concurrently, then sweep in queue order so shared dedup, key allocation,
@@ -397,9 +404,9 @@ async function gotoFreshObservingAuth(page: Page, opts: SurfaceCrawlOptions, st:
   if (landed) st.authObservations.push(landed);
 }
 
-/** Same-origin pages linked from where the page stands, keyed by route. */
+/** Same-origin pages linked from where the page stands, keyed by route. A failed read throws: never "no links". */
 async function linkedPages(page: Page): Promise<CrawlLink[]> {
-  const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href'))).catch(() => []);
+  const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href')));
   return selectCrawlLinks(hrefs, { base: page.url() });
 }
 
@@ -438,7 +445,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   const fp = await fingerprint(page);
   // Read the nav from the settled base (after wait, settle, setup, reveal): a nav that mounts late
   // or only behind the setup gate has no links on a bare load.
-  const links = await linkedPages(page);
+  const links = opts.followLinks === false ? [] : await linkedPages(page);
   const landed = pathAndSearch(page.url());
   st.seen.add(fp.sig);
   await record(page, ctx, { path: [], depth: 0, sig: fp.sig, retryOnly: false, viaRetry: false }, fp, st.queue);

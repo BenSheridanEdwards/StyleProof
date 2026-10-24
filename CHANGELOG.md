@@ -234,6 +234,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   also drops one page load per crawled page. `CrawlReport.links` lists them,
   and `CrawlReport.landed` names the page they were read on, so a page reached
   through a redirect or a navigating setup is not crawled again via its own link.
+  A page whose links cannot be read now fails the crawl (the entry page) or is
+  recorded as a page that could not be crawled, instead of counting as having
+  no links; `--no-follow-links` skips the read.
 - **A `--setup` login that stores its session survives the data-state reloads
   (#947).** The `loading` and `error` reloads started from cleared storage, so a
   login that keeps its token in `localStorage` landed on the sign-in form: exit
@@ -682,15 +685,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   handles the error, because its fallback could hide a breakpoint band.
   `styleproof-map` also removes HAR files before exiting a failed capture unless
   `--keep-har` was requested, so rejected detection loads leave no default recording.
-- **A `--setup` login no longer fails the crawl as an auth wall when data
-  states run (#947).** The `loading` and `error` reloads started from cleared
-  storage, so a login that keeps its token in `localStorage` landed on the
-  sign-in form: exit 5, and the form saved as `loading`. With `--setup`, those
-  reloads now keep the stored session and capture the app's own skeleton and
-  error render; a reload that still lands on a wall is skipped, not reported.
-  The storage reset also no longer runs in the capture's `about:blank` probe
-  frame, which cleared the page's storage after every capture. Without
-  `--setup`, a wall rendered by stalled or failed data is still flagged.
 - **Main commits keep their CI runs, whether running or queued.** Pushes to
   `main` no longer cancel CI, CodeQL or secret-scan runs for earlier commits
   because each main commit gets its own concurrency group. Manually dispatched
