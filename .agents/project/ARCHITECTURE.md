@@ -76,6 +76,10 @@ resolves the capture spec path). Shared helpers: `util.ts` (pure),
   `styleproof-init` keeps its generated files in `bin/init/templates.mjs`,
   its safe writes in `bin/init/files.mjs`, and the retirement of pre-push
   hooks earlier releases generated in `bin/init/obsolete-hooks.mjs`.
+  `styleproof-diff` keeps its evidence reads in `bin/diff/read.mjs`, its
+  human output in `bin/diff/print-changes.mjs` and `bin/diff/print-gates.mjs`,
+  and its audit-trail reasons in `bin/diff/audit-trail.mjs`; it shares the
+  structure-elevation rule with the report through `src/structure-elevation.ts`.
 - **Action:** `action.yml` composes the CLIs into a PR gate that posts a report
   comment and can fail on diff or unacknowledged removals.
 
