@@ -1,0 +1,152 @@
+{
+  "generated": "2026-10-21T12:52:21.923Z",
+  "host": {
+    "platform": "linux x64",
+    "cpus": 4,
+    "loadavgStart": [
+      1.2,
+      0.4,
+      0.1
+    ],
+    "loadavgEnd": [
+      1.6,
+      1.1,
+      0.5
+    ],
+    "ci": true
+  },
+  "node": "v22.23.3",
+  "browser": "chromium 149.0.7827.55",
+  "runs": 7,
+  "thresholds": {
+    "J1": "≤ 5%",
+    "J1+J2": "≤ 15%",
+    "basis": "median total vs off"
+  },
+  "verdict": {
+    "J1": "within threshold",
+    "J1+J2": "within threshold"
+  },
+  "targets": [
+    {
+      "id": "detection-fixture",
+      "kind": "static, CSS-rich",
+      "modes": {
+        "off": {
+          "medianLoadMs": 13.2,
+          "medianTotalMs": 1443.6,
+          "minTotalMs": 1415.8,
+          "maxTotalMs": 1513,
+          "rawEvidenceBytes": {
+            "J1": 0,
+            "J2": 0
+          }
+        },
+        "J1": {
+          "medianLoadMs": 9.4,
+          "medianTotalMs": 1461.2,
+          "minTotalMs": 1424.4,
+          "maxTotalMs": 1484.5,
+          "rawEvidenceBytes": {
+            "J1": 2555,
+            "J2": 0
+          }
+        },
+        "J1+J2": {
+          "medianLoadMs": 9.5,
+          "medianTotalMs": 1537.6,
+          "minTotalMs": 1489,
+          "maxTotalMs": 1583.1,
+          "rawEvidenceBytes": {
+            "J1": 2555,
+            "J2": 107610
+          }
+        }
+      },
+      "overheadPct": {
+        "J1": 1.2,
+        "J1+J2": 6.5
+      }
+    },
+    {
+      "id": "example-demo",
+      "kind": "static dogfood surface",
+      "modes": {
+        "off": {
+          "medianLoadMs": 7.5,
+          "medianTotalMs": 1149,
+          "minTotalMs": 1125.8,
+          "maxTotalMs": 1168.7,
+          "rawEvidenceBytes": {
+            "J1": 0,
+            "J2": 0
+          }
+        },
+        "J1": {
+          "medianLoadMs": 7.8,
+          "medianTotalMs": 1178.8,
+          "minTotalMs": 1132.6,
+          "maxTotalMs": 1254.7,
+          "rawEvidenceBytes": {
+            "J1": 2903,
+            "J2": 0
+          }
+        },
+        "J1+J2": {
+          "medianLoadMs": 7.5,
+          "medianTotalMs": 1192.9,
+          "minTotalMs": 1181.5,
+          "maxTotalMs": 1279.7,
+          "rawEvidenceBytes": {
+            "J1": 2903,
+            "J2": 100806
+          }
+        }
+      },
+      "overheadPct": {
+        "J1": 2.6,
+        "J1+J2": 3.8
+      }
+    },
+    {
+      "id": "react-table",
+      "kind": "React, 300 rows",
+      "modes": {
+        "off": {
+          "medianLoadMs": 68.5,
+          "medianTotalMs": 10081.7,
+          "minTotalMs": 10047.5,
+          "maxTotalMs": 10201,
+          "rawEvidenceBytes": {
+            "J1": 0,
+            "J2": 0
+          }
+        },
+        "J1": {
+          "medianLoadMs": 71,
+          "medianTotalMs": 10092.3,
+          "minTotalMs": 10053.3,
+          "maxTotalMs": 10234.7,
+          "rawEvidenceBytes": {
+            "J1": 1168,
+            "J2": 0
+          }
+        },
+        "J1+J2": {
+          "medianLoadMs": 86.1,
+          "medianTotalMs": 10618.7,
+          "minTotalMs": 10507.5,
+          "maxTotalMs": 10727.5,
+          "rawEvidenceBytes": {
+            "J1": 1168,
+            "J2": 178189
+          }
+        }
+      },
+      "overheadPct": {
+        "J1": 0.1,
+        "J1+J2": 5.3
+      }
+    }
+  ]
+}
