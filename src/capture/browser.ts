@@ -1,6 +1,7 @@
 // Functions serialized into the page (page.evaluate / CDP Runtime.evaluate).
 // Each must stay self-contained: no module-scope helpers, imports, or closures.
 import type { CapturedOverlay, ElementEntry, LiveRegionCandidate, Props } from './types.js';
+import type { PseudoReferences } from '../pseudo-references.js';
 
 /** In-page shape of the window after {@link injectPathOf} runs. */
 type WithPathOf = { __spPathOf?: (el: Element) => string };
@@ -95,7 +96,13 @@ export function injectPathOf(): void {
   };
 }
 
-export type CaptureArgs = { skipSel: string; motionOnly: boolean; captureText: boolean; captureComponent?: boolean };
+export type CaptureArgs = {
+  skipSel: string;
+  motionOnly: boolean;
+  captureText: boolean;
+  captureComponent?: boolean;
+  pseudoReferences: PseudoReferences;
+};
 
 export type PageCapture = {
   defaults: Record<string, Props>;
@@ -109,7 +116,13 @@ export type PageCapture = {
 
 // Pre-existing, grandfathered in the health baseline.
 // fallow-ignore-next-line complexity
-export function capturePage({ skipSel, motionOnly, captureText, captureComponent }: CaptureArgs): PageCapture {
+export function capturePage({
+  skipSel,
+  motionOnly,
+  captureText,
+  captureComponent,
+  pseudoReferences,
+}: CaptureArgs): PageCapture {
   const assertFrozen = motionOnly ? (): void => {} : (window as unknown as Required<WithFreeze>).__spAssertFrozen;
   assertFrozen();
   // Keep the document origin in the same browser snapshot as every bounding box.
@@ -118,6 +131,9 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   const documentHeight = (document.scrollingElement ?? document.documentElement).scrollHeight;
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
+  const inherited = new Set(pseudoReferences.inherited);
+  const currentColor = new Set(pseudoReferences.currentColor);
+  const BLOCK_CONTAINER = new Set(['block', 'inline-block', 'list-item', 'flow-root', 'table-cell', 'table-caption']);
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
 
   // Per-tag (and per-tag-per-pseudo) UA defaults from a stylesheet-free iframe prune the maps.
@@ -130,32 +146,83 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
   // would return an inherited function instead of a probe (or poison __proto__ on write).
   const defaults: Record<string, Props> = Object.create(null);
   const probeCache: Record<string, Element> = Object.create(null);
-  const probeFor = (tag: string): Element => {
-    if (!(tag in probeCache)) {
+  const probeFor = (tag: string, type?: string): Element => {
+    // A space never occurs in a tag name, so the typed key cannot collide with a page tag.
+    const key = type ? `${tag} ${type}` : tag;
+    if (!(key in probeCache)) {
       const probe = fdoc.createElement(tag);
+      if (type) probe.setAttribute('type', type);
       fdoc.body.appendChild(probe);
-      probeCache[tag] = probe;
+      probeCache[key] = probe;
     }
-    return probeCache[tag];
+    return probeCache[key];
+  };
+  const readDefault = (tag: string, pseudo?: string): Props => {
+    // ::file-selector-button exists only on a file input, so its UA defaults need one.
+    const probe = pseudo === '::file-selector-button' ? probeFor(tag, 'file') : probeFor(tag);
+    const cs = fdoc.defaultView!.getComputedStyle(probe, pseudo ?? null);
+    const o: Props = {};
+    for (let i = 0; i < cs.length; i++) o[cs.item(i)] = cs.getPropertyValue(cs.item(i));
+    return o;
   };
   const defaultFor = (tag: string, pseudo?: string): Props => {
     const key = pseudo ? `${tag}${pseudo}` : tag;
-    if (!(key in defaults)) {
-      const cs = fdoc.defaultView!.getComputedStyle(probeFor(tag), pseudo ?? null);
-      const o: Props = {};
-      for (let i = 0; i < cs.length; i++) o[cs.item(i)] = cs.getPropertyValue(cs.item(i));
-      defaults[key] = o;
-    }
+    if (!(key in defaults)) defaults[key] = readDefault(tag, pseudo);
     return defaults[key];
   };
+  // Prune each property against exactly one reference that diff can reconstruct: the
+  // host for inherited properties, the pseudo's colour for currentcolor, or its UA default.
+  // A default joins the map only once an entry uses it (#979).
+  const unusedDefaults: Record<string, Props> = Object.create(null);
+  const overridesOf = (el: Element, tag: string, pseudo: string, origin: CSSStyleDeclaration): Props => {
+    const key = `${tag}${pseudo}`;
+    const def = defaults[key] ?? (unusedDefaults[key] ??= readDefault(tag, pseudo));
+    const cs = getComputedStyle(el, pseudo);
+    const color = cs.getPropertyValue('color');
+    const own = snap(cs, (p) => (inherited.has(p) ? origin.getPropertyValue(p) : currentColor.has(p) ? color : def[p]));
+    if (Object.keys(own).length) defaults[key] = def;
+    return own;
+  };
+  const matchesSafely = (el: Element, selector: string): boolean => {
+    try {
+      return el.matches(selector);
+    } catch {
+      return false; // a browser without this pseudo-class has no such box
+    }
+  };
+  // A ::first-letter/::first-line read costs a full style read per block box, so it runs only
+  // when some stylesheet could hold such a rule. An unreadable sheet counts as one.
+  const sheetMayStyleFirstBoxes = (sheet: CSSStyleSheet | null): boolean => {
+    if (!sheet) return false;
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      return true;
+    }
+    return Array.from(rules).some((rule) =>
+      rule instanceof CSSImportRule ? sheetMayStyleFirstBoxes(rule.styleSheet) : /:first-l/i.test(rule.cssText),
+    );
+  };
+  const adopted = (document as Document & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets ?? [];
+  const readFirstBoxes = [...Array.from(document.styleSheets), ...adopted].some(sheetMayStyleFirstBoxes);
+  const generates = (el: Element, pseudo: string, display: string): boolean => {
+    if (pseudo === '::backdrop') return matchesSafely(el, ':modal') || matchesSafely(el, ':popover-open');
+    if (pseudo === '::file-selector-button') return el instanceof HTMLInputElement && el.type === 'file';
+    return readFirstBoxes && display.split(' ').some((keyword) => BLOCK_CONTAINER.has(keyword)); // ::first-letter, ::first-line
+  };
 
-  const snap = (cs: CSSStyleDeclaration, def: Props | null): Props => {
+  const snap = (
+    cs: CSSStyleDeclaration,
+    reference: Props | null | ((property: string) => string | undefined),
+  ): Props => {
     const o: Props = {};
     for (let i = 0; i < cs.length; i++) {
       const p = cs.item(i);
       if (motionOnly !== MOTION.test(p)) continue;
       const v = cs.getPropertyValue(p);
-      if (!def || def[p] !== v) o[p] = v;
+      const baseline = typeof reference === 'function' ? reference(p) : reference?.[p];
+      if (baseline !== v) o[p] = v;
     }
     return o;
   };
@@ -261,11 +328,16 @@ export function capturePage({ skipSel, motionOnly, captureText, captureComponent
       }
     }
     for (const ps of PSEUDOS) {
-      if (ps === '::marker' && getComputedStyle(el).display !== 'list-item') continue;
+      if (ps === '::marker' && !usedStyle.display.split(' ').includes('list-item')) continue;
       if (ps === '::placeholder' && !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) continue;
       const cs = getComputedStyle(el, ps);
       if ((ps === '::before' || ps === '::after') && cs.getPropertyValue('content') === 'none') continue;
       const props = snap(cs, defaultFor(tag, ps));
+      if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
+    }
+    for (const ps of pseudoReferences.generated) {
+      if (!generates(el, ps, usedStyle.display)) continue;
+      const props = overridesOf(el, tag, ps, usedStyle);
       if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
     }
     elements[pathOf(el)] = entry;
@@ -542,10 +614,17 @@ export function snapSubtree({
     if (saveBaseline || result[elementPath] || changed) typedMargins[elementPath] = forced;
   };
   for (const { element, path: elementPath } of elements) {
-    for (const pseudo of [null, '::before', '::after']) {
-      const style = getComputedStyle(element, pseudo);
+    const field = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+    const usedStyle = getComputedStyle(element);
+    const listItem = usedStyle.display.split(' ').includes('list-item');
+    for (const pseudo of [null, '::before', '::after', field ? '::placeholder' : '::marker']) {
       const key = elementPath + (pseudo || '');
-      if (pseudo && style.getPropertyValue('content') === 'none') {
+      // Fields read ::placeholder, other elements ::marker, which exists only on a list item
+      // (#979); a ::before/::after exists only with content.
+      const style = pseudo === '::marker' && !listItem ? null : pseudo ? getComputedStyle(element, pseudo) : usedStyle;
+      const absent =
+        !style || ((pseudo === '::before' || pseudo === '::after') && style.getPropertyValue('content') === 'none');
+      if (absent) {
         if (!saveBaseline && baseline?.[key]) {
           result[key] = Object.fromEntries(Object.keys(baseline[key]).map((property) => [property, '(gone)']));
         }
