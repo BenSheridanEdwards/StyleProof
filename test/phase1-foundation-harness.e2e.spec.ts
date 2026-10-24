@@ -11,7 +11,6 @@
  * @see https://github.com/BenSheridanEdwards/StyleProof/issues/668
  */
 import { test, expect } from '@playwright/test';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,6 +24,7 @@ import {
   phase1DemoUrl,
   PHASE1_ORACLE_PATH,
 } from './phase1-foundation-harness-lib.js';
+import { spawnSyncToCompletion } from './helpers.mjs';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -48,7 +48,7 @@ function ctaSurface(tone: 'base' | 'head') {
 }
 
 function runCli(bin: string, args: string[], cwd: string): { status: number; out: string } {
-  const result = spawnSync('node', [bin, ...args], { cwd, encoding: 'utf8' });
+  const result = spawnSyncToCompletion('node', [bin, ...args], { cwd, encoding: 'utf8' });
   return { status: result.status ?? -1, out: `${result.stdout ?? ''}${result.stderr ?? ''}` };
 }
 

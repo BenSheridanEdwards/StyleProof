@@ -203,6 +203,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-capture` (`styleproof crawl`) no longer hangs after it
+  finishes.** It called `process.exit()` straight after the capture, which can
+  deadlock inside Node: exit waits for a V8 worker thread that is itself waiting
+  for the main thread to collect garbage. About one loaded run in a hundred
+  printed its whole report and then sat at 0% CPU with no browser, until a CI
+  job timed out. The command now sets the exit code and lets Node exit on its
+  own, with a forced exit only if something still holds the process open 10 s
+  later. Exit codes are unchanged; a crawl that ends 4, 5 or 6 now closes the
+  browser before exiting.
 - **Ancestor baseline reuse sees spec-directory changes through a symlinked
   path.** `styleproof-ci` compared an absolute `--spec` with git's changed
   paths without resolving symlinks. Git names the real repository root, so a
