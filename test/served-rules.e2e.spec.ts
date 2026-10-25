@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -17,8 +19,8 @@ import { resolveSettings } from '../dist/runner/settings.js';
 // Change Reach ledger (#991): with `captureReach`, a capture records every served CSS
 // rule and whether it matched an element while the map was read, through Chromium's
 // rule usage tracking. Off by default, and it never changes what the diff compares.
-// Like trackInflightRequests, the tracker is armed before navigation: Chromium keeps a
-// linked stylesheet's text only when the CSS domain was enabled before it loaded.
+// Like trackInflightRequests, the tracker is armed before navigation to record linked
+// stylesheets as they load, without relying on Chromium's inspector re-fetches.
 
 const PAGE = `<!doctype html><html><head>
   <link rel="stylesheet" href="/assets/app.css?v=3">
@@ -53,15 +55,53 @@ const APP_CSS = `
 @media (prefers-color-scheme: dark) { .badge { background: rgb(17, 24, 39); } }
 @keyframes pulse { to { opacity: 0.5; } }`;
 
-async function open(page: Page): Promise<ServedRuleTracker> {
-  await page.route('http://reach.test/**', (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === '/assets/app.css') return route.fulfill({ contentType: 'text/css', body: APP_CSS });
-    return route.fulfill({ contentType: 'text/html', body: PAGE });
+async function serve() {
+  let sheetPending = false;
+  const server = http.createServer((req, res) => {
+    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+    if (
+      req.method === 'GET' &&
+      pathname === '/' &&
+      req.headers['sec-fetch-mode'] === 'navigate' &&
+      req.headers['sec-fetch-dest'] === 'document'
+    ) {
+      sheetPending = true;
+    }
+    const css = pathname === '/assets/app.css';
+    // Only the page's load gets the sheet: inspector re-fetches must fail, so a
+    // tracker armed after navigation cannot recover text it failed to record.
+    const sheetAvailable = css && sheetPending;
+    if (css) sheetPending = false;
+    res.writeHead(css && !sheetAvailable ? 404 : 200, {
+      'content-type': css ? 'text/css' : 'text/html',
+      'cache-control': 'no-store',
+    });
+    res.end(css ? (sheetAvailable ? APP_CSS : '') : PAGE);
   });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return {
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`,
+    close: () => {
+      server.close();
+      server.closeAllConnections();
+    },
+  };
+}
+
+let site: Awaited<ReturnType<typeof serve>>;
+
+test.beforeEach(async () => {
+  site = await serve();
+});
+
+test.afterEach(() => {
+  site.close();
+});
+
+async function open(page: Page, url: string): Promise<ServedRuleTracker> {
   await page.setViewportSize({ width: 900, height: 700 });
   const servedRules = await trackServedRules(page);
-  await page.goto('http://reach.test/', { waitUntil: 'load' });
+  await page.goto(url, { waitUntil: 'load' });
   return servedRules;
 }
 
@@ -72,7 +112,7 @@ const rule = (map: StyleMap, key: string): ServedRule => {
 };
 
 test('captureReach records which served rules matched, forced states included', async ({ page }) => {
-  const servedRules = await open(page);
+  const servedRules = await open(page, site.url);
   const map = await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
 
   // Matched at rest, matched only under the forced :hover, and never matched.
@@ -102,7 +142,7 @@ test('captureReach records which served rules matched, forced states included', 
 });
 
 test('the ledger is stable across captures and never changes the diff', async ({ page }) => {
-  const servedRules = await open(page);
+  const servedRules = await open(page, site.url);
   const first = await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
   await page.reload({ waitUntil: 'load' });
   const again = await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
@@ -116,9 +156,10 @@ test('the ledger is stable across captures and never changes the diff', async ({
 });
 
 test('a tracker armed after load counts linked stylesheets unreadable instead of dropping them', async ({ page }) => {
-  const early = await open(page);
+  const early = await open(page, site.url);
   await early.dispose();
   await page.reload({ waitUntil: 'load' });
+  // Reload consumes the sheet; the fixture rejects every inspector re-fetch.
   // No caller-armed tracker: captureReach arms one now, after app.css has loaded.
   const map = await captureStyleMap(page, { stabilize: false, captureReach: true });
   expect(map.reach?.unreadable).toBe(1);
@@ -130,7 +171,7 @@ test('a tracker armed after load counts linked stylesheets unreadable instead of
 test('defineStyleMapCapture surfaces arm the tracker before go(), so the linked stylesheet is read', async ({
   page,
 }) => {
-  const servedRules = await open(page); // installs the routes; this test's own tracker is not used
+  const servedRules = await open(page, site.url); // this test's own tracker is not used
   await servedRules.dispose();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-served-rules-'));
   try {
@@ -143,7 +184,7 @@ test('defineStyleMapCapture surfaces arm the tracker before go(), so the linked 
       screenshots: false,
       freezeClock: false,
     });
-    const surface = { key: 'home', go: (p: Page) => p.goto('http://reach.test/', { waitUntil: 'load' }) };
+    const surface = { key: 'home', go: (p: Page) => p.goto(site.url, { waitUntil: 'load' }) };
     await captureSurface(page, surface, 900, settings, { index: 1, total: 1 });
     const map = loadStyleMap(path.join(outDir, 'home@900.json.gz'));
     expect(map.reach?.unreadable).toBeUndefined();
@@ -156,13 +197,13 @@ test('defineStyleMapCapture surfaces arm the tracker before go(), so the linked 
 });
 
 test('captureReach stays off unless asked for', async ({ page }) => {
-  await open(page);
+  await open(page, site.url);
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-served-rules-off-'));
   try {
     const outDir = path.join(root, 'out');
     const settings = resolveSettings({ dir: outDir, selfCheck: false, screenshots: false, freezeClock: false });
     expect(settings.captureReach).toBe(false);
-    const surface = { key: 'home', go: (p: Page) => p.goto('http://reach.test/', { waitUntil: 'load' }) };
+    const surface = { key: 'home', go: (p: Page) => p.goto(site.url, { waitUntil: 'load' }) };
     await captureSurface(page, surface, 900, settings, { index: 1, total: 1 });
     expect(loadStyleMap(path.join(outDir, 'home@900.json.gz')).reach).toBeUndefined();
   } finally {

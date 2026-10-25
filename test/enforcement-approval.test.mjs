@@ -62,6 +62,7 @@ for (const [file, area] of [
   ['commitlint.config.js', 'Lint config'],
   ['scripts/check-suppressions.mjs', 'Repo checks'],
   ['scripts/check-context-layer.mjs', 'Repo checks'],
+  ['scripts/browser-lanes.mjs', 'Repo checks'],
 ]) {
   test(`guards ${file} as ${area}`, () => {
     assert.deepEqual(guardedPaths([{ filename: file }]), [file]);
@@ -93,6 +94,26 @@ for (const file of [
     assert.deepEqual(enforcementProblems([{ path: file, before: 'a', after: null }]), []);
   });
 }
+
+test('ADR 0008 documents browser lane edits as requiring sign-off without an exemption', () => {
+  const doc = fs.readFileSync(path.join(root, '.agents/decisions/0008-sign-off-enforcement-changes.md'), 'utf8');
+  const repoChecks = doc.split('\n').find((line) => line.startsWith('| Repo checks |'));
+  assert.ok(repoChecks?.includes('`scripts/browser-lanes.mjs`'), 'Repo checks must name the browser decider');
+  const exemptions = doc.match(/Everything else changes without a sign-off:[\s\S]*?(?=\n\n)/)?.[0];
+  assert.ok(exemptions, 'the documented sign-off exemptions must be explicit');
+  assert.doesNotMatch(exemptions, /scripts\/browser-lanes\.mjs/);
+  assert.deepEqual(guardedPaths([{ filename: 'scripts/browser-lanes.mjs' }]), ['scripts/browser-lanes.mjs']);
+});
+
+test('the quality gate matrix documents browser lane edits as requiring sign-off', () => {
+  const doc = fs.readFileSync(path.join(root, '.agents/project/QUALITY_GATES.md'), 'utf8');
+  const signoff = doc.split('\n').find((line) => /^\| Enforcement sign-off\s*\|/.test(line));
+  assert.ok(signoff?.includes('`scripts/browser-lanes.mjs`'), 'the sign-off row must name the browser decider');
+  assert.equal(
+    enforcementProblems([{ path: 'scripts/browser-lanes.mjs', before: 'a', after: 'b' }])[0]?.area,
+    'Repo checks',
+  );
+});
 
 test('guardedPaths lists both sides of a rename once each, sorted', () => {
   assert.deepEqual(

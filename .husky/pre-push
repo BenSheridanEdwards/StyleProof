@@ -6,8 +6,8 @@ echo "› unit tests"
 unset $(git rev-parse --local-env-vars)
 npm test
 
-echo "› staged e2e (capture/diff/report/engine)"
-# Path-filtered Playwright smoke when staged or pushed files touch the browser
-# capture surface. Missing Chromium skips with a warning (mirrors optional
-# gitleaks in pre-commit); CI e2e still fail-closed on every push.
+echo "› browser e2e (shared path policy)"
+# Share CI's tree-proof decision for staged and pushed content. Only proven
+# equal trees or deletions may skip; unknown ranges require the full browser
+# suite, and missing Chromium or unreadable inputs fail the push.
 node scripts/pre-push-e2e.mjs
