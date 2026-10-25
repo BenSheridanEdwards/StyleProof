@@ -510,6 +510,43 @@ test('selectCrawlLinks: a bare fragment of the crawl root is not a surface', () 
   assert.deepEqual(links, [{ key: 'a', url: '/?tab=a' }]); // hash stripped from the navigable url
 });
 
+test('selectCrawlLinks: a rendered hash-router link is its own surface on the crawl root', () => {
+  assert.deepEqual(pick(['#/settings', '/#/billing', '#!/legacy'], { includeSelf: true }), [
+    { key: 'index', url: '/' },
+    { key: 'settings', url: '/#/settings' },
+    { key: 'billing', url: '/#/billing' },
+    { key: 'legacy', url: '/#!/legacy' },
+  ]);
+  assert.deepEqual(pick(['#/search?q=shoes']), [{ key: 'search-shoes', url: '/#/search?q=shoes' }]);
+});
+
+test('selectCrawlLinks: a hash-router link from another page keeps its route', () => {
+  assert.deepEqual(selectCrawlLinks(['/#/settings', '#/billing'], { base: 'https://app.test/about' }), [
+    { key: 'settings', url: '/#/settings' },
+    { key: 'about-billing', url: '/about#/billing' },
+  ]);
+});
+
+test('selectCrawlLinks: match and key see the hash route', () => {
+  assert.deepEqual(
+    {
+      matched: pick(['#/settings', '/help'], { match: /#\// }),
+      keyed: pick(['#/settings'], { key: (u) => u.hash }),
+    },
+    {
+      matched: [{ key: 'settings', url: '/#/settings' }],
+      keyed: [{ key: '#/settings', url: '/#/settings' }],
+    },
+  );
+});
+
+test('selectCrawlLinks: a crawl root landed on a hash route is not captured twice', () => {
+  assert.deepEqual(selectCrawlLinks(['#/home', '#/x'], { base: 'https://app.test/#/home', includeSelf: true }), [
+    { key: 'home', url: '/#/home' },
+    { key: 'x', url: '/#/x' },
+  ]);
+});
+
 test('selectCrawlLinks: match narrows by RegExp, substring, and predicate', () => {
   const hrefs = ['/?tab=a', '/help', '/about'];
   assert.deepEqual(

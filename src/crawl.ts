@@ -26,6 +26,8 @@ export type ObservedNavOptions = Pick<SelectLinksOptions, 'base' | 'match' | 'ke
   usedKeys: Set<string>;
 };
 
+const HASH_ROUTE = /^#!?(\/[^?]*)(\?.*)?$/s;
+
 /** Path segments, then query-param values sorted by param name. */
 function routeParts(pathname: string, params: URLSearchParams): string[] {
   const values = [...params]
@@ -44,7 +46,7 @@ function routeParts(pathname: string, params: URLSearchParams): string[] {
  * `#anchor` is not a route and stays out of the key.
  */
 export function defaultLinkKey(url: URL): string {
-  const hashRoute = /^#!?(\/[^?]*)(\?.*)?$/s.exec(url.hash);
+  const hashRoute = HASH_ROUTE.exec(url.hash);
   const hashParts = hashRoute ? routeParts(hashRoute[1], new URLSearchParams(hashRoute[2])) : [];
   const slug = [...routeParts(url.pathname, url.searchParams), ...hashParts]
     .join('-')
@@ -86,9 +88,15 @@ function resolveLink(href: string, base: URL, match?: LinkMatch): URL | null {
   return url.origin === base.origin && matches(url, match) ? url : null;
 }
 
+/** Path+query to navigate, plus the fragment when it is a hash-router route (`#/…`, `#!/…`); a plain `#anchor` is dropped. */
+function navigablePath(url: URL): string {
+  return url.pathname + url.search + (HASH_ROUTE.test(url.hash) ? url.hash : '');
+}
+
 function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
   const url = resolveLink(href, base, match);
   if (!url) return null;
+  if (HASH_ROUTE.test(url.hash)) return { key: keyFor(url), url: navigablePath(url) }; // a hash-router route is its own surface
   const path = url.pathname + url.search;
   if (url.hash && path === base.pathname + base.search) return null; // a bare fragment of the crawl root is the same page
   url.hash = ''; // navigate the surface, not a scroll anchor within it
@@ -156,7 +164,7 @@ function collectUnique(links: Iterable<CrawlLink | null>, seen: Set<string>, use
 export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opts: SelectLinksOptions): CrawlLink[] {
   const base = new URL(opts.base);
   const keyFor = opts.key ?? defaultLinkKey;
-  const self = opts.includeSelf ? [{ key: keyFor(base), url: base.pathname + base.search }] : [];
+  const self = opts.includeSelf ? [{ key: keyFor(base), url: navigablePath(base) }] : [];
   const links = Array.from(hrefs, (href) => (href ? toLink(href, base, keyFor, opts.match) : null));
   return collectUnique([...self, ...links], new Set(), new Set());
 }
