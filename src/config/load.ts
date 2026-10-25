@@ -170,7 +170,7 @@ export function resolveStyleProofConfigFilePaths(config: StyleProofConfig, confi
 
 /** Import JavaScript at its original URL, preserving package semantics and module identity.
  *  Validate before serialization so invalid functions or toJSON hooks cannot hide policy. */
-function loadJavaScriptConfigSync(found: StyleProofConfigLocation): StyleProofConfig {
+function loadJavaScriptConfigSync(found: StyleProofConfigLocation, asyncLoad = false): StyleProofConfig {
   const result = spawnSync(
     process.execPath,
     [
@@ -178,8 +178,13 @@ function loadJavaScriptConfigSync(found: StyleProofConfigLocation): StyleProofCo
       '-e',
       `import { writeFileSync } from 'node:fs';
        import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
-       const mod = await import(${JSON.stringify(pathToFileURL(found.path).href)});
-       const config = plainObject(mod.default ?? mod, 'the default export', ${JSON.stringify(found.filename)});
+       ${
+         asyncLoad
+           ? `const { loadStyleProofConfigWithLocationAsync } = await import(${JSON.stringify(import.meta.url)});
+              const { config } = await loadStyleProofConfigWithLocationAsync(${JSON.stringify(found.dir)});`
+           : `const mod = await import(${JSON.stringify(pathToFileURL(found.path).href)});
+              const config = plainObject(mod.default ?? mod, 'the default export', ${JSON.stringify(found.filename)});`
+       }
        writeFileSync(3, JSON.stringify(structuredClone(parseConfigRecord(config, ${JSON.stringify(found.filename)}))));
        await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write('', resolve))));
        process.exit(0);`,
@@ -237,11 +242,19 @@ export function loadStyleProofConfigWithLocation(cwd = process.cwd()): StyleProo
   return located(startDir, discovery.location ? parseLoadedConfigSync(discovery.location.dir) : {}, discovery);
 }
 
-/** Async load plus the directory the file was found in (or `cwd` when none exists). */
-export async function loadStyleProofConfigWithLocationAsync(cwd = process.cwd()): Promise<StyleProofConfigLoad> {
+/** Async load plus location; isolate checkout imports when another dependency copy may already be loaded. */
+export async function loadStyleProofConfigWithLocationAsync(
+  cwd = process.cwd(),
+  options: { isolated?: boolean } = {},
+): Promise<StyleProofConfigLoad> {
   const startDir = path.resolve(cwd);
   const discovery = discoverStyleProofConfig(startDir);
-  return located(startDir, discovery.location ? await parseLoadedConfigAsync(discovery.location.dir) : {}, discovery);
+  const config = discovery.location
+    ? options.isolated
+      ? loadJavaScriptConfigSync(discovery.location, true)
+      : await parseLoadedConfigAsync(discovery.location.dir)
+    : {};
+  return located(startDir, config, discovery);
 }
 
 /**
