@@ -115,6 +115,91 @@ test('sync ts config rejects a function-valued policy before serialization', (t)
   assert.throws(() => loadStyleProofConfig(root), /requireApproval.*boolean/);
 });
 
+const STRIPPING = "process.execArgv.includes('--experimental-strip-types')";
+
+test('sync ts config rejects invalid policy instead of retrying it with type stripping', (t) => {
+  const root = configFixture(
+    t,
+    `console.log('fixture invalid');
+     export default { requireApproval: ${STRIPPING} ? false : 'invalid' };`,
+  );
+  assert.throws(
+    () => loadStyleProofConfig(root),
+    (error) => {
+      assert.notEqual(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+      assert.match(error.message, /^styleproof\.config\.ts: "requireApproval" must be a boolean/);
+      // styleproof-init treats this text as "ignore the config"; an invalid policy must not match it.
+      assert.doesNotMatch(error.message, /could not be evaluated/);
+      return true;
+    },
+  );
+  const result = loadSyncInChild(root);
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stdout, 'fixture invalid\n', 'the config must run once, not be retried');
+  assert.doesNotMatch(result.stdout, /requireApproval/);
+});
+
+for (const typed of [false, true]) {
+  const label = typed ? 'typed' : 'JS-shaped';
+  test(
+    `sync ${label} ts config reports an invalid policy exactly as async`,
+    { skip: typed && TYPE_STRIPPING_UNAVAILABLE },
+    async (t) => {
+      const root = configFixture(
+        t,
+        `export default { requireApproval: 'invalid'${typed ? ' as unknown as boolean' : ''} };`,
+      );
+      const asyncError = await loadStyleProofConfigAsync(root).then(
+        () => assert.fail('async loaded an invalid policy'),
+        (error) => error,
+      );
+      assert.throws(
+        () => loadStyleProofConfig(root),
+        (error) => {
+          assert.equal(error.message, asyncError.message);
+          assert.notEqual(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+          return true;
+        },
+      );
+    },
+  );
+}
+
+for (const [failure, source, reason] of [
+  ['exitCode', `if (!${STRIPPING}) process.exitCode = 7;`, /process\.exitCode to 7/],
+  [
+    'rejection',
+    `if (!${STRIPPING}) setTimeout(() => Promise.reject(new Error('fixture first-run rejection')), 0);`,
+    /unhandled promise rejection.*fixture first-run rejection/,
+  ],
+  [
+    'throw',
+    `if (!${STRIPPING}) setTimeout(() => { throw new Error('fixture first-run throw'); }, 0);`,
+    /fixture first-run throw/,
+  ],
+  [
+    'throw while its import is pending',
+    `if (!${STRIPPING}) setTimeout(() => { throw new Error('fixture pending-import throw'); }, 0);
+     await new Promise((resolve) => setTimeout(resolve, 50));`,
+    /fixture pending-import throw/,
+  ],
+]) {
+  test(`sync ts config fails closed on a first-run-only ${failure} instead of retrying with type stripping`, (t) => {
+    const root = configFixture(t, `${source} export default { requireApproval: true };`);
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => {
+        assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+        assert.match(error.message, reason);
+        return true;
+      },
+    );
+    const result = loadSyncInChild(root);
+    assert.equal(result.status, 1, result.stderr);
+    assert.doesNotMatch(result.stdout, /requireApproval/);
+  });
+}
+
 test('sync ts config preserves policy arrays despite inherited toJSON', (t) => {
   const root = configFixture(
     t,

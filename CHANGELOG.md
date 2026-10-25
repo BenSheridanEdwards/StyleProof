@@ -226,6 +226,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof-affected`, `styleproof-diff`, `styleproof-capture`,
   `defineStyleMapCapture`, or `resolveProjectSpec`. Policy is validated before
   serialization, so `toJSON()` or function values cannot hide an invalid field.
+  An invalid policy is reported once, with the same schema error as the async
+  loader, and is never retried with type stripping. Once a config has run, any
+  failure is final instead of being retried with type stripping.
   A config that sets a non-zero `process.exitCode`, leaves an unhandled
   promise rejection or throws while loading, including from a timer that
   fires after its module finishes, still fails closed instead of returning
