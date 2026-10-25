@@ -407,6 +407,8 @@ styleproof affected          # resolve surfaces affected by source changes
 styleproof ci                # CI orchestration: restore probes, cold capture
 ```
 
+Cold-base CI captures reuse the head’s non-registry StyleProof artifact (local paths resolve against the head package directory); registry declarations use the running CLI’s exact version.
+
 Run `styleproof --help` for the whole journey or `styleproof <command> --help`
 for command-specific options. The existing `styleproof-*` binaries remain as
 backwards-compatible aliases for one major version.

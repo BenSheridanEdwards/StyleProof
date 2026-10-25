@@ -26,6 +26,32 @@ export type PackageManagerPlan = {
   packageMetadataFiles: string[];
 };
 
+/** Preserve head artifacts; registry declarations use the running CLI's exact version.
+ * Returns the portion after `styleproof@` for the existing exact-install plans. */
+export function styleProofRuntimeSpec(
+  headPackageJson: {
+    dependencies?: Record<string, unknown>;
+    devDependencies?: Record<string, unknown>;
+    optionalDependencies?: Record<string, unknown>;
+  },
+  headDir: string,
+  ownVersion: string,
+): string {
+  const spec =
+    headPackageJson.optionalDependencies?.styleproof ??
+    headPackageJson.dependencies?.styleproof ??
+    headPackageJson.devDependencies?.styleproof;
+  if (typeof spec !== 'string') return ownVersion;
+  const local = /^(file:|link:)(.*)$/.exec(spec);
+  if (local) return `${local[1]}${path.resolve(headDir, local[2])}`;
+  if (/^(?:git(?:\+[^:]+)?:|https?:|ssh:|github:|gitlab:|bitbucket:|git@)/.test(spec)) return spec;
+  if (path.isAbsolute(spec) || spec.startsWith('./') || spec.startsWith('../') || /\.(?:tgz|tar\.gz)$/.test(spec)) {
+    return `file:${path.resolve(headDir, spec)}`;
+  }
+  if (/^[^@\s/]+\/[^\s]+$/.test(spec)) return spec;
+  return ownVersion;
+}
+
 /** Yarn 2+ (Berry): a `.yarnrc.yml`, or `packageManager` pinning yarn at major ≥ 2. */
 function isYarnBerry(root: string): boolean {
   if (fs.existsSync(path.join(root, '.yarnrc.yml'))) return true;
