@@ -28,12 +28,12 @@ Each case declares an expectation:
 
 ## Expected results (Chromium receipt regeneration pending)
 
-The corpus now requires the results below. The committed
-`bench/detection-corpus.results.json` still records the earlier 46/46 detect and
-3/3 blind run; it has not been regenerated for the keyframes and image-source
-cases. Run `npm run bench:detection` and `npm run bench:detection:check` in
-Chromium before treating 48/48 as measured proof. The receipt consistency test
-fails until that regeneration happens.
+The corpus now requires the results below. The two keyframes and image-source
+rows in `bench/detection-corpus.results.json` were edited by hand to match the
+corpus, and its `generated` stamp still dates the earlier 46/46 run. Treat 48/48
+as expected, not measured, until `npm run bench:detection` regenerates the receipt
+in Chromium. CI's `detection corpus` job runs `bench/detection-rate.mjs --check`
+in Chromium and fails if either case misses.
 
 | Outcome   | Score | Meaning                                            |
 | --------- | ----- | -------------------------------------------------- |

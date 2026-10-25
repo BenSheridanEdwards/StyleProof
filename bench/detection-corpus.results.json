@@ -3,10 +3,10 @@
   "fixture": "bench/detection-fixture.html",
   "totals": {
     "cases": 56,
-    "detected": "46/46",
+    "detected": "48/48",
     "detectionRate": 1,
     "clean": "7/7",
-    "blind": "3/3",
+    "blind": "1/1",
     "failed": []
   },
   "cases": [
@@ -470,22 +470,22 @@
       "why": "zero findings"
     },
     {
-      "id": "blind-keyframes",
-      "category": "blind",
-      "expect": "blind",
-      "desc": "@keyframes internals rewritten — animation-name unchanged, bodies are not computed styles",
-      "findings": 0,
+      "id": "anim-keyframes-body",
+      "category": "animation",
+      "expect": "detect",
+      "desc": "@keyframes internals rewritten under an unchanged animation-name: the resolved body is captured",
+      "findings": 1,
       "ok": true,
-      "why": "zero findings"
+      "why": "1 finding(s) on target"
     },
     {
-      "id": "blind-img-src",
-      "category": "blind",
-      "expect": "blind",
-      "desc": "img src swapped blue→red — element attributes are not computed styles",
-      "findings": 0,
+      "id": "dom-img-src",
+      "category": "dom",
+      "expect": "detect",
+      "desc": "img src swapped blue→red: currentSrc is captured",
+      "findings": 1,
       "ok": true,
-      "why": "zero findings"
+      "why": "1 finding(s) on target"
     },
     {
       "id": "blind-aria-label",
