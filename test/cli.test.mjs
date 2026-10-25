@@ -1198,6 +1198,38 @@ test('diff elevates a visible element added between cached maps (restored dirs r
   rmTmp(repo);
 });
 
+test('cached styleproof-diff <baseRef> exits 1 when head adds a visible element', (t) => {
+  const elements = {
+    body: { tag: 'body', rect: [0, 0, 400, 300], style: { display: 'block' } },
+  };
+  const { repo } = setupCachedComparison({
+    seedBase: (dir) => writeCapture(dir, 'home@1280', makeMap({ elements }), null),
+    seedHead: (dir) =>
+      writeCapture(
+        dir,
+        'home@1280',
+        makeMap({
+          elements: {
+            ...elements,
+            'body > button:nth-child(1)': {
+              tag: 'button',
+              rect: [10, 10, 120, 32],
+              ownTextLength: 6,
+              style: { display: 'inline-block' },
+            },
+          },
+        }),
+        null,
+      ),
+  });
+  t.after(() => rmTmp(repo));
+  const jsonPath = path.join(repo, 'diff.json');
+  const r = runIn(repo, DIFF, ['main', '--json', jsonPath]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(json.elevatedVisibleStructure, 1, JSON.stringify(json));
+});
+
 for (const [label, seedHead, prepare, reason] of [
   [
     'a corrupt head coverage ledger',
