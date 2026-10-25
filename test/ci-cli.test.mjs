@@ -1,9 +1,11 @@
 import { test } from 'node:test';
+import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import * as ciRuntime from '../dist/ci.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
 import {
   applySpecRefOverlay,
@@ -156,6 +158,119 @@ test('ciOutputLines: ancestor reuse appends its own auditable output line, never
     ['base-hit=true', 'head-hit=true', 'capture-needed=false', 'base-capture-failed=false'],
     'no reuse → the exact prior contract, byte for byte',
   );
+});
+
+test('cold base runtime: head file artifact is absolute in npm and pnpm exact installs', () => {
+  const root = mkTmp();
+  try {
+    for (const manager of ['npm', 'pnpm']) {
+      if (manager === 'pnpm') fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
+      const spec = ciRuntime.styleProofRuntimeSpec(
+        { devDependencies: { styleproof: 'file:vendor/styleproof.tgz' } },
+        root,
+        '8.0.1',
+      );
+      const command = detectPackageManagerPlan(root).installExactStyleProof(spec, '/tmp/runtime');
+      assert.equal(command.at(-1), `styleproof@file:${path.join(root, 'vendor/styleproof.tgz')}`);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('cold base runtime: non-registry artifacts survive every package-manager plan', () => {
+  const root = mkTmp();
+  try {
+    const artifacts = [
+      ['file:vendor/runtime', '8.0.1'],
+      ['link:../runtime', '8.0.1'],
+      ['./runtime', '8.0.1'],
+      ['file:runtime.tgz', `file:${path.join(root, 'runtime.tgz')}`],
+      ['link:runtime.tgz', '8.0.1'],
+      ['vendor/runtime.tgz', `file:${path.join(root, 'vendor/runtime.tgz')}`],
+      ['/tmp/runtime.tgz', 'file:/tmp/runtime.tgz'],
+      ['git+https://github.com/owner/repo.git#build', 'git+https://github.com/owner/repo.git#build'],
+      ['https://github.com/owner/repo.git', 'https://github.com/owner/repo.git'],
+      ['https://example.test/runtime.tgz', 'https://example.test/runtime.tgz'],
+      ['git@github.com:example/runtime.git', 'git@github.com:example/runtime.git'],
+      ['github:example/runtime#build', 'github:example/runtime#build'],
+      ['example/runtime#build', 'example/runtime#build'],
+    ];
+    for (const lock of [null, 'yarn.lock', '.yarnrc.yml', 'pnpm-lock.yaml', 'bun.lock']) {
+      if (lock) fs.writeFileSync(path.join(root, lock), '');
+      const plan = detectPackageManagerPlan(root);
+      for (const [declared, expected] of artifacts) {
+        const spec = ciRuntime.styleProofRuntimeSpec({ dependencies: { styleproof: declared } }, root, '8.0.1');
+        assert.equal(plan.installExactStyleProof(spec, '/tmp/runtime').at(-1), `styleproof@${expected}`, plan.name);
+      }
+    }
+    assert.equal(ciRuntime.styleProofRuntimeSpec({}, root, '8.0.1'), '8.0.1');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('cold base installer reads the consumer manifest and logs the installed runtime, including without a manifest', () => {
+  const root = mkTmp();
+  try {
+    const consumerCwd = path.join(root, 'consumer');
+    const coldBaseCwd = path.join(root, 'base');
+    fs.mkdirSync(consumerCwd);
+    fs.mkdirSync(coldBaseCwd);
+    fs.writeFileSync(
+      path.join(coldBaseCwd, 'package.json'),
+      JSON.stringify({ dependencies: { styleproof: 'file:wrong.tgz' } }),
+    );
+    const source = fs.readFileSync(CI, 'utf8');
+    const installer = source.slice(
+      source.indexOf('function installExactStyleProof('),
+      source.indexOf('// ── Nearest-ancestor'),
+    );
+    for (const declared of [null, 'file:head.tgz', 'file:directory']) {
+      if (declared === null) fs.rmSync(path.join(consumerCwd, 'package.json'), { force: true });
+      else
+        fs.writeFileSync(
+          path.join(consumerCwd, 'package.json'),
+          JSON.stringify({ devDependencies: { styleproof: declared } }),
+        );
+      const calls = [];
+      const logs = [];
+      const context = vm.createContext({
+        fs,
+        path,
+        consumerCwd,
+        OWN_VERSION: '8.0.1',
+        styleProofRuntimeSpec: ciRuntime.styleProofRuntimeSpec,
+        worktrees: { scratchRoot: () => root },
+        log: (message) => logs.push(`styleproof-ci: ${message}`),
+        runOrDie: (argv, label, options) => calls.push({ argv, label, options }),
+      });
+      vm.runInContext(`${installer}; globalThis.install = installExactStyleProof`, context);
+      const pm = detectPackageManagerPlan(consumerCwd);
+      context.install({ ...pm, isolatedStyleProofPackage: () => null }, coldBaseCwd);
+      const expected = declared === 'file:head.tgz' ? `file:${path.join(consumerCwd, 'head.tgz')}` : '8.0.1';
+      assert.equal(calls[0].argv.at(-1), `styleproof@${expected}`);
+      assert.equal(calls[0].options.cwd, coldBaseCwd);
+      assert.equal(logs[0], `styleproof-ci: cold base runtime: styleproof@${expected}`);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('cold base runtime: registry specs keep the running version', () => {
+  const root = mkTmp();
+  try {
+    for (const declared of ['8.0.0', '^8.0.0', 'latest']) {
+      const spec = ciRuntime.styleProofRuntimeSpec({ dependencies: { styleproof: declared } }, root, '8.0.1');
+      assert.equal(
+        detectPackageManagerPlan(root).installExactStyleProof(spec, '/tmp/runtime').at(-1),
+        'styleproof@8.0.1',
+      );
+    }
+  } finally {
+    rmTmp(root);
+  }
 });
 
 test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv (no shell)', () => {
