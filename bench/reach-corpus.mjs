@@ -96,12 +96,13 @@ const browser = await chromium.launch();
   const a = await capture(browser, 'base', corpus.surfaces.home);
   const b = await capture(browser, 'base', corpus.surfaces.home);
   const styleDrift = diffStyleMaps(a.map, b.map).length;
-  const reachStable = Boolean(a.map.reach) && isDeepStrictEqual(a.map.reach, b.map.reach);
+  const reachState =
+    !a.map.reach || !b.map.reach ? 'missing' : isDeepStrictEqual(a.map.reach, b.map.reach) ? 'stable' : 'drifted';
   const ranA = JSON.stringify([...a.execution]);
   const ranB = JSON.stringify([...b.execution]);
-  if (styleDrift || !reachStable || ranA !== ranB) {
+  if (styleDrift || reachState !== 'stable' || ranA !== ranB) {
     console.error(
-      `fixture is not deterministic — style drift ${styleDrift}, reach ledger ${reachStable ? 'stable' : 'drifted'}, ` +
+      `fixture is not deterministic — style drift ${styleDrift}, reach ledger ${reachState}, ` +
         `execution ${ranA === ranB ? 'stable' : 'drifted'}; corpus results would be noise`,
     );
     process.exit(2);

@@ -24,7 +24,8 @@ ticket [#988](https://github.com/BenSheridanEdwards/StyleProof/issues/988)).
     properties follow `aliases`, need every consumer to match, and require a
     read outside a custom-property declaration. Unread and alias-only tokens
     are never rendered. `@keyframes`, `@font-face` and `@property` resolve
-    through rendered references; `@property` also resolves through declarations.
+    through rendered references; `@property` also resolves through declarations;
+    alias-only reads do not count.
   - **J2:** a changed line of render code must run. This uses V8 block coverage
     resolved through the bundle's source map.
   - **J3:** a changed class token must land on a captured element. Some paired

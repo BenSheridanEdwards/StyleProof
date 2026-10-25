@@ -15,7 +15,8 @@
  * - `reached`         a captured state matched each changed body (and every consumer of a
  *                     custom property it changed);
  * - `never-rendered`  some changed body never matched; `condition` names the at-rules gating it;
- * - `blind-channel`   a `@keyframes`/`@font-face`/`@property` that a matched rule references — reached,
+ * - `blind-channel`   a `@keyframes`/`@font-face`/`@property` that a matched rule references
+ *                     (for `@property`, reads or declares outside a custom-property alias) — reached,
  *                     but its body is not something computed styles can hold.
  * Token closure follows `aliases`; a token no rule reads outside a custom property is never-rendered.
  * When any map on either side has no ledger (captured without captureReach, or older),
@@ -145,6 +146,12 @@ function conditionOf(key: string): string | undefined {
 
 type Dependency = { names: string[]; carries: (rule: Variant) => readonly string[] };
 
+/** Custom properties a rule reads outside its own alias declarations. A read both ways counts as alias-only. */
+function renderedReads(rule: Variant): string[] {
+  const aliased = new Set(Object.values(rule.aliases ?? {}).flat());
+  return (rule.uses ?? []).filter((used) => !aliased.has(used));
+}
+
 /** The names and ledger fields that can reference a dependency leaf. */
 function dependencyOf(variant: Variant): Dependency | undefined {
   // The ledger appends a repeat counter to duplicate keys.
@@ -157,7 +164,7 @@ function dependencyOf(variant: Variant): Dependency | undefined {
   if (/^@property\b/i.test(prelude)) {
     const name = /^@property\s+(--[\w-]+)$/.exec(prelude)?.[1];
     // An unparsable name has no referrer, so it stays never-rendered.
-    return { names: name ? [name] : [], carries: (rule) => [...(rule.uses ?? []), ...Object.keys(rule.vars ?? {})] };
+    return { names: name ? [name] : [], carries: (rule) => [...renderedReads(rule), ...Object.keys(rule.vars ?? {})] };
   }
   return undefined;
 }
@@ -196,11 +203,7 @@ function tokenShortfall(v: Variant, side: Side, before: readonly Variant[]): str
       const through = via === prop ? '' : ` through ${via}`;
       return `${prop} changed${through}, and its consumer ${idle.key} never matched`;
     }
-    const terminal = side.sorted.some((rule) =>
-      rule.uses?.some(
-        (used) => closure.has(used) && !Object.values(rule.aliases ?? {}).some((reads) => reads.includes(used)),
-      ),
-    );
+    const terminal = side.sorted.some((rule) => renderedReads(rule).some((used) => closure.has(used)));
     if (!terminal) return `${prop} changed, and no served rule reads it outside a custom property`;
   }
   return undefined;

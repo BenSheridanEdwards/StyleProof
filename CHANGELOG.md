@@ -114,10 +114,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - **Change Reach J1 resolves `@property` and drives the reach corpus (#995).**
-  A changed `@property` is a blind channel when a rendered rule reads or
-  declares it, otherwise never rendered. A changed token that no served rule
-  reads outside a custom property, or that only feeds unread aliases, is never
-  rendered instead of reached. Ledger rules gain `aliases`.
+  A changed `@property` is a blind channel when a rendered rule reads it outside
+  a custom-property alias, or declares it, otherwise never rendered. A changed
+  token that no served rule reads outside a custom property, or that only feeds
+  unread aliases, is never rendered instead of reached. Ledger rules gain `aliases`.
 - **Served-rule ledger for Change Reach (#991).** `captureReach: true` (in
   `defineStyleMapCapture` or `captureStyleMap`) records every served CSS rule
   in `StyleMap.reach` and marks the ones that matched an element while the map

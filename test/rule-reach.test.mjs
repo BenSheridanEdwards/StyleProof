@@ -254,6 +254,25 @@ test('a changed @property is a blind channel only when a rendered rule reads or 
   );
 });
 
+test('an alias-only read cannot reach a changed @property', () => {
+  const aliasOnly = rule('.x', 'b', {
+    used: true,
+    uses: ['--brand'],
+    vars: { '--tone': 'd' },
+    aliases: { '--tone': ['--brand'] },
+  });
+  const mixed = cssMap(sheet('/app.css', '.x { --tone: var(--brand); color: var(--brand); }', '.x')).reach.rules[0];
+  for (const alias of [aliasOnly, mixed]) {
+    const side = (hash, ...consumers) => map(rule('@property --brand', hash), alias, ...consumers);
+    const result = statusOf(classifyRuleReach([side('p1')], [side('p2')]), '@property --brand');
+    assert.deepEqual([result.status, result.why], ['never-rendered', 'no rendered rule references it']);
+
+    const consumer = rule('.y', 'y', { used: true, uses: ['--brand'] });
+    const rendered = statusOf(classifyRuleReach([side('p1', consumer)], [side('p2', consumer)]), '@property --brand');
+    assert.deepEqual([rendered.status, rendered.why], ['blind-channel', 'referenced by .y, which rendered']);
+  }
+});
+
 test('an unparsable @property name cannot claim reach', () => {
   const side = (hash) =>
     map(rule('@property --brand unexpected', hash), rule('.btn', 'b', { used: true, uses: ['--brand'] }));
