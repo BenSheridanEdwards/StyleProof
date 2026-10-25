@@ -188,6 +188,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+      # Shard artifacts expire after 1 day. After expiry, re-run the whole
+      # workflow; re-running only e2e-evidence cannot download them.
       - uses: actions/download-artifact@v6
         with:
           pattern: e2e-shard-*
