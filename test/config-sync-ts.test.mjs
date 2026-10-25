@@ -168,6 +168,11 @@ for (const typed of [false, true]) {
 for (const [failure, source, reason] of [
   ['exitCode', `if (!${STRIPPING}) process.exitCode = 7;`, /process\.exitCode to 7/],
   [
+    'exitCode while its top-level await never settles',
+    `if (!${STRIPPING}) { process.exitCode = 7; await new Promise(() => {}); }`,
+    /styleproof\.config\.ts could not be evaluated/,
+  ],
+  [
     'rejection',
     `if (!${STRIPPING}) setTimeout(() => Promise.reject(new Error('fixture first-run rejection')), 0);`,
     /unhandled promise rejection.*fixture first-run rejection/,

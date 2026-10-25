@@ -230,7 +230,8 @@ function spawnConfigModuleEval(
            return;
          }
          if (json === undefined) {
-           if (evaluated) writeFileSync(3, RAN);
+           // A still-pending import reached config code; parse and link failures reject before exit.
+           if (evaluated || importError === undefined) writeFileSync(3, RAN);
            if (code === 0) { report('exited before its default export finished loading'); process.exitCode = 1; }
            return;
          }
@@ -351,7 +352,8 @@ function forwardEvalStdout(result: EvalResult | undefined): void {
 
 /**
  * Evaluate a discovered `.ts` config synchronously: plain-module first, then type stripping. Type
- * stripping is retried only when the plain attempt never ran config code; once it has, a failure is final.
+ * stripping is retried only with an empty result channel (parse, link or top-level import failure).
+ * Completed evaluation, deferred failures and an import still pending at exit make a failure final.
  */
 export function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown> {
   let plainError: unknown;
