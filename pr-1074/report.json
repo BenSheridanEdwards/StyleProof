@@ -73,12 +73,12 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 1,
+      "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 0
+      "captured": 1
     },
-    "completeness": "limited"
+    "completeness": "complete"
   },
   "legacyPairs": {
     "armed": true,
@@ -96,8 +96,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "f0c3231417e254877733e31d2ace42198f094669",
-      "observed": "f0c3231417e254877733e31d2ace42198f094669",
+      "expected": "509df540954a9797b63431865feb986a791b35dc",
+      "observed": "509df540954a9797b63431865feb986a791b35dc",
       "result": "matched"
     }
   },
@@ -105,19 +105,19 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "03df194f52635920a3f9af695f16b3ac8c335b21c38aeedeb9bb604624afe6f5",
+      "digest": "3ad45e48bbb6e958de78b09e3966e893ef6f62925cfecc6d37c71b4d6acdd113",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "383e441a3255d42230edd7ce9edd9979b691d27710e002ca5d838daae5593164",
+      "digest": "4c70d89264334efe71bac11fe3beee6ea1419a85a3e0e050f78cb7bacba45ac5",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "CERTIFICATION_FAILED",
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES",
   "untrustedCapture": false
 }
