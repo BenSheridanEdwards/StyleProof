@@ -76,6 +76,7 @@ import {
   type BaselineInfo,
 } from './report/headline.js';
 import { countShownChanges, groupBySignature } from './report/regions.js';
+import { assessReach, reachSectionLines, reachStripLines, reachSummaryLine, type ReportReach } from './report/reach.js';
 import {
   ReportMarkdown,
   renderChangedSections,
@@ -184,6 +185,8 @@ export type ReportResult = {
   reportJsonPath: string;
   /** Present only when `migration: true`. */
   migrationGallery?: MigrationGallery;
+  /** Change Reach J1 (#996); only when a capture carries a reach ledger. */
+  reach?: ReportReach;
 };
 
 function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
@@ -388,10 +391,11 @@ function renderReportBody(
     baseline: BaselineInfo;
     content: ReturnType<typeof renderContentLayer>;
     migrationGallery: MigrationGallery | undefined;
+    reach: ReportReach | undefined;
     surfaceKeyOf: SurfaceKeyOf;
   },
 ) {
-  const { view, baseline, content, migrationGallery, surfaceKeyOf } = input;
+  const { view, baseline, content, migrationGallery, reach, surfaceKeyOf } = input;
   const { md } = out;
   if (baseline.failures.length > 0) {
     md.detail(
@@ -407,6 +411,7 @@ function renderReportBody(
     countChangedSurfaceScope(view.chrome.chrome, surfaceKeyOf).bases,
     countCapturedSurfaceBases(captureKeysIn(ctx.afterDir), surfaceKeyOf),
   );
+  if (reach) md.detail(reachSectionLines(reach), reachSummaryLine(reach));
   md.detail(
     content.chromeMd,
     `- ${content.globalChrome} global chrome element change(s) on every surface base that renders its container`,
@@ -471,6 +476,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // 2. Decide what the report shows, and what it may claim about it.
   const surfacePaths = surfaceElementPaths(beforeDir, afterDir);
   const view = presentSurfaces(ctx, diff.surfaces, gates, includeStructure, surfacePaths, surfaceKeyOf);
+  const reach = assessReach(ctx);
   const baseline = readBaselineInfo(beforeDir, afterDir);
   const elevation = collectStructureElevation({ beforeDir, afterDir, migration, surfacePaths, surfaceKeyOf });
   const comparison = reportComparison(
@@ -531,14 +537,20 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     comparisonBlocked: comparison.blocksCertification,
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
   });
+  const reachStrip = reach ? reachStripLines(reach) : [];
   md.lines.push(
     '## 🗺️ StyleProof report',
     '',
     ...productStateWarningLines(comparison, gates.legacyPairs),
     ...headline,
+    ...reachStrip,
     ...stateCoverageLines(ctx),
   );
   md.trimToBudget();
+  // A byte cap must never leave the verdict visible while silently dropping reach evidence.
+  if (reach && !md.lines.includes(reachStrip[1])) {
+    throw new Error('report byte budget cannot show reach status; increase maxReportBytes');
+  }
 
   const out: SectionState = { md, json: [], seq: { crop: 0 } };
   const migrationGallery = migration ? buildMigrationGallery(diff.surfaces, content.withContent) : undefined;
@@ -547,6 +559,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseline,
     content,
     migrationGallery,
+    reach,
     surfaceKeyOf,
   });
 
@@ -564,7 +577,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     view.missing.length === 0 &&
     content.total === 0 &&
     !migrationGallery &&
-    !inventoryTouched
+    !inventoryTouched &&
+    !(reach && reachSectionLines(reach).length > 0)
   ) {
     md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
   }
@@ -609,6 +623,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     legacyPairs: gates.legacyPairs,
     criticalStates: gates.criticalStates,
     digest,
+    reach,
   });
   return {
     changedSurfaces: view.prepared.length - view.missing.length,
@@ -628,6 +643,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseOnlyVolatile: diff.baseOnlyVolatile,
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
+    ...(reach ? { reach } : {}),
   };
 }
 
