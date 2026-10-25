@@ -1,0 +1,64 @@
+body {
+  font-family: sans-serif;
+  margin: 24px;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.row--selected {
+  background: #eff6ff;
+}
+
+.status--ok {
+  color: #16a34a;
+}
+
+.status--warn {
+  color: #b45309;
+}
+
+.status--fault {
+  color: #dc2626;
+}
+
+.status--idle {
+  color: #6b7280;
+}
+
+.meter {
+  display: inline-block;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.meter--cool {
+  background: #60a5fa;
+}
+
+.meter--warm {
+  background: #f59e0b;
+}
+
+.meter--hot {
+  background: #dc2626;
+}
+
+.tag {
+  margin-right: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #f3f4f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .row--selected {
+    background: #1e3a8a;
+  }
+}
