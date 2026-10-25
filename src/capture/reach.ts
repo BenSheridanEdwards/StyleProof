@@ -415,7 +415,10 @@ export function comparedSnapshot(input?: ComparedProbes): { fingerprint: string;
   const matched = probes.map((probe, index) => {
     if (probe === null) return false;
     try {
-      const matches = [...document.querySelectorAll(probe)];
+      // Mirror FRAMEWORK_IGNORE in capture.ts; this function is serialized into the page.
+      const ignored =
+        'head, meta, title, link, script, style, base, noscript, template, next-route-announcer, [id="__next-route-announcer__"], [data-styleproof-hover-sink]';
+      const matches = [...document.querySelectorAll(probe)].filter((el) => !el.closest(ignored));
       // A relaxed selector cannot tell which candidate matched the original state.
       return matches.some((el) => elements.has(el)) && (!exclusive[index] || matches.every((el) => elements.has(el)));
     } catch {

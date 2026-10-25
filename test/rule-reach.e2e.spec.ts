@@ -67,6 +67,26 @@ async function capture(
 const statuses = (base: StyleMap[], head: StyleMap[]) =>
   Object.fromEntries(classifyRuleReach(base, head).rules.map((r) => [r.key, r.status]));
 
+test('global relaxed selectors remain reached around framework-ignored elements', async ({ page }) => {
+  const selectors = ['*, ::before, ::after', ':focus-visible', '::placeholder', '*::before', 'div:hover', 'div::after'];
+  const maps: StyleMap[] = [];
+  for (const side of ['base', 'head'] as const) {
+    const color = side === 'base' ? 'red' : 'blue';
+    maps.push(
+      await capture(page, side, false, {
+        html: `<!doctype html><html><head><title>Reach</title><link rel="stylesheet" href="/app.css"></head>
+        <body><div><a href="#docs">Docs</a><input placeholder="Name"></div>
+        <script type="application/json">{}</script><template><div>Template</div></template></body></html>`,
+        css: selectors.map((selector) => `${selector} { color: ${color}; }`).join(' '),
+      }),
+    );
+  }
+  expect(await page.locator('[data-styleproof-hover-sink]').count()).toBe(1);
+  expect(statuses([maps[0]], [maps[1]])).toEqual(
+    Object.fromEntries(selectors.map((selector) => [selector, 'reached'])),
+  );
+});
+
 test('inline-styled scrollers keep resting and forced-state changes reached', async ({ page }) => {
   const html = `<!doctype html><html style="margin:0"><head><link rel="stylesheet" href="/app.css"></head>
     <body style="margin:0"><main style=""><section>

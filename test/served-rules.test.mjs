@@ -631,7 +631,7 @@ test('tracked ledger preserves the selector and chain separately when probing ch
   assert.equal(ledger.rules[0].used, true);
 });
 
-const snapshotElement = () => ({ tagName: 'HTML', attributes: [], childNodes: [], children: [] });
+const snapshotElement = () => ({ tagName: 'HTML', attributes: [], childNodes: [], children: [], closest: () => null });
 const evaluateSnapshot = (fn, input, context) =>
   runInNewContext(`(${fn.toString()})(input)`, {
     input,
@@ -644,10 +644,10 @@ const evaluateSnapshot = (fn, input, context) =>
 
 test('in-page attribution uses only compared capture elements and rejects invalid selectors', async () => {
   const html = snapshotElement(),
-    body = {},
-    compared = {},
-    ignored = {},
-    head = {};
+    body = snapshotElement(),
+    compared = snapshotElement(),
+    ignored = snapshotElement(),
+    head = snapshotElement();
   const paths = new Map([
     [html, 'html'],
     [body, 'body'],
@@ -703,9 +703,9 @@ test('in-page attribution fails when path identity is unavailable', async () => 
 
 test('relaxed state probes cannot borrow usage from excluded elements or negative selector branches', async () => {
   const html = snapshotElement(),
-    body = {},
-    compared = {},
-    ignored = {};
+    body = snapshotElement(),
+    compared = snapshotElement(),
+    ignored = snapshotElement();
   for (const [selector, candidates, reached] of [
     ['.a:hover', [compared, ignored], false],
     ['.a:hover', [compared], true],
@@ -727,4 +727,33 @@ test('relaxed state probes cannot borrow usage from excluded elements or negativ
     assert.equal(ledger.rules[0].used, reached ? true : undefined, selector);
     assert.equal(ledger.rules[0].outside, reached ? undefined : true, selector);
   }
+});
+
+test('relaxed global probes skip permanently ignored candidates but retain eligible outside matches', () => {
+  const element = (tagName, ignored = false) => ({
+    tagName,
+    attributes: [],
+    childNodes: [],
+    children: [],
+    closest: () => (ignored ? {} : null),
+  });
+  const html = element('HTML');
+  const body = element('BODY');
+  const div = element('DIV');
+  const ignored = ['HEAD', 'TITLE', 'SCRIPT', 'TEMPLATE', 'DIV'].map((tag) => element(tag, true));
+  const outside = element('DIV');
+  let candidates = [html, body, div, ...ignored];
+  const snapshot = () =>
+    runInNewContext(`(${reach.comparedSnapshot.toString()})(input)`, {
+      input: { probes: ['*', 'div'], exclusive: [true, true], compared: ['HTML', 'BODY', 'DIV'] },
+      document: { documentElement: html, body, querySelectorAll: () => candidates },
+      window: { __spPathOf: (el) => (el === outside ? 'outside' : el.tagName) },
+      location: { hash: '' },
+      Node: { TEXT_NODE: 3 },
+      HTMLInputElement: class {},
+      HTMLTextAreaElement: class {},
+    });
+  assert.deepEqual(Array.from(snapshot().matched), [true, true]);
+  candidates = [...candidates, outside];
+  assert.deepEqual(Array.from(snapshot().matched), [false, false]);
 });
