@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveSpawnPlan } from '../bin/platform-command.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -75,7 +76,7 @@ function stagePackageDir(dest) {
   return dest;
 }
 
-test('packed package installs with its peer and exposes API plus CLI help', { timeout: 90_000 }, () => {
+test('packed package installs with its peer and exposes API plus CLI help', { timeout: 150_000 }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-pack-smoke-'));
   try {
     // Pack a staged copy, not the live checkout — see stagePackageDir: packing the repo
@@ -228,6 +229,48 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       !fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-approve.yml')),
       'the packed setup defaults to advisory — the approval workflow is opt-in',
     );
+
+    const fakeDir = path.join(tmp, 'fake-playwright');
+    fs.mkdirSync(fakeDir);
+    fs.writeFileSync(
+      path.join(fakeDir, 'package.json'),
+      JSON.stringify({ name: 'playwright', version: '0.0.0', bin: { playwright: 'cli.cjs' } }),
+    );
+    fs.writeFileSync(
+      path.join(fakeDir, 'cli.cjs'),
+      "#!/usr/bin/env node\nrequire('fs').writeFileSync(process.env.STYLEPROOF_FAKE_PLAYWRIGHT_LOG, JSON.stringify(process.argv.slice(2)));\n",
+    );
+    const browserStep = path.join(tmp, 'browser-step');
+    fs.mkdirSync(browserStep);
+    fs.writeFileSync(path.join(browserStep, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    const fakeInstall = runNpm(['install', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', fakeDir], {
+      cwd: browserStep,
+    });
+    assert.equal(fakeInstall.status, 0, commandFailure(fakeInstall));
+
+    // Without the fix, this exits 5 with spawnSync npm.cmd EINVAL on Windows.
+    // A fake CLI records the browser request without downloading or launching Chromium.
+    const browserLog = path.join(tmp, 'browser-args.json');
+    const browserSetup = run(
+      process.execPath,
+      [path.join(app, 'node_modules/styleproof/bin/styleproof.mjs'), 'setup', '--skip-install', '--external-server'],
+      { cwd: browserStep, env: { ...process.env, STYLEPROOF_FAKE_PLAYWRIGHT_LOG: browserLog } },
+    );
+    assert.equal(browserSetup.status, 0, commandFailure(browserSetup));
+    assert.match(browserSetup.stdout, /StyleProof setup complete/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(browserLog, 'utf8')), ['install', 'chromium']);
+
+    const roundTripArgs = ['--save-dev', 'styleproof@9.0.0', '@playwright/test@>=1.45', 'a b', 'x&y'];
+    const roundTripLog = path.join(tmp, 'round-trip-args.json');
+    const plan = resolveSpawnPlan('npm', ['exec', '--', 'playwright', ...roundTripArgs]);
+    const roundTrip = spawnSync(plan.file, plan.args, {
+      ...plan.options,
+      cwd: browserStep,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_FAKE_PLAYWRIGHT_LOG: roundTripLog },
+    });
+    assert.equal(roundTrip.status, 0, commandFailure(roundTrip));
+    assert.deepEqual(JSON.parse(fs.readFileSync(roundTripLog, 'utf8')), roundTripArgs);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
