@@ -26,6 +26,9 @@ export type ObservedNavOptions = Pick<SelectLinksOptions, 'base' | 'match' | 'ke
   usedKeys: Set<string>;
 };
 
+const EMPTY_HASH_ROUTE = /^#!?\/(?:\?.*)?$/s;
+const HASH_ROUTE = /^#!?(\/[^?]*)(\?.*)?$/s;
+
 /** Path segments, then query-param values sorted by param name. */
 function routeParts(pathname: string, params: URLSearchParams): string[] {
   const values = [...params]
@@ -44,7 +47,7 @@ function routeParts(pathname: string, params: URLSearchParams): string[] {
  * `#anchor` is not a route and stays out of the key.
  */
 export function defaultLinkKey(url: URL): string {
-  const hashRoute = /^#!?(\/[^?]*)(\?.*)?$/s.exec(url.hash);
+  const hashRoute = EMPTY_HASH_ROUTE.test(url.hash) ? null : HASH_ROUTE.exec(url.hash);
   const hashParts = hashRoute ? routeParts(hashRoute[1], new URLSearchParams(hashRoute[2])) : [];
   const slug = [...routeParts(url.pathname, url.searchParams), ...hashParts]
     .join('-')
@@ -86,9 +89,16 @@ function resolveLink(href: string, base: URL, match?: LinkMatch): URL | null {
   return url.origin === base.origin && matches(url, match) ? url : null;
 }
 
+/** Path+query to navigate, plus the fragment when it is a hash-router route (`#/…`, `#!/…`); a plain `#anchor` is dropped. */
+export function navigablePath(url: URL): string {
+  return url.pathname + url.search + (HASH_ROUTE.test(url.hash) && !EMPTY_HASH_ROUTE.test(url.hash) ? url.hash : '');
+}
+
 function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
   const url = resolveLink(href, base, match);
   if (!url) return null;
+  if (HASH_ROUTE.test(url.hash) && !EMPTY_HASH_ROUTE.test(url.hash))
+    return { key: keyFor(url), url: navigablePath(url) }; // a hash-router route is its own surface
   const path = url.pathname + url.search;
   if (url.hash && path === base.pathname + base.search) return null; // a bare fragment of the crawl root is the same page
   url.hash = ''; // navigate the surface, not a scroll anchor within it
@@ -110,24 +120,24 @@ function sortedSearch(search: string): string {
 }
 
 /** Dedup identity for a navigable path+query, so two forms of one route never capture twice: a
- *  trailing slash is stripped (never from the root `/`, nor from the query) and a trailing
- *  `index.html` collapses to its directory. A real `about.html` stays distinct from `about`. */
+ *  trailing slash is stripped (never from the root `/`, nor from the query), a trailing
+ *  `index.html` collapses to its directory, and query params are sorted. A real `about.html`
+ *  stays distinct from `about`. All of this applies to the real path and query only: a
+ *  `#fragment` (kept for hash routers) is compared verbatim, so `#/a` and `#/a/index.html`
+ *  stay two surfaces. An empty hash route (`#/`, `#!/`, with or without a query)
+ *  equals no fragment. */
 export function dedupIdentity(pathAndSearch: string): string {
-  const q = pathAndSearch.indexOf('?');
-  const path = q === -1 ? pathAndSearch : pathAndSearch.slice(0, q);
-  // Sort only the real query; a `#fragment` (kept for hash routers) is carried through untouched.
-  const hash = pathAndSearch.indexOf('#');
-  const queryEnd = hash === -1 ? pathAndSearch.length : hash;
-  const search =
-    q === -1
-      ? ''
-      : q < queryEnd
-        ? sortedSearch(pathAndSearch.slice(q, queryEnd)) + pathAndSearch.slice(queryEnd)
-        : pathAndSearch.slice(q);
+  const h = pathAndSearch.indexOf('#');
+  const hash = h === -1 ? '' : pathAndSearch.slice(h);
+  const fragment = EMPTY_HASH_ROUTE.test(hash) ? '' : hash;
+  const beforeHash = h === -1 ? pathAndSearch : pathAndSearch.slice(0, h);
+  const q = beforeHash.indexOf('?');
+  const path = q === -1 ? beforeHash : beforeHash.slice(0, q);
+  const search = q === -1 ? '' : sortedSearch(beforeHash.slice(q));
   const withoutIndex = path.replace(/(^|\/)index\.html$/, '$1');
   let end = withoutIndex.length;
   while (end > 1 && withoutIndex.charCodeAt(end - 1) === 47) end--;
-  return withoutIndex.slice(0, end) + search;
+  return withoutIndex.slice(0, end) + search + fragment;
 }
 
 /** First wins bare, the next collider gets `-2`, `-3`, … — deterministic in discovery order. */
@@ -156,7 +166,7 @@ function collectUnique(links: Iterable<CrawlLink | null>, seen: Set<string>, use
 export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opts: SelectLinksOptions): CrawlLink[] {
   const base = new URL(opts.base);
   const keyFor = opts.key ?? defaultLinkKey;
-  const self = opts.includeSelf ? [{ key: keyFor(base), url: base.pathname + base.search }] : [];
+  const self = opts.includeSelf ? [{ key: keyFor(base), url: navigablePath(base) }] : [];
   const links = Array.from(hrefs, (href) => (href ? toLink(href, base, keyFor, opts.match) : null));
   return collectUnique([...self, ...links], new Set(), new Set());
 }

@@ -386,6 +386,29 @@ test('followLinks: false never reads links', async () => {
   }
 });
 
+for (const { entry, landed, expected } of [
+  { entry: '/#/home', landed: '/#/home', expected: '/#/home' },
+  { entry: '/', landed: '/#!/dashboard', expected: '/#!/dashboard' },
+  { entry: '/', landed: '/?lang=en#/search?b=1&a=2', expected: '/?lang=en#/search?b=1&a=2' },
+  { entry: '/guide', landed: '/guide#section', expected: '/guide' },
+]) {
+  test(`crawl report keeps the settled route identity: ${entry} → ${landed}`, async () => {
+    const { page } = navigationPage();
+    page.url = () => new URL(landed, BASE).href;
+    page.$$eval = async () => [landed, '/about'];
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-landed-'));
+    try {
+      const report = await crawlAndCapture(page, navigationOptions(out, { url: new URL(entry, BASE).href }));
+      assert.equal(report.landed, expected);
+      if (expected.includes('#')) {
+        assert.equal(report.links[0].url, report.landed, 'the self link and settled page must share an identity');
+      }
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+}
+
 test('the keep marker spares exactly the data-state reloads and the reset is armed once per page', async () => {
   const fixture = navigationPage();
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-storage-'));
@@ -508,6 +531,67 @@ test('selectCrawlLinks: a bare fragment of the crawl root is not a surface', () 
   // base is "/", so "#main" → "/#main" → same page; but "/?tab=a#top" is a real surface.
   const links = pick(['#main', '/?tab=a#top']);
   assert.deepEqual(links, [{ key: 'a', url: '/?tab=a' }]); // hash stripped from the navigable url
+});
+
+for (const fragment of ['#/', '#!/', '#/?tab=home', '#!/?tab=home']) {
+  test(`selectCrawlLinks: empty hash route ${fragment} does not duplicate the root`, () => {
+    assert.deepEqual(pick([fragment], { includeSelf: true }), [{ key: 'index', url: '/' }]);
+    assert.deepEqual(pick([fragment]), []);
+  });
+
+  test(`selectCrawlLinks: root landed on ${fragment} dedupes a plain home link`, () => {
+    assert.deepEqual(pick(['/'], { base: BASE + fragment, includeSelf: true }), [{ key: 'index', url: '/' }]);
+  });
+
+  test(`dedupIdentity: empty hash route ${fragment} equals no fragment`, () => {
+    assert.equal(dedupIdentity('/' + fragment), dedupIdentity('/'));
+    assert.equal(dedupIdentity('/app?b=2&a=1' + fragment), dedupIdentity('/app?a=1&b=2'));
+  });
+}
+
+test('selectCrawlLinks: a rendered hash-router link is its own surface on the crawl root', () => {
+  assert.deepEqual(pick(['#/settings', '/#/billing', '#!/legacy'], { includeSelf: true }), [
+    { key: 'index', url: '/' },
+    { key: 'settings', url: '/#/settings' },
+    { key: 'billing', url: '/#/billing' },
+    { key: 'legacy', url: '/#!/legacy' },
+  ]);
+  assert.deepEqual(pick(['#/search?q=shoes']), [{ key: 'search-shoes', url: '/#/search?q=shoes' }]);
+});
+
+test('selectCrawlLinks: a hash-router link from another page keeps its route', () => {
+  assert.deepEqual(selectCrawlLinks(['/#/settings', '#/billing'], { base: 'https://app.test/about' }), [
+    { key: 'settings', url: '/#/settings' },
+    { key: 'about-billing', url: '/about#/billing' },
+  ]);
+});
+
+test('selectCrawlLinks: match and key see the hash route', () => {
+  assert.deepEqual(
+    {
+      matched: pick(['#/settings', '/help'], { match: /#\// }),
+      keyed: pick(['#/settings'], { key: (u) => u.hash }),
+    },
+    {
+      matched: [{ key: 'settings', url: '/#/settings' }],
+      keyed: [{ key: '#/settings', url: '/#/settings' }],
+    },
+  );
+});
+
+test('selectCrawlLinks: a crawl root landed on a hash route is not captured twice', () => {
+  assert.deepEqual(selectCrawlLinks(['#/home', '#/x'], { base: 'https://app.test/#/home', includeSelf: true }), [
+    { key: 'home', url: '/#/home' },
+    { key: 'x', url: '/#/x' },
+  ]);
+});
+
+test('selectCrawlLinks: a hash route is never folded by path normalization', () => {
+  assert.deepEqual(pick(['#/settings', '#/settings/index.html', '#/settings/']), [
+    { key: 'settings', url: '/#/settings' },
+    { key: 'settings-index-html', url: '/#/settings/index.html' },
+    { key: 'settings-2', url: '/#/settings/' },
+  ]);
 });
 
 test('selectCrawlLinks: match narrows by RegExp, substring, and predicate', () => {
@@ -822,4 +906,20 @@ test('dedupIdentity: query parameter order does not create a second surface', ()
   assert.equal(dedupIdentity('/s?b=1&a=2#/x'), dedupIdentity('/s?a=2&b=1#/x'));
   assert.notEqual(dedupIdentity('/?lang=en#/search?q=x&page=2'), dedupIdentity('/?page=2&lang=en#/search?q=x'));
   assert.equal(dedupIdentity('/p#/route?b=1&a=2'), '/p#/route?b=1&a=2');
+});
+
+test('dedupIdentity: a fragment is compared verbatim; only the real path is normalized', () => {
+  assert.notEqual(dedupIdentity('/#/settings/index.html'), dedupIdentity('/#/settings'));
+  assert.notEqual(dedupIdentity('/#/settings/'), dedupIdentity('/#/settings'));
+  assert.equal(dedupIdentity('/p/#/x'), dedupIdentity('/p#/x'));
+  assert.equal(dedupIdentity('/index.html#/x'), dedupIdentity('/#/x'));
+  assert.equal(dedupIdentity('/p#/route/index.html?b=1&a=2'), '/p#/route/index.html?b=1&a=2');
+});
+
+test('selectObservedNavs: a hash route is never folded by path normalization', () => {
+  const { links } = observe(['https://app.test/#/a', 'https://app.test/#/a/index.html']);
+  assert.deepEqual(
+    links.map((l) => l.url),
+    ['/#/a', '/#/a/index.html'],
+  );
 });

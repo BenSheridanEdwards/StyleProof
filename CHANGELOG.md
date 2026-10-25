@@ -36,7 +36,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 3. **Hash-router surface keys (#916).** A crawled `/#/settings` surface moves
    from `index-N` to `settings`. Re-capture, and replace `index-N` keys for
    hash routes in crawl `expected` / `exclude` lists and in acknowledgement
-   files such as `styleproof.product-state.json`.
+   files such as `styleproof.product-state.json`. Rendered hash-router nav links
+   (#946) are now surfaces too; add their route keys to crawl `expected` lists.
+   A `defineCrawlCapture` root that lands on `/#/home` also moves from `index`
+   to `home`; replace that root key in `expected` / `exclude` lists and
+   acknowledgement files. Hash routes with and without a trailing slash stay
+   distinct; if your app treats them as aliases, render one canonical link or
+   use `defineCrawlCapture`'s `match` option to select one form.
 4. **Crawl surfaces that were duplicates (#880, #884).** A crawl no longer
    captures an in-page `#anchor` jump (`docs-2`) or a reordered query string
    as its own surface, so those keys show as removed. Re-capture, and delete
@@ -265,6 +271,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#` or `:`); any other route keeps its full URL and a key from `defaultLinkKey`.
   `styleproof-map --crawl-route`, `STYLEPROOF_CRAWL_ROUTES` and `crawl.routes`
   get the same fix.
+- Empty hash home routes (`#/`, `#!/`, including a query) now dedupe with the page without a fragment, preventing duplicate root captures and CLI follow-link visits.
+- **Rendered hash-router links are crawl surfaces (#946).** A crawl dropped a
+  nav link such as `<a href="#/settings">` or `/#/settings` on the crawl root
+  and collapsed it to its path elsewhere, so hash-router pages were never
+  captured and a change on them passed green. Such links now become their own
+  surface keyed by the route (`settings`) and navigate with the hash kept; a
+  crawl root that lands on a hash route keeps it too, including in the CLI's
+  `--follow-links` sweep, so it is not captured twice. Crawl deduplication
+  compares a hash route verbatim, so `#/settings` and `#/settings/index.html`
+  (or `#/settings/`) are separate surfaces. A plain
+  `#anchor` is unchanged. **Migration:** re-capture the baseline;
+  a crawl `expected` list gains the new keys (`settings`, `billing`, …), and an
+  unfiltered `--follow-links` sweep queues those pages. A `defineCrawlCapture`
+  root landing on `/#/home` changes key from `index` to `home`; update its
+  committed keys as described in migration step 3.
 - **Logging `styleproof.config.ts` files now load on the sync path (#966).**
   Logs from the config or its imports reach the terminal without breaking
   `styleproof-affected`, `styleproof-diff`, `styleproof-capture`,

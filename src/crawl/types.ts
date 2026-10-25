@@ -34,7 +34,7 @@ export type CrawlReport = {
   incompleteUi: IncompleteUiObservation[];
   /** Same-origin pages the settled base state links to — what a multi-page sweep follows. Empty when `followLinks` is false. */
   links: CrawlLink[];
-  /** Path+query the base state settled on (after redirects and setup); `links` were read there. */
+  /** Path+query+hash route the base state settled on (after redirects and setup); `links` were read there. */
   landed: string;
 };
 
