@@ -547,6 +547,14 @@ test('selectCrawlLinks: a crawl root landed on a hash route is not captured twic
   ]);
 });
 
+test('selectCrawlLinks: a hash route is never folded by path normalization', () => {
+  assert.deepEqual(pick(['#/settings', '#/settings/index.html', '#/settings/']), [
+    { key: 'settings', url: '/#/settings' },
+    { key: 'settings-index-html', url: '/#/settings/index.html' },
+    { key: 'settings-2', url: '/#/settings/' },
+  ]);
+});
+
 test('selectCrawlLinks: match narrows by RegExp, substring, and predicate', () => {
   const hrefs = ['/?tab=a', '/help', '/about'];
   assert.deepEqual(
@@ -859,4 +867,20 @@ test('dedupIdentity: query parameter order does not create a second surface', ()
   assert.equal(dedupIdentity('/s?b=1&a=2#/x'), dedupIdentity('/s?a=2&b=1#/x'));
   assert.notEqual(dedupIdentity('/?lang=en#/search?q=x&page=2'), dedupIdentity('/?page=2&lang=en#/search?q=x'));
   assert.equal(dedupIdentity('/p#/route?b=1&a=2'), '/p#/route?b=1&a=2');
+});
+
+test('dedupIdentity: a fragment is compared verbatim; only the real path is normalized', () => {
+  assert.notEqual(dedupIdentity('/#/settings/index.html'), dedupIdentity('/#/settings'));
+  assert.notEqual(dedupIdentity('/#/settings/'), dedupIdentity('/#/settings'));
+  assert.equal(dedupIdentity('/p/#/x'), dedupIdentity('/p#/x'));
+  assert.equal(dedupIdentity('/index.html#/x'), dedupIdentity('/#/x'));
+  assert.equal(dedupIdentity('/p#/route/index.html?b=1&a=2'), '/p#/route/index.html?b=1&a=2');
+});
+
+test('selectObservedNavs: a hash route is never folded by path normalization', () => {
+  const { links } = observe(['https://app.test/#/a', 'https://app.test/#/a/index.html']);
+  assert.deepEqual(
+    links.map((l) => l.url),
+    ['/#/a', '/#/a/index.html'],
+  );
 });

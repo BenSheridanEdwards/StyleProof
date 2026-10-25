@@ -272,7 +272,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   captured and a change on them passed green. Such links now become their own
   surface keyed by the route (`settings`) and navigate with the hash kept; a
   crawl root that lands on a hash route keeps it too, so it is not captured
-  twice. A plain `#anchor` is unchanged. **Migration:** re-capture the baseline;
+  twice. Crawl deduplication compares a hash route verbatim, so `#/settings`
+  and `#/settings/index.html` (or `#/settings/`) are separate surfaces. A plain
+  `#anchor` is unchanged. **Migration:** re-capture the baseline;
   a crawl `expected` list gains the new keys (`settings`, `billing`, …), and an
   unfiltered `--follow-links` sweep queues those pages.
 - **Logging `styleproof.config.ts` files now load on the sync path (#966).**

@@ -118,24 +118,22 @@ function sortedSearch(search: string): string {
 }
 
 /** Dedup identity for a navigable path+query, so two forms of one route never capture twice: a
- *  trailing slash is stripped (never from the root `/`, nor from the query) and a trailing
- *  `index.html` collapses to its directory. A real `about.html` stays distinct from `about`. */
+ *  trailing slash is stripped (never from the root `/`, nor from the query), a trailing
+ *  `index.html` collapses to its directory, and query params are sorted. A real `about.html`
+ *  stays distinct from `about`. All of this applies to the real path and query only: a
+ *  `#fragment` (kept for hash routers) is compared verbatim, so `#/a` and `#/a/index.html`
+ *  stay two surfaces. */
 export function dedupIdentity(pathAndSearch: string): string {
-  const q = pathAndSearch.indexOf('?');
-  const path = q === -1 ? pathAndSearch : pathAndSearch.slice(0, q);
-  // Sort only the real query; a `#fragment` (kept for hash routers) is carried through untouched.
-  const hash = pathAndSearch.indexOf('#');
-  const queryEnd = hash === -1 ? pathAndSearch.length : hash;
-  const search =
-    q === -1
-      ? ''
-      : q < queryEnd
-        ? sortedSearch(pathAndSearch.slice(q, queryEnd)) + pathAndSearch.slice(queryEnd)
-        : pathAndSearch.slice(q);
+  const h = pathAndSearch.indexOf('#');
+  const fragment = h === -1 ? '' : pathAndSearch.slice(h);
+  const beforeHash = h === -1 ? pathAndSearch : pathAndSearch.slice(0, h);
+  const q = beforeHash.indexOf('?');
+  const path = q === -1 ? beforeHash : beforeHash.slice(0, q);
+  const search = q === -1 ? '' : sortedSearch(beforeHash.slice(q));
   const withoutIndex = path.replace(/(^|\/)index\.html$/, '$1');
   let end = withoutIndex.length;
   while (end > 1 && withoutIndex.charCodeAt(end - 1) === 47) end--;
-  return withoutIndex.slice(0, end) + search;
+  return withoutIndex.slice(0, end) + search + fragment;
 }
 
 /** First wins bare, the next collider gets `-2`, `-3`, … — deterministic in discovery order. */
