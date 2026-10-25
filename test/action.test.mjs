@@ -1156,6 +1156,7 @@ function reachActionFixture(t, { level, legacyBase = false } = {}) {
     if (dir !== beforeDir || !legacyBase) {
       capture.reach = {
         version: 2,
+        scope: 'compared',
         sheets: ['/app.css'],
         rules: [{ key: '.panel--fault', hash, sheet: 0 }],
       };
