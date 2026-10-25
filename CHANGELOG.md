@@ -113,6 +113,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **"Changed but never rendered" report section (#996).** When captures carry a
+  `captureReach` ledger, the report lists each changed CSS rule no captured state
+  rendered: its rule, the at-rules that gate it, and the served stylesheet. It
+  also adds a one-line reach status under the headline and `reach` to
+  `report.json`. The status never claims "Reach complete" yet, because
+  render-code reach is not measured. The verdict does not change. Reports from
+  captures without a ledger are unchanged.
 - **Change Reach J1 resolves `@property` and drives the reach corpus (#995).**
   A changed `@property` is a blind channel when a rendered rule reads it outside
   a custom-property alias, or declares it, otherwise never rendered. A changed

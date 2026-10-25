@@ -1367,7 +1367,7 @@ Like the content layer it is **advisory**: never fed to the certification diff o
 
 ## Optional: served-rule ledger (Change Reach, opt-in)
 
-Change Reach ([#934](https://github.com/BenSheridanEdwards/StyleProof/issues/934)) will name a changed CSS rule that no captured state ever rendered. Its first piece records the evidence. Off by default, opt in with `captureReach`:
+Change Reach ([#934](https://github.com/BenSheridanEdwards/StyleProof/issues/934)) names changed served CSS rules that no captured state rendered. Off by default, opt in with `captureReach`:
 
 ```ts
 defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureReach: true });
@@ -1377,7 +1377,9 @@ Each map then carries `reach`: every leaf rule of every stylesheet the page serv
 
 `defineStyleMapCapture` arms the tracker before each `go()`. Chromium keeps a linked stylesheet's text only when the tracker was armed before the sheet loaded. For a direct `captureStyleMap` call, arm one with `trackServedRules(page)` before you navigate and pass `{ captureReach: true, servedRules }`. Without it, linked stylesheets are counted in `reach.unreadable` rather than silently dropped.
 
-`classifyRuleReach` and the reach corpus read the ledger. The diff and the gate are unchanged, and a map with `reach` diffs identically to one without. The ledger adds about 23 bytes per served rule to a gzipped map.
+When any base or head capture carries a ledger, the report adds a **Reach incomplete** status under the headline and a **Changed but never rendered** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Missing or old ledgers and unreadable stylesheets produce named evidence gaps with remedies. A run with complete ledgers whose changed served rules all rendered has no new section, but remains reach-incomplete: render-code coverage, class-list deltas, and the join between changed stylesheets and served sheets are not recorded yet. The source column names the served sheet; source-map resolution is not recorded yet.
+
+`report.json` and the report API result include `reach` only when a capture carries a ledger: `{ complete, ledger, counts, rules, unreadableSheets, gaps }`. `counts` has zero-filled `reached`, `never-rendered`, and `blind-channel` keys; `rules` keeps every changed rule, including reached ones. Each gap has `{ join, status, side?, kind, reason, remedy }`. `complete` remains false while evidence gaps exist. Reports from captures without any ledger are unchanged. The diff, verdict, and gate are unchanged, and a map with `reach` diffs identically to one without. If `maxReportBytes` cannot fit the reach status, report generation fails with a request to increase the budget instead of hiding the warning. The ledger adds about 23 bytes per served rule to a gzipped map.
 
 ## Optional: selective remap (advisory + CI opt-in)
 
