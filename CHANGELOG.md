@@ -43,6 +43,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Restore full-page scroller declarations through CSSOM before restoring exact style attribute text, so strict style CSP cannot leave expansion overrides applied.
 ## [9.0.0] - 2026-10-21
+## [9.0.0] - 2026-10-25
 
 > **StyleProof 9.0.0: stable keys and stricter gates**
 >
@@ -52,8 +53,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > the unread `mapStore.token` key is gone. Generated workflows move to the
 > `@v9` Action, ancestor baseline reuse counts every change unless roots are
 > declared, non-PR reports move to `run-<run_id>/`, and Node 22.13 is the
-> minimum. Several of these change what an existing baseline holds, so an
-> unchanged page can need review against an 8.x baseline. Upgrade, re-capture
+> minimum. Opt-in Change Reach records served CSS rules, names changed rules
+> no captured state rendered, and can hold the verdict on those gaps. Several
+> of these changes affect what an existing baseline holds, so an unchanged
+> page can need review against an 8.x baseline. Upgrade, re-capture
 > the baseline once, then update any committed keys named below.
 
 ### Migration
@@ -65,7 +68,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    re-capture the baseline with 9.0.0. Under `--storage branch`, the
    `publish-base` job does this when the upgrade merges to the default branch.
    Until then, an 8.x base map can make an unchanged page need review for the
-   reasons in steps 2 to 8, 15 and 18.
+   reasons in steps 2 to 8, 13, 15 and 18.
 2. **Colliding Next.js route keys (#919).** A project with both
    `/blog/[slug]` and `/blog/slug` sees `blog-slug` removed and a suffixed key
    added. Re-capture, and replace `blog-slug` wherever a committed list or
@@ -96,8 +99,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    second, out-of-phase live region as head-only volatile. Re-capture.
 8. **Visible structure below the first screen (#915).** A visible element
    added or removed anywhere in the document's scroll height now needs review.
-   Maps without `viewport.documentHeight` treat changes below their first
-   window as visible. Re-capture so the maps record it.
+   Maps without a valid `viewport.screenshotHeight` treat the screenshot bottom
+   as unbounded. Re-capture so the maps record document and screenshot heights.
 9. **Relative `replayUrl` (#918).** A relative `replayUrl` with no `baseURL`
    now fails the capture. Set `use.baseURL` in the Playwright config, or start
    the glob with `**`. With a `baseURL` set, failing data requests the old
@@ -125,56 +128,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     so a run that passed can now need review. Review the change. An `auto`-centred
     margin row against an 8.x baseline clears once the baseline is re-captured
     (step 1).
-14. **Ancestor baseline roots (#826, PR #927; drop this step if #927 does not
-    ship in 9.0.0).** With no roots declared, every changed path now counts as
-    capture-relevant, so ancestor baseline reuse fires less often. To keep the
-    old behaviour, declare `ancestorBaseline: { roots: ['src'] }` in
+14. **Ancestor baseline roots (#826, PR #927).** With no roots declared, every
+    changed path now counts as capture-relevant, so ancestor baseline reuse
+    fires less often. To keep the old behaviour, declare
+    `ancestorBaseline: { roots: ['src'] }` in
     `styleproof.config`, or set `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`. Add
     every other directory or file that changes how your app renders, not only
     `src`.
-15. **Nested-scroller visibility (#920, PR #928; drop this step if #928 does
-    not ship in 9.0.0).** An added or removed element now counts as visible if
-    its driven `rect` is visible against the driven bounds, or its
-    `screenshotRect ?? rect` is visible against the screenshot bounds, so the
+15. **Nested-scroller visibility (#920, PR #928).** An added or removed element
+    now counts as visible if its driven `rect` is visible against the driven
+    bounds, or its `screenshotRect ?? rect` is visible against the screenshot
+    bounds, so the
     gate is never laxer than before and more of them need review. A map with
     missing or invalid `viewport.screenshotHeight` treats the screenshot bottom
     as unbounded (fails closed). Re-capture the baseline.
-16. **Non-PR report paths (#878, PR #930; drop this step if #930 does not ship
-    in 9.0.0).** Non-PR runs publish their branch report under `run-<run_id>/`
-    instead of `pr-<run_id>/`. Update anything that reads non-PR report paths
-    on the report branch; PR paths (`pr-<number>/`) and artifact names are
+16. **Non-PR report paths (#878, PR #930).** Non-PR runs publish their branch
+    report under `run-<run_id>/` instead of `pr-<run_id>/`. Update anything that
+    reads non-PR report paths on the report branch; PR paths (`pr-<number>/`)
+    and artifact names are
     unchanged.
-17. **Node 22.13+ (PR #933; drop this step if #933 does not ship in 9.0.0).**
-    Node 18 and 20 are no longer supported. Move local and CI Node to 22.13 or
-    later, then run `npx styleproof-init --upgrade` to refresh the generated
-    capture workflow.
+17. **Node 22.13+ (PR #933).** Node 18 and 20 are no longer supported. Move
+    local and CI Node to 22.13 or later, then run `npx styleproof-init --upgrade`
+    to refresh the generated capture workflow.
 18. **More pseudo-elements (#979).** Maps now hold `::first-letter`,
     `::first-line`, `::backdrop` and `::file-selector-button` layers, and
     forced-state reads now include `::placeholder` and `::marker`. Against an
     8.x baseline, a page that styles one of these shows it once as a change.
     Re-capture the baseline. Older maps still load and diff.
-13. **Forced-state margins (#914, #886).** A `:hover`/`:focus`/`:active`
-    margin change the old filter dropped is now reported, so a run that passed
-    can now need review. Review the change; no re-capture is needed.
-14. **Ancestor baseline roots (#826, PR #927).** With no roots declared, every
-    changed path now counts as capture-relevant, so ancestor baseline reuse
-    fires less often. To keep the old behaviour, declare
-    `ancestorBaseline: { roots: ['src'] }` in `styleproof.config`, or set
-    `STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src`. Add every other directory or file
-    that changes how your app renders, not only `src`.
-15. **Nested-scroller visibility (#920, PR #928).** An added or removed element
-    now counts as visible if its driven `rect` is visible against the driven
-    bounds, or its `screenshotRect ?? rect` is visible against the screenshot
-    bounds, so the gate is never laxer than before and more of them need
-    review. A map with missing or invalid `viewport.screenshotHeight` treats
-    the screenshot bottom as unbounded (fails closed). Re-capture the baseline.
-16. **Non-PR report paths (#878, PR #930).** Non-PR runs publish their branch
-    report under `run-<run_id>/` instead of `pr-<run_id>/`. Update anything
-    that reads non-PR report paths on the report branch; PR paths
-    (`pr-<number>/`) and artifact names are unchanged.
-17. **Node 22.13+ (PR #933).** Node 18 and 20 are no longer supported. Move
-    local and CI Node to 22.13 or later, then run `npx styleproof-init --upgrade`
-    to refresh the generated capture workflow.
 
 ### Added
 
@@ -204,8 +184,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   a custom-property alias, or declares it, otherwise never rendered. A changed
   token that no served rule reads outside a custom property, or that only feeds
   unread aliases, is never rendered instead of reached. Ledger rules gain `aliases`.
+  `report.json`. The status never claims "Reach complete" yet, because
+  render-code reach is not measured. With the default `changeReach: 'warn'`,
+  the verdict does not change and reports from captures without a ledger are
+  unchanged. Opt-in `'gate'` also holds runs with missing ledgers, as above.
+- **Change Reach J1 classifies changed served CSS rules (#1056, #995).**
+  Across captured surfaces and widths, each changed rule is classified as
+  `reached`, `never-rendered` (with the at-rule condition that kept it hidden),
+  or `blind-channel`, after checking every distinct served body. Added bodies
+  are checked on head and removed bodies on base; route-specific bodies are
+  compared separately so one route cannot hide another's change. A changed
+  custom property must reach every consumer,
+  including through aliases. A changed `@keyframes` or `@font-face` is a blind
+  channel when a rendered rule references its animation or font family, because
+  computed styles do not hold those bodies. A changed `@property` is a blind
+  channel when a rendered rule reads it outside a custom-property alias, or
+  declares it, otherwise never rendered. A changed token that no served rule
+  reads outside a custom property, or that only feeds unread aliases, is never
+  rendered instead of reached. Ledger rules gain `aliases`.
   Ledgers carry `version: 2`. A map whose ledger lacks it (recorded before
-  aliases) classifies nothing (`ledger: 'missing'`). `var()` references are read
+  aliases), or any map without a ledger, classifies nothing (`ledger: 'missing'`).
+  Unreadable stylesheets leave the ledger `partial`; readable rules are still
+  classified, but that is not proof of complete reach. `var()` references are read
   past comments and in any case, and one whose name cannot be parsed fails the
   capture as reach unknown.
 - **Served-rule ledger for Change Reach (#991).** `captureReach: true` (in
@@ -213,9 +213,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   in `StyleMap.reach` and marks the ones that matched an element while the map
   was read, forced states included. This is the evidence Change Reach (#934)
   uses to name a changed rule that no captured state rendered. Off by default.
-  Diffs, verdicts and exit codes are unchanged. For a
-  direct `captureStyleMap` call, arm `trackServedRules(page)` before navigating
-  and pass it as `servedRules`. Otherwise linked stylesheets are counted
+  Enabling `captureReach` alone leaves diffs, verdicts and exit codes unchanged
+  with the default `changeReach: 'warn'`. For a direct `captureStyleMap` call,
+  arm `trackServedRules(page)` before navigating and pass it as `servedRules`.
+  Otherwise linked stylesheets are counted
   `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
   `ServedRuleTracker`.
 - **Change Reach counts only compared elements (#993).** A rule matched only
@@ -246,9 +247,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   in `bench/reach-joins.mjs` name 11 of the 12 misses from CSS rule usage, V8
   block coverage and class-list deltas, with the twelfth pinned as the named
   runtime CSS-in-JS residual. Capturing all five states shows 12 of 13.
-  `npm run bench:reach:check` reproduces these totals with J1 from `src/rule-reach.ts`.
-  `npm run bench:reach:check` fails on drift in
-  either direction and runs in CI beside the detection corpus. Benchmark only,
+  `npm run bench:reach:check` reproduces these totals, fails on drift in either
+  direction and runs in CI beside the detection corpus. Benchmark only,
   not part of the published package.
 - **The PR comment names what changed, not just how much (#831).** A **What
   changed** block now follows the headline count. It has one row per one-sided
@@ -835,9 +835,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (#938).** In certify mode with `fail-on-diff: true` (the Action default),
   "Fail on diff" fails the job on any reviewable change. The comment footer
   still said StyleProof was advisory and that the **StyleProof** check stayed
-  green, but certify mode never sets that status. The same footer appeared when
-  `styleproof.config` set `blocking: 'advisory'`, which `styleproof-init`
-  writes and "Fail on diff" does not read. The footer now says the certify gate
+  green, but certify mode in a `pull_request` workflow does not set that status.
+  The same footer appeared when `styleproof.config` set `blocking: 'advisory'`,
+  which `styleproof-init` writes and "Fail on diff" does not read. The footer
+  now says the certify gate
   fails the job and how to accept the change, or that certification passes.
   A fork PR's untrusted capture in certify mode now says StyleProof cannot
   certify the pull request, even when the maps are identical, instead of
@@ -946,7 +947,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   resolve that install's browser build, find it missing and fail the run. The
   browser-preflight test is unchanged and keeps its coverage. Test-only.
 - **BREAKING: nested-scroller additions/removals visible in full-page screenshots
-  now require review (#920, targeting 9.0.0).** The visible-structure gate uses
+  now require review (#920).** The visible-structure gate uses
   either non-zero `rect` against the original driven bounds, or non-zero
   `screenshotRect ?? rect` against the screenshot bounds. Both use horizontal
   `scrollX` to `scrollX + width` and vertical top `min(0, scrollY)`; the driven
@@ -1029,14 +1030,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof.product-state.json` in cwd still arms the gate, so a CI env var
   cannot silently drop committed obligations. To disarm, delete or rename the
   file. A unit test pins both cases. No runtime change (#875).
-- **BREAKING: A balanced `:hover`/`:focus`/`:active` margin change is no longer dropped
-  from certification.** The layout-equivalent margin filter dropped a forced-state
+- **BREAKING: Balanced and one-sided `:hover`/`:focus`/`:active` margin changes
+  are no longer dropped from certification (#914, #886).** The
+  layout-equivalent margin filter dropped a forced-state
   delta's matching left/right margin change whenever the element's rectangle was
   unchanged. That rectangle is the resting one, which a forced state never moves,
   so `a:hover { margin: 0 40px }` on an inline link or a fixed-width block
-  produced no finding. Forced-state deltas now keep every horizontal margin row.
-  An `auto`-centred child whose margins only follow a width change under hover
-  now also reports its margin rows until the capture can prove that echo.
+  produced no finding. A one-sided margin added or removed by a state, such as
+  `button:hover { margin-left: 40px }`, could also disappear when the unchanged
+  side was treated as an unknown value. Forced-state deltas now keep authored
+  horizontal margin changes; only balanced margin pairs proved `auto` at rest
+  and under the state on both maps by CSS Typed OM are filtered (see #917 above).
 - **BREAKING: A balanced margin change on a centred item that moves its siblings now
   reports (#951).** The layout-equivalent margin filter dropped a matching
   left/right margin change whenever the element's own rectangle was unchanged.
@@ -1146,10 +1150,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **BREAKING: Every live region is excluded, not only the last one to tick.** Settling
   kept only the paths that changed in the latest changing poll, so two live
   regions ticking out of phase left one in the map as if it were stable. A path
-  is now volatile when it changed within the quiet window before timeout or in
-  the last poll that changed, so every region that changed in that window is
-  excluded, a slower region held open by in-flight requests still is, and
-  content that loaded late (in any number of steps) and then settled is still
+  is now volatile when it changed within the quiet window before timeout, or
+  changed repeatedly and appeared in the last poll that changed. Every region
+  that changed in that window is excluded, a slower region held open by
+  in-flight requests still is, and content that loaded late (in any number of
+  steps) and then settled is still
   compared. **Upgrade note:** a base map captured under the old rule can flag
   the second ticker as head-only volatile (not certified) until the base is
   re-captured with this version.
@@ -1194,12 +1199,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The directory index was a plain object, so a one-sided `constructor` capture
   crashed `diffStyleMapDirs` (and, when only on the base side, `diffContentDirs`
   and `auditLiveTextDirs`) instead of being reported as removed or new.
-- **BREAKING: A one-sided `:hover`/`:focus` margin that a state adds or removes is no
-  longer dropped from certification.** The layout-equivalent margin filter read a state delta's
-  "state does not change it" side as an unknown px value and treated it as
-  balanced, so `button:hover { margin-left: 40px }` produced no finding. The
-  sentinel now resolves to the element's resting value; an unknown resting value
-  counts as balanced only when the opposite margin changed identically.
 - **BREAKING: Query parameter order no longer captures one route twice.**
   `dedupIdentity` now sorts parameters by name, as `defaultLinkKey` already
   did, so `?cat=shoes&page=2` and `?page=2&cat=shoes` are one surface.
