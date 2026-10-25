@@ -118,6 +118,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   a custom-property alias, or declares it, otherwise never rendered. A changed
   token that no served rule reads outside a custom property, or that only feeds
   unread aliases, is never rendered instead of reached. Ledger rules gain `aliases`.
+  Ledgers carry `version: 2`. A map whose ledger lacks it (recorded before
+  aliases) classifies nothing (`ledger: 'missing'`). `var()` references are read
+  past comments and in any case, and one whose name cannot be parsed fails the
+  capture as reach unknown.
 - **Served-rule ledger for Change Reach (#991).** `captureReach: true` (in
   `defineStyleMapCapture` or `captureStyleMap`) records every served CSS rule
   in `StyleMap.reach` and marks the ones that matched an element while the map

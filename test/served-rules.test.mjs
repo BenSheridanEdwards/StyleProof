@@ -88,6 +88,26 @@ test('servedRulesOf unions aliases across repeated custom property declarations'
   assert.deepEqual(root.uses, ['--warn', '--middle']);
 });
 
+test('servedRulesOf reads var() names past comments and in any case', () => {
+  const [root] = servedRulesOf(
+    `:root { --tone: var(/* c */ --warn); --mix: VAR( --a , var(/**/--b));
+       color: var(--c/* d */); content: "var(--s)"; }`,
+    [],
+  );
+  assert.deepEqual(root.aliases, { '--mix': ['--a', '--b'], '--tone': ['--warn'] });
+  assert.deepEqual(root.uses, ['--warn', '--a', '--b', '--c']);
+});
+
+test('a var() name servedRulesOf cannot parse fails with unknown reach', () => {
+  for (const text of [
+    String.raw`:root { --tone: var(--w\61rn); }`,
+    '.a { color: var(--wärn); }',
+    '.a { color: var(); }',
+  ]) {
+    assert.throws(() => servedRulesOf(text, []), /served CSS reach is unknown: unsupported var\(\) reference/, text);
+  }
+});
+
 test('servedRulesOf records @property without declarations, reads or usage', () => {
   const [property] = servedRulesOf('@property --brand { syntax: "<color>"; inherits: false; initial-value: red; }', []);
   assert.equal(property.key, '@property --brand');
@@ -241,6 +261,7 @@ test('sheet discovery order cannot move usage between repeated rule keys', async
   const first = await trackedLedger(sheets);
   assert.deepEqual(first, await trackedLedger([...sheets].reverse()));
   assert.equal(first.rules.filter((r) => r.used).length, 1);
+  assert.equal(first.version, 2);
 });
 
 test('identical sheet labels and text fail as ambiguous in either discovery order', async () => {

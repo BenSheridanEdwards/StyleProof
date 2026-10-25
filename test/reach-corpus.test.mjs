@@ -57,6 +57,7 @@ async function corpusProbe(mode, rootUrl) {
       options.push(settings?.captureReach === true && Boolean(settings.servedRules));
       captures++;
       const reach = {
+        version: 2,
         sheets: ['/app.css'],
         rules: [{ sheet: 0, key: '.probe', hash: page.side, used: true }],
         ...(mode === 'partial' ? { unreadable: 1 } : {}),

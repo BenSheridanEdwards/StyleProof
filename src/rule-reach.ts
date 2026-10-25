@@ -20,7 +20,8 @@
  *                     but its body is not something computed styles can hold.
  * Token closure follows `aliases`; a token no rule reads outside a custom property is never-rendered.
  * When any map on either side has no ledger (captured without captureReach, or older),
- * nothing is classified: `ledger: 'missing'`. Unreadable stylesheets give `ledger: 'partial'`;
+ * or a ledger without `version: 2` (recorded before aliases), nothing is classified:
+ * `ledger: 'missing'`. Unreadable stylesheets give `ledger: 'partial'`;
  * only readable rules are classified, so a partial ledger is never proof of reach.
  */
 import type { ServedRule, StyleMap } from './capture/types.js';
@@ -42,7 +43,8 @@ export type RuleReach = {
 
 export type RuleReachResult = {
   /**
-   * `missing` when a map on either side has no ledger; `rules` is then empty.
+   * `missing` when a map on either side has no ledger, or one without `version: 2`
+   * (recorded before aliases); `rules` is then empty.
    * `partial` when either side has unreadable stylesheets: `rules` covers only readable
    * sheets, so a changed rule or consumer inside an unreadable one is absent.
    * Treat a partial result as unknown, never as proof of reach.
@@ -103,6 +105,11 @@ function sideOf(maps: readonly StyleMap[]): Side {
       continue;
     }
     side.unreadable += map.reach.unreadable ?? 0;
+    // A ledger recorded before `aliases` cannot show which tokens feed which aliases.
+    if (map.reach.version !== 2) {
+      side.complete = false;
+      continue;
+    }
     const served = new Set(map.reach.rules.map(variantId));
     side.common = new Set([...side.common].filter((id) => served.has(id)));
     for (const rule of map.reach.rules) {

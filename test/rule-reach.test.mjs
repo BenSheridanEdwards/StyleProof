@@ -7,7 +7,12 @@ import { servedRulesOf } from '../dist/capture/reach.js';
 // status, judged on the side where it can render.
 
 const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
-const map = (...rules) => ({ defaults: {}, elements: {}, states: {}, reach: { sheets: ['/app.css'], rules } });
+const map = (...rules) => ({
+  defaults: {},
+  elements: {},
+  states: {},
+  reach: { version: 2, sheets: ['/app.css'], rules },
+});
 const statusOf = (result, key) => result.rules.find((r) => r.key === key);
 
 const sheet = (label, text, ...needles) => ({ label, text, needles });
@@ -27,7 +32,7 @@ const cssMap = (...sheets) => {
       return { ...rule, key: n > 1 ? `${rule.key} #${n}` : rule.key, sheet: index };
     });
   });
-  return { ...map(), reach: { sheets: sorted.map((s) => s.label), rules } };
+  return { ...map(), reach: { version: 2, sheets: sorted.map((s) => s.label), rules } };
 };
 
 test('an unchanged ledger has nothing to classify', () => {
@@ -422,9 +427,70 @@ test('a side with any map lacking a ledger classifies nothing', () => {
   assert.equal(classifyRuleReach([ledgered], []).ledger, 'missing');
 });
 
+test('a ledger recorded before aliases classifies nothing, in any order', () => {
+  const captured = (value) =>
+    cssMap(
+      sheet(
+        '/app.css',
+        `:root { --warn: ${value}; }
+         .theme { --tone: var(--warn); color: var(--warn); }
+         .hidden { color: var(--tone); }`,
+        ':root',
+        '.theme',
+      ),
+    );
+  const base = captured('red');
+  const head = captured('blue');
+  assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--warn changed through --tone, and its consumer .hidden never matched',
+    sheet: '/app.css',
+  });
+  // Before #995 a ledger had no version and no aliases: it looks like a rule with no aliases.
+  const legacy = (m) => {
+    const reach = structuredClone(m.reach);
+    delete reach.version;
+    for (const rule of reach.rules) delete rule.aliases;
+    return { ...m, reach };
+  };
+  const missing = { ledger: 'missing', rules: [], unreadableSheets: 0 };
+  assert.deepEqual(classifyRuleReach([legacy(base)], [legacy(head)]), missing);
+  for (const [before, after] of [
+    [[base], [legacy(head), head]],
+    [[base], [head, legacy(head)]],
+    [[legacy(base), base], [head]],
+    [[base, legacy(base)], [head]],
+  ]) {
+    assert.deepEqual(classifyRuleReach(before, after), missing);
+  }
+});
+
+test('a commented var() still names its idle consumer', () => {
+  for (const [rules, why] of [
+    [
+      `.theme { --tone: var(/* comment */ --warn); color: var(--warn); color: black; }
+       .hidden { color: var(--tone); }`,
+      '--warn changed through --tone, and its consumer .hidden never matched',
+    ],
+    [
+      '.theme { color: var(--warn); }\n.hidden { color: var(/* c */ --warn); }',
+      '--warn changed, and its consumer .hidden never matched',
+    ],
+  ]) {
+    const captured = (value) => cssMap(sheet('/app.css', `:root { --warn: ${value}; }\n${rules}`, ':root', '.theme'));
+    const result = statusOf(classifyRuleReach([captured('red')], [captured('blue')]), ':root');
+    assert.deepEqual([result.status, result.why], ['never-rendered', why]);
+  }
+});
+
 test('unreadable stylesheets on either side are counted', () => {
-  const base = { ...map(rule('.a', 'h1', { used: true })), reach: { sheets: [], rules: [], unreadable: 2 } };
-  const head = { ...map(), reach: { sheets: [], rules: [], unreadable: 1 } };
+  const base = {
+    ...map(rule('.a', 'h1', { used: true })),
+    reach: { version: 2, sheets: [], rules: [], unreadable: 2 },
+  };
+  const head = { ...map(), reach: { version: 2, sheets: [], rules: [], unreadable: 1 } };
   const result = classifyRuleReach([base], [head]);
   assert.equal(result.unreadableSheets, 3);
   assert.equal(result.ledger, 'partial');
@@ -555,6 +621,7 @@ test('the same maps in any order give the same result', () => {
   const side = (sheet, referrer, consumer, k, r, warn) => ({
     ...map(),
     reach: {
+      version: 2,
       sheets: [sheet],
       rules: [
         rule('@keyframes pulse', k),
@@ -581,7 +648,7 @@ test('the same maps in any order give the same result', () => {
   // Multiple bodies for one key choose the same result and sheet regardless of route order.
   const split = (hash, sheet, used) => ({
     ...map(),
-    reach: { sheets: [sheet], rules: [rule('.split', hash, used ? { used: true } : {})] },
+    reach: { version: 2, sheets: [sheet], rules: [rule('.split', hash, used ? { used: true } : {})] },
   });
   for (const used of [true, false]) {
     const variants = [split('B', '/b.css', used), split('A', '/a.css', used)];

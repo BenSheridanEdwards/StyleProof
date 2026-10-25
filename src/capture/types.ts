@@ -156,6 +156,8 @@ export type ServedRule = {
 };
 
 export type ServedRules = {
+  /** Ledger format. 2 records `aliases`; a ledger without it (captured before #995) cannot show which tokens feed which aliases. */
+  version?: 2;
   /** Where each stylesheet came from: its URL path, `inline`, or `constructed`. */
   sheets: string[];
   rules: ServedRule[];
