@@ -15,7 +15,7 @@ import {
 } from '../dist/capture-url.js';
 import { BrowserStallError, watchBrowserProgress } from '../dist/browser-stall.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
-import { dedupIdentity, uniqueKeyFor } from '../dist/crawl.js';
+import { dedupIdentity, navigablePath, uniqueKeyFor } from '../dist/crawl.js';
 import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
 import { loadStyleProofConfigWithLocation } from '../dist/config.js';
 import path from 'node:path';
@@ -199,7 +199,7 @@ async function sweepPages(browser, page) {
   const sweep = {
     entry,
     queue: [{ url: opts.url, prefix: '' }],
-    seenPages: new Set([dedupIdentity(entry.pathname + entry.search)]),
+    seenPages: new Set([dedupIdentity(navigablePath(entry))]),
     usedKeys: new Set(['base']),
   };
   const reports = [];

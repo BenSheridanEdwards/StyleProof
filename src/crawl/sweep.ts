@@ -16,7 +16,7 @@ import { DANGER_SOURCE } from '../danger.js';
 import { unsafeControlDiagnostic } from '../incomplete-ui.js';
 import { classifyAuthBoundary, type AuthBoundaryMetadata } from '../auth-boundary.js';
 import { resolveCrawlConfidence, redactedRoutePath, shouldRetainAuthRedirects } from '../crawl-confidence.js';
-import { selectCrawlLinks, uniqueKeyFor, type CrawlLink } from '../crawl.js';
+import { navigablePath, selectCrawlLinks, uniqueKeyFor, type CrawlLink } from '../crawl.js';
 import { slug } from '../util.js';
 import { collectClickable, collectDefinedClasses } from './browser.js';
 import {
@@ -446,7 +446,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   // Read the nav from the settled base (after wait, settle, setup, reveal): a nav that mounts late
   // or only behind the setup gate has no links on a bare load.
   const links = opts.followLinks === false ? [] : await linkedPages(page);
-  const landed = pathAndSearch(page.url());
+  const landed = navigablePath(new URL(page.url()));
   st.seen.add(fp.sig);
   await record(page, ctx, { path: [], depth: 0, sig: fp.sig, retryOnly: false, viaRetry: false }, fp, st.queue);
   // The loading skeleton and error render exist in every data-driven app but almost never in a click path.

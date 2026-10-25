@@ -89,7 +89,7 @@ function resolveLink(href: string, base: URL, match?: LinkMatch): URL | null {
 }
 
 /** Path+query to navigate, plus the fragment when it is a hash-router route (`#/…`, `#!/…`); a plain `#anchor` is dropped. */
-function navigablePath(url: URL): string {
+export function navigablePath(url: URL): string {
   return url.pathname + url.search + (HASH_ROUTE.test(url.hash) ? url.hash : '');
 }
 

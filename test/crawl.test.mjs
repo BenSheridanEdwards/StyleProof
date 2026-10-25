@@ -386,6 +386,29 @@ test('followLinks: false never reads links', async () => {
   }
 });
 
+for (const { entry, landed, expected } of [
+  { entry: '/#/home', landed: '/#/home', expected: '/#/home' },
+  { entry: '/', landed: '/#!/dashboard', expected: '/#!/dashboard' },
+  { entry: '/', landed: '/?lang=en#/search?b=1&a=2', expected: '/?lang=en#/search?b=1&a=2' },
+  { entry: '/guide', landed: '/guide#section', expected: '/guide' },
+]) {
+  test(`crawl report keeps the settled route identity: ${entry} → ${landed}`, async () => {
+    const { page } = navigationPage();
+    page.url = () => new URL(landed, BASE).href;
+    page.$$eval = async () => [landed, '/about'];
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-landed-'));
+    try {
+      const report = await crawlAndCapture(page, navigationOptions(out, { url: new URL(entry, BASE).href }));
+      assert.equal(report.landed, expected);
+      if (expected.includes('#')) {
+        assert.equal(report.links[0].url, report.landed, 'the self link and settled page must share an identity');
+      }
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+}
+
 test('the keep marker spares exactly the data-state reloads and the reset is armed once per page', async () => {
   const fixture = navigationPage();
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-storage-'));

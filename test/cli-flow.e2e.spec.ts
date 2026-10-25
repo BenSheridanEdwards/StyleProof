@@ -643,6 +643,63 @@ test('styleproof-capture --crawl follows same-origin nav links across pages', as
   }
 });
 
+for (const { title, entry, landed, settings } of [
+  { title: 'a hash entry that redirects', entry: '#/home', landed: '#/dashboard', settings: '#/settings' },
+  { title: 'a root that lands on a hashbang route', entry: '', landed: '#!/dashboard', settings: '#!/settings' },
+]) {
+  test(`styleproof-capture --crawl does not recrawl ${title}`, async () => {
+    const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+    const port = await freePort();
+    const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-hash-sweep-'));
+    const server = http.createServer((_req, res) => {
+      res.setHeader('content-type', 'text/html');
+      res.end(`<!doctype html><html><head><style>main{padding:16px}</style></head><body>
+        <nav>${entry ? `<a href="${entry}">Entry</a>` : ''}
+          <a href="${landed}">Dashboard</a><a href="${settings}">Settings</a></nav>
+        <main><h1>Route</h1><p>Content</p><p>Details</p></main>
+        <script>
+          function render() {
+            if (location.hash === ${JSON.stringify(entry)}) history.replaceState(null, '', ${JSON.stringify(landed)});
+            document.querySelector('main').className = location.hash === ${JSON.stringify(settings)} ? 'settings' : 'dashboard';
+          }
+          addEventListener('hashchange', render);
+          render();
+        </script></body></html>`);
+    });
+    await listen(server, port);
+    try {
+      const out = path.join(app, 'maps');
+      const result = await runAsync(app, process.execPath, [
+        CAPTURE,
+        `http://127.0.0.1:${port}/${entry}`,
+        '--crawl',
+        '--follow-links',
+        '--max-states',
+        '2',
+        '--no-data-states',
+        '--no-screenshots',
+        '--widths',
+        '1280',
+        '--out',
+        out,
+      ]);
+      expect(result.status, result.stderr + result.stdout).toBe(0);
+      const maps = fs.readdirSync(out).filter((file) => file.endsWith('.json.gz'));
+      expect(maps.sort(), 'the entry and landed routes share one capture, leaving budget for settings').toEqual([
+        'base@1280.json.gz',
+        'settings@1280.json.gz',
+      ]);
+      const settingsMap = loadStyleMap(path.join(out, 'settings@1280.json.gz'));
+      expect(Object.values(settingsMap.elements).map((element) => element.cls)).toContain('settings');
+      expect(result.stdout).toContain('across 2 page(s)');
+      expect(result.stdout).not.toContain('left uncrawled');
+    } finally {
+      server.close();
+      fs.rmSync(app, { recursive: true, force: true });
+    }
+  });
+}
+
 // A sub-state key can equal a linked page's route key: the entry page's "Sign in"
 // modal and a /sign-in page (state found first), or the /pricing "Plans" panel and
 // a /pricing/plans page (page queued first). Each surface needs its own map, or the
