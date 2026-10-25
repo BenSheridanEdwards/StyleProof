@@ -7,7 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Fix cold-base CI config loading when npm installs a separate Playwright copy.
+- Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout.
 - Fix cold-base CI captures to reuse head tarballs and Git specs, resolve local tarballs against the head package directory, and log the installed runtime spec; directories, link specs, and missing manifests use the running CLI version. Mutable Git refs are resolved again; pin a full commit SHA for the same build.
 
 > **StyleProof 9.0.0: stable keys and stricter gates**
