@@ -105,15 +105,20 @@ jobs:
 
   # Run the complete browser and determinism path beside the Node matrix instead
   # of placing it after every Node 22 static and unit gate.
+  # Playwright hands each shard an equal COUNT of test groups in file order, so
+  # the heavy parallel-mode files at the front of the alphabet (auth-*, capture-*,
+  # cli-flow) all landed in shard 1 of 4: 241s of tests against 109-157s for the
+  # rest, and the longest leg of the whole pipeline. Six shards split that front
+  # block; measured per-test durations put the slowest shard near 175s.
   e2e:
-    name: e2e (node 22, shard ${{ matrix.shard }}/4)
+    name: e2e (node 22, shard ${{ matrix.shard }}/6)
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v7
 
@@ -150,11 +155,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install chromium firefox
 
-      # Shard 1 generates the full test inventory so the evidence job can verify
+      # One shard generates the full test inventory so the evidence job can verify
       # completeness without installing Playwright again. If-condition ensures
-      # only one shard produces the canonical inventory.
+      # only one shard produces the canonical inventory. The ~20s listing runs on
+      # shard 5, the lightest of six, so it never lengthens the slowest shard.
       - name: Collect test inventory
-        if: matrix.shard == 1
+        if: matrix.shard == 5
         run: |
           mkdir -p .styleproof/ci
           npx playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
@@ -163,7 +169,7 @@ jobs:
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: .styleproof/ci/shard.json
           STYLEPROOF_DETERMINISM_RECEIPT: .styleproof/ci/determinism-oracle.json
-        run: npx playwright test --config=playwright.ci.config.ts --shard=${{ matrix.shard }}/4 --reporter=line,json
+        run: npx playwright test --config=playwright.ci.config.ts --shard=${{ matrix.shard }}/6 --reporter=line,json
 
       - name: Upload browser shard evidence
         if: ${{ !cancelled() }}
@@ -177,7 +183,7 @@ jobs:
 
   # The evidence job verifies that the shards cover the full inventory and that
   # the determinism oracle proved repeatability. The inventory is produced by
-  # shard 1 (no separate Playwright install needed here), so this job only needs
+  # shard 5 (no separate Playwright install needed here), so this job only needs
   # Node.js to run the verification script — a pure-Node path with no npm ci.
   e2e-evidence:
     name: e2e (node 22)
@@ -195,7 +201,7 @@ jobs:
           pattern: e2e-shard-*
           path: .styleproof/ci/shards
       - name: Verify complete browser evidence and print determinism oracle receipt
-        run: node scripts/verify-e2e-shards.mjs .styleproof/ci/shards/e2e-shard-1/inventory.json .styleproof/ci/shards 4
+        run: node scripts/verify-e2e-shards.mjs .styleproof/ci/shards/e2e-shard-5/inventory.json .styleproof/ci/shards 6
 
   cli-smoke:
     name: cli smoke (${{ matrix.os }})
