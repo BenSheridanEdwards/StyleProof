@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { chromium } from '@playwright/test';
 import { harvestStyleVariants } from '../dist/variant-crawler.js';
-import { defaultLinkKey } from '../dist/crawl.js';
+import { parseCrawlRoute } from '../dist/crawl.js';
 import { defineCli, exitWhenDrained, number } from './cli.mjs';
 
 const NAME = 'styleproof-variants';
@@ -38,18 +38,12 @@ const maxStateActionsPerRoute = limit('max-state-actions');
 const viewport = { width: number(NAME, 'width', opts.width), height: number(NAME, 'height', opts.height) };
 const baseUrl = opts['base-url'];
 
-function parseRoute(input) {
-  const eq = input.indexOf('=');
-  if (eq > 0) return { key: input.slice(0, eq), url: input.slice(eq + 1) };
-  return { key: defaultLinkKey(new URL(input, baseUrl)), url: input };
-}
-
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport });
   const harvest = await harvestStyleVariants(page, {
     baseUrl,
-    routes: routes.map(parseRoute),
+    routes: routes.map((route) => parseCrawlRoute(route, baseUrl)),
     maxActionsPerRoute,
     maxStateActionsPerRoute,
   });

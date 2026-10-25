@@ -54,6 +54,19 @@ export function defaultLinkKey(url: URL): string {
   return slug || 'index';
 }
 
+/**
+ * Parse one `--route` value into a crawl link. `key=path` applies only when the
+ * text before the first `=` is a plain key (no `/`, `?`, `#` or `:`); any other
+ * input is a whole path or URL, kept unchanged with a derived key, so a query
+ * string such as `/?tab=reports` is never split at its own `=` (#967).
+ */
+export function parseCrawlRoute(input: string, baseUrl: string | URL): CrawlLink {
+  const eq = input.indexOf('=');
+  const key = eq > 0 ? input.slice(0, eq) : '';
+  if (key && !/[/?#:]/.test(key)) return { key, url: input.slice(eq + 1) };
+  return { key: defaultLinkKey(new URL(input, baseUrl)), url: input };
+}
+
 function matches(url: URL, match?: LinkMatch): boolean {
   if (match === undefined) return true;
   if (typeof match === 'string') return url.href.includes(match);
