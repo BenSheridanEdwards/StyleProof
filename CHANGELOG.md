@@ -229,7 +229,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   A config that sets a non-zero `process.exitCode`, leaves an unhandled
   promise rejection or throws while loading, including from a timer that
   fires after its module finishes, still fails closed instead of returning
-  its policy. Policy is returned only after the config's event loop has fully
+  its policy. An unhandled rejection ends the load at once, even while the
+  config's import is still pending or when the rejection comes from its own
+  `exit` callback. Policy is returned only after the config's event loop has fully
   drained, including work scheduled from `beforeExit`. A config whose live
   handles are still open a second after loading, or that calls `process.exit`
   while loading, fails closed instead of returning policy. A sync-loaded `.ts`

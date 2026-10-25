@@ -173,7 +173,8 @@ function spawnConfigModuleEval(
       // The config is imported dynamically so the listeners exist before it runs. Policy is released
       // only from 'exit' after the loop fully drains, including every beforeExit round. A config that
       // calls process.exit or keeps handles alive past the grace period cannot be confirmed finished,
-      // so it fails closed rather than returning policy or hanging the load.
+      // so it fails closed rather than returning policy or hanging the load. An unhandled rejection
+      // exits 1 at once, as Node's default would, even mid-import or after 'exit' has run.
       `import { writeFileSync, writeSync } from 'node:fs';
        import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
        const NAME = ${JSON.stringify(configFilename)};
@@ -184,28 +185,37 @@ function spawnConfigModuleEval(
        let crashed = false;
        let configExit;
        let pendingWork = '';
+       let exiting = false;
        const report = (message) => writeSync(2, NAME + ' ' + message + '\\n');
-       process.on('unhandledRejection', (reason) => { rejections.push(reason); });
+       const describe = (reason) => (reason instanceof Error ? reason.stack || reason.message : String(reason));
+       const flushThenExit = () =>
+         Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))))
+           .then(() => exit(1));
+       process.on('unhandledRejection', (reason) => {
+         rejections.push(reason);
+         report('left an unhandled promise rejection while loading: ' + describe(reason));
+         // Exit 1 as Node's default would, so a rejection cannot be swallowed while the import is still
+         // pending, or after 'exit' already released policy (the non-zero status makes the parent discard it).
+         if (exiting) exit(1);
+         else flushThenExit();
+       });
        process.on('uncaughtExceptionMonitor', () => { crashed = true; });
        process.exit = (code) => {
          if (configExit === undefined) configExit = code ?? process.exitCode ?? 0;
          return exit(code);
        };
        process.on('exit', (code) => {
+         exiting = true;
          if (json === undefined) {
            if (code === 0) { report('exited before its default export finished loading'); process.exitCode = 1; }
            return;
-         }
-         for (const reason of rejections) {
-           report('left an unhandled promise rejection while loading: ' +
-             (reason instanceof Error ? reason.stack || reason.message : String(reason)));
          }
          if (pendingWork) {
            report('still had pending work (' + pendingWork + ') ' + GRACE_MS +
              'ms after loading, so StyleProof cannot confirm it finished; close or unref its handles');
          } else if (configExit !== undefined) {
            report('called process.exit(' + String(configExit) + ') while loading, so StyleProof cannot confirm its pending work finished');
-         } else if (!crashed && process.exitCode !== undefined && Number(process.exitCode) !== 0) {
+         } else if (!crashed && rejections.length === 0 && process.exitCode !== undefined && Number(process.exitCode) !== 0) {
            report('set process.exitCode to ' + String(process.exitCode) + ' while loading');
          }
          const failed = code !== 0 || rejections.length > 0 || Boolean(pendingWork) || configExit !== undefined;
@@ -219,8 +229,7 @@ function spawnConfigModuleEval(
        const deadline = setTimeout(() => {
          const live = process.getActiveResourcesInfo?.().filter((kind) => kind !== 'TTYWrap') ?? [];
          pendingWork = [...new Set(live)].join(', ') || 'live handles';
-         Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))))
-           .then(() => exit(1));
+         flushThenExit();
        }, GRACE_MS);
        deadline.unref();`,
     ],

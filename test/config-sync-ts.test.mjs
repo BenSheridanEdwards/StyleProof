@@ -178,6 +178,24 @@ for (const typed of [false, true]) {
     );
   });
 
+  test(`sync ${label} ts config fails closed on a rejection from its exit callback`, options, (t) => {
+    const root = configFixture(
+      t,
+      `process.on('exit', () => Promise.reject(new Error('fixture exit rejection'))); ${policy}`,
+    );
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => {
+        assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+        assert.match(error.message, /unhandled promise rejection.*fixture exit rejection/);
+        return true;
+      },
+    );
+    const result = loadSyncInChild(root);
+    assert.equal(result.status, 1, result.stderr);
+    assert.doesNotMatch(result.stdout, /requireApproval/);
+  });
+
   for (const [failure, deferred, reason] of [
     [
       'rejection',
@@ -398,6 +416,32 @@ test('sync ts config fails closed, without hanging, when live handles outlast th
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stdout, /fixture live/);
   assert.doesNotMatch(result.stdout, /requireApproval/);
+});
+
+test('sync ts config fails closed, without hanging, on a rejection while its import never settles', (t) => {
+  const root = configFixture(
+    t,
+    `setInterval(() => {}, 100);
+     Promise.reject(new Error('fixture pending rejection'));
+     await new Promise(() => {});
+     export default { requireApproval: true };`,
+  );
+  // The bounded child runs first so a regression times out instead of hanging the runner in-process.
+  const started = Date.now();
+  const result = loadSyncInChild(root);
+  assert.notEqual(result.error?.code, 'ETIMEDOUT', 'the load must not hang on a pending import');
+  assert.ok(Date.now() - started < 15000, 'the load must fail promptly');
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /unhandled promise rejection.*fixture pending rejection/);
+  assert.doesNotMatch(result.stdout, /requireApproval/);
+  assert.throws(
+    () => loadStyleProofConfig(root),
+    (error) => {
+      assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+      assert.match(error.message, /fixture pending rejection/);
+      return true;
+    },
+  );
 });
 
 for (const [command, args, reason] of [
