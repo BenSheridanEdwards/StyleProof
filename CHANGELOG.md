@@ -221,6 +221,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Capture keys that differ only by case or Unicode normalization now fail
+  before capture (#976).** `Alpha` and `alpha`, NFC and NFD `café`, or a `menu`
+  variant `Open` beside a `menu-open` surface can name one map file on macOS
+  and Windows, so one capture overwrote the other and the diff could pass
+  without comparing the changed surface. `defineStyleMapCapture` and each
+  crawl pass now throw and name both origins, on every OS. Rename one of the
+  keys.
 - **`styleproof-capture` (`styleproof crawl`) no longer waits forever on a
   browser that stops answering.** A frozen or starved renderer, or a page
   script stuck in a loop, kept Chrome alive while `page.evaluate` waited with no

@@ -173,6 +173,60 @@ test('assertUniqueExpandedKeys: passes when every expanded key is distinct', () 
   assert.doesNotThrow(() => assertUniqueExpandedKeys(surfaces));
 });
 
+test('assertUniqueExpandedKeys: rejects keys that differ only by case, naming both', () => {
+  for (const surfaces of [
+    [
+      { key: 'Alpha', metadata: { surfaceKey: 'Alpha' } },
+      { key: 'alpha', metadata: { surfaceKey: 'alpha' } },
+    ],
+    [{ key: 'Alpha' }, { key: 'alpha' }],
+  ]) {
+    assert.throws(
+      () => assertUniqueExpandedKeys(surfaces),
+      (err) => {
+        assert.match(err.message, /'Alpha'/);
+        assert.match(err.message, /'alpha'/);
+        assert.match(err.message, /surface 'Alpha'/);
+        assert.match(err.message, /surface 'alpha'/);
+        assert.match(err.message, /case-insensitive/);
+        assert.match(err.message, /overwrite each other's map file/);
+        return true;
+      },
+    );
+  }
+});
+
+test('assertUniqueExpandedKeys: variant expansion that case-collides with another surface throws', () => {
+  const expanded = [
+    ...expandSurfaceVariants({ key: 'menu-open', go: async () => {} }),
+    ...expandSurfaceVariants({ key: 'menu', go: async () => {}, variants: [{ key: 'Open', go: async () => {} }] }),
+  ];
+  assert.throws(
+    () => assertUniqueExpandedKeys(expanded),
+    (err) => {
+      assert.match(err.message, /'menu-open'/);
+      assert.match(err.message, /'menu-Open'/);
+      assert.match(err.message, /surface 'menu-open'/);
+      assert.match(err.message, /surface 'menu' variant 'Open'/);
+      return true;
+    },
+  );
+});
+
+test('assertUniqueExpandedKeys: NFC and NFD forms of one key collide', () => {
+  const nfc = 'caf\u00e9';
+  const nfd = 'cafe\u0301';
+  assert.notEqual(nfc, nfd);
+  assert.throws(() => assertUniqueExpandedKeys([{ key: nfc }, { key: nfd }]), /Unicode normalization/);
+});
+
+test('assertUniqueExpandedKeys: exact duplicates keep the exact-duplicate error', () => {
+  assert.throws(
+    () => assertUniqueExpandedKeys([{ key: 'Alpha' }, { key: 'Alpha' }]),
+    /capture key 'Alpha' is produced by two surfaces/,
+  );
+});
+
 // Capture keys name map files under the output directory. Uniqueness alone is
 // not enough: path traversal and drive-relative forms must fail closed (#421).
 test('assertUniqueExpandedKeys: rejects traversal and path-separator keys before any map write', () => {

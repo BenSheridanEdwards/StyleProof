@@ -137,13 +137,20 @@ function expandedOrigin(s: ExpandedKeyed): string {
   return `surface '${surfaceKey}' ${kind} '${variantKey}'`;
 }
 
+/** Case- and normalization-insensitive filesystems (APFS, NTFS) treat these keys as one file name. */
+function foldCaptureKey(key: string): string {
+  return key.normalize('NFC').toLowerCase();
+}
+
 /**
  * Fail LOUDLY on two expanded surfaces sharing a capture key: the `-` join is ambiguous
  * (`a` + `b-c` vs `a-b` + `c`) and the key names the map file, so a collision would
- * silently overwrite a capture. Names both origins without echoing recipe selectors.
+ * silently overwrite a capture. Keys differing only by case or Unicode normalization
+ * also collide on case-insensitive filesystems. Names both origins without echoing recipe selectors.
  */
 export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
   const byKey = new Map<string, ExpandedKeyed>();
+  const byFolded = new Map<string, ExpandedKeyed>();
   for (const s of surfaces) {
     assertSafeCaptureKey(s.key);
     const prior = byKey.get(s.key);
@@ -155,6 +162,17 @@ export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
           `rename one surface, variant, live state, or state recipe.`,
       );
     }
+    const folded = foldCaptureKey(s.key);
+    const twin = byFolded.get(folded);
+    if (twin) {
+      throw new Error(
+        `styleproof: capture keys '${twin.key}' and '${s.key}' differ only by case or Unicode normalization — ` +
+          `${expandedOrigin(twin)} collides with ${expandedOrigin(s)}. ` +
+          `They would overwrite each other's map file on a case-insensitive filesystem (macOS, Windows); ` +
+          `rename one surface, variant, live state, or state recipe.`,
+      );
+    }
     byKey.set(s.key, s);
+    byFolded.set(folded, s);
   }
 }
