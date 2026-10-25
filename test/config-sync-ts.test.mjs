@@ -122,6 +122,53 @@ for (const [label, source, reason] of [
   });
 }
 
+for (const typed of [false, true]) {
+  const label = typed ? 'typed' : 'JS-shaped';
+  const options = { skip: typed && TYPE_STRIPPING_UNAVAILABLE };
+  const policy = `export default { requireApproval: true${typed ? ' as boolean' : ''} };`;
+
+  // The async loader is not called on these: in process it would set the runner's exit code or crash it.
+  test(`sync ${label} ts config fails closed when it sets a non-zero process.exitCode`, options, (t) => {
+    const root = configFixture(t, `process.exitCode = 7; ${policy}`);
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => {
+        assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+        assert.match(error.message, /styleproof\.config\.ts could not be evaluated/);
+        assert.match(error.message, /process\.exitCode to 7/);
+        return true;
+      },
+    );
+    const result = loadSyncInChild(root);
+    assert.equal(result.status, 1, result.stderr);
+    assert.doesNotMatch(result.stdout, /requireApproval/);
+  });
+
+  test(`sync ${label} ts config fails closed on an unhandled promise rejection`, options, (t) => {
+    const root = configFixture(t, `Promise.reject(new Error('fixture rejected')); ${policy}`);
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => {
+        assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+        assert.match(error.message, /unhandled promise rejection/);
+        assert.match(error.message, /fixture rejected/);
+        return true;
+      },
+    );
+  });
+}
+
+test('sync ts config still loads when it handles its own rejection and resets exitCode', async (t) => {
+  const root = configFixture(
+    t,
+    "const p = Promise.reject(new Error('handled')); p.catch(() => {}); process.exitCode = 0; " +
+      'export default { requireApproval: true };',
+  );
+  const config = loadStyleProofConfig(root);
+  assert.equal(config.requireApproval, true);
+  assert.deepEqual(config, await loadStyleProofConfigAsync(root));
+});
+
 test('sync ts config preserves final failure logs without duplicating attempts', (t) => {
   const root = configFixture(
     t,

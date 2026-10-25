@@ -168,13 +168,28 @@ function spawnConfigModuleEval(
       '--no-warnings',
       '--input-type=module',
       '-e',
+      // The config is imported dynamically so the rejection listener exists before it runs. The
+      // explicit exit (needed when the config leaves live handles) must not hide a failure the config
+      // signalled itself: a non-zero process.exitCode or an unhandled rejection fails the load closed.
       `import { writeFileSync } from 'node:fs';
        import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
-       import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
-       const config = plainObject(mod?.default ?? mod, 'the default export', ${JSON.stringify(configFilename)});
-       writeFileSync(3, JSON.stringify(structuredClone(parseConfigRecord(config, ${JSON.stringify(configFilename)}))));
-       await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write('', resolve))));
-       process.exit(0);`,
+       const NAME = ${JSON.stringify(configFilename)};
+       const rejections = [];
+       process.on('unhandledRejection', (reason) => { rejections.push(reason); });
+       const mod = await import(${JSON.stringify(pathToFileURL(filePath).href)});
+       const config = plainObject(mod?.default ?? mod, 'the default export', NAME);
+       const json = JSON.stringify(structuredClone(parseConfigRecord(config, NAME)));
+       await new Promise((resolve) => setImmediate(resolve));
+       const exitCode = process.exitCode === undefined ? 0 : Number(process.exitCode);
+       for (const reason of rejections) {
+         process.stderr.write(NAME + ' left an unhandled promise rejection while loading: ' +
+           (reason instanceof Error ? reason.stack || reason.message : String(reason)) + '\\n');
+       }
+       if (exitCode !== 0) process.stderr.write(NAME + ' set process.exitCode to ' + String(process.exitCode) + ' while loading\\n');
+       const failed = rejections.length > 0 || exitCode !== 0;
+       if (!failed) writeFileSync(3, json);
+       await Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))));
+       process.exit(failed ? exitCode || 1 : 0);`,
     ],
     {
       encoding: 'utf8',
