@@ -6,6 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadStyleProofConfig, loadStyleProofConfigAsync, defineConfig } from '../dist/config.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
+import { StyleProofConfigError } from '../dist/config/schema.js';
+import { resolveCompareInputs } from '../bin/compare.mjs';
 
 const STYLEPROOF_CONFIG_JSON = 'styleproof.config.json';
 const STYLEPROOF_CONFIG_MJS = 'styleproof.config.mjs';
@@ -101,6 +103,41 @@ test("loadStyleProofConfig: validates the Action's gate-policy keys in the share
     assert.equal(config.gateInventoryRemovals, false);
   });
 });
+
+for (const changeReach of ['warn', 'gate']) {
+  test(`loadStyleProofConfig: accepts Change Reach ${changeReach}`, () => {
+    withConfig({ changeReach }, (dir) => {
+      assert.equal(loadStyleProofConfig(dir).changeReach, changeReach);
+    });
+  });
+}
+
+for (const changeReach of ['block', true, '']) {
+  test(`loadStyleProofConfig: rejects invalid Change Reach ${JSON.stringify(changeReach)}`, () => {
+    withConfig({ changeReach }, (dir) => {
+      assert.throws(
+        () => loadStyleProofConfig(dir),
+        (error) =>
+          error instanceof StyleProofConfigError && /"changeReach" must be 'warn' or 'gate'/.test(error.message),
+      );
+    });
+  });
+}
+
+for (const changeReach of [undefined, 'warn', 'gate']) {
+  test(`compare inputs: Change Reach ${changeReach ?? 'default'} reaches both CLIs`, () => {
+    withConfig({ changeReach }, (dir) => {
+      const previousCwd = process.cwd();
+      try {
+        process.chdir(dir);
+        const inputs = resolveCompareInputs('styleproof-diff', { opts: {}, args: [dir, dir] });
+        assert.equal(inputs.changeReach, changeReach ?? 'warn');
+      } finally {
+        process.chdir(previousCwd);
+      }
+    });
+  });
+}
 
 test('loadStyleProofConfig: written-but-broken config fails LOUDLY, never silently drops', () => {
   withConfig('{ not json', (dir) => {

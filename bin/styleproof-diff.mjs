@@ -119,6 +119,8 @@ const {
   undeclaredOnBase,
 } = result;
 const pixelSurfaces = result.pixels ?? [];
+const reach = read.reach;
+const reachBlocking = reach?.blocking ?? 0;
 
 // ── declared ledgers: legacy pairs and critical obligations ────────────────────
 let { comparability } = result;
@@ -204,6 +206,11 @@ const pixelBlocks = pixelRegions > 0 || pixelUncompared > 0 || (pixels && !pixel
 
 const liveTextFreezeViolated = Boolean(liveTextAudit?.freeze && liveTextAudit.violations.length);
 printLiveText(liveTextAudit, liveTextFreezeViolated);
+if (reachBlocking > 0) {
+  printSection(
+    `✗ Change Reach gate: ${reach.counts['never-rendered']} never rendered, ${reach.counts['blind-channel']} blind-channel, ${reach.gaps.filter((gap) => gap.kind === 'ledger').length} evidence gap(s) — certify fails; review-gate needs approval (changeReach: 'gate')`,
+  );
+}
 
 // ── verdict ────────────────────────────────────────────────────────────────────
 const reviewableTotal = gateReviewableCounts.dom + gateReviewableCounts.style + gateReviewableCounts.state;
@@ -270,6 +277,10 @@ function coverageNote() {
 }
 const GATES = [
   { blocks: total > 0 },
+  {
+    blocks: reachBlocking > 0,
+    note: ` + ${reachBlocking} changed CSS rule(s) or reach evidence gap(s) never rendered (changeReach: 'gate')`,
+  },
   { blocks: partialBaseline },
   { blocks: comparison.blocksCertification },
   { blocks: removedSurfaces > 0, note: ` + ${removedSurfaces} REMOVED surface(s)` },
@@ -355,6 +366,9 @@ if (jsonOut) {
       JSON.stringify(
         {
           counts,
+          ...(reach
+            ? { reach: { level: reach.level, ledger: reach.ledger, counts: reach.counts, blocking: reach.blocking } }
+            : {}),
           ...(migration ? { migration: true } : {}),
           sourceBinding,
           evidenceBinding,
@@ -466,6 +480,7 @@ try {
       legacyPairs: legacyPairAudit,
       criticalStates: criticalAudit,
       reviewableCounts: gateReviewableCounts,
+      ...(reach ? { reach: { blocking: reachBlocking } } : {}),
       ...(elevatedNavigableChromeAdds ? { elevatedNavigableChromeAdds } : {}),
       ...(elevatedVisibleStructure ? { elevatedVisibleStructure } : {}),
       surfaces,
@@ -475,7 +490,12 @@ try {
         unacknowledged: residueAudit.unacknowledged.map((r) => r.key),
       },
     },
-    { gateInventoryRemovals: true, baseCaptureFailed: false, changed: exitCode === 1 || exitCode === 3 },
+    {
+      gateInventoryRemovals: true,
+      baseCaptureFailed: false,
+      changed: exitCode === 1 || exitCode === 3,
+      certifyGate: !migration,
+    },
   );
   const observedBaseSha = expectedBeforeSha || sourceBinding.before?.observed || null;
   const audit = createAudit({
@@ -503,6 +523,7 @@ try {
         residueFails,
         invRemovals,
         total,
+        reachBlocking,
         greenfieldNewSurfaces,
         partialBaseline,
         baselineAttribution,

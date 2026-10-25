@@ -113,6 +113,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`changeReach: 'gate'` holds the verdict on never-rendered CSS changes (#997).**
+  The default `'warn'` preserves verdicts, exit codes and diff CLI output. Opt-in
+  gate holds never-rendered or blind-channel J1 changes and J1 ledger gaps,
+  including missing legacy ledgers: recapture with `captureReach`. Certify mode
+  fails with `CERTIFICATION_FAILED`; review-gate and migration need approval via
+  the existing Approve box; advisory stays non-blocking for reach findings.
+  Both comparison CLIs exit `1` when reach holds the run. The gate diff receipt
+  gains `reach: { level, ledger, counts, blocking }`; report reach gains `level`
+  and `blocking`. J2/J3 and the not-yet-built changed-stylesheet join remain
+  warn-only and keep the report **Reach incomplete**.
 - **"Changed but never rendered" report section (#996).** When captures carry a
   `captureReach` ledger, the report lists each changed CSS rule no captured state
   rendered: its rule, the at-rules that gate it, and the served stylesheet. It

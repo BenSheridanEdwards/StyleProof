@@ -14,6 +14,7 @@ import { auditRunInventory, hasCapturedInventory, readAckFile } from '../../dist
 import { auditRunResidue, readResidueAckFile } from '../../dist/data-residue.js';
 import { COVERAGE_LEDGER, auditCoverage, auditDeterminism } from '../../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence, withCaptureDeterminism } from '../../dist/confidence-ledger.js';
+import { assessReachDirs } from '../../dist/report/reach.js';
 import { errorMessage, fail } from '../cli.mjs';
 
 /** `key -> reason` ledgers fail loud (exit 2) so a broken file can't silently un-acknowledge a real gap. */
@@ -58,10 +59,11 @@ function readResidueAudit(name, dirB, headLedger) {
 }
 
 /** The diff plus every ledger and audit the gates read, from the base (`dirA`) and head (`dirB`) captures. */
-export function readCompareEvidence(name, { beforeDir: dirA, afterDir: dirB }, { migration, pixels }) {
+export function readCompareEvidence(name, { beforeDir: dirA, afterDir: dirB, changeReach }, { migration, pixels }) {
   const headLedger = readCoverageLedger(name, dirB);
   return {
     result: diffStyleMapDirs(dirA, dirB, { includeStructure: migration, pixels }),
+    reach: changeReach === 'gate' ? assessReachDirs(dirA, dirB, changeReach) : undefined,
     inventoryAudit: readInventoryAudit(name, dirA, dirB),
     residueAudit: readResidueAudit(name, dirB, headLedger),
     coverageExclusions: headLedger?.exclude ?? {},

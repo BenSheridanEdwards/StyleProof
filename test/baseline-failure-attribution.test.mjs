@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
 import {
   baselineFailureReceipts,
   formatDegradedBaselineComment,
@@ -272,8 +273,13 @@ test('Action PARTIAL_BASELINE and CERTIFICATION_FAILED copy do not claim recaptu
   assert.match(actionYml, /formatPartialBaselineComment/);
   assert.match(actionYml, /formatDegradedBaselineComment/);
 
-  const certificationCopy = actionYml.match(/CERTIFICATION_FAILED: '([^']+)'/g) ?? [];
+  // Read complete literals, including escaped quotes, and check the displayed copy.
+  const certificationCopy = [...actionYml.matchAll(/CERTIFICATION_FAILED: ('(?:[^'\\]|\\.)*')/g)].map((match) =>
+    runInNewContext(match[1]),
+  );
   assert.equal(certificationCopy.length, 2);
+  assert.match(certificationCopy[0], /Change Reach \(`changeReach: 'gate'`\)/);
+  assert.match(certificationCopy[0], /reviewer approval cannot clear this failure/i);
   for (const copy of certificationCopy) {
     assert.match(copy, /not a base recapture failure/i);
     assert.doesNotMatch(copy, FALSE_RECAPTURE_CLAIM);

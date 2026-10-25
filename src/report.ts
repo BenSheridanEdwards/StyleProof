@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ChangeReachLevel } from './config.js';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
 import { collectStructureElevation, elevateReviewable, type StructureElevation } from './structure-elevation.js';
 import { readBaselineProvenance, type BaselineFailureReceipt } from './map-store.js';
@@ -150,6 +151,8 @@ export type ReportOptions = {
   migration?: boolean;
   /** Operational mode recorded in report.json (#580). Defaults to 'certify'. */
   gateMode?: 'certify' | 'review-gate' | 'migration' | 'advisory';
+  /** Change Reach is advisory by default; gate holds never-rendered rules and J1 ledger gaps. */
+  changeReach?: ChangeReachLevel;
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
@@ -476,7 +479,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // 2. Decide what the report shows, and what it may claim about it.
   const surfacePaths = surfaceElementPaths(beforeDir, afterDir);
   const view = presentSurfaces(ctx, diff.surfaces, gates, includeStructure, surfacePaths, surfaceKeyOf);
-  const reach = assessReach(ctx);
+  const reach = assessReach(ctx, opts.changeReach ?? 'warn');
   const baseline = readBaselineInfo(beforeDir, afterDir);
   const elevation = collectStructureElevation({ beforeDir, afterDir, migration, surfacePaths, surfaceKeyOf });
   const comparison = reportComparison(
@@ -535,6 +538,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseline,
     confidenceBlocked: confidence.counts.inaccessible > 0,
     comparisonBlocked: comparison.blocksCertification,
+    reachBlocking: reach?.blocking ?? 0,
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
   });
   const reachStrip = reach ? reachStripLines(reach) : [];

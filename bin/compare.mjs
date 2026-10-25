@@ -127,7 +127,14 @@ export function resolveCompareInputs(name, { opts, args, purpose, usage }) {
   }
 
   const dirs = args.length <= 1 ? cachedDirs(name, opts, args, purpose, usage) : explicitDirs(name, args);
-  return { ...dirs, requireStateIdentity, expectedBeforeSha, expectedAfterSha, ...ledgers };
+  return {
+    ...dirs,
+    requireStateIdentity,
+    expectedBeforeSha,
+    expectedAfterSha,
+    ...ledgers,
+    changeReach: config.changeReach ?? 'warn',
+  };
 }
 
 function cachedDirs(name, opts, args, purpose, usage) {

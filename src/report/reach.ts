@@ -1,7 +1,8 @@
 import { captureKeysIn, type StyleMap } from '../capture.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
+import type { ChangeReachLevel } from '../config.js';
 import { classifyRuleReach, type RuleReach, type RuleReachResult, type RuleReachStatus } from '../rule-reach.js';
-import type { RenderCtx } from './shared.js';
+import { createMapLoader, type RenderCtx } from './shared.js';
 
 export type ReachGap = {
   join: 'J1' | 'J2' | 'J3';
@@ -14,6 +15,9 @@ export type ReachGap = {
 };
 
 export type ReportReach = {
+  level: ChangeReachLevel;
+  /** Findings held by the opt-in gate; always zero at the default warn level. */
+  blocking: number;
   complete: boolean;
   ledger: RuleReachResult['ledger'];
   counts: Record<RuleReachStatus, number>;
@@ -48,11 +52,8 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
 }
 
 /** Opt-in reach evidence: incomplete joins can only add findings, never certify a run. */
-export function assessReach(ctx: RenderCtx): ReportReach | undefined {
-  const mapsIn = (dir: string) => [...captureKeysIn(dir)].sort().map((key) => ctx.load(dir, key));
-  const base = mapsIn(ctx.beforeDir);
-  const head = mapsIn(ctx.afterDir);
-  if (![...base, ...head].some((map) => map.reach)) return undefined;
+export function assessReachMaps(base: StyleMap[], head: StyleMap[], level: ChangeReachLevel): ReportReach | undefined {
+  if (level === 'warn' && ![...base, ...head].some((map) => map.reach)) return undefined;
   const result = classifyRuleReach(base, head);
   const gaps = [...ledgerGaps(base, 'base'), ...ledgerGaps(head, 'head')];
   if (result.ledger !== 'complete' && gaps.length === 0) {
@@ -80,7 +81,13 @@ export function assessReach(ctx: RenderCtx): ReportReach | undefined {
   const counts: ReportReach['counts'] = { reached: 0, 'never-rendered': 0, 'blind-channel': 0 };
   for (const rule of result.rules) counts[rule.status]++;
   const complete = gaps.length === 0 && result.rules.every((rule) => rule.status === 'reached');
+  const blocking =
+    level === 'gate'
+      ? counts['never-rendered'] + counts['blind-channel'] + gaps.filter((gap) => gap.kind === 'ledger').length
+      : 0;
   return {
+    level,
+    blocking,
     complete,
     ledger: result.ledger,
     counts,
@@ -88,6 +95,18 @@ export function assessReach(ctx: RenderCtx): ReportReach | undefined {
     unreadableSheets: result.unreadableSheets,
     gaps,
   };
+}
+
+export function assessReach(
+  ctx: Pick<RenderCtx, 'beforeDir' | 'afterDir' | 'load'>,
+  level: ChangeReachLevel = 'warn',
+): ReportReach | undefined {
+  const mapsIn = (dir: string) => [...captureKeysIn(dir)].sort().map((key) => ctx.load(dir, key));
+  return assessReachMaps(mapsIn(ctx.beforeDir), mapsIn(ctx.afterDir), level);
+}
+
+export function assessReachDirs(beforeDir: string, afterDir: string, level: ChangeReachLevel): ReportReach | undefined {
+  return assessReach({ beforeDir, afterDir, load: createMapLoader() }, level);
 }
 
 const gapReason = (gap: ReachGap): string => `${gap.side ? `${gap.side}: ` : ''}${gap.reason}`;
@@ -125,7 +144,7 @@ export function reachStripLines(reach: ReportReach): string[] {
   remedies.push(...ledger.map((gap) => gap.remedy));
   return [
     '',
-    `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. Render-code reach is not measured yet.`,
+    `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. Render-code reach is not measured yet.${reach.blocking > 0 ? " Held by `changeReach: 'gate'`." : ''}`,
   ];
 }
 
@@ -149,7 +168,10 @@ export function reachSectionLines(reach: ReportReach): string[] {
     '',
     '## Changed but never rendered',
     '',
-    '_Changed CSS rules no captured state rendered, so the diff above cannot show them. Add a surface or state that renders each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._',
+    '_Changed CSS rules no captured state rendered, so the diff above cannot show them. Add a surface or state that renders each one. Source is the served stylesheet; the ledger does not record source maps yet. ' +
+      (reach.level === 'gate'
+        ? "Under `changeReach: 'gate'` these findings hold the verdict: certify mode fails (`CERTIFICATION_FAILED`); review-gate mode needs approval._"
+        : 'Reach findings do not change the verdict._'),
     '',
     ...ruleTable(never),
     ...(blind.length

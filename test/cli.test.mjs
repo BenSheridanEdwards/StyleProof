@@ -20,6 +20,7 @@ import {
 import { writeConfidenceLedger, buildConfidenceLedger } from '../dist/confidence-ledger.js';
 import { renderReportHtml } from '../dist/report/html.js';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
+import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
@@ -84,6 +85,73 @@ function identicalPair({ bare = false } = {}) {
   }
   return { root, A, B };
 }
+
+test('Change Reach CLI gate holds a blind channel despite identical computed styles', (t) => {
+  const { root, A, B } = identicalPair();
+  t.after(() => rmTmp(root));
+  for (const [dir, hash, sha] of [
+    [A, 'base', 'base-sha'],
+    [B, 'head', 'head-sha'],
+  ]) {
+    writeCapture(
+      dir,
+      'home@1280',
+      {
+        ...makeMap({ elements: { body: { tag: 'body', style: { color: 'rgb(0, 0, 0)' } } } }),
+        reach: {
+          version: 2,
+          sheets: ['/app.css'],
+          rules: [
+            { key: '@keyframes pulse', hash, sheet: 0 },
+            { key: '.badge', hash: 'same', sheet: 0, used: true, refs: ['pulse'] },
+          ],
+        },
+      },
+      null,
+    );
+    stampCertifyingFixture(dir, fixtureCommitSha(sha));
+  }
+  fs.writeFileSync(path.join(root, 'styleproof.config.json'), JSON.stringify({ changeReach: 'gate' }));
+  const jsonPath = path.join(root, 'diff.json');
+  const args = [
+    A,
+    B,
+    '--expected-before-sha',
+    fixtureCommitSha('base-sha'),
+    '--expected-after-sha',
+    fixtureCommitSha('head-sha'),
+  ];
+  const diff = spawnSync(process.execPath, [DIFF, ...args, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
+  assert.equal(diff.status, 1, diff.stdout + diff.stderr);
+  const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(receipt.reach.blocking, 1);
+  assert.equal(receipt.reach.counts['blind-channel'], 1);
+  assert.equal(receipt.certifiesFully, false);
+  assert.match(diff.stdout, /1 blind-channel/);
+  assert.doesNotMatch(diff.stdout, /✓ 0 reviewable computed-style changes/);
+  const report = spawnSync(process.execPath, [REPORT, ...args, '--out', path.join(root, 'report')], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  assert.equal(report.status, 1, report.stdout + report.stderr);
+  assert.match(report.stdout, /✗ reach gate/);
+  assert.doesNotMatch(report.stdout, /✓/);
+});
+
+test('Change Reach CLI gate holds a bare first-adoption base instead of exit 3', (t) => {
+  const { root, A, B } = identicalPair();
+  t.after(() => rmTmp(root));
+  fs.rmSync(A, { recursive: true });
+  fs.mkdirSync(A);
+  fs.writeFileSync(path.join(root, 'styleproof.config.json'), JSON.stringify({ changeReach: 'gate' }));
+  const jsonPath = path.join(root, 'diff.json');
+  const diff = spawnSync(process.execPath, [DIFF, A, B, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
+  assert.equal(diff.status, 1, diff.stdout + diff.stderr);
+  const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(receipt.reach.blocking, 2);
+  assert.equal(receipt.certifiesFully, false);
+  assert.match(diff.stdout, /2 evidence gap\(s\)/);
+});
 
 function correspondenceCollapsedPair() {
   const root = mkTmp();

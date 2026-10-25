@@ -563,6 +563,12 @@ runs:
             !isDeepStrictEqual(generated.sourceBinding, diff.sourceBinding)) {
           throw new Error('styleproof-report/report.json report receipts disagree with the validated diff');
         }
+        // Warn preserves the legacy diff receipt; only opt-in gate evidence must match.
+        const reachGateReceipt = (r) => r.reach?.level === 'warn' && r.reach.blocking === 0
+          ? null : r.reach ? { level: r.reach.level, blocking: r.reach.blocking } : null;
+        if (!isDeepStrictEqual(reachGateReceipt(generated), reachGateReceipt(diff))) {
+          throw new Error('StyleProof reach receipts disagree with the validated diff');
+        }
         diff.reportConsistency = generated.reportConsistency;
         diff.confidence = generated.confidence;
         fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
@@ -588,6 +594,7 @@ runs:
       uses: actions/github-script@v9
       env:
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
+        STYLEPROOF_CERTIFY_GATE: ${{ inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' }}
         STYLEPROOF_UNTRUSTED_CAPTURE: ${{ steps.context.outputs.untrusted-capture }}
       with:
         script: |
@@ -598,6 +605,7 @@ runs:
             gateInventoryRemovals: '${{ steps.config.outputs.gate-inventory-removals }}' !== 'false',
             baseCaptureFailed: (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true',
             changed: '${{ steps.diff.outputs.changed }}' === 'true',
+            certifyGate: process.env.STYLEPROOF_CERTIFY_GATE === 'true',
           });
           const { state, reviewableChanged, dataResidueKeys } = verdict;
           diff.actionTrustState = state;
@@ -915,7 +923,7 @@ runs:
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
+            CERTIFICATION_FAILED: '_Coverage, determinism, report/diff consistency, or Change Reach (`changeReach: \'gate\'`) evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
             PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
             DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
           }[trustState];
