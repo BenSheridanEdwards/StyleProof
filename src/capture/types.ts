@@ -149,6 +149,8 @@ export type ServedRule = {
   vars?: Record<string, string>;
   /** Custom properties the rule reads through `var()`. */
   uses?: string[];
+  /** Custom properties it declares from other custom properties: name → the properties its value reads. */
+  aliases?: Record<string, string[]>;
   /** Identifiers in its `animation`/`font` declarations: the `@keyframes`/`@font-face` names it can reference. */
   refs?: string[];
 };

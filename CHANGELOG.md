@@ -113,12 +113,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Change Reach J1 resolves `@property` and drives the reach corpus (#995).**
+  A changed `@property` is a blind channel when a rendered rule reads or
+  declares it, otherwise never rendered. A changed token that no served rule
+  reads outside a custom property, or that only feeds unread aliases, is never
+  rendered instead of reached. Ledger rules gain `aliases`.
 - **Served-rule ledger for Change Reach (#991).** `captureReach: true` (in
   `defineStyleMapCapture` or `captureStyleMap`) records every served CSS rule
   in `StyleMap.reach` and marks the ones that matched an element while the map
   was read, forced states included. This is the evidence Change Reach (#934)
   uses to name a changed rule that no captured state rendered. Off by default.
-  Nothing reads it yet, so diffs, verdicts and exit codes are unchanged. For a
+  Diffs, verdicts and exit codes are unchanged. For a
   direct `captureStyleMap` call, arm `trackServedRules(page)` before navigating
   and pass it as `servedRules`. Otherwise linked stylesheets are counted
   `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
@@ -126,8 +131,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Reach corpus (`bench/`, #988).** `npm run bench:reach` pins the miss Change
   Reach (#934) exists to close. A base/head fixture carries 14 seeded changes,
   13 of them visual. A spec that opens only the healthy state shows 1 of the 13
-  in today's diff. Prototype reach joins (`bench/reach-joins.mjs`) name 11 of
-  the 12 misses from CSS rule usage, V8 block coverage and class-list deltas,
+  in today's diff. The J1 join (`src/rule-reach.ts`) and J2/J3 prototypes
+  (`bench/reach-joins.mjs`) name 11 of the 12 misses from CSS rule usage, V8
+  block coverage and class-list deltas,
   and the twelfth is pinned as the named runtime CSS-in-JS residual. Capturing
   all five states shows 12 of 13. `npm run bench:reach:check` fails on drift in
   either direction and runs in CI beside the detection corpus. Benchmark only,

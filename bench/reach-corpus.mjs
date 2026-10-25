@@ -1,6 +1,6 @@
 // Reach corpus (#988): on a PR whose spec only opens the healthy state, how many
-// of its visual changes does today's diff show — and do the prototype reach joins
-// (bench/reach-joins.mjs) name the rest?
+// of its visual changes does today's diff show — and do the reach joins name the
+// rest? J1 runs classifyRuleReach on the captureReach ledger; J2/J3 are prototypes.
 //
 //   npm run bench:reach          # measure (writes bench/reach-corpus.results.json)
 //   npm run bench:reach:check    # same, exit 1 on any violated expectation
@@ -8,7 +8,7 @@
 // The fixture is the base side. The head side is the base plus every case's
 // `edit`, so each seeded change belongs to the case that declares it. The real
 // product path runs end to end: esbuild bundles each side with source maps,
-// Chromium renders it, captureStyleMap captures it under Playwright's CDP
+// Chromium renders it, captureStyleMap captures it with captureReach and V8 JS
 // coverage, and diffStyleMaps compares base and head. Expectations live in
 // bench/reach-corpus.json; drift in either direction fails --check, so a fix for a
 // documented miss or residual must update the corpus on purpose.
@@ -18,19 +18,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { captureStyleMap } from '../dist/capture.js';
+import { isDeepStrictEqual } from 'node:util';
+import { captureStyleMap, trackServedRules } from '../dist/capture.js';
+import { classifyRuleReach } from '../dist/rule-reach.js';
 import { diffStyleMaps } from '../dist/diff.js';
 import { hasProp, markerOf, onTarget } from './finding-match.mjs';
-import {
-  changedRules,
-  classReach,
-  classVocabulary,
-  cssReach,
-  diffHunks,
-  jsReach,
-  lineExecution,
-  servedRules,
-} from './reach-joins.mjs';
+import { classReach, classVocabulary, diffHunks, jsReach, lineExecution } from './reach-joins.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CORPUS_PATH = path.join(ROOT, 'bench', 'reach-corpus.json');
@@ -83,15 +76,16 @@ async function capture(browser, side, surface) {
     colorScheme: surface.colorScheme,
   });
   await page.coverage.startJSCoverage({ resetOnNavigation: false });
-  await page.coverage.startCSSCoverage({ resetOnNavigation: false });
-  await page.goto(pathToFileURL(path.join(out, side, 'index.html')).href + surface.query, { waitUntil: 'load' });
-  const map = await captureStyleMap(page);
-  const js = (await page.coverage.stopJSCoverage()).find((e) => e.url.endsWith('/app.js'));
-  const css = (await page.coverage.stopCSSCoverage())
-    .filter((e) => e.text)
-    .map((e) => ({ ...e, url: path.relative(path.join(out, side), fileURLToPath(e.url)) }));
-  await page.close();
-  return { map, css, execution: lineExecution(js, sourceMaps[side], '/app.jsx') };
+  const servedRules = await trackServedRules(page);
+  try {
+    await page.goto(pathToFileURL(path.join(out, side, 'index.html')).href + surface.query, { waitUntil: 'load' });
+    const map = await captureStyleMap(page, { captureReach: true, servedRules });
+    const js = (await page.coverage.stopJSCoverage()).find((e) => e.url.endsWith('/app.js'));
+    return { map, execution: lineExecution(js, sourceMaps[side], '/app.jsx') };
+  } finally {
+    await servedRules.dispose();
+    await page.close();
+  }
 }
 
 const browser = await chromium.launch();
@@ -102,13 +96,12 @@ const browser = await chromium.launch();
   const a = await capture(browser, 'base', corpus.surfaces.home);
   const b = await capture(browser, 'base', corpus.surfaces.home);
   const styleDrift = diffStyleMaps(a.map, b.map).length;
-  const usedA = [...servedRules(a.css).used].sort().join('\n');
-  const usedB = [...servedRules(b.css).used].sort().join('\n');
+  const reachStable = Boolean(a.map.reach) && isDeepStrictEqual(a.map.reach, b.map.reach);
   const ranA = JSON.stringify([...a.execution]);
   const ranB = JSON.stringify([...b.execution]);
-  if (styleDrift || usedA !== usedB || ranA !== ranB) {
+  if (styleDrift || !reachStable || ranA !== ranB) {
     console.error(
-      `fixture is not deterministic — style drift ${styleDrift}, rule usage ${usedA === usedB ? 'stable' : 'drifted'}, ` +
+      `fixture is not deterministic — style drift ${styleDrift}, reach ledger ${reachStable ? 'stable' : 'drifted'}, ` +
         `execution ${ranA === ranB ? 'stable' : 'drifted'}; corpus results would be noise`,
     );
     process.exit(2);
@@ -143,24 +136,24 @@ function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
 
 function evaluate(surfaceIds) {
   const pick = (side) => surfaceIds.map((id) => caps[side][id]);
-  const served = Object.fromEntries(
-    SIDES.map((side) => [
-      side,
-      servedRules(pick(side).flatMap((c, capture) => c.css.map((entry) => ({ ...entry, capture })))),
-    ]),
+  const j1 = classifyRuleReach(
+    pick('base').map((c) => c.map),
+    pick('head').map((c) => c.map),
   );
-  const vocabulary = classVocabulary([...served.base.rules, ...served.head.rules]);
+  const vocabulary = classVocabulary(
+    SIDES.flatMap((side) => pick(side).flatMap((c) => (c.map.reach?.rules ?? []).map((r) => r.key))),
+  );
   const pairs = surfaceIds.map((id) => ({ base: caps.base[id].map, head: caps.head[id].map }));
-  const units = changedRules(served.base, served.head).map((c) => ({
-    kind: 'css',
-    key: c.key,
-    selector: c.rule.selector,
-    ...cssReach(c.rule, served[c.side], c.before),
-  }));
+  const units = j1.rules.map((r) => ({ kind: 'css', key: r.key, selector: r.key, status: r.status, why: r.why }));
   for (const hunk of hunks)
     for (let i = 0; i < Math.max(hunk.base.length, hunk.head.length); i++)
       units.push(jsUnit(hunk.base[i], hunk.head[i], pick, vocabulary, pairs));
-  return { findings: pairs.flatMap((p) => diffStyleMaps(p.base, p.head)), units };
+  return {
+    findings: pairs.flatMap((p) => diffStyleMaps(p.base, p.head)),
+    units,
+    ledger: j1.ledger,
+    unreadableSheets: j1.unreadableSheets,
+  };
 }
 
 const matches = (c, u) =>
@@ -173,7 +166,9 @@ const worst = (units) =>
 const failures = [];
 const results = corpus.cases.map((c) => ({ id: c.id, category: c.category, desc: c.desc, scenarios: {} }));
 for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
-  const { findings, units } = evaluate(surfaceIds);
+  const { findings, units, ledger, unreadableSheets } = evaluate(surfaceIds);
+  if (ledger !== 'complete')
+    failures.push(`${scenario}: J1 ledger ${ledger} (${unreadableSheets} unreadable) — CSS reach is unknown`);
   for (const u of units) {
     const owners = corpus.cases.filter((c) => matches(c, u));
     if (owners.length !== 1)

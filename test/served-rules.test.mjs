@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { servedRulesOf, trackServedRules } from '../dist/capture/reach.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
-import { changedRules, cssReach, servedRules } from '../bench/reach-joins.mjs';
 
 // The Change Reach ledger (#991) names every leaf rule of a stylesheet's text and
 // marks it used when a matched rule-usage range overlaps it.
@@ -66,11 +66,35 @@ test('servedRulesOf records custom properties declared and read, and keyframe or
   const [root, badge, title, keyframes] = servedRulesOf(text, []);
   assert.deepEqual(Object.keys(root.vars), ['--warn', '--gap']);
   assert.equal(root.uses, undefined);
+  assert.equal(root.aliases, undefined);
   assert.deepEqual(badge.uses, ['--warn', '--gap']);
+  assert.equal(badge.aliases, undefined);
   assert.ok(badge.refs.includes('pulse'));
   assert.deepEqual(title.refs, ['Brand Sans', 'sans-serif']);
   assert.equal(keyframes.key, '@keyframes pulse');
   assert.equal(keyframes.used, undefined);
+});
+
+test('servedRulesOf records sorted, deduplicated custom property aliases', () => {
+  const [root] = servedRulesOf(
+    ':root { --warn: red; --middle: var( --warn ); --tone: var(--warn) var(--middle) var(--warn); }',
+    [],
+  );
+  assert.deepEqual(root.aliases, { '--middle': ['--warn'], '--tone': ['--middle', '--warn'] });
+});
+
+test('servedRulesOf unions aliases across repeated custom property declarations', () => {
+  const [root] = servedRulesOf(':root { --tone: var(--warn); --tone: var(--middle) var(--warn); --tone: blue; }', []);
+  assert.deepEqual(root.aliases, { '--tone': ['--middle', '--warn'] });
+  assert.deepEqual(root.uses, ['--warn', '--middle']);
+});
+
+test('servedRulesOf records @property without declarations, reads or usage', () => {
+  const [property] = servedRulesOf('@property --brand { syntax: "<color>"; inherits: false; initial-value: red; }', []);
+  assert.equal(property.key, '@property --brand');
+  assert.equal(property.vars, undefined);
+  assert.equal(property.uses, undefined);
+  assert.equal(property.used, undefined);
 });
 
 test('a changed custom property value changes its digest', () => {
@@ -249,123 +273,184 @@ test('reach self-check rejects ledger drift and missing evidence with unchanged 
   assert.throws(() => assertDeterministicReach({ elements: [] }, { elements: [] }, 'home'), /reach.*missing/);
 });
 
-const benchSheet = (url, text, ...selectors) => ({
-  url,
-  text,
-  ranges: selectors.map((selector) => {
-    const start = text.indexOf(selector);
-    assert.notEqual(start, -1);
-    return { start, end: start + selector.length };
-  }),
-});
-
-test('bench J1 checks removed and renamed custom properties against idle consumers', () => {
-  const base = servedRules([benchSheet('app.css', ':root { --warn: red; } .fault { color: var(--warn); }', ':root')]);
-  for (const declaration of ['color: black;', '--renamed: red;']) {
-    const head = servedRules([
-      benchSheet('app.css', `:root { ${declaration} } .fault { color: var(--warn); }`, ':root'),
-    ]);
-    const change = changedRules(base, head)[0];
-    const verdict = cssReach(change.rule, head, change.before);
-    assert.equal(verdict.status, 'never-rendered');
-    assert.match(verdict.why, /--warn/);
+// Execute the actual corpus module with I/O substitutes: no browser, git or files.
+// The production classifier and join helpers still decide the CSS results.
+async function corpusProbe(mode, rootUrl) {
+  const { readFileSync } = await import('node:fs');
+  const { SourceTextModule, SyntheticModule } = await import('node:vm');
+  const { pathToFileURL } = await import('node:url');
+  const joins = await import(new URL('bench/reach-joins.mjs', rootUrl));
+  const classifier = await import(new URL('dist/rule-reach.js', rootUrl));
+  const source = new URL('bench/reach-corpus.mjs', rootUrl);
+  const corpus = {
+    fixture: 'fixture',
+    surfaces: { home: { width: 800, query: '', colorScheme: 'light' } },
+    scenarios: { declared: ['home'], complete: ['home'] },
+    cases: [
+      {
+        id: 'probe',
+        category: 'css',
+        desc: 'a changed rendered rule',
+        edit: [],
+        sel: '.probe',
+        props: ['color'],
+        unit: { css: '^\\.probe$' },
+        expect: { declared: { reach: 'reached' }, complete: { reach: 'reached' } },
+      },
+    ],
+  };
+  let captures = 0;
+  let receipt;
+  const stdout = [];
+  const stderr = [];
+  const options = [];
+  const browser = {
+    version: () => 'unit-fixture',
+    close: async () => {},
+    newPage: async () => {
+      const page = {
+        goto: async (url) => {
+          page.side = url.includes('/head/') ? 'head' : 'base';
+        },
+        close: async () => {},
+        coverage: {
+          startJSCoverage: async () => {},
+          startCSSCoverage: async () => {},
+          stopJSCoverage: async () => [{ url: pathToFileURL('/capture/app.js').href }],
+          stopCSSCoverage: async () => [
+            {
+              url: pathToFileURL(`/capture/${page.side}/app.css`).href,
+              text: `.probe { color: ${page.side === 'head' ? 'blue' : 'red'}; }`,
+              ranges: [{ start: 0, end: 40 }],
+            },
+          ],
+        },
+      };
+      return page;
+    },
+  };
+  const capture = {
+    trackServedRules: async () => ({ dispose: async () => {} }),
+    captureStyleMap: async (page, settings) => {
+      options.push(settings?.captureReach === true && Boolean(settings.servedRules));
+      captures++;
+      const reach = {
+        sheets: ['/app.css'],
+        rules: [{ sheet: 0, key: '.probe', hash: page.side, used: true }],
+        ...(mode === 'partial' ? { unreadable: 1 } : {}),
+      };
+      if (mode === 'drift' && captures === 2) reach.rules[0].hash = 'drift';
+      return {
+        elements: {},
+        ...(mode === 'missing-preflight' || (mode === 'missing-scenario' && captures > 2) ? {} : { reach }),
+      };
+    },
+  };
+  const fakeFs = {
+    mkdtempSync: () => '/capture',
+    cpSync: () => {},
+    rmSync: () => {},
+    readFileSync: (file) => (String(file).endsWith('reach-corpus.json') ? JSON.stringify(corpus) : '{}'),
+    writeFileSync: (file, text) => {
+      if (String(file).endsWith('reach-corpus.results.json')) receipt = JSON.parse(text);
+    },
+  };
+  const mocks = {
+    '@playwright/test': { chromium: { launch: async () => browser } },
+    esbuild: { default: { build: async () => {} } },
+    'node:fs': { default: fakeFs },
+    '../dist/capture.js': capture,
+    '../dist/rule-reach.js': classifier,
+    '../dist/diff.js': { diffStyleMaps: () => [] },
+    './reach-joins.mjs': { ...joins, diffHunks: () => [], lineExecution: () => new Map() },
+  };
+  const sentinel = new Error('corpus exit');
+  let exitCode = 0;
+  const context = (await import('node:vm')).createContext({
+    console: { log: (text) => stdout.push(text), error: (text) => stderr.push(text) },
+    process: {
+      argv: mode === 'complete' ? [] : ['--check'],
+      exit: (code) => {
+        exitCode = code;
+        throw sentinel;
+      },
+    },
+  });
+  const module = new SourceTextModule(readFileSync(source, 'utf8'), {
+    context,
+    identifier: source.href,
+    initializeImportMeta: (meta) => {
+      meta.url = source.href;
+    },
+  });
+  await module.link(async (specifier) => {
+    const exports = mocks[specifier] ?? (await import(new URL(specifier, source).href));
+    return new SyntheticModule(
+      Object.keys(exports),
+      function () {
+        for (const [name, value] of Object.entries(exports)) this.setExport(name, value);
+      },
+      { context },
+    );
+  });
+  try {
+    await module.evaluate();
+  } catch (error) {
+    if (error !== sentinel) throw error;
   }
-});
+  console.log(JSON.stringify({ exitCode, stdout, stderr, receipt, options }));
+}
 
-test('bench J1 follows aliases across sheets and within the changed rule', () => {
-  for (const aliases of [
-    ['--middle: var( --warn ); --tone: var(--middle);', ''],
-    ['', ':root { --middle: var( --warn ); --tone: var(--middle); }'],
+function runCorpusProbe(mode) {
+  const rootUrl = new URL('../', import.meta.url).href;
+  const child = spawnSync(
+    process.execPath,
+    [
+      '--experimental-vm-modules',
+      '--input-type=module',
+      '-e',
+      `(${corpusProbe})(${JSON.stringify(mode)}, ${JSON.stringify(rootUrl)})`,
+    ],
+    { encoding: 'utf8' },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  return JSON.parse(child.stdout);
+}
+
+test('reach corpus rejects incomplete ledgers even when CSS expectations match', async (t) => {
+  for (const [mode, ledger, unreadable] of [
+    ['partial', 'partial', 2],
+    ['missing-scenario', 'missing', 0],
   ]) {
-    const catalog = (value, rendered) =>
-      servedRules([
-        benchSheet('tokens.css', `:root { --warn: ${value}; ${aliases[0]} }`, ':root'),
-        benchSheet(
-          'app.css',
-          `${aliases[1]} .fault { color: var(--tone); } .healthy { color: var(--tone-extra); }`,
-          ...rendered,
-        ),
-      ]);
-    const base = catalog('red', aliases[1] ? [':root'] : []);
-    for (const rendered of [[':root'], [':root', '.fault']]) {
-      // The first variant has its aliases in tokens.css, so app.css has no :root.
-      const selectors = aliases[1] ? rendered : rendered.filter((s) => s !== ':root');
-      const head = catalog('blue', selectors);
-      const change = changedRules(base, head)[0];
-      assert.equal(
-        cssReach(change.rule, head, change.before).status,
-        rendered.includes('.fault') ? 'reached' : 'never-rendered',
+    await t.test(mode, () => {
+      const result = runCorpusProbe(mode);
+      assert.equal(result.exitCode, 1, mode);
+      assert.match(
+        result.stderr.join('\n'),
+        new RegExp(`J1 ledger ${ledger} \\(${unreadable} unreadable\\) — CSS reach is unknown`),
       );
-    }
+    });
   }
 });
 
-test('bench J1 flags missing consumers and cyclic aliases instead of claiming reach', () => {
-  for (const aliases of ['', '--tone: var(--warn);', '--tone: var(--warn); --warn: var(--tone);']) {
-    const base = servedRules([benchSheet('app.css', ':root { --warn: red; }', ':root')]);
-    const head = servedRules([benchSheet('app.css', `:root { --warn: blue; ${aliases} }`, ':root')]);
-    const change = changedRules(base, head)[0];
-    assert.equal(cssReach(change.rule, head, change.before).status, 'never-rendered');
+test('reach corpus rejects missing or drifting ledgers before scoring cases', async (t) => {
+  for (const mode of ['missing-preflight', 'drift']) {
+    await t.test(mode, () => {
+      const result = runCorpusProbe(mode);
+      assert.equal(result.exitCode, 2, mode);
+      assert.match(result.stderr.join('\n'), /reach ledger drifted/);
+    });
   }
 });
 
-test('bench catalogs retain a later sheet change and its own usage in either discovery order', () => {
-  const first = benchSheet('first.css', '.a { color: red; }', '.a');
-  const second = benchSheet('second.css', '.a { color: blue; } .a { padding: 1px; }');
-  const changed = benchSheet('second.css', '.a { color: green; } .a { padding: 2px; }');
-  const base = servedRules([first, second]);
-  const head = servedRules([first, changed]);
-  assert.deepEqual(base, servedRules([second, first]));
-  assert.deepEqual(head, servedRules([changed, first]));
-  assert.equal(head.rules.length, 3);
-  const changes = changedRules(base, head);
-  assert.equal(changes.length, 2);
-  assert.deepEqual(
-    changes.map((c) => [c.rule.sheet, c.rule.ordinal]),
-    [
-      ['second.css', 0],
-      ['second.css', 1],
-    ],
-  );
-  for (const change of changes) assert.equal(cssReach(change.rule, head, change.before).status, 'never-rendered');
+test('reach corpus scores CSS with source classifier keys and explanations', () => {
+  const result = runCorpusProbe('complete');
+  assert.equal(result.exitCode, 0, result.stderr.join('\n'));
+  assert.ok(result.options.every(Boolean), 'every capture records the served-rule ledger');
+  assert.deepEqual(result.receipt.cases[0].scenarios.declared.units, ['.probe: reached (matched in a captured state)']);
 });
 
-test('bench catalogs merge repeated captures without borrowing usage from another sheet or ordinal', () => {
-  const text = '.a { color: red; } .a { color: blue; }';
-  const entries = [
-    { ...benchSheet('first.css', text), capture: 0 },
-    { ...benchSheet('first.css', text, '.a { color: blue; }'), capture: 1 },
-    { ...benchSheet('second.css', text), capture: 0 },
-  ];
-  const catalog = servedRules(entries);
-  assert.deepEqual(catalog, servedRules([...entries].reverse()));
-  assert.equal(catalog.rules.length, 4);
-  assert.deepEqual(
-    catalog.rules.filter((r) => catalog.used.has(r.key)).map((r) => [r.sheet, r.ordinal]),
-    [['first.css', 1]],
-  );
-  assert.deepEqual(changedRules(catalog, servedRules([...entries].reverse())), []);
-  const withOtherRule = servedRules([benchSheet('first.css', `.other { margin: 0; } ${text}`)]);
-  const withoutOtherRule = servedRules([benchSheet('first.css', text)]);
-  const removals = changedRules(withOtherRule, withoutOtherRule);
-  assert.equal(removals.length, 1);
-  assert.equal(removals[0].side, 'base');
-  assert.equal(removals[0].rule.selector, '.other');
-});
-
-test('bench catalogs reject missing identities, duplicate sheets and conflicting capture text', () => {
-  const entry = benchSheet('app.css', '.a { color: red; }', '.a');
-  assert.throws(() => servedRules([{ ...entry, url: '' }]), /stylesheet identity/);
-  for (const entries of [
-    [entry, entry],
-    [entry, benchSheet('app.css', '.a { color: blue; }')],
-    [
-      { ...entry, capture: 0 },
-      { ...benchSheet('app.css', '.a { color: blue; }'), capture: 1 },
-    ],
-  ]) {
-    for (const order of [entries, [...entries].reverse()]) {
-      assert.throws(() => servedRules(order), /ambiguous stylesheet/);
-    }
-  }
+test('J3 class vocabulary reads ledger keys', async () => {
+  const { classVocabulary } = await import('../bench/reach-joins.mjs');
+  assert.deepEqual([...classVocabulary(['.panel > .cell', '@media (width > 600px) > .panel #2'])], ['panel', 'cell']);
 });

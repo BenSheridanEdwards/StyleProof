@@ -144,12 +144,18 @@ function declarations(body: string): [string, string][] {
 }
 
 /** The custom properties a body declares (name → value digest) and the ones it reads through `var()`. */
-function customProperties(body: string, values: [string, string][]): Pick<ServedRule, 'vars' | 'uses'> {
+function customProperties(body: string, values: [string, string][]): Pick<ServedRule, 'vars' | 'uses' | 'aliases'> {
   const declared = values.filter(([property]) => property.startsWith('--'));
   const read = [...new Set([...body.matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]))];
+  const aliases: Record<string, string[]> = {};
+  for (const [name, value] of declared) {
+    const reads = [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]);
+    if (reads.length) aliases[name] = [...new Set([...(aliases[name] ?? []), ...reads])].sort();
+  }
   return {
     ...(declared.length ? { vars: Object.fromEntries(declared.map(([name, value]) => [name, digest(value)])) } : {}),
     ...(read.length ? { uses: read } : {}),
+    ...(Object.keys(aliases).length ? { aliases } : {}),
   };
 }
 

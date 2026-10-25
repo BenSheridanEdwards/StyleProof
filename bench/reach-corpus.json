@@ -33,7 +33,7 @@
   },
   "expectations": {
     "today": "shown = today's diffStyleMaps puts a finding on the marker element (with an expected prop); missed = it does not",
-    "reach": "reached / never-rendered / blind-channel: the prototype joins' verdict for the case's changed unit",
+    "reach": "reached / never-rendered / blind-channel: the src/ J1 join for CSS units and prototype J2/J3 joins for JS units",
     "edit": "the seeded change: each `from` must occur exactly once in the base file; the head side is base plus every case edit"
   },
   "cases": [

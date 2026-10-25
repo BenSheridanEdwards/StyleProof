@@ -15,8 +15,9 @@
  * - `reached`         a captured state matched each changed body (and every consumer of a
  *                     custom property it changed);
  * - `never-rendered`  some changed body never matched; `condition` names the at-rules gating it;
- * - `blind-channel`   a `@keyframes`/`@font-face` that a matched rule references — reached,
+ * - `blind-channel`   a `@keyframes`/`@font-face`/`@property` that a matched rule references — reached,
  *                     but its body is not something computed styles can hold.
+ * Token closure follows `aliases`; a token no rule reads outside a custom property is never-rendered.
  * When any map on either side has no ledger (captured without captureReach, or older),
  * nothing is classified: `ledger: 'missing'`. Unreadable stylesheets give `ledger: 'partial'`;
  * only readable rules are classified, so a partial ledger is never proof of reach.
@@ -142,13 +143,22 @@ function conditionOf(key: string): string | undefined {
   return chain.length ? chain.join(' > ') : undefined;
 }
 
-/** For a `@keyframes`/`@font-face` leaf: the names a referencing rule must carry in `refs`. */
-function referencedNames(variant: Variant): string[] | undefined {
+type Dependency = { names: string[]; carries: (rule: Variant) => readonly string[] };
+
+/** The names and ledger fields that can reference a dependency leaf. */
+function dependencyOf(variant: Variant): Dependency | undefined {
   // The ledger appends a repeat counter to duplicate keys.
   const prelude = (keyParts(variant.key).at(-1) ?? '').replace(/ #\d+$/, '');
   const keyframes = /^@(?:-[a-z]+-)?keyframes\s+(.+)$/i.exec(prelude);
-  if (keyframes) return [keyframes[1].trim().replace(/^(["'])(.*)\1$/, '$2')];
-  if (/^@font-face$/i.test(prelude)) return variant.refs ?? []; // the family it declares
+  if (keyframes) {
+    return { names: [keyframes[1].trim().replace(/^(["'])(.*)\1$/, '$2')], carries: (rule) => rule.refs ?? [] };
+  }
+  if (/^@font-face$/i.test(prelude)) return { names: variant.refs ?? [], carries: (rule) => rule.refs ?? [] };
+  if (/^@property\b/i.test(prelude)) {
+    const name = /^@property\s+(--[\w-]+)$/.exec(prelude)?.[1];
+    // An unparsable name has no referrer, so it stays never-rendered.
+    return { names: name ? [name] : [], carries: (rule) => [...(rule.uses ?? []), ...Object.keys(rule.vars ?? {})] };
+  }
   return undefined;
 }
 
@@ -168,9 +178,9 @@ function tokenClosure(side: Side, seed: string): Set<string> {
   do {
     size = closure.size;
     for (const rule of side.sorted) {
-      if (!rule.uses?.some((prop) => closure.has(prop))) continue;
-      // Uses are per rule, so conservatively include every custom property it declares.
-      for (const prop of Object.keys(rule.vars ?? {})) closure.add(prop);
+      for (const [alias, reads] of Object.entries(rule.aliases ?? {})) {
+        if (reads.some((prop) => closure.has(prop))) closure.add(alias);
+      }
     }
   } while (closure.size !== size);
   return closure;
@@ -186,6 +196,12 @@ function tokenShortfall(v: Variant, side: Side, before: readonly Variant[]): str
       const through = via === prop ? '' : ` through ${via}`;
       return `${prop} changed${through}, and its consumer ${idle.key} never matched`;
     }
+    const terminal = side.sorted.some((rule) =>
+      rule.uses?.some(
+        (used) => closure.has(used) && !Object.values(rule.aliases ?? {}).some((reads) => reads.includes(used)),
+      ),
+    );
+    if (!terminal) return `${prop} changed, and no served rule reads it outside a custom property`;
   }
   return undefined;
 }
@@ -193,10 +209,10 @@ function tokenShortfall(v: Variant, side: Side, before: readonly Variant[]): str
 /** Why one changed body is not `reached` on the side that judges it, or undefined when it is. */
 function shortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<RuleReach, 'key' | 'change'> | undefined {
   const sheet = v.sheetLabel ? { sheet: v.sheetLabel } : {};
-  const names = referencedNames(v);
-  if (names) {
+  const dependency = dependencyOf(v);
+  if (dependency) {
     const referrer = side.sorted.find(
-      (r) => r.key !== v.key && side.used.has(r.id) && r.refs?.some((n) => names.includes(n)),
+      (r) => r.key !== v.key && side.used.has(r.id) && dependency.carries(r).some((n) => dependency.names.includes(n)),
     );
     return referrer
       ? { status: 'blind-channel', why: `referenced by ${referrer.key}, which rendered`, ...sheet }
