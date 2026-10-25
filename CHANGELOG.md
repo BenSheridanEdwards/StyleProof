@@ -43,6 +43,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Restore full-page scroller declarations through CSSOM before restoring exact style attribute text, so strict style CSP cannot leave expansion overrides applied.
 ## [9.0.0] - 2026-10-21
+
 ## [9.0.0] - 2026-10-25
 
 > **StyleProof 9.0.0: stable keys and stricter gates**
