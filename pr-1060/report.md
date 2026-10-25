@@ -6,7 +6,7 @@
 <summary>Evidence (warnings & failures)</summary>
 
 **Certification**
-- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
+- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
 
 </details>
 
