@@ -23,6 +23,40 @@ const digest = (s: string): string => createHash('sha256').update(s).digest('hex
 const GROUPING = /^@(media|supports|layer|container|scope|document|starting-style)\b/i;
 // Mirror PSEUDOS in capturePage (browser.ts), which is serialized and cannot be imported.
 const CAPTURED_PSEUDO_ELEMENTS = new Set(['::before', '::after', '::marker', '::placeholder', ...GENERATED_PSEUDOS]);
+// Mirrors the pseudo-elements browser.ts snapSubtree reads under a forced state (serialized, so not importable).
+// ::marker is left out: forced reads skip it on fields.
+const FORCED_PSEUDO_ELEMENTS = new Set(['::before', '::after', '::placeholder']);
+// Pseudo-classes whose matching depends only on what comparedSnapshot fingerprints. Any other state
+// (validity, open, defined, direction, design mode, visited, future pseudo-classes) is never attributed.
+const FINGERPRINTED_PSEUDO_CLASSES = new Set([
+  'is',
+  'where',
+  'not',
+  'has',
+  'root',
+  'scope',
+  'empty',
+  'first-child',
+  'last-child',
+  'only-child',
+  'first-of-type',
+  'last-of-type',
+  'only-of-type',
+  'nth-child',
+  'nth-last-child',
+  'nth-of-type',
+  'nth-last-of-type',
+  'link',
+  'any-link',
+  'lang',
+  'target',
+  'checked',
+  'disabled',
+  'enabled',
+  'required',
+  'optional',
+  'placeholder-shown',
+]);
 function unknown(detail: string): never {
   throw new Error(`styleproof: served CSS reach is unknown: ${detail}`);
 }
@@ -275,17 +309,43 @@ function unattributablePseudo(rest: string): boolean {
   );
 }
 
-/** End of a pseudo-element or forced action state, including any balanced arguments. */
-function removedPseudoEnd(prelude: string, start: number): number {
-  const element = /^::[\w-]+/.exec(prelude.slice(start))?.[0];
-  if (element) return CAPTURED_PSEUDO_ELEMENTS.has(element.toLowerCase()) ? start + element.length : start;
-  const removed =
-    /^:(?:before|after|first-line|first-letter|hover|focus-visible|focus-within|focus|active)(?![\w-])/i.exec(
-      prelude.slice(start),
-    );
+/** End and normalised `::name` of a captured pseudo-element, including the legacy single-colon forms. */
+function pseudoElementEnd(prelude: string, start: number): { end: number; name: string } | undefined {
+  const element = /^::?[\w-]+/.exec(prelude.slice(start))?.[0];
+  if (!element) return undefined;
+  const name = `::${element.replace(/^::?/, '').toLowerCase()}`;
+  const legacy = /^:(?:before|after|first-line|first-letter)$/i.test(element);
+  if (!element.startsWith('::') && !legacy) return undefined;
+  return CAPTURED_PSEUDO_ELEMENTS.has(name) ? { end: start + element.length, name } : undefined;
+}
+
+/** End of a forced action state, including any balanced arguments. */
+function forcedStateEnd(prelude: string, start: number): number {
+  const removed = /^:(?:hover|focus-visible|focus-within|focus|active)(?![\w-])/i.exec(prelude.slice(start));
   if (!removed) return start;
   const end = start + removed[0].length;
   return prelude[end] === '(' ? delimiter(prelude, end + 1, ')') + 1 : end;
+}
+
+/** Classify a pseudo token, leaving ordinary characters in place and rejecting unattributable state. */
+function selectorPseudo(
+  prelude: string,
+  start: number,
+): { end: number; elements: string[]; forced: boolean } | undefined {
+  const rest = prelude.slice(start);
+  if (unattributablePseudo(rest)) return undefined;
+  const element = pseudoElementEnd(prelude, start);
+  if (element) {
+    // A pseudo-element ends its selector; capture never reads what follows (`::before::marker`, `::before:hover`).
+    const next = skipTrivia(prelude, element.end, prelude.length);
+    if (next < prelude.length && prelude[next] !== ',') return undefined;
+    return { end: element.end, elements: [element.name], forced: false };
+  }
+  const forcedEnd = forcedStateEnd(prelude, start);
+  if (forcedEnd > start) return { end: forcedEnd, elements: [], forced: true };
+  const pseudoClass = /^:([\w-]+)/.exec(rest);
+  if (pseudoClass && !FINGERPRINTED_PSEUDO_CLASSES.has(pseudoClass[1].toLowerCase())) return undefined;
+  return { end: start, elements: [], forced: false };
 }
 
 function selectorProbe(prelude: string, chain: readonly string[]): SelectorProbe | undefined {
@@ -295,6 +355,15 @@ function selectorProbe(prelude: string, chain: readonly string[]): SelectorProbe
   let depth = 0;
   let relaxed = false;
   let nested = false;
+  let forced = false;
+  const elements: string[] = [];
+  const remove = (end: number) => {
+    relaxed = true;
+    nested ||= depth > 0;
+    if (standalone) probe += '*';
+    standalone = false;
+    return end;
+  };
   for (let i = 0; i < prelude.length;) {
     const opaque = prelude[i] === '[' ? delimiter(prelude, i + 1, ']') + 1 : opaqueEnd(prelude, i);
     if (opaque > i) {
@@ -303,21 +372,20 @@ function selectorProbe(prelude: string, chain: readonly string[]): SelectorProbe
       i = opaque;
       continue;
     }
-    const rest = prelude.slice(i);
-    if (unattributablePseudo(rest)) return undefined;
-    const removedEnd = removedPseudoEnd(prelude, i);
-    if (removedEnd > i) {
-      relaxed = true;
-      nested ||= depth > 0;
-      i = removedEnd;
-      if (standalone) probe += '*';
-      standalone = false;
+    const pseudo = selectorPseudo(prelude, i);
+    if (!pseudo) return undefined;
+    if (pseudo.end > i) {
+      forced ||= pseudo.forced;
+      elements.push(...pseudo.elements);
+      i = remove(pseudo.end);
       continue;
     }
     depth += Number(prelude[i] === '(') - Number(prelude[i] === ')');
     standalone = /[\s>+~(,]/.test(prelude[i]);
     probe += prelude[i++];
   }
+  // Rule usage is per rule, so one forced state on an unread pseudo-element makes the whole rule unattributable.
+  if (forced && elements.some((name) => !FORCED_PSEUDO_ELEMENTS.has(name))) return undefined;
   return { selector: probe, relaxed, nested };
 }
 
@@ -372,7 +440,10 @@ function sheetLabel(header: SheetHeader): string {
 export type ServedRuleTracker = {
   /** Start recording rule usage and DOM state. Forces a style recalculation, so existing matches count. */
   start: () => Promise<void>;
-  /** Scope matches to `compared` paths, omitting `ownCss`. A DOM change makes all matches outside. Can start again. */
+  /**
+   * Scope matches to `compared` paths, omitting `ownCss`. A DOM change makes all matches outside, and selectors
+   * that depend on state outside the DOM fingerprint are never attributed. Can start again.
+   */
   stop: (ownCss: readonly string[], compared: readonly string[]) => Promise<ServedRules>;
   /** Release the CDP session. Safe after a failed capture and safe to repeat. */
   dispose: () => Promise<void>;

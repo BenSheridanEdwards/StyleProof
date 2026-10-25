@@ -378,7 +378,7 @@ for (const [selector, expected, chain = []] of [
   [String.raw`.escaped\:hover`, String.raw`.escaped\:hover`],
   ['[data-name="::part(title)"]:active', '[data-name="::part(title)"]'],
   ['.a:focus-visible:focus-within:focus:active', '.a'],
-  ['.a:hovering', '.a:hovering'],
+  ['.a:hovering', undefined],
   [String.raw`.a::be\66 ore`, undefined],
   [String.raw`.a:hove\72`, undefined],
   ['.a::beforeé', undefined],
@@ -404,6 +404,45 @@ for (const [selector, expected, chain = []] of [
   ['.c', undefined, ['@scope (.card)']],
   ['.c', undefined, ['@container (min-width: 500px)']],
   ['@page', undefined],
+  // State the DOM fingerprint does not track cannot be attributed.
+  ['.field:invalid', undefined],
+  ['.a:valid', undefined],
+  ['.a:user-invalid', undefined],
+  ['input:indeterminate', undefined],
+  ['.a:popover-open', undefined],
+  ['details:open', undefined],
+  ['dialog:modal', undefined],
+  ['x-el:defined', undefined],
+  ['input:autofill', undefined],
+  ['.a:dir(rtl)', undefined],
+  ['.a:state(x)', undefined],
+  ['a:visited', undefined],
+  ['.a:read-only', undefined],
+  [':is(.a:invalid)', undefined],
+  ['.a:has(:invalid)', undefined],
+  [':nth-child(2 of .a:invalid)', undefined],
+  ['.a, .b:invalid', undefined],
+  // Chained pseudo-elements and anything after a pseudo-element are never read.
+  ['.item::before::marker', undefined],
+  ['.a:before::marker', undefined],
+  ['.a::before:hover', undefined],
+  ['.a::before .b', undefined],
+  // Forced reads only capture ::before, ::after and ::placeholder.
+  ['input:hover::file-selector-button', undefined],
+  ['.a:focus::first-letter', undefined],
+  ['.a:hover:first-line', undefined],
+  ['dialog:focus-within::backdrop', undefined],
+  ['li:hover::marker', undefined],
+  ['.a:hover, input::file-selector-button', undefined],
+  ['.a:hover::before', '.a'],
+  ['input:focus::placeholder', 'input'],
+  ['input:checked + label', 'input:checked + label'],
+  ['.a:first-child:not(.b):is(.c)', '.a:first-child:not(.b):is(.c)'],
+  ['a:any-link', 'a:any-link'],
+  [':lang(en)', ':lang(en)'],
+  ['input:placeholder-shown', 'input:placeholder-shown'],
+  [':root', ':root'],
+  ['li:nth-child(2n+1 of .x)', 'li:nth-child(2n+1 of .x)'],
 ]) {
   test(`comparedProbe attributes ${selector} within ${chain.join(' > ')}`, () => {
     assert.equal(reach.comparedProbe(selector, chain), expected);
@@ -504,8 +543,16 @@ test('serialized DOM fingerprint detects selector state changes while allowing n
   assert.equal(fingerprint(), nonempty);
 });
 
-test('tracked ledger marks uncaptured pseudo-element matches outside compared scope', async () => {
-  for (const selector of ['.a::selection', '.a::-webkit-scrollbar', '.a::highlight(x)', '.a::cue(:is(.b, .c))']) {
+test('tracked ledger marks uncaptured pseudo-element and unfingerprinted state matches outside compared scope', async () => {
+  for (const selector of [
+    '.a::selection',
+    '.a::-webkit-scrollbar',
+    '.a::highlight(x)',
+    '.a::cue(:is(.b, .c))',
+    '.field:invalid',
+    '.item::before::marker',
+    'input:hover::file-selector-button',
+  ]) {
     const ledger = await trackedLedger([{ ...matchedSheet, text: `${selector} { color: red; }` }]);
     assert.equal(ledger.scope, 'compared');
     assert.equal(ledger.rules[0].used, undefined, selector);
