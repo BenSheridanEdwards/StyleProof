@@ -575,7 +575,7 @@ With `captureReach` and `changeReach: 'gate'`, a changed CSS rule no captured
 state rendered fails certify mode and needs approval in review-gate mode.
 Rules matched only outside compared elements stay `unmeasured` and also hold
 the opt-in gate. Full-page capture preserves inline style attributes, including
-on nested scrollers, so its temporary expansion does not invalidate reach.
+on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
 Render-code reach (J2/J3) is not measured yet.
 
 ## Reference

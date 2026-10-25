@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { alignRectsToFullPageGeometry, captureFullPageScreenshot } from '../dist/capture/full-page.js';
 
 // Model the CSSOM boundary: writing a property serializes the entire style attribute.
+// Attribute writes retain text without parsing declarations, as under strict CSP.
 // The browser E2E covers Chromium's actual serialization and rule-reach classification.
 function element(style, parentElement = null) {
   const properties = new Map();
@@ -22,6 +23,11 @@ function element(style, parentElement = null) {
       style = null;
     },
     style: {
+      set cssText(value) {
+        assert.equal(value, '');
+        properties.clear();
+        style = '';
+      },
       getPropertyValue: (name) => properties.get(name)?.value ?? '',
       getPropertyPriority: (name) => properties.get(name)?.priority ?? '',
       setProperty: (name, value, priority) => {
@@ -31,6 +37,7 @@ function element(style, parentElement = null) {
           .map(([key, p]) => `${key}: ${p.value}${p.priority ? ' !' + p.priority : ''};`)
           .join(' ');
       },
+      item: (index) => [...properties.keys()][index],
       get length() {
         return properties.size;
       },
@@ -54,6 +61,7 @@ for (const operation of ['rect alignment', 'screenshot', 'failed screenshot']) {
     const scroller = element('overflow-y:auto;max-height:300px!important', wrapper);
     const nodes = [html, body, wrapper, scroller];
     const before = nodes.map((el) => el.getAttribute('style'));
+    const originalMaxHeight = scroller.style.getPropertyValue('max-height');
     const context = vm.createContext({
       window: {},
       document: { documentElement: html, body, querySelectorAll: () => [wrapper, scroller] },
@@ -78,6 +86,13 @@ for (const operation of ['rect alignment', 'screenshot', 'failed screenshot']) {
       nodes.map((el) => el.getAttribute('style')),
       before,
     );
+    assert.equal(
+      scroller.style.getPropertyValue('max-height'),
+      originalMaxHeight,
+      'CSSOM restored even when CSP blocks attribute parsing',
+    );
+    assert.equal(scroller.style.getPropertyValue('height'), '', 'expansion override removed');
+    assert.equal(scroller.style.getPropertyPriority('max-height'), 'important');
     assert.equal(scroller.scrollTop, 120);
     assert.equal(scroller.scrollLeft, 30);
   });

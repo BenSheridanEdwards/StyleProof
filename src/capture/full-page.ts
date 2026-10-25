@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 type StyleShot = {
   el: HTMLElement;
   style: string | null;
+  declarations: [string, string, string][];
 };
 
 /** A scroller's offset before expansion, put back on restore so the captured state is unchanged. */
@@ -32,7 +33,14 @@ function expandInnerScrollContainers(): number {
 
   const unlock = (el: HTMLElement, height: string | null): void => {
     if (!saved.has(el)) {
-      shots.push({ el, style: el.getAttribute('style') });
+      shots.push({
+        el,
+        style: el.getAttribute('style'),
+        declarations: Array.from({ length: el.style.length }, (_, index) => {
+          const name = el.style.item(index);
+          return [name, el.style.getPropertyValue(name), el.style.getPropertyPriority(name)];
+        }),
+      });
       saved.add(el);
     }
     el.style.setProperty('overflow-x', 'visible', 'important');
@@ -94,6 +102,9 @@ function restoreInnerScrollContainers(): void {
   const state = w[restoreKey];
   if (!state) return;
   for (const shot of state.shots.slice().reverse()) {
+    // CSP can block attribute parsing; restore the applied declarations through CSSOM first.
+    shot.el.style.cssText = '';
+    for (const [name, value, priority] of shot.declarations) shot.el.style.setProperty(name, value, priority);
     if (shot.style === null) {
       // In Chromium, setProperty then removeAttribute can leave style="" without this read.
       void shot.el.getAttribute('style');
