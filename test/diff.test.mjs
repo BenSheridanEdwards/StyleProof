@@ -1798,3 +1798,52 @@ test('diffStyleMapDirs treats a capture named like an Object.prototype key as a 
     rmTmp(dirs.b);
   }
 });
+
+// ------------------------------------------------------- rendered inputs (#1005)
+
+for (const [prop, before, after] of [
+  ['@keyframes pulse', '0% { opacity: 1 } 100% { opacity: 0.8 }', '0% { opacity: 1 } 100% { opacity: 0.2 }'],
+  ['currentSrc', 'https://example.test/blue.png', 'https://example.test/red.png'],
+  ['::before @keyframes spin', '0% { transform: rotate(0deg) }', '0% { transform: rotate(90deg) }'],
+  ['currentSrc', 'https://example.test/sprite.svg#fff', 'https://example.test/sprite.svg#ffffff'],
+  ['@keyframes tint', '0% { color: rgba(0, 0, 0, 0.6201) }', '0% { color: rgba(0, 0, 0, 0.6202) }'],
+]) {
+  test(`rendered inputs: ${prop} changes produce an exact element-layer style finding (${before})`, () => {
+    const map = (value) => makeMap({ elements: { body: { rendered: { [prop]: value }, ownTextLength: 0 } } });
+    const expected = [{ kind: 'style', path: 'body', cls: '', pseudo: null, props: [{ prop, before, after }] }];
+    assert.deepEqual(diffStyleMaps(map(before), map(after)), expected);
+    assert.deepEqual(diffStyleMaps(map(before), map(after), { includeStructure: false }), expected);
+  });
+}
+
+test('rendered inputs: identical images and keyframes give no findings', () => {
+  const rendered = { currentSrc: 'https://example.test/blue.png', '@keyframes pulse': '0% { opacity: 1 }' };
+  const map = () => makeMap({ elements: { body: { rendered } } });
+  assert.deepEqual(diffStyleMaps(map(), map()), []);
+});
+
+test('rendered inputs: a legacy side fails closed in either direction', () => {
+  const legacy = makeMap({ elements: { body: {} } });
+  const current = makeMap({ elements: { body: { rendered: { currentSrc: 'https://example.test/blue.png' } } } });
+  for (const [a, b, before, after] of [
+    [legacy, current, '(unset)', 'https://example.test/blue.png'],
+    [current, legacy, 'https://example.test/blue.png', '(unset)'],
+  ]) {
+    const findings = diffStyleMaps(a, b);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].kind, 'style');
+    assert.equal(findings[0].pseudo, null);
+    assert.deepEqual(findings[0].props, [{ prop: 'currentSrc', before, after }]);
+  }
+});
+
+test('rendered inputs: an added image lists its currentSrc', () => {
+  const currentSrc = 'https://example.test/blue.png';
+  const findings = diffStyleMaps(makeMap(), makeMap({ elements: { img: { tag: 'img', rendered: { currentSrc } } } }));
+  assert.equal(findings.length, 2);
+  assert.equal(findings[0].kind, 'dom');
+  assert.equal(findings[0].change, 'added');
+  assert.equal(findings[1].kind, 'style');
+  assert.equal(findings[1].pseudo, null);
+  assert.deepEqual(findings[1].props, [{ prop: 'currentSrc', before: '(unset)', after: currentSrc }]);
+});

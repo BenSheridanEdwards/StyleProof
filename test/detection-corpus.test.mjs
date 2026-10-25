@@ -56,6 +56,22 @@ describe('detection corpus schema', () => {
         `no ${expect} cases`,
       );
   });
+
+  test('rendered inputs require named findings instead of accepting blind passes (#1005)', () => {
+    for (const [id, prop] of [
+      ['anim-keyframes-body', '@keyframes pulse'],
+      ['dom-img-src', 'currentSrc'],
+    ]) {
+      const entry = corpus.cases.find((c) => c.id === id);
+      assert.ok(entry, `missing rendered-input case ${id}`);
+      assert.equal(entry.expect, 'detect');
+      assert.deepEqual(entry.props, [prop]);
+    }
+    assert.deepEqual(
+      corpus.cases.filter((c) => c.expect === 'blind').map((c) => c.id),
+      ['blind-aria-label'],
+    );
+  });
 });
 
 describe('detection corpus receipt', () => {

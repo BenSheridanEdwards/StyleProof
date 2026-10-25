@@ -52,9 +52,14 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
 }
 
 /** Opt-in reach evidence: incomplete joins can only add findings, never certify a run. */
-export function assessReachMaps(base: StyleMap[], head: StyleMap[], level: ChangeReachLevel): ReportReach | undefined {
+export function assessReachMaps(
+  base: StyleMap[],
+  head: StyleMap[],
+  level: ChangeReachLevel,
+  keys?: { base: readonly string[]; head: readonly string[] },
+): ReportReach | undefined {
   if (level === 'warn' && ![...base, ...head].some((map) => map.reach)) return undefined;
-  const result = classifyRuleReach(base, head);
+  const result = classifyRuleReach(base, head, keys);
   const gaps = [...ledgerGaps(base, 'base'), ...ledgerGaps(head, 'head')];
   if (result.ledger !== 'complete' && gaps.length === 0) {
     gaps.push({
@@ -101,8 +106,15 @@ export function assessReach(
   ctx: Pick<RenderCtx, 'beforeDir' | 'afterDir' | 'load'>,
   level: ChangeReachLevel = 'warn',
 ): ReportReach | undefined {
-  const mapsIn = (dir: string) => [...captureKeysIn(dir)].sort().map((key) => ctx.load(dir, key));
-  return assessReachMaps(mapsIn(ctx.beforeDir), mapsIn(ctx.afterDir), level);
+  const keysIn = (dir: string) => [...captureKeysIn(dir)].sort();
+  const baseKeys = keysIn(ctx.beforeDir);
+  const headKeys = keysIn(ctx.afterDir);
+  return assessReachMaps(
+    baseKeys.map((key) => ctx.load(ctx.beforeDir, key)),
+    headKeys.map((key) => ctx.load(ctx.afterDir, key)),
+    level,
+    { base: baseKeys, head: headKeys },
+  );
 }
 
 export function assessReachDirs(beforeDir: string, afterDir: string, level: ChangeReachLevel): ReportReach | undefined {
@@ -139,6 +151,9 @@ export function reachStripLines(reach: ReportReach): string[] {
   if (blind) {
     parts.push(`${blind} changed in a channel computed styles cannot hold`);
     remedies.push('review the changes under **Changed in a channel computed styles cannot hold**');
+    if (reach.rules.some((rule) => rule.status === 'blind-channel' && rule.pixels?.length)) {
+      remedies.push('compare the screenshots of each changed `@font-face` with `styleproof-diff --pixels`');
+    }
   }
   parts.push(...ledger.map(gapReason));
   remedies.push(...ledger.map((gap) => gap.remedy));
@@ -180,6 +195,16 @@ export function reachSectionLines(reach: ReportReach): string[] {
           '**Changed in a channel computed styles cannot hold** (`@keyframes`, `@font-face`, `@property`)',
           '',
           ...ruleTable(blind),
+          ...(blind.some((rule) => rule.pixels?.length)
+            ? [
+                '',
+                'Computed styles cannot show a font change. Compare these captures with `styleproof-diff <base> <head> --pixels`:',
+                '',
+                ...blind
+                  .filter((rule) => rule.pixels?.length)
+                  .map((rule) => `- ${codeValue(rule.key)}: ${rule.pixels!.map(codeValue).join(', ')}`),
+              ]
+            : []),
         ]
       : []),
     ...(ledger.length

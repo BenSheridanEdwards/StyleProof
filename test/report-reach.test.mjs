@@ -134,6 +134,22 @@ test('gate holds blind-channel changes and incomplete ledger evidence', (t) => {
   assert.doesNotMatch(output.md, /✓ No reviewable/);
 });
 
+test('a changed font recommends pixel comparison for the captures that rendered it', (t) => {
+  const side = (hash, used) =>
+    map(rule('@font-face', hash, { refs: ['Brand Sans'] }), rule('.brand', 'b', { used, refs: ['Brand Sans'] }));
+  const output = report(fixture(t, [side('f1', true), side('f1', false)], [side('f2', true), side('f2', false)]));
+  assert.deepEqual(output.json.reach.rules[0].pixels, ['surface-0@1280']);
+  assert.equal(output.json.reach.rules[0].status, 'blind-channel');
+  assert.ok(
+    output.md.includes(
+      'Computed styles cannot show a font change. Compare these captures with `styleproof-diff <base> <head> --pixels`:',
+    ),
+  );
+  assert.ok(output.md.includes('- `@font-face`: `surface-0@1280`'));
+  assert.ok(output.md.includes('compare the screenshots of each changed `@font-face` with `styleproof-diff --pixels`'));
+  assert.match(output.html, /<code>surface-0@1280<\/code>/);
+});
+
 test('directory reach assessment agrees with the report and does not depend on capture or rule order', async (t) => {
   const { assessReachDirs, assessReachMaps } = await import('../dist/report/reach.js');
   const base = [map(rule('.zeta', 'h1'), rule('.alpha', 'h1')), withoutReach(map())];

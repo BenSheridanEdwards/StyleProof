@@ -1165,10 +1165,13 @@ copy required.
 
 ## Optional: pixel gate
 
-Computed styles are the cause; pixels are the effect. The computed-style gate
-cannot see image content, canvas paint, or font rasterisation, and it needs a
-base-to-head element correspondence before it can compare anything. The pixel
-gate needs neither. It compares the screenshots every capture already writes
+Computed styles are the cause; pixels are the effect. Captures also include each
+`<img>`'s `currentSrc` and the resolved bodies of referenced `@keyframes`, so
+source swaps and animation-body changes produce style findings. The style gate
+cannot see new image bytes behind an unchanged URL, canvas paint, or font
+rasterisation, and it needs a base-to-head element correspondence before it can
+compare anything. The pixel gate needs neither. It compares the screenshots every
+capture already writes
 (`<surface>.png` plus the forced `:hover`, `:focus`, and `:active` layers) and
 attributes every changed region to the captured elements under it, innermost
 first, so the reviewer still gets an element name next to the crop.
@@ -1234,6 +1237,29 @@ Both heights are part of the map, so `--prove-determinism` hashes them: a height
 between repeat captures fails the oracle, even when an excluded or volatile region
 causes the variation. The default capture self-check compares elements only and
 does not read `viewport`.
+
+### Rendered inputs (`ElementEntry.rendered`)
+
+The optional `rendered` field records inputs computed styles cannot hold:
+
+- `currentSrc`: an `<img>`'s selected absolute image URL (`currentSrc`, falling
+  back to `src` before selection).
+- `@keyframes <name>`: the browser-resolved body of each CSS animation on the
+  element during the unfrozen motion read.
+- `<pseudo> @keyframes <name>`: the same body for an animation on a pseudo-element,
+  for example `::before @keyframes spin`.
+
+Keyframe values use `0% { … } 100% { … }` blocks from `getKeyframes()`, with
+declarations sorted by name and offsets preserved without rounding. Easing and
+composition values are retained; a value reading a custom property is recorded
+as the browser reports it. Repeated
+animations with the same name are joined with ` | `. These keys become ordinary
+`style` finding rows on the element layer; they are not CSS properties. Rendered
+values are compared exactly, without CSS normalization that could hide a URL change.
+
+A map without `rendered` reads as `(unset)` for these keys, so comparing a legacy
+baseline with a new capture flags the added evidence. Re-capture both sides to
+compare equivalent evidence. Older maps still load and diff.
 
 ## Optional: content layer (advisory)
 
@@ -1378,6 +1404,12 @@ Each map then carries `reach`: every leaf rule of every stylesheet the page serv
 `defineStyleMapCapture` arms the tracker before each `go()`. Chromium keeps a linked stylesheet's text only when the tracker was armed before the sheet loaded. For a direct `captureStyleMap` call, arm one with `trackServedRules(page)` before you navigate and pass `{ captureReach: true, servedRules }`. Without it, linked stylesheets are counted in `reach.unreadable` rather than silently dropped.
 
 When any base or head capture carries a ledger, or `changeReach: 'gate'` is enabled, the report adds a **Reach incomplete** status under the headline and a **Changed but never rendered** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Missing or old ledgers and unreadable stylesheets produce named evidence gaps with remedies. A run with complete ledgers whose changed served rules all rendered has no new section, but remains reach-incomplete: render-code coverage, class-list deltas, and the join between changed stylesheets and served sheets are not recorded yet. The source column names the served sheet; source-map resolution is not recorded yet.
+
+A changed `@keyframes` remains `blind-channel`: the diff captures its body for
+elements animating at rest, but not animations active only in forced states. A
+changed `@font-face` referenced by a rendered rule names the captures to compare
+with `styleproof-diff <base> <head> --pixels`; the same capture keys appear in
+`pixels` on that rule in `report.json`.
 
 `changeReach: 'warn'` is the default in `styleproof.config.ts` (or JSON): reach findings never change the verdict or exit codes, and the diff CLI output stays unchanged. Reports from captures without any ledger stay unchanged too. Opt into `changeReach: 'gate'` to hold changed J1 rules classified as `never-rendered` or `blind-channel`, plus J1 ledger gaps: missing or old ledgers, unreadable sheets, a side without captures, or incomplete ledgers. This includes legacy maps under opt-in gate; recapture missing evidence with `captureReach`. Both `styleproof-diff` and `styleproof-report` exit `1` when reach holds the run. Certify mode with `fail-on-diff: true` and without `require-approval: true` yields `CERTIFICATION_FAILED`; review-gate and migration yield `STYLE_REVIEW_REQUIRED`, cleared by the existing Approve box. Advisory mode remains non-blocking for reach findings. Approval clears the verdict, not the reach finding.
 

@@ -26,6 +26,7 @@ function capturePageHarness() {
     body: { matches: () => true, appendChild() {} },
     querySelector: () => null,
     querySelectorAll: () => [],
+    getAnimations: () => [],
     createElement: () => ({ style: {}, contentDocument: {}, remove() {} }),
   };
   const context = createContext({
@@ -108,6 +109,7 @@ function pseudoPageHarness({ tag = 'p', display = 'block', host = {}, pseudos = 
     querySelectorAll: () => [],
   };
   const reads = [];
+  context.HTMLImageElement = class {};
   context.HTMLInputElement = class {};
   context.HTMLTextAreaElement = class {};
   context.CSSImportRule = class {};
@@ -140,6 +142,120 @@ const pageCaptureArgs = {
   captureText: false,
   pseudoReferences: PSEUDO_REFERENCES,
 };
+
+for (const [currentSrc, src, expected] of [
+  ['https://example.test/selected.png', 'https://example.test/fallback.png', 'https://example.test/selected.png'],
+  ['', 'https://example.test/fallback.png', 'https://example.test/fallback.png'],
+]) {
+  test(`capture records the resolved image source ${expected} (#1005)`, () => {
+    const { run, context, document } = pseudoPageHarness({ tag: 'img' });
+    const element = document.querySelector();
+    Object.setPrototypeOf(element, context.HTMLImageElement.prototype);
+    Object.assign(element, { currentSrc, src });
+    const map = run(capturePage, pageCaptureArgs);
+    assert.equal(map.elements.target.rendered?.currentSrc, expected);
+  });
+}
+
+function animatedPageHarness() {
+  const harness = pseudoPageHarness({ tag: 'img' });
+  const { context, document } = harness;
+  const target = document.querySelector();
+  Object.setPrototypeOf(target, context.HTMLImageElement.prototype);
+  target.currentSrc = 'https://example.test/hero.png';
+  context.CSSAnimation = class {
+    constructor(animationName, effect) {
+      Object.assign(this, { animationName, effect });
+    }
+  };
+  context.KeyframeEffect = class {
+    constructor(pseudoElement = null, opacity = '0.2') {
+      Object.assign(this, { target, pseudoElement, opacity });
+    }
+    getKeyframes() {
+      return [
+        { opacity: '1', offset: 0, computedOffset: 0, easing: 'linear', composite: 'auto' },
+        { computedOffset: 1, offset: 1, composite: 'auto', opacity: this.opacity, easing: 'linear' },
+      ];
+    }
+  };
+  const animations = [
+    new context.CSSAnimation('pulse', new context.KeyframeEffect()),
+    new context.CSSAnimation('spin', new context.KeyframeEffect('::before', '0.4')),
+    new context.CSSAnimation('pulse', new context.KeyframeEffect(null, '0.6')),
+    { effect: new context.KeyframeEffect() }, // script-driven animation, not a CSSAnimation
+    new context.CSSAnimation('detached', Object.assign(new context.KeyframeEffect(), { target: null })),
+  ];
+  document.getAnimations = () => animations;
+  const motion = () => {
+    harness.run(freezeMotion, '*{animation:none!important;transition:none!important}');
+    return harness.run(capturePage, { ...pageCaptureArgs, motionOnly: true });
+  };
+  return { ...harness, animations, motion };
+}
+
+const keyframeBody = (opacity) =>
+  `0% { composite: auto; easing: linear; opacity: 1 } 100% { composite: auto; easing: linear; opacity: ${opacity} }`;
+
+test('capture records referenced keyframes and pseudo animations deterministically (#1005)', () => {
+  const { motion } = animatedPageHarness();
+  const first = motion().elements.target.rendered;
+  assert.deepEqual(JSON.parse(JSON.stringify(first ?? {})), {
+    '@keyframes pulse': `${keyframeBody('0.2')} | ${keyframeBody('0.6')}`,
+    '::before @keyframes spin': keyframeBody('0.4'),
+  });
+  assert.equal(JSON.stringify(motion().elements.target.rendered), JSON.stringify(first));
+});
+
+test('capture preserves small changes to keyframe offsets (#1005)', () => {
+  const { motion, animations } = animatedPageHarness();
+  const effect = animations[0].effect;
+  effect.getKeyframes = () => [{ offset: 0.50001, computedOffset: 0.50001, opacity: '0.2' }];
+  const before = motion().elements.target.rendered['@keyframes pulse'];
+  effect.getKeyframes = () => [{ offset: 0.50002, computedOffset: 0.50002, opacity: '0.2' }];
+  const after = motion().elements.target.rendered['@keyframes pulse'];
+  assert.notEqual(before, after, 'distinct animation timings must not collapse to an identical body');
+});
+
+test('captureStyleMap preserves the image source when merging referenced keyframes (#1005)', async () => {
+  const { page } = animatedPageHarness();
+  const map = await captureStyleMap(page, { captureStates: false, stabilize: false });
+  assert.deepEqual(JSON.parse(JSON.stringify(map.elements.target.rendered ?? {})), {
+    currentSrc: 'https://example.test/hero.png',
+    '@keyframes pulse': `${keyframeBody('0.2')} | ${keyframeBody('0.6')}`,
+    '::before @keyframes spin': keyframeBody('0.4'),
+  });
+});
+
+test('captureStyleMap retains short animations before another browser task can finish them (#1005)', async () => {
+  const { page, hooks, animations } = animatedPageHarness();
+  hooks.afterRead = (name) => {
+    // A finite animation can finish before the next page task after motion is lifted.
+    if (name === 'unfreezeMotion') animations.length = 0;
+  };
+  const map = await captureStyleMap(page, { captureStates: false, stabilize: false });
+  assert.equal(map.elements.target.rendered?.['@keyframes pulse'], `${keyframeBody('0.2')} | ${keyframeBody('0.6')}`);
+});
+
+test('captureStyleMap flushes its freeze before restarting animations without stabilization (#1005)', async () => {
+  const { page, document, animations } = animatedPageHarness();
+  let frozenStyleRead = false;
+  document.getAnimations = () => {
+    // Until the freeze is resolved, a finished animation from the prior page frame stays finished.
+    if (document.adoptedStyleSheets.length > 1) frozenStyleRead = true;
+    return frozenStyleRead ? animations : [];
+  };
+  const map = await captureStyleMap(page, { captureStates: false, stabilize: false });
+  assert.equal(map.elements.target.rendered?.['@keyframes pulse'], `${keyframeBody('0.2')} | ${keyframeBody('0.6')}`);
+});
+
+test('capture fails when a referenced keyframe body cannot be read (#1005)', () => {
+  const { motion, animations } = animatedPageHarness();
+  animations[0].effect.getKeyframes = () => {
+    throw new Error('keyframes unavailable');
+  };
+  assert.throws(motion, /keyframes unavailable/);
+});
 
 for (const { name, tag, property, hostValue, value, ua } of [
   {

@@ -15,6 +15,12 @@ export type ElementEntry = {
   style: Props;
   /** CSS Typed OM computed values where they differ from the used value in `style`; absent on legacy captures. */
   computedValueStyle?: Props;
+  /**
+   * What the element renders that computed styles cannot hold (#1005): `currentSrc` for an `<img>`,
+   * and `@keyframes <name>` (or `<pseudo> @keyframes <name>`) holding the body of each CSS animation
+   * it runs, as the browser resolved it. Absent on maps captured before #1005.
+   */
+  rendered?: Props;
   pseudo?: Record<string, Props>;
   /** Length of the element's own rendered text (never the text itself) — a privacy-safe reflow signal. */
   ownTextLength?: number;

@@ -17,7 +17,8 @@
  * - `never-rendered`  some changed body never matched; `condition` names the at-rules gating it;
  * - `blind-channel`   a `@keyframes`/`@font-face`/`@property` that a matched rule references
  *                     (for `@property`, reads or declares outside a custom-property alias) — reached,
- *                     but its body is not something computed styles can hold.
+ *                     but its body is not something computed styles can hold; for `@font-face`,
+ *                     `pixels` names the captures to compare with `--pixels`.
  * Token closure follows `aliases`; a token no rule reads outside a custom property is never-rendered.
  * When any map on either side has no ledger (captured without captureReach, or older),
  * or a ledger without `version: 2` (recorded before aliases), nothing is classified:
@@ -39,6 +40,8 @@ export type RuleReach = {
   condition?: string;
   /** Where the rule was served from (URL path, `inline`, `constructed`). */
   sheet?: string;
+  /** Captures where a blind-channel `@font-face` rendered; compare with `styleproof-diff --pixels`. */
+  pixels?: string[];
 };
 
 export type RuleReachResult = {
@@ -58,10 +61,13 @@ export type RuleReachResult = {
 type Variant = ServedRule & { sheetLabel: string; id: string };
 type Side = {
   mapCount: number;
+  keys: readonly string[];
   /** Every distinct key + body the side served, by `variantId`. */
   variants: Map<string, Variant>;
   /** Variant ids some map on the side matched. */
   used: Set<string>;
+  /** Variant ids mapped to the capture indexes where they matched. */
+  usedIn: Map<string, number[]>;
   /** Variant ids served in every map on the side, independent of map order. */
   common: Set<string>;
   /** Distinct served bodies per key. */
@@ -75,7 +81,7 @@ type Side = {
 const variantId = (rule: ServedRule): string => `${rule.key}\u0000${rule.hash}`;
 
 /** Merge evidence for one body, keeping its lowest non-empty sheet label. */
-function recordRule(side: Side, rule: ServedRule, label: string): void {
+function recordRule(side: Side, rule: ServedRule, label: string, index: number): void {
   const id = variantId(rule);
   const existing = side.variants.get(id);
   if (!existing) {
@@ -85,14 +91,19 @@ function recordRule(side: Side, rule: ServedRule, label: string): void {
   } else if (label && (!existing.sheetLabel || label < existing.sheetLabel)) {
     existing.sheetLabel = label;
   }
-  if (rule.used) side.used.add(id);
+  if (rule.used) {
+    side.used.add(id);
+    side.usedIn.set(id, [...(side.usedIn.get(id) ?? []), index]);
+  }
 }
 
-function sideOf(maps: readonly StyleMap[]): Side {
+function sideOf(maps: readonly StyleMap[], keys: readonly string[] = []): Side {
   const side: Side = {
     mapCount: maps.length,
+    keys,
     variants: new Map(),
     used: new Set(),
+    usedIn: new Map(),
     // Rejected ledgers set complete = false below; classifyRuleReach then ignores all rule evidence.
     common: new Set(maps[0]?.reach?.rules.map(variantId)),
     byKey: new Map(),
@@ -100,7 +111,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
     complete: maps.length > 0,
     unreadable: 0,
   };
-  for (const map of maps) {
+  for (const [index, map] of maps.entries()) {
     if (!map.reach) {
       side.complete = false;
       continue;
@@ -114,7 +125,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
     const served = new Set(map.reach.rules.map(variantId));
     side.common = new Set([...side.common].filter((id) => served.has(id)));
     for (const rule of map.reach.rules) {
-      recordRule(side, rule, map.reach.sheets[rule.sheet] ?? '');
+      recordRule(side, rule, map.reach.sheets[rule.sheet] ?? '', index);
     }
   }
   for (const bodies of side.byKey.values()) bodies.sort((a, b) => (a.hash < b.hash ? -1 : a.hash > b.hash ? 1 : 0));
@@ -152,7 +163,7 @@ function conditionOf(key: string): string | undefined {
   return chain.length ? chain.join(' > ') : undefined;
 }
 
-type Dependency = { names: string[]; carries: (rule: Variant) => readonly string[] };
+type Dependency = { names: string[]; carries: (rule: Variant) => readonly string[]; font?: boolean };
 
 /** Custom properties a rule reads outside its own alias declarations. A read both ways counts as alias-only. */
 function renderedReads(rule: Variant): string[] {
@@ -168,7 +179,8 @@ function dependencyOf(variant: Variant): Dependency | undefined {
   if (keyframes) {
     return { names: [keyframes[1].trim().replace(/^(["'])(.*)\1$/, '$2')], carries: (rule) => rule.refs ?? [] };
   }
-  if (/^@font-face$/i.test(prelude)) return { names: variant.refs ?? [], carries: (rule) => rule.refs ?? [] };
+  if (/^@font-face$/i.test(prelude))
+    return { names: variant.refs ?? [], carries: (rule) => rule.refs ?? [], font: true };
   if (/^@property\b/i.test(prelude)) {
     const name = /^@property\s+(--[\w-]+)$/.exec(prelude)?.[1];
     // An unparsable name has no referrer, so it stays never-rendered.
@@ -222,11 +234,22 @@ function shortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<Rul
   const sheet = v.sheetLabel ? { sheet: v.sheetLabel } : {};
   const dependency = dependencyOf(v);
   if (dependency) {
-    const referrer = side.sorted.find(
+    const referrers = side.sorted.filter(
       (r) => r.key !== v.key && side.used.has(r.id) && dependency.carries(r).some((n) => dependency.names.includes(n)),
     );
+    const referrer = referrers[0];
+    const pixels = dependency.font
+      ? [
+          ...new Set(referrers.flatMap((r) => (side.usedIn.get(r.id) ?? []).map((i) => side.keys[i])).filter(Boolean)),
+        ].sort()
+      : [];
     return referrer
-      ? { status: 'blind-channel', why: `referenced by ${referrer.key}, which rendered`, ...sheet }
+      ? {
+          status: 'blind-channel',
+          why: `referenced by ${referrer.key}, which rendered`,
+          ...sheet,
+          ...(pixels.length ? { pixels } : {}),
+        }
       : { status: 'never-rendered', why: 'no rendered rule references it', ...sheet };
   }
   if (!side.used.has(v.id)) {
@@ -267,9 +290,13 @@ function classifyKey(key: string, base: Side, head: Side): RuleReach | undefined
  * Classify every served rule key whose bodies differ between the base maps and the
  * head maps (all surfaces and widths of one compare).
  */
-export function classifyRuleReach(baseMaps: readonly StyleMap[], headMaps: readonly StyleMap[]): RuleReachResult {
-  const base = sideOf(baseMaps);
-  const head = sideOf(headMaps);
+export function classifyRuleReach(
+  baseMaps: readonly StyleMap[],
+  headMaps: readonly StyleMap[],
+  captureKeys?: { base: readonly string[]; head: readonly string[] },
+): RuleReachResult {
+  const base = sideOf(baseMaps, captureKeys?.base);
+  const head = sideOf(headMaps, captureKeys?.head);
   const unreadableSheets = base.unreadable + head.unreadable;
   if (!base.complete || !head.complete) return { ledger: 'missing', rules: [], unreadableSheets };
   const keys = [...new Set([...base.byKey.keys(), ...head.byKey.keys()])].sort();

@@ -123,7 +123,16 @@ export function capturePage({
   captureComponent,
   pseudoReferences,
 }: CaptureArgs): PageCapture {
-  const assertFrozen = motionOnly ? (): void => {} : (window as unknown as Required<WithFreeze>).__spAssertFrozen;
+  const w = window as unknown as WithFreeze;
+  if (motionOnly) {
+    w.__spAssertFrozen!();
+    // Resolve the freeze even with stabilize:false, so finished CSS animations restart.
+    document.getAnimations();
+    // Lift and read in one browser task: a short animation cannot finish between page.evaluate calls.
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => sheet !== w.__spFreeze);
+    delete w.__spAssertFrozen;
+  }
+  const assertFrozen = motionOnly ? (): void => {} : w.__spAssertFrozen!;
   assertFrozen();
   // Keep the document origin in the same browser snapshot as every bounding box.
   const scrollX = window.scrollX;
@@ -277,6 +286,30 @@ export function capturePage({
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
   let shadowHosts = 0;
   let sameOriginFrames = 0;
+  // Read resolved @keyframes only in the unfrozen motion pass (#1005).
+  const keyframesBody = (effect: KeyframeEffect): string =>
+    effect
+      .getKeyframes()
+      .map((frame) => {
+        const declarations = Object.keys(frame)
+          .filter((key) => key !== 'offset' && key !== 'computedOffset')
+          .sort()
+          .map((key) => `${key}: ${String(frame[key])}`);
+        return `${frame.computedOffset * 100}% { ${declarations.join('; ')} }`;
+      })
+      .join(' ');
+  const animated = new Map<Element, Props>();
+  if (motionOnly) {
+    for (const animation of document.getAnimations()) {
+      const effect = animation.effect;
+      if (!(animation instanceof CSSAnimation) || !(effect instanceof KeyframeEffect) || !effect.target) continue;
+      const key = `${effect.pseudoElement ? `${effect.pseudoElement} ` : ''}@keyframes ${animation.animationName}`;
+      const own = animated.get(effect.target) ?? {};
+      const body = keyframesBody(effect);
+      own[key] = own[key] ? `${own[key]} | ${body}` : body;
+      animated.set(effect.target, own);
+    }
+  }
   for (const el of all) {
     if (el === frame || (skipSel && el.matches(skipSel))) continue;
     const tag = el.tagName.toLowerCase();
@@ -296,6 +329,10 @@ export function capturePage({
       style: snap(usedStyle, defaultFor(tag)),
     };
     if (!motionOnly) {
+      if (el instanceof HTMLImageElement) {
+        const src = el.currentSrc || el.src;
+        if (src) entry.rendered = { currentSrc: src };
+      }
       const typedComputedStyle = el.computedStyleMap?.();
       if (typedComputedStyle) {
         const computedValueStyle: Props = {};
@@ -327,6 +364,7 @@ export function capturePage({
         }
       }
     }
+    if (motionOnly && animated.has(el)) entry.rendered = animated.get(el);
     for (const ps of PSEUDOS) {
       if (ps === '::marker' && !usedStyle.display.split(' ').includes('list-item')) continue;
       if (ps === '::placeholder' && !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) continue;

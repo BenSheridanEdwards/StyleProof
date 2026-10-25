@@ -262,6 +262,7 @@ function mergeMotion(elements: Elements, motion: PageCapture['elements']): void 
     const m = motion[p];
     if (!m) continue;
     Object.assign(entry.style, m.style);
+    if (m.rendered) entry.rendered = { ...entry.rendered, ...m.rendered };
     for (const [ps, props] of Object.entries(m.pseudo ?? {})) {
       if (entry.pseudo?.[ps]) Object.assign(entry.pseudo[ps], props);
     }
@@ -383,7 +384,6 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
 
   // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
   // mounts during the settle must be seen), then the freeze is re-applied for every other read.
-  await page.evaluate(unfreezeMotion, true);
   const motion = (
     await page.evaluate(capturePage, {
       skipSel,

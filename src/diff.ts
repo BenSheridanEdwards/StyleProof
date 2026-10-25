@@ -31,7 +31,8 @@ import {
 } from './live-text.js';
 
 /**
- * Structured diff between two style maps. Custom properties (--*) are ignored:
+ * Structured diff between two style maps. The element layer also compares rendered
+ * inputs (`currentSrc` and `@keyframes <name>`). Custom properties (--*) are ignored:
  * they are inputs, not outcomes — every visual effect lands in a real longhand.
  */
 
@@ -137,7 +138,10 @@ function diffProps(
     const after = propsB[prop] ?? fallbackB[prop] ?? unsetB;
     // Compare by CANONICAL value so a browser/build-tool serialization change is
     // not a change; the report still shows the real strings.
-    if (!styleValuesEqual(before, after)) changed.push({ prop, before, after });
+    // Rendered inputs are opaque browser output: CSS normalization can rewrite URL fragments.
+    const equal =
+      prop === 'currentSrc' || prop.includes('@keyframes ') ? before === after : styleValuesEqual(before, after);
+    if (!equal) changed.push({ prop, before, after });
   }
   return changed;
 }
@@ -275,6 +279,10 @@ function layer(
   return [props, fallback];
 }
 
+/** The element layer plus what it renders that computed styles cannot hold (#1005). */
+const withRendered = (props: Record<string, string>, e: Element): Record<string, string> =>
+  e.rendered ? { ...props, ...e.rendered } : props;
+
 function contentLengthSignal(ea: Element, eb: Element) {
   if (ea.ownTextLength === undefined || eb.ownTextLength === undefined) return 'unknown' as const;
   return ea.ownTextLength !== eb.ownTextLength ? ('changed' as const) : undefined;
@@ -295,7 +303,7 @@ function oneSidedFindings(p: string, ea: Element | undefined, eb: Element | unde
   if (ea || !eb) return findings;
   for (const pseudo of [null, ...Object.keys(eb.pseudo ?? {})]) {
     const [propsB, pdefsB] = layer(b, b, eb, pseudo);
-    const props = diffProps({}, propsB, {}, pdefsB, '(unset)', '(unset)');
+    const props = diffProps({}, pseudo ? propsB : withRendered(propsB, eb), {}, pdefsB, '(unset)', '(unset)');
     if (props.length) findings.push({ kind: 'style', path: p, cls: eb.cls, pseudo, props });
   }
   return findings;
@@ -307,7 +315,14 @@ function pairedFindings(p: string, a: StyleMap, b: StyleMap, ea: Element, eb: El
   for (const pseudo of [null, ...unionKeys(ea.pseudo ?? {}, eb.pseudo ?? {})]) {
     const [propsA, pdefsA] = layer(a, b, ea, pseudo);
     const [propsB, pdefsB] = layer(b, a, eb, pseudo);
-    const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
+    const rawProps = diffProps(
+      pseudo ? propsA : withRendered(propsA, ea),
+      pseudo ? propsB : withRendered(propsB, eb),
+      pdefsA,
+      pdefsB,
+      '(unset)',
+      '(unset)',
+    );
     const restingProps = pseudo ? rawProps : dropUsedValueOnlyProps(rawProps, ea, eb);
     const props = dropSubpixelOriginProps(restingProps);
     if (!props.length) continue;

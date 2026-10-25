@@ -28,7 +28,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    re-capture the baseline with 9.0.0. Under `--storage branch`, the
    `publish-base` job does this when the upgrade merges to the default branch.
    Until then, an 8.x base map can make an unchanged page need review for the
-   reasons in steps 2 to 8, 15 and 18.
+   reasons in steps 2 to 8, 15, 18 and 19.
 2. **Colliding Next.js route keys (#919).** A project with both
    `/blog/[slug]` and `/blog/slug` sees `blog-slug` removed and a suffixed key
    added. Re-capture, and replace `blog-slug` wherever a committed list or
@@ -111,8 +111,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     8.x baseline, a page that styles one of these shows it once as a change.
     Re-capture the baseline. Older maps still load and diff.
 
+19. **Rendered inputs (#1005).** Maps now hold `rendered`. Against a baseline
+    captured before it, every animated element and every `<img>` with a source
+    shows once as a change. Re-capture the baseline. Older maps still load and diff.
+
 ### Added
 
+- **Capture referenced `@keyframes` bodies and `img` `currentSrc` (#1005).**
+  Maps gain `ElementEntry.rendered`; the diff reports changes as ordinary `style`
+  rows named `@keyframes <name>` (prefixed by the pseudo-element when applicable)
+  and `currentSrc`. Legacy maps without the field read as `(unset)`, so missing
+  evidence cannot pass silently. The detection corpus now requires 48/48 detected
+  cases, with `aria-label` the remaining blind boundary; the Chromium receipt
+  must be regenerated to verify that target. Reached `@font-face` changes name
+  the captures to compare with `--pixels` in the report and `RuleReach.pixels`.
 - **`changeReach: 'gate'` holds the verdict on never-rendered CSS changes (#997).**
   The default `'warn'` preserves verdicts, exit codes and diff CLI output. Opt-in
   gate holds never-rendered or blind-channel J1 changes and J1 ledger gaps,

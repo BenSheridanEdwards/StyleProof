@@ -7,8 +7,8 @@
     <!--
       Deterministic fixture for bench/detection-rate.mjs — no web fonts, no live
       data, no real animation (@keyframes pulse is a static no-op; its internals
-      are mutated by corpus case blind-keyframes to prove keyframe bodies are
-      outside computed-style detection).
+      are mutated by corpus case anim-keyframes-body to prove the resolved
+      keyframe body is captured).
 
       Every mutation target carries a stable `sp-*` marker class so findings can
       be attributed by `cls` without depending on DOM position.

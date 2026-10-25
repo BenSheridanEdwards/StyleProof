@@ -617,6 +617,54 @@ test('a changed @font-face is a blind channel only when a rendered rule uses its
   );
 });
 
+test('a blind @font-face recommends only captures where its family rendered', () => {
+  const side = (hash, used) =>
+    map(rule('@font-face', hash, { refs: ['Brand Sans'] }), rule('.brand', 'r', { used, refs: ['Brand Sans'] }));
+  const result = classifyRuleReach([side('b1', true), side('b1', false)], [side('b2', true), side('b2', false)], {
+    base: ['a@1280', 'b@1280'],
+    head: ['a@1280', 'b@1280'],
+  });
+  assert.deepEqual(statusOf(result, '@font-face'), {
+    key: '@font-face',
+    change: 'changed',
+    status: 'blind-channel',
+    why: 'referenced by .brand, which rendered',
+    sheet: '/app.css',
+    pixels: ['a@1280'],
+  });
+});
+
+test('font pixel advice deduplicates and sorts all rendered referrers and ignores absent keys', () => {
+  const side = (hash) =>
+    map(
+      rule('@font-face', hash, { refs: ['Brand Sans'] }),
+      rule('.brand', 'r', { used: true, refs: ['Brand Sans'] }),
+      rule('.title', 't', { used: true, refs: ['Brand Sans'] }),
+    );
+  const base = [side('b1'), side('b1'), side('b1'), side('b1')];
+  const head = [side('b2'), side('b2'), side('b2'), side('b2')];
+  const keys = ['z@1280', 'a@1280', 'a@1280'];
+  const result = classifyRuleReach(base, head, { base: keys, head: keys });
+  assert.deepEqual(statusOf(result, '@font-face').pixels, ['a@1280', 'z@1280']);
+  const reverse = (maps) => [...maps].reverse();
+  const reverseKeys = ['', ...keys.toReversed()];
+  assert.deepEqual(classifyRuleReach(reverse(base), reverse(head), { base: reverseKeys, head: reverseKeys }), result);
+  assert.equal(Object.hasOwn(statusOf(classifyRuleReach(base, head), '@font-face'), 'pixels'), false);
+});
+
+test('pixel advice identifies base captures for removed fonts and never applies to keyframes', () => {
+  const font = map(
+    rule('@font-face', 'f', { refs: ['Brand Sans'] }),
+    rule('.brand', 'r', { used: true, refs: ['Brand Sans'] }),
+  );
+  const keys = { base: ['before@1280'], head: ['after@1280'] };
+  assert.deepEqual(statusOf(classifyRuleReach([font], [map()], keys), '@font-face').pixels, ['before@1280']);
+  const pulse = (hash) => map(rule('@keyframes pulse', hash), rule('.badge', 'b', { used: true, refs: ['pulse'] }));
+  const animation = statusOf(classifyRuleReach([pulse('p1')], [pulse('p2')], keys), '@keyframes pulse');
+  assert.equal(animation.status, 'blind-channel');
+  assert.equal(Object.hasOwn(animation, 'pixels'), false);
+});
+
 test('the same maps in any order give the same result', () => {
   const side = (sheet, referrer, consumer, k, r, warn) => ({
     ...map(),

@@ -45,6 +45,12 @@ async function cap(
   return captureStyleMap(page, opts);
 }
 
+// 1×1 PNGs stretched to 120×40: solid green vs solid red.
+const GREEN =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkuMR8HgAD2AH3PE7ABQAAAABJRU5ErkJggg==';
+const RED =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8Dw/wAF/AHOOxKrpwAAAABJRU5ErkJggg==';
+
 const BOX = '<div class="box">A</div>';
 const boxCss = (rule: string) => `.box{display:block;width:140px;height:44px;${rule}}`;
 
@@ -57,6 +63,74 @@ test.describe('every PR change class is surfaced in the diff', () => {
       (x) => x.kind === 'style' && x.pseudo === null && x.props.some((p) => p.prop === 'background-color'),
     );
     expect(f, 'resting background-color change is surfaced').toBeTruthy();
+  });
+
+  test('a referenced @keyframes body rewritten under the same name is surfaced', async ({ page }) => {
+    const css = boxCss('animation:pulse 2s linear infinite');
+    const base = await cap(page, css + '@keyframes pulse{from{opacity:1}to{opacity:0.8}}', BOX);
+    const head = await cap(page, css + '@keyframes pulse{from{opacity:1}to{opacity:0.2}}', BOX);
+    const finding = diffStyleMaps(base, head).find(
+      (entry) =>
+        entry.kind === 'style' && entry.pseudo === null && entry.props.some((p) => p.prop === '@keyframes pulse'),
+    );
+    expect(finding?.kind === 'style' && finding.props.find((p) => p.prop === '@keyframes pulse')?.after).toContain(
+      'opacity: 0.2',
+    );
+  });
+
+  test('short finite animations are captured after finishing, including without stabilization', async ({ page }) => {
+    const css = boxCss('animation:pulse 1ms linear') + '@keyframes pulse{from{opacity:1}to{opacity:0.2}}';
+    await page.setContent(doc(css, BOX), { waitUntil: 'load' });
+    await page.waitForTimeout(50);
+    const base = await captureStyleMap(page, { captureStates: false, stabilize: false });
+    await page.waitForTimeout(50);
+    const head = await captureStyleMap(page, { captureStates: false, stabilize: false });
+    const box = Object.values(head.elements).find((entry) => entry.cls === 'box');
+    expect(box?.rendered?.['@keyframes pulse']).toContain('opacity: 0.2');
+    expect(diffStyleMaps(base, head)).toEqual([]);
+  });
+
+  test('a pseudo-element referenced @keyframes body change is surfaced', async ({ page }) => {
+    const css = boxCss('') + '.box::before{content:"";display:block;animation:spin 2s linear infinite}';
+    const base = await cap(page, css + '@keyframes spin{from{opacity:1}to{opacity:0.8}}', BOX);
+    const head = await cap(page, css + '@keyframes spin{from{opacity:1}to{opacity:0.2}}', BOX);
+    expect(
+      diffStyleMaps(base, head).some(
+        (entry) =>
+          entry.kind === 'style' &&
+          entry.pseudo === null &&
+          entry.props.some((prop) => prop.prop === '::before @keyframes spin' && prop.after.includes('opacity: 0.2')),
+      ),
+    ).toBe(true);
+  });
+
+  test('an image source change is surfaced as currentSrc', async ({ page }) => {
+    const css = '.hero{display:block;width:120px;height:40px}';
+    const base = await cap(page, css, `<img class="hero" alt="" src="${GREEN}">`);
+    const head = await cap(page, css, `<img class="hero" alt="" src="${RED}">`);
+    expect(
+      diffStyleMaps(base, head).some(
+        (entry) =>
+          entry.kind === 'style' &&
+          entry.props.some((prop) => prop.prop === 'currentSrc' && prop.before === GREEN && prop.after === RED),
+      ),
+    ).toBe(true);
+  });
+
+  test('an unreferenced @keyframes body change produces no finding', async ({ page }) => {
+    const base = await cap(page, boxCss('') + '@keyframes unused{from{opacity:1}to{opacity:0.8}}', BOX);
+    const head = await cap(page, boxCss('') + '@keyframes unused{from{opacity:1}to{opacity:0.2}}', BOX);
+    expect(diffStyleMaps(base, head)).toEqual([]);
+  });
+
+  test('the same animated image captured twice produces no finding', async ({ page }) => {
+    const css =
+      '.hero{width:120px;height:40px;animation:pulse 2s linear infinite}' +
+      '@keyframes pulse{from{opacity:1}to{opacity:0.2}}';
+    const body = `<img class="hero" alt="" src="${GREEN}">`;
+    const base = await cap(page, css, body);
+    const head = await cap(page, css, body);
+    expect(diffStyleMaps(base, head)).toEqual([]);
   });
 
   test(':hover state drop → a state finding for hover', async ({ page }) => {
@@ -654,16 +728,15 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
   });
 
   // GAP CLOSED (#473, opt-in): a change computed styles cannot observe. The two
-  // <img> elements have identical computed styles (same box, same everything) but
+  // <canvas> elements have identical computed styles (same box, same everything) but
   // different pixels. Without --pixels the gate is green; with it the region is
-  // caught and attributed to the image element.
+  // caught and attributed to the canvas element.
   const PIXEL_CSS = '.card{display:block;padding:8px}.hero{display:block;width:120px;height:40px}';
-  // 1×1 PNGs stretched to 120×40: solid green vs solid red.
-  const GREEN =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkuMR8HgAD2AH3PE7ABQAAAABJRU5ErkJggg==';
-  const RED =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8Dw/wAF/AHOOxKrpwAAAABJRU5ErkJggg==';
   const heroPage = (src: string) => `<div class="card"><img class="hero" alt="" src="${src}"></div>`;
+  const canvasPage = (colour: string) =>
+    `<div class="card"><canvas class="hero" width="120" height="40"></canvas><script>` +
+    `const context = document.querySelector('canvas').getContext('2d');` +
+    `context.fillStyle = '${colour}'; context.fillRect(0, 0, 120, 40);</script></div>`;
   async function capWithShots(dir: string, css: string, body: string): Promise<StyleMap> {
     const map = await cap(page, css, body);
     await captureSurfaceScreenshots(page, path.join(dir, 'home'));
@@ -672,25 +745,25 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
   // `page` is a fixture, so the helper above closes over it per test via a let.
   let page: import('@playwright/test').Page;
 
-  test('image content changed with identical computed styles → green without --pixels, exit 1 and attributed with it', async ({
+  test('canvas paint changed with identical computed styles → green without --pixels, exit 1 and attributed with it', async ({
     page: p,
   }) => {
     page = p;
     const { root, base, head } = dirs();
-    writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
-    writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(RED)));
+    writeMap(base, await capWithShots(base, PIXEL_CSS, canvasPage('rgb(0,128,0)')));
+    writeMap(head, await capWithShots(head, PIXEL_CSS, canvasPage('rgb(200,0,0)')));
 
     const plain = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
-    expect(plain.status, `computed styles alone cannot see the image change\n${plain.out}`).toBe(0);
+    expect(plain.status, `computed styles alone cannot see the canvas paint change\n${plain.out}`).toBe(0);
 
     const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels', '--json', 'diff.json'], root);
-    expect(gated.status, `the pixel gate blocks the image change\n${gated.out}`).toBe(1);
+    expect(gated.status, `the pixel gate blocks the canvas paint change\n${gated.out}`).toBe(1);
     expect(gated.out).toMatch(/pixel gate: [1-9]\d* changed region/);
-    expect(gated.out).toMatch(/img:nth-child\(\d+\)\s+\(\.hero\)/);
+    expect(gated.out).toMatch(/canvas:nth-child\(\d+\)\s+\(\.hero\)/);
     const json = JSON.parse(fs.readFileSync(path.join(root, 'diff.json'), 'utf8'));
     expect(json.counts, 'style counts stay untouched').toEqual({ dom: 0, style: 0, state: 0 });
     expect(json.pixels.blocking).toBe(true);
-    expect(json.pixels.surfaces[0].layers[0].comparison.regions[0].elements[0].path).toMatch(/img/);
+    expect(json.pixels.surfaces[0].layers[0].comparison.regions[0].elements[0].path).toMatch(/canvas/);
     fs.rmSync(root, { recursive: true, force: true });
   });
 
