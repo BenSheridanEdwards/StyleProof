@@ -221,6 +221,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof setup` installs with npm, pnpm and Yarn on Windows (#970).**
+  Setup spawned `npm.cmd`/`pnpm.cmd`/`yarn.cmd` directly, which Node rejects
+  with `spawnSync npm.cmd EINVAL`, so it exited 5 at the install step (or at
+  the Chromium step under `--skip-install`) before scaffolding anything.
+  Those shims now run through `cmd.exe` with every argument quoted, so
+  `@playwright/test@>=1.45` stays one literal argument. Unsafe shim arguments
+  fail with exit 5. Bun, absolute non-shim executables and non-Windows
+  platforms still spawn directly, and `--dry-run` output is unchanged.
 - **`styleproof-variants --route` keeps a query string in one route (#967).**
   A route such as `/?tab=reports` or `https://app.test/?tab=reports` was split
   at its query's `=` into a key ending in `?tab` and path `reports`, so the crawl

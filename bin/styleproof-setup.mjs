@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { resolveSpawnCommand } from './platform-command.mjs';
+import { resolveSpawnPlan } from './platform-command.mjs';
 import { detectPackageManager } from './package-manager.mjs';
 import { binDir, defineCli, errorMessage, exitWhenDrained, fail } from './cli.mjs';
 
@@ -104,7 +104,13 @@ function run(command, args, label, display = printable(command, args)) {
     return 0;
   }
   process.stdout.write(`\nStyleProof: ${label}\n`);
-  const result = spawnSync(resolveSpawnCommand(command), args, { cwd, stdio: 'inherit' });
+  let plan;
+  try {
+    plan = resolveSpawnPlan(command, args);
+  } catch (error) {
+    fail(NAME, `${label} failed: ${errorMessage(error)}`, 5);
+  }
+  const result = spawnSync(plan.file, plan.args, { ...plan.options, cwd, stdio: 'inherit' });
   if (result.error) fail(NAME, `${label} failed: ${result.error.message}`, 5);
   return result.status ?? 5;
 }
