@@ -221,6 +221,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-variants --route` keeps a query string in one route (#967).**
+  A route such as `/?tab=reports` or `https://app.test/?tab=reports` was split
+  at its query's `=` into a key ending in `?tab` and path `reports`, so the crawl
+  harvested the wrong page and reported 0 variants with exit 0. `key=path` now
+  applies only when the text before the first `=` is a plain key (no `/`, `?`,
+  `#` or `:`); any other route keeps its full URL and a key from `defaultLinkKey`.
+  `styleproof-map --crawl-route`, `STYLEPROOF_CRAWL_ROUTES` and `crawl.routes`
+  get the same fix.
 - **Logging `styleproof.config.ts` files now load on the sync path (#966).**
   Logs from the config or its imports reach the terminal without breaking
   `styleproof-affected`, `styleproof-diff`, `styleproof-capture`,

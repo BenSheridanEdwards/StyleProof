@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
   selectCrawlLinks,
   defaultLinkKey,
+  parseCrawlRoute,
   crawlCoverageGaps,
   crawlCoverageError,
   uniqueKeyFor,
@@ -635,6 +636,46 @@ test('defaultLinkKey: a hash-router route keys by the route, not by discovery po
 test('defaultLinkKey: a plain fragment stays out of the key', () => {
   assert.equal(defaultLinkKey(new URL('https://app.test/docs#intro')), 'docs');
   assert.equal(defaultLinkKey(new URL('https://app.test/#top')), 'index');
+});
+
+// ------------------------------------------------------- parseCrawlRoute
+
+test('parseCrawlRoute: a path with a query string is one route, not key=path (#967)', () => {
+  const route = parseCrawlRoute('/?tab=a', BASE);
+  assert.deepEqual(route, { key: defaultLinkKey(new URL('/?tab=a', BASE)), url: '/?tab=a' });
+  assert.equal(route.key, 'a');
+  assert.notDeepEqual(route, { key: '/?tab', url: 'a' });
+});
+
+test('parseCrawlRoute: an absolute URL with a query keeps its full URL and a derived key', () => {
+  assert.deepEqual(parseCrawlRoute('https://app.test/?tab=b', BASE), {
+    key: 'b',
+    url: 'https://app.test/?tab=b',
+  });
+  const input = 'http://127.0.0.1:4811/?tab=reports';
+  const route = parseCrawlRoute(input, 'http://127.0.0.1:4811');
+  assert.deepEqual(route, { key: defaultLinkKey(new URL(input)), url: input });
+  assert.equal(route.key, 'reports');
+});
+
+test('parseCrawlRoute: key=path with a query still splits at the key', () => {
+  assert.deepEqual(parseCrawlRoute('x=/?tab=c', BASE), { key: 'x', url: '/?tab=c' });
+  assert.deepEqual(parseCrawlRoute('reports=/?tab=reports', BASE), { key: 'reports', url: '/?tab=reports' });
+});
+
+test('parseCrawlRoute: plain key=path and plain paths parse as before', () => {
+  assert.deepEqual(parseCrawlRoute('settings=/settings', BASE), { key: 'settings', url: '/settings' });
+  assert.deepEqual(parseCrawlRoute('/', BASE), { key: 'index', url: '/' });
+  assert.deepEqual(parseCrawlRoute('/settings', BASE), { key: 'settings', url: '/settings' });
+});
+
+test('parseCrawlRoute: a prefix holding / ? # or : is never a key', () => {
+  for (const input of ['/reports=a', 'reports?tab=a', 'reports#tab=a', 'reports:tab=a', '/#!/x?tab=y', '=/x']) {
+    assert.deepEqual(parseCrawlRoute(input, BASE), {
+      key: defaultLinkKey(new URL(input, BASE)),
+      url: input,
+    });
+  }
 });
 
 // ------------------------------------------------------- crawlCoverageGaps
