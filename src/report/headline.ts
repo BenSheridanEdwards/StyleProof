@@ -43,6 +43,7 @@ export type HeadlineInput = {
   baseline: BaselineInfo;
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
+  reachBlocking: number;
   liveTextFreezeViolated?: boolean;
 };
 
@@ -218,6 +219,11 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   if (input.liveTextFreezeViolated) {
     return [
       '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared. Fail closed (`CERTIFICATION_FAILED`); not a style review.',
+    ];
+  }
+  if (input.reachBlocking > 0) {
+    return [
+      `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never rendered in a captured state (see **Changed but never rendered**). Not a clean no-change: certify mode fails (\`CERTIFICATION_FAILED\`); review-gate mode needs approval.`,
     ];
   }
   const elevated = elevatedStructureSummary(input);

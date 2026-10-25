@@ -66,6 +66,7 @@ const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs,
     includeLayoutNoise: Boolean(opts['include-layout-noise']),
     includeContent,
     requireStateIdentity: inputs.requireStateIdentity,
+    changeReach: inputs.changeReach,
     diagnostic: binding.status !== 'bound',
     migration,
     legacyPairDeclarations: inputs.legacyPairDeclarations,
@@ -121,6 +122,9 @@ function summaryLine() {
   if (baseOnlyVolatile.length > 0) {
     return `⚠ review required — ${baseOnlyVolatile.length} subtree(s) volatile on the base only were excluded from the comparison`;
   }
+  if ((result.reach?.blocking ?? 0) > 0) {
+    return `✗ reach gate — ${result.reach.blocking} changed CSS rule(s) or reach evidence gap(s) never rendered (changeReach: 'gate') — report written for review`;
+  }
   const prefix = sourceBindingFailed ? '⚠ UNVERIFIED DIAGNOSTIC:' : '✓';
   if (!includeContent) return `${prefix} no reviewable computed-style changes — content/structure not evaluated`;
   if (contentChanges > 0) {
@@ -145,6 +149,7 @@ if (includeContent && contentChanges > 0) {
 // Exit 1 when there is anything to review or any evidence that cannot certify.
 const armedFailure = (audit, keys) => Boolean(audit?.armed) && keys.some((key) => (audit[key]?.length ?? 0) > 0);
 const clean =
+  (result.reach?.blocking ?? 0) === 0 &&
   changedSurfaces === 0 &&
   oneSidedSurfaces === 0 &&
   !consistencyFailed &&

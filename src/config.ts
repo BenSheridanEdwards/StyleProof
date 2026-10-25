@@ -15,6 +15,7 @@ export type {
   CoverageConfig,
   ProductStateConfig,
   StyleProofConfig,
+  ChangeReachLevel,
 } from './config/schema.js';
 import type { StyleProofConfig } from './config/schema.js';
 export {

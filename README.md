@@ -533,6 +533,9 @@ captures on both sides. Every conditional branch whose styling matters needs a
 surface that exercises it; see
 [the un-exercised-state gap](docs/REFERENCE.md#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle)
 and [what the crawler can and cannot reach](docs/REFERENCE.md#what-the-crawler-can-and-cannot-reach--honestly).
+With `captureReach` and `changeReach: 'gate'`, a changed CSS rule no captured
+state rendered fails certify mode and needs approval in review-gate mode;
+render-code reach (J2/J3) is not measured yet.
 
 ## Reference
 

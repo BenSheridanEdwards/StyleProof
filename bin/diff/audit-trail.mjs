@@ -36,6 +36,15 @@ export function trustReasons(run) {
       check('reviewable-changes', 'found', `${run.total} style, ${run.greenfieldNewSurfaces} new surface(s)`),
     );
   }
+  if (run.reachBlocking > 0) {
+    reasons.push(
+      check(
+        'change-reach',
+        'failed',
+        `${run.reachBlocking} never-rendered change(s) or reach evidence gap(s) held by changeReach: 'gate'`,
+      ),
+    );
+  }
   if (run.partialBaseline) reasons.push(check('baseline-surface-capture', 'failed', run.baselineAttribution.summary));
   if (run.headOnlyVolatile.length > 0) {
     reasons.push(check('volatility', 'failed', `${run.headOnlyVolatile.length} subtree(s) newly volatile on head`));

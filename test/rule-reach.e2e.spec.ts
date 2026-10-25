@@ -1,6 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { captureStyleMap, diffStyleMaps, trackServedRules, type StyleMap } from '../dist/index.js';
 import { classifyRuleReach } from '../dist/rule-reach.js';
+import { classifyStyleProofVerdict } from '../dist/verdict.js';
+import { stampCertifyingFixture } from './certifying-fixture.mjs';
+import { mkTmp, rmTmp, spawnSyncToCompletion } from './helpers.mjs';
 
 // Change Reach J1 (#995), end to end: a PR restyles a fault overlay the spec never opens.
 // Base and head capture byte-identically when only the healthy state is captured, so the
@@ -22,6 +29,12 @@ const CSS = {
     .fault-badge { color: var(--warn); }
     .link:hover { color: rgb(29, 78, 216); }
     @media (prefers-color-scheme: dark) { .panel { background: rgb(31, 41, 55); } }`,
+  headHidden: `:root { --warn: rgb(245, 158, 11); }
+    .indicator { color: rgb(22, 163, 74); }
+    .panel--fault .indicator { color: rgb(245, 158, 11); }
+    .fault-badge { color: var(--warn); }
+    .link:hover { color: rgb(29, 78, 216); }
+    @media (prefers-color-scheme: dark) { .panel { background: rgb(17, 24, 39); } }`,
   head: `:root { --warn: rgb(245, 158, 11); }
     .indicator { color: rgb(22, 163, 74); }
     .panel--fault .indicator { color: rgb(245, 158, 11); }
@@ -30,7 +43,7 @@ const CSS = {
     @media (prefers-color-scheme: dark) { .panel { background: rgb(17, 24, 39); } }`,
 };
 
-async function capture(page: Page, side: 'base' | 'head', fault: boolean): Promise<StyleMap> {
+async function capture(page: Page, side: keyof typeof CSS, fault: boolean): Promise<StyleMap> {
   await page.unrouteAll();
   await page.route('http://reach.test/**', (route) =>
     new URL(route.request().url()).pathname === '/app.css'
@@ -83,4 +96,61 @@ test('capturing the fault state turns the hidden changes into reached changes th
     ':root': 'reached',
     '@media (prefers-color-scheme: dark) > .panel': 'never-rendered',
   });
+});
+
+test('the README hidden restyle fails certify and needs review with the reach gate', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  const base = await capture(page, 'base', false);
+  const head = await capture(page, 'headHidden', false);
+  expect(diffStyleMaps(base, head)).toEqual([]);
+
+  const root = mkTmp('styleproof-reach-gate-');
+  try {
+    const before = path.join(root, 'before');
+    const after = path.join(root, 'after');
+    const baseSha = 'a'.repeat(40);
+    const headSha = 'b'.repeat(40);
+    for (const [dir, map, sha] of [
+      [before, base, baseSha],
+      [after, head, headSha],
+    ] as const) {
+      fs.mkdirSync(dir);
+      fs.writeFileSync(
+        path.join(dir, 'home@900.json.gz'),
+        gzipSync(
+          JSON.stringify({
+            ...map,
+            metadata: { ...map.metadata, productState: { id: 'home-ready', revision: 'fixture-v2' } },
+          }),
+        ),
+      );
+      stampCertifyingFixture(dir, sha);
+    }
+    const configPath = path.join(root, 'styleproof.config.json');
+    fs.writeFileSync(configPath, JSON.stringify({ changeReach: 'gate' }));
+    const args = [
+      fileURLToPath(new URL('../bin/styleproof-diff.mjs', import.meta.url)),
+      before,
+      after,
+      '--expected-before-sha',
+      baseSha,
+      '--expected-after-sha',
+      headSha,
+      '--json',
+      'styleproof-diff.json',
+    ];
+    const gate = spawnSyncToCompletion(process.execPath, args, { cwd: root, encoding: 'utf8' });
+    expect(gate.status, gate.stderr || gate.stdout).toBe(1);
+    const receipt = JSON.parse(fs.readFileSync(path.join(root, 'styleproof-diff.json'), 'utf8'));
+    expect(receipt.reach.blocking).toBeGreaterThan(0);
+    const options = { gateInventoryRemovals: true, baseCaptureFailed: false, changed: true };
+    expect(classifyStyleProofVerdict(receipt, { ...options, certifyGate: true }).state).toBe('CERTIFICATION_FAILED');
+    expect(classifyStyleProofVerdict(receipt, { ...options, certifyGate: false }).state).toBe('STYLE_REVIEW_REQUIRED');
+
+    fs.unlinkSync(configPath);
+    const warn = spawnSyncToCompletion(process.execPath, args, { cwd: root, encoding: 'utf8' });
+    expect(warn.status, warn.stderr || warn.stdout).toBe(0);
+  } finally {
+    rmTmp(root);
+  }
 });

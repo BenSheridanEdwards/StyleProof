@@ -67,6 +67,8 @@ test('unrendered changed CSS rules are listed with their condition and source wi
   assert.deepEqual(reached.json.reach.counts, { reached: 1, 'never-rendered': 2, 'blind-channel': 0 });
   assert.equal(reached.json.reach.complete, false);
   assert.equal(reached.json.reach.ledger, 'complete');
+  assert.equal(reached.json.reach.level, 'warn');
+  assert.equal(reached.json.reach.blocking, 0);
   assert.equal(reached.json.reach.rules.length, 3, 'JSON retains reached rules too');
   assert.deepEqual(reached.result.reach, reached.json.reach, 'public API and artifact share the assessment');
   assert.deepEqual(reached.result.comparison, plain.result.comparison);
@@ -74,6 +76,81 @@ test('unrendered changed CSS rules are listed with their condition and source wi
   assert.ok(plain.md.startsWith(reached.md.split('\n\n**Reach incomplete**')[0]), 'headline stays unchanged');
   assert.match(reached.html, /<h2[^>]*>Changed but never rendered<\/h2>/);
   assert.match(reached.html, /<td><code>\.panel--fault<\/code><\/td>/);
+});
+
+test('gate holds never-rendered changes without claiming a clean computed-style result', (t) => {
+  const side = (hash) => map(rule('.panel--fault', hash), rule(darkRule, hash));
+  const output = report(fixture(t, [side('h1')], [side('h2')]), { changeReach: 'gate' });
+  assert.match(output.md, /✗ \*\*Reach gate\*\* — 2 changed CSS rule\(s\) or reach evidence gap\(s\)/);
+  assert.doesNotMatch(output.md, /✓ No reviewable/);
+  assert.match(
+    output.md,
+    /these findings hold the verdict: certify mode fails \(`CERTIFICATION_FAILED`\); review-gate mode needs approval/,
+  );
+  assert.ok(output.md.includes("Held by `changeReach: 'gate'`."));
+  assert.equal(output.json.reach.level, 'gate');
+  assert.equal(output.json.reach.blocking, 2);
+  assert.deepEqual(output.result.reach, output.json.reach);
+});
+
+test('gate holds missing ledgers even when neither side records reach evidence', (t) => {
+  const plain = withoutReach(map());
+  const output = report(fixture(t, [plain], [plain]), { changeReach: 'gate' });
+  assert.equal(output.json.reach?.blocking, 2);
+  assert.equal(output.json.reach.level, 'gate');
+  assert.equal(output.json.reach.ledger, 'missing');
+  assert.deepEqual(
+    output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').map((gap) => gap.side),
+    ['base', 'head'],
+  );
+  assert.match(output.md, /missing base ledger/);
+  assert.match(output.md, /missing head ledger/);
+  assert.ok(output.md.includes('recapture with `captureReach`'));
+  assert.doesNotMatch(output.md, /✓ No reviewable/);
+});
+
+test('gate keeps unbuilt joins advisory when all changed served rules rendered', (t) => {
+  const side = (hash) => map(rule('.ok', hash, { used: true }));
+  const output = report(fixture(t, [side('h1')], [side('h2')]), { changeReach: 'gate' });
+  assert.equal(output.json.reach.blocking, 0);
+  assert.equal(output.json.reach.level, 'gate');
+  assert.match(output.md, /✓ No reviewable/);
+  assert.match(output.md, /\*\*Reach incomplete\*\*/);
+  assert.doesNotMatch(output.md, /Reach gate|Held by|Reach complete/);
+  assert.equal(output.json.reach.gaps.length, 3);
+  assert.ok(output.json.reach.gaps.every((gap) => gap.kind === 'not-built'));
+});
+
+test('gate holds blind-channel changes and incomplete ledger evidence', (t) => {
+  const side = (hash) => map(rule('@keyframes pulse', hash), rule('.badge', 'b', { used: true, refs: ['pulse'] }));
+  const head = side('k2');
+  head.reach.unreadable = 2;
+  const output = report(fixture(t, [side('k1')], [head]), { changeReach: 'gate' });
+  assert.equal(output.json.reach.blocking, 2);
+  assert.equal(output.json.reach.counts['blind-channel'], 1);
+  assert.equal(output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').length, 1);
+  assert.match(output.md, /changed in a channel computed styles cannot hold/);
+  assert.match(output.md, /2 unreadable stylesheet\(s\) on head/);
+  assert.doesNotMatch(output.md, /✓ No reviewable/);
+});
+
+test('directory reach assessment agrees with the report and does not depend on capture or rule order', async (t) => {
+  const { assessReachDirs, assessReachMaps } = await import('../dist/report/reach.js');
+  const base = [map(rule('.zeta', 'h1'), rule('.alpha', 'h1')), withoutReach(map())];
+  const head = [map(rule('.zeta', 'h2'), rule('.alpha', 'h2')), map()];
+  const dirs = fixture(t, base, head);
+  const output = report(dirs, { changeReach: 'gate' });
+  assert.deepEqual(assessReachDirs(dirs.beforeDir, dirs.afterDir, 'gate'), output.json.reach);
+  const reversed = (maps) =>
+    [...maps]
+      .reverse()
+      .map((capture) =>
+        capture.reach
+          ? { ...capture, reach: { ...capture.reach, rules: [...capture.reach.rules].reverse() } }
+          : capture,
+      );
+  assert.deepEqual(assessReachMaps(reversed(base), reversed(head), 'gate'), output.json.reach);
+  assert.equal(output.json.reach.blocking, 1, 'the missing base ledger holds even when changed rules cannot be listed');
 });
 
 test('fully reached changed served rules add no section but still disclose the three unbuilt joins', (t) => {

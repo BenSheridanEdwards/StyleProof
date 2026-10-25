@@ -81,10 +81,17 @@ export type StyleProofVerdictReceipt = CertificationEvidenceReceipt & {
   surfaces?: unknown;
   inventory?: { added?: unknown; removed?: unknown; unacknowledged?: unknown; staleAcknowledgements?: unknown } | null;
   dataResidue?: { blocking?: unknown; unacknowledged?: unknown } | null;
+  reach?: { blocking?: unknown } | null;
   liveTextFreeze?: { violated?: unknown } | null;
 };
 
-export type StyleProofVerdictOptions = { gateInventoryRemovals: boolean; baseCaptureFailed: boolean; changed: boolean };
+export type StyleProofVerdictOptions = {
+  gateInventoryRemovals: boolean;
+  baseCaptureFailed: boolean;
+  changed: boolean;
+  /** Certify gate: a held reach finding fails instead of needing review. */
+  certifyGate?: boolean;
+};
 
 export type StyleProofVerdict = { state: StyleProofTrustState; reviewableChanged: boolean; dataResidueKeys: string[] };
 
@@ -121,12 +128,14 @@ export function classifyStyleProofVerdict(
 ): StyleProofVerdict {
   const explainedMissing = receipt.explainedMissingBaselineSurfaces;
   const explained = new Set(Array.isArray(explainedMissing) ? explainedMissing : []);
+  const reachHeld = receipt.reach != null && receipt.reach.blocking !== 0;
   const reviewableChanged =
     reviewableCount(receipt) > 0 ||
     hasReviewableSurface(receipt.surfaces, explained) ||
     entryCount(receipt.inventory?.added) > 0 ||
     entryCount(receipt.inventory?.removed) > 0 ||
-    entryCount(receipt.volatility?.baseOnly) > 0;
+    entryCount(receipt.volatility?.baseOnly) > 0 ||
+    reachHeld;
   const inventoryFailures = options.gateInventoryRemovals
     ? entryCount(receipt.inventory?.unacknowledged) + entryCount(receipt.inventory?.staleAcknowledgements)
     : 0;
@@ -137,8 +146,9 @@ export function classifyStyleProofVerdict(
     [inventoryFailures > 0, 'INVENTORY_REMOVAL_UNACKNOWLEDGED'],
     [options.baseCaptureFailed, 'DEGRADED_BASELINE'],
     [!assessCertificationEvidence(receipt).certifies, 'CERTIFICATION_FAILED'],
+    [options.certifyGate === true && reachHeld, 'CERTIFICATION_FAILED'],
     [partialBaseline, 'PARTIAL_BASELINE'],
-    [options.changed, 'STYLE_REVIEW_REQUIRED'],
+    [options.changed || reachHeld, 'STYLE_REVIEW_REQUIRED'],
   ];
   const state = rules.find(([hit]) => hit)?.[1] ?? 'NO_REVIEWABLE_STYLE_CHANGES';
   return { state, reviewableChanged, dataResidueKeys: residueKeys(receipt) };

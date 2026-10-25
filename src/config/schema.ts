@@ -72,6 +72,8 @@ export type ProductStateConfig = {
   critical?: string;
 };
 
+export type ChangeReachLevel = 'warn' | 'gate';
+
 export type StyleProofConfig = {
   /** Review-gate failures block the Action unless explicitly false or 'advisory'. */
   blocking?: boolean | 'advisory';
@@ -79,6 +81,8 @@ export type StyleProofConfig = {
   requireApproval?: boolean;
   /** Unacknowledged inventory removals block unless explicitly false. */
   gateInventoryRemovals?: boolean;
+  /** Change Reach level (ADR 0009). 'warn' (default) never changes a verdict; 'gate' holds never-rendered J1 changes and J1 evidence gaps. */
+  changeReach?: ChangeReachLevel;
   /** Capture spec path (default e2e/styleproof.spec.ts), resolved from the config directory. */
   spec?: string;
   /** Tracked files/dirs whose changes never mark a capture dirty. */
@@ -174,6 +178,7 @@ const SCHEMA: Fields = {
   blocking,
   requireApproval: boolean,
   gateInventoryRemovals: boolean,
+  changeReach: (v, key, file) => (v === 'warn' || v === 'gate' ? v : fail(file, `"${key}" must be 'warn' or 'gate'`)),
   spec: string,
   dirtyAllow: stringArray,
   cacheBranch: string,

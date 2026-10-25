@@ -7,10 +7,9 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import test from 'node:test';
-import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { buildConfidenceLedger, writeConfidenceLedger } from '../dist/confidence-ledger.js';
 import { readMapManifest } from '../dist/map-store.js';
-import { fixtureCompatibilityKey, fixtureContentHash, makeMap, writeCapture } from './helpers.mjs';
+import { makeMap, writeCapture } from './helpers.mjs';
+import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
@@ -34,38 +33,6 @@ function actionRuntimeInstallScript() {
     .join('\n')}\n`;
 }
 
-function stampActionFixture(dir, sha) {
-  fs.writeFileSync(
-    path.join(dir, 'styleproof-manifest.json'),
-    JSON.stringify({
-      version: 1,
-      packageVersion: 'test',
-      sha,
-      dirty: false,
-      spec: 'e2e/styleproof.spec.ts',
-      specHash: fixtureContentHash('test'),
-      platform: process.platform,
-      arch: process.arch,
-      nodeMajor: process.versions.node.split('.')[0],
-      screenshots: false,
-      har: false,
-      compatibilityKey: fixtureCompatibilityKey('action-receipt-parity-test'),
-      createdAt: '2026-01-01T00:00:00.000Z',
-    }),
-  );
-  fs.writeFileSync(
-    path.join(dir, COVERAGE_LEDGER),
-    JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' }),
-  );
-  writeConfidenceLedger(
-    dir,
-    buildConfidenceLedger({
-      capturedKeys: ['home'],
-      coverage: { version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' },
-    }),
-  );
-}
-
 function actionReportMergeScript() {
   const match = actionYml.match(/ {8}node --input-type=module <<'NODE'\n([\s\S]*?)\n {8}NODE/);
   assert.ok(match, 'action.yml should contain the report merge Node program');
@@ -75,7 +42,7 @@ function actionReportMergeScript() {
     .join('\n')}\n`;
 }
 
-function actionVerdictScript({ baseCaptureFailed, changed }) {
+function actionVerdictScript({ baseCaptureFailed, changed, certifyGate = false }) {
   const match = actionYml.match(/- id: verdict[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
   assert.ok(match, 'action.yml should contain the verdict github-script program');
   const script = match[1]
@@ -92,6 +59,7 @@ const core = {
 };
 process.env.GITHUB_ACTION_PATH = ${JSON.stringify(path.join(here, '..'))};
 process.env.STYLEPROOF_BASE_CAPTURE_FAILED = ${JSON.stringify(baseCaptureFailed ? 'true' : 'false')};
+process.env.STYLEPROOF_CERTIFY_GATE = ${JSON.stringify(certifyGate ? 'true' : 'false')};
 (async () => {
 ${script}
 require('fs').writeFileSync(process.env.STYLEPROOF_VERDICT_OUTPUT, JSON.stringify(outputs));
@@ -131,8 +99,8 @@ test('production diff and report receipts pass through the exact Action merge pr
     };
     writeCapture(before, 'home@1280', map, null);
     writeCapture(after, 'home@1280', map, null);
-    stampActionFixture(before, 'a'.repeat(40));
-    stampActionFixture(after, 'b'.repeat(40));
+    stampCertifyingFixture(before, 'a'.repeat(40));
+    stampCertifyingFixture(after, 'b'.repeat(40));
 
     const diff = spawnSync(
       process.execPath,
@@ -939,7 +907,7 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
 });
 
 /** Run diff → report → merge → verdict exactly as the Action does, from `cwd`. */
-function runActionPipeline({ cwd, beforeDir, afterDir, baseSha, headSha }) {
+function runActionPipeline({ cwd, beforeDir, afterDir, baseSha, headSha, certifyGate = false }) {
   const shaArguments = ['--expected-before-sha', baseSha, '--expected-after-sha', headSha];
   const diff = spawnSync(
     process.execPath,
@@ -969,22 +937,24 @@ function runActionPipeline({ cwd, beforeDir, afterDir, baseSha, headSha }) {
   assert.ok([0, 1].includes(report.status), report.stderr || report.stdout);
   fs.writeFileSync(path.join(cwd, 'merge.mjs'), actionReportMergeScript());
   fs.writeFileSync(path.join(cwd, 'github-output'), '');
-  const merge = spawnSync(process.execPath, ['merge.mjs'], {
-    cwd,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      STYLEPROOF_INCLUDE_CONTENT: 'false',
-      STYLEPROOF_EXPECTED_BASE_SHA: baseSha,
-      STYLEPROOF_EXPECTED_HEAD_SHA: headSha,
-      GITHUB_ACTION_PATH: path.join(here, '..'),
-      GITHUB_OUTPUT: path.join(cwd, 'github-output'),
-    },
-  });
+  const runMerge = () =>
+    spawnSync(process.execPath, ['merge.mjs'], {
+      cwd,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        STYLEPROOF_INCLUDE_CONTENT: 'false',
+        STYLEPROOF_EXPECTED_BASE_SHA: baseSha,
+        STYLEPROOF_EXPECTED_HEAD_SHA: headSha,
+        GITHUB_ACTION_PATH: path.join(here, '..'),
+        GITHUB_OUTPUT: path.join(cwd, 'github-output'),
+      },
+    });
+  const merge = runMerge();
   assert.equal(merge.status, 0, merge.stderr || merge.stdout);
   fs.writeFileSync(
     path.join(cwd, 'verdict.cjs'),
-    actionVerdictScript({ baseCaptureFailed: false, changed: [1, 3].includes(diff.status) }),
+    actionVerdictScript({ baseCaptureFailed: false, changed: [1, 3].includes(diff.status), certifyGate }),
   );
   const verdict = spawnSync(process.execPath, ['verdict.cjs'], {
     cwd,
@@ -993,10 +963,107 @@ function runActionPipeline({ cwd, beforeDir, afterDir, baseSha, headSha }) {
   });
   assert.equal(verdict.status, 0, verdict.stderr || verdict.stdout);
   return {
+    diffProcess: diff,
+    reportProcess: report,
+    diff: JSON.parse(fs.readFileSync(path.join(cwd, 'styleproof-diff.json'), 'utf8')),
+    audit: JSON.parse(fs.readFileSync(path.join(cwd, 'styleproof-audit.json'), 'utf8')),
+    runMerge,
     state: JSON.parse(fs.readFileSync(path.join(cwd, 'verdict.json'), 'utf8')).state,
     report: JSON.parse(fs.readFileSync(path.join(cwd, 'styleproof-report', 'report.json'), 'utf8')),
   };
 }
+
+function reachActionFixture(t, { level, legacyBase = false } = {}) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-reach-'));
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+  const beforeDir = path.join(cwd, 'before');
+  const afterDir = path.join(cwd, 'after');
+  const baseSha = 'a'.repeat(40);
+  const headSha = 'b'.repeat(40);
+  for (const [dir, sha, hash] of [
+    [beforeDir, baseSha, 'base'],
+    [afterDir, headSha, 'head'],
+  ]) {
+    const capture = makeMap({ elements: { body: { tag: 'body', style: { color: 'black' } } } });
+    capture.metadata = { productState: { id: 'home-ready', revision: 'fixture-v2' } };
+    if (dir !== beforeDir || !legacyBase) {
+      capture.reach = {
+        version: 2,
+        sheets: ['/app.css'],
+        rules: [{ key: '.panel--fault', hash, sheet: 0 }],
+      };
+    }
+    writeCapture(dir, 'home@1280', capture, null);
+    stampCertifyingFixture(dir, sha);
+  }
+  if (level) fs.writeFileSync(path.join(cwd, 'styleproof.config.json'), JSON.stringify({ changeReach: level }));
+  return { cwd, beforeDir, afterDir, baseSha, headSha };
+}
+
+for (const certifyGate of [true, false]) {
+  test(`change reach pipeline: gate holds an unrendered change, certify=${certifyGate}`, (t) => {
+    const run = runActionPipeline({ ...reachActionFixture(t, { level: 'gate' }), certifyGate });
+    assert.equal(run.diffProcess.status, 1, run.diffProcess.stdout);
+    assert.equal(run.reportProcess.status, 1, run.reportProcess.stdout);
+    assert.equal(run.diff.reach.blocking, 1);
+    assert.equal(run.diff.reach.level, 'gate');
+    assert.equal(run.diff.certifiesFully, false);
+    assert.equal(run.report.reach.blocking, 1);
+    assert.equal(run.state, certifyGate ? 'CERTIFICATION_FAILED' : 'STYLE_REVIEW_REQUIRED');
+    assert.match(run.diffProcess.stdout, /Change Reach gate/);
+    assert.match(run.reportProcess.stdout, /✗ reach gate/);
+    assert.doesNotMatch(run.reportProcess.stdout, /✓/);
+    assert.equal(run.audit.trustDecision.finalState, 'CERTIFICATION_FAILED');
+    assert.ok(
+      run.audit.trustDecision.reasons.some((reason) => reason.check === 'change-reach' && reason.result === 'failed'),
+    );
+  });
+}
+
+for (const legacyBase of [false, true]) {
+  test(`change reach pipeline: default warn stays clean, legacy base=${legacyBase}`, (t) => {
+    const run = runActionPipeline({ ...reachActionFixture(t, { legacyBase }), certifyGate: true });
+    assert.equal(run.diffProcess.status, 0, run.diffProcess.stdout);
+    assert.equal(run.reportProcess.status, 0, run.reportProcess.stdout);
+    assert.equal(Object.hasOwn(run.diff, 'reach'), false);
+    assert.equal(run.report.reach.blocking, 0);
+    assert.equal(run.state, 'NO_REVIEWABLE_STYLE_CHANGES');
+    assert.doesNotMatch(run.diffProcess.stdout, /Change Reach gate/);
+  });
+}
+
+test('change reach pipeline: opt-in gate names the legacy ledger remedy', (t) => {
+  const fixture = reachActionFixture(t, { level: 'gate', legacyBase: true });
+  const run = runActionPipeline({ ...fixture, certifyGate: true });
+  assert.equal(run.diffProcess.status, 1, run.diffProcess.stdout);
+  assert.equal(run.reportProcess.status, 1, run.reportProcess.stdout);
+  assert.equal(run.diff.reach.blocking, 1);
+  assert.equal(run.state, 'CERTIFICATION_FAILED');
+  const markdown = fs.readFileSync(path.join(fixture.cwd, 'styleproof-report', 'report.md'), 'utf8');
+  assert.match(markdown, /missing base ledger/);
+  assert.match(markdown, /recapture with `captureReach`/);
+});
+
+test('change reach pipeline: Action merge rejects missing or mismatched gate receipts', (t) => {
+  const fixture = reachActionFixture(t);
+  const run = runActionPipeline(fixture);
+  const reportPath = path.join(fixture.cwd, 'styleproof-report', 'report.json');
+  const diffPath = path.join(fixture.cwd, 'styleproof-diff.json');
+  for (const [reportReach, diffReach] of [
+    [{ level: 'gate', blocking: 1 }, undefined],
+    [undefined, { level: 'gate', blocking: 1 }],
+    [
+      { level: 'gate', blocking: 2 },
+      { level: 'gate', blocking: 1 },
+    ],
+  ]) {
+    fs.writeFileSync(reportPath, JSON.stringify({ ...run.report, reach: reportReach }));
+    fs.writeFileSync(diffPath, JSON.stringify({ ...run.diff, reach: diffReach }));
+    const merge = run.runMerge();
+    assert.notEqual(merge.status, 0, 'reach receipt disagreement must fail closed');
+    assert.match(merge.stderr, /reach receipts disagree/);
+  }
+});
 
 test('Action: a surface the head spec adds is STYLE_REVIEW_REQUIRED; one declared on both sides stays PARTIAL_BASELINE', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-undeclared-'));
@@ -1205,6 +1272,26 @@ test('composite action carries no release-confidence layer (#475)', () => {
     assert.equal(assessCertificationEvidence(receipt).certifies, false);
   }
 });
+
+for (const { blocking, changed, certifyGate, expected } of [
+  { blocking: 1, changed: true, certifyGate: true, expected: 'CERTIFICATION_FAILED' },
+  { blocking: 1, changed: true, certifyGate: false, expected: 'STYLE_REVIEW_REQUIRED' },
+  { blocking: 1, changed: false, certifyGate: false, expected: 'STYLE_REVIEW_REQUIRED' },
+  { blocking: 0, changed: false, certifyGate: true, expected: 'NO_REVIEWABLE_STYLE_CHANGES' },
+  { blocking: 'x', changed: false, certifyGate: true, expected: 'CERTIFICATION_FAILED' },
+  { blocking: undefined, changed: false, certifyGate: false, expected: 'STYLE_REVIEW_REQUIRED' },
+]) {
+  test(`change reach verdict: blocking=${blocking}, changed=${changed}, certify=${certifyGate}`, () => {
+    const verdict = classifyStyleProofVerdict(certifyingVerdictReceipt({ reach: { blocking } }), {
+      gateInventoryRemovals: true,
+      baseCaptureFailed: false,
+      changed,
+      certifyGate,
+    });
+    assert.equal(verdict.state, expected);
+    assert.equal(verdict.reviewableChanged, blocking !== 0);
+  });
+}
 
 test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {
   assert.match(actionYml, /trust-state:[\s\S]*?steps\.trust\.outputs\.state/);
