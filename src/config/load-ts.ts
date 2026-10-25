@@ -170,45 +170,59 @@ function spawnConfigModuleEval(
       '--no-warnings',
       '--input-type=module',
       '-e',
-      // The config is imported dynamically so the rejection listener exists before it runs. The policy
-      // is released only once the event loop drains, so deferred work (a timer that rejects, throws or
-      // sets process.exitCode) has run and been checked. A config whose handles keep the loop alive past
-      // the grace period cannot be confirmed finished, so it fails closed rather than hanging the load.
-      `import { writeFileSync } from 'node:fs';
+      // The config is imported dynamically so the listeners exist before it runs. Policy is released
+      // only from 'exit' after the loop fully drains, including every beforeExit round. A config that
+      // calls process.exit or keeps handles alive past the grace period cannot be confirmed finished,
+      // so it fails closed rather than returning policy or hanging the load.
+      `import { writeFileSync, writeSync } from 'node:fs';
        import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
        const NAME = ${JSON.stringify(configFilename)};
        const GRACE_MS = ${PENDING_WORK_GRACE_MS};
+       const exit = process.exit.bind(process);
        const rejections = [];
+       let json;
+       let crashed = false;
+       let configExit;
+       let pendingWork = '';
+       const report = (message) => writeSync(2, NAME + ' ' + message + '\\n');
        process.on('unhandledRejection', (reason) => { rejections.push(reason); });
-       const mod = await import(${JSON.stringify(pathToFileURL(filePath).href)});
-       const config = plainObject(mod?.default ?? mod, 'the default export', NAME);
-       const json = JSON.stringify(structuredClone(parseConfigRecord(config, NAME)));
-       let finished = false;
-       const finish = (pendingWork) => {
-         if (finished) return;
-         finished = true;
-         clearTimeout(deadline);
-         const exitCode = process.exitCode === undefined ? 0 : Number(process.exitCode);
-         for (const reason of rejections) {
-           process.stderr.write(NAME + ' left an unhandled promise rejection while loading: ' +
-             (reason instanceof Error ? reason.stack || reason.message : String(reason)) + '\\n');
-         }
-         if (exitCode !== 0) process.stderr.write(NAME + ' set process.exitCode to ' + String(process.exitCode) + ' while loading\\n');
-         if (pendingWork) {
-           process.stderr.write(NAME + ' still had pending work (' + pendingWork + ') ' + GRACE_MS +
-             'ms after loading, so StyleProof cannot confirm it finished; close or unref its handles\\n');
-         }
-         const failed = rejections.length > 0 || exitCode !== 0 || Boolean(pendingWork);
-         if (!failed) writeFileSync(3, json);
-         Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))))
-           .then(() => process.exit(failed ? exitCode || 1 : 0));
+       process.on('uncaughtExceptionMonitor', () => { crashed = true; });
+       process.exit = (code) => {
+         if (configExit === undefined) configExit = code ?? process.exitCode ?? 0;
+         return exit(code);
        };
+       process.on('exit', (code) => {
+         if (json === undefined) {
+           if (code === 0) { report('exited before its default export finished loading'); process.exitCode = 1; }
+           return;
+         }
+         for (const reason of rejections) {
+           report('left an unhandled promise rejection while loading: ' +
+             (reason instanceof Error ? reason.stack || reason.message : String(reason)));
+         }
+         if (pendingWork) {
+           report('still had pending work (' + pendingWork + ') ' + GRACE_MS +
+             'ms after loading, so StyleProof cannot confirm it finished; close or unref its handles');
+         } else if (configExit !== undefined) {
+           report('called process.exit(' + String(configExit) + ') while loading, so StyleProof cannot confirm its pending work finished');
+         } else if (!crashed && process.exitCode !== undefined && Number(process.exitCode) !== 0) {
+           report('set process.exitCode to ' + String(process.exitCode) + ' while loading');
+         }
+         const failed = code !== 0 || rejections.length > 0 || Boolean(pendingWork) || configExit !== undefined;
+         if (!failed) writeFileSync(3, json);
+         else if (code === 0) process.exitCode = 1;
+       });
+       const mod = await import(${JSON.stringify(pathToFileURL(filePath).href)});
+       const exported = mod.default;
+       const config = plainObject(exported?.default ?? exported, 'the default export', NAME);
+       json = JSON.stringify(structuredClone(parseConfigRecord(config, NAME)));
        const deadline = setTimeout(() => {
          const live = process.getActiveResourcesInfo?.().filter((kind) => kind !== 'TTYWrap') ?? [];
-         finish([...new Set(live)].join(', ') || 'live handles');
+         pendingWork = [...new Set(live)].join(', ') || 'live handles';
+         Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))))
+           .then(() => exit(1));
        }, GRACE_MS);
-       deadline.unref();
-       process.once('beforeExit', () => finish(''));`,
+       deadline.unref();`,
     ],
     {
       encoding: 'utf8',
@@ -246,11 +260,9 @@ function parseEvalOutput(filePath: string, result: ReturnType<typeof spawnConfig
         (result.error ? errorMessage(result.error) : 'sync loader cannot evaluate TypeScript'),
     );
   }
-  const config = plainObject(
-    JSON.parse(String(result.output?.[3] ?? '')),
-    'the default export',
-    path.basename(filePath),
-  );
+  const out = String(result.output?.[3] ?? '');
+  if (!out) throw new Error((result.stderr || '').trim() || 'the config produced no policy result');
+  const config = plainObject(JSON.parse(out), 'the default export', path.basename(filePath));
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   return config;

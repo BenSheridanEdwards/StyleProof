@@ -46,6 +46,27 @@ for (const typed of [false, true]) {
   const label = typed ? 'typed' : 'JS-shaped';
   const options = { skip: typed && TYPE_STRIPPING_UNAVAILABLE };
 
+  // Async is deliberately not compared: it keeps its pre-existing module-namespace fallback.
+  for (const [name, source] of [
+    ['named-only', `export const requireApproval = true${typed ? ' as boolean' : ''};`],
+    ['null', `export default null${typed ? ' as null' : ''};`],
+    ['undefined', `export default undefined${typed ? ' as undefined' : ''};`],
+    ['empty module', `${typed ? 'export type Policy = { requireApproval: boolean }; ' : ''}export {};`],
+  ]) {
+    test(`sync ${label} ts config fails closed without a usable default export (${name})`, options, (t) => {
+      const root = configFixture(t, source);
+      assert.throws(
+        () => loadStyleProofConfig(root),
+        (error) => {
+          assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+          assert.match(error.message, /styleproof\.config\.ts could not be evaluated/);
+          assert.match(error.message, /default export must be a JSON object/);
+          return true;
+        },
+      );
+    });
+  }
+
   test(`sync ${label} ts config forwards logs once and matches async policy`, options, async (t) => {
     const root = configFixture(
       t,
@@ -166,6 +187,28 @@ for (const typed of [false, true]) {
     ['exitCode', 'process.exitCode = 7', /process\.exitCode to 7/],
     ['throw', "{ throw new Error('fixture deferred throw'); }", /fixture deferred throw/],
   ]) {
+    for (const late of [false, true]) {
+      test(
+        `sync ${label} ts config fails closed on ${late ? 'late-registered ' : ''}beforeExit ${failure}`,
+        options,
+        (t) => {
+          const listener = `process.once('beforeExit', () => setTimeout(() => ${deferred}, 0))`;
+          const root = configFixture(t, `${late ? `setTimeout(() => ${listener}, 0)` : listener}; ${policy}`);
+          assert.throws(
+            () => loadStyleProofConfig(root),
+            (error) => {
+              assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+              assert.match(error.message, reason);
+              return true;
+            },
+          );
+          const result = loadSyncInChild(root);
+          assert.equal(result.status, 1, result.stderr);
+          assert.doesNotMatch(result.stdout, /requireApproval/);
+        },
+      );
+    }
+
     test(`sync ${label} ts config fails closed on a deferred ${failure} after loading`, options, (t) => {
       const root = configFixture(t, `setTimeout(() => ${deferred}, 0); ${policy}`);
       assert.throws(
@@ -181,6 +224,66 @@ for (const typed of [false, true]) {
       assert.doesNotMatch(result.stdout, /requireApproval/);
     });
   }
+}
+
+test('sync ts config drains clean beforeExit work and matches async policy', async (t) => {
+  const root = configFixture(
+    t,
+    `process.once('beforeExit', () => setTimeout(() => console.log('fixture before exit'), 0));
+     export default { requireApproval: true };`,
+  );
+  const result = loadSyncInChild(root);
+  assert.equal(result.status, 0, result.error?.message || result.stderr);
+  assert.equal(result.stdout, 'fixture before exit\n{"requireApproval":true}');
+  const asyncConfig = await loadStyleProofConfigAsync(root);
+  assert.deepEqual(loadStyleProofConfig(root), asyncConfig);
+  assert.deepEqual(JSON.parse(result.stdout.split('\n').at(-1)), JSON.parse(JSON.stringify(asyncConfig)));
+});
+
+for (const [label, setup, exit] of [
+  ['process.exit', '', 'process.exit'],
+  ['named node:process exit', "import { exit } from 'node:process';", 'exit'],
+]) {
+  test(`sync ts config fails closed when ${label} skips pending work`, (t) => {
+    const root = configFixture(
+      t,
+      `${setup}
+       setTimeout(() => ${exit}(0), 10);
+       setTimeout(() => { throw new Error('fixture skipped work'); }, 50);
+       export default { requireApproval: true };`,
+    );
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => {
+        assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+        assert.match(error.message, /called process\.exit\(0\) while loading/);
+        return true;
+      },
+    );
+    const result = loadSyncInChild(root);
+    assert.equal(result.status, 1, result.stderr);
+    assert.doesNotMatch(result.stdout, /requireApproval/);
+  });
+}
+
+for (const stderr of ['fixture missing policy reason', '']) {
+  test(`sync ts config explains an empty policy result ${stderr ? 'using stderr' : 'without stderr'}`, (t) => {
+    const root = configFixture(t, 'export default { requireApproval: true };');
+    const result = loadSyncInChild(
+      root,
+      `import childProcess from 'node:child_process';
+       import { syncBuiltinESMExports } from 'node:module';
+       const spawnSync = childProcess.spawnSync;
+       childProcess.spawnSync = (command, args, options) => command === process.execPath
+         ? { status: 0, stdout: '', stderr: ${JSON.stringify(stderr)}, output: [null, '', '', ''] }
+         : spawnSync(command, args, options);
+       syncBuiltinESMExports();`,
+    );
+    assert.equal(result.status, 1, result.error?.message);
+    assert.match(result.stderr, /styleproof\.config\.ts could not be evaluated/);
+    assert.ok(result.stderr.includes(stderr || 'the config produced no policy result'), result.stderr);
+    assert.doesNotMatch(result.stdout, /requireApproval/);
+  });
 }
 
 test('sync ts config still loads when it handles its own rejection and resets exitCode', async (t) => {
