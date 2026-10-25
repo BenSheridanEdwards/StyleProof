@@ -43,17 +43,22 @@ const CSS = {
     @media (prefers-color-scheme: dark) { .panel { background: rgb(17, 24, 39); } }`,
 };
 
-async function capture(page: Page, side: keyof typeof CSS, fault: boolean): Promise<StyleMap> {
+async function capture(
+  page: Page,
+  side: keyof typeof CSS,
+  fault: boolean,
+  fixture: { html?: string; css?: string; ignore?: string[] } = {},
+): Promise<StyleMap> {
   await page.unrouteAll();
   await page.route('http://reach.test/**', (route) =>
     new URL(route.request().url()).pathname === '/app.css'
-      ? route.fulfill({ contentType: 'text/css', body: CSS[side] })
-      : route.fulfill({ contentType: 'text/html', body: HTML(fault) }),
+      ? route.fulfill({ contentType: 'text/css', body: fixture.css ?? CSS[side] })
+      : route.fulfill({ contentType: 'text/html', body: fixture.html ?? HTML(fault) }),
   );
   const servedRules = await trackServedRules(page);
   try {
     await page.goto(`http://reach.test/?side=${side}&fault=${fault}`, { waitUntil: 'load' });
-    return await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
+    return await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules, ignore: fixture.ignore });
   } finally {
     await servedRules.dispose();
   }
@@ -153,4 +158,41 @@ test('the README hidden restyle fails certify and needs review with the reach ga
   } finally {
     rmTmp(root);
   }
+});
+
+test('rules matching only ignored, shadow or iframe elements are unmeasured', async ({ page }) => {
+  const fixture = (side: 'base' | 'head') => {
+    const color = side === 'base' ? 'rgb(22, 163, 74)' : 'rgb(245, 158, 11)';
+    return {
+      ignore: ['.ads'],
+      css: `.visible { color: ${color}; }
+        .ads .promo { color: ${color}; }
+        .shared { color: ${color}; }`,
+      html: `<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body>
+        <p class="visible">Visible</p>
+        <p class="shared">Shared and compared</p>
+        <div class="ads"><span class="promo shared">Ignored</span></div>
+        <div id="shadow-host"></div>
+        <iframe srcdoc="<style>.frame-copy { color: ${color}; }</style><p class='frame-copy'>Frame</p>"></iframe>
+        <script>
+          document.getElementById('shadow-host').attachShadow({ mode: 'open' }).innerHTML =
+            '<style>.shadow-title { color: ${color}; }</style><p class="shadow-title">Shadow</p>';
+        </script>
+      </body></html>`,
+    };
+  };
+  // capture() waits for load, including the same-origin srcdoc iframe, before reading either map.
+  const base = await capture(page, 'base', false, fixture('base'));
+  const head = await capture(page, 'head', false, fixture('head'));
+
+  const findings = diffStyleMaps(base, head);
+  expect(findings.map((f) => f.kind)).toEqual(['style', 'style']);
+  expect(findings.map((f) => f.cls).sort()).toEqual(['shared', 'visible']);
+  expect(statuses([base], [head])).toEqual({
+    '.ads .promo': 'unmeasured',
+    '.frame-copy': 'unmeasured',
+    '.shadow-title': 'unmeasured',
+    '.shared': 'reached',
+    '.visible': 'reached',
+  });
 });

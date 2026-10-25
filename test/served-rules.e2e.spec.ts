@@ -114,6 +114,7 @@ const rule = (map: StyleMap, key: string): ServedRule => {
 test('captureReach records which served rules matched, forced states included', async ({ page }) => {
   const servedRules = await open(page, site.url);
   const map = await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
+  expect(map.reach?.scope).toBe('compared');
 
   // Matched at rest, matched only under the forced :hover, and never matched.
   expect(rule(map, '.link').used).toBe(true);

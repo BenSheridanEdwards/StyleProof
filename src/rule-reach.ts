@@ -15,18 +15,21 @@
  * - `reached`         a captured state matched each changed body (and every consumer of a
  *                     custom property it changed);
  * - `never-rendered`  some changed body never matched; `condition` names the at-rules gating it;
+ * - `unmeasured`     a changed body (or its required consumer/referrer) matched only elements
+ *                     StyleProof never compares (shadow DOM, an iframe, or an ignored or volatile
+ *                     region); never proof of reach;
  * - `blind-channel`   a `@keyframes`/`@font-face`/`@property` that a matched rule references
  *                     (for `@property`, reads or declares outside a custom-property alias) — reached,
  *                     but its body is not something computed styles can hold.
  * Token closure follows `aliases`; a token no rule reads outside a custom property is never-rendered.
- * When any map on either side has no ledger (captured without captureReach, or older),
+ * When any map on either side has no scoped ledger (captured without captureReach, or older),
  * or a ledger without `version: 2` (recorded before aliases), nothing is classified:
  * `ledger: 'missing'`. Unreadable stylesheets give `ledger: 'partial'`;
  * only readable rules are classified, so a partial ledger is never proof of reach.
  */
 import type { ServedRule, StyleMap } from './capture/types.js';
 
-export type RuleReachStatus = 'reached' | 'never-rendered' | 'blind-channel';
+export type RuleReachStatus = 'reached' | 'never-rendered' | 'unmeasured' | 'blind-channel';
 
 export type RuleReach = {
   /** The ledger key: at-rule chain and prelude (`@media (prefers-color-scheme: dark) > .panel`). */
@@ -43,8 +46,8 @@ export type RuleReach = {
 
 export type RuleReachResult = {
   /**
-   * `missing` when a map on either side has no ledger, or one without `version: 2`
-   * (recorded before aliases); `rules` is then empty.
+   * `missing` when a map on either side has no ledger scoped to compared elements,
+   * or one without `version: 2` (recorded before aliases); `rules` is then empty.
    * `partial` when either side has unreadable stylesheets: `rules` covers only readable
    * sheets, so a changed rule or consumer inside an unreadable one is absent.
    * Treat a partial result as unknown, never as proof of reach.
@@ -62,6 +65,8 @@ type Side = {
   variants: Map<string, Variant>;
   /** Variant ids some map on the side matched. */
   used: Set<string>;
+  /** Variant ids that matched only outside compared elements in some map. */
+  outside: Set<string>;
   /** Variant ids served in every map on the side, independent of map order. */
   common: Set<string>;
   /** Distinct served bodies per key. */
@@ -86,6 +91,7 @@ function recordRule(side: Side, rule: ServedRule, label: string): void {
     existing.sheetLabel = label;
   }
   if (rule.used) side.used.add(id);
+  if (rule.outside) side.outside.add(id);
 }
 
 function sideOf(maps: readonly StyleMap[]): Side {
@@ -93,6 +99,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
     mapCount: maps.length,
     variants: new Map(),
     used: new Set(),
+    outside: new Set(),
     // Rejected ledgers set complete = false below; classifyRuleReach then ignores all rule evidence.
     common: new Set(maps[0]?.reach?.rules.map(variantId)),
     byKey: new Map(),
@@ -101,7 +108,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
     unreadable: 0,
   };
   for (const map of maps) {
-    if (!map.reach) {
+    if (!map.reach || map.reach.scope !== 'compared') {
       side.complete = false;
       continue;
     }
@@ -202,17 +209,31 @@ function tokenClosure(side: Side, seed: string): Set<string> {
 }
 
 /** A changed token must reach every body that consumes it, including through aliases. */
-function tokenShortfall(v: Variant, side: Side, before: readonly Variant[]): string | undefined {
+function tokenShortfall(
+  v: Variant,
+  side: Side,
+  before: readonly Variant[],
+): Pick<RuleReach, 'status' | 'why'> | undefined {
   for (const prop of changedVars(v, before)) {
     const closure = tokenClosure(side, prop);
     const idle = side.sorted.find((r) => r.uses?.some((used) => closure.has(used)) && !side.used.has(r.id));
     if (idle) {
       const via = idle.uses?.includes(prop) ? prop : idle.uses?.filter((used) => closure.has(used)).sort()[0];
       const through = via === prop ? '' : ` through ${via}`;
-      return `${prop} changed${through}, and its consumer ${idle.key} never matched`;
+      return side.outside.has(idle.id)
+        ? {
+            status: 'unmeasured',
+            why: `${prop} changed${through}, and its consumer ${idle.key} matched only elements StyleProof does not compare`,
+          }
+        : { status: 'never-rendered', why: `${prop} changed${through}, and its consumer ${idle.key} never matched` };
     }
     const terminal = side.sorted.some((rule) => renderedReads(rule).some((used) => closure.has(used)));
-    if (!terminal) return `${prop} changed, and no served rule reads it outside a custom property`;
+    if (!terminal) {
+      return {
+        status: 'never-rendered',
+        why: `${prop} changed, and no served rule reads it outside a custom property`,
+      };
+    }
   }
   return undefined;
 }
@@ -225,20 +246,36 @@ function shortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<Rul
     const referrer = side.sorted.find(
       (r) => r.key !== v.key && side.used.has(r.id) && dependency.carries(r).some((n) => dependency.names.includes(n)),
     );
-    return referrer
-      ? { status: 'blind-channel', why: `referenced by ${referrer.key}, which rendered`, ...sheet }
+    if (referrer) return { status: 'blind-channel', why: `referenced by ${referrer.key}, which rendered`, ...sheet };
+    const outside = side.sorted.find(
+      (r) =>
+        r.key !== v.key && side.outside.has(r.id) && dependency.carries(r).some((n) => dependency.names.includes(n)),
+    );
+    return outside
+      ? {
+          status: 'unmeasured',
+          why: `referenced only by ${outside.key}, which matched only elements StyleProof does not compare`,
+          ...sheet,
+        }
       : { status: 'never-rendered', why: 'no rendered rule references it', ...sheet };
   }
   if (!side.used.has(v.id)) {
+    if (side.outside.has(v.id)) {
+      return {
+        status: 'unmeasured',
+        why: 'matched only elements StyleProof does not compare (shadow DOM, an iframe, or an ignored or volatile region)',
+        ...sheet,
+      };
+    }
     const condition = conditionOf(v.key);
     const why = condition ? `never matched while ${condition} applied` : 'its selector never matched';
     return { status: 'never-rendered', why, ...(condition ? { condition } : {}), ...sheet };
   }
-  const why = tokenShortfall(v, side, before);
-  return why ? { status: 'never-rendered', why, ...sheet } : undefined;
+  const token = tokenShortfall(v, side, before);
+  return token ? { ...token, ...sheet } : undefined;
 }
 
-/** One status per changed key: the first changed body that never rendered, else blind, else reached. */
+/** One status per changed key: never-rendered, then unmeasured, then blind, then reached. */
 function classifyKey(key: string, base: Side, head: Side): RuleReach | undefined {
   const was = base.byKey.get(key) ?? [];
   const now = head.byKey.get(key) ?? [];
@@ -257,7 +294,9 @@ function classifyKey(key: string, base: Side, head: Side): RuleReach | undefined
     ...(inPlace ? [] : removed.map((v) => shortfall(v, base, now))),
   ];
   const verdict =
-    results.find((r) => r?.status === 'never-rendered') ?? results.find((r) => r?.status === 'blind-channel');
+    results.find((r) => r?.status === 'never-rendered') ??
+    results.find((r) => r?.status === 'unmeasured') ??
+    results.find((r) => r?.status === 'blind-channel');
   if (verdict) return { key, change, ...verdict };
   const sheet = (added[0] ?? removed[0]).sheetLabel;
   return { key, change, status: 'reached', why: 'matched in a captured state', ...(sheet ? { sheet } : {}) };

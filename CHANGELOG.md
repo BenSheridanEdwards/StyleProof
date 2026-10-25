@@ -171,6 +171,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and pass it as `servedRules`. Otherwise linked stylesheets are counted
   `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
   `ServedRuleTracker`.
+- **Change Reach counts only compared elements (#993).** A rule matched only
+  inside shadow DOM, an iframe, or an ignored or volatile region now reads
+  `unmeasured` rather than reached. `reach.scope: 'compared'` marks scoped
+  ledgers; ledgers captured by the earlier unreleased #991 code read as
+  missing and must be re-captured. Matches under `@scope` or `@container`,
+  shadow selectors, and ownerless constructed or imported sheets on pages
+  with shadow DOM remain conservatively unmeasured. Direct tracker callers
+  now pass the required compared paths to `stop(ownCss, compared)`.
 - **Reach corpus (`bench/`, #988).** `npm run bench:reach` pins the miss Change
   Reach (#934) exists to close. A base/head fixture carries 14 seeded changes,
   13 of them visual. A spec that opens only the healthy state shows 1 of the 13

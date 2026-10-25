@@ -399,7 +399,8 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   try {
     await reach?.start();
     const map = await readSettledPage(page, { options, limits, ignore, skipSel, volatile, liveCandidates, motion });
-    const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS]) } : map;
+    // Matches outside the compared elements do not count as reached (#993).
+    const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements)) } : map;
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
     await page.evaluate(unfreezeMotion, true);
     return result;
