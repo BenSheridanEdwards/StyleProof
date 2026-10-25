@@ -1,6 +1,6 @@
 # Report delivery contract
 
-StyleProof delivers one reviewable evidence package, not two independently rendered reports. The published report is authoritative. The pull-request comment is a bounded summary and a receipt-bound link to that report.
+StyleProof delivers one reviewable evidence package when publication is needed. The published report is authoritative. The pull-request comment is a bounded summary with a receipt-bound link when a report was published.
 
 ## Report storage
 
@@ -8,6 +8,8 @@ StyleProof delivers one reviewable evidence package, not two independently rende
 
 - `artifact` (default) — the Action uploads the report directory as a workflow artifact on the run that produced it. Nothing is written to the adopter's git history; retention is bounded by `report-retention-days` (a required positive integer — `0` is rejected because it selects the repository default; GitHub bounds it to 90 days unless repository settings allow more) and the artifact cannot be replaced once uploaded. The advertised URL is the artifact entry `https://github.com/<owner>/<repo>/actions/runs/<run-id>/artifacts/<artifact-id>`, or the run page that lists it.
 - `branch` — the Action publishes one `pr-<number>/` directory per PR, or `run-<run_id>/` for runs without a resolved PR, to the configured orphan report branch through the GitHub git-data API. The advertised URL pins the resulting report-branch commit SHA rather than the moving branch name: `https://github.com/<owner>/<repo>/blob/<publication-sha>/pr-<number>/report.md`. Branch storage keeps the report rendered in-browser, including crop images, at the cost of evidence living in repository history until the generated prune jobs remove it.
+
+`report-upload: on-change` (default) skips publication in either storage mode when the trusted verdict is `NO_REVIEWABLE_STYLE_CHANGES`, the capture is trusted, and no advisory content changes were included. The verdict remains in the comment and run summary. Style-review and failure verdicts, untrusted fork captures (even clean ones), and runs with `include-content: true` and a positive content-change count still publish. The decision uses trusted step outputs, never report contents. Set `report-upload: always` to retain clean-run publication; any other value fails validation.
 
 A complete publication contains:
 
@@ -28,11 +30,13 @@ The Action upserts one comment identified by `<!-- styleproof-report -->`. It re
 
 - the bounded report summary;
 - the approval checkbox when review-gate mode requires one;
-- one canonical link — the commit-bound blob URL in branch mode, the run/artifact URL in artifact mode;
-- in artifact mode, a disclosure that the report artifact expires `report-retention-days` days after upload;
+- when published, one canonical link — the commit-bound blob URL in branch mode, the run/artifact URL in artifact mode;
+- after an artifact upload, one digest marker and a disclosure that the report artifact expires `report-retention-days` days after upload;
 - the exact source-head and run-attempt receipt markers.
 
-Artifact mode also emits a `::notice` annotation on the run naming the storage mode, the expiry bound, and the `report-storage: branch` remediation, so an adopter whose effective mode flipped on an Action upgrade learns it from the run rather than from a changed comment link.
+When clean-run publication is skipped, the comment has no report link, artifact digest marker, expiry footer, or approval box. It says: _Nothing changed, so no report was uploaded. The verdict is in the run summary._ Fork captures still publish evidence for maintainer sign-off.
+
+Artifact uploads also emit a `::notice` annotation on the run naming the storage mode, the expiry bound, and the `report-storage: branch` remediation, so an adopter whose effective mode flipped on an Action upgrade learns it from the run rather than from a changed comment link.
 
 The comment does not duplicate crops or per-element tables. This prevents a separately rendered comment from drifting away from the published report.
 
@@ -78,14 +82,15 @@ The composite Action exposes:
 - `data-residue-keys`, the unacknowledged residue identities.
 - `base-sha`, `comparison-base`, and `base-tip-sha`, the expected "before" commit, the policy that selected it, and the trusted PR base tip.
 
-`report-url` is meaningful only after the selected publication step has emitted and verified its publication receipt.
+`report-url` is meaningful only after the selected publication step has emitted and verified its publication receipt. It is empty when clean-run publication is skipped.
 
 ## Failure semantics
 
 No publication receipt means no new delivery claim for that run.
 
 - A failed publish or artifact upload produces no new comment and terminal state `REPORT_PUBLICATION_FAILED`.
-- A failed comment or review-status update after publication also produces `REPORT_PUBLICATION_FAILED`.
+- A failed comment or review-status update, including on a clean run without publication, also produces `REPORT_PUBLICATION_FAILED`.
+- A clean run that skips publication by design preserves `NO_REVIEWABLE_STYLE_CHANGES`.
 - A skipped or cancelled publish caused by an earlier evidence failure preserves the earlier bounded trust verdict when available; otherwise it reports `CERTIFICATION_FAILED`.
 - A late earlier run attempt cannot overwrite the comment or status from a newer attempt. The guard checks every marker comment written by a bot or by an `OWNER`/`MEMBER`/`COLLABORATOR` account, including user-authored comments it would never edit, and ignores comments from other accounts.
 - A prior valid report or approval for the same immutable source commit is not described as newly delivered by the failed run.
@@ -101,7 +106,7 @@ The separate default-branch approval workflow treats the report comment as untru
 - in artifact mode, the downloaded zip's SHA-256 equals the `styleproof-artifact-digest` marker the publisher wrote from `upload-artifact`'s digest output — the comment carries exactly one well-formed marker, so the bytes approved are the bytes uploaded;
 - a final comment, status, and pull-request read immediately before mutation shows that no rerun, superseding publication, or push changed those facts.
 
-Missing, malformed, stale, mismatched, superseded, or non-approvable evidence produces no success status. Human-readable status descriptions never establish approvability by themselves: even after an untick or refused self-approval, the immutable published `report.json` must still record `actionTrustState: STYLE_REVIEW_REQUIRED`. Unticking remains fail-safe: it can set the current source commit red without publication readback.
+Missing, malformed, stale, mismatched, superseded, or non-approvable evidence produces no success status. A ticked comment with no report link makes no status write, including with older approval workflow copies. Human-readable status descriptions never establish approvability by themselves: even after an untick or refused self-approval, the immutable published `report.json` must still record `actionTrustState: STYLE_REVIEW_REQUIRED`. Unticking remains fail-safe: it can set the current source commit red without publication readback.
 
 Artifact retention bounds the approval window in artifact mode: an expired report artifact cannot be read back, so a tick after expiry fails closed instead of approving unverifiable evidence. Because a silent refusal leaves the reviewer at a dead-end, an unavailable artifact (expired, deleted, or unreachable) is the one refusal class that explains itself: the workflow unticks the box and leaves one bounded reply naming the remediation — re-run the StyleProof workflow to publish a fresh report, then tick again. Integrity failures (ambiguous, mismatched, or tampered evidence) stay silent.
 
