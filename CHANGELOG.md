@@ -137,8 +137,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **`changeReach: 'gate'` holds the verdict on never-rendered CSS changes (#997).**
   The default `'warn'` preserves verdicts, exit codes and diff CLI output. Opt-in
-  gate holds never-rendered or blind-channel J1 changes and J1 ledger gaps,
-  including missing legacy ledgers: recapture with `captureReach`. Certify mode
+  gate holds never-rendered, unmeasured or blind-channel J1 changes and J1 ledger gaps,
+  including missing or unscoped legacy ledgers: recapture with `captureReach`. Certify mode
   fails with `CERTIFICATION_FAILED`; review-gate and migration need approval via
   the existing Approve box; advisory stays non-blocking for reach findings.
   Both comparison CLIs exit `1` when reach holds the run. The gate diff receipt
@@ -149,7 +149,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `captureReach` ledger, the report lists each changed CSS rule no captured state
   rendered: its rule, the at-rules that gate it, and the served stylesheet. It
   also adds a one-line reach status under the headline and `reach` to
-  `report.json`. The status never claims "Reach complete" yet, because
+  `report.json`. Outside-only changes stay `unmeasured`, with their own count
+  and detail table, including in bounded reports and gate CLI summaries.
+  The status never claims "Reach complete" yet, because
   render-code reach is not measured. The verdict does not change. Reports from
   captures without a ledger are unchanged.
 - **Change Reach J1 resolves `@property` and drives the reach corpus (#995).**

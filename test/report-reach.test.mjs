@@ -8,7 +8,7 @@ import { makeMap, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
 const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
 const map = (...rules) => ({
   ...makeMap({ elements: { body: { tag: 'body', style: { color: 'rgb(0, 0, 0)' } } } }),
-  reach: { version: 2, sheets: ['/app.css'], rules },
+  reach: { version: 2, scope: 'compared', sheets: ['/app.css'], rules },
 });
 const withoutReach = (capture) => {
   const plain = { ...capture };
@@ -64,7 +64,7 @@ test('unrendered changed CSS rules are listed with their condition and source wi
   assert.ok(reached.md.includes(strip), 'the headline area identifies both unrendered changes');
   assert.ok(reached.md.includes(section), 'each rule gets its own reviewable table row');
   assert.doesNotMatch(reached.md, /\| `\.ok` \|/);
-  assert.deepEqual(reached.json.reach.counts, { reached: 1, 'never-rendered': 2, 'blind-channel': 0 });
+  assert.deepEqual(reached.json.reach.counts, { reached: 1, 'never-rendered': 2, unmeasured: 0, 'blind-channel': 0 });
   assert.equal(reached.json.reach.complete, false);
   assert.equal(reached.json.reach.ledger, 'complete');
   assert.equal(reached.json.reach.level, 'warn');
@@ -91,6 +91,68 @@ test('gate holds never-rendered changes without claiming a clean computed-style 
   assert.equal(output.json.reach.level, 'gate');
   assert.equal(output.json.reach.blocking, 2);
   assert.deepEqual(output.result.reach, output.json.reach);
+});
+
+test('outside-only changes stay unmeasured in reports and block only the opt-in gate', (t) => {
+  const side = (hash) => map(rule('.ignored', hash, { outside: true }));
+  for (const [base, head, change] of [
+    [map(), side('h2'), 'added'],
+    [side('h1'), side('h2'), 'changed'],
+    [side('h1'), map(), 'removed'],
+  ]) {
+    const dirs = fixture(t, [base], [head]);
+    for (const changeReach of ['warn', 'gate']) {
+      const output = report(dirs, { changeReach });
+      assert.deepEqual(output.json.reach.counts, {
+        reached: 0,
+        'never-rendered': 0,
+        unmeasured: 1,
+        'blind-channel': 0,
+      });
+      assert.equal(output.json.reach.complete, false);
+      assert.equal(output.json.reach.blocking, changeReach === 'gate' ? 1 : 0);
+      assert.deepEqual(output.result.reach, output.json.reach);
+      assert.match(output.md, /1 changed CSS rule\(s\) unmeasured/);
+      assert.match(output.md, /\*\*Changed but unmeasured\*\*/);
+      assert.ok(
+        output.md.includes(
+          `| \`.ignored\` | ${change} | — | \`/app.css\` | matched only elements StyleProof does not compare`,
+        ),
+      );
+      assert.match(output.html, /<td><code>\.ignored<\/code><\/td>/);
+      assert.doesNotMatch(output.md, /every changed served CSS rule rendered|Reach complete/);
+      if (changeReach === 'gate') {
+        assert.match(output.md, /✗ \*\*Reach gate\*\*/);
+        assert.doesNotMatch(output.md, /✓ No reviewable/);
+      } else {
+        assert.match(output.md, /✓ No reviewable/);
+        assert.doesNotMatch(output.md, /Held by|Reach gate/);
+      }
+    }
+  }
+});
+
+test('unscoped ledgers retain side-specific gaps and cannot certify legacy matches', (t) => {
+  const legacy = map(rule('.ignored', 'h1', { used: true }));
+  delete legacy.reach.scope;
+  const scoped = map(rule('.ignored', 'h2', { outside: true }));
+  for (const [base, head, sides] of [
+    [legacy, scoped, ['base']],
+    [scoped, legacy, ['head']],
+    [legacy, legacy, ['base', 'head']],
+  ]) {
+    const output = report(fixture(t, [base], [head]), { changeReach: 'gate' });
+    assert.equal(output.json.reach.ledger, 'missing');
+    assert.deepEqual(output.json.reach.rules, []);
+    assert.equal(output.json.reach.blocking, sides.length);
+    assert.deepEqual(
+      output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').map((gap) => gap.side),
+      sides,
+    );
+    for (const side of sides) assert.ok(output.md.includes(`missing ${side} ledger`));
+    assert.ok(output.md.includes('recapture with `captureReach`'));
+    assert.doesNotMatch(output.md, /every changed served CSS rule rendered|Reach complete|✓ No reviewable/);
+  }
 });
 
 test('gate holds missing ledgers even when neither side records reach evidence', (t) => {
@@ -161,7 +223,7 @@ test('fully reached changed served rules add no section but still disclose the t
     /\*\*Reach incomplete\*\* — every changed served CSS rule rendered \(1\); render-code reach and the changed-stylesheet join are not measured yet\./,
   );
   assert.equal(output.json.reach.complete, false);
-  assert.deepEqual(output.json.reach.counts, { reached: 1, 'never-rendered': 0, 'blind-channel': 0 });
+  assert.deepEqual(output.json.reach.counts, { reached: 1, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 });
   assert.deepEqual(output.json.reach.gaps, [
     {
       join: 'J1',
@@ -290,7 +352,7 @@ test('rendered references to changed animation bodies appear in the blind-channe
   assert.match(output.md, /\*\*Reach incomplete\*\* — 1 changed in a channel computed styles cannot hold/);
   assert.doesNotMatch(output.md, /Fix: \./);
   assert.ok(output.md.includes('review the changes under **Changed in a channel computed styles cannot hold**'));
-  assert.deepEqual(output.json.reach.counts, { reached: 0, 'never-rendered': 0, 'blind-channel': 1 });
+  assert.deepEqual(output.json.reach.counts, { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 1 });
   assert.equal(output.json.reach.complete, false);
 });
 
@@ -366,13 +428,25 @@ test('a bounded report summarizes unrendered rules without losing the full JSON 
   });
   assert.ok(
     output.md.includes(
-      '- Changed but never rendered: 100 rule(s), 0 blind-channel, 0 evidence gap(s); full list in report.json under `reach`',
+      '- Changed but never rendered: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); full list in report.json under `reach`',
     ),
   );
   assert.match(output.md, /summarized to keep this report renderable/);
   assert.ok(Buffer.byteLength(output.md, 'utf8') <= 5000);
   assert.equal(output.json.reach.rules.length, 100);
   assert.equal(output.json.reach.counts['never-rendered'], 100);
+});
+
+test('a bounded report retains the unmeasured count and full JSON evidence', (t) => {
+  const side = (hash) =>
+    map(...Array.from({ length: 100 }, (_, index) => rule(`.ignored-${index}`, hash, { outside: true })));
+  const output = report(fixture(t, [side('h1')], [side('h2')]), { maxReportBytes: 5000 });
+  assert.match(output.md, /0 rule\(s\), 100 unmeasured, 0 blind-channel, 0 evidence gap\(s\)/);
+  assert.ok(Buffer.byteLength(output.md, 'utf8') <= 5000);
+  assert.equal(output.json.reach.counts.unmeasured, 100);
+  assert.equal(output.json.reach.rules.length, 100);
+  assert.ok(output.json.reach.rules.every((rule) => rule.status === 'unmeasured'));
+  assert.doesNotMatch(output.md, /every changed served CSS rule rendered|Reach complete/);
 });
 
 test('a byte budget too small to show reach status refuses to write a misleading report', (t) => {
@@ -401,7 +475,7 @@ test('the reach strip names completeness without percentages and rejects any evi
   const reach = {
     complete: true,
     ledger: 'complete',
-    counts: { reached: 0, 'never-rendered': 0, 'blind-channel': 0 },
+    counts: { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 },
     rules: [],
     unreadableSheets: 0,
     gaps: [],
@@ -431,8 +505,15 @@ test('the reach strip names completeness without percentages and rejects any evi
     },
     {
       ...reach,
-      counts: { reached: 0, 'never-rendered': 1, 'blind-channel': 0 },
+      counts: { reached: 0, 'never-rendered': 1, unmeasured: 0, 'blind-channel': 0 },
       rules: [{ key: '.fault', change: 'changed', status: 'never-rendered', why: 'its selector never matched' }],
+    },
+    {
+      ...reach,
+      counts: { reached: 0, 'never-rendered': 0, unmeasured: 1, 'blind-channel': 0 },
+      rules: [
+        { key: '.ignored', change: 'changed', status: 'unmeasured', why: 'matched only outside compared elements' },
+      ],
     },
     { ...reach, ledger: 'missing' },
   ]) {

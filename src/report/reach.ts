@@ -34,7 +34,7 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
   if (maps.length === 0) {
     add(`no ${side} captures; changed rules cannot be listed`, 'capture both sides with `captureReach`');
   }
-  const missing = maps.filter((m) => m.reach?.version !== 2).length;
+  const missing = maps.filter((m) => m.reach?.version !== 2 || m.reach.scope !== 'compared').length;
   if (missing) {
     add(
       `missing ${side} ledger on ${missing} capture(s); changed rules cannot be listed`,
@@ -78,12 +78,15 @@ export function assessReachMaps(base: StyleMap[], head: StyleMap[], level: Chang
     { join: 'J2', status: 'unmeasured', kind: 'not-built', reason: 'render-code coverage is not recorded yet', remedy },
     { join: 'J3', status: 'unmeasured', kind: 'not-built', reason: 'class-list deltas are not recorded yet', remedy },
   );
-  const counts: ReportReach['counts'] = { reached: 0, 'never-rendered': 0, 'blind-channel': 0 };
+  const counts: ReportReach['counts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 };
   for (const rule of result.rules) counts[rule.status]++;
   const complete = gaps.length === 0 && result.rules.every((rule) => rule.status === 'reached');
   const blocking =
     level === 'gate'
-      ? counts['never-rendered'] + counts['blind-channel'] + gaps.filter((gap) => gap.kind === 'ledger').length
+      ? counts['never-rendered'] +
+        counts.unmeasured +
+        counts['blind-channel'] +
+        gaps.filter((gap) => gap.kind === 'ledger').length
       : 0;
   return {
     level,
@@ -122,9 +125,10 @@ export function reachStripLines(reach: ReportReach): string[] {
     return ['', '**Reach complete** — every changed rule rendered in a captured state.'];
   }
   const never = reach.counts['never-rendered'];
+  const unmeasured = reach.counts.unmeasured;
   const blind = reach.counts['blind-channel'];
   const ledger = reach.gaps.filter((gap) => gap.kind === 'ledger');
-  if (!never && !blind && ledger.length === 0) {
+  if (!never && !unmeasured && !blind && ledger.length === 0) {
     return [
       '',
       `**Reach incomplete** — every changed served CSS rule rendered (${reach.rules.length}); render-code reach and the changed-stylesheet join are not measured yet.`,
@@ -135,6 +139,12 @@ export function reachStripLines(reach: ReportReach): string[] {
   if (never) {
     parts.push(`${never} changed CSS rule(s) never rendered`);
     remedies.push('add a surface or state that renders each rule under **Changed but never rendered**');
+  }
+  if (unmeasured) {
+    parts.push(`${unmeasured} changed CSS rule(s) unmeasured`);
+    remedies.push(
+      'review the changes under **Changed but unmeasured** and capture them on compared elements where possible',
+    );
   }
   if (blind) {
     parts.push(`${blind} changed in a channel computed styles cannot hold`);
@@ -161,9 +171,10 @@ function ruleTable(rules: RuleReach[]): string[] {
 
 export function reachSectionLines(reach: ReportReach): string[] {
   const never = reach.rules.filter((rule) => rule.status === 'never-rendered');
+  const unmeasured = reach.rules.filter((rule) => rule.status === 'unmeasured');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
   const ledger = reach.gaps.filter((gap) => gap.kind === 'ledger');
-  if (never.length === 0 && blind.length === 0 && ledger.length === 0) return [];
+  if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return [];
   return [
     '',
     '## Changed but never rendered',
@@ -174,6 +185,14 @@ export function reachSectionLines(reach: ReportReach): string[] {
         : 'Reach findings do not change the verdict._'),
     '',
     ...ruleTable(never),
+    ...(unmeasured.length
+      ? [
+          '',
+          '**Changed but unmeasured** — matched only elements StyleProof does not compare (including required consumers or referrers); computed-style evidence does not cover these changes.',
+          '',
+          ...ruleTable(unmeasured),
+        ]
+      : []),
     ...(blind.length
       ? [
           '',
@@ -195,5 +214,5 @@ export function reachSectionLines(reach: ReportReach): string[] {
 
 export function reachSummaryLine(reach: ReportReach): string {
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
-  return `- Changed but never rendered: ${reach.counts['never-rendered']} rule(s), ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); full list in report.json under \`reach\``;
+  return `- Changed but never rendered: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); full list in report.json under \`reach\``;
 }
