@@ -53,6 +53,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(e2eJob, /STYLEPROOF_DETERMINISM_RECEIPT: .styleproof\/ci\/determinism-oracle.json/);
   assert.match(e2eJob, /name: e2e-shard-\$\{\{ matrix.shard \}\}/);
   assert.match(e2eJob, /if-no-files-found: error/);
+  assert.match(e2eJob, /retention-days: 1\s*$/m);
   assert.match(e2eJob, /Collect test inventory/);
   assert.match(e2eJob, /if: matrix\.shard == 1/);
   assert.match(
@@ -67,7 +68,10 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
     evidenceJob,
     /node scripts\/verify-e2e-shards.mjs \.styleproof\/ci\/shards\/e2e-shard-1\/inventory\.json/,
   );
-  assert.match(evidenceJob, /name: browser-evidence-node-22/);
+  assert.match(evidenceJob, /uses: actions\/download-artifact@/);
+  assert.match(evidenceJob, /pattern: e2e-shard-\*/);
+  assert.match(evidenceJob, /path: \.styleproof\/ci\/shards\s*$/m);
+  assert.doesNotMatch(evidenceJob, /actions\/upload-artifact@|browser-evidence-node-/);
   assert.match(playwrightConfig, /name: 'firefox-unsupported-state'/);
   assert.match(playwrightConfig, /testMatch: \/cross-element-state\\.e2e\\.spec\\.ts\$\//);
   assert.match(playwrightConfig, /grep: \/non-Chromium capture persists unsupported forced-state evidence\$\//);
@@ -101,6 +105,24 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(required, /set -euo pipefail/);
   // The policy itself is executed case by case in test/ci-required-policy.test.mjs.
   assert.doesNotMatch(required, /actions\/checkout/);
+});
+
+test('repository workflows upload only the browser shards consumed by the evidence job', () => {
+  const workflowsDir = path.join(here, '..', '.github/workflows');
+  for (const file of fs.readdirSync(workflowsDir).filter((name) => /\.ya?ml$/.test(name))) {
+    const workflow = fs.readFileSync(path.join(workflowsDir, file), 'utf8');
+    const uploads = [...workflow.matchAll(/^\s*(?:- )?uses: actions\/upload-artifact@/gm)];
+    assert.equal(uploads.length, file === 'ci.yml' ? 1 : 0, `${file} must not store unread artifacts`);
+  }
+});
+
+test('gitleaks keeps its full-history fail-closed scan without uploading an unread SARIF artifact', () => {
+  const secretScan = fs.readFileSync(path.join(here, '..', '.github/workflows/secret-scan.yml'), 'utf8');
+  assert.match(secretScan, /fetch-depth: 0/);
+  assert.match(secretScan, /uses: gitleaks\/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e/);
+  assert.match(secretScan, /GITHUB_TOKEN: \$\{\{ secrets.GITHUB_TOKEN \}\}/);
+  assert.match(secretScan, /GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false\s*$/m);
+  assert.doesNotMatch(secretScan, /continue-on-error:/);
 });
 
 test('the build matrix tests the exact Node floor every manifest declares', () => {

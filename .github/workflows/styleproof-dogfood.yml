@@ -125,6 +125,7 @@ jobs:
           mode: 'advisory'
           status-context: 'StyleProof dogfood'
           comment-marker: '<!-- styleproof-dogfood-report -->'
+          report-retention-days: 1
 
       - name: Assert live declare-or-fail-closed ledger is armed
         run: |

@@ -173,7 +173,7 @@ jobs:
           path: .styleproof/ci/
           include-hidden-files: true
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
   # The evidence job verifies that the shards cover the full inventory and that
   # the determinism oracle proved repeatability. The inventory is produced by
@@ -194,14 +194,6 @@ jobs:
           path: .styleproof/ci/shards
       - name: Verify complete browser evidence and print determinism oracle receipt
         run: node scripts/verify-e2e-shards.mjs .styleproof/ci/shards/e2e-shard-1/inventory.json .styleproof/ci/shards 4
-      - name: Upload verified browser evidence
-        uses: actions/upload-artifact@v6
-        with:
-          name: browser-evidence-node-22
-          path: .styleproof/ci/shards/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 30
 
   cli-smoke:
     name: cli smoke (${{ matrix.os }})

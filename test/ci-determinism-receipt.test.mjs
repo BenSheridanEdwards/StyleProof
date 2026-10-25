@@ -9,17 +9,23 @@ const workflow = fs.readFileSync(path.join(here, '..', '.github', 'workflows', '
 
 const receiptPath = '.styleproof/ci/determinism-oracle.json';
 
-test('CI prints and uploads the determinism receipt after browser verification', () => {
+test('CI transfers the determinism receipt between jobs for verification without an unread re-upload', () => {
   const e2eIndex = workflow.indexOf('name: Browser shard');
   const printIndex = workflow.indexOf('name: Verify complete browser evidence and print determinism oracle receipt');
-  const uploadIndex = workflow.indexOf('name: Upload verified browser evidence');
+  const uploadIndex = workflow.indexOf('name: Upload browser shard evidence');
+  const downloadIndex = workflow.indexOf('uses: actions/download-artifact@');
 
   assert.ok(e2eIndex >= 0, 'CI must run the browser fixture');
   assert.ok(printIndex > e2eIndex, 'CI must print the receipt after the browser fixture');
-  assert.ok(uploadIndex > printIndex, 'CI must upload the same receipt after printing it');
+  assert.ok(uploadIndex > e2eIndex, 'CI must upload the receipt from the browser shard');
+  assert.ok(downloadIndex > uploadIndex, 'CI must download the uploaded shard evidence');
+  assert.ok(printIndex > downloadIndex, 'CI must verify and print the downloaded receipt');
+  assert.doesNotMatch(workflow.slice(printIndex), /actions\/upload-artifact@/);
   assert.match(workflow, new RegExp(receiptPath.replaceAll('.', '\\.')));
+  assert.match(workflow, /path: \.styleproof\/ci\/\s*$/m);
+  assert.match(workflow, /include-hidden-files: true/);
   assert.match(workflow, /node scripts\/verify-e2e-shards.mjs/);
   assert.match(workflow, /needs: \[changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
   assert.match(workflow, /if-no-files-found: error/);
-  assert.match(workflow, /retention-days: 30/);
+  assert.match(workflow, /retention-days: 1\s*$/m);
 });
