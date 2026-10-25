@@ -21,6 +21,13 @@ test('an ESLint disable without a reason, or with a token one, fails', () => {
   assert.deepEqual(kinds(`ok();\n/* eslint-${'disable'} no-console */`), [[2, 'eslint-reason']]);
 });
 
+test('an Oxlint disable follows the same rules as an ESLint one', () => {
+  const oxlint = (rest) => `// oxlint-${'disable'}${rest}`;
+  assert.deepEqual(kinds(oxlint('-next-line anti-slop/no-runtime-typeof -- parsed JSON has no static type')), []);
+  assert.deepEqual(kinds(oxlint('-next-line anti-slop/no-runtime-typeof')), [[1, 'eslint-reason']]);
+  assert.deepEqual(kinds(oxlint('-next-line')), [[1, 'eslint-rules']]);
+});
+
 test('an ESLint disable that names no rule fails', () => {
   assert.deepEqual(kinds(disable('-next-line')), [[1, 'eslint-rules']]);
   assert.deepEqual(kinds(disable(' -- turn everything off here')), [[1, 'eslint-rules']]);

@@ -10,6 +10,9 @@
   (`--max-warnings=0`), so `no-console` in `src/` (the library must not print)
   blocks like an error; it is off in CLIs/tests/scripts (console is the
   interface there).
+- **Oxlint runs the vendored anti-slop rules** (`.oxlintrc.json`,
+  [ADR 0010](../decisions/0010-anti-slop-oxlint-rules.md)). `npm run lint:slop`
+  fails on rules set to `error`; fix `warn` findings in the code you touch.
 - **Declarative-style rules are advisory.** `npm run lint:declarative`
   (`eslint.declarative.config.js`) warns on loops, parameter reassignment,
   `++`/`--`, `var`, non-`const` bindings, function-expression callbacks and
