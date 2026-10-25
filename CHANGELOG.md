@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Fix cold-base CI config loading when npm installs a separate Playwright copy.
+
 > **StyleProof 9.0.0: stable keys and stricter gates**
 >
 > This is the 9.0.0 major. Surface, width and nav keys that collided or

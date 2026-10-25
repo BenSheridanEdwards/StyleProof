@@ -213,7 +213,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 async function specFor(cwd) {
   if (opts.spec !== undefined) return spec;
   try {
-    return checkoutSpec(await loadStyleProofConfigWithLocationAsync(cwd), cwd, spec);
+    return checkoutSpec(await loadStyleProofConfigWithLocationAsync(cwd, { isolated: cwd !== consumerCwd }), cwd, spec);
   } catch (error) {
     log(errorMessage(error));
     return bail(2);
@@ -456,8 +456,10 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
   }
   try {
     const probeSpec = await specFor(baseProbeCwd);
-    const { config: configAtBase, configDir: baseConfigDir } =
-      await loadStyleProofConfigWithLocationAsync(baseProbeCwd);
+    const { config: configAtBase, configDir: baseConfigDir } = await loadStyleProofConfigWithLocationAsync(
+      baseProbeCwd,
+      { isolated: true },
+    );
     const branch = process.env.STYLEPROOF_CACHE_BRANCH ?? configAtBase.cacheBranch;
     const remote = process.env.STYLEPROOF_REMOTE ?? configAtBase.remote;
     const gitTimeoutMs = configAtBase.mapStore?.gitTimeoutMs;
