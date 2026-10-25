@@ -326,6 +326,8 @@ pin to `@v9` too: the Action runs its own copy of StyleProof, so an `@v8` pin
 keeps the 8.x gate. Then re-capture the baseline once. See the migration list
 in the [unreleased changelog](CHANGELOG.md#unreleased).
 
+Empty hash home routes (`#/`, `#!/`, including a query) count as the page without a fragment, so home links do not capture the root twice.
+
 For a `defineCrawlCapture` root that lands on a hash route such as `/#/home`,
 replace the old `index` key with `home` in crawl `expected` / `exclude` lists
 and acknowledgement files. Hash-route fragments stay verbatim: if your app

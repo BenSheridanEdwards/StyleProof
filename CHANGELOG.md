@@ -271,6 +271,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#` or `:`); any other route keeps its full URL and a key from `defaultLinkKey`.
   `styleproof-map --crawl-route`, `STYLEPROOF_CRAWL_ROUTES` and `crawl.routes`
   get the same fix.
+- Empty hash home routes (`#/`, `#!/`, including a query) now dedupe with the page without a fragment, preventing duplicate root captures and CLI follow-link visits.
 - **Rendered hash-router links are crawl surfaces (#946).** A crawl dropped a
   nav link such as `<a href="#/settings">` or `/#/settings` on the crawl root
   and collapsed it to its path elsewhere, so hash-router pages were never

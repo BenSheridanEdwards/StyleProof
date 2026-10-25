@@ -533,6 +533,22 @@ test('selectCrawlLinks: a bare fragment of the crawl root is not a surface', () 
   assert.deepEqual(links, [{ key: 'a', url: '/?tab=a' }]); // hash stripped from the navigable url
 });
 
+for (const fragment of ['#/', '#!/', '#/?tab=home', '#!/?tab=home']) {
+  test(`selectCrawlLinks: empty hash route ${fragment} does not duplicate the root`, () => {
+    assert.deepEqual(pick([fragment], { includeSelf: true }), [{ key: 'index', url: '/' }]);
+    assert.deepEqual(pick([fragment]), []);
+  });
+
+  test(`selectCrawlLinks: root landed on ${fragment} dedupes a plain home link`, () => {
+    assert.deepEqual(pick(['/'], { base: BASE + fragment, includeSelf: true }), [{ key: 'index', url: '/' }]);
+  });
+
+  test(`dedupIdentity: empty hash route ${fragment} equals no fragment`, () => {
+    assert.equal(dedupIdentity('/' + fragment), dedupIdentity('/'));
+    assert.equal(dedupIdentity('/app?b=2&a=1' + fragment), dedupIdentity('/app?a=1&b=2'));
+  });
+}
+
 test('selectCrawlLinks: a rendered hash-router link is its own surface on the crawl root', () => {
   assert.deepEqual(pick(['#/settings', '/#/billing', '#!/legacy'], { includeSelf: true }), [
     { key: 'index', url: '/' },
