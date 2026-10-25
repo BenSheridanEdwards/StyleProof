@@ -41,7 +41,7 @@ export function trustReasons(run) {
       check(
         'change-reach',
         'failed',
-        `${run.reachBlocking} never-rendered change(s) or reach evidence gap(s) held by changeReach: 'gate'`,
+        `${run.reachBlocking} never-rendered, unmeasured, or blind-channel change(s) or reach evidence gap(s) held by changeReach: 'gate'`,
       ),
     );
   }

@@ -188,7 +188,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (`::before::marker`), and forced states on pseudo-elements other than
   `::before`, `::after` and `::placeholder`. If the DOM tree, attributes, checked
   state, field emptiness, text presence or URL fragment differ between the
-  start and stop of tracking, every match records outside. Never-rendered
+  start and stop of tracking, every match records outside. Full-page geometry
+  expansion restores exact inline style attributes, so inline-styled scrollers
+  do not spuriously mark compared rules unmeasured. Never-rendered
   token consumers take precedence over outside-only consumers regardless of
   key or property order. Direct tracker callers now pass the required compared
   paths to `stop(ownCss, compared)`.

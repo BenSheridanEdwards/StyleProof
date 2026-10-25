@@ -284,7 +284,7 @@ const GATES = [
   { blocks: total > 0 },
   {
     blocks: reachBlocking > 0,
-    note: ` + ${reachBlocking} changed CSS rule(s) or reach evidence gap(s) never rendered (changeReach: 'gate')`,
+    note: ` + ${reachBlocking} changed CSS rule(s) or reach evidence gap(s) held by changeReach: 'gate'`,
   },
   { blocks: partialBaseline },
   { blocks: comparison.blocksCertification },

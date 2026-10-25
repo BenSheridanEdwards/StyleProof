@@ -1179,11 +1179,21 @@ for (const certifyGate of [true, false]) {
     assert.equal(run.report.reach.blocking, 1);
     assert.equal(run.state, certifyGate ? 'CERTIFICATION_FAILED' : 'STYLE_REVIEW_REQUIRED');
     assert.match(run.diffProcess.stdout, /Change Reach gate/);
+    assert.match(
+      run.diffProcess.stdout,
+      /1 changed CSS rule\(s\) or reach evidence gap\(s\) held by changeReach: 'gate'/,
+    );
     assert.match(run.reportProcess.stdout, /✗ reach gate/);
     assert.doesNotMatch(run.reportProcess.stdout, /✓/);
     assert.equal(run.audit.trustDecision.finalState, 'CERTIFICATION_FAILED');
-    assert.ok(
-      run.audit.trustDecision.reasons.some((reason) => reason.check === 'change-reach' && reason.result === 'failed'),
+    assert.deepEqual(
+      run.audit.trustDecision.reasons.find((reason) => reason.check === 'change-reach'),
+      {
+        check: 'change-reach',
+        result: 'failed',
+        detail:
+          "1 never-rendered, unmeasured, or blind-channel change(s) or reach evidence gap(s) held by changeReach: 'gate'",
+      },
     );
   });
 }

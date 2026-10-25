@@ -161,7 +161,7 @@ export type ServedRules = {
   /** Ledger format. 2 records `aliases`; a ledger without it (captured before #995) cannot show which tokens feed which aliases. */
   version?: 2;
   /** `used` is scoped to compared elements (#993); ledgers without this marker predate scoping. */
-  scope: 'compared';
+  scope?: 'compared';
   /** Where each stylesheet came from: its URL path, `inline`, or `constructed`. */
   sheets: string[];
   rules: ServedRule[];

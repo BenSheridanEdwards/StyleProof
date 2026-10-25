@@ -67,6 +67,40 @@ async function capture(
 const statuses = (base: StyleMap[], head: StyleMap[]) =>
   Object.fromEntries(classifyRuleReach(base, head).rules.map((r) => [r.key, r.status]));
 
+test('inline-styled scrollers keep resting and forced-state changes reached', async ({ page }) => {
+  const html = `<!doctype html><html style="margin:0"><head><link rel="stylesheet" href="/app.css"></head>
+    <body style="margin:0"><main style=""><section>
+      <div class="scroller" style="overflow-y:auto;max-height:300px!important">
+        <a class="link" href="#docs">Docs</a>
+        <div class="indicator" style="height:1000px">Content</div>
+      </div>
+    </section></main></body></html>`;
+  const maps: StyleMap[] = [];
+  for (const side of ['base', 'head'] as const) {
+    const color = side === 'base' ? 'rgb(22, 163, 74)' : 'rgb(245, 158, 11)';
+    maps.push(
+      await capture(page, side, false, {
+        html,
+        css: `.indicator { color: ${color}; } .link:hover { color: ${color}; }`,
+      }),
+    );
+  }
+  expect(statuses([maps[0]], [maps[1]])).toEqual({
+    '.indicator': 'reached',
+    '.link:hover': 'reached',
+  });
+  expect(
+    diffStyleMaps(maps[0], maps[1])
+      .map((finding) => finding.kind)
+      .sort(),
+  ).toEqual(['state', 'style']);
+  expect(
+    await page
+      .locator('html, body, main, section, .scroller')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('style'))),
+  ).toEqual(['margin:0', 'margin:0', '', null, 'overflow-y:auto;max-height:300px!important']);
+});
+
 test('a restyle confined to an uncaptured state is clean in the diff and never-rendered in reach', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 700 });
   const base = await capture(page, 'base', false);
