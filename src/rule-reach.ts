@@ -93,6 +93,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
     mapCount: maps.length,
     variants: new Map(),
     used: new Set(),
+    // Rejected ledgers set complete = false below; classifyRuleReach then ignores all rule evidence.
     common: new Set(maps[0]?.reach?.rules.map(variantId)),
     byKey: new Map(),
     sorted: [],

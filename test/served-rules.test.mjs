@@ -108,6 +108,48 @@ test('a var() name servedRulesOf cannot parse fails with unknown reach', () => {
   }
 });
 
+test('escaped function names fail with unknown reach in reads, aliases and fallbacks', () => {
+  for (const reference of [
+    String.raw`v\61r(--warn)`,
+    String.raw`\76 ar(--warn)`,
+    String.raw`v\61\72(--warn)`,
+    String.raw`va\r(--warn)`,
+    String.raw`\000076\000061\000072(--warn)`,
+  ]) {
+    for (const declaration of [`color: ${reference}`, `--tone: ${reference}`, `color: var(--tone, ${reference})`]) {
+      assert.throws(
+        () => servedRulesOf(`.a { ${declaration}; }`, []),
+        /served CSS reach is unknown: unsupported var\(\) reference/,
+        declaration,
+      );
+    }
+  }
+});
+
+test('an escaped function in an idle consumer fails capture instead of hiding reach', async () => {
+  const text = String.raw`:root { --warn: red; }
+    .theme { color: var(--warn); }
+    .hidden { color: v\61r(--warn); }`;
+  assert.throws(
+    () => servedRulesOf(text, used(text, ':root', '.theme')),
+    /served CSS reach is unknown: unsupported var\(\) reference/,
+  );
+  await assert.rejects(
+    trackedLedger([{ styleSheetId: 'one', text }]),
+    /served CSS reach is unknown: unsupported var\(\) reference/,
+  );
+});
+
+test('escaped text outside function names stays opaque to var() reads', () => {
+  const [rule] = servedRulesOf(
+    String.raw`.a { content: "v\61r(--quoted)"; /* v\61r(--commented) */
+      --label: pla\69n; --tone: var(--warn); color: var(--tone); }`,
+    [],
+  );
+  assert.deepEqual(rule.uses, ['--warn', '--tone']);
+  assert.deepEqual(rule.aliases, { '--tone': ['--warn'] });
+});
+
 test('servedRulesOf records @property without declarations, reads or usage', () => {
   const [property] = servedRulesOf('@property --brand { syntax: "<color>"; inherits: false; initial-value: red; }', []);
   assert.equal(property.key, '@property --brand');

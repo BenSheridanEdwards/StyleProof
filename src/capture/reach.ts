@@ -143,11 +143,22 @@ function declarations(body: string): [string, string][] {
   return result;
 }
 
+/** Skip opaque text, but reject escaped function names that could spell var(). */
+function referenceEnd(text: string, i: number): number {
+  let end = opaqueEnd(text, i);
+  if (text[i] !== '\\') return end;
+  while (/[\w\u0080-\uffff-]/.test(text[end] ?? '') || text[end] === '\\') {
+    end = text[end] === '\\' ? escapeEnd(text, end) : end + 1;
+  }
+  if (text[end] === '(') unknown('unsupported var() reference');
+  return end;
+}
+
 /** Custom properties `text` reads through `var()`, past comments and in any case; a name it cannot parse is unknown. */
 function varReads(text: string): string[] {
   const names: string[] = [];
   for (let i = 0; i < text.length; i++) {
-    const end = opaqueEnd(text, i);
+    const end = referenceEnd(text, i);
     if (end > i) {
       i = end - 1;
       continue;
