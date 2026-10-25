@@ -130,13 +130,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `ServedRuleTracker`.
 - **Reach corpus (`bench/`, #988).** `npm run bench:reach` pins the miss Change
   Reach (#934) exists to close. A base/head fixture carries 14 seeded changes,
-  13 of them visual. In the recorded prototype run, a spec that opened only the
-  healthy state showed 1 of the 13 in today's diff. The prototype J1/J2/J3 joins
-  named 11 of the 12 misses from CSS rule usage, V8 block coverage and class-list
-  deltas, with the twelfth pinned as the named runtime CSS-in-JS residual.
-  Capturing all five states showed 12 of 13. The runner now uses J1 from
-  `src/rule-reach.ts` and J2/J3 from `bench/reach-joins.mjs`; these totals remain
-  unverified for the migrated J1 until its browser receipt is regenerated.
+  13 of them visual. A spec that opens only the healthy state shows 1 of the 13
+  in today's diff. J1 from `src/rule-reach.ts` together with the J2/J3 prototypes
+  in `bench/reach-joins.mjs` name 11 of the 12 misses from CSS rule usage, V8
+  block coverage and class-list deltas, with the twelfth pinned as the named
+  runtime CSS-in-JS residual. Capturing all five states shows 12 of 13.
+  `npm run bench:reach:check` reproduces these totals with J1 from `src/rule-reach.ts`.
   `npm run bench:reach:check` fails on drift in
   either direction and runs in CI beside the detection corpus. Benchmark only,
   not part of the published package.

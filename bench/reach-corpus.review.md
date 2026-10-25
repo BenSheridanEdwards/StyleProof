@@ -39,9 +39,11 @@ ticket [#988](https://github.com/BenSheridanEdwards/StyleProof/issues/988)).
 
 ## Results (receipt: `bench/reach-corpus.results.json`)
 
-The committed receipt predates the J1 migration to `src/`. The totals below
-are the pinned expectations; regenerate the receipt with Chromium to verify
-the migrated runner and refresh its CSS unit keys and reasons.
+The migrated runner (J1 from `src/rule-reach.ts`) reproduces these totals in
+Chromium: CI's `node bench/reach-corpus.mjs --check` passed every case on commit
+`b8ebaf468` (run 40170871007). The committed receipt file's timestamp and CSS
+unit strings still come from the earlier prototype run; `npm run bench:reach`
+refreshes them.
 
 | Scenario                | Today's diff shows      | Reach joins                                        |
 | ----------------------- | ----------------------- | -------------------------------------------------- |
@@ -86,10 +88,9 @@ finding.
 - **Blind channel** (`keyframes`). It is reached but computed styles cannot
   hold it, so it is named rather than counted as clean.
 
-**Not proven:** the cost of recording reach evidence, the noise rate on a real
-app's PRs ([#989](https://github.com/BenSheridanEdwards/StyleProof/issues/989)),
-and the migrated J1 runner until its browser receipt is regenerated. J2/J3
-remain bench prototypes; J3 pairs changed lines by position inside each diff
+**Not proven:** the cost of recording reach evidence and the noise rate on a real
+app's PRs ([#989](https://github.com/BenSheridanEdwards/StyleProof/issues/989)).
+J2/J3 remain bench prototypes; J3 pairs changed lines by position inside each diff
 hunk. Unsupported CSS parsing fails with unknown reach. The fixture is synthetic,
 and its rates say nothing about a particular consumer app.
 
