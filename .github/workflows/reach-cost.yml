@@ -54,8 +54,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat reach-cost.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-
-      - uses: actions/upload-artifact@v6
-        with:
-          name: reach-cost
-          path: bench/reach-cost.results.json
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat bench/reach-cost.results.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

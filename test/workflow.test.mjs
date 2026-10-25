@@ -64,6 +64,37 @@ process.exit(${status});
   assert.doesNotMatch(workflow, /continue-on-error: true|if:.*(?:always\(|failure\()/);
 });
 
+test('reach-cost summary preserves benchmark output and the full receipt without artifact storage', () => {
+  const workflow = fs.readFileSync(path.join(here, '..', '.github/workflows/reach-cost.yml'), 'utf8');
+  const summary = workflow.match(/ {6}- name: Step summary\n([\s\S]*?)(?=\n {6}- |$)/)?.[1];
+  assert.ok(summary, 'reach-cost workflow must have a Step summary step');
+  const body = summary.split('        run: |\n')[1]?.replace(/^ {10}/gm, '');
+  assert.ok(body, 'Step summary must have a run body');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-reach-cost-summary-'));
+  try {
+    const output = 'benchmark output\n';
+    const receipt = `${JSON.stringify({ fresh: true, host: { ci: true }, targets: [] }, null, 2)}\n`;
+    fs.mkdirSync(path.join(dir, 'bench'));
+    fs.writeFileSync(path.join(dir, 'reach-cost.txt'), output);
+    fs.writeFileSync(path.join(dir, 'bench/reach-cost.results.json'), receipt);
+    const summaryPath = path.join(dir, 'summary.md');
+    const result = spawnSync('bash', ['-e', '-c', body], {
+      cwd: dir,
+      env: { ...process.env, GITHUB_STEP_SUMMARY: summaryPath },
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    const rendered = fs.readFileSync(summaryPath, 'utf8');
+    assert.ok(rendered.includes(`\`\`\`\n${output}\`\`\``), 'summary must preserve benchmark output');
+    assert.ok(rendered.includes(`\`\`\`json\n${receipt}\`\`\``), 'summary must preserve the full JSON receipt');
+    assert.doesNotMatch(workflow, /uses: actions\/upload-artifact@/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('CI runs E2E in parallel without deleting unit, platform, or determinism evidence', () => {
   const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
   const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
