@@ -16,24 +16,34 @@ ticket [#988](https://github.com/BenSheridanEdwards/StyleProof/issues/988)).
   **complete** opens all five.
 - `bench/reach-corpus.mjs` runs the real product path. esbuild bundles each
   side with source maps. Chromium renders every surface on both sides.
-  `captureStyleMap` captures each one under Playwright's CDP coverage, and
+  `captureStyleMap` captures each one with `captureReach` and V8 JS coverage, and
   `diffStyleMaps` compares base with head.
-- `bench/reach-joins.mjs` holds the prototype reach joins. Change Reach phases 1
-  and 2 replace them with `src/` code, and this corpus keeps scoring them.
+- `src/rule-reach.ts` supplies J1 through `classifyRuleReach` on the
+  `captureReach` ledger. `bench/reach-joins.mjs` holds the J2/J3 prototypes.
   - **J1:** a changed served CSS rule must match an element. Changed custom
-    properties need every consumer to match. `@keyframes` and `@font-face`
-    resolve through the rules that reference them.
+    properties follow `aliases`, need every consumer to match, and require a
+    read outside a custom-property declaration. Unread and alias-only tokens
+    are never rendered. `@keyframes`, `@font-face` and `@property` resolve
+    through rendered references; `@property` also resolves through declarations;
+    alias-only reads do not count.
   - **J2:** a changed line of render code must run. This uses V8 block coverage
     resolved through the bundle's source map.
   - **J3:** a changed class token must land on a captured element. Some paired
     element's class list must gain or lose it between base and head.
 - Before any case runs, the healthy base is captured twice. The two captures
-  must self-diff to zero and record identical rule usage and execution. Any
-  drift aborts the run.
+  must self-diff to zero and record identical reach ledgers and execution.
+  Missing ledgers or any drift abort the run. Each scenario also fails if its
+  J1 ledger is not complete, because CSS reach is then unknown.
 - Every changed unit, meaning each changed served rule or changed source line,
   must belong to exactly one case. A unit no case claims fails the run.
 
 ## Results (receipt: `bench/reach-corpus.results.json`)
+
+The migrated runner (J1 from `src/rule-reach.ts`) reproduces these totals in
+Chromium: CI's `node bench/reach-corpus.mjs --check` passed every case on commit
+`b8ebaf468` (run 40170871007). The committed receipt file's timestamp and CSS
+unit strings still come from the earlier prototype run; `npm run bench:reach`
+refreshes them.
 
 | Scenario                | Today's diff shows      | Reach joins                                        |
 | ----------------------- | ----------------------- | -------------------------------------------------- |
@@ -78,12 +88,11 @@ finding.
 - **Blind channel** (`keyframes`). It is reached but computed styles cannot
   hold it, so it is named rather than counted as clean.
 
-**Not proven:** the cost of recording reach evidence, the noise rate on a real
-app's PRs ([#989](https://github.com/BenSheridanEdwards/StyleProof/issues/989)),
-and any `src/` implementation. The joins here are a bench prototype. J3 pairs
-changed lines by position inside each diff hunk. The CSS parser assumes
-well-formed stylesheets. The fixture is synthetic, and its rates say nothing
-about a particular consumer app.
+**Not proven:** the cost of recording reach evidence and the noise rate on a real
+app's PRs ([#989](https://github.com/BenSheridanEdwards/StyleProof/issues/989)).
+J2/J3 remain bench prototypes; J3 pairs changed lines by position inside each diff
+hunk. Unsupported CSS parsing fails with unknown reach. The fixture is synthetic,
+and its rates say nothing about a particular consumer app.
 
 ## Reproduce
 

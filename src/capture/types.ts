@@ -149,11 +149,15 @@ export type ServedRule = {
   vars?: Record<string, string>;
   /** Custom properties the rule reads through `var()`. */
   uses?: string[];
+  /** Custom properties it declares from other custom properties: name → the properties its value reads. */
+  aliases?: Record<string, string[]>;
   /** Identifiers in its `animation`/`font` declarations: the `@keyframes`/`@font-face` names it can reference. */
   refs?: string[];
 };
 
 export type ServedRules = {
+  /** Ledger format. 2 records `aliases`; a ledger without it (captured before #995) cannot show which tokens feed which aliases. */
+  version?: 2;
   /** Where each stylesheet came from: its URL path, `inline`, or `constructed`. */
   sheets: string[];
   rules: ServedRule[];

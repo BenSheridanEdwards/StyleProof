@@ -143,13 +143,50 @@ function declarations(body: string): [string, string][] {
   return result;
 }
 
+/** Skip opaque text, but reject escaped function names that could spell var(). */
+function referenceEnd(text: string, i: number): number {
+  let end = opaqueEnd(text, i);
+  if (text[i] !== '\\') return end;
+  while (/[\w\u0080-\uffff-]/.test(text[end] ?? '') || text[end] === '\\') {
+    end = text[end] === '\\' ? escapeEnd(text, end) : end + 1;
+  }
+  if (text[end] === '(') unknown('unsupported var() reference');
+  return end;
+}
+
+/** Custom properties `text` reads through `var()`, past comments and in any case; a name it cannot parse is unknown. */
+function varReads(text: string): string[] {
+  const names: string[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const end = referenceEnd(text, i);
+    if (end > i) {
+      i = end - 1;
+      continue;
+    }
+    if (!/^var\(/i.test(text.slice(i, i + 4)) || /[\w-]/.test(text[i - 1] ?? '')) continue;
+    const start = skipTrivia(text, i + 4, text.length);
+    const name = /^--[\w-]+/.exec(text.slice(start))?.[0];
+    const after = name ? skipTrivia(text, start + name.length, text.length) : start;
+    if (!name || (text[after] !== ',' && text[after] !== ')')) unknown('unsupported var() reference');
+    names.push(name);
+    i = start + name.length - 1;
+  }
+  return names;
+}
+
 /** The custom properties a body declares (name → value digest) and the ones it reads through `var()`. */
-function customProperties(body: string, values: [string, string][]): Pick<ServedRule, 'vars' | 'uses'> {
+function customProperties(body: string, values: [string, string][]): Pick<ServedRule, 'vars' | 'uses' | 'aliases'> {
   const declared = values.filter(([property]) => property.startsWith('--'));
-  const read = [...new Set([...body.matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]))];
+  const read = [...new Set(varReads(body))];
+  const aliases: Record<string, string[]> = {};
+  for (const [name, value] of declared) {
+    const reads = varReads(value);
+    if (reads.length) aliases[name] = [...new Set([...(aliases[name] ?? []), ...reads])].sort();
+  }
   return {
     ...(declared.length ? { vars: Object.fromEntries(declared.map(([name, value]) => [name, digest(value)])) } : {}),
     ...(read.length ? { uses: read } : {}),
+    ...(Object.keys(aliases).length ? { aliases } : {}),
   };
 }
 
@@ -289,7 +326,7 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
         rules.push({ ...rule, key: n > 1 ? `${rule.key} #${n}` : rule.key, sheet: index });
       }
     });
-    return { sheets: read.map((s) => s.label), rules, ...(unreadable ? { unreadable } : {}) };
+    return { version: 2, sheets: read.map((s) => s.label), rules, ...(unreadable ? { unreadable } : {}) };
   };
   return { start, stop, dispose };
 }

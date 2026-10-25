@@ -1,13 +1,39 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classifyRuleReach } from '../dist/rule-reach.js';
+import { servedRulesOf } from '../dist/capture/reach.js';
 
 // Change Reach J1 (#995): every served rule that differs between base and head gets one
 // status, judged on the side where it can render.
 
 const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
-const map = (...rules) => ({ defaults: {}, elements: {}, states: {}, reach: { sheets: ['/app.css'], rules } });
+const map = (...rules) => ({
+  defaults: {},
+  elements: {},
+  states: {},
+  reach: { version: 2, sheets: ['/app.css'], rules },
+});
 const statusOf = (result, key) => result.rules.find((r) => r.key === key);
+
+const sheet = (label, text, ...needles) => ({ label, text, needles });
+const cssMap = (...sheets) => {
+  const order = (s) => JSON.stringify([s.label, s.text]);
+  const sorted = [...sheets].sort((a, b) => (order(a) < order(b) ? -1 : order(a) > order(b) ? 1 : 0));
+  const seen = new Map();
+  const rules = sorted.flatMap(({ text, needles }, index) => {
+    const ranges = needles.map((needle) => {
+      const startOffset = text.indexOf(needle);
+      assert.notEqual(startOffset, -1, `fixture lacks ${needle}`);
+      return { startOffset, endOffset: startOffset + needle.length };
+    });
+    return servedRulesOf(text, ranges).map((rule) => {
+      const n = (seen.get(rule.key) ?? 0) + 1;
+      seen.set(rule.key, n);
+      return { ...rule, key: n > 1 ? `${rule.key} #${n}` : rule.key, sheet: index };
+    });
+  });
+  return { ...map(), reach: { version: 2, sheets: sorted.map((s) => s.label), rules } };
+};
 
 test('an unchanged ledger has nothing to classify', () => {
   const side = map(rule('.a', 'h1', { used: true }), rule('.b', 'h2'));
@@ -90,6 +116,7 @@ test('a token changed on one route is not hidden by another route already servin
     map(
       rule(':root', hash, { used: true, vars: { '--warn': warn, '--x': x } }),
       rule('.fault', 'f', { ...(used ? { used: true } : {}), uses: ['--warn'] }),
+      rule('.spacing', 's', { used: true, uses: ['--x'] }),
     );
   const unchanged = route('a2', 'a', '2');
   const base = [route('g1', 'g', '1'), unchanged];
@@ -147,7 +174,12 @@ test('a custom property head deletes is a change its consumers must render', () 
 test('a changed token reaches through aliases to every consumer', () => {
   const sameRule = (warn) =>
     map(
-      rule(':root', warn, { used: true, vars: { '--warn': warn, '--badge': 'w' }, uses: ['--warn'] }),
+      rule(':root', warn, {
+        used: true,
+        vars: { '--warn': warn, '--badge': 'w' },
+        uses: ['--warn'],
+        aliases: { '--badge': ['--warn'] },
+      }),
       rule('.fault', 'f', { uses: ['--badge'] }),
     );
   const aliased = statusOf(classifyRuleReach([sameRule('g')], [sameRule('a')]), ':root');
@@ -157,7 +189,12 @@ test('a changed token reaches through aliases to every consumer', () => {
   const theme = (warn, used) =>
     map(
       rule(':root', warn, { used: true, vars: { '--warn': warn } }),
-      rule('.theme', 't', { used: true, vars: { '--badge': 'w' }, uses: ['--warn'] }),
+      rule('.theme', 't', {
+        used: true,
+        vars: { '--badge': 'w' },
+        uses: ['--warn'],
+        aliases: { '--badge': ['--warn'] },
+      }),
       rule('.fault', 'f', { ...(used ? { used: true } : {}), uses: ['--badge'] }),
     );
   const crossRule = statusOf(classifyRuleReach([theme('g', false)], [theme('a', false)]), ':root');
@@ -201,6 +238,184 @@ test('a changed @keyframes is a blind channel when a rendered rule references it
   );
 });
 
+test('a changed @property is a blind channel only when a rendered rule reads or declares it', () => {
+  for (const reference of [{ uses: ['--brand'] }, { vars: { '--brand': 'x' } }]) {
+    const side = (hash, used) =>
+      map(rule('@property --brand', hash), rule('.btn', 'b', { ...reference, ...(used ? { used: true } : {}) }));
+    assert.deepEqual(statusOf(classifyRuleReach([side('p1', true)], [side('p2', true)]), '@property --brand'), {
+      key: '@property --brand',
+      change: 'changed',
+      status: 'blind-channel',
+      why: 'referenced by .btn, which rendered',
+      sheet: '/app.css',
+    });
+    const idle = statusOf(classifyRuleReach([side('p1', true)], [side('p2', false)]), '@property --brand');
+    assert.deepEqual([idle.status, idle.why], ['never-rendered', 'no rendered rule references it']);
+  }
+  const missing = classifyRuleReach([map(rule('@property --brand', 'p1'))], [map(rule('@property --brand', 'p2'))]);
+  assert.deepEqual(
+    [missing.rules[0].status, missing.rules[0].why],
+    ['never-rendered', 'no rendered rule references it'],
+  );
+});
+
+test('an alias-only read cannot reach a changed @property', () => {
+  const aliasOnly = rule('.x', 'b', {
+    used: true,
+    uses: ['--brand'],
+    vars: { '--tone': 'd' },
+    aliases: { '--tone': ['--brand'] },
+  });
+  const mixed = cssMap(sheet('/app.css', '.x { --tone: var(--brand); color: var(--brand); }', '.x')).reach.rules[0];
+  for (const alias of [aliasOnly, mixed]) {
+    const side = (hash, ...consumers) => map(rule('@property --brand', hash), alias, ...consumers);
+    const result = statusOf(classifyRuleReach([side('p1')], [side('p2')]), '@property --brand');
+    assert.deepEqual([result.status, result.why], ['never-rendered', 'no rendered rule references it']);
+
+    const consumer = rule('.y', 'y', { used: true, uses: ['--brand'] });
+    const rendered = statusOf(classifyRuleReach([side('p1', consumer)], [side('p2', consumer)]), '@property --brand');
+    assert.deepEqual([rendered.status, rendered.why], ['blind-channel', 'referenced by .y, which rendered']);
+  }
+});
+
+test('an unparsable @property name cannot claim reach', () => {
+  const side = (hash) =>
+    map(rule('@property --brand unexpected', hash), rule('.btn', 'b', { used: true, uses: ['--brand'] }));
+  const result = classifyRuleReach([side('p1')], [side('p2')]).rules[0];
+  assert.deepEqual([result.status, result.why], ['never-rendered', 'no rendered rule references it']);
+});
+
+test('removed and renamed custom properties require rendered consumers', () => {
+  const base = cssMap(sheet('/app.css', ':root { --warn: red; } .fault { color: var(--warn); }', ':root'));
+  for (const [declaration, why] of [
+    ['color: black;', '--warn changed, and its consumer .fault never matched'],
+    ['--renamed: red;', '--renamed changed, and no served rule reads it outside a custom property'],
+  ]) {
+    const head = cssMap(sheet('/app.css', `:root { ${declaration} } .fault { color: var(--warn); }`, ':root'));
+    assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
+      key: ':root',
+      change: 'changed',
+      status: 'never-rendered',
+      why,
+      sheet: '/app.css',
+    });
+  }
+});
+
+test('served CSS aliases across sheets and within the changed rule reach every consumer', () => {
+  for (const aliases of [
+    ['--middle: var( --warn ); --tone: var(--middle);', ''],
+    ['', ':root { --middle: var( --warn ); --tone: var(--middle); }'],
+  ]) {
+    const captured = (value, rendered) =>
+      cssMap(
+        sheet('/tokens.css', `:root { --warn: ${value}; ${aliases[0]} }`, ':root'),
+        sheet(
+          '/app.css',
+          `${aliases[1]} .fault { color: var(--tone); } .healthy { color: var(--tone-extra); }`,
+          ...(aliases[1] ? [':root', ...rendered] : rendered),
+        ),
+      );
+    const base = captured('red', []);
+    for (const rendered of [[], ['.fault']]) {
+      const result = classifyRuleReach([base], [captured('blue', rendered)]).rules;
+      assert.equal(result.length, 1);
+      assert.equal(result[0].key, aliases[1] ? ':root #2' : ':root');
+      assert.equal(result[0].status, rendered.length ? 'reached' : 'never-rendered');
+    }
+  }
+});
+
+test('unread tokens and alias cycles are never rendered', () => {
+  for (const [aliases, prop] of [
+    ['', '--warn'],
+    ['--tone: var(--warn);', '--tone'],
+    ['--tone: var(--warn); --warn: var(--tone);', '--tone'],
+  ]) {
+    const base = cssMap(sheet('/app.css', ':root { --warn: red; }', ':root'));
+    const head = cssMap(sheet('/app.css', `:root { --warn: blue; ${aliases} }`, ':root'));
+    assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
+      key: ':root',
+      change: 'changed',
+      status: 'never-rendered',
+      why: `${prop} changed, and no served rule reads it outside a custom property`,
+      sheet: '/app.css',
+    });
+  }
+});
+
+test('a token closure follows only declared aliases', () => {
+  const captured = (value) =>
+    cssMap(
+      sheet(
+        '/app.css',
+        `:root { --warn: ${value}; } .shown { color: var(--warn); --unrelated: blue; }
+         .hidden { color: var(--unrelated); }`,
+        ':root',
+        '.shown',
+      ),
+    );
+  assert.equal(statusOf(classifyRuleReach([captured('red')], [captured('blue')]), ':root').status, 'reached');
+});
+
+test('an ambiguous alias and regular read in one rule stays never rendered', () => {
+  const captured = (value) =>
+    cssMap(sheet('/app.css', `:root { --warn: ${value}; --tone: var(--warn); color: var(--warn); }`, ':root'));
+  const result = statusOf(classifyRuleReach([captured('red')], [captured('blue')]), ':root');
+  assert.deepEqual(
+    [result.status, result.why],
+    ['never-rendered', '--warn changed, and no served rule reads it outside a custom property'],
+  );
+});
+
+test('later-sheet changes keep their own usage in either discovery order', () => {
+  const first = sheet('/first.css', '.a { color: red; }', '.a');
+  const second = sheet('/second.css', '.a { color: blue; } .a { padding: 1px; }');
+  const changed = sheet('/second.css', '.a { color: green; } .a { padding: 2px; }');
+  const base = cssMap(first, second);
+  const head = cssMap(first, changed);
+  assert.deepEqual(base, cssMap(second, first));
+  assert.deepEqual(head, cssMap(changed, first));
+  const result = classifyRuleReach([base], [head]);
+  assert.deepEqual(classifyRuleReach([cssMap(second, first)], [cssMap(changed, first)]), result);
+  assert.deepEqual(
+    result.rules.map((r) => [r.key, r.sheet, r.status]),
+    [
+      ['.a #2', '/second.css', 'never-rendered'],
+      ['.a #3', '/second.css', 'never-rendered'],
+    ],
+  );
+});
+
+test('repeated captures do not borrow usage from another sheet or ordinal', () => {
+  const text = '.a { color: red; } .a { color: blue; }';
+  const captured = (...needles) => cssMap(sheet('/first.css', text, ...needles), sheet('/second.css', text));
+  const base = [captured(), captured('.a { color: blue; }')];
+  assert.deepEqual(classifyRuleReach(base, [...base].reverse()).rules, []);
+  const added = cssMap(
+    sheet('/first.css', `${text} .new { margin: 0; }`, '.a { color: blue; }'),
+    sheet('/second.css', '.a { color: green; } .a { color: pink; }'),
+  );
+  assert.deepEqual(
+    classifyRuleReach(base, [added]).rules.map((r) => [r.key, r.status]),
+    [
+      ['.a #3', 'never-rendered'],
+      ['.a #4', 'never-rendered'],
+      ['.new', 'never-rendered'],
+    ],
+  );
+  for (const rendered of [[], ['.other']]) {
+    const before = cssMap(sheet('/first.css', `.other { margin: 0; } ${text}`, ...rendered));
+    const after = cssMap(sheet('/first.css', text));
+    const result = classifyRuleReach([before], [after]).rules;
+    assert.equal(result.length, 1);
+    assert.deepEqual(
+      [result[0].key, result[0].change, result[0].status],
+      ['.other', 'removed', rendered.length ? 'reached' : 'never-rendered'],
+    );
+  }
+});
+
 test('a side with any map lacking a ledger classifies nothing', () => {
   const ledgered = map(rule('.a', 'h1', { used: true }));
   const legacy = { defaults: {}, elements: {}, states: {} };
@@ -212,9 +427,70 @@ test('a side with any map lacking a ledger classifies nothing', () => {
   assert.equal(classifyRuleReach([ledgered], []).ledger, 'missing');
 });
 
+test('a ledger recorded before aliases classifies nothing, in any order', () => {
+  const captured = (value) =>
+    cssMap(
+      sheet(
+        '/app.css',
+        `:root { --warn: ${value}; }
+         .theme { --tone: var(--warn); color: var(--warn); }
+         .hidden { color: var(--tone); }`,
+        ':root',
+        '.theme',
+      ),
+    );
+  const base = captured('red');
+  const head = captured('blue');
+  assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--warn changed through --tone, and its consumer .hidden never matched',
+    sheet: '/app.css',
+  });
+  // Before #995 a ledger had no version and no aliases: it looks like a rule with no aliases.
+  const legacy = (m) => {
+    const reach = structuredClone(m.reach);
+    delete reach.version;
+    for (const rule of reach.rules) delete rule.aliases;
+    return { ...m, reach };
+  };
+  const missing = { ledger: 'missing', rules: [], unreadableSheets: 0 };
+  assert.deepEqual(classifyRuleReach([legacy(base)], [legacy(head)]), missing);
+  for (const [before, after] of [
+    [[base], [legacy(head), head]],
+    [[base], [head, legacy(head)]],
+    [[legacy(base), base], [head]],
+    [[base, legacy(base)], [head]],
+  ]) {
+    assert.deepEqual(classifyRuleReach(before, after), missing);
+  }
+});
+
+test('a commented var() still names its idle consumer', () => {
+  for (const [rules, why] of [
+    [
+      `.theme { --tone: var(/* comment */ --warn); color: var(--warn); color: black; }
+       .hidden { color: var(--tone); }`,
+      '--warn changed through --tone, and its consumer .hidden never matched',
+    ],
+    [
+      '.theme { color: var(--warn); }\n.hidden { color: var(/* c */ --warn); }',
+      '--warn changed, and its consumer .hidden never matched',
+    ],
+  ]) {
+    const captured = (value) => cssMap(sheet('/app.css', `:root { --warn: ${value}; }\n${rules}`, ':root', '.theme'));
+    const result = statusOf(classifyRuleReach([captured('red')], [captured('blue')]), ':root');
+    assert.deepEqual([result.status, result.why], ['never-rendered', why]);
+  }
+});
+
 test('unreadable stylesheets on either side are counted', () => {
-  const base = { ...map(rule('.a', 'h1', { used: true })), reach: { sheets: [], rules: [], unreadable: 2 } };
-  const head = { ...map(), reach: { sheets: [], rules: [], unreadable: 1 } };
+  const base = {
+    ...map(rule('.a', 'h1', { used: true })),
+    reach: { version: 2, sheets: [], rules: [], unreadable: 2 },
+  };
+  const head = { ...map(), reach: { version: 2, sheets: [], rules: [], unreadable: 1 } };
   const result = classifyRuleReach([base], [head]);
   assert.equal(result.unreadableSheets, 3);
   assert.equal(result.ledger, 'partial');
@@ -345,6 +621,7 @@ test('the same maps in any order give the same result', () => {
   const side = (sheet, referrer, consumer, k, r, warn) => ({
     ...map(),
     reach: {
+      version: 2,
       sheets: [sheet],
       rules: [
         rule('@keyframes pulse', k),
@@ -371,7 +648,7 @@ test('the same maps in any order give the same result', () => {
   // Multiple bodies for one key choose the same result and sheet regardless of route order.
   const split = (hash, sheet, used) => ({
     ...map(),
-    reach: { sheets: [sheet], rules: [rule('.split', hash, used ? { used: true } : {})] },
+    reach: { version: 2, sheets: [sheet], rules: [rule('.split', hash, used ? { used: true } : {})] },
   });
   for (const used of [true, false]) {
     const variants = [split('B', '/b.css', used), split('A', '/a.css', used)];
