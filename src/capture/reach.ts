@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import type { CDPSession, Page } from '@playwright/test';
 import type { ServedRule, ServedRules } from './types.js';
+import { GENERATED_PSEUDOS } from '../pseudo-references.js';
 
 type UsedRange = { startOffset: number; endOffset: number };
 type SheetHeader = {
@@ -20,6 +21,8 @@ type SheetHeader = {
 const digest = (s: string): string => createHash('sha256').update(s).digest('hex').slice(0, 16);
 // Grouping at-rules hold rules; every other block is a leaf (style rule, @keyframes, @font-face…).
 const GROUPING = /^@(media|supports|layer|container|scope|document|starting-style)\b/i;
+// Mirror PSEUDOS in capturePage (browser.ts), which is serialized and cannot be imported.
+const CAPTURED_PSEUDO_ELEMENTS = new Set(['::before', '::after', '::marker', '::placeholder', ...GENERATED_PSEUDOS]);
 function unknown(detail: string): never {
   throw new Error(`styleproof: served CSS reach is unknown: ${detail}`);
 }
@@ -263,15 +266,21 @@ export function comparedProbe(prelude: string, chain: readonly string[]): string
 
 type SelectorProbe = { selector: string; relaxed: boolean; nested: boolean };
 
-// Shadow-only semantics and pseudo names the ASCII scanner cannot safely transform.
+// Shadow-only semantics, uncaptured pseudo-elements and names the ASCII scanner cannot safely transform.
 function unattributablePseudo(rest: string): boolean {
-  return /^::?[\w-]*(?:\\|\P{ASCII})/u.test(rest) || /^(?::host(?:-context)?|::(?:slotted|part))(?![\w-])/i.test(rest);
+  return (
+    /^::?[\w-]*(?:\\|\P{ASCII})/u.test(rest) ||
+    /^(?::host(?:-context)?|::(?:slotted|part))(?![\w-])/i.test(rest) ||
+    (rest.startsWith('::') && !CAPTURED_PSEUDO_ELEMENTS.has(/^::[\w-]+/.exec(rest)?.[0]?.toLowerCase() ?? ''))
+  );
 }
 
 /** End of a pseudo-element or forced action state, including any balanced arguments. */
 function removedPseudoEnd(prelude: string, start: number): number {
+  const element = /^::[\w-]+/.exec(prelude.slice(start))?.[0];
+  if (element) return CAPTURED_PSEUDO_ELEMENTS.has(element.toLowerCase()) ? start + element.length : start;
   const removed =
-    /^(?:::[\w-]+|:(?:before|after|first-line|first-letter|hover|focus-visible|focus-within|focus|active)(?![\w-]))/i.exec(
+    /^:(?:before|after|first-line|first-letter|hover|focus-visible|focus-within|focus|active)(?![\w-])/i.exec(
       prelude.slice(start),
     );
   if (!removed) return start;
@@ -312,16 +321,21 @@ function selectorProbe(prelude: string, chain: readonly string[]): SelectorProbe
   return { selector: probe, relaxed, nested };
 }
 
-/** Serialized in-page: use exactly the element universe capturePage compares. */
-function matchCompared({
-  probes,
-  exclusive,
-  compared,
-}: {
-  probes: (string | null)[];
-  exclusive: boolean[];
-  compared: string[];
-}): boolean[] {
+type ComparedProbes = { probes: (string | null)[]; exclusive: boolean[]; compared: string[] };
+
+/** Serialized in-page: fingerprint and selector matches observe the same DOM without an intervening await. */
+export function comparedSnapshot(input?: ComparedProbes): { fingerprint: string; matched: boolean[] } {
+  const walk = (element: Element): unknown[] => [
+    element.tagName,
+    [...element.attributes].map(({ name, value }) => `${name}=${JSON.stringify(value)}`),
+    Boolean((element as HTMLInputElement).checked || (element as HTMLOptionElement).selected),
+    element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement ? element.value === '' : null,
+    [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && Boolean(node.nodeValue)),
+    [...element.children].map(walk),
+  ];
+  const fingerprint = JSON.stringify([location.hash, walk(document.documentElement)]);
+  if (!input) return { fingerprint, matched: [] };
+  const { probes, exclusive, compared } = input;
   const pathOf = (window as unknown as { __spPathOf?: (el: Element) => string }).__spPathOf;
   if (!pathOf) throw new Error('styleproof: compared reach requires __spPathOf');
   const paths = new Set(compared);
@@ -330,7 +344,7 @@ function matchCompared({
       paths.has(pathOf(el)),
     ),
   );
-  return probes.map((probe, index) => {
+  const matched = probes.map((probe, index) => {
     if (probe === null) return false;
     try {
       const matches = [...document.querySelectorAll(probe)];
@@ -341,6 +355,7 @@ function matchCompared({
     }
     return false;
   });
+  return { fingerprint, matched };
 }
 
 /** A stable label for where a stylesheet came from: its URL path, `inline`, or `constructed`. */
@@ -355,9 +370,9 @@ function sheetLabel(header: SheetHeader): string {
 }
 
 export type ServedRuleTracker = {
-  /** Start recording rule usage. Starting forces a style recalculation, so rules the page already matches count. */
+  /** Start recording rule usage and DOM state. Forces a style recalculation, so existing matches count. */
   start: () => Promise<void>;
-  /** Stop and scope matches to `compared` element paths, omitting `ownCss` sheets. Can start again. */
+  /** Scope matches to `compared` paths, omitting `ownCss`. A DOM change makes all matches outside. Can start again. */
   stop: (ownCss: readonly string[], compared: readonly string[]) => Promise<ServedRules>;
   /** Release the CDP session. Safe after a failed capture and safe to repeat. */
   dispose: () => Promise<void>;
@@ -391,17 +406,22 @@ async function readSheets(
   return { read, unreadable };
 }
 
-type DocumentNode = { children?: DocumentNode[]; shadowRoots?: DocumentNode[]; contentDocument?: DocumentNode };
+type DocumentNode = {
+  children?: DocumentNode[];
+  shadowRoots?: DocumentNode[];
+  shadowRootType?: string;
+  contentDocument?: DocumentNode;
+};
 
 function hasShadowRoot(node: DocumentNode): boolean {
   return Boolean(
-    node.shadowRoots?.length ||
+    node.shadowRoots?.some((root) => root.shadowRootType !== 'user-agent' || hasShadowRoot(root)) ||
     node.children?.some(hasShadowRoot) ||
     (node.contentDocument && hasShadowRoot(node.contentDocument)),
   );
 }
 
-/** Missing ownership information is safe only on a document with no shadow roots. */
+/** Missing ownership information is safe only on a document with no author shadow roots. */
 async function documentSheet(
   client: CDPSession,
   header: SheetHeader,
@@ -444,8 +464,10 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
     await dispose();
     throw error;
   }
+  let started: string | undefined;
   const start = async (): Promise<void> => {
     await client.send('CSS.startRuleUsageTracking');
+    started = digest((await page.evaluate(comparedSnapshot, undefined)).fingerprint);
   };
   const stop = async (ownCss: readonly string[], compared: readonly string[]): Promise<ServedRules> => {
     const { ruleUsage } = await client.send('CSS.stopRuleUsageTracking');
@@ -467,13 +489,19 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
         rules.push({ ...rule, sheet: index });
       }
     }
-    const matched = await page.evaluate(matchCompared, { probes, exclusive, compared: [...compared] });
+    const { fingerprint, matched } = await page.evaluate(comparedSnapshot, {
+      probes,
+      exclusive,
+      compared: [...compared],
+    });
+    const same = started !== undefined && digest(fingerprint) === started;
+    started = undefined;
     const seen = new Map<string, number>();
     rules.forEach((rule, index) => {
       const n = (seen.get(rule.key) ?? 0) + 1;
       seen.set(rule.key, n);
       if (n > 1) rule.key += ` #${n}`;
-      if (rule.used && !matched[index]) {
+      if (rule.used && (!same || !matched[index])) {
         delete rule.used;
         rule.outside = true;
       }

@@ -768,6 +768,55 @@ test('a changed token whose consumer matched only outside compared elements is u
   }
 });
 
+for (const outside of ['.a-outside', '.z-outside']) {
+  test(`a never-matched token consumer takes precedence over ${outside}`, () => {
+    const side = (value) =>
+      map(
+        rule(':root', value, { used: true, vars: { '--tone': value } }),
+        rule(outside, 'outside', { outside: true, uses: ['--tone'] }),
+        rule('.b-idle', 'idle', { uses: ['--tone'] }),
+      );
+    assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
+      key: ':root',
+      change: 'changed',
+      status: 'never-rendered',
+      why: '--tone changed, and its consumer .b-idle never matched',
+      sheet: '/app.css',
+    });
+  });
+}
+
+test('a later changed token with a never-matched consumer takes precedence over an outside-only consumer', () => {
+  const side = (value) =>
+    map(
+      rule(':root', value, { used: true, vars: { '--a': value, '--b': value } }),
+      rule('.outside', 'outside', { outside: true, uses: ['--a'] }),
+      rule('.idle', 'idle', { uses: ['--b'] }),
+    );
+  assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--b changed, and its consumer .idle never matched',
+    sheet: '/app.css',
+  });
+});
+
+test('an outside-only token declaration still reports its never-matched consumer', () => {
+  const side = (value) =>
+    map(
+      rule(':root', value, { outside: true, vars: { '--tone': value } }),
+      rule('.idle', 'idle', { uses: ['--tone'] }),
+    );
+  assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--tone changed, and its consumer .idle never matched',
+    sheet: '/app.css',
+  });
+});
+
 test('never-rendered takes precedence over unmeasured bodies regardless of map order', () => {
   const outside = map(rule('.split', 'a', { outside: true }));
   const idle = map(rule('.split', 'z'));

@@ -290,7 +290,10 @@ async function trackedLedger(sheets, opts = {}) {
         if (sheet.callFails) throw new Error('owner detached');
         return { result: { value: sheet.inDocument ?? true } };
       }
-      if (command === 'CSS.getStyleSheetText') return sheets.find((s) => s.styleSheetId === params.styleSheetId);
+      if (command === 'CSS.getStyleSheetText') {
+        opts.onRead?.();
+        return sheets.find((s) => s.styleSheetId === params.styleSheetId);
+      }
       if (command === 'CSS.stopRuleUsageTracking') {
         return {
           ruleUsage: sheets.flatMap((s) =>
@@ -304,10 +307,13 @@ async function trackedLedger(sheets, opts = {}) {
   };
   const tracker = await trackServedRules({
     context: () => ({ newCDPSession: async () => client }),
-    evaluate: async (fn, input) =>
-      opts.evaluate
-        ? opts.evaluate(fn, input)
-        : input.probes.map((p) => p !== null && (opts.inScope ?? (() => true))(p)),
+    evaluate: async (fn, input) => {
+      if (opts.evaluate) return opts.evaluate(fn, input);
+      return {
+        fingerprint: opts.prints ? opts.prints.shift() : 'dom',
+        matched: input?.probes.map((p) => p !== null && (opts.inScope ?? (() => true))(p)) ?? [],
+      };
+    },
   });
   try {
     await tracker.start();
@@ -378,7 +384,19 @@ for (const [selector, expected, chain = []] of [
   ['.a::beforeé', undefined],
   ['.a:hoveré', undefined],
   ['.a:before, .b:after, .c:first-line, .d:first-letter', '.a, .b, .c, .d'],
-  ['.a::cue(:is(.b, .c))', '.a'],
+  ['.a::cue(:is(.b, .c))', undefined],
+  ['.a::selection', undefined],
+  ['.a::-webkit-scrollbar', undefined],
+  ['.a::highlight(x)', undefined],
+  ['::view-transition-old(root)', undefined],
+  ['.a::before-ish', undefined],
+  ['.a::selection, .b::before', undefined],
+  ['.a::marker', '.a'],
+  ['.a::placeholder', '.a'],
+  ['dialog::backdrop', 'dialog'],
+  ['input::file-selector-button', 'input'],
+  ['.a::first-line', '.a'],
+  ['.a ::marker', '.a *'],
   ['.a > :hover + ::before', '.a > * + *'],
   ['x-card::part(title)', undefined],
   [':host(.on)', undefined],
@@ -394,6 +412,107 @@ for (const [selector, expected, chain = []] of [
 
 const matchedSheet = { styleSheetId: 'one', text: '.a { color: red; }', used: true };
 
+test('tracked ledger marks every matched rule outside when the DOM changes during tracking', async () => {
+  for (const [prints, same] of [
+    [['before', 'after'], false],
+    [['before', 'before'], true],
+  ]) {
+    const ledger = await trackedLedger(
+      [
+        { ...matchedSheet, text: '.a { color: red; } .b { color: blue; }' },
+        { styleSheetId: 'idle', text: '.idle { color: green; }' },
+      ],
+      { prints },
+    );
+    assert.equal(ledger.scope, 'compared');
+    for (const rule of ledger.rules.filter((r) => r.key !== '.idle')) {
+      assert.equal(rule.used, same ? true : undefined, rule.key);
+      assert.equal(rule.outside, same ? undefined : true, rule.key);
+    }
+    const idle = ledger.rules.find((r) => r.key === '.idle');
+    assert.equal(idle.used, undefined);
+    assert.equal(idle.outside, undefined);
+  }
+});
+
+test('DOM changes during stylesheet reads cannot lend usage to a compared element', async () => {
+  let fingerprint = 'before';
+  const ledger = await trackedLedger([matchedSheet], {
+    prints: { shift: () => fingerprint },
+    onRead: () => {
+      fingerprint = 'after';
+    },
+  });
+  assert.equal(ledger.scope, 'compared');
+  assert.equal(ledger.rules[0].used, undefined);
+  assert.equal(ledger.rules[0].outside, true);
+});
+
+test('serialized DOM fingerprint detects selector state changes while allowing nonempty text updates', () => {
+  const element = (tagName) => ({ tagName, attributes: [], childNodes: [], children: [] });
+  class HTMLInputElement {
+    constructor() {
+      Object.assign(this, element('INPUT'), { checked: false, value: '' });
+    }
+  }
+  class HTMLTextAreaElement {
+    constructor() {
+      Object.assign(this, element('TEXTAREA'), { value: '' });
+    }
+  }
+  const input = new HTMLInputElement();
+  const textarea = new HTMLTextAreaElement();
+  const option = { ...element('OPTION'), selected: false };
+  const attribute = { name: 'class', value: 'before' };
+  input.attributes.push(attribute);
+  const text = { nodeType: 3, nodeValue: '' };
+  const root = { ...element('MAIN'), childNodes: [text], children: [input, textarea, option] };
+  const location = { hash: '' };
+  const fingerprint = () =>
+    runInNewContext(`(${reach.comparedSnapshot.toString()})()`, {
+      document: { documentElement: root },
+      location,
+      Node: { TEXT_NODE: 3 },
+      HTMLInputElement,
+      HTMLTextAreaElement,
+    }).fingerprint;
+  const before = fingerprint();
+  for (const [target, property, value] of [
+    [attribute, 'name', 'id'],
+    [attribute, 'value', 'after'],
+    [input, 'checked', true],
+    [input, 'value', 'filled'],
+    [textarea, 'value', 'filled'],
+    [option, 'selected', true],
+    [root, 'tagName', 'SECTION'],
+    [root, 'children', [textarea, input, option]],
+    [root, 'children', []],
+    [text, 'nodeValue', 'tick'],
+    [location, 'hash', '#target'],
+  ]) {
+    const saved = target[property];
+    target[property] = value;
+    assert.notEqual(fingerprint(), before, property);
+    target[property] = saved;
+    assert.equal(fingerprint(), before, `restored ${property}`);
+  }
+  text.nodeValue = 'tick';
+  const nonempty = fingerprint();
+  text.nodeValue = 'tock';
+  assert.equal(fingerprint(), nonempty);
+  text.nodeValue = ' ';
+  assert.equal(fingerprint(), nonempty);
+});
+
+test('tracked ledger marks uncaptured pseudo-element matches outside compared scope', async () => {
+  for (const selector of ['.a::selection', '.a::-webkit-scrollbar', '.a::highlight(x)', '.a::cue(:is(.b, .c))']) {
+    const ledger = await trackedLedger([{ ...matchedSheet, text: `${selector} { color: red; }` }]);
+    assert.equal(ledger.scope, 'compared');
+    assert.equal(ledger.rules[0].used, undefined, selector);
+    assert.equal(ledger.rules[0].outside, true, selector);
+  }
+});
+
 for (const [name, header, opts = {}] of [
   ['child iframe', { frameId: 'child' }],
   ['missing frame', { frameId: undefined }],
@@ -401,6 +520,24 @@ for (const [name, header, opts = {}] of [
   ['unresolved owner', { ownerNode: 1, resolveFails: true }],
   ['detached owner', { ownerNode: 1, callFails: true }],
   ['constructed sheet with a shadow root', { isConstructed: true }, { shadow: true }],
+  [
+    'constructed sheet with a closed author shadow root',
+    { isConstructed: true },
+    { document: { children: [{ shadowRoots: [{ shadowRootType: 'closed' }] }] } },
+  ],
+  [
+    'constructed sheet with an author root nested in a user-agent root',
+    { isConstructed: true },
+    {
+      document: {
+        children: [
+          {
+            shadowRoots: [{ shadowRootType: 'user-agent', children: [{ shadowRoots: [{ shadowRootType: 'open' }] }] }],
+          },
+        ],
+      },
+    },
+  ],
   ['imported sheet with a shadow root', {}, { shadow: true }],
   [
     'constructed sheet with a document owner and a shadow root',
@@ -422,6 +559,8 @@ test('tracked ledger keeps compared matches for document and unambiguous constru
   for (const [header, opts] of [
     [{ ownerNode: 1 }, { shadow: true }],
     [{ isConstructed: true }, {}],
+    [{ isConstructed: true }, { document: { children: [{ shadowRoots: [{ shadowRootType: 'user-agent' }] }] } }],
+    [{}, { document: { children: [{ shadowRoots: [{ shadowRootType: 'user-agent' }] }] } }],
   ]) {
     const ledger = await trackedLedger([{ ...matchedSheet, ...header }], opts);
     assert.equal(ledger.scope, 'compared');
@@ -445,8 +584,19 @@ test('tracked ledger preserves the selector and chain separately when probing ch
   assert.equal(ledger.rules[0].used, true);
 });
 
+const snapshotElement = () => ({ tagName: 'HTML', attributes: [], childNodes: [], children: [] });
+const evaluateSnapshot = (fn, input, context) =>
+  runInNewContext(`(${fn.toString()})(input)`, {
+    input,
+    location: { hash: '' },
+    Node: { TEXT_NODE: 3 },
+    HTMLInputElement: class {},
+    HTMLTextAreaElement: class {},
+    ...context,
+  });
+
 test('in-page attribution uses only compared capture elements and rejects invalid selectors', async () => {
-  const html = {},
+  const html = snapshotElement(),
     body = {},
     compared = {},
     ignored = {},
@@ -477,10 +627,9 @@ test('in-page attribution uses only compared capture elements and rejects invali
     {
       compared: ['html', 'body', 'measured'],
       evaluate: (fn, input) =>
-        runInNewContext(`(${fn.toString()})(input)`, {
+        evaluateSnapshot(fn, input, {
           document,
           window: { __spPathOf: (el) => paths.get(el) },
-          input,
         }),
     },
   );
@@ -498,14 +647,15 @@ test('in-page attribution uses only compared capture elements and rejects invali
 test('in-page attribution fails when path identity is unavailable', async () => {
   await assert.rejects(
     trackedLedger([matchedSheet], {
-      evaluate: (fn, input) => runInNewContext(`(${fn.toString()})(input)`, { window: {}, input }),
+      evaluate: (fn, input) =>
+        evaluateSnapshot(fn, input, { document: { documentElement: snapshotElement() }, window: {} }),
     }),
     /path|__spPathOf/i,
   );
 });
 
 test('relaxed state probes cannot borrow usage from excluded elements or negative selector branches', async () => {
-  const html = {},
+  const html = snapshotElement(),
     body = {},
     compared = {},
     ignored = {};
@@ -518,8 +668,7 @@ test('relaxed state probes cannot borrow usage from excluded elements or negativ
     const ledger = await trackedLedger([{ ...matchedSheet, text: `${selector} { color: red; }` }], {
       compared: ['measured'],
       evaluate: (fn, input) =>
-        runInNewContext(`(${fn.toString()})(input)`, {
-          input,
+        evaluateSnapshot(fn, input, {
           window: { __spPathOf: (el) => (el === compared ? 'measured' : 'excluded') },
           document: {
             documentElement: html,

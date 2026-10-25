@@ -208,24 +208,29 @@ function tokenClosure(side: Side, seed: string): Set<string> {
   return closure;
 }
 
-/** A changed token must reach every body that consumes it, including through aliases. */
+/** Every token consumer must render: never-rendered over unmeasured, independent of key order. */
 function tokenShortfall(
   v: Variant,
   side: Side,
   before: readonly Variant[],
 ): Pick<RuleReach, 'status' | 'why'> | undefined {
+  let unmeasured: Pick<RuleReach, 'status' | 'why'> | undefined;
   for (const prop of changedVars(v, before)) {
     const closure = tokenClosure(side, prop);
-    const idle = side.sorted.find((r) => r.uses?.some((used) => closure.has(used)) && !side.used.has(r.id));
-    if (idle) {
-      const via = idle.uses?.includes(prop) ? prop : idle.uses?.filter((used) => closure.has(used)).sort()[0];
+    const idle = side.sorted.filter((r) => r.uses?.some((used) => closure.has(used)) && !side.used.has(r.id));
+    const consumer = idle.find((r) => !side.outside.has(r.id)) ?? idle[0];
+    if (consumer) {
+      const via = consumer.uses?.includes(prop) ? prop : consumer.uses?.filter((used) => closure.has(used)).sort()[0];
       const through = via === prop ? '' : ` through ${via}`;
-      return side.outside.has(idle.id)
-        ? {
-            status: 'unmeasured',
-            why: `${prop} changed${through}, and its consumer ${idle.key} matched only elements StyleProof does not compare`,
-          }
-        : { status: 'never-rendered', why: `${prop} changed${through}, and its consumer ${idle.key} never matched` };
+      if (!side.outside.has(consumer.id))
+        return {
+          status: 'never-rendered',
+          why: `${prop} changed${through}, and its consumer ${consumer.key} never matched`,
+        };
+      unmeasured ??= {
+        status: 'unmeasured',
+        why: `${prop} changed${through}, and its consumer ${consumer.key} matched only elements StyleProof does not compare`,
+      };
     }
     const terminal = side.sorted.some((rule) => renderedReads(rule).some((used) => closure.has(used)));
     if (!terminal) {
@@ -235,7 +240,22 @@ function tokenShortfall(
       };
     }
   }
-  return undefined;
+  return unmeasured;
+}
+
+/** An unmatched body stays unmeasured unless it or a required consumer never matched. */
+function unmatchedShortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<RuleReach, 'key' | 'change'> {
+  if (side.outside.has(v.id)) {
+    const token = tokenShortfall(v, side, before);
+    if (token?.status === 'never-rendered') return token;
+    return {
+      status: 'unmeasured',
+      why: 'matched only elements StyleProof does not compare (shadow DOM, an iframe, or an ignored or volatile region)',
+    };
+  }
+  const condition = conditionOf(v.key);
+  const why = condition ? `never matched while ${condition} applied` : 'its selector never matched';
+  return { status: 'never-rendered', why, ...(condition ? { condition } : {}) };
 }
 
 /** Why one changed body is not `reached` on the side that judges it, or undefined when it is. */
@@ -259,18 +279,7 @@ function shortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<Rul
         }
       : { status: 'never-rendered', why: 'no rendered rule references it', ...sheet };
   }
-  if (!side.used.has(v.id)) {
-    if (side.outside.has(v.id)) {
-      return {
-        status: 'unmeasured',
-        why: 'matched only elements StyleProof does not compare (shadow DOM, an iframe, or an ignored or volatile region)',
-        ...sheet,
-      };
-    }
-    const condition = conditionOf(v.key);
-    const why = condition ? `never matched while ${condition} applied` : 'its selector never matched';
-    return { status: 'never-rendered', why, ...(condition ? { condition } : {}), ...sheet };
-  }
+  if (!side.used.has(v.id)) return { ...unmatchedShortfall(v, side, before), ...sheet };
   const token = tokenShortfall(v, side, before);
   return token ? { ...token, ...sheet } : undefined;
 }

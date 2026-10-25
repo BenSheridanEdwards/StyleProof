@@ -177,8 +177,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   ledgers; ledgers captured by the earlier unreleased #991 code read as
   missing and must be re-captured. Matches under `@scope` or `@container`,
   shadow selectors, and ownerless constructed or imported sheets on pages
-  with shadow DOM remain conservatively unmeasured. Direct tracker callers
-  now pass the required compared paths to `stop(ownCss, compared)`.
+  with author shadow roots remain conservatively unmeasured; browser-owned
+  shadow roots in form controls and media elements do not count. Uncaptured
+  pseudo-elements such as `::selection`, `::-webkit-scrollbar`, `::highlight()`
+  and `::cue()` record outside matches. If the DOM tree, attributes, checked
+  state, field emptiness, text presence or URL fragment differ between the
+  start and stop of tracking, every match records outside. Never-rendered
+  token consumers take precedence over outside-only consumers regardless of
+  key or property order. Direct tracker callers now pass the required compared
+  paths to `stop(ownCss, compared)`.
 - **Reach corpus (`bench/`, #988).** `npm run bench:reach` pins the miss Change
   Reach (#934) exists to close. A base/head fixture carries 14 seeded changes,
   13 of them visual. A spec that opens only the healthy state shows 1 of the 13
