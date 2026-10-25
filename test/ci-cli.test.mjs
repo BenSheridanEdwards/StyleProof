@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -181,8 +182,11 @@ test('cold base runtime: non-registry artifacts survive every package-manager pl
   const root = mkTmp();
   try {
     const artifacts = [
-      ['file:vendor/runtime', `file:${path.join(root, 'vendor/runtime')}`],
-      ['link:../runtime', `link:${path.resolve(root, '../runtime')}`],
+      ['file:vendor/runtime', '8.0.1'],
+      ['link:../runtime', '8.0.1'],
+      ['./runtime', '8.0.1'],
+      ['file:runtime.tgz', `file:${path.join(root, 'runtime.tgz')}`],
+      ['link:runtime.tgz', '8.0.1'],
       ['vendor/runtime.tgz', `file:${path.join(root, 'vendor/runtime.tgz')}`],
       ['/tmp/runtime.tgz', 'file:/tmp/runtime.tgz'],
       ['git+https://github.com/owner/repo.git#build', 'git+https://github.com/owner/repo.git#build'],
@@ -201,6 +205,54 @@ test('cold base runtime: non-registry artifacts survive every package-manager pl
       }
     }
     assert.equal(ciRuntime.styleProofRuntimeSpec({}, root, '8.0.1'), '8.0.1');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('cold base installer reads the consumer manifest and logs the installed runtime, including without a manifest', () => {
+  const root = mkTmp();
+  try {
+    const consumerCwd = path.join(root, 'consumer');
+    const coldBaseCwd = path.join(root, 'base');
+    fs.mkdirSync(consumerCwd);
+    fs.mkdirSync(coldBaseCwd);
+    fs.writeFileSync(
+      path.join(coldBaseCwd, 'package.json'),
+      JSON.stringify({ dependencies: { styleproof: 'file:wrong.tgz' } }),
+    );
+    const source = fs.readFileSync(CI, 'utf8');
+    const installer = source.slice(
+      source.indexOf('function installExactStyleProof('),
+      source.indexOf('// ── Nearest-ancestor'),
+    );
+    for (const declared of [null, 'file:head.tgz', 'file:directory']) {
+      if (declared === null) fs.rmSync(path.join(consumerCwd, 'package.json'), { force: true });
+      else
+        fs.writeFileSync(
+          path.join(consumerCwd, 'package.json'),
+          JSON.stringify({ devDependencies: { styleproof: declared } }),
+        );
+      const calls = [];
+      const logs = [];
+      const context = vm.createContext({
+        fs,
+        path,
+        consumerCwd,
+        OWN_VERSION: '8.0.1',
+        styleProofRuntimeSpec: ciRuntime.styleProofRuntimeSpec,
+        worktrees: { scratchRoot: () => root },
+        log: (message) => logs.push(`styleproof-ci: ${message}`),
+        runOrDie: (argv, label, options) => calls.push({ argv, label, options }),
+      });
+      vm.runInContext(`${installer}; globalThis.install = installExactStyleProof`, context);
+      const pm = detectPackageManagerPlan(consumerCwd);
+      context.install({ ...pm, isolatedStyleProofPackage: () => null }, coldBaseCwd);
+      const expected = declared === 'file:head.tgz' ? `file:${path.join(consumerCwd, 'head.tgz')}` : '8.0.1';
+      assert.equal(calls[0].argv.at(-1), `styleproof@${expected}`);
+      assert.equal(calls[0].options.cwd, coldBaseCwd);
+      assert.equal(logs[0], `styleproof-ci: cold base runtime: styleproof@${expected}`);
+    }
   } finally {
     rmTmp(root);
   }

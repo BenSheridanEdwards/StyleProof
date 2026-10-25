@@ -26,7 +26,7 @@ export type PackageManagerPlan = {
   packageMetadataFiles: string[];
 };
 
-/** Preserve head artifacts; registry declarations use the running CLI's exact version.
+/** Preserve head tarballs and Git specs; other declarations use the running CLI's exact version.
  * Returns the portion after `styleproof@` for the existing exact-install plans. */
 export function styleProofRuntimeSpec(
   headPackageJson: {
@@ -43,11 +43,16 @@ export function styleProofRuntimeSpec(
     headPackageJson.devDependencies?.styleproof;
   if (typeof spec !== 'string') return ownVersion;
   const local = /^(file:|link:)(.*)$/.exec(spec);
-  if (local) return `${local[1]}${path.resolve(headDir, local[2])}`;
+  if (local) {
+    return local[1] === 'file:' && /\.(?:tgz|tar\.gz)$/.test(local[2])
+      ? `file:${path.resolve(headDir, local[2])}`
+      : ownVersion;
+  }
   if (/^(?:git(?:\+[^:]+)?:|https?:|ssh:|github:|gitlab:|bitbucket:|git@)/.test(spec)) return spec;
-  if (path.isAbsolute(spec) || spec.startsWith('./') || spec.startsWith('../') || /\.(?:tgz|tar\.gz)$/.test(spec)) {
+  if (/\.(?:tgz|tar\.gz)$/.test(spec)) {
     return `file:${path.resolve(headDir, spec)}`;
   }
+  if (path.isAbsolute(spec) || spec.startsWith('./') || spec.startsWith('../')) return ownVersion;
   if (/^[^@\s/]+\/[^\s]+$/.test(spec)) return spec;
   return ownVersion;
 }

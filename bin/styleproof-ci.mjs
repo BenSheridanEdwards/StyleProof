@@ -407,11 +407,13 @@ const link = (target, at) => {
  *  forbids loading it twice in one process. */
 function installExactStyleProof(pm, coldBaseCwd) {
   const exactRuntimeRoot = path.join(worktrees.scratchRoot(), 'exact-styleproof-runtime');
-  const runtimeSpec = styleProofRuntimeSpec(
-    JSON.parse(fs.readFileSync(path.join(consumerCwd, 'package.json'), 'utf8')),
-    consumerCwd,
-    OWN_VERSION,
-  );
+  let headPackageJson = {};
+  try {
+    headPackageJson = JSON.parse(fs.readFileSync(path.join(consumerCwd, 'package.json'), 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const runtimeSpec = styleProofRuntimeSpec(headPackageJson, consumerCwd, OWN_VERSION);
   log(`cold base runtime: styleproof@${runtimeSpec}`);
   runOrDie(pm.installExactStyleProof(runtimeSpec, exactRuntimeRoot), `install styleproof@${runtimeSpec}`, {
     cwd: coldBaseCwd,
