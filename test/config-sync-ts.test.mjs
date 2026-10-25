@@ -156,6 +156,31 @@ for (const typed of [false, true]) {
       },
     );
   });
+
+  for (const [failure, deferred, reason] of [
+    [
+      'rejection',
+      "Promise.reject(new Error('fixture deferred rejection'))",
+      /unhandled promise rejection.*fixture deferred rejection/,
+    ],
+    ['exitCode', 'process.exitCode = 7', /process\.exitCode to 7/],
+    ['throw', "{ throw new Error('fixture deferred throw'); }", /fixture deferred throw/],
+  ]) {
+    test(`sync ${label} ts config fails closed on a deferred ${failure} after loading`, options, (t) => {
+      const root = configFixture(t, `setTimeout(() => ${deferred}, 0); ${policy}`);
+      assert.throws(
+        () => loadStyleProofConfig(root),
+        (error) => {
+          assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+          assert.match(error.message, reason);
+          return true;
+        },
+      );
+      const result = loadSyncInChild(root);
+      assert.equal(result.status, 1, result.stderr);
+      assert.doesNotMatch(result.stdout, /requireApproval/);
+    });
+  }
 }
 
 test('sync ts config still loads when it handles its own rejection and resets exitCode', async (t) => {
@@ -230,11 +255,11 @@ test('sync ts config cannot substitute stdout JSON for a missing result', (t) =>
   assert.equal(result.stdout, '{}\n');
 });
 
-test('sync ts config drains queued logs and schema warnings with live handles', (t) => {
+test('sync ts config drains queued logs and schema warnings after deferred work finishes', (t) => {
   const root = configFixture(
     t,
-    `setInterval(() => {}, 100);
-     setTimeout(() => process.exit(7), 2000);
+    `const ticker = setInterval(() => {}, 10);
+     setTimeout(() => clearInterval(ticker), 50);
      console.log('x'.repeat(65536));
      console.error('y'.repeat(65536));
      export default { coverage: { strict: true }, unexpected: true };`,
@@ -246,6 +271,30 @@ test('sync ts config drains queued logs and schema warnings with live handles', 
   assert.match(result.stderr, /styleproof\.config\.ts.*unknown key\(s\) ignored: unexpected/);
   assert.equal(result.stderr.match(/unknown key\(s\) ignored/g)?.length, 1);
   assert.doesNotMatch(result.stderr, /\.styleproof-config-eval-/);
+});
+
+test('sync ts config fails closed, without hanging, when live handles outlast the grace period', (t) => {
+  const root = configFixture(
+    t,
+    `setInterval(() => {}, 100);
+     setTimeout(() => process.exit(0), 20000);
+     console.log('fixture live');
+     export default { requireApproval: true };`,
+  );
+  const started = Date.now();
+  assert.throws(
+    () => loadStyleProofConfig(root),
+    (error) => {
+      assert.equal(error.code, 'STYLEPROOF_UNLOADABLE_TS');
+      assert.match(error.message, /styleproof\.config\.ts still had pending work \(.*Timeout.*\)/);
+      return true;
+    },
+  );
+  assert.ok(Date.now() - started < 15000, 'the load must not wait for the config to exit on its own');
+  const result = loadSyncInChild(root);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /fixture live/);
+  assert.doesNotMatch(result.stdout, /requireApproval/);
 });
 
 for (const [command, args, reason] of [

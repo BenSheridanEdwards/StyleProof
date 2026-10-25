@@ -14,6 +14,8 @@ import { errorMessage } from '../util.js';
 import { plainObject, StyleProofConfigError } from './schema.js';
 
 const UNLOADABLE_TS = 'STYLEPROOF_UNLOADABLE_TS';
+/** How long a sync-loaded `.ts` config's deferred work may keep the eval child alive before it fails closed. */
+const PENDING_WORK_GRACE_MS = 1000;
 
 export function isGitRoot(dir: string): boolean {
   try {
@@ -168,28 +170,45 @@ function spawnConfigModuleEval(
       '--no-warnings',
       '--input-type=module',
       '-e',
-      // The config is imported dynamically so the rejection listener exists before it runs. The
-      // explicit exit (needed when the config leaves live handles) must not hide a failure the config
-      // signalled itself: a non-zero process.exitCode or an unhandled rejection fails the load closed.
+      // The config is imported dynamically so the rejection listener exists before it runs. The policy
+      // is released only once the event loop drains, so deferred work (a timer that rejects, throws or
+      // sets process.exitCode) has run and been checked. A config whose handles keep the loop alive past
+      // the grace period cannot be confirmed finished, so it fails closed rather than hanging the load.
       `import { writeFileSync } from 'node:fs';
        import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
        const NAME = ${JSON.stringify(configFilename)};
+       const GRACE_MS = ${PENDING_WORK_GRACE_MS};
        const rejections = [];
        process.on('unhandledRejection', (reason) => { rejections.push(reason); });
        const mod = await import(${JSON.stringify(pathToFileURL(filePath).href)});
        const config = plainObject(mod?.default ?? mod, 'the default export', NAME);
        const json = JSON.stringify(structuredClone(parseConfigRecord(config, NAME)));
-       await new Promise((resolve) => setImmediate(resolve));
-       const exitCode = process.exitCode === undefined ? 0 : Number(process.exitCode);
-       for (const reason of rejections) {
-         process.stderr.write(NAME + ' left an unhandled promise rejection while loading: ' +
-           (reason instanceof Error ? reason.stack || reason.message : String(reason)) + '\\n');
-       }
-       if (exitCode !== 0) process.stderr.write(NAME + ' set process.exitCode to ' + String(process.exitCode) + ' while loading\\n');
-       const failed = rejections.length > 0 || exitCode !== 0;
-       if (!failed) writeFileSync(3, json);
-       await Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))));
-       process.exit(failed ? exitCode || 1 : 0);`,
+       let finished = false;
+       const finish = (pendingWork) => {
+         if (finished) return;
+         finished = true;
+         clearTimeout(deadline);
+         const exitCode = process.exitCode === undefined ? 0 : Number(process.exitCode);
+         for (const reason of rejections) {
+           process.stderr.write(NAME + ' left an unhandled promise rejection while loading: ' +
+             (reason instanceof Error ? reason.stack || reason.message : String(reason)) + '\\n');
+         }
+         if (exitCode !== 0) process.stderr.write(NAME + ' set process.exitCode to ' + String(process.exitCode) + ' while loading\\n');
+         if (pendingWork) {
+           process.stderr.write(NAME + ' still had pending work (' + pendingWork + ') ' + GRACE_MS +
+             'ms after loading, so StyleProof cannot confirm it finished; close or unref its handles\\n');
+         }
+         const failed = rejections.length > 0 || exitCode !== 0 || Boolean(pendingWork);
+         if (!failed) writeFileSync(3, json);
+         Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))))
+           .then(() => process.exit(failed ? exitCode || 1 : 0));
+       };
+       const deadline = setTimeout(() => {
+         const live = process.getActiveResourcesInfo?.().filter((kind) => kind !== 'TTYWrap') ?? [];
+         finish([...new Set(live)].join(', ') || 'live handles');
+       }, GRACE_MS);
+       deadline.unref();
+       process.once('beforeExit', () => finish(''));`,
     ],
     {
       encoding: 'utf8',

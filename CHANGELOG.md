@@ -226,9 +226,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof-affected`, `styleproof-diff`, `styleproof-capture`,
   `defineStyleMapCapture`, or `resolveProjectSpec`. Policy is validated before
   serialization, so `toJSON()` or function values cannot hide an invalid field.
-  A config that sets a non-zero `process.exitCode` or leaves an unhandled
-  promise rejection while loading still fails closed instead of returning its
-  policy.
+  A config that sets a non-zero `process.exitCode`, leaves an unhandled
+  promise rejection or throws while loading, including from a timer that
+  fires after its module finishes, still fails closed instead of returning
+  its policy. Policy is returned only once the config's pending work has
+  finished; a config whose live handles are still open a second after loading
+  fails closed instead of hanging the load.
 - **Capture keys that differ only by case or Unicode normalization now fail
   before capture (#976).** `Alpha` and `alpha`, NFC and NFD `café`, or a `menu`
   variant `Open` beside a `menu-open` surface can name one map file on macOS
