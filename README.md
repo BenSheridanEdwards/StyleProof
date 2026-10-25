@@ -557,8 +557,8 @@ unit matrix on Node 22.13.0 (the supported floor), 22, and 24. The `e2e (node 22
 aggregate compares completed test IDs against a separately collected full
 inventory and requires the five-run determinism receipt. Missing, duplicated,
 skipped, failed, or retried tests fail verification.
-The `browser-evidence-node-22` artifact retains the inventory, shard results, and
-oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
+The `e2e-shard-*` artifacts are kept for 1 day and used only by the `e2e (node 22)`
+check. Local `npm run test:e2e` still runs the complete suite.
 
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
 for the dev loop, and [`.agents/README.md`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/.agents/README.md)
