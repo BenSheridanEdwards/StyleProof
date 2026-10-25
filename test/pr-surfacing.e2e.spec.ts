@@ -108,13 +108,21 @@ test.describe('every PR change class is surfaced in the diff', () => {
     const css = '.hero{display:block;width:120px;height:40px}';
     const base = await cap(page, css, `<img class="hero" alt="" src="${GREEN}">`);
     const head = await cap(page, css, `<img class="hero" alt="" src="${RED}">`);
+    const findings = diffStyleMaps(base, head);
     expect(
-      diffStyleMaps(base, head).some(
+      findings.some(
         (entry) =>
           entry.kind === 'style' &&
-          entry.props.some((prop) => prop.prop === 'currentSrc' && prop.before === GREEN && prop.after === RED),
+          entry.props.some(
+            (prop) =>
+              prop.prop === 'currentSrc' &&
+              prop.before !== prop.after &&
+              [prop.before, prop.after].every((value) => /^data:image\/png#[0-9a-z]+$/.test(value)),
+          ),
       ),
     ).toBe(true);
+    // The map holds a digest, never the inline payload.
+    expect(JSON.stringify([base, head, findings])).not.toContain(GREEN.split(',')[1]);
   });
 
   test('an unreferenced @keyframes body change produces no finding', async ({ page }) => {

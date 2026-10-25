@@ -1242,8 +1242,21 @@ does not read `viewport`.
 
 The optional `rendered` field records inputs computed styles cannot hold:
 
-- `currentSrc`: an `<img>`'s selected absolute image URL (`currentSrc`, falling
-  back to `src` before selection).
+- `currentSrc`: a digest of an `<img>`'s selected absolute image URL (`currentSrc`,
+  falling back to `src` before selection).
+- `srcset` and `sizes`: an `<img>`'s candidate list (as a digest) and its `sizes`
+  attribute, so a lazy image that has not selected a candidate yet still records
+  what it will render.
+
+Image sources are never stored as URLs. A value keeps only the origin (`https://cdn.example.com`,
+with any credentials dropped) or the `data:` media type, followed by `#` and a 64-bit
+FNV-1a hash of the full value. Any change to the URL, including its query string, still
+changes the digest, but tokens, paths and inline `data:` payloads never enter a map,
+and inline images do not grow it. An image whose URL differs on every load flags on
+every run: signed or rotating URLs, and `blob:` URLs from `URL.createObjectURL`,
+which are random per page load. List such images in `ignore`. A lazy image that
+selects its source in one capture but not the other also flags, because `currentSrc`
+appears on one side only.
 - `@keyframes <name>`: the browser-resolved body of each CSS animation on the
   element during the unfrozen motion read.
 - `<pseudo> @keyframes <name>`: the same body for an animation on a pseudo-element,

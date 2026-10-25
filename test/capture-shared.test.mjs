@@ -143,19 +143,63 @@ const pageCaptureArgs = {
   pseudoReferences: PSEUDO_REFERENCES,
 };
 
+function imagePageHarness(image) {
+  const harness = pseudoPageHarness({ tag: 'img' });
+  const element = harness.document.querySelector();
+  Object.setPrototypeOf(element, harness.context.HTMLImageElement.prototype);
+  Object.assign(element, { currentSrc: '', src: '', srcset: '', sizes: '' }, image);
+  return harness;
+}
+const capturedImage = (image) => imagePageHarness(image).run(capturePage, pageCaptureArgs).elements.target.rendered;
+
 for (const [currentSrc, src, expected] of [
   ['https://example.test/selected.png', 'https://example.test/fallback.png', 'https://example.test/selected.png'],
   ['', 'https://example.test/fallback.png', 'https://example.test/fallback.png'],
 ]) {
   test(`capture records the resolved image source ${expected} (#1005)`, () => {
-    const { run, context, document } = pseudoPageHarness({ tag: 'img' });
-    const element = document.querySelector();
-    Object.setPrototypeOf(element, context.HTMLImageElement.prototype);
-    Object.assign(element, { currentSrc, src });
-    const map = run(capturePage, pageCaptureArgs);
-    assert.equal(map.elements.target.rendered?.currentSrc, expected);
+    const recorded = capturedImage({ currentSrc, src })?.currentSrc;
+    assert.match(recorded ?? '', /^https:\/\/example\.test#[0-9a-z]+$/);
+    assert.equal(recorded, capturedImage({ currentSrc: expected })?.currentSrc, 'the selected source is recorded');
   });
 }
+
+test('capture never stores image query strings, credentials, paths or data payloads (#1005)', () => {
+  const secrets = ['sig=SECRET', 'user-4711', 'alice:hunter2', 'iVBORw0KGgoSECRETPAYLOAD'];
+  const recorded = [
+    'https://alice:hunter2@cdn.example.test/u/user-4711/avatar.png?sig=SECRET',
+    'data:image/png;base64,iVBORw0KGgoSECRETPAYLOAD',
+  ].map((currentSrc) => capturedImage({ currentSrc })?.currentSrc);
+  assert.match(recorded[0], /^https:\/\/cdn\.example\.test#[0-9a-z]+$/);
+  assert.match(recorded[1], /^data:image\/png#[0-9a-z]+$/);
+  for (const secret of secrets) assert.ok(!JSON.stringify(recorded).includes(secret), `${secret} leaked into the map`);
+});
+
+test('capture distinguishes every image source change deterministically (#1005)', () => {
+  const at = (currentSrc) => capturedImage({ currentSrc })?.currentSrc;
+  const signed = 'https://cdn.example.test/hero.png?sig=a';
+  assert.equal(at(signed), at(signed));
+  for (const other of [
+    'https://cdn.example.test/hero.png?sig=b',
+    'https://cdn.example.test/hero2.png?sig=a',
+    'https://cdn.example.test/hero.png?sig=a#x',
+    'http://cdn.example.test/hero.png?sig=a',
+    'data:image/png;base64,AAAA',
+  ])
+    assert.notEqual(at(other), at(signed), other);
+  assert.notEqual(at('data:image/png;base64,AAAA'), at('data:image/png;base64,AAAB'));
+});
+
+test('capture records a lazy srcset-only image before selection, without its URLs (#1005)', () => {
+  const lazy = (srcset, sizes = '') => capturedImage({ srcset, sizes });
+  const blue = lazy('https://cdn.example.test/blue.png?sig=SECRET 1x, https://cdn.example.test/blue@2x.png 2x');
+  const red = lazy('https://cdn.example.test/red.png?sig=SECRET 1x, https://cdn.example.test/red@2x.png 2x');
+  assert.ok(blue?.srcset, 'an unselected srcset-only image must still record its candidates');
+  assert.notEqual(red?.srcset, blue?.srcset, 'a srcset swap must change the map');
+  assert.equal(JSON.stringify(lazy('a.png?sig=SECRET 1x')), JSON.stringify(lazy('a.png?sig=SECRET 1x')));
+  assert.ok(!JSON.stringify([blue, red]).includes('SECRET'), 'srcset URLs leaked into the map');
+  assert.equal(blue.currentSrc, undefined, 'nothing selected yet: no source recorded');
+  assert.notEqual(lazy('a.png 100w', '50vw')?.sizes, lazy('a.png 100w', '100vw')?.sizes);
+});
 
 function animatedPageHarness() {
   const harness = pseudoPageHarness({ tag: 'img' });
@@ -221,7 +265,7 @@ test('captureStyleMap preserves the image source when merging referenced keyfram
   const { page } = animatedPageHarness();
   const map = await captureStyleMap(page, { captureStates: false, stabilize: false });
   assert.deepEqual(JSON.parse(JSON.stringify(map.elements.target.rendered ?? {})), {
-    currentSrc: 'https://example.test/hero.png',
+    currentSrc: capturedImage({ currentSrc: 'https://example.test/hero.png' }).currentSrc,
     '@keyframes pulse': `${keyframeBody('0.2')} | ${keyframeBody('0.6')}`,
     '::before @keyframes spin': keyframeBody('0.4'),
   });

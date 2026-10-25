@@ -286,6 +286,21 @@ export function capturePage({
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
   let shadowHosts = 0;
   let sameOriginFrames = 0;
+  // Image sources keep only their origin (or data: media type) plus a 64-bit FNV-1a digest of the
+  // full value: any change still differs, but tokens, paths, credentials and payloads never enter the map.
+  const sourceDigest = (value: string): string => {
+    const fnv = (seed: number): string => {
+      let hash = seed;
+      for (let index = 0; index < value.length; index++) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+      return (hash >>> 0).toString(36);
+    };
+    const origin =
+      /^(https?:)\/\/(?:[^@/?#]*@)?([^/?#]*)/i.exec(value)?.slice(1).join('//').toLowerCase() ??
+      /^data:[\w.+-]+\/[\w.+-]+/i.exec(value)?.[0].toLowerCase() ??
+      /^[a-z][a-z\d+.-]*:/i.exec(value)?.[0].toLowerCase() ??
+      '';
+    return `${origin}#${fnv(2166136261)}${fnv(3735928559)}`;
+  };
   // Read resolved @keyframes only in the unfrozen motion pass (#1005).
   const keyframesBody = (effect: KeyframeEffect): string =>
     effect
@@ -330,8 +345,13 @@ export function capturePage({
     };
     if (!motionOnly) {
       if (el instanceof HTMLImageElement) {
+        const image: Props = {};
         const src = el.currentSrc || el.src;
-        if (src) entry.rendered = { currentSrc: src };
+        if (src) image.currentSrc = sourceDigest(src);
+        // A lazy image may not have selected a candidate yet; its srcset still identifies what it will render.
+        if (el.srcset) image.srcset = sourceDigest(el.srcset);
+        if (el.sizes) image.sizes = el.sizes;
+        if (Object.keys(image).length) entry.rendered = image;
       }
       const typedComputedStyle = el.computedStyleMap?.();
       if (typedComputedStyle) {

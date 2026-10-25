@@ -120,7 +120,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Capture referenced `@keyframes` bodies and `img` `currentSrc` (#1005).**
   Maps gain `ElementEntry.rendered`; the diff reports changes as ordinary `style`
   rows named `@keyframes <name>` (prefixed by the pseudo-element when applicable)
-  and `currentSrc`. Legacy maps without the field read as `(unset)`, so missing
+  and `currentSrc` (plus `srcset` and `sizes`, so a lazy image that has not
+  selected a source still records one). Image sources are stored as an origin or
+  `data:` media type plus a 64-bit hash, never as URLs, so query-string tokens,
+  paths and inline payloads stay out of maps; `blob:` and signed URLs flag on every
+  run and belong in `ignore`. Legacy maps without the field read as `(unset)`, so missing
   evidence cannot pass silently. The detection corpus now requires 48/48 detected
   cases, with `aria-label` the remaining blind boundary; the Chromium receipt
   must be regenerated to verify that target. Reached `@font-face` changes name

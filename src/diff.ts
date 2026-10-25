@@ -32,7 +32,7 @@ import {
 
 /**
  * Structured diff between two style maps. The element layer also compares rendered
- * inputs (`currentSrc` and `@keyframes <name>`). Custom properties (--*) are ignored:
+ * inputs (`currentSrc`, `srcset`, `sizes` and `@keyframes <name>`). Custom properties (--*) are ignored:
  * they are inputs, not outcomes — every visual effect lands in a real longhand.
  */
 
@@ -123,6 +123,9 @@ export type ContentChange =
       detail?: string;
     };
 
+/** `<img>` rendered inputs: opaque source digests and `sizes`, compared exactly (#1005). */
+const RENDERED_IMAGE_KEYS = new Set(['currentSrc', 'srcset', 'sizes']);
+
 function diffProps(
   propsA: Record<string, string>,
   propsB: Record<string, string>,
@@ -140,7 +143,9 @@ function diffProps(
     // not a change; the report still shows the real strings.
     // Rendered inputs are opaque browser output: CSS normalization can rewrite URL fragments.
     const equal =
-      prop === 'currentSrc' || prop.includes('@keyframes ') ? before === after : styleValuesEqual(before, after);
+      RENDERED_IMAGE_KEYS.has(prop) || prop.includes('@keyframes ')
+        ? before === after
+        : styleValuesEqual(before, after);
     if (!equal) changed.push({ prop, before, after });
   }
   return changed;

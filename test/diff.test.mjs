@@ -1807,6 +1807,8 @@ for (const [prop, before, after] of [
   ['::before @keyframes spin', '0% { transform: rotate(0deg) }', '0% { transform: rotate(90deg) }'],
   ['currentSrc', 'https://example.test/sprite.svg#fff', 'https://example.test/sprite.svg#ffffff'],
   ['@keyframes tint', '0% { color: rgba(0, 0, 0, 0.6201) }', '0% { color: rgba(0, 0, 0, 0.6202) }'],
+  ['srcset', 'https://example.test#fff', 'https://example.test#ffffff'],
+  ['sizes', '(max-width: 600px) 50vw', '(max-width: 600px) 100vw'],
 ]) {
   test(`rendered inputs: ${prop} changes produce an exact element-layer style finding (${before})`, () => {
     const map = (value) => makeMap({ elements: { body: { rendered: { [prop]: value }, ownTextLength: 0 } } });
