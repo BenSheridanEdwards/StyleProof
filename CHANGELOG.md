@@ -221,6 +221,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Logging `styleproof.config.ts` files now load on the sync path (#966).**
+  Logs from the config or its imports reach the terminal without breaking
+  `styleproof-affected`, `styleproof-diff`, `styleproof-capture`,
+  `defineStyleMapCapture`, or `resolveProjectSpec`. Policy is validated before
+  serialization, so `toJSON()` or function values cannot hide an invalid field.
+  An invalid policy is reported once, with the same schema error as the async
+  loader, and is never retried with type stripping. Once a config's module has
+  finished evaluating, or has signalled failure from deferred work, its failure
+  is final instead of being retried with type stripping. An import still pending
+  when the child exits also fails without retrying, including a non-zero
+  `process.exitCode` followed by a top-level `await` that never settles.
+  A config that sets a non-zero `process.exitCode`, leaves an unhandled
+  promise rejection or throws while loading, including from a timer that
+  fires after its module finishes, still fails closed instead of returning
+  its policy. An unhandled rejection ends the load at once, even while the
+  config's import is still pending or when the rejection comes from its own
+  `exit` callback. Policy is returned only after the config's event loop has fully
+  drained, including work scheduled from `beforeExit`. A config whose live
+  handles are still open a second after loading, or that calls `process.exit`
+  while loading, fails closed instead of returning policy. A sync-loaded `.ts`
+  config must default-export a policy object. A missing, `null` or `undefined`
+  default export fails closed, as it did before this change.
 - **Capture keys that differ only by case or Unicode normalization now fail
   before capture (#976).** `Alpha` and `alpha`, NFC and NFD `café`, or a `menu`
   variant `Open` beside a `menu-open` surface can name one map file on macOS

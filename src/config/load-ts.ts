@@ -14,6 +14,12 @@ import { errorMessage } from '../util.js';
 import { plainObject, StyleProofConfigError } from './schema.js';
 
 const UNLOADABLE_TS = 'STYLEPROOF_UNLOADABLE_TS';
+/** How long a sync-loaded `.ts` config's deferred work may keep the eval child alive before it fails closed. */
+const PENDING_WORK_GRACE_MS = 1000;
+/** fd-3 marker: the config ran in the eval child and then failed, so retrying with type stripping cannot be trusted. */
+const CONFIG_RAN_MARKER = '!config-ran';
+/** fd-3 prefix: the config exported a policy the schema rejected; the rest is the schema error message. */
+const INVALID_POLICY_PREFIX = '!invalid-policy\n';
 
 export function isGitRoot(dir: string): boolean {
   try {
@@ -154,7 +160,13 @@ function nodePathForRoots(roots: readonly string[]): string {
   return [...dirs, ...existing].join(path.delimiter);
 }
 
-function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly string[], extraNodeArgs: string[] = []) {
+function spawnConfigModuleEval(
+  filePath: string,
+  configFilename: string,
+  cwd: string,
+  roots: readonly string[],
+  extraNodeArgs: string[] = [],
+) {
   return spawnSync(
     process.execPath,
     [
@@ -162,11 +174,112 @@ function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly st
       '--no-warnings',
       '--input-type=module',
       '-e',
-      `import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
-       const config = mod?.default ?? mod;
-       process.stdout.write(JSON.stringify(config));`,
+      // The config is imported dynamically so the listeners exist before it runs. Policy is released
+      // only from 'exit' after the loop fully drains, including every beforeExit round. A config that
+      // calls process.exit or keeps handles alive past the grace period cannot be confirmed finished,
+      // so it fails closed rather than returning policy or hanging the load. An unhandled rejection
+      // exits 1 at once, as Node's default would, even mid-import or after 'exit' has run.
+      // fd 3 carries the result: policy JSON, the schema error for a rejected policy, or a marker that the
+      // config's code ran before it failed. Only an empty fd 3 (the import failed to parse or link, or
+      // threw at top level) lets the parent retry with type stripping.
+      `import { writeFileSync, writeSync } from 'node:fs';
+       import { plainObject, parseConfigRecord, StyleProofConfigError } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
+       const NAME = ${JSON.stringify(configFilename)};
+       const GRACE_MS = ${PENDING_WORK_GRACE_MS};
+       const RAN = ${JSON.stringify(CONFIG_RAN_MARKER)};
+       const INVALID = ${JSON.stringify(INVALID_POLICY_PREFIX)};
+       const exit = process.exit.bind(process);
+       const rejections = [];
+       let json;
+       let crashed = false;
+       let configExit;
+       let pendingWork = '';
+       let exiting = false;
+       let evaluated = false;
+       let importError;
+       let invalid;
+       const report = (message) => writeSync(2, NAME + ' ' + message + '\\n');
+       const describe = (reason) => (reason instanceof Error ? reason.stack || reason.message : String(reason));
+       const flushThenExit = () =>
+         Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write('', resolve))))
+           .then(() => exit(1));
+       process.on('unhandledRejection', (reason) => {
+         evaluated = true;
+         rejections.push(reason);
+         report('left an unhandled promise rejection while loading: ' + describe(reason));
+         // Exit 1 as Node's default would, so a rejection cannot be swallowed while the import is still
+         // pending, or after 'exit' already released policy (the non-zero status makes the parent discard it).
+         if (exiting) exit(1);
+         else flushThenExit();
+       });
+       process.on('uncaughtExceptionMonitor', (error) => {
+         crashed = true;
+         // The import's own rejection is a parse, link or top-level failure; any other crash is config code.
+         if (error !== importError) evaluated = true;
+       });
+       process.exit = (code) => {
+         evaluated = true;
+         if (configExit === undefined) configExit = code ?? process.exitCode ?? 0;
+         return exit(code);
+       };
+       process.on('exit', (code) => {
+         exiting = true;
+         if (invalid !== undefined) {
+           writeFileSync(3, INVALID + invalid);
+           if (code === 0) process.exitCode = 1;
+           return;
+         }
+         if (json === undefined) {
+           // A still-pending import reached config code; parse and link failures reject before exit.
+           if (evaluated || importError === undefined) writeFileSync(3, RAN);
+           if (code === 0) { report('exited before its default export finished loading'); process.exitCode = 1; }
+           return;
+         }
+         if (pendingWork) {
+           report('still had pending work (' + pendingWork + ') ' + GRACE_MS +
+             'ms after loading, so StyleProof cannot confirm it finished; close or unref its handles');
+         } else if (configExit !== undefined) {
+           report('called process.exit(' + String(configExit) + ') while loading, so StyleProof cannot confirm its pending work finished');
+         } else if (!crashed && rejections.length === 0 && process.exitCode !== undefined && Number(process.exitCode) !== 0) {
+           report('set process.exitCode to ' + String(process.exitCode) + ' while loading');
+         }
+         const failed = code !== 0 || rejections.length > 0 || Boolean(pendingWork) || configExit !== undefined;
+         if (!failed) writeFileSync(3, json);
+         else {
+           writeFileSync(3, RAN);
+           if (code === 0) process.exitCode = 1;
+         }
+       });
+       const mod = await import(${JSON.stringify(pathToFileURL(filePath).href)}).catch((error) => {
+         importError = error;
+         throw error;
+       });
+       evaluated = true;
+       const exported = mod.default;
+       const config = plainObject(exported?.default ?? exported, 'the default export', NAME);
+       let policy;
+       try {
+         policy = parseConfigRecord(config, NAME);
+       } catch (error) {
+         if (!(error instanceof StyleProofConfigError)) throw error;
+         invalid = error.message;
+       }
+       if (invalid === undefined) {
+         json = JSON.stringify(structuredClone(policy));
+         const deadline = setTimeout(() => {
+           const live = process.getActiveResourcesInfo?.().filter((kind) => kind !== 'TTYWrap') ?? [];
+           pendingWork = [...new Set(live)].join(', ') || 'live handles';
+           flushThenExit();
+         }, GRACE_MS);
+         deadline.unref();
+       } else flushThenExit();`,
     ],
-    { encoding: 'utf8', cwd, env: { ...process.env, NODE_PATH: nodePathForRoots(roots) } },
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+      cwd,
+      env: { ...process.env, NODE_PATH: nodePathForRoots(roots) },
+    },
   );
 }
 
@@ -190,46 +303,90 @@ function withRewrittenConfigCopy<T>(
   }
 }
 
-function parseEvalOutput(filePath: string, stdout: string): Record<string, unknown> {
-  return plainObject(JSON.parse(stdout), 'the default export', path.basename(filePath));
+type EvalResult = ReturnType<typeof spawnConfigModuleEval>;
+
+function evalResultText(result: EvalResult): string {
+  return String(result.output?.[3] ?? '');
+}
+
+/** A policy the schema rejected is the config's own error: report it unwrapped, as async does, and never retry it. */
+function throwIfInvalidPolicy(result: EvalResult): void {
+  const out = evalResultText(result);
+  if (!out.startsWith(INVALID_POLICY_PREFIX)) return;
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  throw new StyleProofConfigError(out.slice(INVALID_POLICY_PREFIX.length));
+}
+
+/** Anything on fd 3 means the config's code ran, so a failure is final, not a TypeScript parse failure. */
+function configRanInEvalChild(result: EvalResult): boolean {
+  return evalResultText(result) !== '';
+}
+
+function parseEvalOutput(filePath: string, result: EvalResult): Record<string, unknown> {
+  throwIfInvalidPolicy(result);
+  if (result.error || result.status !== 0 || evalResultText(result) === CONFIG_RAN_MARKER) {
+    throw new Error(
+      (result.stderr || '').trim() ||
+        (result.error ? errorMessage(result.error) : 'sync loader cannot evaluate TypeScript'),
+    );
+  }
+  const out = evalResultText(result);
+  if (!out) throw new Error((result.stderr || '').trim() || 'the config produced no policy result');
+  const config = plainObject(JSON.parse(out), 'the default export', path.basename(filePath));
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  return config;
 }
 
 /** JS-shaped `.ts` (no type syntax) — works on every supported Node, including 18/20. */
-function evaluateTypeScriptAsPlainModuleSync(filePath: string): Record<string, unknown> {
-  return withRewrittenConfigCopy(filePath, '.mjs', (tmp, roots, cwd) => {
-    const result = spawnConfigModuleEval(tmp, cwd, roots);
-    if (result.status !== 0) {
-      throw new Error(
-        (result.stderr || result.stdout || 'sync loader cannot evaluate TypeScript').trim() ||
-          'sync loader cannot evaluate TypeScript; use loadStyleProofConfigAsync()',
-      );
-    }
-    return parseEvalOutput(filePath, result.stdout);
-  });
+function evaluateTypeScriptAsPlainModuleSync(filePath: string) {
+  return withRewrittenConfigCopy(filePath, '.mjs', (tmp, roots, cwd) =>
+    spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots),
+  );
 }
 
-/** Evaluate a discovered `.ts` config synchronously: plain-module first, then type stripping. */
+function forwardEvalStdout(result: EvalResult | undefined): void {
+  if (result?.stdout) process.stdout.write(result.stdout);
+}
+
+/**
+ * Evaluate a discovered `.ts` config synchronously: plain-module first, then type stripping. Type
+ * stripping is retried only with an empty result channel (parse, link or top-level import failure).
+ * Completed evaluation, deferred failures and an import still pending at exit make a failure final.
+ */
 export function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown> {
   let plainError: unknown;
+  let plainResult: EvalResult | undefined;
   try {
-    return evaluateTypeScriptAsPlainModuleSync(filePath);
+    plainResult = evaluateTypeScriptAsPlainModuleSync(filePath);
+    return parseEvalOutput(filePath, plainResult);
   } catch (error) {
+    if (plainResult && configRanInEvalChild(plainResult)) {
+      if (evalResultText(plainResult).startsWith(INVALID_POLICY_PREFIX)) throw error;
+      forwardEvalStdout(plainResult);
+      throw unloadableTypeScriptConfigError(filePath, error);
+    }
     plainError = error;
   }
   const stripped = withRewrittenConfigCopy(filePath, '.ts', (tmp, roots, cwd) =>
-    spawnConfigModuleEval(tmp, cwd, roots, ['--experimental-strip-types']),
+    spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots, ['--experimental-strip-types']),
   );
+  throwIfInvalidPolicy(stripped);
   if (stripped.status === 0) {
     try {
-      return parseEvalOutput(filePath, stripped.stdout);
+      return parseEvalOutput(filePath, stripped);
     } catch (error) {
+      forwardEvalStdout(stripped);
       throw unloadableTypeScriptConfigError(filePath, error);
     }
   }
-  const stripText = `${stripped.stderr ?? ''}${stripped.stdout ?? ''}`;
+  const stripText = stripped.stderr ?? '';
   if (/bad option|unknown option|is not allowed/i.test(stripText)) {
+    forwardEvalStdout(plainResult);
     throw unloadableTypeScriptConfigError(filePath, plainError);
   }
+  forwardEvalStdout(stripped);
   throw unloadableTypeScriptConfigError(
     filePath,
     new Error(stripText.trim() || 'sync loader cannot evaluate TypeScript'),
