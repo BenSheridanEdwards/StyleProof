@@ -183,6 +183,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary.
+  Fork captures, failure verdicts, and included advisory content changes still
+  publish. Adopters on `@v9` receive this default when the major tag moves;
+  set `report-upload: always` to keep clean-run reports.
+
 - **BREAKING: ancestor baseline reuse no longer assumes `src` is the only
   source root (#826).** With no `ancestorBaseline.roots` and no
   `STYLEPROOF_ANCESTOR_BASELINE_ROOTS`, `styleproof-ci` treated only `src` as

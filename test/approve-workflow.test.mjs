@@ -251,6 +251,19 @@ test('a write-access reviewer who is not the author still signs off (#477)', asy
   assert.match(updated[0].body, /- \[x\] \*\*Approve all changes\*\* — _approved by @a-reviewer_/);
 });
 
+test('a ticked clean-run comment without a report link makes no status write', async () => {
+  const body = reportComment({ ticked: true }).replace(
+    `### 📊 [**View the side-by-side visual report →**](${REPORT_URL})`,
+    '_Nothing changed, so no report was uploaded. The verdict is in the run summary._',
+  );
+  for (const program of [approveScript, reusableApproveScript]) {
+    const { statuses, created, updated } = await runApprove({ actor: REVIEWER, body, program: program() });
+    assert.deepEqual(statuses, [], 'a tick without published evidence cannot grant approval');
+    assert.deepEqual(created, []);
+    assert.deepEqual(updated, []);
+  }
+});
+
 test('the pull request author cannot approve their own visual changes (#477)', async () => {
   const { statuses, created, updated } = await runApprove({ actor: AUTHOR });
 

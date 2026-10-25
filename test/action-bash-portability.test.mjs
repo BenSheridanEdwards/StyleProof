@@ -139,11 +139,12 @@ for (const [storage, days, expectedExit] of [
 // #709: artifact mode discloses the storage flip where it would otherwise be
 // silent — a ::notice annotation names the mode, the expiry bound, and the
 // branch-mode remediation. Branch mode has no surprise to disclose.
-for (const [storage, expectNotice] of [
-  ['artifact', true],
-  ['branch', false],
+for (const [storage, upload, expectNotice] of [
+  ['artifact', 'true', true],
+  ['branch', 'true', false],
+  ['artifact', 'false', false],
 ]) {
-  test(`report-storage=${storage} ${expectNotice ? 'emits' : 'omits'} the storage notice (#709)`, () => {
+  test(`report-storage=${storage} upload=${upload} ${expectNotice ? 'emits' : 'omits'} the storage notice (#709)`, () => {
     const script = runBlockContaining('report-storage must be artifact or branch');
     const result = spawnSync('bash', ['-u', '-c', script], {
       encoding: 'utf8',
@@ -151,6 +152,7 @@ for (const [storage, expectNotice] of [
         ...process.env,
         REPORT_STORAGE: storage,
         REPORT_RETENTION_DAYS: '45',
+        REPORT_UPLOAD: upload,
         COMMENT_MARKER: '<!-- styleproof-report -->',
         PR_OR_RUN: '42',
         GITHUB_OUTPUT: '/dev/null',

@@ -37,6 +37,9 @@ inputs:
       rendered in-browser report (durable, but the report lives in git history
       until pruned).
     default: 'artifact'
+  report-upload:
+    description: 'When to publish a report: on-change skips trusted clean runs without included content changes; always publishes every defined verdict, including clean runs.'
+    default: 'on-change'
   report-retention-days:
     description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer in either storage mode; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
     default: '30'
@@ -660,6 +663,24 @@ runs:
           core.setOutput('approved', approved ? 'true' : 'false');
           core.setOutput('approver', approver);
 
+    # Only trusted outputs decide delivery; fork captures still need review evidence.
+    - id: delivery
+      uses: actions/github-script@v9
+      env:
+        STYLEPROOF_REPORT_UPLOAD: ${{ inputs.report-upload }}
+        STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
+      with:
+        script: |
+          const policy = process.env.STYLEPROOF_REPORT_UPLOAD;
+          if (!['on-change', 'always'].includes(policy)) {
+            throw new Error('report-upload must be on-change or always');
+          }
+          const upload = policy === 'always' ||
+            '${{ steps.verdict.outputs.state }}' !== 'NO_REVIEWABLE_STYLE_CHANGES' ||
+            '${{ steps.context.outputs.untrusted-capture }}' === 'true' ||
+            (process.env.STYLEPROOF_INCLUDE_CONTENT === 'true' && Number('${{ steps.report.outputs.content-changes }}') > 0);
+          core.setOutput('upload', upload ? 'true' : 'false');
+
     # Report images use RELATIVE paths so they render from the committed file (do
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
     # by GitHub's Camo proxy and 404s on private repos).
@@ -668,6 +689,7 @@ runs:
       shell: bash
       env:
         REPORT_STORAGE: ${{ inputs.report-storage }}
+        REPORT_UPLOAD: ${{ steps.delivery.outputs.upload }}
         REPORT_RETENTION_DAYS: ${{ inputs.report-retention-days }}
         COMMENT_MARKER: ${{ inputs.comment-marker }}
         PR_OR_RUN: ${{ steps.context.outputs.pr-number || github.run_id }}
@@ -704,11 +726,13 @@ runs:
           # Disclose the mode where the change would otherwise be silent (#709):
           # an adopter who pinned the Action major without report-storage flips
           # from durable branch reports to expiring artifacts on upgrade.
-          echo "::notice title=StyleProof report storage::report-storage is 'artifact' — the report uploads as a workflow artifact that expires after ${REPORT_RETENTION_DAYS} days. Set report-storage: branch for a durable in-browser report."
+          if [ "${REPORT_UPLOAD:-false}" = 'true' ]; then
+            echo "::notice title=StyleProof report storage::report-storage is 'artifact' — the report uploads as a workflow artifact that expires after ${REPORT_RETENTION_DAYS} days. Set report-storage: branch for a durable in-browser report."
+          fi
         fi
 
     - id: publish
-      if: inputs.report-storage == 'branch'
+      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'branch'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -748,7 +772,7 @@ runs:
     # appends to report.md; bind it BEFORE the upload so the artifact carries it
     # (#696). Identical marker text to bin/styleproof-publish-report.mjs.
     - name: Bind the run receipt into the report
-      if: inputs.report-storage == 'artifact'
+      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'artifact'
       shell: bash
       run: |
         set -euo pipefail
@@ -765,7 +789,7 @@ runs:
     # link the newest artifact-url, and the receipt inside report.md still binds
     # the delivery to this run attempt (#688).
     - id: report-artifact
-      if: inputs.report-storage == 'artifact'
+      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'artifact'
       uses: actions/upload-artifact@v6
       with:
         name: ${{ steps.validate.outputs.artifact-name }}
@@ -842,12 +866,13 @@ runs:
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
 
           const reportStorage = process.env.STYLEPROOF_REPORT_STORAGE;
+          const upload = '${{ steps.delivery.outputs.upload }}' === 'true';
           // upload-artifact emits artifact-digest as bare 64-hex (sha256:-prefixed
           // in some API surfaces — accept either, normalize to bare) — the approval
           // readback recomputes it over the downloaded zip, so anything malformed
           // here must fail the comment instead of shipping an unverifiable marker.
           const artifactDigest = '${{ steps.report-artifact.outputs.artifact-digest }}'.replace(/^sha256:/, '');
-          if (reportStorage === 'artifact' && !/^[0-9a-f]{64}$/.test(artifactDigest)) {
+          if (upload && reportStorage === 'artifact' && !/^[0-9a-f]{64}$/.test(artifactDigest)) {
             throw new Error('upload-artifact produced no well-formed artifact-digest — refusing to publish an unverifiable report link');
           }
           const repository = `${context.repo.owner}/${context.repo.repo}`;
@@ -856,7 +881,9 @@ runs:
           // it — both resolve inside this repository's own run.
           const url = '${{ steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url }}' ||
             `https://github.com/${repository}/actions/runs/${runId}`;
-          const delivery = reportStorage === 'branch'
+          const delivery = !upload
+            ? { markdown: '_Nothing changed, so no report was uploaded. The verdict is in the run summary._' }
+            : reportStorage === 'branch'
             ? (() => {
                 const publicationSha = '${{ steps.publish.outputs.sha }}';
                 const repositoryPrivate = context.payload.repository?.private;
@@ -968,10 +995,10 @@ runs:
                 : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
             formatRunAttemptReceiptMarker({ runId, runAttempt }),
-            ...(reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:sha256:${artifactDigest} -->`] : []),
+            ...(upload && reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:sha256:${artifactDigest} -->`] : []),
             // Reviewer-visible expiry disclosure (#709): the artifact link is
             // bounded — name the bound where the download link lands.
-            ...(reportStorage === 'artifact' ? [`_The report artifact expires ${process.env.STYLEPROOF_REPORT_RETENTION_DAYS} days after upload._`] : []),
+            ...(upload && reportStorage === 'artifact' ? [`_The report artifact expires ${process.env.STYLEPROOF_REPORT_RETENTION_DAYS} days after upload._`] : []),
           ];
 
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
@@ -1202,8 +1229,8 @@ runs:
       with:
         script: |
           // Name the failure domain so automation retries the right thing: a broken publish or a
-          // failed comment/status delivery is REPORT_PUBLICATION_FAILED; a skipped publish means an
-          // earlier step failed, so report the verdict if one exists. The publish step is
+          // failed comment/status delivery is REPORT_PUBLICATION_FAILED; a skipped publish means
+          // delivery was unnecessary or an earlier step failed, so keep the verdict. The publish step is
           // whichever one the storage mode ran: the branch graft or the artifact upload.
           const publishOutcome = process.env.STYLEPROOF_REPORT_STORAGE === 'branch'
             ? '${{ steps.publish.outcome }}'
@@ -1212,9 +1239,9 @@ runs:
           const deliveryFailed =
             '${{ steps.comment.outcome }}' === 'failure' || '${{ steps.status.outcome }}' === 'failure';
           let state;
-          if (publishOutcome === 'failure') state = 'REPORT_PUBLICATION_FAILED';
+          if (publishOutcome === 'failure' || deliveryFailed) state = 'REPORT_PUBLICATION_FAILED';
           else if (publishOutcome !== 'success') state = diffState || 'CERTIFICATION_FAILED';
-          else state = deliveryFailed ? 'REPORT_PUBLICATION_FAILED' : (diffState || 'CERTIFICATION_FAILED');
+          else state = diffState || 'CERTIFICATION_FAILED';
           core.setOutput('state', state);
           core.info(`StyleProof terminal trust state: ${state}`);
 

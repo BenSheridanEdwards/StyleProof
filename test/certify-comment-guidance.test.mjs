@@ -64,6 +64,7 @@ async function commentBody({
     'steps.config.outputs.blocking': blocking,
     'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': ARTIFACT_URL,
     'steps.report-artifact.outputs.artifact-digest': 'd'.repeat(64),
+    'steps.delivery.outputs.upload': 'true',
     'steps.publish.outputs.sha': '',
     'steps.report.outputs.content-changes': '0',
     'toJSON(inputs.comment-marker)': JSON.stringify('<!-- styleproof-report -->'),

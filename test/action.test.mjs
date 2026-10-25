@@ -22,6 +22,37 @@ function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
 }
 
+// Execute the exact trusted github-script program and its declared environment.
+async function runActionProgram(stepName, values, { files = {}, github = {} } = {}) {
+  const step = extractActionStep(`- (?:id|name): ${stepName}`, '\\n\\s{4}#|\\n\\s{4}- id:|\\n\\s{4}- name:');
+  assert.ok(step, `action.yml should contain ${stepName}`);
+  const resolve = (_, expression) => {
+    assert.ok(Object.hasOwn(values, expression), `missing fixture value: ${expression}`);
+    return values[expression];
+  };
+  const env = { GITHUB_ACTION_PATH: path.join(here, '..') };
+  for (const [, name, expression] of step[0].matchAll(/^ {8}([A-Z_]+): \$\{\{ (.+?) \}\}$/gm)) {
+    env[name] = resolve(null, expression);
+  }
+  const script = step[0].split('script: |\n')[1].replace(/\$\{\{ (.+?) \}\}/g, resolve);
+  const outputs = {};
+  const core = { setOutput: (name, value) => (outputs[name] = String(value)), info() {} };
+  const require = (name) => {
+    assert.equal(name, 'fs');
+    return { existsSync: (file) => Object.hasOwn(files, file), readFileSync: (file) => files[file] };
+  };
+  const context = { repo: { owner: 'acme', repo: 'app' }, payload: { repository: { private: false } } };
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  await new AsyncFunction('require', 'process', 'github', 'context', 'core', script)(
+    require,
+    { env },
+    github,
+    context,
+    core,
+  );
+  return outputs;
+}
+
 function actionRuntimeInstallScript() {
   const match = actionYml.match(
     /- name: Install StyleProof action runtime[\s\S]*?run: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:)/,
@@ -631,11 +662,15 @@ test('action runtime bootstrap installs once per exact action checkout in one jo
   }
 });
 
-test('composite action publishes a durable no-change report on a clean first run', () => {
+test('composite action gates publication and receipt binding on the trusted delivery decision', () => {
   const reportStep = extractActionStep('- id: report', '\\n\\s{4}#|\\n\\s{4}- id:');
   const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
 
+  for (const name of ['publish', 'Bind the run receipt into the report', 'report-artifact']) {
+    const step = extractActionStep(`- (?:id|name): ${name}`, '\\n\\s{4}#|\\n\\s{4}- id:|\\n\\s{4}- name:');
+    assert.match(step[0], /if: .*steps\.delivery\.outputs\.upload == 'true'/, name);
+  }
   assert.ok(reportStep, 'action.yml should include a local report generation step');
   assert.ok(publishStep, 'action.yml should include a report publish step');
   assert.ok(commentStep, 'action.yml should include a PR comment step');
@@ -657,6 +692,136 @@ test('composite action publishes a durable no-change report on a clean first run
     dogfoodYml.match(/- id: clean[\s\S]*?(?=\n\s{6}- name: Assert clean output)/)[0],
     /fail-on-diff:/,
   );
+});
+
+const deliveryValues = {
+  'inputs.report-upload': 'on-change',
+  'inputs.include-content': 'false',
+  'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
+  'steps.context.outputs.untrusted-capture': 'false',
+  'steps.report.outputs.content-changes': '0',
+};
+
+for (const [label, overrides, upload] of [
+  ['trusted clean', {}, 'false'],
+  ...[
+    'STYLE_REVIEW_REQUIRED',
+    'DATA_RESIDUE_UNACKNOWLEDGED',
+    'INVENTORY_REMOVAL_UNACKNOWLEDGED',
+    'PARTIAL_BASELINE',
+    'DEGRADED_BASELINE',
+    'CERTIFICATION_FAILED',
+    'REPORT_PUBLICATION_FAILED',
+    '',
+  ].map((state) => [state || 'missing verdict', { 'steps.verdict.outputs.state': state }, 'true']),
+  ['fork clean', { 'steps.context.outputs.untrusted-capture': 'true' }, 'true'],
+  ['content changes', { 'inputs.include-content': 'true', 'steps.report.outputs.content-changes': '2' }, 'true'],
+  ['content enabled but unchanged', { 'inputs.include-content': 'true' }, 'false'],
+  ['content not evaluated', { 'steps.report.outputs.content-changes': '2' }, 'false'],
+  ['always', { 'inputs.report-upload': 'always' }, 'true'],
+]) {
+  test(`delivery decision: ${label}`, async () => {
+    assert.equal((await runActionProgram('delivery', { ...deliveryValues, ...overrides })).upload, upload);
+  });
+}
+
+test('delivery defaults to on-change, validates its policy and follows verdict and approval lookup', async () => {
+  assert.match(actionYml, /report-upload:[\s\S]*?default: 'on-change'/);
+  assert.ok(actionYml.indexOf('- id: delivery') > actionYml.indexOf('- id: gate'));
+  assert.ok(actionYml.indexOf('- id: gate') > actionYml.indexOf('- id: verdict'));
+  await assert.rejects(
+    runActionProgram('delivery', { ...deliveryValues, 'inputs.report-upload': 'never' }),
+    /report-upload/,
+  );
+});
+
+for (const storage of ['artifact', 'branch']) {
+  for (const upload of ['false', '']) {
+    test(`clean ${storage} comment with upload=${JSON.stringify(upload)} needs no receipt or link`, async () => {
+      const comments = [];
+      const values = {
+        'inputs.report-storage': storage,
+        'inputs.require-approval': 'true',
+        "inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'": 'false',
+        'inputs.mode': 'review-gate',
+        'inputs.status-context': 'StyleProof',
+        'inputs.base-capture-failed': 'false',
+        'inputs.include-content': 'false',
+        'inputs.report-retention-days': '30',
+        'steps.context.outputs.untrusted-capture': 'false',
+        'steps.context.outputs.pr-number': '42',
+        'toJSON(inputs.comment-marker)': JSON.stringify('<!-- styleproof-report -->'),
+        'steps.diff.outputs.changed': 'false',
+        'github.run_id': '9001',
+        'github.run_attempt': '1',
+        'steps.delivery.outputs.upload': upload,
+        'steps.report-artifact.outputs.artifact-digest': '',
+        'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': '',
+        'steps.publish.outputs.sha': '',
+        'steps.config.outputs.blocking': 'true',
+        'steps.gate.outputs.approved': 'false',
+        'steps.gate.outputs.approver': '',
+        'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
+        'steps.context.outputs.head-sha': 'a'.repeat(40),
+        'steps.report.outputs.content-changes': '0',
+      };
+      await runActionProgram('Upsert PR comment', values, {
+        files: { 'styleproof-report/report.md': '## StyleProof report\nNo changes detected.\n### Details\n' },
+        github: {
+          paginate: async () => [],
+          rest: { issues: { createComment: async ({ body }) => comments.push(body) } },
+        },
+      });
+      assert.equal(comments.length, 1);
+      assert.match(comments[0], /No changes detected/);
+      assert.ok(
+        comments[0].includes('_Nothing changed, so no report was uploaded. The verdict is in the run summary._'),
+      );
+      assert.doesNotMatch(
+        comments[0],
+        /styleproof-artifact-digest|actions\/runs\/|\/blob\/|artifact expires|Approve all changes/,
+      );
+    });
+  }
+  test(`skipped ${storage} publication retains the clean trust verdict`, async () => {
+    const outputs = await runActionProgram('trust', {
+      'inputs.report-storage': storage,
+      'steps.publish.outcome': 'skipped',
+      'steps.report-artifact.outcome': 'skipped',
+      'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
+      'steps.comment.outcome': 'success',
+      'steps.status.outcome': 'success',
+    });
+    assert.equal(outputs.state, 'NO_REVIEWABLE_STYLE_CHANGES');
+  });
+}
+
+for (const failed of ['comment', 'status']) {
+  test(`clean skipped publication still reports failed ${failed} delivery`, async () => {
+    const outputs = await runActionProgram('trust', {
+      'inputs.report-storage': 'artifact',
+      'steps.publish.outcome': 'skipped',
+      'steps.report-artifact.outcome': 'skipped',
+      'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
+      'steps.comment.outcome': 'success',
+      'steps.status.outcome': 'success',
+      [`steps.${failed}.outcome`]: 'failure',
+    });
+    assert.equal(outputs.state, 'REPORT_PUBLICATION_FAILED');
+  });
+}
+
+test('dogfood artifact assertions and readback run only when review evidence is delivered', () => {
+  const liveDogfood = fs.readFileSync(path.join(here, '..', '.github/workflows/styleproof-dogfood.yml'), 'utf8');
+  for (const name of [
+    'Assert PR report was published as a workflow artifact',
+    'Read the report artifact back like the approval workflow',
+  ]) {
+    const step = liveDogfood.match(new RegExp(`- name: ${name}[\\s\\S]*?(?=\\n {6}-|$)`))[0];
+    assert.match(step, /if: .*steps\.dogfood\.outputs\.trust-state != 'NO_REVIEWABLE_STYLE_CHANGES'/);
+  }
+  const clean = dogfoodYml.match(/- name: Assert clean output[\s\S]*?(?=\n {6}-)/)[0];
+  assert.match(clean, /test -z '\$\{\{ steps\.clean\.outputs\.report-url \}\}'/);
 });
 
 test('composite action names style certification precisely and can publish advisory content evidence', () => {
@@ -751,7 +916,7 @@ test('composite action binds the uploaded artifact digest into the comment (#702
   assert.ok(commentStep, 'action.yml should include a PR comment step');
   assert.match(
     commentStep[0],
-    /\.\.\.\(reportStorage === 'artifact' \? \[`<!-- styleproof-artifact-digest:sha256:\$\{artifactDigest\} -->`\] : \[\]\)/,
+    /\.\.\.\(upload && reportStorage === 'artifact' \? \[`<!-- styleproof-artifact-digest:sha256:\$\{artifactDigest\} -->`\] : \[\]\)/,
     'artifact mode must emit the upload digest as a comment marker; branch mode must not',
   );
   assert.match(

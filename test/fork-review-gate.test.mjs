@@ -107,6 +107,7 @@ function values({
     'steps.config.outputs.blocking': 'true',
     'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': ARTIFACT_URL,
     'steps.report-artifact.outputs.artifact-digest': 'd'.repeat(64),
+    'steps.delivery.outputs.upload': 'true',
     'steps.publish.outputs.sha': '',
     'steps.report.outputs.content-changes': '0',
     'toJSON(inputs.comment-marker)': JSON.stringify(MARKER),

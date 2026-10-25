@@ -67,7 +67,7 @@ jobs:
           test '${{ steps.clean.outputs.changed }}' = 'false'
           test '${{ steps.clean.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
           test '${{ steps.clean.outputs.content-changes }}' = '0'
-          test -n '${{ steps.clean.outputs.report-url }}'
+          test -z '${{ steps.clean.outputs.report-url }}'
 
       - id: content-advisory
         uses: ./
@@ -214,6 +214,7 @@ jobs:
         run: |
           test '${{ steps.legacy-identity.outputs.changed }}' = 'false'
           test '${{ steps.legacy-identity.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
+          test -z '${{ steps.legacy-identity.outputs.report-url }}'
           grep -F '"status": "comparable"' styleproof-report/report.json
 
       - id: legacy-declared
@@ -231,6 +232,7 @@ jobs:
         run: |
           test '${{ steps.legacy-declared.outputs.changed }}' = 'false'
           test '${{ steps.legacy-declared.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
+          test -z '${{ steps.legacy-declared.outputs.report-url }}'
           grep -E 'declared legacy pair' styleproof-report/report.md
           grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
           grep -F '"declared": [' styleproof-report/report.json

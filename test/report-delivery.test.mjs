@@ -35,6 +35,7 @@ function actionCommentScript({
     ['github.run_attempt', '2'],
     ['steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url', url],
     ['steps.report-artifact.outputs.artifact-digest', artifactDigest],
+    ['steps.delivery.outputs.upload', 'true'],
     ['steps.publish.outputs.sha', sha],
     ['inputs.report-storage', reportStorage],
     ['inputs.report-retention-days', '30'],
