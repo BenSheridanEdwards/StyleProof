@@ -154,7 +154,13 @@ function nodePathForRoots(roots: readonly string[]): string {
   return [...dirs, ...existing].join(path.delimiter);
 }
 
-function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly string[], extraNodeArgs: string[] = []) {
+function spawnConfigModuleEval(
+  filePath: string,
+  configFilename: string,
+  cwd: string,
+  roots: readonly string[],
+  extraNodeArgs: string[] = [],
+) {
   return spawnSync(
     process.execPath,
     [
@@ -162,11 +168,20 @@ function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly st
       '--no-warnings',
       '--input-type=module',
       '-e',
-      `import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
-       const config = mod?.default ?? mod;
-       process.stdout.write(JSON.stringify(config));`,
+      `import { writeFileSync } from 'node:fs';
+       import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
+       import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
+       const config = plainObject(mod?.default ?? mod, 'the default export', ${JSON.stringify(configFilename)});
+       writeFileSync(3, JSON.stringify(structuredClone(parseConfigRecord(config, ${JSON.stringify(configFilename)}))));
+       await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write('', resolve))));
+       process.exit(0);`,
     ],
-    { encoding: 'utf8', cwd, env: { ...process.env, NODE_PATH: nodePathForRoots(roots) } },
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+      cwd,
+      env: { ...process.env, NODE_PATH: nodePathForRoots(roots) },
+    },
   );
 }
 
@@ -190,46 +205,57 @@ function withRewrittenConfigCopy<T>(
   }
 }
 
-function parseEvalOutput(filePath: string, stdout: string): Record<string, unknown> {
-  return plainObject(JSON.parse(stdout), 'the default export', path.basename(filePath));
+function parseEvalOutput(filePath: string, result: ReturnType<typeof spawnConfigModuleEval>): Record<string, unknown> {
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      (result.stderr || '').trim() ||
+        (result.error ? errorMessage(result.error) : 'sync loader cannot evaluate TypeScript'),
+    );
+  }
+  const config = plainObject(
+    JSON.parse(String(result.output?.[3] ?? '')),
+    'the default export',
+    path.basename(filePath),
+  );
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  return config;
 }
 
 /** JS-shaped `.ts` (no type syntax) — works on every supported Node, including 18/20. */
-function evaluateTypeScriptAsPlainModuleSync(filePath: string): Record<string, unknown> {
-  return withRewrittenConfigCopy(filePath, '.mjs', (tmp, roots, cwd) => {
-    const result = spawnConfigModuleEval(tmp, cwd, roots);
-    if (result.status !== 0) {
-      throw new Error(
-        (result.stderr || result.stdout || 'sync loader cannot evaluate TypeScript').trim() ||
-          'sync loader cannot evaluate TypeScript; use loadStyleProofConfigAsync()',
-      );
-    }
-    return parseEvalOutput(filePath, result.stdout);
-  });
+function evaluateTypeScriptAsPlainModuleSync(filePath: string) {
+  return withRewrittenConfigCopy(filePath, '.mjs', (tmp, roots, cwd) =>
+    spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots),
+  );
 }
 
 /** Evaluate a discovered `.ts` config synchronously: plain-module first, then type stripping. */
 export function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown> {
   let plainError: unknown;
+  let plainResult: ReturnType<typeof spawnConfigModuleEval> | undefined;
   try {
-    return evaluateTypeScriptAsPlainModuleSync(filePath);
+    plainResult = evaluateTypeScriptAsPlainModuleSync(filePath);
+    return parseEvalOutput(filePath, plainResult);
   } catch (error) {
     plainError = error;
   }
   const stripped = withRewrittenConfigCopy(filePath, '.ts', (tmp, roots, cwd) =>
-    spawnConfigModuleEval(tmp, cwd, roots, ['--experimental-strip-types']),
+    spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots, ['--experimental-strip-types']),
   );
   if (stripped.status === 0) {
     try {
-      return parseEvalOutput(filePath, stripped.stdout);
+      return parseEvalOutput(filePath, stripped);
     } catch (error) {
+      if (stripped.stdout) process.stdout.write(stripped.stdout);
       throw unloadableTypeScriptConfigError(filePath, error);
     }
   }
-  const stripText = `${stripped.stderr ?? ''}${stripped.stdout ?? ''}`;
+  const stripText = stripped.stderr ?? '';
   if (/bad option|unknown option|is not allowed/i.test(stripText)) {
+    if (plainResult?.stdout) process.stdout.write(plainResult.stdout);
     throw unloadableTypeScriptConfigError(filePath, plainError);
   }
+  if (stripped.stdout) process.stdout.write(stripped.stdout);
   throw unloadableTypeScriptConfigError(
     filePath,
     new Error(stripText.trim() || 'sync loader cannot evaluate TypeScript'),

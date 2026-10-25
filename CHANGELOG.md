@@ -221,6 +221,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Logging `styleproof.config.ts` files now load on the sync path (#966).**
+  Logs from the config or its imports reach the terminal without breaking
+  `styleproof-affected`, `styleproof-diff`, `styleproof-capture`,
+  `defineStyleMapCapture`, or `resolveProjectSpec`. Policy is validated before
+  serialization, so `toJSON()` or function values cannot hide an invalid field.
 - **Capture keys that differ only by case or Unicode normalization now fail
   before capture (#976).** `Alpha` and `alpha`, NFC and NFD `café`, or a `menu`
   variant `Open` beside a `menu-open` surface can name one map file on macOS
