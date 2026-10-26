@@ -57,6 +57,7 @@ export const GUARDS = [
   {
     area: 'Repo checks',
     paths: [
+      /^scripts\/check-anti-slop-vendor\.mjs$/,
       /^scripts\/check-suppressions\.mjs$/,
       /^scripts\/check-context-layer\.mjs$/,
       /^scripts\/browser-lanes\.mjs$/,

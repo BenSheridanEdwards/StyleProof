@@ -63,6 +63,7 @@ for (const [file, area] of [
   ['vendor/anti-slop/rules/no-reflect-get.ts', 'Lint config'],
   ['vendor/anti-slop/README.md', 'Lint config'],
   ['commitlint.config.js', 'Lint config'],
+  ['scripts/check-anti-slop-vendor.mjs', 'Repo checks'],
   ['scripts/check-suppressions.mjs', 'Repo checks'],
   ['scripts/check-context-layer.mjs', 'Repo checks'],
   ['scripts/browser-lanes.mjs', 'Repo checks'],

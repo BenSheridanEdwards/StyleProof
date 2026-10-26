@@ -17,7 +17,11 @@ vendor, not as an npm package. ESLint cannot load Oxlint JS plugins.
 
 1. **Vendor, don't install.** `vendor/anti-slop/` holds upstream commit
    `13909c9e07590f5a85d93c62712259fe14a883f7`, byte-identical; its README
-   records the source and how to check it. No npm package with a similar name.
+   records the source and how to check it. The copy lands over several PRs of
+   at most 400 lines. `npm run check:anti-slop-vendor` verifies the SHA-256
+   manifest; a unit test runs the same check in CI. Once `.oxlintrc.json`
+   exists, every listed file must be present and whole. No npm package with a
+   similar name.
 2. **Pin Oxlint.** `oxlint` and `@oxlint/plugins` are exact devDependencies at
    the same version, and move together.
 3. **Second linter, anti-slop rules only.** `.oxlintrc.json` turns Oxlint's

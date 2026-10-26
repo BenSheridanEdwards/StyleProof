@@ -37,7 +37,7 @@ deleting or renaming it, and a mode-only change. The first matching row in
 | CI workflows | the rest of `.github/workflows/**` |
 | Git hooks | `.husky/**` |
 | Lint config | `eslint.config.js`, `.oxlintrc.json`, `vendor/anti-slop/**`, `commitlint.config.js` |
-| Repo checks | `scripts/check-suppressions.mjs`, `scripts/check-context-layer.mjs`, `scripts/browser-lanes.mjs` |
+| Repo checks | `scripts/check-anti-slop-vendor.mjs`, `scripts/check-suppressions.mjs`, `scripts/check-context-layer.mjs`, `scripts/browser-lanes.mjs` |
 
 Each is code or shell, which can loosen a gate in ways a text diff cannot rank,
 and the gate never runs PR code. So unlike the template, which ranks
