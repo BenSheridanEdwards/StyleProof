@@ -57,6 +57,8 @@ const isConfig = (f: string) =>
 const isStyleSheet = (f: string) => /\.(css|scss|sass|less|styl)$/.test(f);
 const isCssModule = (f: string) => /\.module\.(css|scss|sass|less|styl)$/.test(f);
 const isCode = (f: string) => /\.[cm]?[jt]sx?$/.test(f);
+// Conventional wrappers can render around pages without an import from a page.
+const isWrapper = (f: string) => /(?:^|\/)(?:layout|template|_app|_document|App)\.[cm]?[jt]sx?$/.test(f);
 // A single-file component's `<style>` can be global (unscoped Vue, Svelte `:global`, Astro `is:global`).
 const isSfc = (f: string) => /\.(vue|svelte|astro)$/.test(f);
 
@@ -229,10 +231,11 @@ function changeReach(
   if (!entryFiles.has(f) && !staticTargets.has(f)) return 'all';
   const reach = reverseReach(f, rev);
   if (reach.size === 0 && !entryFiles.has(f)) return 'all';
-  // A file nothing imports is run by the framework or a tool, not by a declared
-  // surface: a layout every page renders inside. A change that reaches one can
-  // render on surfaces the graph cannot name.
-  if ([...reach].some((src) => !entryFiles.has(src) && !rev.get(src)?.size)) return 'all';
+  // Only conventional wrappers imply rendering outside declared import paths.
+  // Stop at surfaces for this check: page → routes → App → main is bounded by
+  // the page, while a separate dependency → App/layout path remains unbounded.
+  const outsideSurfaces = new Set([f, ...reverseReach(f, rev, entryFiles)]);
+  if ([...outsideSurfaces].some((src) => !entryFiles.has(src) && isWrapper(src))) return 'all';
   return new Set([f, ...reach]);
 }
 
@@ -249,11 +252,12 @@ function classifyCanon(file: string, read: (p: string) => string | undefined): '
   });
 }
 
-function reverseReach(file: string, rev: Map<string, Set<string>>): Set<string> {
+function reverseReach(file: string, rev: Map<string, Set<string>>, stopAt?: Set<string>): Set<string> {
   const seen = new Set<string>();
   const stack = [file];
   while (stack.length) {
     const cur = stack.pop()!;
+    if (stopAt?.has(cur)) continue;
     for (const importer of rev.get(cur) ?? []) {
       if (!seen.has(importer)) {
         seen.add(importer);

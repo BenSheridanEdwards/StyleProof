@@ -158,7 +158,11 @@ test('classify: an unreadable file fails closed to global', () => {
 // ---------------------------------------------------------------------------
 function fixture() {
   const sources = {
-    // three surfaces; Dashboard uses a COMPUTED dynamic import over ../components/*
+    // An SPA entry sits above the surfaces; Dashboard uses a COMPUTED import.
+    'src/main.tsx': "import {App} from './App';",
+    'src/App.tsx': "import {routes} from './routes';",
+    'src/routes.tsx':
+      "import './pages/Home';\nimport './pages/Pricing';\nimport './pages/Dashboard';\nimport './pages/Settings';",
     'src/pages/Home.tsx':
       "import {Header} from '../components/Header';\nconst P=lazy(()=>import('../components/Promo'));",
     'src/pages/Pricing.tsx':
@@ -167,6 +171,8 @@ function fixture() {
       "import {Header} from '../components/Header';\nconst name='Widget';\nconst D=lazy(()=>import(`../components/${name}`));",
     'src/pages/Settings.tsx': "import {G} from '../components/GlobalStyle';",
     'src/components/Header.tsx': "import './Header.css';\nexport function Header(){return null}",
+    'src/components/Header.test.tsx': "import {Header} from './Header';",
+    'src/components/Header.stories.tsx': "import {Header} from './Header';",
     'src/components/PriceTable.tsx':
       "import s from './PriceTable.module.css';\nexport function PriceTable(){return null}",
     'src/components/Promo.tsx': "import './Promo.css';\nexport default function Promo(){return null}",
@@ -183,6 +189,14 @@ function fixture() {
   // Resolved import edges as a dependency-cruiser run would report them (the
   // computed Dashboard→Widget edge is intentionally absent — it is recovered).
   const graph = [
+    { from: 'src/main.tsx', to: 'src/App.tsx' },
+    { from: 'src/App.tsx', to: 'src/routes.tsx' },
+    { from: 'src/routes.tsx', to: 'src/pages/Home.tsx' },
+    { from: 'src/routes.tsx', to: 'src/pages/Pricing.tsx' },
+    { from: 'src/routes.tsx', to: 'src/pages/Dashboard.tsx' },
+    { from: 'src/routes.tsx', to: 'src/pages/Settings.tsx' },
+    { from: 'src/components/Header.test.tsx', to: 'src/components/Header.tsx' },
+    { from: 'src/components/Header.stories.tsx', to: 'src/components/Header.tsx' },
     { from: 'src/pages/Home.tsx', to: 'src/components/Header.tsx' },
     { from: 'src/pages/Home.tsx', to: 'src/components/Promo.tsx', dynamic: true },
     { from: 'src/pages/Pricing.tsx', to: 'src/components/Header.tsx' },
@@ -273,21 +287,48 @@ test('a global style change in a .vue, .svelte or .astro component forces a full
 test('a shared static component → every surface that imports it', () => {
   assert.deepEqual(sorted(run(['src/components/Header.tsx'])), ['dashboard', 'home', 'pricing']);
 });
-// A file nothing imports is run by the framework or a tool, not by a surface the graph
-// names: a layout every page renders inside. A change that reaches one is unbounded.
-const withLayout = () => {
+test('an SPA page change stays selective through routes → App → main', () => {
+  assert.deepEqual(sorted(run(['src/pages/Pricing.tsx'])), ['pricing']);
+});
+test('a surface importing another surface is still selected', () => {
+  const f = fixture();
+  f.graph.push({ from: 'src/pages/Home.tsx', to: 'src/pages/Pricing.tsx' });
+  assert.deepEqual(sorted(affectedSurfaces({ ...f, changedFiles: ['src/pages/Pricing.tsx'] })), ['home', 'pricing']);
+});
+for (const importer of [
+  'src/components/Header.test.tsx',
+  'src/components/Header.spec.tsx',
+  'src/components/Header.stories.tsx',
+  'src/pages/Undeclared.tsx',
+  'src/scripts/preview.tsx',
+]) {
+  test(`a component imported by ${importer} selects only declared consumers`, () => {
+    const component = 'src/components/Header.tsx';
+    const sources = { [component]: '', [importer]: '', 'src/pages/Home.tsx': '', 'src/pages/Settings.tsx': '' };
+    const input = {
+      changedFiles: [component],
+      surfaces: { home: 'src/pages/Home.tsx', settings: 'src/pages/Settings.tsx' },
+      graph: [{ from: importer, to: component }],
+      files: Object.keys(sources),
+      readFile: (p) => sources[p],
+    };
+    assert.deepEqual(sorted(affectedSurfaces(input)), [], 'no declared consumer needs re-capture');
+    input.graph.push({ from: 'src/pages/Home.tsx', to: component });
+    assert.deepEqual(sorted(affectedSurfaces(input)), ['home'], 'only the declared consumer re-captures');
+  });
+}
+// Framework wrappers render outside page import paths, so their dependencies
+// must still trigger a full re-capture even when tests import the wrapper.
+const withLayout = (wrapper = 'src/app/layout.tsx') => {
   const f = fixture();
   const added = {
-    'src/app/layout.tsx': "import {Nav} from '../components/Nav';\nimport {Header} from '../components/Header';",
+    [wrapper]: "import {Nav} from '../components/Nav';\nimport {Header} from '../components/Header';",
     'src/components/Nav.tsx': 'export function Nav(){return null}',
   };
   const readFile = f.readFile;
   f.readFile = (p) => added[p] ?? readFile(p);
   f.files.push(...Object.keys(added));
-  f.graph.push(
-    { from: 'src/app/layout.tsx', to: 'src/components/Nav.tsx' },
-    { from: 'src/app/layout.tsx', to: 'src/components/Header.tsx' },
-  );
+  f.graph.push({ from: wrapper, to: 'src/components/Nav.tsx' }, { from: wrapper, to: 'src/components/Header.tsx' });
   return f;
 };
 test('a change reached only through a layout no surface imports → full re-capture', () => {
@@ -297,6 +338,21 @@ test('a change reached through a surface AND a layout no surface imports → ful
   // Settings renders inside the layout too, so the Header change can reach it.
   assert.equal(affectedSurfaces({ ...withLayout(), changedFiles: ['src/components/Header.tsx'] }), 'all');
 });
+for (const wrapper of [
+  'src/app/layout.tsx',
+  'src/app/template.tsx',
+  'src/pages/_app.jsx',
+  'src/pages/_document.js',
+  'src/App.tsx',
+]) {
+  test(`a change reaching ${wrapper} outside a surface → full re-capture, even with a test importer`, () => {
+    const f = withLayout(wrapper);
+    f.graph.push({ from: 'src/wrapper.test.tsx', to: wrapper });
+    assert.equal(affectedSurfaces({ ...f, changedFiles: ['src/components/Nav.tsx'] }), 'all');
+    assert.equal(affectedSurfaces({ ...f, changedFiles: ['src/components/Header.tsx'] }), 'all');
+    assert.equal(affectedSurfaces({ ...f, changedFiles: [wrapper] }), 'all');
+  });
+}
 test('a changed file the graph cannot place → full re-capture (fail closed)', () => {
   assert.equal(run(['src/lib/orphan.ts']), 'all');
 });
