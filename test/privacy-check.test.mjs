@@ -13,6 +13,7 @@ test('privacy check allows public StyleProof links and localhost examples', () =
       text: [
         'https://github.com/BenSheridanEdwards/StyleProof/actions',
         'https://raw.githubusercontent.com/BenSheridanEdwards/StyleProof/main/docs/demo-composite.png',
+        'https://github.com/dmmulroy/anti-slop',
         'http://localhost:3000',
       ].join('\n'),
     },

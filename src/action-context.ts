@@ -1,5 +1,8 @@
 export type ComparisonBase = 'pull-request-base' | 'merge-base';
 
+/** A repository as the event payload and the PR APIs name it; an embedded workflow_run PR has no full_name. */
+type HeadRepository = { id?: number; full_name?: string };
+
 export type ActionContextInput = {
   comparisonBase?: ComparisonBase;
   eventName: string;
@@ -11,8 +14,8 @@ export type ActionContextInput = {
     };
     workflow_run?: {
       head_sha?: string;
-      head_repository?: { full_name?: string } | null;
-      pull_requests?: { number?: number; base?: { sha?: string }; head?: { sha?: string } }[];
+      head_repository?: HeadRepository | null;
+      pull_requests?: { number?: number; base?: { sha?: string }; head?: { sha?: string; repo?: HeadRepository } }[];
     };
   };
   repo: Record<string, string>;
@@ -24,7 +27,12 @@ export type ActionContextInput = {
     rest: {
       repos: {
         listPullRequestsAssociatedWithCommit: (args: Record<string, string>) => Promise<{
-          data: { state?: string; number?: number; base?: { sha?: string }; head?: { sha?: string } }[];
+          data: {
+            state?: string;
+            number?: number;
+            base?: { sha?: string };
+            head?: { sha?: string; repo?: HeadRepository | null };
+          }[];
         }>;
       };
     };
@@ -66,6 +74,20 @@ function isUntrustedCapture(
   return headRepository !== undefined && !sameRepository(headRepository, repo);
 }
 
+/** Whether a PR's head repository is the run's head repository: by id, which every shape
+ *  carries and survives a rename, else by full name. An unnamed side never matches. */
+function sameHeadRepository(
+  prHead: HeadRepository | null | undefined,
+  runHead: HeadRepository | null | undefined,
+): boolean {
+  if (typeof prHead?.id === 'number' && typeof runHead?.id === 'number') return prHead.id === runHead.id;
+  return (
+    typeof prHead?.full_name === 'string' &&
+    typeof runHead?.full_name === 'string' &&
+    prHead.full_name.toLowerCase() === runHead.full_name.toLowerCase()
+  );
+}
+
 async function resolveWorkflowRunContext(
   payload: ActionContextInput['payload'],
   repo: ActionContextInput['repo'],
@@ -73,8 +95,12 @@ async function resolveWorkflowRunContext(
 ): Promise<{ prNumber?: number; baseSha?: string; headSha?: string }> {
   const run = payload.workflow_run;
   const headSha = run?.head_sha;
+  // A fork can push the exact commit another PR's head points at, so the head SHA alone
+  // does not name the PR: its head must also live in the repository this run captured.
+  const capturedHere = (pr: { head?: { sha?: string; repo?: HeadRepository | null } } | undefined): boolean =>
+    pr?.head?.sha === headSha && sameHeadRepository(pr?.head?.repo, run?.head_repository);
   const associated = run?.pull_requests?.[0];
-  const corresponding = associated?.head?.sha === headSha ? associated : undefined;
+  const corresponding = capturedHere(associated) ? associated : undefined;
   let prNumber = corresponding?.number;
   let baseSha = corresponding?.base?.sha;
 
@@ -84,7 +110,7 @@ async function resolveWorkflowRunContext(
       commit_sha: headSha,
     });
     const matchingPullRequest = data.find(
-      (pr) => pr.state === 'open' && pr.head?.sha === headSha && (prNumber === undefined || pr.number === prNumber),
+      (pr) => pr.state === 'open' && capturedHere(pr) && (prNumber === undefined || pr.number === prNumber),
     );
     prNumber ??= matchingPullRequest?.number;
     baseSha ??= matchingPullRequest?.base?.sha;

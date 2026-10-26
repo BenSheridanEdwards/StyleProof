@@ -18,6 +18,7 @@ export default tseslint.config(
       'playwright-report/**',
       'docs/**',
       'coverage/**',
+      'vendor/anti-slop/**', // vendored upstream Oxlint plugin, kept byte-identical (vendor/anti-slop/README.md)
     ],
   },
   // An inline disable that no longer suppresses anything fails lint, so stale

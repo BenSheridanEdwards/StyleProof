@@ -23,7 +23,8 @@ import {
   readMapManifest,
   workingTreeDirty,
 } from '../dist/map-store.js';
-import { mkTmp, rmTmp } from './helpers.mjs';
+import { mkTmp, rmTmp, spawnSyncToCompletion } from './helpers.mjs';
+import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
 // styleproof-ci packages the workflow's restore → capture-on-miss → replay →
 // publish bash. The decision rules the old init.test.mjs asserted against the
@@ -1996,6 +1997,70 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
   fs.chmodSync(path.join(bin, 'npm'), 0o755);
   fs.chmodSync(path.join(bin, 'playwright'), 0o755);
   return { repo, args: ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--no-store', '--force'] };
+}
+
+for (const [signal, exitCode] of [
+  ['TERM', 143],
+  ['INT', 130],
+]) {
+  for (const partial of [false, true]) {
+    test(`styleproof-ci: SIG${signal} during base capture stops before head installation (partial: ${partial})`, () => {
+      const root = mkTmp('styleproof-ci-cancel-');
+      try {
+        const { repo, args } = noStoreConsumer(root);
+        const mapRoot = path.join(root, 'maps');
+        const runtime = path.join(root, 'runtime');
+        const temp = path.join(root, 'tmp');
+        const fixture = path.join(root, 'partial');
+        const installs = path.join(root, 'installs');
+        for (const dir of [runtime, temp, fixture]) fs.mkdirSync(dir);
+        fs.writeFileSync(path.join(fixture, 'home@900.json'), '{}');
+        stampCertifyingFixture(fixture, args[1]);
+        const bin = path.join(repo, 'node_modules', '.bin');
+        fs.writeFileSync(path.join(bin, 'npm'), npmShim('pwd >> "$INSTALL_LOG"\nexit 0'));
+        fs.writeFileSync(
+          path.join(bin, 'playwright'),
+          `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+if [ "$STYLEMAP_DIR" = "base" ]; then
+  if [ "$PARTIAL_CAPTURE" = "1" ]; then
+    mkdir -p "$STYLEPROOF_BASEDIR/base"
+    cp "$PARTIAL_FIXTURE/"* "$STYLEPROOF_BASEDIR/base/"
+  fi
+  # Interrupt the real map CLI while CI is synchronously waiting for it.
+  kill -${signal} "$PPID"
+  exit 0
+fi
+mkdir -p "$STYLEPROOF_BASEDIR/head"
+printf '{}' > "$STYLEPROOF_BASEDIR/head/home@900.json"
+`,
+        );
+        const result = spawnSyncToCompletion(process.execPath, [CI, ...args, '--base-dir', mapRoot], {
+          encoding: 'utf8',
+          cwd: repo,
+          timeout: 30_000,
+          env: {
+            ...process.env,
+            CI: '1',
+            RUNNER_TEMP: runtime,
+            TMPDIR: temp,
+            INSTALL_LOG: installs,
+            PARTIAL_FIXTURE: fixture,
+            PARTIAL_CAPTURE: partial ? '1' : '0',
+            STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
+          },
+        });
+        const installedAt = fs.readFileSync(installs, 'utf8').trim().split('\n');
+        assert.equal(installedAt.length, 1, 'cancellation must not start the head dependency installation');
+        assert.equal(fs.existsSync(path.join(mapRoot, 'head')), false, 'cancellation must not start head capture');
+        assert.equal(result.status, exitCode, result.stderr + result.stdout);
+        assert.match(result.stderr, new RegExp(`capture interrupted by SIG${signal}`));
+        assert.deepEqual(fs.readdirSync(runtime), [], 'the cancelled run cleans up its worktree and runtime');
+      } finally {
+        rmTmp(root);
+      }
+    });
+  }
 }
 
 test(

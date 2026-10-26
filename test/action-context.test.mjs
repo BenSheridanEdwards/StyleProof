@@ -6,6 +6,10 @@ import * as reviewStatus from '../dist/review-status.js';
 const repo = { owner: 'owner', repo: 'repo' };
 const sha = 'a'.repeat(40);
 const baseSha = 'd'.repeat(40);
+// Head repositories as the workflow_run payload and the commit lookup name them. An
+// embedded workflow_run PR names its head repository by id (and name) only.
+const thisRepo = { id: 1, full_name: 'owner/repo' };
+const forkRepo = { id: 2, full_name: 'fork-owner/repo' };
 
 function github(data = []) {
   const calls = [];
@@ -45,8 +49,8 @@ test('resolveActionContext reads same-repo workflow_run identity from trusted pu
       workflow_run: {
         head_sha: sha,
         // The same repository, named in another case: GitHub repository names are case-insensitive.
-        head_repository: { full_name: 'OWNER/repo' },
-        pull_requests: [{ number: 34, base: { sha: baseSha }, head: { sha } }],
+        head_repository: { ...thisRepo, full_name: 'OWNER/repo' },
+        pull_requests: [{ number: 34, base: { sha: baseSha }, head: { sha, repo: { id: thisRepo.id } } }],
       },
     },
     repo,
@@ -62,15 +66,15 @@ test('resolveActionContext rejects a non-corresponding embedded workflow_run PR 
   const fallbackBase = 'e'.repeat(40);
   const mock = github([
     // An open PR associated with the commit whose head has since moved on: not the exact head.
-    { state: 'open', number: 36, base: { sha: baseSha }, head: { sha: unrelatedHead } },
-    { state: 'open', number: 35, base: { sha: fallbackBase }, head: { sha } },
+    { state: 'open', number: 36, base: { sha: baseSha }, head: { sha: unrelatedHead, repo: thisRepo } },
+    { state: 'open', number: 35, base: { sha: fallbackBase }, head: { sha, repo: thisRepo } },
   ]);
   const result = await resolveActionContext({
     eventName: 'workflow_run',
     payload: {
       workflow_run: {
         head_sha: sha,
-        head_repository: { full_name: 'Owner/Repo' },
+        head_repository: { ...thisRepo, full_name: 'Owner/Repo' },
         pull_requests: [{ number: 34, base: { sha: baseSha }, head: { sha: unrelatedHead } }],
       },
     },
@@ -82,19 +86,47 @@ test('resolveActionContext rejects a non-corresponding embedded workflow_run PR 
   assert.deepEqual(mock.calls, [{ ...repo, commit_sha: sha }]);
 });
 
+test('resolveActionContext never resolves a workflow_run to a PR whose head lives in another repository', async () => {
+  // A fork can push the exact commit another PR's head points at. The commit lookup then
+  // returns that other PR, and the fork's capture must not be posted onto it.
+  const victim = { state: 'open', number: 7, base: { sha: baseSha }, head: { sha, repo: thisRepo } };
+  const fromFork = await resolveActionContext({
+    eventName: 'workflow_run',
+    payload: { workflow_run: { head_sha: sha, head_repository: forkRepo } },
+    repo,
+    github: github([victim]).client,
+  });
+  assert.deepEqual(fromFork, { prNumber: '', baseSha: '', headSha: '', untrustedCapture: false });
+
+  // The embedded association is bound the same way, by the head repository's id.
+  const embedded = await resolveActionContext({
+    eventName: 'workflow_run',
+    payload: {
+      workflow_run: {
+        head_sha: sha,
+        head_repository: forkRepo,
+        pull_requests: [{ number: 7, base: { sha: baseSha }, head: { sha, repo: { id: thisRepo.id } } }],
+      },
+    },
+    repo,
+    github: github([victim]).client,
+  });
+  assert.deepEqual(embedded, { prNumber: '', baseSha: '', headSha: '', untrustedCapture: false });
+});
+
 test('resolveActionContext falls back to the PR associated with the trusted workflow_run head SHA', async () => {
   const other = 'b'.repeat(40);
   const mock = github([
     { state: 'open', number: 1, base: { sha: 'e'.repeat(40) }, head: { sha: other } },
     { state: 'closed', number: 2, base: { sha: 'f'.repeat(40) }, head: { sha } },
-    { state: 'open', number: 3, base: { sha: baseSha }, head: { sha } },
+    { state: 'open', number: 3, base: { sha: baseSha }, head: { sha, repo: forkRepo } },
   ]);
   const result = await resolveActionContext({
     eventName: 'workflow_run',
     payload: {
       workflow_run: {
         head_sha: sha,
-        head_repository: { full_name: 'fork-owner/repo' },
+        head_repository: forkRepo,
         // Artifact content is attacker-controlled in the fork-safe flow; it must not
         // affect which PR or commit receives the privileged comment/status.
         artifact: { prNumber: 999, headSha: other },
@@ -109,16 +141,16 @@ test('resolveActionContext falls back to the PR associated with the trusted work
 
   // An embedded exact-head PR without a base SHA is incomplete: the lookup supplies that PR's base.
   const partial = github([
-    { state: 'open', number: 4, base: { sha: 'e'.repeat(40) }, head: { sha } },
-    { state: 'open', number: 3, base: { sha: baseSha }, head: { sha } },
+    { state: 'open', number: 4, base: { sha: 'e'.repeat(40) }, head: { sha, repo: thisRepo } },
+    { state: 'open', number: 3, base: { sha: baseSha }, head: { sha, repo: thisRepo } },
   ]);
   const completed = await resolveActionContext({
     eventName: 'workflow_run',
     payload: {
       workflow_run: {
         head_sha: sha,
-        head_repository: { full_name: 'owner/repo' },
-        pull_requests: [{ number: 3, head: { sha } }],
+        head_repository: thisRepo,
+        pull_requests: [{ number: 3, head: { sha, repo: { id: thisRepo.id } } }],
       },
     },
     repo,
@@ -171,21 +203,28 @@ test('resolveActionContext returns empty outputs when PR identity is missing', a
 test('resolveActionContext flags fork captures as untrusted and fails closed without a head repository', async () => {
   const run = (payload, eventName = 'workflow_run') =>
     resolveActionContext({ eventName, payload, repo, github: github().client });
-  const pullRequests = [{ number: 34, base: { sha: baseSha }, head: { sha } }];
+  const pullRequestsFrom = (headRepository) => [
+    { number: 34, base: { sha: baseSha }, head: { sha, repo: { id: headRepository.id } } },
+  ];
   const fork = await run({
-    workflow_run: { head_sha: sha, head_repository: { full_name: 'fork-owner/repo' }, pull_requests: pullRequests },
+    workflow_run: { head_sha: sha, head_repository: forkRepo, pull_requests: pullRequestsFrom(forkRepo) },
   });
   assert.equal(fork.untrustedCapture, true, 'a fork head repository is untrusted');
-  const missing = await run({ workflow_run: { head_sha: sha, pull_requests: pullRequests } });
-  assert.equal(missing.untrustedCapture, true, 'an unnamed head repository fails closed');
-  const deleted = await run({ workflow_run: { head_sha: sha, head_repository: null, pull_requests: pullRequests } });
-  assert.equal(deleted.untrustedCapture, true, 'a null (deleted) head repository fails closed');
+  // Without a head repository nothing proves which PR the run captured, so none is resolved.
+  const unresolved = { prNumber: '', baseSha: '', headSha: '', untrustedCapture: false };
+  const missing = await run({ workflow_run: { head_sha: sha, pull_requests: pullRequestsFrom(thisRepo) } });
+  assert.deepEqual(missing, unresolved, 'an unnamed head repository resolves no PR');
+  const deleted = await run({
+    workflow_run: { head_sha: sha, head_repository: null, pull_requests: pullRequestsFrom(thisRepo) },
+  });
+  assert.deepEqual(deleted, unresolved, 'a null (deleted) head repository resolves no PR');
+  const prefixedRepo = { id: 3, full_name: 'owner/repo-fork' };
   const prefixed = await run({
-    workflow_run: { head_sha: sha, head_repository: { full_name: 'owner/repo-fork' }, pull_requests: pullRequests },
+    workflow_run: { head_sha: sha, head_repository: prefixedRepo, pull_requests: pullRequestsFrom(prefixedRepo) },
   });
   assert.equal(prefixed.untrustedCapture, true, 'another repository whose name starts with this one is untrusted');
   const sameRepo = await run({
-    workflow_run: { head_sha: sha, head_repository: { full_name: 'owner/repo' }, pull_requests: pullRequests },
+    workflow_run: { head_sha: sha, head_repository: thisRepo, pull_requests: pullRequestsFrom(thisRepo) },
   });
   assert.equal(sameRepo.untrustedCapture, false, 'same-repo (incl. Dependabot) captures are unchanged');
   const forkPullRequest = await run(

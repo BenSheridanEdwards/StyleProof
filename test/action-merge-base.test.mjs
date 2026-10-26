@@ -227,7 +227,7 @@ test('artifacts, caller SHAs, forged numbers and mutable refs cannot select iden
   assert.deepEqual(mock.comparisons, [exactRequest]);
   assert.deepEqual(mock.associations, []);
 });
-for (const fullName of ['example/demo', 'contributor/demo', undefined]) {
+for (const fullName of ['example/demo', 'contributor/demo']) {
   test(`workflow_run retains captured H and fork classification: ${fullName}`, async () => {
     const mock = mockClient();
     const resolved = await resolveActionContext(
@@ -237,8 +237,8 @@ for (const fullName of ['example/demo', 'contributor/demo', undefined]) {
           pull_request: pullRequest(X, X),
           workflow_run: {
             head_sha: H,
-            head_repository: fullName ? { full_name: fullName } : null,
-            pull_requests: [pullRequest()],
+            head_repository: { full_name: fullName },
+            pull_requests: [pullRequest(B, H, fullName)],
           },
         },
       }),
@@ -250,11 +250,24 @@ for (const fullName of ['example/demo', 'contributor/demo', undefined]) {
     assert.deepEqual(mock.comparisons, [exactRequest]);
   });
 }
+test('workflow_run without a head repository has no trusted PR association for merge-base', async () => {
+  const mock = mockClient();
+  await assert.rejects(
+    resolveActionContext(
+      input(mock, {
+        eventName: 'workflow_run',
+        payload: { workflow_run: { head_sha: H, head_repository: null, pull_requests: [pullRequest()] } },
+      }),
+    ),
+    /merge-base requires a trusted PR association/,
+  );
+  assert.deepEqual(mock.comparisons, []);
+});
 test('fork fallback ignores unrelated and stale associations, never replaces captured H', async () => {
   const mock = mockClient(response(), [
     { ...pullRequest(X, X), state: 'open', number: 99 },
     { ...pullRequest(X, H), state: 'closed', number: 98 },
-    { ...pullRequest(), state: 'open' },
+    { ...pullRequest(B, H, 'contributor/demo'), state: 'open' },
   ]);
   const resolved = await resolveActionContext(
     input(mock, {

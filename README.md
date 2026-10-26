@@ -414,6 +414,8 @@ styleproof ci                # CI orchestration: restore probes, cold capture
 
 Cold-base CI captures reuse the head’s StyleProof tarball or Git spec (local tarball paths resolve against the head package directory). Git branch and tag refs are resolved again and may change; use a full commit SHA to pin the build. Registry declarations, directory artifacts, `link:` specs, and missing consumer manifests use the running CLI’s exact version.
 
+If the map capture process is terminated by a signal, CI stops and cleans up its temporary worktrees. An interrupted baseline does not start a head dependency install or capture; the command exits with the signal's conventional exit code (130 for SIGINT, 143 for SIGTERM).
+
 Run `styleproof --help` for the whole journey or `styleproof <command> --help`
 for command-specific options. The existing `styleproof-*` binaries remain as
 backwards-compatible aliases for one major version.
