@@ -174,7 +174,9 @@ runs:
     # capture artifact — so a fork can't spoof which PR/commit the privileged status
     # lands on. `workflow_run.head_sha` is the real captured commit; the PR is its
     # `pull_requests` association (same-repo, incl. Dependabot) or, for forks, the
-    # open PR whose head IS that exact commit.
+    # open PR whose head IS that exact commit. Either way the PR's head must live in
+    # `workflow_run.head_repository`: a fork that pushes another PR's head commit
+    # cannot have its capture posted onto that PR.
     #
     # The fork cannot redirect the status, but it DID run the capture job, so it
     # controls both uploaded map sets and therefore the verdict. `untrusted-capture`
