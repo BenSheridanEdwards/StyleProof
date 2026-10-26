@@ -1,5 +1,6 @@
 // Pieces styleproof-ci uses to restore-then-capture through styleproof-map.
 import path from 'node:path';
+import { constants } from 'node:os';
 import { classifyRestoreExit } from '../dist/ci.js';
 import { classifyColdReasonFromMissMessage, extractColdReasonFromLog } from '../dist/map-hit-observability.js';
 import { resolveStyleProofConfigPath, specPathForCwd } from '../dist/config.js';
@@ -60,6 +61,8 @@ export function restoreMap(mapArgs, { cwd, env, dir = '', next } = {}) {
 /** `styleproof-map` capture: returns the exit status (1 when it could not even spawn). */
 export function captureMap(name, args, { cwd, env } = {}) {
   const r = runBin('styleproof-map', args, { cwd, env });
+  // Cancellation must stop CI before a failed base capture can trigger a head install.
+  if (r.signal) throw new ExitError(`capture interrupted by ${r.signal}`, 128 + constants.signals[r.signal]);
   if (r.error) {
     console.error(`${name}: could not run styleproof-map capture\n${r.error.message}`);
     return 1;
