@@ -178,6 +178,7 @@ function loadJavaScriptConfigSync(found: StyleProofConfigLocation, asyncLoad = f
       '-e',
       `import { writeFileSync } from 'node:fs';
        import { plainObject, parseConfigRecord } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
+       try {
        ${
          asyncLoad
            ? `const { loadStyleProofConfigWithLocationAsync } = await import(${JSON.stringify(import.meta.url)});
@@ -186,8 +187,12 @@ function loadJavaScriptConfigSync(found: StyleProofConfigLocation, asyncLoad = f
               const config = plainObject(mod.default ?? mod, 'the default export', ${JSON.stringify(found.filename)});`
        }
        writeFileSync(3, JSON.stringify(structuredClone(parseConfigRecord(config, ${JSON.stringify(found.filename)}))));
+       } catch (error) {
+         process.stderr.write(error instanceof Error ? error.message : String(error));
+         process.exitCode = 1;
+       }
        await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write('', resolve))));
-       process.exit(0);`,
+       process.exit(process.exitCode ?? 0);`,
     ],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe', 'pipe'] },
   );
@@ -196,6 +201,7 @@ function loadJavaScriptConfigSync(found: StyleProofConfigLocation, asyncLoad = f
     const reason =
       (result.stderr || '').trim() ||
       (result.error ? errorMessage(result.error) : `config process exited ${result.status}`);
+    if (reason.startsWith(`${found.filename}:`)) throw new StyleProofConfigError(reason);
     throw configError(found.filename, `could not load — ${reason}`);
   }
   if (result.stderr) process.stderr.write(result.stderr);
@@ -250,7 +256,7 @@ export async function loadStyleProofConfigWithLocationAsync(
   const startDir = path.resolve(cwd);
   const discovery = discoverStyleProofConfig(startDir);
   const config = discovery.location
-    ? options.isolated
+    ? options.isolated && discovery.location.filename !== CONFIG_JSON
       ? loadJavaScriptConfigSync(discovery.location, true)
       : await parseLoadedConfigAsync(discovery.location.dir)
     : {};

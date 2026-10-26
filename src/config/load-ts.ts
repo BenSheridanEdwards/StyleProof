@@ -6,7 +6,6 @@
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gitOutput } from '../node-util.js';
@@ -125,14 +124,26 @@ function findStyleProofConfigPackageRoots(filePath: string): string[] {
 }
 
 function resolveFromPackageRoots(specifier: string, roots: readonly string[]): string | undefined {
-  for (const root of roots) {
-    try {
-      return createRequire(path.join(root, 'package.json')).resolve(specifier);
-    } catch {
-      // try the next root
-    }
-  }
-  return undefined;
+  // Imports must select a package's `import` entry, not its `require` entry. The
+  // parent URL parameter needs this flag on every supported Node version.
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--experimental-import-meta-resolve',
+      '--input-type=module',
+      '-e',
+      `for (const parent of ${JSON.stringify(roots.map((root) => pathToFileURL(path.join(root, 'package.json')).href))}) {
+         try {
+           process.stdout.write(import.meta.resolve(${JSON.stringify(specifier)}, parent));
+           break;
+         } catch {
+           // try the next root
+         }
+       }`,
+    ],
+    { encoding: 'utf8' },
+  );
+  return result.status === 0 ? result.stdout || undefined : undefined;
 }
 
 const BARE_SPECIFIER_IN_IMPORT = /(?<=(?:^|[\s(;{])(?:import|export)(?:\s+type)?\b[^'"\n]*?)(['"])([^'"]+)\1/gm;
@@ -142,7 +153,7 @@ function rewriteBareSpecifiersToResolvedUrls(source: string, roots: readonly str
   return source.replace(BARE_SPECIFIER_IN_IMPORT, (full, quote: string, spec: string) => {
     if (LOCAL_SPECIFIER.test(spec)) return full;
     const resolved = resolveFromPackageRoots(spec, roots);
-    return resolved ? `${quote}${pathToFileURL(resolved).href}${quote}` : full;
+    return resolved ? `${quote}${resolved}${quote}` : full;
   });
 }
 

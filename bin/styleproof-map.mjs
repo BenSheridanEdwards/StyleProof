@@ -118,7 +118,8 @@ const cli = defineCli({
 const { opts, args, passthrough: playwrightArgs } = cli.parse();
 let loadedConfig;
 try {
-  loadedConfig = await loadStyleProofConfigWithLocationAsync();
+  // CI runs this head CLI against a cold checkout with its own Playwright copy.
+  loadedConfig = await loadStyleProofConfigWithLocationAsync(process.cwd(), { isolated: true });
 } catch (error) {
   fail(NAME, errorMessage(error));
 }

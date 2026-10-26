@@ -43,6 +43,26 @@ function loadSyncInChild(root, prelude = '') {
 }
 
 for (const typed of [false, true]) {
+  test(`sync ${typed ? 'typed' : 'JS-shaped'} ts config uses package import conditions`, (t) => {
+    const root = configFixture(
+      t,
+      `import { spec } from 'styleproof-conditional-fixture';
+       export default { spec${typed ? ': spec as string' : ''} };`,
+    );
+    const packageDir = path.join(root, 'node_modules', 'styleproof-conditional-fixture');
+    fs.mkdirSync(packageDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(packageDir, 'package.json'),
+      JSON.stringify({ exports: { import: './import.mjs', require: './require.cjs' } }),
+    );
+    fs.writeFileSync(path.join(packageDir, 'import.mjs'), "export const spec = 'import-selected.spec.ts';");
+    fs.writeFileSync(path.join(packageDir, 'require.cjs'), "throw new Error('must not load the require entry');");
+
+    assert.equal(loadStyleProofConfig(root).spec, 'import-selected.spec.ts');
+  });
+}
+
+for (const typed of [false, true]) {
   const label = typed ? 'typed' : 'JS-shaped';
   const options = { skip: typed && TYPE_STRIPPING_UNAVAILABLE };
 
