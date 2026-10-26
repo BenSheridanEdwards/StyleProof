@@ -112,9 +112,9 @@ export function derivedLonghandCount(findings: Finding[]): number {
  * a finding left with no props is removed entirely.
  */
 export function cleanFindings(findings: Finding[]): Finding[] {
-  // Each element's own resting-style changes, by prop. A state row on the owner is an echo when
-  // the owner changed that prop. On another element (`sub`) it is an echo only when the values
-  // show the hover renders the same on both sides.
+  // Each element's own resting-style changes, by prop. A state row on an element that changed
+  // that prop at rest, the owner or another target (`sub`), is an echo only when the values show
+  // the state renders the same on both sides, or renders exactly the resting value on each side.
   const restyled = new Map<string, Map<string, PropChange>>();
   for (const f of findings) {
     if (f.kind === 'style' && f.pseudo === null) restyled.set(f.path, new Map(f.props.map((p) => [p.prop, p])));
@@ -129,11 +129,10 @@ export function cleanFindings(findings: Finding[]): Finding[] {
     if (added.has(f.path) || added.has(target)) return false;
     const rest = restyled.get(target)?.get(p.prop);
     if (!rest) return false;
-    if (target === f.path) return true;
-    return (
-      (p.after === '(state no longer changes it)' && p.before === rest.after) ||
-      (p.before === '(state does not change it)' && p.after === rest.before)
-    );
+    // What the state renders on each side: a side the state leaves alone renders its resting value.
+    const before = p.before === '(state does not change it)' ? rest.before : p.before;
+    const after = p.after === '(state no longer changes it)' ? rest.after : p.after;
+    return before === after || (before === rest.before && after === rest.after);
   };
   const out: Finding[] = [];
   for (const group of groupByPath(findings)) {
