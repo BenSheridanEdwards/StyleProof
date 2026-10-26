@@ -388,3 +388,128 @@ function isBroadMappedKey(
 	const unwrapped = unwrapTransparentType(type);
 	if (
 		unwrapped.type === "TSStringKeyword" ||
+		unwrapped.type === "TSNumberKeyword" ||
+		unwrapped.type === "TSSymbolKeyword"
+	) {
+		return true;
+	}
+	if (unwrapped.type === "TSUnionType") {
+		return unwrapped.types.some((member) =>
+			isBroadMappedKey(member, environment, substitutions, visitedAliases),
+		);
+	}
+	if (unwrapped.type !== "TSTypeReference") return false;
+	const name = typeReferenceName(unwrapped);
+	if (name === null) return false;
+	const substitution = substitutions.get(name);
+	if (substitution !== undefined && !isUnappliedReferenceTo(substitution, name)) {
+		return isBroadMappedKey(substitution, environment, substitutions, visitedAliases);
+	}
+	if (name === "PropertyKey" && isBuiltIn(name, unwrapped, environment)) return true;
+	const alias = visibleTypeAlias(name, unwrapped, environment.typeAliases);
+	if (
+		alias === null ||
+		(alias.typeParameters?.params.length ?? 0) > 0 ||
+		visitedAliases.has(name)
+	) {
+		return false;
+	}
+	const nextVisited = new Set(visitedAliases);
+	nextVisited.add(name);
+	return isBroadMappedKey(alias.typeAnnotation, environment, substitutions, nextVisited);
+}
+
+function classifyAliasBroadTarget(
+	type: ESTree.TSType,
+	environment: TypeEnvironment,
+	substitutions: TypeAliasEnvironment,
+	resolvingAliases: ReadonlySet<string>,
+): WideningTarget | null {
+	const unwrapped = unwrapTransparentType(type);
+	if (unwrapped.type === "TSUnknownKeyword") return { kind: "unknown" };
+	if (unwrapped.type === "TSObjectKeyword") return { kind: "object" };
+	if (unwrapped.type === "TSTypeLiteral") {
+		return unwrapped.members.some((member) => member.type === "TSIndexSignature")
+			? { kind: "open dictionary" }
+			: null;
+	}
+	if (unwrapped.type === "TSMappedType") {
+		return isBroadMappedKey(unwrapped.constraint, environment, substitutions)
+			? { kind: "open dictionary" }
+			: null;
+	}
+	if (unwrapped.type !== "TSTypeReference") return null;
+	const name = typeReferenceName(unwrapped);
+	if (name === null) return null;
+	const substitution = substitutions.get(name);
+	if (substitution !== undefined) {
+		return isUnappliedReferenceTo(substitution, name)
+			? null
+			: classifyAliasBroadTarget(
+					substitution,
+					environment,
+					substitutions,
+					resolvingAliases,
+				);
+	}
+	if (TRANSPARENT_WRAPPERS.has(name) && isBuiltIn(name, unwrapped, environment)) {
+		const wrapped = unwrapped.typeArguments?.params[0];
+		return wrapped === undefined
+			? null
+			: classifyAliasBroadTarget(wrapped, environment, substitutions, resolvingAliases);
+	}
+	if (name === "Record" && isBuiltIn(name, unwrapped, environment)) {
+		return hasBroadRecordKey(unwrapped, environment, substitutions)
+			? { kind: "open dictionary" }
+			: null;
+	}
+	const alias = visibleTypeAlias(name, unwrapped, environment.typeAliases);
+	if (alias === null || resolvingAliases.has(name)) return null;
+	const nextSubstitutions = aliasSubstitution(alias, unwrapped, substitutions);
+	if (nextSubstitutions === null) return null;
+	const nextResolving = new Set(resolvingAliases);
+	nextResolving.add(name);
+	return classifyAliasBroadTarget(
+		alias.typeAnnotation,
+		environment,
+		nextSubstitutions,
+		nextResolving,
+	);
+}
+
+export function isPopulatedObjectExpression(expression: ESTree.Expression): boolean {
+	let current = expression;
+	while (
+		current.type === "ParenthesizedExpression" ||
+		current.type === "TSAsExpression" ||
+		current.type === "TSTypeAssertion" ||
+		current.type === "TSNonNullExpression"
+	) {
+		current = current.expression;
+	}
+	return current.type === "ObjectExpression" && current.properties.length > 0;
+}
+
+export function isKnownEvidenceExpression(expression: ESTree.Expression): boolean {
+	let current = expression;
+	while (
+		current.type === "ParenthesizedExpression" ||
+		current.type === "TSAsExpression" ||
+		current.type === "TSTypeAssertion" ||
+		current.type === "TSNonNullExpression" ||
+		current.type === "TSSatisfiesExpression"
+	) {
+		current = current.expression;
+	}
+	if (current.type === "ObjectExpression") return true;
+	return (
+		current.type === "ArrayExpression" ||
+		current.type === "ArrowFunctionExpression" ||
+		current.type === "ClassExpression" ||
+		current.type === "FunctionExpression" ||
+		current.type === "NewExpression" ||
+		current.type === "Literal" ||
+		current.type === "TemplateLiteral" ||
+		current.type === "UnaryExpression"
+	);
+}
