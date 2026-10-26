@@ -152,6 +152,9 @@ function writeFixtureApp(dir: string, port: number) {
       2,
     ),
   );
+  // Give the generated crawler a real nav link immediately. A link-less fixture
+  // spends its entire 15 s hydration allowance waiting before each capture,
+  // needlessly consuming the bounded CLI runtime under parallel browser load.
   fs.writeFileSync(
     path.join(dir, 'server.mjs'),
     `import http from 'node:http';
@@ -161,7 +164,7 @@ http.createServer((req, res) => {
   res.end(\`<!doctype html><html><head><meta charset="utf-8"><style>
     body { margin: 0; color: rgb(0, 0, 0); }
     main { padding: 32px; }
-  </style></head><body><main>StyleProof fixture</main></body></html>\`);
+  </style></head><body><nav><a href="/">Home</a></nav><main>StyleProof fixture</main></body></html>\`);
 }).listen(port, '127.0.0.1');
 `,
   );
@@ -198,11 +201,10 @@ test('styleproof setup infers a production server and the generated capture runs
 
     const baseMap = run(app, process.execPath, [CLI, 'capture'], { STYLEPROOF_UPLOAD: '1' });
     expect(baseMap.status, baseMap.stderr + baseMap.stdout).toBe(0);
-    // Crawl-by-default keys the root '/' as `index`; a link-less single-page app still
-    // captures it (the crawl always covers `from`).
+    // Crawl-by-default keys the root '/' as `index`; the self-link is deduplicated.
     expect(
-      fs.readdirSync(path.join(app, '.styleproof/maps/current')).some((file) => /^index@\d+\.json\.gz$/.test(file)),
-    ).toBe(true);
+      fs.readdirSync(path.join(app, '.styleproof/maps/current')).filter((file) => file.endsWith('.json.gz')),
+    ).toEqual(['index@1280.json.gz']);
 
     git(app, ['checkout', '-qb', 'feature']);
     fs.writeFileSync(path.join(app, 'feature.txt'), 'feature');
