@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadStyleMap } from '../dist/index.js';
 import { CLI_SPAWN_TIMEOUT_MS, childTimeoutError, spawnSyncToCompletion } from './helpers.mjs';
+import { nodeTestEnv } from '../scripts/run-node-test.mjs';
 
 // Every test here builds its own fixture (mkdtemp / own page); none reads another
 // test's output. Declare the file parallel so its tests spread across workers —
@@ -73,7 +74,14 @@ async function waitForPort(port: number, timeoutMs = 15_000): Promise<void> {
 }
 
 function commandEnv(env: NodeJS.ProcessEnv = {}) {
-  const merged = { ...process.env, PATH: `${PLAYWRIGHT_BIN}${path.delimiter}${process.env.PATH}`, CI: '1', ...env };
+  // Apply the same V8 teardown-deadlock mitigation as the unit harness to
+  // nested Playwright runners and all of their CLI/server children.
+  const merged = {
+    ...nodeTestEnv(process.env),
+    PATH: `${PLAYWRIGHT_BIN}${path.delimiter}${process.env.PATH}`,
+    CI: '1',
+    ...env,
+  };
   for (const key of ['GITHUB_BASE_REF', 'GITHUB_SHA', 'GITHUB_HEAD_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH']) {
     if (!Object.prototype.hasOwnProperty.call(env, key)) delete merged[key];
   }
@@ -914,6 +922,7 @@ http.createServer((req, res) => {
 test('styleproof-map fails loudly when a crawled link redirects off-origin', async () => {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-redirect-map-'));
   const port = await freePort();
+  const externalPort = await freePort();
   try {
     writeMultiPageApp(app, port);
     // Add an off-origin redirect route + a nav link to it.
@@ -924,9 +933,11 @@ test('styleproof-map fails loudly when a crawled link redirects off-origin', asy
         .readFileSync(server, 'utf8')
         .replace(
           "const url = req.url.split('?')[0];",
-          "const url = req.url.split('?')[0];\n  if (url === '/away') { res.statusCode = 302; res.setHeader('location', 'https://example.com/'); return res.end(); }",
+          `const url = req.url.split('?')[0];\n  if (url === '/away') { res.statusCode = 302; res.setHeader('location', 'http://127.0.0.1:${externalPort}/'); return res.end(); }`,
         )
-        .replace('<a href="/about">About</a>', '<a href="/about">About</a> <a href="/away">Away</a>'),
+        // A different port is a different origin, without relying on public DNS/TLS.
+        .replace('<a href="/about">About</a>', '<a href="/about">About</a> <a href="/away">Away</a>') +
+        `\nhttp.createServer((req, res) => res.end('External fixture')).listen(${externalPort}, '127.0.0.1');\n`,
     );
     git(app, ['init', '-q']);
     git(app, ['config', 'user.email', 'styleproof@example.test']);
@@ -1432,7 +1443,12 @@ test('styleproof-map exits without process.exit() after a capture and upload, a 
     const sha = git(app, ['rev-parse', 'HEAD']).stdout.trim();
 
     const cases = [
-      { name: 'capture and upload', args: ['--upload'], status: 0, says: `uploaded ${sha.slice(0, 12)}` },
+      {
+        name: 'capture and upload',
+        args: ['--upload'],
+        status: 0,
+        says: `uploaded ${sha.slice(0, 12)}`,
+      },
       { name: 'restore', args: ['--restore', '--sha', sha, '--dir', 'restored'], status: 0, says: 'restored' },
       {
         name: 'restore miss',

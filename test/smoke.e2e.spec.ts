@@ -160,14 +160,37 @@ test('waits for every forced pseudo-state transition before reading computed sty
     button:hover { color: rgb(1, 2, 3); }
     button:focus-visible { outline-color: rgb(4, 5, 6); }
     button:active { border-color: rgb(7, 8, 9); }
-  </style></head><body>${Array.from({ length: 24 }, (_, i) => `<button>Action ${i}</button>`).join('')}</body></html>`;
+  </style></head><body><button>First</button><button>Second</button></body></html>`;
 
-  const captures = [];
-  for (let i = 0; i < 8; i++) captures.push(await captureFixture(page, html));
-  const [first, ...replays] = captures;
-
-  for (const replay of replays)
-    expect(diffStyleMaps(first, replay), 'independent forced-state sweeps are byte-equivalent').toEqual([]);
+  let pendingTransitions = 0;
+  let transitions = 0;
+  const capture = () =>
+    withInterceptedCDPSession(
+      page,
+      { detachCount: 0 },
+      async (call, forward) => {
+        if (call.method !== 'CSS.forcePseudoState') {
+          expect(pendingTransitions, `${call.method} waits for the preceding pseudo-state transition`).toBe(0);
+          return forward(call.method, call.params);
+        }
+        expect(pendingTransitions, 'pseudo-state transitions are serialized').toBe(0);
+        pendingTransitions++;
+        transitions++;
+        try {
+          // Hold the command before forwarding it: a missing await must fail even
+          // when Chromium would otherwise process two adjacent sends in order.
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return await forward(call.method, call.params);
+        } finally {
+          pendingTransitions--;
+        }
+      },
+      () => captureFixture(page, html),
+    );
+  const first = await capture();
+  const replay = await capture();
+  expect(transitions).toBeGreaterThanOrEqual(24); // two targets × three states × force/reset × two captures
+  expect(diffStyleMaps(first, replay), 'independent forced-state sweeps are byte-equivalent').toEqual([]);
   for (const [path] of Object.entries(first.elements).filter(([, entry]) => entry.tag === 'button')) {
     expect(first.states[path]?.hover, `${path} captured :hover`).toBeTruthy();
     expect(first.states[path]?.focus, `${path} captured :focus-visible`).toBeTruthy();
