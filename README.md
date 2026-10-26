@@ -436,6 +436,16 @@ evidence cannot certify. Maps travel as **workflow artifacts** by default —
 never committed to the PR branch — or via the opt-in `styleproof-maps` store
 branch. Nothing under `.styleproof/` belongs in a commit.
 
+`compare` restores the base map from the map store, so on a local checkout without
+one it stops and prints the local steps: capture each side under its own label,
+then compare the two directories.
+
+```bash
+git switch main && npx styleproof capture --dir base
+git switch - && npx styleproof capture --dir head
+npx styleproof-diff .styleproof/maps/base .styleproof/maps/head
+```
+
 For the hand-wired Action form, the fork/Dependabot split, the map-store and
 report branches, the CI base publisher, and every config key and flag, see
 [docs/REFERENCE.md](docs/REFERENCE.md).

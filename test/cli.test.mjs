@@ -1822,7 +1822,12 @@ test('diff default flow explains how to recover when cached maps are missing', (
   assert.equal(r.status, 2);
   assert.match(r.stderr, /cached maps are not available/);
   assert.match(r.stderr, /nothing was compared/);
-  assert.match(r.stderr, /styleproof-diff <beforeDir> <afterDir>/);
+  // This repo HAS an origin remote and still has no base map, so the hint must not send the
+  // user to "a repo with the origin remote". It names local steps that work and keep the tree.
+  assert.doesNotMatch(r.stderr, /a repo with the 'origin' remote/);
+  assert.match(r.stderr, /git switch main && styleproof capture --dir base/);
+  assert.match(r.stderr, /git switch - && styleproof capture --dir head/);
+  assert.match(r.stderr, /styleproof-diff \.styleproof\/maps\/base \.styleproof\/maps\/head/);
   rmTmp(repo);
 });
 
