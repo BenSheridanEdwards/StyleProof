@@ -54,20 +54,11 @@ function peerVersion(name) {
 // so the staged copy is the real artifact.
 function stagePackageDir(dest) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const files = [
-    'dist',
-    'bin',
-    'example/styleproof-approve.yml',
-    'docs/demo-composite.png',
-    'docs/component-manifest.md',
-    'docs/product-state-comparability.md',
-    'README.md',
-    'CHANGELOG.md',
-    'LICENSE',
-  ];
-  for (const rel of files) {
+  // The manifest's own `files` allowlist, so the staged tarball is exactly what npm publishes:
+  // a runtime file missing from it fails here as it would for an adopter.
+  for (const rel of manifest.files) {
     const src = path.join(root, rel);
-    if (!fs.existsSync(src)) continue; // `dist` is guaranteed present (the suite built it); assets are optional
+    assert.ok(fs.existsSync(src), `package.json files lists ${rel}, which does not exist`);
     fs.cpSync(src, path.join(dest, rel), { recursive: true });
   }
   // Strip ALL lifecycle scripts so `npm pack` cannot run tsc/husky against the staged copy.
@@ -142,20 +133,8 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     );
     assert.equal(importCheck.status, 0, importCheck.stderr);
 
-    for (const bin of [
-      'styleproof',
-      'styleproof-init',
-      'styleproof-map',
-      'styleproof-capture',
-      'styleproof-diff',
-      'styleproof-report',
-      'styleproof-components',
-      'styleproof-variants',
-      'styleproof-affected',
-      'styleproof-ci',
-      'styleproof-publish-report',
-      'styleproof-prune-reports',
-    ]) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    for (const bin of Object.keys(manifest.bin)) {
       const installedShim = path.join(app, 'node_modules', '.bin', process.platform === 'win32' ? `${bin}.cmd` : bin);
       assert.ok(fs.existsSync(installedShim), `${bin} is missing from the installed package bin manifest`);
       const help = run(process.execPath, [path.join(app, 'node_modules/styleproof/bin', `${bin}.mjs`), '--help'], {
@@ -224,6 +203,10 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     assert.ok(
       fs.existsSync(path.join(scaffold, '.github/workflows/styleproof.yml')),
       'the packed setup command did not scaffold the default single workflow',
+    );
+    assert.ok(
+      fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-lint-artifacts.yml')),
+      `the packed setup command did not scaffold the lint-artifacts guard\n${setup.stderr}`,
     );
     assert.ok(
       !fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-approve.yml')),
