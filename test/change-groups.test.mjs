@@ -413,6 +413,27 @@ test('groupByPath buckets findings per element path', () => {
   assert.equal(groups.find((g) => g[0].path === 'a')?.length, 2);
 });
 
+test('cleanFindings keeps an owner’s changed :hover value even though its resting value also changed', () => {
+  // Base `.btn{color:red} .btn:hover{color:green}`; head `.btn{color:blue} .btn:hover{color:yellow}`.
+  // The hover renders green on base and yellow on head: a real change the gate counts.
+  const btn = 'body > button:nth-child(1)';
+  const kept = cleanFindings([
+    styleFinding(btn, [{ prop: 'color', before: 'rgb(255, 0, 0)', after: 'rgb(0, 0, 255)' }]),
+    {
+      kind: 'state',
+      path: btn,
+      cls: 'btn',
+      state: 'hover',
+      sub: btn,
+      props: [{ prop: 'color', before: 'rgb(0, 128, 0)', after: 'rgb(255, 255, 0)' }],
+    },
+  ]);
+  assert.deepEqual(
+    kept.map((f) => f.kind),
+    ['style', 'state'],
+  );
+});
+
 test('cleanFindings drops state echoes of a base style change', () => {
   const findings = [
     styleFinding('btn', [{ prop: 'color', before: 'black', after: 'red' }]),
