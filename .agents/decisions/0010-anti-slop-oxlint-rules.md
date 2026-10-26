@@ -25,12 +25,14 @@ vendor, not as an npm package. ESLint cannot load Oxlint JS plugins.
 4. **Error only when clean.** A rule with no findings is `error`; a rule with
    findings is `warn` until its cleanup PR lands, then it flips to `error`.
    `npm run lint:slop` runs `oxlint --quiet`, so only errors fail. Run
-   `npx oxlint <files>` to see warnings in the files you touch.
+   `npx --no-install oxlint <files>` to see warnings in the files you touch.
 5. **Where it runs:** CI (Node 22 leg), `.husky/pre-push`, `npm run verify`.
    The plugin is TypeScript loaded through Node's type stripping, so the hook
    skips with a warning on a Node older than 22.18.
 6. **Suppressions:** an `oxlint-disable` comment follows the ESLint rule: name
    the rules and give a `-- reason` (`npm run check:suppressions`).
+7. **Enforcement sign-off:** `.oxlintrc.json` and `vendor/anti-slop/**` are
+   Lint config gate files under [ADR 0008](0008-sign-off-enforcement-changes.md).
 
 ## Consequences
 

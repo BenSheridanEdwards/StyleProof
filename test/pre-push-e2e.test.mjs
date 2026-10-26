@@ -82,20 +82,47 @@ test('pre-push runs unit tests then the staged e2e gate', () => {
 
 test('pre-push still fails closed when unit tests fail before e2e', () => {
   const fakeBin = mkdtempSync(join(tmpdir(), 'styleproof-contributor-hook-'));
+
   try {
     const npm = join(fakeBin, 'npm');
-    writeFileSync(npm, '#!/bin/sh\necho "fake npm $*"\nexit 17\n');
+    writeFileSync(npm, '#!/bin/sh\necho "fake npm $*"\nif [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 17\n');
     chmodSync(npm, 0o755);
+    symlinkSync(process.execPath, join(fakeBin, 'node'));
+
     const result = spawnSync('sh', ['.husky/pre-push'], {
       cwd: new URL('..', import.meta.url),
       env: { ...process.env, PATH: `${fakeBin}:/usr/bin:/bin` },
       encoding: 'utf8',
     });
+
+    assert.match(result.stdout, /fake npm test/);
     assert.equal(result.status, 17, `${result.stdout}\n${result.stderr}`);
     assert.doesNotMatch(result.stdout + result.stderr, /pre-push-e2e/);
   } finally {
     rmSync(fakeBin, { recursive: true, force: true });
   }
+});
+
+test('pre-push explains when node is missing', (t) => {
+  const fakeBin = mkdtempSync(join(tmpdir(), 'styleproof-missing-node-'));
+  t.after(() => rmSync(fakeBin, { recursive: true, force: true }));
+
+  for (const [name, source] of [
+    ['npm', '#!/bin/sh\nexit 17\n'],
+    ['git', '#!/bin/sh\nexit 0\n'],
+  ]) {
+    writeFileSync(join(fakeBin, name), source);
+    chmodSync(join(fakeBin, name), 0o755);
+  }
+
+  const result = spawnSync('/bin/sh', ['.husky/pre-push'], {
+    env: { ...process.env, PATH: fakeBin },
+    encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 17, result.stdout + result.stderr);
+  assert.match(result.stdout, /node not found; skipping anti-slop lint/);
+  assert.doesNotMatch(result.stdout + result.stderr, /cannot strip types/);
 });
 
 test('pre-push e2e gate explains how to repair missing Chromium without skipping', () => {
@@ -690,17 +717,24 @@ test('M16: missing Chromium blocks changed, first-push, and unknown-stdin paths'
 test('M17: the full shell hook propagates e2e exit 37 after unit success', (t) => {
   const f = fixture(t);
   f.write('.husky/pre-push', hook);
-  f.write('fake-bin/npm', '#!/bin/sh\nprintf "%s\\n" "$*" >> npm-args\nif [ "$1" = test ]; then exit 0; fi\nexit 37\n');
+  f.write(
+    'fake-bin/npm',
+    '#!/bin/sh\nprintf "%s\\n" "$*" >> npm-args\nif [ "$1" = test ] || [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 37\n',
+  );
   chmodSync(join(f.root, 'fake-bin/npm'), 0o755);
+  symlinkSync(process.execPath, join(f.root, 'fake-bin/node'));
   const head = f.commit();
+
   const result = spawnSync('sh', ['.husky/pre-push'], {
     cwd: f.root,
     input: f.pushed(head, '0'.repeat(40)),
     env: { ...process.env, PATH: `${join(f.root, 'fake-bin')}:${process.env.PATH}` },
     encoding: 'utf8',
   });
+
   assert.equal(result.status, 37, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'test\nrun test:e2e -- --workers=4\n');
+  const lintArgs = process.features.typescript ? 'run lint:slop\n' : '';
+  assert.equal(f.npmArgs(), `${lintArgs}test\nrun test:e2e -- --workers=4\n`);
 });
 
 test('M7: distinct commits with an identical root tree may skip with a clean index', (t) => {

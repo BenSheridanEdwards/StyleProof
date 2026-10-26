@@ -19,8 +19,8 @@ const ESLINT_CONFIG = /\/\*\s*(?:eslint|global|globals)\s+[\w@/-]+/;
 const TS_DIRECTIVE = /\/\/\s*@ts-(ignore|nocheck|expect-error)\b(.*)$/;
 
 export const MESSAGES = {
-  'eslint-rules': 'disables every ESLint rule; name the rules it turns off.',
-  'eslint-reason': 'has no reason; end it with `-- <why this line is the exception>`.',
+  'eslint-rules': 'ESLint/Oxlint disable turns off every rule; name the rules it turns off.',
+  'eslint-reason': 'ESLint/Oxlint disable has no reason; end it with `-- <why this line is the exception>`.',
   'eslint-config': 'configures ESLint inline; move the exception to eslint.config.js with its reason.',
   'ts-ignore': 'is `@ts-ignore`; use `@ts-expect-error <reason>`, which fails once the error is fixed.',
   'ts-nocheck': 'turns off type checking for the file; fix the types instead.',

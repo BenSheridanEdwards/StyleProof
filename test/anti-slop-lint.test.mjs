@@ -41,3 +41,13 @@ test('lint:slop passes clean code', { skip }, () => {
   const result = lint('export const call = (fn: () => void) => fn();\n');
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
+
+test('lint:slop uses quiet mode', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.equal(manifest.scripts['lint:slop'], 'oxlint --quiet');
+});
+
+test('lint:slop passes when only a warning fires', { skip }, () => {
+  const result = lint('export const get = (obj: object, key: string) => Reflect.get(obj, key);\n');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
