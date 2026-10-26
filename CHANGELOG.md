@@ -272,6 +272,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The artifact holds one self-contained `report.html`, plus `report.md` and `report.json`, without `crops/`. Images beyond the budget become captions with a visible omission notice. Oversized JSON receipts do not prevent publication. HTML text that cannot fit fails explicitly instead of dropping the verdict.
 
 - A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary.
+- A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary (#1083).
   Fork captures, failure verdicts, and included advisory content changes still
   publish. Adopters on `@v9` receive this default when the major tag moves;
   set `report-upload: always` to keep clean-run reports.
@@ -348,6 +349,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout (#1091, #1093). Keep config errors concise and load JSON config without an extra process.
+- Fix cold-base CI captures to reuse head tarballs and Git specs, resolve local tarballs against the head package directory, and log the installed runtime spec; directories, link specs, and missing manifests use the running CLI version (#1094). Mutable Git refs are resolved again; pin a full commit SHA for the same build.
 - **`styleproof setup` installs with npm, pnpm and Yarn on Windows (#970).**
   Setup spawned `npm.cmd`/`pnpm.cmd`/`yarn.cmd` directly, which Node rejects
   with `spawnSync npm.cmd EINVAL`, so it exited 5 at the install step (or at

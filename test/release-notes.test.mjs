@@ -47,6 +47,20 @@ test('rejects malformed versions and unsafe release titles', () => {
   assert.throws(() => extractReleaseNotes('## [6.2.0]\n\n> **Unsafe\u2028title**\n', '6.2.0'), /one safe line/);
 });
 
+for (const [section, prs] of [
+  ['Fixed', [1091, 1093, 1094]],
+  ['Changed', [1083]],
+]) {
+  test(`9.0.0 ${section} release notes include the shipped CI and upload changes`, () => {
+    const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+    const { body } = extractReleaseNotes(changelog, '9.0.0');
+    const notes = body.split(`### ${section}\n`)[1]?.split('\n### ')[0] ?? '';
+    for (const pr of prs) {
+      assert.ok(notes.includes(`#${pr}`), `9.0.0 ${section} release notes must include #${pr}`);
+    }
+  });
+}
+
 // The release workflow publishes the package version's section as the GitHub
 // release notes. Renaming the previous release's heading instead of adding a
 // new one dropped [7.4.0] and published its entry again under 7.5.0 (#797).
