@@ -206,18 +206,34 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
   const staticTargets = new Set(graph.filter((e) => isSource(e.from) && isSource(e.to)).map((e) => e.to));
   const affectedFiles = new Set<string>();
   for (const f of changed) {
-    // Context recovery may widen a resolved dependency, but cannot establish
-    // ownership of an otherwise unplaced change (including CSS url()/font assets).
-    if (!entryFiles.has(f) && !staticTargets.has(f)) return 'all';
-    const reach = reverseReach(f, rev);
-    if (reach.size === 0 && !entryFiles.has(f)) return 'all';
-    for (const src of [f, ...reach]) affectedFiles.add(src);
+    const reach = changeReach(f, entryFiles, staticTargets, rev);
+    if (reach === 'all') return 'all';
+    for (const src of reach) affectedFiles.add(src);
   }
   return new Set(
     Object.entries(surfaces)
       .filter(([, file]) => affectedFiles.has(file))
       .map(([key]) => key),
   );
+}
+
+/** The changed file and every file that transitively imports it, or `'all'` when the graph cannot bound where it renders. */
+function changeReach(
+  f: string,
+  entryFiles: Set<string>,
+  staticTargets: Set<string>,
+  rev: Map<string, Set<string>>,
+): Set<string> | 'all' {
+  // Context recovery may widen a resolved dependency, but cannot establish
+  // ownership of an otherwise unplaced change (including CSS url()/font assets).
+  if (!entryFiles.has(f) && !staticTargets.has(f)) return 'all';
+  const reach = reverseReach(f, rev);
+  if (reach.size === 0 && !entryFiles.has(f)) return 'all';
+  // A file nothing imports is run by the framework or a tool, not by a declared
+  // surface: a layout every page renders inside. A change that reaches one can
+  // render on surfaces the graph cannot name.
+  if ([...reach].some((src) => !entryFiles.has(src) && !rev.get(src)?.size)) return 'all';
+  return new Set([f, ...reach]);
 }
 
 /** A changed file whose kind participates in style scope (stylesheet, code, config, or single-file component). */
