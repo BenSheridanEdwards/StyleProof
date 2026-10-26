@@ -456,8 +456,8 @@ test('same-repo workflow_run preserves exact captured head and trusted embedded 
     {
       workflow_run: {
         head_sha: H,
-        head_repository: { full_name: 'example/demo' },
-        pull_requests: [{ number: 12, base: { sha: B }, head: { sha: H } }],
+        head_repository: { id: 1, full_name: 'example/demo' },
+        pull_requests: [{ number: 12, base: { sha: B }, head: { sha: H, repo: { id: 1 } } }],
       },
     },
     'workflow_run',
@@ -482,7 +482,7 @@ test('fork workflow_run ignores unrelated PRs and artifact identity, retaining m
     [
       { state: 'open', number: 99, base: { sha: A }, head: { sha: X } },
       { state: 'closed', number: 98, base: { sha: A }, head: { sha: H } },
-      { state: 'open', number: 12, base: { sha: B }, head: { sha: H } },
+      { state: 'open', number: 12, base: { sha: B }, head: { sha: H, repo: { full_name: 'contributor/demo' } } },
     ],
   );
   assert.deepEqual(calls, [{ ...repo, commit_sha: H }]);
@@ -502,12 +502,19 @@ test('fork workflow_run ignores unrelated PRs and artifact identity, retaining m
   assert.equal(decideReviewStatus({ ...input, trustState: 'CERTIFICATION_FAILED', approved: true }).state, 'failure');
   mismatch(run('diff', fixture('fork-workflow', A), outputs), 'before');
 });
-test('workflow_run missing repository stays untrusted; absent exact-head association emits no tuple', async () => {
+test('workflow_run without a head repository or an exact-head association emits no tuple', async () => {
+  // Without the run's head repository nothing proves which PR it captured.
   const missingRepository = await context(
-    { workflow_run: { head_sha: H, pull_requests: [{ number: 12, base: { sha: B }, head: { sha: H } }] } },
+    {
+      workflow_run: {
+        head_sha: H,
+        pull_requests: [{ number: 12, base: { sha: B }, head: { sha: H, repo: { id: 1 } } }],
+      },
+    },
     'workflow_run',
   );
-  assert.equal(missingRepository.outputs['untrusted-capture'], 'true');
+  assert.equal(missingRepository.outputs['pr-number'], '');
+  assert.equal(missingRepository.outputs['untrusted-capture'], 'false');
   const unmatched = await context({ workflow_run: { head_sha: H } }, 'workflow_run', [
     { state: 'open', number: 99, base: { sha: B }, head: { sha: X } },
   ]);
