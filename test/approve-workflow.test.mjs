@@ -264,6 +264,30 @@ test('a ticked clean-run comment without a report link makes no status write', a
   }
 });
 
+test('a marker comment someone else posts cannot block a valid approval', async () => {
+  // Anyone who can comment can paste the hidden marker. Only the bot's own comments
+  // compete for it; a pasted copy, by a person or another integration, is ignored.
+  const copies = [
+    { id: 100, body: reportComment(), user: { login: 'passer-by', type: 'User' } },
+    { id: 101, body: reportComment(), user: { login: 'other-app[bot]', type: 'Bot' } },
+  ];
+  for (const program of [approveScript, reusableApproveScript]) {
+    const { statuses } = await runApprove({ actor: REVIEWER, existingComments: copies, program: program() });
+    assert.deepEqual(
+      statuses.map((s) => [s.state, s.description]),
+      [['success', `Approved by @${REVIEWER}`]],
+    );
+  }
+});
+
+test('a second report comment from the bot still makes the marker ambiguous', async () => {
+  const superseded = { id: 100, body: reportComment(), user: { login: 'github-actions[bot]', type: 'Bot' } };
+  for (const program of [approveScript, reusableApproveScript]) {
+    const { statuses } = await runApprove({ actor: REVIEWER, existingComments: [superseded], program: program() });
+    assert.deepEqual(statuses, []);
+  }
+});
+
 test('the pull request author cannot approve their own visual changes (#477)', async () => {
   const { statuses, created, updated } = await runApprove({ actor: AUTHOR });
 

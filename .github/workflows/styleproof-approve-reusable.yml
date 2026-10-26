@@ -260,23 +260,25 @@ jobs:
             if (approved) {
               if (!reportUrl || !publication) return;
 
-              // The marker comment is an upsert. Reject a copied or superseded bot
-              // comment: exactly one current thread comment may own the marker, and it
-              // must be the comment whose edit triggered this run.
+              // The marker comment is an upsert. Reject a superseded bot comment:
+              // exactly one current bot comment may own the marker, and it must be the
+              // comment whose edit triggered this run. Only the bot's comments compete:
+              // anyone can paste the marker, and a pasted copy must not block approval.
               const threadComments = await github.paginate(github.rest.issues.listComments, {
                 ...context.repo,
                 issue_number: context.payload.issue.number,
                 per_page: 100,
               });
-              const canonicalComments = threadComments.filter((comment) =>
-                (comment.body || '').includes('<!-- styleproof-report -->'),
+              const canonicalComments = threadComments.filter(
+                (comment) =>
+                  comment.user?.type === 'Bot' &&
+                  comment.user?.login === 'github-actions[bot]' &&
+                  (comment.body || '').includes('<!-- styleproof-report -->'),
               );
               if (
                 canonicalComments.length !== 1 ||
                 canonicalComments[0].id !== fresh.data.id ||
-                canonicalComments[0].body !== body ||
-                canonicalComments[0].user?.type !== 'Bot' ||
-                canonicalComments[0].user?.login !== 'github-actions[bot]'
+                canonicalComments[0].body !== body
               ) return;
 
               // The newest StyleProof status for this exact head is the canonical
