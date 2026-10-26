@@ -2,9 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
 import { captureStyleMap } from '../dist/capture.js';
-import { capturePage, capturePageChanges, freezeMotion, injectPathOf, snapSubtree } from '../dist/capture/browser.js';
+import {
+  capturePage,
+  capturePageChanges,
+  freezeMotion,
+  injectPathOf,
+  snapSessionBaseline,
+  snapSubtree,
+} from '../dist/capture/browser.js';
 import { PSEUDO_REFERENCES } from '../dist/pseudo-references.js';
 import { skipSelector } from '../dist/capture/shared.js';
+import { captureForcedStates, resolveForcedStateLimits } from '../dist/capture/forced-states.js';
 
 test('skipSelector: a selector-list entry skips the descendants of every selector in it (#981)', () => {
   // `.ticker, .clock *` would only reach children of .clock; the descendant
@@ -99,6 +107,267 @@ function computedStyle(properties) {
     getPropertyValue: (name) => properties[name] ?? '',
   };
 }
+
+// The same isolated page realm also executes the real CDP snapshot expressions.
+function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupported, resetFailures = 0 } = {}) {
+  const { context, document, run } = capturePageHarness();
+  const nodes = [];
+  const make = (path, parentElement, button = false) => {
+    const element = {
+      path,
+      parentElement,
+      button,
+      children: [],
+      attrs: {},
+      matches: (selector) => selector.includes('.skip') && path.includes(' > output'),
+      setAttribute(name, value) {
+        this.attrs[name] = value;
+      },
+      removeAttribute(name) {
+        delete this.attrs[name];
+      },
+      querySelectorAll() {
+        return this.children.flatMap((child) => [child, ...child.querySelectorAll()]);
+      },
+      computedStyleMap: () => ({ get: () => (drift === 'typed' && revision ? '1px' : 'auto') }),
+    };
+    parentElement?.children.push(element);
+    nodes.push(element);
+    return element;
+  };
+  document.documentElement = make('html');
+  document.body = make('body', document.documentElement);
+  for (let i = 0; i < 20; i++) {
+    const parent = scope === 'parent' ? document.body : make(`body > section:nth-child(${i + 1})`, document.body);
+    const button = make(`${parent.path} > button:nth-child(${i + 1})`, parent, true);
+    make(`${button.path} > span`, button);
+    make(`${parent.path} > output:nth-child(${i + 1})`, parent);
+  }
+  if (unsupported) nodes.at(-1).computedStyleMap = undefined;
+  const targets = nodes.filter((node) => node.button);
+  document.querySelectorAll = (selector) => {
+    if (selector === 'body *') return document.body.querySelectorAll();
+    if (selector.includes('data-styleproof-state-id'))
+      return nodes.filter(
+        (node) =>
+          node.attrs['data-styleproof-state-id'] &&
+          (selector === '[data-styleproof-state-id]' ||
+            selector.includes(`"${node.attrs['data-styleproof-state-id']}"`)),
+      );
+    return targets;
+  };
+  document.querySelector = (selector) => document.querySelectorAll(selector)[0] ?? null;
+  context.HTMLInputElement = class {};
+  context.HTMLTextAreaElement = class {};
+  context.CSSImportRule = class {};
+  context.CSSStyleRule = class {};
+  const rule = Object.assign(new context.CSSStyleRule(), {
+    selectorText: scope === 'parent' ? 'button:hover + output' : 'section:has(button:hover)',
+  });
+  document.styleSheets = scope === 'parent' || scope === 'fallback' ? [{ cssRules: [rule] }] : [];
+  let pathReads = 0;
+  context.window.__spPathOf = (element) => {
+    pathReads++;
+    return element.path;
+  };
+  let forced,
+    state,
+    revision = settled && drift !== 'removal' ? 1 : 0,
+    mutated = settled,
+    baselines = 0,
+    counts = 0,
+    reads = 0;
+  if (settled && drift === 'removal') nodes.pop().parentElement.children.pop();
+  const visits = [];
+  context.getComputedStyle = (element, pseudo) => {
+    reads++;
+    const changed =
+      forced &&
+      (element === forced ||
+        element.parentElement === forced ||
+        (scope !== 'subtree' && element.parentElement === forced.parentElement));
+    return computedStyle(
+      pseudo
+        ? { content: pseudo === '::before' && changed ? '"state"' : 'none' }
+        : { display: 'block', color: `${changed ? state : 'rest'}-${drift === 'typed' ? 0 : revision}` },
+    );
+  };
+  const client = {
+    detach: async () => {},
+    send: async (method, params) => {
+      if (method === 'DOM.getDocument') return { root: { nodeId: 1 } };
+      if (method === 'DOM.querySelectorAll')
+        return { nodeIds: document.querySelectorAll(params.selector).map((n) => nodes.indexOf(n) + 1) };
+      if (method === 'CSS.forcePseudoState') {
+        const resetting = !params.forcedPseudoClasses.length;
+        if (resetting && state === 'active' && forced === targets.at(-1) && resetFailures-- > 0)
+          throw new Error('CSS.forcePseudoState: Could not find node with given id');
+        forced = resetting ? undefined : nodes[params.nodeId - 1];
+        if (forced) {
+          state = params.forcedPseudoClasses[0];
+          visits.push([forced.path, state]);
+        } else if (state === 'active' && drift && !mutated) {
+          mutated = true;
+          if (drift !== 'removal') revision++;
+          else {
+            const removed = nodes.pop();
+            removed.parentElement.children.pop();
+          }
+        }
+      }
+      if (method !== 'Runtime.evaluate') return {};
+      const expression = params.expression;
+      const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
+      // Force the production legacy path; all per-target reads still run unmodified.
+      if (legacy && sessionBaseline) return { result: { value: false } };
+      const value = runInContext(expression, context);
+      if (expression.includes('"countOnly":true')) counts++;
+      else if (expression.includes('"saveBaseline":true') && (!sessionBaseline || value)) baselines++;
+      return { result: { value } };
+    },
+  };
+  const page = { context: () => ({ newCDPSession: async () => client }), evaluate: async (fn, args) => run(fn, args) };
+  const capture = async (options = {}, ignore = [], skipPaths = []) => {
+    const warnings = [],
+      original = console.warn;
+    console.warn = (message) => warnings.push(message);
+    try {
+      const result = await captureForcedStates(
+        page,
+        ignore,
+        options.maxInteractive ?? 800,
+        resolveForcedStateLimits({ forcedStateScope: scope === 'document' ? 'document' : 'stylesheet', ...options }),
+        skipPaths,
+      );
+      assert.deepEqual(
+        Object.keys(context.window).filter((key) => key.startsWith('__spForcedStateBaseline')),
+        [],
+      );
+      assert.ok(nodes.every((node) => !node.attrs['data-styleproof-state-id']));
+      assert.equal(forced, undefined);
+      if (legacy) assert.equal(counts, 0);
+      return { result, warnings, visits, baselines, counts, reads, pathReads };
+    } finally {
+      console.warn = original;
+    }
+  };
+  return {
+    capture,
+    run,
+    context,
+    targets,
+    get reads() {
+      return reads;
+    },
+  };
+}
+
+for (const scope of ['document', 'fallback', 'subtree', 'parent']) {
+  test(`shared baseline preserves serialized states, proof, warnings and budget boundaries: ${scope}`, async (t) => {
+    const size = { document: 82, fallback: 82, subtree: 2, parent: 61 }[scope];
+    for (const options of [
+      {},
+      { maxForcedStateScanWork: size * 80 },
+      { maxForcedStateScanWork: size * 8 },
+      { maxForcedStateScanWork: size * 8 + 1 },
+      { maxForcedStateScanWork: size * 8 - 1 },
+      { maxForcedStateElements: 1 },
+      { maxForcedStateElements: size },
+      { maxInteractive: 2 },
+      { maxInteractive: 3 },
+    ]) {
+      const shared = await forcedStateHarness({ scope }).capture(options);
+      const legacy = await forcedStateHarness({ scope, legacy: true }).capture(options);
+      assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+      assert.deepEqual(shared.warnings, legacy.warnings);
+      assert.deepEqual(shared.visits, legacy.visits, 'truncation lands on the same target and state');
+      if (shared.counts) assert.equal(shared.baselines, 2, 'one shared baseline plus its final check');
+      assert.ok(shared.reads <= legacy.reads, 'avoid extra style reads for disjoint or budget-limited scopes');
+      if (!Object.keys(options).length) {
+        t.diagnostic(`style reads: ${legacy.reads} legacy, ${shared.reads} shared`);
+        if (scope === 'fallback')
+          assert.match(shared.warnings[0], /'stylesheet' fell back to whole-document forced-state reads:.*:has\(\)/);
+        const documentScope = scope === 'document' || scope === 'fallback';
+        assert.equal(shared.counts > 0, documentScope);
+        if (documentScope) {
+          assert.ok(shared.reads < legacy.reads, 'sharing must save style reads');
+          assert.equal(shared.pathReads - legacy.pathReads, size * 3, 'one count, shared save and end check');
+        } else {
+          assert.equal(shared.reads, legacy.reads);
+          assert.equal(shared.pathReads, legacy.pathReads, 'narrow scopes bypass the planner');
+        }
+        assert.ok(Object.keys(shared.result.stateComputedValueStyle).length > 0);
+        assert.equal(shared.result.skipped, false);
+      }
+    }
+    const args = [{}, ['.skip'], ['body > section:nth-child(2)']];
+    assert.equal(
+      JSON.stringify((await forcedStateHarness({ scope }).capture(...args)).result),
+      JSON.stringify((await forcedStateHarness({ scope, legacy: true }).capture(...args)).result),
+    );
+  });
+}
+
+test('baseline planning stops visiting targets once the scan budget is exhausted', async (t) => {
+  for (const maxForcedStateScanWork of [82 * 4, 82 * 4 - 1]) {
+    const shared = await forcedStateHarness().capture({ maxForcedStateScanWork });
+    const legacy = await forcedStateHarness({ legacy: true }).capture({ maxForcedStateScanWork });
+    assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+    assert.deepEqual(shared.warnings, legacy.warnings);
+    assert.deepEqual(shared.visits, legacy.visits);
+    t.diagnostic(`budget ${maxForcedStateScanWork}: ${shared.pathReads - legacy.pathReads} planner path reads`);
+    assert.equal(shared.pathReads - legacy.pathReads, 82, 'one document count regardless of target count');
+  }
+});
+
+for (const drift of ['style', 'removal', 'typed']) {
+  test(`end-check ${drift} drift discards the entire shared pass and retries per target`, async () => {
+    const options = { maxInteractive: 6, maxForcedStateScanWork: 82 * 16 + 20 };
+    const shared = await forcedStateHarness({ drift }).capture(options);
+    const legacy = await forcedStateHarness({ legacy: true, drift, settled: true }).capture(options);
+    assert.equal(shared.visits.filter(([path, state]) => path === shared.visits[0][0] && state === 'hover').length, 2);
+    assert.deepEqual(shared.warnings, legacy.warnings, 'tentative warnings are discarded');
+    assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+    assert.equal(shared.baselines, 6, 'shared save plus five retry baselines; failed end check excluded');
+  });
+}
+
+test('a failed reset before retry keeps the forced-state layer uncertified', async () => {
+  const { result } = await forcedStateHarness({ resetFailures: 4 }).capture();
+  assert.equal(result.skipped, true);
+  assert.equal(result.stateComputedValueStyle, undefined);
+});
+
+test('unavailable Typed OM falls back to per-target baselines', async () => {
+  const shared = await forcedStateHarness({ unsupported: true }).capture();
+  const legacy = await forcedStateHarness({ unsupported: true, legacy: true }).capture();
+  assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+  assert.equal(shared.counts, 0);
+});
+
+test('count-only preserves skips and truncation without reading styles or replacing the baseline', () => {
+  const harness = forcedStateHarness();
+  const args = {
+    selector: '[data-styleproof-state-id="sp-0"]',
+    skipSel: '',
+    skipPaths: [],
+    maxElements: 3,
+    baselineKey: 'baseline',
+    saveBaseline: true,
+  };
+  harness.targets[0].attrs['data-styleproof-state-id'] = 'sp-0';
+  const baseline = harness.run(snapSubtree, args);
+  const saved = JSON.stringify(harness.context.window.baseline),
+    reads = harness.reads;
+  assert.equal(JSON.stringify(harness.run(snapSubtree, { ...args, countOnly: true })), JSON.stringify(baseline));
+  assert.equal(harness.reads, reads);
+  assert.equal(JSON.stringify(harness.context.window.baseline), saved);
+  let assertions = 0;
+  harness.context.window.__spAssertFrozen = () => {
+    if (++assertions === 2) throw new Error('freeze lost');
+  };
+  assert.throws(() => harness.run(snapSubtree, { ...args, countOnly: true }), /freeze lost/);
+});
 
 function pseudoPageHarness({ tag = 'p', display = 'block', host = {}, pseudos = {}, defaults = {} } = {}) {
   const harness = capturePageHarness();

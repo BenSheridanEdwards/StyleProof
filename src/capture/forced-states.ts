@@ -6,6 +6,7 @@ import {
   clearInteractiveMarks,
   clearStateBaseline,
   markInteractiveElements,
+  snapSessionBaseline,
   snapSubtree,
   type ForcedStateReadScope,
   type MarkedInteractive,
@@ -195,12 +196,18 @@ type ForcedStateCaptureContext = {
   limits: Required<ForcedStateLimits>;
   /** Elements each read compares; `'document'` unless `forcedStateScope: 'stylesheet'` proved a narrower one. */
   readScope: ForcedStateReadScope;
+  sharedBaseline: boolean;
+  warnings: string[];
 };
 
 type ForcedStateCaptureFlow = 'continue' | 'next-target' | 'stop-capture';
 
-function warnDetachedForcedStateTarget(id: string, action = 'during forced-state capture'): void {
-  warn(`styleproof: interactive element ${id} detached ${action}; skipping it.`);
+function warnDetachedForcedStateTarget(
+  context: ForcedStateCaptureContext,
+  id: string,
+  action = 'during forced-state capture',
+): void {
+  context.warnings.push(`styleproof: interactive element ${id} detached ${action}; skipping it.`);
 }
 
 async function resetForcedStateTarget(context: ForcedStateCaptureContext, target: ForcedStateTarget): Promise<void> {
@@ -245,21 +252,21 @@ async function captureForcedStateVariation(
   const { session } = context;
   if (!(await forcePseudoState(session, target, forcedPseudoClasses))) {
     context.incomplete = true;
-    warnDetachedForcedStateTarget(id);
+    warnDetachedForcedStateTarget(context, id);
     return 'next-target';
   }
   const forced = await readScope(context, scopeArgs(context, target.selector, false));
   if (forced.targetMissing) {
     await resetForcedStateTarget(context, target);
     context.incomplete = true;
-    warnDetachedForcedStateTarget(id);
+    warnDetachedForcedStateTarget(context, id);
     return 'next-target';
   }
 
   await resetForcedStateTarget(context, target);
   if (!(await settleForcedState(session.client, target.selector))) {
     context.incomplete = true;
-    warnDetachedForcedStateTarget(id, 'while resetting forced state');
+    warnDetachedForcedStateTarget(context, id, 'while resetting forced state');
     return 'next-target';
   }
   if (Object.keys(forced.delta).length) (context.states[elementPath] ??= {})[stateName] = forced.delta;
@@ -285,7 +292,7 @@ function recordStateComputedValueStyle(
 function warnTruncatedForcedStateScan(context: ForcedStateCaptureContext): void {
   if (context.scanWarningEmitted) return;
   context.scanWarningEmitted = true;
-  warn(
+  context.warnings.push(
     `styleproof: forced-state document scan reached maxForcedStateElements=${context.limits.maxForcedStateElements} ` +
       `or the remaining maxForcedStateScanWork=${context.limits.maxForcedStateScanWork} budget; ` +
       'capture is target-first and truncated, so the forced-state layer is not certified.',
@@ -300,11 +307,16 @@ async function captureForcedStateTarget(
   const target = await resolveMarkedTarget(context.session, marked.id);
   if (!target) {
     context.incomplete = true;
-    warn(`styleproof: interactive element ${marked.id} is missing or ambiguous; skipping forced-state capture.`);
+    context.warnings.push(
+      `styleproof: interactive element ${marked.id} is missing or ambiguous; skipping forced-state capture.`,
+    );
     return 'next-target';
   }
 
-  const baseline = await readScope(context, scopeArgs(context, target.selector, true));
+  const baseline = await readScope(context, {
+    ...scopeArgs(context, target.selector, true),
+    countOnly: context.sharedBaseline,
+  });
   if (baseline.truncated) warnTruncatedForcedStateScan(context);
   if (budgetExhausted(context)) return 'stop-capture';
 
@@ -322,6 +334,27 @@ async function captureForcedStateTarget(
   }
   // A known-incomplete document scope cannot be restored by more targets: stop after this one.
   return baseline.truncated ? 'stop-capture' : 'continue';
+}
+
+/**
+ * Save/check a document baseline in-page, outside the logical per-target budget.
+ * The final comparison cannot detect resting styles that change and then revert.
+ */
+async function sessionBaseline(
+  context: ForcedStateCaptureContext,
+  targets: MarkedInteractive[],
+  check = false,
+): Promise<boolean> {
+  const args: StateScopeArgs = {
+    ...scopeArgs(context, targets.map(({ id }) => `[${STATE_ID_ATTR}="${id}"]`).join(','), true),
+    maxElements: context.limits.maxForcedStateScanWork,
+  };
+  const { result, exceptionDetails } = await context.session.client.send('Runtime.evaluate', {
+    expression: `(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, ${snapSubtree.toString()})`,
+    returnByValue: true,
+  });
+  if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
+  return result.value === true;
 }
 
 /**
@@ -371,6 +404,8 @@ export async function captureForcedStates(
         scanWorkRemaining: limits.maxForcedStateScanWork,
         limits,
         readScope: await resolveReadScope(page, limits),
+        sharedBaseline: false,
+        warnings: [],
       };
       if (truncated) {
         warn(
@@ -378,8 +413,38 @@ export async function captureForcedStates(
             `forced-state capture truncated to the first ${maxInteractive}. Raise maxInteractive to cover them all.`,
         );
       }
-      for (const markedElement of marked.slice(0, maxInteractive)) {
-        if ((await captureForcedStateTarget(context, markedElement)) === 'stop-capture') break;
+      const targets = marked.slice(0, maxInteractive);
+      // Only document reads (including stylesheet fallback) share a baseline.
+      // Mixed Typed OM support must retain the legacy per-scope availability rule.
+      context.sharedBaseline =
+        context.readScope === 'document' && targets.length > 0 && (await sessionBaseline(context, targets));
+      const captureTargets = async (): Promise<void> => {
+        for (const markedElement of targets) {
+          if ((await captureForcedStateTarget(context, markedElement)) === 'stop-capture') break;
+        }
+      };
+      try {
+        await captureTargets();
+        if (context.sharedBaseline && !(await sessionBaseline(context, targets, true))) {
+          // Discard all tentative output and warnings; retry the entire session once using
+          // the original per-target baselines, with the original budget and target order.
+          Object.assign(context, {
+            sharedBaseline: false,
+            states: {},
+            stateComputedValueStyle: {},
+            warnings: [],
+            incomplete: truncated,
+            scanWarningEmitted: false,
+            scanWorkRemaining: limits.maxForcedStateScanWork,
+          });
+          for (const target of [...session.applied]) {
+            await resetForcedStateTarget(context, target);
+            await settleForcedState(session.client, target.selector);
+          }
+          await captureTargets();
+        }
+      } finally {
+        for (const message of context.warnings) warn(message);
       }
       if (context.scanWorkRemaining === 0 && context.incomplete) {
         warn(

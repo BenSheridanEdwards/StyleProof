@@ -506,6 +506,8 @@ export type StateScopeArgs = {
   maxElements: number;
   baselineKey: string;
   saveBaseline: boolean;
+  /** Charge the usual target-first budget without reading or replacing styles. */
+  countOnly?: boolean;
   /** Elements beyond the target's own subtree to read (default `'document'`). */
   scope?: ForcedStateReadScope;
 };
@@ -606,6 +608,7 @@ export function snapSubtree({
   maxElements,
   baselineKey,
   saveBaseline,
+  countOnly = false,
   scope = 'document',
 }: StateScopeArgs) {
   const assertFrozen = (window as unknown as WithFreeze).__spAssertFrozen;
@@ -640,6 +643,10 @@ export function snapSubtree({
       break;
     }
     elements.push({ element, path: elementPath });
+  }
+  if (countOnly) {
+    assertFrozen?.();
+    return { delta: {}, truncated, scanned: elements.length };
   }
 
   const baseline = stateWindow[baselineKey];
@@ -713,6 +720,38 @@ export function snapSubtree({
   }
   if (!baseline) return { delta: {}, truncated: true, scanned: elements.length };
   return { delta: result, truncated, scanned: elements.length, ...(typedMargins ? { typedMargins } : {}) };
+}
+
+/** Plan and save/check a shared document baseline. Serialized with its snapshot reader over CDP. */
+export function snapSessionBaseline(
+  args: StateScopeArgs,
+  maxElements: number,
+  check: boolean,
+  snap: typeof snapSubtree,
+): boolean {
+  const stateWindow = window as unknown as Record<string, unknown>;
+  const typedKey = `${args.baselineKey}-typed-margins`;
+  const previousBaseline = JSON.stringify([stateWindow[args.baselineKey], stateWindow[typedKey]]);
+  if (!check) {
+    const documentCount = snap({ ...args, countOnly: true });
+    // Every document baseline has the same count. Never replace a limited prefix;
+    // saving work after the shared save + end check requires a third baseline.
+    // Two complete targets consume eight reads (baseline + three forced states).
+    if (
+      documentCount.truncated ||
+      documentCount.scanned === 0 ||
+      documentCount.scanned > maxElements ||
+      args.selector.split(',').length <= 2 ||
+      args.maxElements <= documentCount.scanned * 8
+    )
+      return false;
+  }
+  const read = snap(args);
+  return (
+    !read.truncated &&
+    !!stateWindow[typedKey] &&
+    (!check || previousBaseline === JSON.stringify([stateWindow[args.baselineKey], stateWindow[typedKey]]))
+  );
 }
 
 export function clearStateBaseline(baselineKey: string): void {

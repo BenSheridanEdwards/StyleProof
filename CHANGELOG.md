@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines.
 - Fix the approve workflow ignoring every tick once anyone posted a comment containing the hidden `<!-- styleproof-report -->` marker. Only the bot's own comments now compete for the marker, so a pasted copy can no longer block approval; a second report comment from the bot still makes the marker ambiguous and refuses.
 - Fix selective remap reusing base maps for changes reaching conventional wrappers (`layout`, `template`, `_app`, `_document`, `App`) before a declared surface. These changes now return `'all'`, while SPA page changes stay selective and test, story, script, or undeclared-route importers alone do not force a full re-capture.
 - Fix the report and `styleproof-diff` hiding a changed `:hover`/`:focus`/`:active` value whenever the element's resting value of the same property also changed. The gate counted the state change, but the reviewer never saw it. A state row is now dropped as an echo only when the state renders the same value on both sides, or exactly the resting value on each side, for the owner as for any other target.
