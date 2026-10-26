@@ -563,6 +563,95 @@ test('forced-state maps recover the same uniquely marked element after its node 
   expect(diffStyleMaps(first, replay), 'repeated replacement captures stay deterministic').toEqual([]);
 });
 
+test('state-layer batches preserve sequential PNG bytes and reset every target', async ({ page }, testInfo) => {
+  const count = 24;
+  const html = `<!doctype html><style>
+    /* Native auto focus rings can differ at antialiased corners between paints. */
+    button { appearance: none; border-radius: 0; outline: 0; width: 80px; height: 60px; border: 2px solid black; background: white; }
+    button:hover { background: red; } button:nth-child(even):hover { border-color: blue; }
+    button:focus { background: lime; } button:focus-visible span { color: purple; }
+    button:focus-visible { outline: 2px solid purple; outline-offset: -4px; }
+    button:active { background: blue; } button:nth-child(3n):active { border-color: red; }
+  </style>${Array.from({ length: count }, (_, i) => `<button><span>${i}</span></button>`).join('')}`;
+  const counts: Record<string, Record<string, number>> = {};
+  const peaks: Record<string, number> = {};
+  for (const mode of ['sequential', 'batched']) {
+    counts[mode] = {};
+    let tail: Promise<unknown> = Promise.resolve();
+    const pending: Record<string, number> = {};
+    await withPage(page, html, async () => {
+      const rest = await captureStyleMap(page, { captureStates: false });
+      const restPng = await page.screenshot({ fullPage: true, animations: 'disabled' });
+      const positions = await page.locator('button').evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const { x, y } = button.getBoundingClientRect();
+          return { x, y };
+        }),
+      );
+      await withInterceptedCDPSession(
+        page,
+        { detachCount: 0 },
+        (call, forward) => {
+          const phase =
+            call.method === 'CSS.forcePseudoState'
+              ? `${call.method}:${JSON.stringify(call.params?.forcedPseudoClasses)}`
+              : call.method;
+          const send = async () => {
+            counts[mode][phase] = (counts[mode][phase] ?? 0) + 1;
+            pending[phase] = (pending[phase] ?? 0) + 1;
+            if (mode === 'batched') peaks[phase] = Math.max(peaks[phase] ?? 0, pending[phase]);
+            try {
+              return await forward(call.method, call.params);
+            } finally {
+              pending[phase]--;
+            }
+          };
+          // Reference: await each actual CDP send before sending the next target's command.
+          return mode === 'sequential' ? (tail = tail.then(send)) : send();
+        },
+        () => captureStateLayerScreenshots(page, testInfo.outputPath(mode)),
+      );
+      const after = await captureStyleMap(page, { captureStates: false });
+      expect(after.elements, `${mode} leaves every target at rest`).toEqual(rest.elements);
+      for (const [state, background] of Object.entries({
+        hover: [255, 0, 0],
+        focus: [0, 255, 0],
+        active: [0, 0, 255],
+      })) {
+        const bytes = fs.readFileSync(testInfo.outputPath(`${mode}.${state}.png`));
+        expect(bytes).not.toEqual(restPng);
+        const png = PNG.sync.read(bytes);
+        const pixel = (x: number, y: number): number[] => {
+          const offset = (Math.round(y) * png.width + Math.round(x)) * 4;
+          return [...png.data.subarray(offset, offset + 3)];
+        };
+        for (const { x, y } of positions) {
+          expect(pixel(x + 10, y + 10), `${mode} ${state} forces every button`).toEqual(background);
+          if (state === 'focus') expect(pixel(x + 3, y + 10), `${mode} paints every focus ring`).toEqual([128, 0, 128]);
+        }
+      }
+    });
+  }
+  expect(counts.batched).toEqual(counts.sequential);
+  expect(counts.batched['DOM.querySelectorAll']).toBe(count);
+  expect(counts.batched['CSS.forcePseudoState:[]']).toBe(count * 3);
+  for (const phase of ['DOM.querySelectorAll', 'CSS.forcePseudoState:[]']) {
+    expect(peaks[phase], `${phase} sends independent commands together`).toBe(count);
+  }
+  for (const phase of [
+    'CSS.forcePseudoState:["hover"]',
+    'CSS.forcePseudoState:["focus","focus-visible"]',
+    'CSS.forcePseudoState:["active"]',
+  ]) {
+    expect(peaks[phase], `${phase} awaits each target's command`).toBe(1);
+  }
+  for (const state of ['hover', 'focus', 'active']) {
+    expect(fs.readFileSync(testInfo.outputPath(`batched.${state}.png`))).toEqual(
+      fs.readFileSync(testInfo.outputPath(`sequential.${state}.png`)),
+    );
+  }
+});
+
 test('state-layer screenshots recover a uniquely marked replacement before forcing each state', async ({ page }) => {
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     html, body { margin: 0; background: rgb(255, 255, 255); }
