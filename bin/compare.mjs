@@ -148,7 +148,7 @@ function cachedDirs(name, opts, args, purpose, usage) {
     });
     return { beforeDir: cacheCapture.beforeDir, afterDir: cacheCapture.afterDir, cacheCapture };
   } catch (error) {
-    console.error(cachedMapsUnavailableMessage(name, purpose, error));
+    console.error(cachedMapsUnavailableMessage(name, purpose, error, args[0]));
     return process.exit(2);
   }
 }

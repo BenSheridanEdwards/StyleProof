@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Fix the hint `styleproof-diff`, `styleproof-report` and `styleproof compare` print when no base map can be restored. It sent local users to "a repo with the 'origin' remote", which does not help when the remote has no map store. It now prints the local steps that work: capture base and head under their own labels, then compare the two directories. The README's quickstart shows the same steps.
 - Fix the Action resolving a `workflow_run` to a PR whose head lives in another repository. A fork that pushed the exact head commit of another PR could have its untrusted capture posted onto that PR; the PR's head repository must now match the run's head repository. A `workflow_run` with no head repository now resolves no PR, so its comment and status steps are skipped.
 - Stop CI immediately when the map capture process is terminated by a signal, preserving the signal exit code and cleaning up temporary worktrees instead of starting a head dependency install after an interrupted baseline.
 - Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout. Keep config errors concise and load JSON config without an extra process.

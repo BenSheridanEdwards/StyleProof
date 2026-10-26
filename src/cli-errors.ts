@@ -11,13 +11,23 @@ export function projectConfigOrExit(cli: string, cwd = process.cwd()): StyleProo
   }
 }
 
-/** "Cached maps couldn't be restored" guidance shared by styleproof-diff and styleproof-report. */
-export function cachedMapsUnavailableMessage(command: string, purpose: string, error: unknown): string {
+/** "Cached maps couldn't be restored" guidance shared by styleproof-diff and styleproof-report.
+ *  A local checkout rarely has a stored base map, so the hint names local steps that work
+ *  without touching uncommitted changes. */
+export function cachedMapsUnavailableMessage(
+  command: string,
+  purpose: string,
+  error: unknown,
+  baseRef = '<base-branch>',
+): string {
   return [
     `${command}: cached maps are not available for this ${purpose} — nothing was compared`,
     errorMessage(error),
-    `Next: run this in CI (or a repo with the 'origin' remote) where the base map is restorable, ` +
-      `or capture both sides and compare them directly: ${command} <beforeDir> <afterDir>.`,
+    'Next: in CI the base map is restored or captured for you. Locally, capture each side under its own label:',
+    `  git switch ${baseRef} && styleproof capture --dir base`,
+    '  git switch - && styleproof capture --dir head',
+    `  ${command} .styleproof/maps/base .styleproof/maps/head`,
+    `Any two capture directories work: ${command} <beforeDir> <afterDir>.`,
   ].join('\n');
 }
 
