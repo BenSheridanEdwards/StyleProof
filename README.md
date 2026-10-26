@@ -389,9 +389,10 @@ Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
 including package configs; source paths retain Unicode and control characters,
 and renames check both locations. A relevant change forces a fresh base capture.
 
-The map CLI evaluates project config in a separate process, so cold-base npm
-checkouts can use their own Playwright installation without conflicting with the
-head CLI.
+The map CLI evaluates JavaScript and TypeScript config in a separate process, so
+cold-base npm checkouts can use their own Playwright installation without
+conflicting with the head CLI. JSON config loads without an extra process. Config
+errors retain concise messages without a Node stack trace.
 
 JavaScript config (`styleproof.config.mjs` or `.js`) also supplies coverage and
 product-state policy to capture specs, diff, and report. It takes precedence over

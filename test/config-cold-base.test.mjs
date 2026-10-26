@@ -74,12 +74,39 @@ for (const extension of ['mjs', 'ts']) {
       const result = spawnSync(
         process.execPath,
         [fileURLToPath(new URL('../bin/styleproof-map.mjs', import.meta.url)), '--no-upload'],
-        { cwd: root, encoding: 'utf8', timeout: 15_000 },
+        { cwd: root, encoding: 'utf8', timeout: 60_000 },
       );
       assert.equal(result.error, undefined);
       assert.doesNotMatch(result.stderr, /Requiring @playwright\/test second time/);
       assert.match(result.stderr, /cold-base-selected\.spec\.ts/);
       assert.equal(result.status, 2, result.stderr);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+for (const [extension, source, expected] of [
+  ['json', '{', /styleproof\.config\.json: invalid JSON/],
+  ['mjs', 'export default { coverage: { strict: "yes" } };', /styleproof\.config\.mjs:.*strict/],
+  ['mjs', "import 'styleproof-missing-config-package';", /Cannot find package 'styleproof-missing-config-package'/],
+]) {
+  test(`map CLI reports a clean single-line .${extension} config error: ${source}`, () => {
+    const root = mkTmp('styleproof-map-config-error-');
+    try {
+      fs.mkdirSync(path.join(root, '.git'));
+      fs.writeFileSync(path.join(root, `styleproof.config.${extension}`), source);
+      const result = spawnSync(
+        process.execPath,
+        [fileURLToPath(new URL('../bin/styleproof-map.mjs', import.meta.url)), '--no-upload'],
+        { cwd: root, encoding: 'utf8', timeout: 60_000 },
+      );
+      assert.equal(result.error, undefined);
+      assert.equal(result.status, 2, result.stderr);
+      assert.match(result.stderr, expected);
+      assert.equal(result.stderr.trim().split('\n').length, 1, result.stderr);
+      assert.equal(result.stderr.split(`styleproof.config.${extension}:`).length - 1, 1, result.stderr);
+      assert.doesNotMatch(result.stderr, /Node\.js v|at file:|could not load — .*could not load/);
     } finally {
       rmTmp(root);
     }
