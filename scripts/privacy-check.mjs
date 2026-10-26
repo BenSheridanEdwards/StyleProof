@@ -25,6 +25,10 @@ const ALLOWED_GITHUB = new Set([
   'github.com/owner/repo', // docs placeholder
   // Public open-source tools the repo's tooling credits or links to.
   'github.com/abhigyanpatwari/gitnexus',
+  // Vendored upstream sources (vendor/anti-slop).
+  'github.com/dmmulroy/anti-slop',
+  'github.com/eslint/eslint',
+  'github.com/eslint-stylistic/eslint-stylistic',
   'github.com/gitleaks/gitleaks',
   'github.com/humanlayer/skills',
   'github.com/vojtaholik/good-css',

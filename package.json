@@ -84,6 +84,7 @@
     "format": "prettier --write \"{src,bin,test,example,scripts}/**/*.{ts,mjs,js}\" \"*.{ts,js,mjs,json,md}\"",
     "format:check": "prettier --check \"{src,bin,test,example,scripts}/**/*.{ts,mjs,js}\" \"*.{ts,js,mjs,json,md}\"",
     "privacy:check": "node scripts/privacy-check.mjs",
+    "check:anti-slop-vendor": "node scripts/check-anti-slop-vendor.mjs",
     "check:context": "node scripts/check-context-layer.mjs",
     "check:suppressions": "node scripts/check-suppressions.mjs",
     "verify": "npm run check:context && npm run check:suppressions && npm run typecheck && npm run lint && npm run format:check && npm run privacy:check && npm test",
