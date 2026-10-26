@@ -53,11 +53,22 @@ export function injectPathOf(): void {
   (window as unknown as WithPathOf).__spPathOf = (el: Element): string => {
     if (el === document.documentElement) return 'html';
     if (el === document.body) return 'body';
+    // A framework-generated id renumbers when an unrelated component starts or stops calling the
+    // generator, so it never names an element. Same rules as inventory.ts `isStableId`, copied
+    // because this function is serialized into the page.
+    const stableId = (id: string | null): string | null => {
+      const v = id?.trim();
+      if (!v || v.length > 80) return null;
+      if (/[:«»]|_[rR]_[0-9A-Za-z]*_/.test(v)) return null;
+      if (/^(headlessui|radix|mui|chakra|reach|react-aria|floating-ui|downshift)-/i.test(v)) return null;
+      if (/^[0-9a-f]{8,}$/i.test(v)) return null;
+      return id;
+    };
     const identityCandidates = (element: Element): string[] => {
       const tag = element.tagName.toLowerCase();
       const attributes: Array<[string, string | null]> = [
         ['styleproof', element.getAttribute('data-styleproof-key')],
-        ['id', element.getAttribute('id')],
+        ['id', stableId(element.getAttribute('id'))],
         ['testid', element.getAttribute('data-testid')],
         ['test', element.getAttribute('data-test')],
         // First `data-style` token only: later tokens carry dynamic state and must not churn the path.

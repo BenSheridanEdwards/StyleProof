@@ -285,6 +285,30 @@ test('content correspondence cannot pair different semantic row identities', asy
   }
 });
 
+test('a renumbered framework id keeps one identity so a real restyle still gates', async ({ page }) => {
+  // A refactor adds one useId consumer earlier in the tree: every later generated id shifts.
+  const cardWith = (id: string, color: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
+    .card { color: ${color}; }
+  </style></head><body><section class="card" id="${id}">card</section></body></html>`;
+  const before = await withPage(page, cardWith('_r_1_', 'rgb(0, 0, 0)'), () =>
+    captureStyleMap(page, { captureStates: false }),
+  );
+  const after = await withPage(page, cardWith('_r_2_', 'rgb(200, 0, 0)'), () =>
+    captureStyleMap(page, { captureStates: false }),
+  );
+  const beforeCardPath = Object.entries(before.elements).find(([, element]) => element.tag === 'section')?.[0];
+  const afterCardPath = Object.entries(after.elements).find(([, element]) => element.tag === 'section')?.[0];
+
+  expect(beforeCardPath).toBe(afterCardPath);
+  expect(diffStyleMaps(before, after, { includeStructure: false })).toEqual([
+    expect.objectContaining({
+      kind: 'style',
+      path: beforeCardPath,
+      props: expect.arrayContaining([expect.objectContaining({ prop: 'color' })]),
+    }),
+  ]);
+});
+
 test('dynamic data-style suffixes keep one identity so real state restyles still gate', async ({ page }) => {
   const statusWith = (state: string, color: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
     [data-style~="${state}"] { color: ${color}; }

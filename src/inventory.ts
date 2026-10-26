@@ -112,7 +112,9 @@ export function isStableId(id: string | null | undefined): id is string {
   if (!id) return false;
   const v = id.trim();
   if (!v || v.length > 80) return false;
-  if (v.includes(':')) return false; // React useId / Radix scoped ids
+  // React useId (`:r0:` to 19.0, `«r0»` in 19.1, `_r_0_` from 19.2) and the Radix ids scoped on it.
+  // capture/browser.ts `__spPathOf` keeps the same rules in its self-contained copy.
+  if (/[:«»]|_[rR]_[0-9A-Za-z]*_/.test(v)) return false;
   if (/^(headlessui|radix|mui|chakra|reach|react-aria|floating-ui|downshift)-/i.test(v)) return false;
   if (/^[0-9a-f]{8,}$/i.test(v)) return false; // hash-like
   return true;
