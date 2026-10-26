@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
+import { once } from 'node:events';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { AddressInfo } from 'node:net';
+import { AddressInfo, connect } from 'node:net';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { loadSetupSteps } from '../dist/capture-url.js';
 
@@ -252,7 +253,7 @@ test('authentication wall rendered by a synthetic data state → incomplete-auth
       ),
     ).toBe(true);
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeServer(server);
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
@@ -346,7 +347,7 @@ test('setup login: a stored session holds through data states; one that cannot s
     expect(stored.coverage.renderedClasses).toEqual(expect.arrayContaining(['skeleton', 'err']));
     expect(stored.coverage.renderedClasses).not.toContain('signin');
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeServer(server);
     for (const out of outs) fs.rmSync(out, { recursive: true, force: true });
   }
 });
@@ -379,7 +380,7 @@ test('the setup session kept for data states never outlives the reload, even one
     state.failAfterLogin = state.failing = false;
     expect(await nextLoad()).toEqual({ token: null, signin: 1 });
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeServer(server);
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
@@ -388,6 +389,34 @@ async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return (server.address() as AddressInfo).port;
 }
+
+function closeServer(server: http.Server): Promise<void> {
+  return new Promise<void>((resolve) => {
+    server.close(() => resolve());
+    // Chromium can preconnect without sending HTTP; close() alone waits for it.
+    server.closeAllConnections();
+  });
+}
+
+test('auth fixture shutdown closes a preconnected socket without an HTTP request', async () => {
+  const server = http.createServer();
+  const port = await listen(server);
+  const accepted = once(server, 'connection');
+  const socket = connect(port, '127.0.0.1');
+  await Promise.all([accepted, once(socket, 'connect')]);
+  let closed = false;
+  const closing = closeServer(server).then(() => {
+    closed = true;
+  });
+  try {
+    await expect.poll(() => closed, { message: 'fixture server shuts down with a preconnected socket' }).toBe(true);
+  } finally {
+    // Let the regression fail promptly even if shutdown stops closing sockets.
+    socket.destroy();
+    server.closeAllConnections();
+    await closing;
+  }
+});
 
 test('HTTP auth redirect without setup stays incomplete-auth; setup drops sticky redirect', async ({ page }) => {
   const secret = 'open-sesame';
@@ -468,7 +497,7 @@ test('HTTP auth redirect without setup stays incomplete-auth; setup drops sticky
     expect(blob).not.toContain(secret);
     expect(blob).not.toMatch(/auth-route-redirect/);
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeServer(server);
     fs.rmSync(setupFile, { force: true });
     fs.rmSync(outBlind, { recursive: true, force: true });
     fs.rmSync(outSetup, { recursive: true, force: true });
@@ -554,7 +583,7 @@ test('HTTP OAuth-only redirect + unrelated cookie setup stays incomplete-auth bl
     expect(reasons).toEqual(expect.arrayContaining(['auth-route-redirect']));
     expect(JSON.stringify(unlocked.confidence)).not.toMatch(/value["']?\s*:/);
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeServer(server);
     fs.rmSync(outBlind, { recursive: true, force: true });
     fs.rmSync(outSetup, { recursive: true, force: true });
   }
@@ -638,7 +667,7 @@ test('public page with session fetch/XHR 302 to auth stays complete; document 30
     expect(docBlob).not.toContain('nav-secret-token-abc');
     expect(docBlob).not.toContain('session-secret-token');
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeServer(server);
     fs.rmSync(outPublic, { recursive: true, force: true });
     fs.rmSync(outDoc, { recursive: true, force: true });
   }
