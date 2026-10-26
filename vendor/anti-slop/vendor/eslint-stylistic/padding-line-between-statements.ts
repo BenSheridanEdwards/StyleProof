@@ -778,3 +778,152 @@ return {
 
     /**
      * Finds the last matched configure from options.
+     * @param prevNode The previous statement to match.
+     * @param nextNode The current statement to match.
+     * @returns The tester of the last matched configure.
+     * @private
+     */
+    function getPaddingType(
+      prevNode: ASTNode,
+      nextNode: ASTNode,
+    ): (typeof PaddingTypes)[keyof typeof PaddingTypes] {
+      for (let i = options.length - 1; i >= 0; --i) {
+        const configure = options[i]
+        if (configure === undefined)
+          throw new Error('Padding rule invariant: configuration entry is missing')
+        if (
+          match(prevNode, configure.prev)
+          && match(nextNode, configure.next)
+        ) {
+          return PaddingTypes[configure.blankLine]
+        }
+      }
+      return PaddingTypes.any
+    }
+
+    /**
+     * Gets padding line sequences between the given 2 statements.
+     * Comments are separators of the padding line sequences.
+     * @param prevNode The previous statement to count.
+     * @param nextNode The current statement to count.
+     * @returns The array of token pairs.
+     * @private
+     */
+    function getPaddingLineSequences(
+      prevNode: ASTNode,
+      nextNode: ASTNode,
+    ): [Token, Token][] {
+      const pairs: [Token, Token][] = []
+      let prevToken: Token = getActualLastToken(prevNode, sourceCode)!
+
+      if (nextNode.loc.start.line - prevToken.loc.end.line >= 2) {
+        do {
+          const token: Token = sourceCode.getTokenAfter(prevToken, {
+            includeComments: true,
+          })!
+
+          if (token.loc.start.line - prevToken.loc.end.line >= 2)
+            pairs.push([prevToken, token])
+
+          prevToken = token
+        } while (prevToken.range[0] < nextNode.range[0])
+      }
+
+      return pairs
+    }
+
+    /**
+     * Verify padding lines between the given node and the previous node.
+     * @param node The node to verify.
+     *
+     * @private
+     */
+    function verify(node: ASTNode): void {
+      if (
+        !node.parent
+        || ![
+          'BlockStatement',
+          'Program',
+          'StaticBlock',
+          'SwitchCase',
+          'SwitchStatement',
+          'TSInterfaceBody',
+          'TSModuleBlock',
+          'TSTypeLiteral',
+        ].includes(node.parent.type)
+      ) {
+        return
+      }
+
+      // Save this node as the current previous statement.
+      const prevNode = scopeInfo!.prevNode
+
+      // Verify.
+      if (prevNode)
+        pendingPairs.push({ prevNode, nextNode: node })
+
+      scopeInfo!.prevNode = node
+    }
+
+    function verifyPendingPairs(): void {
+      for (const { prevNode, nextNode } of pendingPairs) {
+        const type = getPaddingType(prevNode, nextNode)
+        const paddingLines = getPaddingLineSequences(prevNode, nextNode)
+
+        type.verify(context, prevNode, nextNode, paddingLines)
+      }
+    }
+
+    /**
+     * Verify padding lines between the given node and the previous node.
+     * Then process to enter to new scope.
+     * @param node The node to verify.
+     *
+     * @private
+     */
+    function verifyThenEnterScope(node: ASTNode): void {
+      verify(node)
+      enterScope()
+    }
+
+    const selectorMatchListeners = Object.fromEntries(
+      Array.from(selectorMatchedNodes.keys(), selector => [
+        selector,
+        (node: ASTNode): void => {
+          selectorMatchedNodes.get(selector)?.add(node)
+        },
+      ]),
+    )
+
+    return {
+      'Program': enterScope,
+      'Program:exit': () => {
+        verifyPendingPairs()
+        exitScope()
+      },
+      'BlockStatement': enterScope,
+      'BlockStatement:exit': exitScope,
+      'SwitchStatement': enterScope,
+      'SwitchStatement:exit': exitScope,
+      'SwitchCase': verifyThenEnterScope,
+      'SwitchCase:exit': exitScope,
+      'StaticBlock': enterScope,
+      'StaticBlock:exit': exitScope,
+
+      'TSInterfaceBody': enterScope,
+      'TSInterfaceBody:exit': exitScope,
+      'TSModuleBlock': enterScope,
+      'TSModuleBlock:exit': exitScope,
+      'TSTypeLiteral': enterScope,
+      'TSTypeLiteral:exit': exitScope,
+      'TSDeclareFunction': verifyThenEnterScope,
+      'TSDeclareFunction:exit': exitScope,
+      'TSMethodSignature': verifyThenEnterScope,
+      'TSMethodSignature:exit': exitScope,
+
+      ':statement': verify,
+      ...selectorMatchListeners,
+    }
+  },
+}
+}
