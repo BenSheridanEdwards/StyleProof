@@ -96,6 +96,37 @@ test('recipe: a component-scoped change re-captures exactly its surface, reuses 
   assert.equal(JSON.parse(fs.readFileSync(path.join(outDir, 'dashboard.json'), 'utf8')).origin, 'recaptured');
 });
 
+test('recipe: an SPA page change reuses other base maps with app roots and colocated tests in the graph', () => {
+  const { graph, files } = loadGraph();
+  const added = {
+    'src/main.tsx': "import App from './App';",
+    'src/App.tsx':
+      "import Home from './pages/Home';\nimport Pricing from './pages/Pricing';\nimport Dashboard from './pages/Dashboard';",
+    'src/components/Header.test.tsx': "import {Header} from './Header';",
+    'src/components/Header.stories.tsx': "import {Header} from './Header';",
+  };
+  graph.push(
+    { from: 'src/main.tsx', to: 'src/App.tsx' },
+    ...Object.values(SURFACES).map((to) => ({ from: 'src/App.tsx', to })),
+    { from: 'src/components/Header.test.tsx', to: 'src/components/Header.tsx' },
+    { from: 'src/components/Header.stories.tsx', to: 'src/components/Header.tsx' },
+  );
+  const affected = affectedSurfaces({
+    changedFiles: ['src/pages/Home.tsx'],
+    surfaces: SURFACES,
+    graph,
+    files: [...files, ...Object.keys(added)],
+    readFile: (p) => added[p] ?? readFixture(p),
+  });
+  assert.notEqual(affected, 'all');
+  assert.deepEqual([...affected], ['home']);
+
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-remap-base-'));
+  seedBaseMaps(baseDir);
+  const { outcome } = applyRecipe(baseDir, affected);
+  assert.deepEqual(outcome, { home: 'recaptured', pricing: 'reused-base', dashboard: 'reused-base' });
+});
+
 test('recipe: a token/global CSS change forces a full re-capture (→ all)', () => {
   const affected = computeAffected(['src/tokens.css']);
   assert.equal(affected, 'all');

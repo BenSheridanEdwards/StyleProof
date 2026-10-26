@@ -249,7 +249,10 @@ The end-to-end catch contract lives in
 [Selective remap](docs/REFERENCE.md#optional-selective-remap-advisory--ci-opt-in)
 is opt-in. A changed file reached only through a computed import re-captures
 every surface; recovered imports can widen a resolved dependency, but cannot
-make an unplaced change selective.
+make an unplaced change selective. Changes reaching conventional wrappers
+(`layout`, `template`, `_app`, `_document`, `App`) before a declared surface
+also re-capture everything. SPA page changes stay selective, and test, story,
+script, or undeclared-route importers alone do not force a full re-capture.
 
 StyleProof is not a screenshot diff. Screenshots appear in the report so humans
 can see the change, but the gate compares browser-computed CSS: resolved
