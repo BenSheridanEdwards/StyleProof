@@ -273,6 +273,30 @@ test('a global style change in a .vue, .svelte or .astro component forces a full
 test('a shared static component → every surface that imports it', () => {
   assert.deepEqual(sorted(run(['src/components/Header.tsx'])), ['dashboard', 'home', 'pricing']);
 });
+// A file nothing imports is run by the framework or a tool, not by a surface the graph
+// names: a layout every page renders inside. A change that reaches one is unbounded.
+const withLayout = () => {
+  const f = fixture();
+  const added = {
+    'src/app/layout.tsx': "import {Nav} from '../components/Nav';\nimport {Header} from '../components/Header';",
+    'src/components/Nav.tsx': 'export function Nav(){return null}',
+  };
+  const readFile = f.readFile;
+  f.readFile = (p) => added[p] ?? readFile(p);
+  f.files.push(...Object.keys(added));
+  f.graph.push(
+    { from: 'src/app/layout.tsx', to: 'src/components/Nav.tsx' },
+    { from: 'src/app/layout.tsx', to: 'src/components/Header.tsx' },
+  );
+  return f;
+};
+test('a change reached only through a layout no surface imports → full re-capture', () => {
+  assert.equal(affectedSurfaces({ ...withLayout(), changedFiles: ['src/components/Nav.tsx'] }), 'all');
+});
+test('a change reached through a surface AND a layout no surface imports → full re-capture', () => {
+  // Settings renders inside the layout too, so the Header change can reach it.
+  assert.equal(affectedSurfaces({ ...withLayout(), changedFiles: ['src/components/Header.tsx'] }), 'all');
+});
 test('a changed file the graph cannot place → full re-capture (fail closed)', () => {
   assert.equal(run(['src/lib/orphan.ts']), 'all');
 });
