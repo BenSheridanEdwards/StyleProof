@@ -17,9 +17,10 @@ an npm package with a similar name, such as `oxlint-plugin-anti-slop`.
 ## Checking a copy
 
 ```sh
-git clone https://github.com/dmmulroy/anti-slop /tmp/anti-slop
-git -C /tmp/anti-slop checkout 13909c9e07590f5a85d93c62712259fe14a883f7
-diff -r -x '*.test.ts' -x effect -x LICENSE -x README.md /tmp/anti-slop/src vendor/anti-slop
+upstream_dir=$(mktemp -d)
+git clone https://github.com/dmmulroy/anti-slop "$upstream_dir"
+git -C "$upstream_dir" checkout 13909c9e07590f5a85d93c62712259fe14a883f7
+diff -r -x '*.test.ts' -x effect -x LICENSE -x README.md "$upstream_dir/src" vendor/anti-slop
 ```
 
 ## Updating
