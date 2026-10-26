@@ -194,6 +194,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Report artifacts are kept 14 days by default (was 30).
+
 - A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary.
   Fork captures, failure verdicts, and included advisory content changes still
   publish. Adopters on `@v9` receive this default when the major tag moves;

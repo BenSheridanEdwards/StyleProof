@@ -175,7 +175,10 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: e2e-shard-${{ matrix.shard }}
-          path: .styleproof/ci/
+          path: |
+            .styleproof/ci/shard.json
+            .styleproof/ci/determinism-oracle.json
+            .styleproof/ci/inventory.json
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1

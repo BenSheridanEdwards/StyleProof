@@ -33,7 +33,7 @@ test('live dogfood captures declared config.ts surfaces and runs the Action advi
   assert.match(workflow, /mode:\s*'advisory'/);
   assert.doesNotMatch(workflow, /report-branch/, 'live dogfood exercises the default artifact report storage (#587)');
   const dogfoodStep = workflow.match(/ {6}- id: dogfood\n[\s\S]*?(?=\n {6}- name:)/)?.[0] ?? '';
-  assert.match(dogfoodStep, /report-retention-days: 1\s*$/m);
+  assert.doesNotMatch(dogfoodStep, /report-retention-days:/, 'live dogfood must inherit the Action retention default');
   assert.doesNotMatch(dogfoodStep, /report-storage:/, 'live dogfood must keep covering the artifact default');
   assert.match(workflow, /status-context:\s*'StyleProof dogfood'/);
   assert.match(workflow, /comment-marker:\s*'<!-- styleproof-dogfood-report -->'/);
