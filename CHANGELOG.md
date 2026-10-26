@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Fix `styleproof-init` and `styleproof setup` from the npm package never writing the `styleproof-lint-artifacts.yml` guard: its template, `example/lint-map-artifacts.yml`, was not in the published files, so init warned and skipped it, and `--check`/`--upgrade` ignored it. The package smoke test now packs exactly the manifest's `files` and runs every declared bin, so a missing runtime file fails CI.
 - Fix the Action resolving a `workflow_run` to a PR whose head lives in another repository. A fork that pushed the exact head commit of another PR could have its untrusted capture posted onto that PR; the PR's head repository must now match the run's head repository. A `workflow_run` with no head repository now resolves no PR, so its comment and status steps are skipped.
 - Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout. Keep config errors concise and load JSON config without an extra process.
 - Fix cold-base CI captures to reuse head tarballs and Git specs, resolve local tarballs against the head package directory, and log the installed runtime spec; directories, link specs, and missing manifests use the running CLI version. Mutable Git refs are resolved again; pin a full commit SHA for the same build.

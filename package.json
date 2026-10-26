@@ -54,6 +54,7 @@
     "dist",
     "bin",
     "example/styleproof-approve.yml",
+    "example/lint-map-artifacts.yml",
     "docs/demo-composite.png",
     "docs/component-manifest.md",
     "docs/product-state-comparability.md",
