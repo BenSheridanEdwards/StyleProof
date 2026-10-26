@@ -388,3 +388,393 @@ function verifyForNever(
 
   context.report({
     node: nextNode,
+    messageId: 'unexpectedBlankLine',
+    loc: getReportLoc(nextNode, context.sourceCode),
+    fix(fixer) {
+      if (paddingLines.length >= 2)
+        return null
+
+      const paddingPair = paddingLines[0]
+      if (paddingPair === undefined)
+        throw new Error('Padding rule invariant: reported padding pair is missing')
+      const [prevToken, nextToken] = paddingPair
+      const start = prevToken.range[1]
+      const end = nextToken.range[0]
+      const text = context
+        .sourceCode
+        .text
+        .slice(start, end)
+        .replace(PADDING_LINE_SEQUENCE, replacerToRemovePaddingLines)
+
+      return fixer.replaceTextRange([start, end], text)
+    },
+  })
+}
+
+/**
+ * Check and report statements for `always` configuration.
+ * This autofix inserts a blank line between the given 2 statements.
+ * If the `prevNode` has trailing comments, it inserts a blank line after the
+ * trailing comments.
+ * @param context The rule context to report.
+ * @param prevNode The previous node to check.
+ * @param nextNode The next node to check.
+ * @param paddingLines The array of token pairs that blank
+ * lines exist between the pair.
+ *
+ * @private
+ */
+function verifyForAlways(
+  context: RuleContext,
+  prevNode: ASTNode,
+  nextNode: ASTNode,
+  paddingLines: [Token, Token][],
+): void {
+  if (paddingLines.length > 0)
+    return
+
+  context.report({
+    node: nextNode,
+    messageId: 'expectedBlankLine',
+    loc: getReportLoc(nextNode, context.sourceCode),
+    fix(fixer) {
+      const sourceCode = context.sourceCode
+      let prevToken = getActualLastToken(prevNode, sourceCode)!
+      const nextToken
+        = sourceCode.getFirstTokenBetween(prevToken, nextNode, {
+          includeComments: true,
+
+          /**
+           * Skip the trailing comments of the previous node.
+           * This inserts a blank line after the last trailing comment.
+           *
+           * For example:
+           *
+           *     foo(); // trailing comment.
+           *     // comment.
+           *     bar();
+           *
+           * Get fixed to:
+           *
+           *     foo(); // trailing comment.
+           *
+           *     // comment.
+           *     bar();
+           * @param token The token to check.
+           * @returns `true` if the token is not a trailing comment.
+           * @private
+           */
+          filter(token) {
+            if (isTokenOnSameLine(prevToken, token)) {
+              prevToken = token
+              return false
+            }
+            return true
+          },
+        })! || nextNode
+      const insertText = isTokenOnSameLine(prevToken, nextToken)
+        ? '\n\n'
+        : '\n'
+
+      return fixer.insertTextAfter(prevToken, insertText)
+    },
+  })
+}
+
+/**
+ * Types of blank lines.
+ * `any`, `never`, and `always` are defined.
+ * Those have `verify` method to check and report statements.
+ * @private
+ */
+const PaddingTypes = {
+  any: { verify: verifyForAny },
+  never: { verify: verifyForNever },
+  always: { verify: verifyForAlways },
+}
+
+const MaybeMultilineStatementType: Record<string, NodeTestObject> = {
+  'block-like': { test: isBlockLikeStatement },
+  'expression': { test: isExpression },
+  'return': newKeywordTester('ReturnStatement', 'return'),
+  'export': newKeywordTester(
+    [
+      'ExportAllDeclaration',
+      'ExportDefaultDeclaration',
+      'ExportNamedDeclaration',
+    ],
+    'export',
+  ),
+  'var': newKeywordTester('VariableDeclaration', 'var'),
+  'let': newKeywordTester('VariableDeclaration', 'let'),
+  'const': newKeywordTester('VariableDeclaration', 'const'),
+  'using': {
+    test: node => node.type === 'VariableDeclaration'
+      && (node.kind === 'using' || node.kind === 'await using'),
+  },
+  'type': newKeywordTester('TSTypeAliasDeclaration', 'type'),
+}
+
+/**
+ * Types of statements.
+ * Those have `test` method to check it matches to the given statement.
+ * @private
+ */
+const StatementTypes: Record<string, NodeTestObject> = {
+  '*': { test: (): boolean => true },
+  'exports': { test: isCJSExport },
+  'require': { test: isCJSRequire },
+  'directive': { test: isDirectivePrologue },
+  'iife': { test: isIIFEStatement },
+
+  'block': newNodeTypeTester('BlockStatement'),
+  'empty': newNodeTypeTester('EmptyStatement'),
+  'function': newNodeTypeTester('FunctionDeclaration'),
+  'ts-method': newNodeTypeTester('TSMethodSignature'),
+
+  'break': newKeywordTester('BreakStatement', 'break'),
+  'case': newKeywordTester('SwitchCase', 'case'),
+  'class': newKeywordTester('ClassDeclaration', 'class'),
+  'continue': newKeywordTester('ContinueStatement', 'continue'),
+  'debugger': newKeywordTester('DebuggerStatement', 'debugger'),
+  'default': newKeywordTester(
+    ['SwitchCase', 'ExportDefaultDeclaration'],
+    'default',
+  ),
+  'do': newKeywordTester('DoWhileStatement', 'do'),
+  'for': newKeywordTester(
+    [
+      'ForStatement',
+      'ForInStatement',
+      'ForOfStatement',
+    ],
+    'for',
+  ),
+  'if': newKeywordTester('IfStatement', 'if'),
+  'import': newKeywordTester('ImportDeclaration', 'import'),
+  'switch': newKeywordTester('SwitchStatement', 'switch'),
+  'throw': newKeywordTester('ThrowStatement', 'throw'),
+  'try': newKeywordTester('TryStatement', 'try'),
+  'while': newKeywordTester(
+    ['WhileStatement', 'DoWhileStatement'],
+    'while',
+  ),
+  'with': newKeywordTester('WithStatement', 'with'),
+
+  'cjs-export': {
+    test: (node, sourceCode) => node.type === 'ExpressionStatement'
+      && node.expression.type === 'AssignmentExpression'
+      && CJS_EXPORT.test(sourceCode.getText(node.expression.left)),
+  },
+  'cjs-import': {
+    test: (node, sourceCode) => node.type === 'VariableDeclaration'
+      && node.declarations.length > 0
+      && node.declarations[0]?.init != null
+      && CJS_IMPORT.test(sourceCode.getText(node.declarations[0].init)),
+  },
+
+  'enum': newKeywordTester(
+    'TSEnumDeclaration',
+    'enum',
+  ),
+  'interface': newKeywordTester(
+    'TSInterfaceDeclaration',
+    'interface',
+  ),
+  'function-overload': newNodeTypeTester('TSDeclareFunction'),
+  ...Object.fromEntries(
+    Object.entries(MaybeMultilineStatementType)
+      .flatMap(([key, value]) => [
+        [key, value],
+        [
+          `singleline-${key}`,
+          {
+            ...value,
+            test: (node, sourceCode) => value.test(node, sourceCode) && isSingleLine(node),
+          },
+        ],
+        [
+          `multiline-${key}`,
+          {
+            ...value,
+            test: (node, sourceCode) => value.test(node, sourceCode) && !isSingleLine(node),
+          },
+        ],
+      ]),
+  ),
+}
+
+/**
+ * Build the vendored padding rule with caller-owned, typed policy options.
+ * `statementTypes` registers caller-defined statement types, looked up before
+ * the upstream table, for syntax the upstream matchers do not distinguish.
+ */
+export default function createPaddingLineRule<Extra extends string = never>(
+  options: PolicyOptions<NoInfer<Extra>>,
+  statementTypes?: Record<Extra, NodeTestObject>,
+): CreateRule {
+const customStatementTypes: Partial<Record<string, NodeTestObject>> = statementTypes ?? {}
+return {
+  meta: {
+    type: 'layout',
+    docs: {
+      description: 'Require or disallow padding lines between statements',
+    },
+    fixable: 'whitespace',
+    hasSuggestions: false,
+    // This is intentionally an array schema as you can pass 0..n config objects
+    schema: {
+      $defs: {
+        paddingType: {
+          type: 'string',
+          enum: Object.keys(PaddingTypes),
+        },
+        statementType: {
+          type: 'string',
+          enum: Object.keys(StatementTypes),
+        },
+        selectorOption: {
+          type: 'object',
+          properties: {
+            selector: {
+              type: 'string',
+            },
+            lineMode: {
+              type: 'string',
+              enum: ['any', 'singleline', 'multiline'],
+            },
+          },
+          required: ['selector'],
+          additionalProperties: false,
+        },
+        statementMatcher: {
+          anyOf: [
+            { $ref: '#/$defs/statementType' },
+            { $ref: '#/$defs/selectorOption' },
+          ],
+        },
+        statementOption: {
+          anyOf: [
+            { $ref: '#/$defs/statementMatcher' },
+            {
+              type: 'array',
+              items: { $ref: '#/$defs/statementMatcher' },
+              minItems: 1,
+              uniqueItems: true,
+              additionalItems: false,
+            },
+          ],
+        },
+      },
+      type: 'array',
+      additionalItems: false,
+      items: {
+        type: 'object',
+        properties: {
+          blankLine: { $ref: '#/$defs/paddingType' },
+          prev: { $ref: '#/$defs/statementOption' },
+          next: { $ref: '#/$defs/statementOption' },
+        },
+        additionalProperties: false,
+        required: ['blankLine', 'prev', 'next'],
+      },
+    },
+    messages: {
+      unexpectedBlankLine: 'Unexpected blank line before this statement.',
+      expectedBlankLine: 'Expected blank line before this statement.',
+    },
+  },
+  create(context) {
+    const sourceCode = context.sourceCode
+
+    const selectorMatchedNodes = new Map<string, Set<ASTNode>>()
+    const pendingPairs: { prevNode: ASTNode, nextNode: ASTNode }[] = []
+
+    function collectSelectorOption(option: PolicyStatementOption<Extra>): void {
+      if (Array.isArray(option)) {
+        for (const item of option)
+          collectSelectorOption(item)
+        return
+      }
+
+      if (!isSelectorOption(option))
+        return
+
+      selectorMatchedNodes.set(option.selector, new Set())
+    }
+
+    for (const configure of options) {
+      collectSelectorOption(configure.prev)
+      collectSelectorOption(configure.next)
+    }
+
+    type Scope = {
+      upper: Scope
+      prevNode: ASTNode | null
+    } | null
+
+    let scopeInfo: Scope = null
+
+    /**
+     * Processes to enter to new scope.
+     * This manages the current previous statement.
+     *
+     * @private
+     */
+    function enterScope(): void {
+      scopeInfo = {
+        upper: scopeInfo,
+        prevNode: null,
+      }
+    }
+
+    /**
+     * Processes to exit from the current scope.
+     *
+     * @private
+     */
+    function exitScope(): void {
+      if (scopeInfo)
+        scopeInfo = scopeInfo.upper
+    }
+
+    /**
+     * Checks whether the given node matches the given type.
+     * @param node The statement node to check.
+     * @param type The statement type to check.
+     * @returns `true` if the statement node matched the type.
+     * @private
+     */
+    function match(node: ASTNode, type: PolicyStatementOption<Extra>): boolean {
+      let innerStatementNode = node
+
+      while (innerStatementNode.type === 'LabeledStatement')
+        innerStatementNode = innerStatementNode.body
+
+      if (Array.isArray(type))
+        return type.some(match.bind(null, innerStatementNode))
+
+      if (isSelectorOption(type)) {
+        const matchedNodes = selectorMatchedNodes.get(type.selector)
+        if (!matchedNodes?.has(innerStatementNode))
+          return false
+
+        const lineMode = type.lineMode
+
+        if (lineMode === 'singleline')
+          return isSingleLine(innerStatementNode)
+        else if (lineMode === 'multiline')
+          return !isSingleLine(innerStatementNode)
+
+        return true
+      }
+      else {
+        const statementType = customStatementTypes[type] ?? StatementTypes[type]
+        if (statementType === undefined)
+          throw new Error(`Padding rule invariant: unsupported statement type ${type}`)
+        return statementType.test(innerStatementNode, sourceCode)
+      }
+    }
+
+    /**
+     * Finds the last matched configure from options.
