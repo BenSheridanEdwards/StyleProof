@@ -5,6 +5,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const approveYml = fs.readFileSync(path.join(root, 'example/styleproof-approve.yml'), 'utf8');
@@ -158,7 +160,9 @@ async function runApproval({
     return implementation();
   };
   const resolvedZip =
-    artifactZip === undefined ? makeZip({ 'report.md': markdown, 'report.json': reportJson }) : artifactZip;
+    artifactZip === undefined
+      ? makeZip({ 'report.md': markdown, 'report.json': reportJson, 'report.html': '<!doctype html><p>report</p>' })
+      : artifactZip;
   // #702: an artifact-mode comment pins the uploaded bytes through the digest
   // marker. Default to the digest of the zip under test; `digest: null` omits
   // the marker and any other value is written verbatim (malformed or wrong).
@@ -711,5 +715,55 @@ test('a clean verdict is approvable only when the trusted report marks the captu
   ]) {
     const result = await runApproval({ status, reportJson });
     assert.deepEqual(result.statuses, []);
+  }
+});
+
+test('artifact upload contains only the three report files and validates the byte input', () => {
+  const action = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
+  const upload = action.split('    - id: report-artifact')[1].split('    - ')[0];
+  assert.match(
+    upload,
+    /path: \|\n {10}styleproof-report\/report.html\n {10}styleproof-report\/report.md\n {10}styleproof-report\/report.json/,
+  );
+  assert.match(action, /report-max-bytes:/);
+  assert.match(action, /report-max-bytes must be a positive integer/);
+});
+
+test('artifact size step caps the combined files and refuses receipts that cannot fit', () => {
+  const action = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
+  const script = action
+    .split('    - name: Bound the artifact report size')[1]
+    .split("        node --input-type=module <<'NODE'\n")[1]
+    .split('        NODE')[0]
+    .split('\n')
+    .map((line) => line.replace(/^ {8}/, ''))
+    .join('\n');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-artifact-budget-'));
+  try {
+    const report = path.join(dir, 'styleproof-report');
+    fs.mkdirSync(path.join(report, 'crops'), { recursive: true });
+    fs.writeFileSync(path.join(report, 'crops/changed.png'), Buffer.alloc(400_000));
+    fs.writeFileSync(path.join(report, 'report.md'), '![changed](crops/changed.png)');
+    fs.writeFileSync(path.join(report, 'report.json'), JSON.stringify({ fullData: 'x'.repeat(10_000) }));
+    for (const cap of [500_000, 100]) {
+      const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+        cwd: dir,
+        encoding: 'utf8',
+        env: { ...process.env, GITHUB_ACTION_PATH: root, REPORT_MAX_BYTES: String(cap) },
+      });
+      assert.equal(result.status, cap === 100 ? 1 : 0, result.stderr);
+      if (cap === 100) assert.match(result.stderr, /cannot fit/);
+      else {
+        const size = ['report.html', 'report.md', 'report.json'].reduce(
+          (sum, file) => sum + fs.statSync(path.join(report, file)).size,
+          0,
+        );
+        assert.ok(size <= cap);
+        assert.match(fs.readFileSync(path.join(report, 'report.html'), 'utf8'), /1 images omitted/);
+      }
+    }
+    assert.match(action, /steps.report-size.outcome.*=== 'failure'/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

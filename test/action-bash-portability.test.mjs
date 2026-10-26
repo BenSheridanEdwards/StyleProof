@@ -124,6 +124,7 @@ for (const [storage, days, expectedExit] of [
       encoding: 'utf8',
       env: {
         ...process.env,
+        REPORT_MAX_BYTES: '2000000',
         REPORT_STORAGE: storage,
         REPORT_RETENTION_DAYS: days,
         COMMENT_MARKER: '<!-- styleproof-report -->',
@@ -150,6 +151,7 @@ for (const [storage, upload, expectNotice] of [
       encoding: 'utf8',
       env: {
         ...process.env,
+        REPORT_MAX_BYTES: '2000000',
         REPORT_STORAGE: storage,
         REPORT_RETENTION_DAYS: '45',
         REPORT_UPLOAD: upload,
@@ -190,6 +192,7 @@ for (const [marker, expected] of [
       encoding: 'utf8',
       env: {
         ...process.env,
+        REPORT_MAX_BYTES: '2000000',
         REPORT_STORAGE: 'artifact',
         REPORT_RETENTION_DAYS: '30',
         COMMENT_MARKER: marker,
@@ -301,5 +304,24 @@ for (const [prNumber, expectedPath] of [
     });
     assert.equal(result.status, 0, result.stderr);
     assert.ok(result.stdout.includes(`--report-path\n${expectedPath}\n`), result.stdout);
+  });
+}
+
+for (const bytes of ['', '0', '00', '-1', '1.5', 'abc', '1;id', '9007199254740992', '500000']) {
+  test(`report-max-bytes=${bytes} validates as a positive safe integer`, () => {
+    const result = spawnSync('bash', ['-u', '-c', runBlockContaining('report-storage must be artifact or branch')], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        REPORT_MAX_BYTES: bytes,
+        REPORT_STORAGE: 'artifact',
+        REPORT_RETENTION_DAYS: '30',
+        COMMENT_MARKER: '<!-- styleproof-report -->',
+        PR_OR_RUN: '42',
+        GITHUB_OUTPUT: '/dev/null',
+      },
+    });
+    assert.equal(result.status, bytes === '500000' ? 0 : 2, result.stderr);
+    if (result.status) assert.match(result.stderr, /report-max-bytes must be a positive integer/);
   });
 }

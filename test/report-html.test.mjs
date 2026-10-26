@@ -117,13 +117,15 @@ test('writeReportArtifacts emits report.html beside report.md and report.json (#
 
 test('the committed demo report renders completely (#698)', () => {
   const md = fs.readFileSync(path.join(here, '..', 'docs/demo/report.md'), 'utf8');
-  const html = renderReportHtml(md);
+  const html = renderReportHtml(md, { outDir: path.join(here, '..', 'docs/demo') });
   assert.equal(html, fs.readFileSync(path.join(here, '..', 'docs/demo/report.html'), 'utf8'));
   assert.match(html, /<h2>🗺️ StyleProof report<\/h2>/);
   for (const crop of fs.readdirSync(path.join(here, '..', 'docs/demo/crops')).filter((f) => f.endsWith('.png'))) {
     assert.ok(
-      html.includes(`src="crops/${crop}"`),
-      `every demo crop must resolve relative to report.html — missing crops/${crop}`,
+      html.includes(
+        `src="data:image/png;base64,${fs.readFileSync(path.join(here, '..', 'docs/demo/crops', crop)).toString('base64')}"`,
+      ),
+      `every demo crop must be inlined in report.html — missing crops/${crop}`,
     );
   }
   assert.doesNotMatch(html, /!\[/, 'no image syntax may survive unrendered');

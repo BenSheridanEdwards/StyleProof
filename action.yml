@@ -40,6 +40,9 @@ inputs:
   report-upload:
     description: 'When to publish a report: on-change skips trusted clean runs without included content changes; always publishes every defined verdict, including clean runs.'
     default: 'on-change'
+  report-max-bytes:
+    description: 'Maximum combined bytes of report.html, report.md and report.json in artifact mode. Positive integer; oversized receipts fail publication.'
+    default: '2000000'
   report-retention-days:
     description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer in either storage mode; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
     default: '14'
@@ -692,10 +695,15 @@ runs:
       env:
         REPORT_STORAGE: ${{ inputs.report-storage }}
         REPORT_UPLOAD: ${{ steps.delivery.outputs.upload }}
+        REPORT_MAX_BYTES: ${{ inputs.report-max-bytes }}
         REPORT_RETENTION_DAYS: ${{ inputs.report-retention-days }}
         COMMENT_MARKER: ${{ inputs.comment-marker }}
         PR_OR_RUN: ${{ steps.context.outputs.pr-number || github.run_id }}
       run: |
+        case "$REPORT_MAX_BYTES" in
+          ''|*[!0-9]*|0) echo "report-max-bytes must be a positive integer" >&2; exit 2 ;;
+        esac
+        node -e 'const n = Number(process.env.REPORT_MAX_BYTES); if (!Number.isSafeInteger(n) || n <= 0) { console.error("report-max-bytes must be a positive integer"); process.exit(2); }' || exit 2
         case "$REPORT_STORAGE" in
           artifact|branch) ;;
           *) echo "report-storage must be artifact or branch" >&2; exit 2 ;;
@@ -790,12 +798,34 @@ runs:
     # it. The replacement gets a fresh artifact ID; the comment and status always
     # link the newest artifact-url, and the receipt inside report.md still binds
     # the delivery to this run attempt (#688).
+    - name: Bound the artifact report size
+      id: report-size
+      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'artifact'
+      shell: bash
+      env:
+        REPORT_MAX_BYTES: ${{ inputs.report-max-bytes }}
+      run: |
+        node --input-type=module <<'NODE'
+        import fs from 'node:fs';
+        import { pathToFileURL } from 'node:url';
+        const { renderReportHtml } = await import(pathToFileURL(`${process.env.GITHUB_ACTION_PATH}/dist/report/html.js`));
+        const dir = 'styleproof-report';
+        const receipts = ['report.md', 'report.json'].reduce((sum, file) => sum + fs.statSync(`${dir}/${file}`).size, 0);
+        const maxBytes = Number(process.env.REPORT_MAX_BYTES) - receipts;
+        if (maxBytes <= 0) throw new Error('report-max-bytes cannot fit report.md and report.json; increase the budget');
+        const html = renderReportHtml(fs.readFileSync(`${dir}/report.md`, 'utf8'), { outDir: dir, maxBytes });
+        fs.writeFileSync(`${dir}/report.html`, html);
+        NODE
+
     - id: report-artifact
       if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'artifact'
       uses: actions/upload-artifact@v6
       with:
         name: ${{ steps.validate.outputs.artifact-name }}
-        path: styleproof-report
+        path: |
+          styleproof-report/report.html
+          styleproof-report/report.md
+          styleproof-report/report.json
         retention-days: ${{ inputs.report-retention-days }}
         if-no-files-found: error
         overwrite: true
@@ -1239,6 +1269,7 @@ runs:
             : '${{ steps.report-artifact.outcome }}';
           const diffState = '${{ steps.verdict.outputs.state }}';
           const deliveryFailed =
+            '${{ steps.report-size.outcome }}' === 'failure' ||
             '${{ steps.comment.outcome }}' === 'failure' || '${{ steps.status.outcome }}' === 'failure';
           let state;
           if (publishOutcome === 'failure' || deliveryFailed) state = 'REPORT_PUBLICATION_FAILED';

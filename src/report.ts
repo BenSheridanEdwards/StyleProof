@@ -147,6 +147,8 @@ export type ReportOptions = {
   /** Byte ceiling for report.md (GitHub stops rendering past ~512 KB); past it, surfaces become one-liners
    *  while report.json keeps every row. Default 400_000; Infinity never caps. */
   maxReportBytes?: number;
+  /** Self-contained HTML byte ceiling. Default 2_000_000. */
+  htmlMaxBytes?: number;
   /** Migration mode (#566): add the Changed styles / New surfaces / New-removed elements gallery. Gates unchanged. */
   migration?: boolean;
   /** Operational mode recorded in report.json (#580). Defaults to 'certify'. */
@@ -602,6 +604,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // 4. Write report.md and report.json, and return the result.
   const paths = writeReportArtifacts({
     outDir,
+    htmlMaxBytes: opts.htmlMaxBytes,
     md: md.lines,
     gateMode,
     counts: view.shown,
