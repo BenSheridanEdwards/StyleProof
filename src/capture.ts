@@ -216,18 +216,23 @@ async function stabilizePage(
     }
   } finally {
     // Best-effort cleanup also covers a failed poll or a page that closed mid-settle.
-    settled = await page
-      .evaluate(
-        ({ key, quiet }) => {
-          // SAFETY: install() owns this random key and each poll stores a PageCapture there.
-          const store = Object.getOwnPropertyDescriptor(window, key)?.value as { last?: PageCapture } | undefined;
-          Reflect.deleteProperty(window, key);
+    settled = quiet
+      ? await page
+          .evaluate((key) => {
+            // SAFETY: install() owns this random key and each poll stores a PageCapture there.
+            const store = Object.getOwnPropertyDescriptor(window, key)?.value as { last?: PageCapture } | undefined;
+            Reflect.deleteProperty(window, key);
 
-          return quiet ? store?.last : undefined;
-        },
-        { key, quiet },
-      )
-      .catch(() => undefined);
+            return store?.last;
+          }, key)
+          .catch(() => undefined)
+      : await page
+          .evaluate((key) => {
+            Reflect.deleteProperty(window, key);
+
+            return undefined;
+          }, key)
+          .catch(() => undefined);
   }
 
   return { volatile, settled };
@@ -325,7 +330,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   await assertRequiredVisibleState(page, options.requiredVisibleState);
 
   const base =
-    (!options.captureComponent && !options.captureReach && options.stabilize !== false && read.settled) ||
+    (!options.captureComponent && !options.captureReach && read.settled) ||
     (await page.evaluate(capturePage, { ...read.args, captureComponent: options.captureComponent ?? false }));
 
   for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
