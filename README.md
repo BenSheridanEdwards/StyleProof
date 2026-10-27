@@ -333,7 +333,7 @@ npx styleproof-init --check
 `uses: BenSheridanEdwards/StyleProof@v8` or `styleproof-approve-reusable.yml@v8`
 pin to `@v9` too: the Action runs its own copy of StyleProof, so an `@v8` pin
 keeps the 8.x gate. Then re-capture the baseline once. See the migration list
-in the [9.0.0 changelog](CHANGELOG.md#900---2026-10-25).
+in the [9.0.0 changelog](CHANGELOG.md#900---2026-10-27).
 
 Empty hash home routes (`#/`, `#!/`, including a query) count as the page without a fragment, so home links do not capture the root twice.
 

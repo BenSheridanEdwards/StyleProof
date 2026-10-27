@@ -94,3 +94,28 @@ test('the package version owns the newest CHANGELOG section, right after the pre
     `the ${version} release notes repeat a subsection: ${subsections.join(', ')}`,
   );
 });
+
+// Compare opening bullet text across wrapping and PR-reference-only edits.
+function bulletKeys(notes) {
+  return [...notes.matchAll(/^- (.*(?:\n[ \t]+[^\n]+)*)/gm)].map(([, text]) =>
+    text
+      .split(/\.\s/)[0]
+      .replace(/\s*\(#\d+(?:, #\d+)*\)/g, '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+}
+
+test('9.0.0 includes all changes at the release cut', () => {
+  const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+  const unreleased = changelog.split('## [Unreleased]')[1].split('\n## ')[0];
+  assert.deepEqual(bulletKeys(unreleased), [], 'the release cut must leave no shipped bullets unreleased');
+});
+
+test('release bullets are unique within and across Unreleased and 9.0.0', () => {
+  const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+  const unreleased = changelog.split('## [Unreleased]')[1].split('\n## ')[0];
+  const released = extractReleaseNotes(changelog, '9.0.0').body;
+  const keys = [...bulletKeys(unreleased), ...bulletKeys(released)];
+  assert.equal(new Set(keys).size, keys.length, 'duplicate release bullets (including PR-reference variants)');
+});

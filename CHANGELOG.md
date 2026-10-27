@@ -45,6 +45,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [9.0.0] - 2026-10-21
 
 ## [9.0.0] - 2026-10-25
+## [9.0.0] - 2026-10-27
 
 > **StyleProof 9.0.0: stable keys and stricter gates**
 >
@@ -100,8 +101,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    second, out-of-phase live region as head-only volatile. Re-capture.
 8. **Visible structure below the first screen (#915).** A visible element
    added or removed anywhere in the document's scroll height now needs review.
-   Maps without a valid `viewport.screenshotHeight` treat the screenshot bottom
-   as unbounded. Re-capture so the maps record document and screenshot heights.
+   Maps missing `viewport.documentHeight` treat the driven document bottom as
+   unbounded. Re-capture so the maps record the document height; see step 15
+   for the separate screenshot bounds.
 9. **Relative `replayUrl` (#918).** A relative `replayUrl` with no `baseURL`
    now fails the capture. Set `use.baseURL` in the Playwright config, or start
    the glob with `**`. With a `baseURL` set, failing data requests the old
@@ -268,10 +270,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines.
+- Avoid redundant head npm installs after cold base capture when checkout, metadata, and hidden-lockfile checks permit reuse. Missing optional packages are allowed only when their folders are absent and OS, CPU, or libc constraints exclude the current platform.
+- Schedule parallel head captures largest-first by base map file size, preserving artifact ordering and explicit serial capture order.
 - Report artifacts are kept 14 days by default (was 30).
 - The artifact holds one self-contained `report.html`, plus `report.md` and `report.json`, without `crops/`. Images beyond the budget become captions with a visible omission notice. Oversized JSON receipts do not prevent publication. HTML text that cannot fit fails explicitly instead of dropping the verdict.
-
-- A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary.
 - A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary (#1083).
   Fork captures, failure verdicts, and included advisory content changes still
   publish. Adopters on `@v9` receive this default when the major tag moves;
@@ -349,6 +352,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix the approve workflow ignoring every tick once anyone posted a comment containing the hidden `<!-- styleproof-report -->` marker. Only the bot's own comments now compete for the marker, so a pasted copy can no longer block approval; a second report comment from the bot still makes the marker ambiguous and refuses.
+- Fix selective remap reusing base maps for changes reaching conventional wrappers (`layout`, `template`, `_app`, `_document`, `App`) before a declared surface. These changes now return `'all'`, while SPA page changes stay selective and test, story, script, or undeclared-route importers alone do not force a full re-capture.
+- Fix the report and `styleproof-diff` hiding a changed `:hover`/`:focus`/`:active` value whenever the element's resting value of the same property also changed. The gate counted the state change, but the reviewer never saw it. A state row is now dropped as an echo only when the state renders the same value on both sides, or exactly the resting value on each side, for the owner as for any other target.
+- Fix element paths keying on framework-generated ids (React `useId` in every format through 19.2, Radix, Headless UI, MUI, hash-like ids). Adding one `useId` consumer renumbered every later id, so a pure refactor read as removed and added structure, and a real restyle on a renumbered element was never compared. Those ids now fall back to the next identity or the element's position; authored ids key the path as before. The inventory's `isStableId` learns the React 19.1 and 19.2 formats too. Paths on pages with such ids change, so an 8.x baseline needs one re-capture, as the 9.0.0 migration already says.
+- Fix `styleproof-init` and `styleproof setup` from the npm package never writing the `styleproof-lint-artifacts.yml` guard: its template, `example/lint-map-artifacts.yml`, was not in the published files, so init warned and skipped it, and `--check`/`--upgrade` ignored it. The package smoke test now packs exactly the manifest's `files` and runs every declared bin, so a missing runtime file fails CI.
+- Fix the hint `styleproof-diff`, `styleproof-report` and `styleproof compare` print when no base map can be restored. It sent local users to "a repo with the 'origin' remote", which does not help when the remote has no map store. It now prints the local steps that work: capture base and head under their own labels, then compare the two directories. The README's quickstart shows the same steps.
+- Fix the Action resolving a `workflow_run` to a PR whose head lives in another repository. A fork that pushed the exact head commit of another PR could have its untrusted capture posted onto that PR; the PR's head repository must now match the run's head repository. A `workflow_run` with no head repository now resolves no PR, so its comment and status steps are skipped.
+- Stop CI immediately when the map capture process is terminated by a signal, preserving the signal exit code and cleaning up temporary worktrees instead of starting a head dependency install after an interrupted baseline.
 - Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout (#1091, #1093). Keep config errors concise and load JSON config without an extra process.
 - Fix cold-base CI captures to reuse head tarballs and Git specs, resolve local tarballs against the head package directory, and log the installed runtime spec; directories, link specs, and missing manifests use the running CLI version (#1094). Mutable Git refs are resolved again; pin a full commit SHA for the same build.
 - **`styleproof setup` installs with npm, pnpm and Yarn on Windows (#970).**
