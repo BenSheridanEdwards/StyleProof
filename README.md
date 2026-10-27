@@ -395,6 +395,11 @@ Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
 including package configs; source paths retain Unicode and control characters,
 and renames check both locations. A relevant change forces a fresh base capture.
 
+After a cold base capture, CI can reuse head npm dependencies when the consumer started at head,
+package metadata is unchanged, and npm's hidden lockfile matches (allowing platform-excluded optional packages).
+This does not verify install scripts ran; cached or `--ignore-scripts` installs are used as-is.
+Parallel head captures run largest base maps first; `parallel: false` and report ordering stay unchanged.
+
 The map CLI evaluates JavaScript and TypeScript config in a separate process, so
 cold-base npm checkouts can use their own Playwright installation without
 conflicting with the head CLI. JSON config loads without an extra process. Config
