@@ -698,6 +698,73 @@ test('styleproof-variants documents the required running-app input', () => {
 
 // ---------------------------------------------------------------- styleproof-diff
 
+test('diff CLI warns once about host UA drift without suppressing findings or changing JSON', (t) => {
+  const root = mkTmp();
+  t.after(() => rmTmp(root));
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+
+  for (const surface of ['home@1280', 'search@1280']) {
+    for (const [dir, width, color] of [
+      [A, '22px', 'red'],
+      [B, '18px', 'blue'],
+    ]) {
+      writeCapture(
+        dir,
+        surface,
+        makeMap({
+          defaults: { select: { width } },
+          elements: { input: { tag: 'input', style: { color } } },
+        }),
+        null,
+      );
+    }
+  }
+
+  const jsonPath = path.join(root, 'diff.json');
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  const result = run(DIFF, [A, B, '--json', jsonPath]);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  const warnings = result.stderr.split('\n').filter((line) => line.includes('host UA'));
+  assert.deepEqual(warnings, [
+    'warning: host UA form-control metrics changed between base and head on 2 surfaces (select.width 22px->18px); findings on those surfaces may be environmental',
+  ]);
+  const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(receipt.counts.style, 2);
+  assert.equal(Object.hasOwn(receipt, 'hostUaDrift'), false);
+  assert.doesNotMatch(run(DIFF, [A, A]).stderr, /host UA/);
+});
+
+test('diff CLI caps the host UA warning at three distinct changes across surfaces', (t) => {
+  const root = mkTmp();
+  t.after(() => rmTmp(root));
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+
+  for (const surface of ['home@1280', 'search@1280']) {
+    for (const [dir, value] of [
+      [A, '22px'],
+      [B, '18px'],
+    ]) {
+      const select = Object.fromEntries(
+        ['width', 'height', 'inline-size', 'block-size', 'min-width'].map((prop) => [prop, value]),
+      );
+
+      writeCapture(dir, surface, makeMap({ defaults: { select } }), null);
+    }
+  }
+
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  const result = run(DIFF, [A, B]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const warnings = result.stderr.split('\n').filter((line) => line.includes('host UA'));
+  assert.deepEqual(warnings, [
+    'warning: host UA form-control metrics changed between base and head on 2 surfaces (select.block-size 22px->18px, select.height 22px->18px, select.inline-size 22px->18px (+2 more)); findings on those surfaces may be environmental',
+  ]);
+});
+
 test('diff CLI exits 0 when captures are identical', () => {
   const { root, A, B } = identicalPair();
   const r = run(DIFF, [A, B]);

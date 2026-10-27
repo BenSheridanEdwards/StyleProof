@@ -203,6 +203,7 @@ function volatileLines(entries, mark, max) {
 
 /** What the comparison could not see: volatile subtrees, skipped forced states, unrenderable raw deltas. */
 export function printUncomparedWarnings({
+  hostUaDrift = [],
   volatile,
   headOnlyVolatile,
   documentRootVolatile,
@@ -211,6 +212,19 @@ export function printUncomparedWarnings({
   rawOnlyNoReviewable,
   max,
 }) {
+  if (hostUaDrift.length) {
+    const changes = [
+      ...new Set(
+        hostUaDrift.flatMap(({ props }) => props.map(({ prop, before, after }) => `${prop} ${before}->${after}`)),
+      ),
+    ].sort();
+
+    const summary = changes.slice(0, 3).join(', ') + (changes.length > 3 ? ` (+${changes.length - 3} more)` : '');
+
+    console.error(
+      `warning: host UA form-control metrics changed between base and head on ${hostUaDrift.length} surfaces (${summary}); findings on those surfaces may be environmental`,
+    );
+  }
   if (volatile > 0) {
     printSection(
       `⚠ ${volatile} auto-detected volatile subtree(s) excluded from the comparison (still mutating at capture\n` +

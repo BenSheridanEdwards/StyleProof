@@ -6,6 +6,125 @@ import { diffStyleMaps, diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 import { saveStyleMap, loadStyleMap } from '../dist/capture.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
+const placeholderMap = (width, placeholderWidth, origin, computed = 'auto', extra = {}) =>
+  makeMap({
+    elements: {
+      input: {
+        tag: 'input',
+        style: { width: `${width}px`, 'inline-size': `${width}px` },
+        computedValueStyle: { width: computed, 'inline-size': computed },
+        pseudo: {
+          '::placeholder': {
+            width: `${placeholderWidth}px`,
+            'inline-size': `${placeholderWidth}px`,
+            'transform-origin': origin,
+            'perspective-origin': origin,
+            ...extra,
+          },
+        },
+      },
+    },
+  });
+
+test('placeholder drops size and origin echoes of a host size dropped with Typed OM proof', () => {
+  const before = placeholderMap(300, 280, '140px 10px');
+  const after = placeholderMap(296, 276, '138px 10px');
+  assert.deepEqual(diffStyleMaps(before, after), []);
+});
+
+for (const [name, before, after, expected] of [
+  ['host unchanged', placeholderMap(300, 280, '140px 10px'), placeholderMap(300, 276, '138px 10px'), 4],
+  [
+    'explicit host size changes',
+    placeholderMap(300, 280, '140px 10px', '300px'),
+    placeholderMap(296, 276, '138px 10px', '296px'),
+    6,
+  ],
+  ['unequal deltas', placeholderMap(300, 280, '140px 10px'), placeholderMap(296, 274, '137px 10px'), 4],
+  ['origin moves without width', placeholderMap(300, 280, '140px 10px'), placeholderMap(300, 280, '138px 10px'), 2],
+  ['unproved y component moves', placeholderMap(300, 280, '140px 10px'), placeholderMap(296, 276, '138px 9px'), 2],
+  ['z component moves', placeholderMap(300, 280, '140px 10px 0px'), placeholderMap(296, 276, '138px 10px 1px'), 2],
+]) {
+  test(`placeholder retains changes when ${name}`, () => {
+    const findings = diffStyleMaps(before, after);
+    assert.equal(findings.flatMap((finding) => finding.props).length, expected);
+    assert.ok(findings.some((finding) => finding.pseudo === '::placeholder'));
+  });
+}
+
+test('placeholder keeps a color change alongside proven size and origin echoes', () => {
+  const before = placeholderMap(300, 280, '140px 10px', 'auto', { color: 'red' });
+  const after = placeholderMap(296, 276, '138px 10px', 'auto', { color: 'blue' });
+  assert.deepEqual(
+    diffStyleMaps(before, after).map((finding) => [finding.pseudo, finding.props]),
+    [['::placeholder', [{ prop: 'color', before: 'red', after: 'blue' }]]],
+  );
+});
+
+test('placeholder matches height/block-size echoes and the y origin independently of width', () => {
+  const maps = [40, 36].map((height) =>
+    makeMap({
+      elements: {
+        textarea: {
+          tag: 'textarea',
+          style: { height: `${height}px`, 'block-size': `${height}px` },
+          computedValueStyle: { height: 'auto', 'block-size': 'auto' },
+          pseudo: {
+            '::placeholder': {
+              height: `${height - 10}px`,
+              'block-size': `${height - 10}px`,
+              'transform-origin': `100px ${(height - 10) / 2}px 0px`,
+              'perspective-origin': `100px ${(height - 10) / 2}px`,
+            },
+          },
+        },
+      },
+    }),
+  );
+
+  assert.deepEqual(diffStyleMaps(...maps), []);
+});
+
+test('directory diff exposes shared UA default drift per paired surface', (t) => {
+  const root = mkTmp();
+  t.after(() => rmTmp(root));
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const base = makeMap({ defaults: { select: { width: '22px' } } });
+  const head = makeMap({ defaults: { select: { width: '18px' }, input: { height: '20px' } } });
+
+  for (const surface of ['home@1280', 'search@1280']) {
+    writeCapture(A, surface, base, null);
+    writeCapture(B, surface, head, null);
+  }
+
+  const props = [{ prop: 'select.width', before: '22px', after: '18px' }];
+
+  assert.deepEqual(diffStyleMapDirs(A, B).hostUaDrift, [
+    { surface: 'home@1280', props },
+    { surface: 'search@1280', props },
+  ]);
+  assert.deepEqual(diffStyleMapDirs(A, A).hostUaDrift, []);
+});
+
+test('directory diff ignores UA default tags and props recorded on only one side', (t) => {
+  const root = mkTmp();
+  t.after(() => rmTmp(root));
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+
+  writeCapture(A, 'home@1280', makeMap({ defaults: { select: { width: '22px', height: '20px' } } }), null);
+  writeCapture(
+    B,
+    'home@1280',
+    makeMap({ defaults: { select: { width: '22px', color: 'black' }, span: { color: 'black' } } }),
+    null,
+  );
+
+  assert.deepEqual(diffStyleMapDirs(A, B).hostUaDrift, []);
+  assert.deepEqual(diffStyleMapDirs(B, A).hostUaDrift, []);
+});
+
 // ------------------------------------------------------- volatile (live regions)
 
 test('diffStyleMaps skips a path flagged volatile on either side', () => {

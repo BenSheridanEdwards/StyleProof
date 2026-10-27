@@ -443,6 +443,7 @@ if (jsonOut) {
 }
 
 printUncomparedWarnings({
+  hostUaDrift: result.hostUaDrift,
   volatile,
   headOnlyVolatile,
   documentRootVolatile,

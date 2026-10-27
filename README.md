@@ -514,6 +514,11 @@ report leads with their verdicts:
   HAR and was captured live (the map records it) — because a clean diff of two nondeterministic (or pre-ledger)
   reads could just be luck. Pass `--allow-unasserted` only for explicit
   diagnostic compares (`certifiesFully: false` in JSON).
+  When stylesheet-free UA defaults differ between base and head, the CLI warns
+  on stderr with the affected surface count and up to three distinct tag.property
+  changes, plus an overflow count. Only tags and properties recorded on both sides
+  are compared, since defaults are collected lazily. This host drift
+  warning is advisory; findings remain except for proven placeholder reflow echoes.
 - **Inventory** — with `inventory: true` (on in `styleproof-init` scaffolds),
   each capture harvests the surface's navigable affordances (links, tabs, menu
   items, keyed by stable identity, not label text). A removal that makes a
