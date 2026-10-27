@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findSuppressions } from '../scripts/check-suppressions.mjs';
+import { findSuppressions, MESSAGES } from '../scripts/check-suppressions.mjs';
 
 // Assembled from fragments so this tracked file never holds a bare suppression
 // comment that the real check would flag.
@@ -21,6 +21,13 @@ test('an ESLint disable without a reason, or with a token one, fails', () => {
   assert.deepEqual(kinds(`ok();\n/* eslint-${'disable'} no-console */`), [[2, 'eslint-reason']]);
 });
 
+test('an Oxlint disable follows the same rules as an ESLint one', () => {
+  const oxlint = (rest) => `// oxlint-${'disable'}${rest}`;
+  assert.deepEqual(kinds(oxlint('-next-line anti-slop/no-runtime-typeof -- parsed JSON has no static type')), []);
+  assert.deepEqual(kinds(oxlint('-next-line anti-slop/no-runtime-typeof')), [[1, 'eslint-reason']]);
+  assert.deepEqual(kinds(oxlint('-next-line')), [[1, 'eslint-rules']]);
+});
+
 test('an ESLint disable that names no rule fails', () => {
   assert.deepEqual(kinds(disable('-next-line')), [[1, 'eslint-rules']]);
   assert.deepEqual(kinds(disable(' -- turn everything off here')), [[1, 'eslint-rules']]);
@@ -38,4 +45,9 @@ test('a type suppression must be a reasoned @ts-expect-error', () => {
   assert.deepEqual(kinds(ts('expect-error')), [[1, 'ts-reason']]);
   assert.deepEqual(kinds(ts('ignore because')), [[1, 'ts-ignore']]);
   assert.deepEqual(kinds(ts('nocheck')), [[1, 'ts-nocheck']]);
+});
+
+test('disable diagnostics name both linters', () => {
+  assert.match(MESSAGES['eslint-rules'], /ESLint\/Oxlint disable/);
+  assert.match(MESSAGES['eslint-reason'], /ESLint\/Oxlint disable/);
 });

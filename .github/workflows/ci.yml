@@ -58,6 +58,11 @@ jobs:
         if: matrix.node == '22'
         run: npm run lint
 
+      # Vendored anti-slop Oxlint rules; only rules set to error fail (ADR 0010).
+      - name: Anti-slop lint
+        if: matrix.node == '22'
+        run: npm run lint:slop
+
       - name: Format check
         if: matrix.node == '22'
         run: npm run format:check

@@ -50,10 +50,14 @@ export const GUARDS = [
   },
   { area: 'CI workflows', paths: [/^\.github\/workflows\//] },
   { area: 'Git hooks', paths: [/^\.husky\//] },
-  { area: 'Lint config', paths: [/^eslint\.config\.js$/, /^commitlint\.config\.js$/] },
+  {
+    area: 'Lint config',
+    paths: [/^eslint\.config\.js$/, /^\.oxlintrc\.json$/, /^vendor\/anti-slop\//, /^commitlint\.config\.js$/],
+  },
   {
     area: 'Repo checks',
     paths: [
+      /^scripts\/check-anti-slop-vendor\.mjs$/,
       /^scripts\/check-suppressions\.mjs$/,
       /^scripts\/check-context-layer\.mjs$/,
       /^scripts\/browser-lanes\.mjs$/,

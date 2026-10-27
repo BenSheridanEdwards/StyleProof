@@ -1,6 +1,16 @@
 #!/usr/bin/env sh
 set -e
 
+echo "› anti-slop lint"
+# Oxlint loads the vendored .ts plugin with Node's type stripping (Node 22.18+).
+if ! command -v node >/dev/null 2>&1; then
+  echo "  ⚠ node not found; skipping anti-slop lint (CI runs it on Node 22)."
+elif node -e 'process.exit(process.features.typescript ? 0 : 1)'; then
+  npm run lint:slop
+else
+  echo "  ⚠ this Node cannot strip types; skipping anti-slop lint (CI runs it on Node 22)."
+fi
+
 echo "› unit tests"
 # Git hook env leaks into the temp repos used by CLI tests.
 unset $(git rev-parse --local-env-vars)

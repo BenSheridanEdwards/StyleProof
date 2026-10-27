@@ -1,6 +1,6 @@
 // Fail on a suppression comment that does not say why (ADR 0007). Neither tool
 // can hold this itself: the comment silences the report that would flag it.
-// - An inline ESLint disable names its rules and ends in `-- <reason>`.
+// - An inline ESLint or Oxlint disable names its rules and ends in `-- <reason>`.
 // - Inline ESLint rule config or globals comments move to eslint.config.js.
 // - A type suppression is `@ts-expect-error <reason>`, which fails once fixed;
 //   `@ts-ignore` and `@ts-nocheck` never do.
@@ -14,13 +14,13 @@ const SOURCES = ['*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.mjs', '*.cjs'];
 const SKIPPED = ['test/fixtures/', 'docs/'];
 const MIN_REASON = 10;
 
-const ESLINT_DISABLE = /(?:\/\/|\/\*)\s*eslint-disable(?:-next-line|-line)?(?=[\s*]|$)(.*)$/;
+const ESLINT_DISABLE = /(?:\/\/|\/\*)\s*(?:eslint|oxlint)-disable(?:-next-line|-line)?(?=[\s*]|$)(.*)$/;
 const ESLINT_CONFIG = /\/\*\s*(?:eslint|global|globals)\s+[\w@/-]+/;
 const TS_DIRECTIVE = /\/\/\s*@ts-(ignore|nocheck|expect-error)\b(.*)$/;
 
 export const MESSAGES = {
-  'eslint-rules': 'disables every ESLint rule; name the rules it turns off.',
-  'eslint-reason': 'has no reason; end it with `-- <why this line is the exception>`.',
+  'eslint-rules': 'ESLint/Oxlint disable turns off every rule; name the rules it turns off.',
+  'eslint-reason': 'ESLint/Oxlint disable has no reason; end it with `-- <why this line is the exception>`.',
   'eslint-config': 'configures ESLint inline; move the exception to eslint.config.js with its reason.',
   'ts-ignore': 'is `@ts-ignore`; use `@ts-expect-error <reason>`, which fails once the error is fixed.',
   'ts-nocheck': 'turns off type checking for the file; fix the types instead.',

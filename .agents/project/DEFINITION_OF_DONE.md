@@ -9,7 +9,7 @@ report excerpt, or screenshots/video for UI behaviour. "The gates are green" and
 ## Required proof
 
 - `npm run verify` passes: the context and suppression checks, typecheck,
-  lint (zero warnings), format check, privacy scan, and `npm test` (which
+  lint (zero warnings), anti-slop lint, format check, privacy scan, and `npm test` (which
   builds first).
 - `npm run test:e2e` passes when capture, diff, report, Action, or engine
   behaviour changes.

@@ -18,6 +18,8 @@
 ## Dev tooling
 
 - **ESLint 10** + **typescript-eslint** (`eslint.config.js`, flat config).
+- **Oxlint** (exact pin) with the vendored anti-slop rules (`.oxlintrc.json`,
+  `vendor/anti-slop/`).
 - **Prettier 3** (`.prettierrc.json`, `.prettierignore`).
 - **Husky 9** git hooks (`.husky/`).
 - **commitlint** + `@commitlint/config-conventional` (`commitlint.config.js`) on
