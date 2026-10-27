@@ -60,6 +60,16 @@ type ForcedStateSession = {
   marked: MarkedInteractive[];
 };
 
+/** Drain a failed phase so pending commands finish before cleanup. */
+async function stateBatch<T>(pending: Promise<T>[]): Promise<T[]> {
+  try {
+    return await Promise.all(pending);
+  } catch (error) {
+    await Promise.allSettled(pending);
+    throw error;
+  }
+}
+
 /** Open a CDP session, mark the interactive elements, run `work`, then undo every forced state and mark. */
 async function withForcedStateSession<T>(
   page: Page,
@@ -81,7 +91,7 @@ async function withForcedStateSession<T>(
     return await work(session);
   } finally {
     try {
-      for (const target of session.applied) await forcePseudoState(session, target, []);
+      await stateBatch([...session.applied].map((target) => forcePseudoState(session, target, [])));
     } finally {
       await cleanup?.();
       await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
@@ -401,17 +411,17 @@ export async function captureStateLayerScreenshots(
 ): Promise<string[]> {
   const written: string[] = [];
   await withForcedStateSession(page, skipSelector(options.ignore ?? []), async (session) => {
-    const targets: ForcedStateTarget[] = [];
-    for (const { id } of session.marked.slice(0, options.maxInteractive ?? 800)) {
-      const target = await resolveMarkedTarget(session, id);
-      if (target) targets.push(target);
-    }
+    const targets = (
+      await stateBatch(
+        session.marked.slice(0, options.maxInteractive ?? 800).map(({ id }) => resolveMarkedTarget(session, id)),
+      )
+    ).filter((target) => target !== undefined);
     for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
       for (const target of targets) await forcePseudoState(session, target, forcedPseudoClasses);
       const dest = stateLayerScreenshotPath(stem, stateName);
       await captureFullPageScreenshot(page, dest);
       written.push(dest);
-      for (const target of [...session.applied]) await forcePseudoState(session, target, []);
+      await stateBatch([...session.applied].map((target) => forcePseudoState(session, target, [])));
     }
   });
   return written;
