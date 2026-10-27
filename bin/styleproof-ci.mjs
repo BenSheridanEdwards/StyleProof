@@ -18,7 +18,7 @@ import {
   resolveBrowserExecutablePath,
 } from '../dist/browser-preflight.js';
 import { loadStyleProofConfigWithLocationAsync } from '../dist/config.js';
-import { ciOutputLines, detectPackageManagerPlan, styleProofRuntimeSpec } from '../dist/ci.js';
+import { ciOutputLines, detectPackageManagerPlan, npmLockfilesMatch, styleProofRuntimeSpec } from '../dist/ci.js';
 import { applySpecRefOverlay, CiSpecRefError, resolveSpecRefToSha } from '../dist/ci-spec-ref.js';
 import {
   CiProcessExit,
@@ -168,6 +168,7 @@ const bail = (code) => {
 let repoRoot;
 let consumerRel;
 let worktrees;
+let startedAtHead = false;
 try {
   repoRoot = gitRepoRoot(consumerCwd);
   // Git metadata may live outside the checkout (linked worktrees/separate git dirs).
@@ -195,11 +196,23 @@ try {
   consumerRel = consumerRelativeFromRepoRoot(repoRoot, consumerCwd);
   assertResolvableCommit(base, repoRoot);
   assertResolvableCommit(head, repoRoot);
-  ensureConsumerAtHead(repoRoot, head);
+  startedAtHead = !ensureConsumerAtHead(repoRoot, head);
   worktrees = new CiWorktreeSession(repoRoot);
 } catch (error) {
   fail(NAME, errorMessage(error).replace(`${NAME}: `, ''), error instanceof CiWorktreeError ? error.exitCode : 1);
 }
+// Preserve exact metadata bytes from the pinned head before any base work runs.
+function readConsumerJson(file) {
+  try {
+    const text = fs.readFileSync(path.join(consumerCwd, file), 'utf8');
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? text : undefined;
+  } catch {
+    return undefined;
+  }
+}
+const [headPackageJson, headLockfile] = ['package.json', 'package-lock.json'].map(readConsumerJson);
+
 // A cancelled runner sends SIGTERM; dispose the worktrees it would otherwise leak.
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
@@ -738,7 +751,19 @@ try {
       baseCaptureFailed = await captureColdBase();
       ensureConsumerAtHead(repoRoot, head);
       const headPm = detectPackageManagerPlan(consumerCwd);
-      runOrDie(headPm.install, `${headPm.name} install at head`, { cwd: consumerCwd });
+      // Startup checkout invalidates reuse; base work may also edit metadata without a checkout.
+      const skipInstall =
+        startedAtHead &&
+        headPm.name === 'npm' &&
+        headPackageJson !== undefined &&
+        headPackageJson === readConsumerJson('package.json') &&
+        headLockfile !== undefined &&
+        headLockfile === readConsumerJson('package-lock.json') &&
+        npmLockfilesMatch(headLockfile, readConsumerJson('node_modules/.package-lock.json'), consumerCwd);
+      log(
+        `${headPm.name} install at head: ${skipInstall ? 'skipped — node_modules already match package-lock.json' : 'running'}`,
+      );
+      if (!skipInstall) runOrDie(headPm.install, `${headPm.name} install at head`, { cwd: consumerCwd });
     } else {
       // A compatible base hit proves the head environment: capture only the missing head.
       log('head miss — capturing only the head');
@@ -757,7 +782,7 @@ try {
         ['--spec', spec, '--dir', 'head', '--base-dir', root, '--sha', head, uploadFlag, ...dirtyAllow],
         {
           cwd: consumerCwd,
-          env: { ...env, ...replay, ...selectiveEnv },
+          env: { ...env, ...replay, ...selectiveEnv, STYLEPROOF_BASE_MAPS: path.join(root, 'base') },
         },
       ),
     );

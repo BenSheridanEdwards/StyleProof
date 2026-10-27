@@ -64,12 +64,13 @@ export function assertResolvableCommit(sha: string, cwd: string): void {
   resolveCommit(cwd, sha, sha);
 }
 
-/** Force the consumer checkout onto `--head` without ever checking out `--base`. */
-export function ensureConsumerAtHead(repoRoot: string, head: string): void {
+/** Pin to `--head` without visiting `--base`; return whether a checkout was needed. */
+export function ensureConsumerAtHead(repoRoot: string, head: string): boolean {
   const headSha = resolveCommit(repoRoot, head, `--head ${head}`);
   const current = runGit(repoRoot, ['rev-parse', 'HEAD']);
-  if (current.status === 0 && current.stdout.trim() === headSha) return;
+  if (current.status === 0 && current.stdout.trim() === headSha) return false;
   ciGit(repoRoot, ['checkout', '--force', head], `could not checkout --head ${head} in the consumer tree`, 1);
+  return true;
 }
 
 export class CiProcessExit {

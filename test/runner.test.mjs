@@ -25,6 +25,31 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PLAYWRIGHT_CLI = path.join(ROOT, 'node_modules/@playwright/test/cli.js');
 const DIST_INDEX_URL = pathToFileURL(path.join(ROOT, 'dist/index.js')).href;
 
+for (const mode of ['base maps', 'serial', 'replay only']) {
+  test(`defineStyleMapCapture scheduling with ${mode}`, () => {
+    const root = mkTmp();
+    try {
+      const sizes = { 'small@400': 4, 'small@800': 1, 'large@400': 2, 'large@800': 3 };
+      for (const [key, size] of Object.entries(sizes)) {
+        fs.writeFileSync(path.join(root, `${key}.json.gz`), Buffer.alloc(size));
+      }
+      const out = listPlaywrightTests(`
+        import { defineStyleMapCapture } from ${JSON.stringify(DIST_INDEX_URL)};
+        process.env.STYLEPROOF_BASE_MAPS = ${JSON.stringify(root)};
+        process.env.STYLEPROOF_REPLAY_FROM = ${JSON.stringify(root)};
+        if (${mode === 'replay only'}) delete process.env.STYLEPROOF_BASE_MAPS;
+        defineStyleMapCapture({ dir: 'head', parallel: ${mode !== 'serial'}, surfaces:
+          ['small', 'large'].map(key => ({ key, widths: [400, 800], go: async () => {} })) });
+      `);
+      const order = [...out.matchAll(/› (small|large) @ (\d+)/g)].map((match) => `${match[1]}@${match[2]}`);
+      const expected = ['small@400', 'large@800', 'large@400', 'small@800'];
+      assert.deepEqual(order, mode === 'base maps' ? expected : Object.keys(sizes));
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
 function listPlaywrightTests(specSource) {
   const root = mkTmp('styleproof-runner-list-');
   try {

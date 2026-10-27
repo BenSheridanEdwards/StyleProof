@@ -1999,6 +1999,167 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
   return { repo, args: ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--no-store', '--force'] };
 }
 
+const installedPackages = {
+  'node_modules/example': { version: '1.0.0', resolved: 'https://example.test/a.tgz', integrity: 'sha512-a' },
+  'node_modules/workspace': { resolved: 'packages/workspace', link: true },
+};
+const npmLock = (packages) => JSON.stringify({ lockfileVersion: 3, packages });
+
+test('npmLockfilesMatch compares every package key and identity field, excluding the root', () => {
+  const hidden = npmLock(installedPackages);
+  assert.equal(ciRuntime.npmLockfilesMatch(npmLock({ '': { version: '9' }, ...installedPackages }), hidden), true);
+  assert.equal(
+    ciRuntime.npmLockfilesMatch(npmLock(Object.fromEntries(Object.entries(installedPackages).reverse())), hidden),
+    true,
+  );
+  for (const field of ['version', 'resolved', 'integrity', 'link']) {
+    const changed = structuredClone(installedPackages);
+    changed['node_modules/example'][field] = field === 'link' ? true : 'changed';
+    assert.equal(ciRuntime.npmLockfilesMatch(npmLock(changed), hidden), false, field);
+  }
+  for (const invalid of [
+    undefined,
+    '{',
+    'null',
+    '{}',
+    npmLock([]),
+    npmLock({}),
+    npmLock({ extra: {} }),
+    npmLock({ ...installedPackages, extra: {} }),
+    npmLock({ ...installedPackages, 'node_modules/example': null }),
+  ]) {
+    assert.equal(ciRuntime.npmLockfilesMatch(invalid, hidden), false);
+    assert.equal(ciRuntime.npmLockfilesMatch(hidden, invalid), false);
+  }
+});
+
+test('npmLockfilesMatch allows absent optional packages only when the platform excludes them', (t) => {
+  const root = mkTmp('styleproof-ci-lock-');
+  const key = 'node_modules/@example/platform';
+  const optional = { version: '1.0.0', optional: true, os: ['aix'], cpu: ['x64'] };
+  const lock = npmLock({ ...installedPackages, [key]: optional });
+  const hidden = npmLock(installedPackages);
+  const matches = (entry) => ciRuntime.npmLockfilesMatch(npmLock({ ...installedPackages, [key]: entry }), hidden, root);
+  try {
+    assert.equal(ciRuntime.npmLockfilesMatch(lock, hidden, root), true);
+    for (const flag of [undefined, false, 'true']) {
+      assert.equal(matches({ ...optional, optional: flag }), false);
+    }
+    for (const [constraints, skipped] of [
+      [{}, false],
+      [{ os: [process.platform], cpu: [process.arch] }, false],
+      [{ cpu: [`!${process.arch}`] }, true],
+      [{ os: [process.platform, `!${process.platform}`] }, true],
+      [{ os: ['any'], cpu: [] }, false],
+      [{ os: ['!aix'] }, false],
+      [{ cpu: 'not-this-cpu' }, true],
+      [{ os: [null] }, false],
+      [{ os: '' }, false],
+    ]) {
+      assert.equal(matches({ optional: true, ...constraints }), skipped, JSON.stringify(constraints));
+    }
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+    t.after(() => Object.defineProperty(process, 'platform', platform));
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    for (const [report, libc, skipped] of [
+      [{ header: { glibcVersionRuntime: '2.39' } }, ['glibc'], false],
+      [{ header: { glibcVersionRuntime: '2.39' } }, ['musl'], true],
+      [{ sharedObjects: ['/lib/ld-musl-x86_64.so.1'] }, ['musl'], false],
+      [{ sharedObjects: ['/lib/ld-musl-x86_64.so.1'] }, ['glibc'], true],
+      [{}, ['musl'], false],
+    ]) {
+      t.mock.method(process.report, 'getReport', () => report);
+      assert.equal(matches({ optional: true, libc }), skipped, JSON.stringify({ report, libc }));
+      t.mock.restoreAll();
+    }
+    assert.equal(ciRuntime.npmLockfilesMatch(lock, npmLock({ ...installedPackages, [key]: null }), root), false);
+    assert.equal(ciRuntime.npmLockfilesMatch(hidden, lock, root), false, 'reject extra installed packages');
+    fs.mkdirSync(path.join(root, key), { recursive: true });
+    assert.equal(ciRuntime.npmLockfilesMatch(lock, hidden, root), false);
+    assert.equal(ciRuntime.npmLockfilesMatch(lock, lock, root), true);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+for (const scenario of [
+  'matching',
+  'optional-absent',
+  'optional-compatible',
+  'optional-present',
+  'lock-changed',
+  'package-changed',
+  'entry-changed',
+  'missing',
+  'corrupt',
+  'pnpm',
+  'startup-checkout',
+]) {
+  test(`styleproof-ci head install: ${scenario}`, () => {
+    const root = mkTmp('styleproof-ci-install-');
+    try {
+      const { repo, args } = noStoreConsumer(root);
+      const bin = path.join(repo, 'node_modules', '.bin');
+      const installs = path.join(root, 'installs');
+      const locked = { '': {}, ...installedPackages };
+      if (scenario.startsWith('optional-')) {
+        const key = 'node_modules/@example/platform';
+        locked[key] = { version: '1.0.0', optional: true, os: ['aix'], cpu: ['x64'] };
+        if (scenario === 'optional-compatible')
+          Object.assign(locked[key], { os: [process.platform], cpu: [process.arch] });
+        if (scenario === 'optional-present') fs.mkdirSync(path.join(repo, key), { recursive: true });
+      }
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), npmLock(locked));
+      if (scenario === 'startup-checkout') {
+        assert.equal(spawnSync('git', ['checkout', '--force', args[1]], { cwd: repo }).status, 0);
+      }
+      const hidden = structuredClone(installedPackages);
+      if (scenario === 'entry-changed') hidden['node_modules/example'].version = '2.0.0';
+      if (scenario !== 'missing')
+        fs.writeFileSync(
+          path.join(repo, 'node_modules', '.package-lock.json'),
+          scenario === 'corrupt' ? '{' : npmLock(hidden),
+        );
+      if (scenario === 'pnpm') fs.writeFileSync(path.join(repo, 'pnpm-lock.yaml'), '');
+      fs.writeFileSync(path.join(bin, 'npm'), npmShim('pwd >> "$INSTALL_LOG"\nexit 0'));
+      fs.writeFileSync(path.join(bin, 'pnpm'), '#!/bin/sh\npwd >> "$INSTALL_LOG"\n');
+      fs.chmodSync(path.join(bin, 'pnpm'), 0o755);
+      const mutations = {
+        'lock-changed': 'printf " " >> "$CONSUMER/package-lock.json"',
+        'package-changed': 'printf " " >> "$CONSUMER/package.json"',
+      };
+      fs.appendFileSync(
+        path.join(bin, 'playwright'),
+        `if [ "$STYLEMAP_DIR" = "base" ]; then ${mutations[scenario] ?? ':'}; fi
+if [ "$STYLEMAP_DIR" = "head" ]; then printf "%s" "$STYLEPROOF_BASE_MAPS" > "$CONSUMER/base-maps-env"; fi\n`,
+      );
+      const result = runCi(
+        [...args, '--base-dir', path.join(root, 'maps')],
+        {
+          CI: '1',
+          CONSUMER: repo,
+          INSTALL_LOG: installs,
+          STYLEPROOF_BASE_MAPS: '',
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
+        },
+        repo,
+      );
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.equal(fs.readFileSync(path.join(repo, 'base-maps-env'), 'utf8'), path.join(root, 'maps', 'base'));
+      const installDirs = fs.readFileSync(installs, 'utf8').trim().split('\n');
+      const headInstalled = installDirs.includes(repo) || installDirs.includes(fs.realpathSync(repo));
+      const skipped = scenario === 'matching' || scenario === 'optional-absent';
+      assert.equal(headInstalled, !skipped, result.stderr);
+      assert.match(
+        result.stderr,
+        new RegExp(`${scenario === 'pnpm' ? 'pnpm' : 'npm'} install at head: ${skipped ? 'skipped' : 'running'}`),
+      );
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
 for (const [signal, exitCode] of [
   ['TERM', 143],
   ['INT', 130],

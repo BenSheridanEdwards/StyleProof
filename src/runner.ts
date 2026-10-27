@@ -6,6 +6,7 @@ import { requireLiveTextCapture, validateLiveText } from './live-text.js';
 import { captureTestBudgetMs } from './surface-progress.js';
 import { withSurfaceFailureTolerance } from './runner/self-check.js';
 import { resolveSettings } from './runner/settings.js';
+import { orderSurfacesByBaseSize } from './runner/scheduling.js';
 import {
   captureSurface,
   detectSurfaceWidths,
@@ -110,6 +111,11 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   if (!dir) return;
 
   const settings = resolveSettings(options);
+  // Only CI's STYLEPROOF_BASE_MAPS schedules largest-first; replay alone and serial captures keep declaration order.
+  const scheduledSurfaces = orderSurfacesByBaseSize(
+    surfacesToCapture,
+    options.parallel === false ? undefined : process.env.STYLEPROOF_BASE_MAPS,
+  );
   test.describe('styleproof capture', () => {
     // Every generated test is independent, so captures fan out across workers even when the
     // project pins `fullyParallel: false`; `parallel: false` keeps file order for specs whose
@@ -122,7 +128,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     // the per-surface ceiling so the NAMED timeout always fires before the anonymous one.
     const total = heartbeatUnitCount(surfacesToCapture);
     let unit = 0;
-    for (const surface of surfacesToCapture) {
+    for (const { surface, width } of scheduledSurfaces) {
       const capture = (
         page: Page,
         width: number,
@@ -132,14 +138,12 @@ export function defineStyleMapCapture(options: DefineOptions): void {
         withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
           captureSurface(page, surface, width, settings, ordinal, baseURL),
         );
-      if (surface.widths?.length) {
-        for (const width of surface.widths) {
-          const ordinal: HeartbeatOrdinal = { index: ++unit, total };
-          test(`${surface.key} @ ${width}`, ({ page, baseURL, contextOptions }) => {
-            test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs));
-            return capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);
-          });
-        }
+      if (width !== undefined) {
+        const ordinal: HeartbeatOrdinal = { index: ++unit, total };
+        test(`${surface.key} @ ${width}`, ({ page, baseURL, contextOptions }) => {
+          test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs));
+          return capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);
+        });
       } else {
         // Auto widths: load once, detect the breakpoints, then sweep each band in one test.
         // A load or detection failure is ledgered as `<key>@auto`; tolerated, it sweeps nothing.

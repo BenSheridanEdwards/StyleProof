@@ -3,7 +3,63 @@
 // The driver (bin/styleproof-ci.mjs) owns the process work.
 import fs from 'node:fs';
 import path from 'node:path';
-import { readJsonFile } from './map-store/json.js';
+import { asRecord, readJsonFile } from './map-store/json.js';
+
+function platformExcludes(constraint: unknown, current: string | undefined): boolean {
+  if (!constraint || !current) return false;
+  const values = typeof constraint === 'string' ? [constraint] : constraint;
+  if (!Array.isArray(values) || !values.every((value) => typeof value === 'string')) return false;
+  if (values.length === 1 && values[0] === 'any') return false;
+  return (
+    values.includes(`!${current}`) || (values.some((value) => !value.startsWith('!')) && !values.includes(current))
+  );
+}
+
+function currentLibc(): string | undefined {
+  const report = asRecord(process.report.getReport());
+  if (asRecord(report?.header)?.glibcVersionRuntime) return 'glibc';
+  if (!Array.isArray(report?.sharedObjects)) return undefined;
+  return report.sharedObjects.some((file) => /\/(?:ld-musl-|libc\.musl-)/.test(file)) ? 'musl' : undefined;
+}
+
+function optionalPackageExcluded(expected: Record<string, unknown>, key: string, consumerCwd: string): boolean {
+  if (expected.optional !== true) return false;
+  if (!key.startsWith('node_modules/') || fs.existsSync(path.join(consumerCwd, key))) return false;
+  if (platformExcludes(expected.os, process.platform) || platformExcludes(expected.cpu, process.arch)) return true;
+  // Only a known libc can prove exclusion; an inconclusive report must run the install.
+  return !!expected.libc && process.platform === 'linux' && platformExcludes(expected.libc, currentLibc());
+}
+
+/** Match installed identities, allowing absent platform-excluded optional packages; ignore root metadata. */
+export function npmLockfilesMatch(
+  lockfile: string | undefined,
+  hiddenLockfile: string | undefined,
+  consumerCwd = process.cwd(),
+): boolean {
+  try {
+    const packages = asRecord(asRecord(JSON.parse(lockfile ?? ''))?.packages);
+    const installed = asRecord(asRecord(JSON.parse(hiddenLockfile ?? ''))?.packages);
+    if (!packages || !installed) return false;
+    const keys = Object.keys(packages).filter((key) => key !== '');
+    if (Object.keys(installed).some((key) => key !== '' && !Object.hasOwn(packages, key))) return false;
+    return keys.every((key) => {
+      const expected = asRecord(packages[key]);
+      if (expected === null) return false;
+      if (!Object.hasOwn(installed, key)) return optionalPackageExcluded(expected, key, consumerCwd);
+      const actual = asRecord(installed[key]);
+      return (
+        actual !== null &&
+        ['version', 'resolved', 'integrity', 'link'].every(
+          (field) =>
+            (expected[field] === undefined || typeof expected[field] === (field === 'link' ? 'boolean' : 'string')) &&
+            expected[field] === actual[field],
+        )
+      );
+    });
+  } catch {
+    return false;
+  }
+}
 
 /** Triage of a `styleproof-map --restore` exit code: 0 hit, 4 genuine miss, else a loud fault. */
 export type RestoreOutcome = 'hit' | 'miss' | 'fault';
