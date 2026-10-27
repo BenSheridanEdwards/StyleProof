@@ -206,7 +206,7 @@ test('gitleaks keeps its full-history fail-closed scan without uploading an unre
   assert.match(secretScan, /fetch-depth: 0/);
   assert.match(secretScan, /uses: gitleaks\/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e/);
   assert.match(secretScan, /GITHUB_TOKEN: \$\{\{ secrets.GITHUB_TOKEN \}\}/);
-  assert.match(secretScan, /GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false\s*$/m);
+  assert.match(secretScan, /GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"\s*$/m);
   assert.doesNotMatch(secretScan, /continue-on-error:/);
 });
 

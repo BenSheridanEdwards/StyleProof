@@ -22,7 +22,10 @@ test('CI transfers the determinism receipt between jobs for verification without
   assert.ok(printIndex > downloadIndex, 'CI must verify and print the downloaded receipt');
   assert.doesNotMatch(workflow.slice(printIndex), /actions\/upload-artifact@/);
   assert.match(workflow, new RegExp(receiptPath.replaceAll('.', '\\.')));
-  assert.match(workflow, /path: \.styleproof\/ci\/\s*$/m);
+  assert.match(
+    workflow,
+    /path: \|\n +\.styleproof\/ci\/shard\.json\n +\.styleproof\/ci\/determinism-oracle\.json\n +\.styleproof\/ci\/inventory\.json\n/,
+  );
   assert.match(workflow, /include-hidden-files: true/);
   assert.match(workflow, /node scripts\/verify-e2e-shards.mjs/);
   assert.match(workflow, /needs: \[changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);

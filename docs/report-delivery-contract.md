@@ -108,6 +108,8 @@ The separate default-branch approval workflow treats the report comment as untru
 
 Missing, malformed, stale, mismatched, superseded, or non-approvable evidence produces no success status. A ticked comment with no report link makes no status write, including with older approval workflow copies. Human-readable status descriptions never establish approvability by themselves: even after an untick or refused self-approval, the immutable published `report.json` must still record `actionTrustState: STYLE_REVIEW_REQUIRED`. Unticking remains fail-safe: it can set the current source commit red without publication readback.
 
+Report artifacts are kept 14 days by default; an explicit `report-retention-days: 30` still keeps them for 30 days. StyleProof’s dogfood workflow inherits the default. Internal e2e shard handoffs retain only `shard.json`, `determinism-oracle.json`, and `inventory.json` for 1 day; the evidence job still verifies all 6 shards. Gitleaks keeps its scan and pass/fail result without uploading an artifact.
+
 Artifact retention bounds the approval window in artifact mode: an expired report artifact cannot be read back, so a tick after expiry fails closed instead of approving unverifiable evidence. Because a silent refusal leaves the reviewer at a dead-end, an unavailable artifact (expired, deleted, or unreachable) is the one refusal class that explains itself: the workflow unticks the box and leaves one bounded reply naming the remediation — re-run the StyleProof workflow to publish a fresh report, then tick again. Integrity failures (ambiguous, mismatched, or tampered evidence) stay silent.
 
 The report link is delivery evidence. A green job, an existing `dist/` directory, or a generated URL string without publication readback is not.
