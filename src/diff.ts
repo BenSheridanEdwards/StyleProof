@@ -215,26 +215,36 @@ function dropUsedValueOnlyProps(
 
 const SIZE_PROPS = new Set(['width', 'inline-size', 'height', 'block-size']);
 
-/** Placeholder used geometry can echo a host reflow, but has no Typed OM proof of its own. */
-function dropPlaceholderEchoProps(props: PropChange[], hostSizeDeltas: Map<string, number>): PropChange[] {
+/** Origins can echo only the placeholder's own size changes already dropped as host reflow. */
+function dropPlaceholderOriginEchoProps(props: PropChange[], droppedSizeDeltas: Map<string, number>): PropChange[] {
   return props.filter((change) => {
-    const hostDelta = hostSizeDeltas.get(change.prop);
-
-    if (hostDelta !== undefined) {
-      const delta = marginPxDelta(change);
-
-      return delta === null || Math.abs(delta - hostDelta) > ORIGIN_EPSILON_PX;
-    }
-
     if (!SUBPIXEL_ORIGIN_PROPS.has(change.prop)) return true;
     const before = pxParts(change.before);
     const after = pxParts(change.after);
 
     if (!before || !after || before.length !== after.length) return true;
-    const expected = [(hostSizeDeltas.get('width') ?? 0) / 2, (hostSizeDeltas.get('height') ?? 0) / 2, 0];
+    const expected = [(droppedSizeDeltas.get('width') ?? 0) / 2, (droppedSizeDeltas.get('height') ?? 0) / 2, 0];
 
     return before.some((value, index) => Math.abs(after[index]! - value - expected[index]!) > ORIGIN_EPSILON_PX);
   });
+}
+
+/** Placeholder used geometry can echo a host reflow, but has no Typed OM proof of its own. */
+function dropPlaceholderEchoProps(props: PropChange[], hostSizeDeltas: Map<string, number>): PropChange[] {
+  const droppedSizeDeltas = new Map<string, number>();
+
+  const retained = props.filter((change) => {
+    const hostDelta = hostSizeDeltas.get(change.prop);
+    const delta = marginPxDelta(change);
+
+    if (hostDelta === undefined || delta === null || Math.abs(delta - hostDelta) > ORIGIN_EPSILON_PX) return true;
+
+    droppedSizeDeltas.set(change.prop, delta);
+
+    return false;
+  });
+
+  return dropPlaceholderOriginEchoProps(retained, droppedSizeDeltas);
 }
 
 /** Union of both captures' live-region paths — skipped by every diff layer. */

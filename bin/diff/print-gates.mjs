@@ -222,7 +222,7 @@ export function printUncomparedWarnings({
     const summary = changes.slice(0, 3).join(', ') + (changes.length > 3 ? ` (+${changes.length - 3} more)` : '');
 
     console.error(
-      `warning: host UA form-control metrics changed between base and head on ${hostUaDrift.length} surfaces (${summary}); findings on those surfaces may be environmental`,
+      `warning: stylesheet-free UA defaults changed between base and head on ${hostUaDrift.length} ${hostUaDrift.length === 1 ? 'surface' : 'surfaces'} (${summary}); findings on those surfaces may be environmental`,
     );
   }
   if (volatile > 0) {

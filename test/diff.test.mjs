@@ -32,6 +32,27 @@ test('placeholder drops size and origin echoes of a host size dropped with Typed
   assert.deepEqual(diffStyleMaps(before, after), []);
 });
 
+for (const placeholderWidth of [280, 274]) {
+  test(`placeholder keeps origin changes during host reflow when its width is ${placeholderWidth}px`, () => {
+    const before = placeholderMap(300, 280, '140px 10px');
+    const after = placeholderMap(296, placeholderWidth, '138px 10px');
+    const findings = diffStyleMaps(before, after);
+
+    assert.deepEqual(
+      findings.map((finding) => [finding.pseudo, finding.props.filter(({ prop }) => prop.endsWith('-origin'))]),
+      [
+        [
+          '::placeholder',
+          [
+            { prop: 'transform-origin', before: '140px 10px', after: '138px 10px' },
+            { prop: 'perspective-origin', before: '140px 10px', after: '138px 10px' },
+          ],
+        ],
+      ],
+    );
+  });
+}
+
 for (const [name, before, after, expected] of [
   ['host unchanged', placeholderMap(300, 280, '140px 10px'), placeholderMap(300, 276, '138px 10px'), 4],
   [
