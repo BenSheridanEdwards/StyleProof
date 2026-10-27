@@ -54,7 +54,10 @@ test('test preload prevents commit auto-maintenance and preserves inherited git 
 
 test('browser lane fixture repositories disable maintenance despite filtering Git environment config', (t) => {
   const fixture = createContentFixture(t, { id: 'maintenance', gitlink: 'update' });
-  assert.equal(Object.keys(fixture.env).some((key) => key.startsWith('GIT_')), false);
+  assert.equal(
+    Object.keys(fixture.env).some((key) => key.startsWith('GIT_')),
+    false,
+  );
   for (const cwd of [fixture.directory, path.join(fixture.workspace, 'child')]) {
     const git = (args) => spawnSync('git', args, { cwd, env: fixture.env, encoding: 'utf8' });
     for (const [key, value] of Object.entries({ 'maintenance.auto': 'false', 'gc.auto': '0' })) {
