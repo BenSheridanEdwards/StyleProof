@@ -702,7 +702,7 @@ test('styleproof-variants documents the required running-app input', () => {
 // ---------------------------------------------------------------- styleproof-diff
 
 for (const count of [1, 2]) {
-  test(`diff CLI warns once about UA drift on ${count} surfaces without suppressing findings or changing JSON`, (t) => {
+  test(`diff CLI warns once about UA drift on ${count} ${count === 1 ? 'surface' : 'surfaces'} without suppressing findings or changing JSON`, (t) => {
     const root = mkTmp();
     t.after(() => rmTmp(root));
     const A = path.join(root, 'a');
@@ -741,7 +741,7 @@ for (const count of [1, 2]) {
   });
 }
 
-test('diff CLI caps the host UA warning at three distinct changes across surfaces', (t) => {
+test('diff CLI caps the stylesheet-free UA defaults warning at three distinct changes across surfaces', (t) => {
   const root = mkTmp();
   t.after(() => rmTmp(root));
   const A = path.join(root, 'a');
