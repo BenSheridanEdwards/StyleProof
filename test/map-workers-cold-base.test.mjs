@@ -45,6 +45,7 @@ for (const extension of ['ts', 'mjs']) {
     const standalone = spawnSyncToCompletion(
       process.execPath,
       [
+        '--experimental-strip-types',
         '--input-type=module',
         '-e',
         `console.log(JSON.stringify((await import(${JSON.stringify(configUrl)})).default));`,

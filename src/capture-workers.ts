@@ -36,6 +36,7 @@ async function configChoosesWorkers(args: readonly string[], cwd: string): Promi
     const result = spawnSync(
       process.execPath,
       [
+        '--experimental-strip-types',
         '--input-type=module',
         '-e',
         `import { writeFileSync } from 'node:fs';
