@@ -213,6 +213,30 @@ function dropUsedValueOnlyProps(
   });
 }
 
+const SIZE_PROPS = new Set(['width', 'inline-size', 'height', 'block-size']);
+
+/** Placeholder used geometry can echo a host reflow, but has no Typed OM proof of its own. */
+function dropPlaceholderEchoProps(props: PropChange[], hostSizeDeltas: Map<string, number>): PropChange[] {
+  return props.filter((change) => {
+    const hostDelta = hostSizeDeltas.get(change.prop);
+
+    if (hostDelta !== undefined) {
+      const delta = marginPxDelta(change);
+
+      return delta === null || Math.abs(delta - hostDelta) > ORIGIN_EPSILON_PX;
+    }
+
+    if (!SUBPIXEL_ORIGIN_PROPS.has(change.prop)) return true;
+    const before = pxParts(change.before);
+    const after = pxParts(change.after);
+
+    if (!before || !after || before.length !== after.length) return true;
+    const expected = [(hostSizeDeltas.get('width') ?? 0) / 2, (hostSizeDeltas.get('height') ?? 0) / 2, 0];
+
+    return before.some((value, index) => Math.abs(after[index]! - value - expected[index]!) > ORIGIN_EPSILON_PX);
+  });
+}
+
 /** Union of both captures' live-region paths — skipped by every diff layer. */
 function volatilePaths(a: StyleMap, b: StyleMap): string[] {
   return [...new Set([...(a.volatile ?? []), ...(b.volatile ?? [])])];
@@ -301,15 +325,36 @@ function oneSidedFindings(p: string, ea: Element | undefined, eb: Element | unde
   return findings;
 }
 
+/** Record host size deltas removed by used-value pruning for placeholder echo matching. */
+function recordDroppedHostSizeDeltas(
+  rawProps: PropChange[],
+  restingProps: PropChange[],
+  hostSizeDeltas: Map<string, number>,
+): void {
+  for (const change of rawProps) {
+    if (!SIZE_PROPS.has(change.prop) || restingProps.includes(change)) continue;
+
+    const delta = marginPxDelta(change);
+
+    if (delta !== null) hostSizeDeltas.set(change.prop, delta);
+  }
+}
+
 /** Style findings for an element present (same tag) on both sides, one per changed layer. */
 function pairedFindings(p: string, a: StyleMap, b: StyleMap, ea: Element, eb: Element): Finding[] {
   const findings: Finding[] = [];
+  const hostSizeDeltas = new Map<string, number>();
   for (const pseudo of [null, ...unionKeys(ea.pseudo ?? {}, eb.pseudo ?? {})]) {
     const [propsA, pdefsA] = layer(a, b, ea, pseudo);
     const [propsB, pdefsB] = layer(b, a, eb, pseudo);
     const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
     const restingProps = pseudo ? rawProps : dropUsedValueOnlyProps(rawProps, ea, eb);
-    const props = dropSubpixelOriginProps(restingProps);
+
+    if (pseudo === null) recordDroppedHostSizeDeltas(rawProps, restingProps, hostSizeDeltas);
+
+    const props = dropSubpixelOriginProps(
+      pseudo === '::placeholder' ? dropPlaceholderEchoProps(restingProps, hostSizeDeltas) : restingProps,
+    );
     if (!props.length) continue;
     const signal = pseudo === null ? contentLengthSignal(ea, eb) : undefined;
     findings.push({
@@ -511,6 +556,8 @@ export function diffStyleMapDirs(
   surfaces: SurfaceDiff[];
   counts: DiffCounts;
   comparability: SurfaceComparability[];
+  /** Stylesheet-free UA defaults changed on these paired surfaces: advisory host drift. */
+  hostUaDrift: { surface: string; props: PropChange[] }[];
   volatile: number;
   /** Subtrees volatile on the head but compared on the base: excluded, so they block certification. */
   headOnlyVolatile: HeadOnlyVolatile[];
@@ -539,6 +586,7 @@ export function diffStyleMapDirs(
 
   const surfaces: SurfaceDiff[] = [];
   const comparability: SurfaceComparability[] = [];
+  const hostUaDrift: { surface: string; props: PropChange[] }[] = [];
   const pixels: PixelSurfaceResult[] = [];
   let counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   const uncompared: UncomparedTally = {
@@ -557,6 +605,8 @@ export function diffStyleMapDirs(
       continue;
     }
     const pair = diffSurfacePair(surface, indexA[surface], indexB[surface], uncompared, options);
+
+    if (pair.hostUaDrift.length) hostUaDrift.push({ surface, props: pair.hostUaDrift });
     comparability.push(pair.comparability);
     counts = addCounts(counts, countFindings(pair.findings));
     if (pair.findings.length)
@@ -570,6 +620,7 @@ export function diffStyleMapDirs(
     surfaces,
     counts,
     comparability,
+    hostUaDrift,
     ...uncompared,
     compared: names.length,
     baselineFailures,
@@ -613,6 +664,26 @@ type UncomparedTally = {
   documentRootVolatile: DocumentRootVolatile[];
 };
 
+/** Page styles cannot change shared defaults captured in a stylesheet-free iframe; tags are recorded lazily. */
+function diffUaDefaults(before: StyleMap, after: StyleMap): PropChange[] {
+  const changes: PropChange[] = [];
+
+  for (const tag of Object.keys(before.defaults).sort()) {
+    const base = before.defaults[tag];
+    const head = after.defaults[tag];
+
+    if (!base || !head) continue;
+
+    for (const prop of Object.keys(base).sort()) {
+      if (Object.hasOwn(head, prop) && base[prop] !== head[prop]) {
+        changes.push({ prop: `${tag}.${prop}`, before: base[prop]!, after: head[prop]! });
+      }
+    }
+  }
+
+  return changes;
+}
+
 /** Diff one paired surface, tallying what was NOT compared (volatile subtrees, one-sided ones named; an incomplete forced-state layer on EITHER side). */
 function diffSurfacePair(
   surface: string,
@@ -620,7 +691,7 @@ function diffSurfacePair(
   fileB: string,
   uncompared: UncomparedTally,
   options: DiffStyleOptions,
-): { findings: Finding[]; comparability: SurfaceComparability } {
+): { findings: Finding[]; comparability: SurfaceComparability; hostUaDrift: PropChange[] } {
   const mapA = loadStyleMap(fileA);
   const mapB = loadStyleMap(fileB);
   uncompared.volatile += volatilePaths(mapA, mapB).length;
@@ -636,6 +707,7 @@ function diffSurfacePair(
   return {
     findings: diffStyleMaps(comparableBase, mapB, options),
     comparability: compareProductState(surface, mapA, mapB),
+    hostUaDrift: diffUaDefaults(mapA, mapB),
   };
 }
 

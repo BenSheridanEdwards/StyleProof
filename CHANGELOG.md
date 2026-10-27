@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Drop placeholder size and origin changes that exactly echo a host size reflow already proven by CSS Typed OM. Warn once on stderr when shared stylesheet-free UA defaults drift between base and head, naming the affected surface count and up to three distinct property changes plus an overflow count. Lazily recorded defaults present on only one side are ignored; other findings remain unchanged.
 - Reuse the final quiet settle snapshot for resting style capture, avoiding another full document pass. Component and reach captures, disabled settling, and settle timeouts keep a fresh read.
 - Default capture workers to `max(ceil(cpus / 2), cpus - 2)` when no Playwright worker count is chosen (12 CPUs → 10 workers). Preserve explicit Playwright args and config workers; add `STYLEPROOF_WORKERS` for a positive-integer override.
 - Fix the local compare hint added in #1120. Its `git switch <base>` step carried uncommitted edits into the base capture, so a change still in the working tree compared as no change; it also failed on a ref such as `origin/main` and from a detached HEAD. The hint now captures this checkout as head, then the base from a clean `git worktree` of the base ref, installing with the project's package manager. It prints the inferred base instead of a placeholder and warns that a reused local server serves both captures the same build.
