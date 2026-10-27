@@ -82,11 +82,17 @@ function findEsmConfig(dir: string): StyleProofConfigLocation | undefined {
   return undefined;
 }
 
+/** Import a config's default record without applying the StyleProof policy schema. */
+export async function importConfigRecord(filePath: string) {
+  const mod = await import(pathToFileURL(filePath).href);
+
+  return plainObject(mod.default ?? mod, 'the default export', path.basename(filePath));
+}
+
 /** Import an ESM config (.ts, .mjs, or .js); an unloadable `.ts` falls back to the sync evaluator. */
 async function loadEsmConfig(found: StyleProofConfigLocation): Promise<Record<string, unknown>> {
   try {
-    const mod = await import(pathToFileURL(found.path).href);
-    return plainObject(mod.default ?? mod, 'the default export', found.filename);
+    return await importConfigRecord(found.path);
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
     if (isUnloadableTypeScriptConfig(found.filename, e)) {

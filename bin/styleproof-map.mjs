@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { selectCaptureWorkers } from '../dist/capture-workers.js';
 import { missingSpecMessage, nonLinuxUploadWarning, playwrightMissingMessage } from '../dist/cli-errors.js';
 import {
   DEFAULT_STYLEPROOF_SPEC,
@@ -382,6 +383,31 @@ const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright
 const hasConfigArg = playwrightArgs.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 const configArgs =
   fs.existsSync(STYLEPROOF_PLAYWRIGHT_CONFIG) && !hasConfigArg ? ['--config', STYLEPROOF_PLAYWRIGHT_CONFIG] : [];
+
+const cpus = os.availableParallelism();
+let workerSelection;
+
+try {
+  if (!opts.restore) {
+    workerSelection = await selectCaptureWorkers(
+      [...configArgs, ...playwrightArgs],
+      env.STYLEPROOF_WORKERS,
+      cpus,
+      process.cwd(),
+    );
+  }
+} catch (error) {
+  fail(NAME, errorMessage(error));
+}
+
+const workerArgs = workerSelection ? [`--workers=${workerSelection.count}`] : [];
+
+if (workerSelection) {
+  const reason = workerSelection.source === 'default' ? `default: ${cpus} cpus` : workerSelection.source;
+
+  console.error(`${NAME}: workers=${workerSelection.count} (${reason})`);
+}
+
 // The spec process clock is frozen alongside the browser clock so module-level `new Date()` fixtures match across sides.
 const captureEnv = (label) => ({
   ...env,
@@ -394,7 +420,7 @@ const captureEnv = (label) => ({
   ...(onlySurfaces ? { STYLEPROOF_ONLY_SURFACES: [...onlySurfaces].join(',') } : {}),
 });
 const runCapture = (label, extraEnv = {}) =>
-  spawnSync(playwright, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
+  spawnSync(playwright, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs, ...workerArgs], {
     stdio: 'inherit',
     env: { ...captureEnv(label), ...extraEnv },
   });
