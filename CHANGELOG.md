@@ -130,6 +130,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `report-max-bytes` Action input caps artifact HTML, excluding Markdown and JSON receipts (default 2,000,000 bytes); `styleproof-report --html-max-bytes` caps standalone HTML.
+
 - **`changeReach: 'gate'` holds the verdict on never-rendered CSS changes (#997).**
   The default `'warn'` preserves verdicts, exit codes and diff CLI output. Opt-in
   gate holds never-rendered or blind-channel J1 changes and J1 ledger gaps,
@@ -195,6 +197,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 
 - Report artifacts are kept 14 days by default (was 30).
+- The artifact holds one self-contained `report.html`, plus `report.md` and `report.json`, without `crops/`. Images beyond the budget become captions with a visible omission notice. Oversized JSON receipts do not prevent publication. HTML text that cannot fit fails explicitly instead of dropping the verdict.
 
 - A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary.
   Fork captures, failure verdicts, and included advisory content changes still

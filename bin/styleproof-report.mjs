@@ -19,6 +19,7 @@ const cli = defineCli({
     out: { value: 'dir', help: 'output directory', default: 'styleproof-report' },
     'image-base-url': { value: 'url', help: 'prefix for image URLs in report.md (default: relative)' },
     pad: { value: 'px', help: 'padding around changed rects when cropping (default: 12)' },
+    'html-max-bytes': { value: 'bytes', help: 'self-contained HTML byte ceiling (default: 2000000)' },
     'max-crops': { value: 'n', help: 'max crop regions per surface before collapsing (default: 8)' },
     'fold-details-at': {
       value: 'n',
@@ -49,6 +50,11 @@ if (Number.isNaN(foldDetailsAt)) {
   process.exit(2);
 }
 const numeric = (flag) => number(NAME, flag, opts[flag]);
+const htmlMaxBytes = numeric('html-max-bytes') ?? 2_000_000;
+if (!Number.isSafeInteger(htmlMaxBytes) || htmlMaxBytes <= 0) {
+  console.error('--html-max-bytes must be a positive integer');
+  process.exit(2);
+}
 const migration = Boolean(opts.migration);
 const includeContent = Boolean(opts['include-content']);
 
@@ -59,6 +65,7 @@ const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs,
     outDir: opts.out,
     imageBaseUrl: opts['image-base-url'] || undefined,
     pad: numeric('pad'),
+    htmlMaxBytes,
     maxCrops: numeric('max-crops'),
     foldDetailsAt,
     minWidth: numeric('min-width'),
@@ -94,7 +101,10 @@ if (sourceBindingFailed) {
     relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled;
   fs.writeFileSync(result.reportMdPath, labeled);
   // report.html was rendered from the unlabelled markdown; render it again so both carry the label (#964).
-  fs.writeFileSync(result.reportHtmlPath, renderReportHtml(labeled.replace(/\n$/, '')));
+  fs.writeFileSync(
+    result.reportHtmlPath,
+    renderReportHtml(labeled.replace(/\n$/, ''), { outDir: opts.out, maxBytes: htmlMaxBytes }),
+  );
 }
 
 const consistencyFailed = result.reportConsistency?.ok === false;

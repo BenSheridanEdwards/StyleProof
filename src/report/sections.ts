@@ -365,6 +365,7 @@ export type ReportArtifacts = Pick<
   | 'criticalStates'
 > & {
   outDir: string;
+  htmlMaxBytes?: number;
   md: string[];
   gateMode: NonNullable<ReportOptions['gateMode']>;
   counts: DiffCounts;
@@ -399,7 +400,7 @@ export function writeReportArtifacts(a: ReportArtifacts): {
   fs.writeFileSync(reportMdPath, a.md.length > 0 ? `${a.md.join('\n')}\n` : '');
   // The rendered sibling of report.md: artifact storage and local output ship
   // no rendered view, so the review surface travels inside the package (#698).
-  fs.writeFileSync(reportHtmlPath, renderReportHtml(a.md.join('\n')));
+  fs.writeFileSync(reportHtmlPath, renderReportHtml(a.md.join('\n'), { outDir: a.outDir, maxBytes: a.htmlMaxBytes }));
   const json = {
     gateMode: a.gateMode,
     counts: a.counts,

@@ -788,6 +788,7 @@ for (const storage of ['artifact', 'branch']) {
       'inputs.report-storage': storage,
       'steps.publish.outcome': 'skipped',
       'steps.report-artifact.outcome': 'skipped',
+      'steps.report-size.outcome': 'skipped',
       'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
       'steps.comment.outcome': 'success',
       'steps.status.outcome': 'success',
@@ -802,6 +803,7 @@ for (const failed of ['comment', 'status']) {
       'inputs.report-storage': 'artifact',
       'steps.publish.outcome': 'skipped',
       'steps.report-artifact.outcome': 'skipped',
+      'steps.report-size.outcome': 'skipped',
       'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
       'steps.comment.outcome': 'success',
       'steps.status.outcome': 'success',
@@ -2171,4 +2173,17 @@ test('composite action advisory mode comment shows advisory guidance (#580)', ()
   // Advisory mode should have specific guidance text
   assert.match(commentStep[0], /const advisoryMode = mode === 'advisory'/);
   assert.match(commentStep[0], /advisory.*check remains green|advisory-only/i);
+});
+
+test('an artifact budget failure reports publication failure even when upload is skipped', async () => {
+  const outputs = await runActionProgram('trust', {
+    'inputs.report-storage': 'artifact',
+    'steps.publish.outcome': 'skipped',
+    'steps.report-artifact.outcome': 'skipped',
+    'steps.report-size.outcome': 'failure',
+    'steps.verdict.outputs.state': 'STYLE_REVIEW_REQUIRED',
+    'steps.comment.outcome': 'skipped',
+    'steps.status.outcome': 'skipped',
+  });
+  assert.equal(outputs.state, 'REPORT_PUBLICATION_FAILED');
 });

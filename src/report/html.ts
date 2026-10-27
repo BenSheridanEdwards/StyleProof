@@ -1,9 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 /**
  * Render report.md to a self-contained report.html — the in-browser review
  * surface for report packages that ship no rendered view: artifact storage
  * (the default), where reviewers otherwise read raw Markdown after unzipping,
- * and local `styleproof-report/` output. Crop references stay relative, so
- * the page renders wherever the package lands.
+ * and local `styleproof-report/` output. Images travel inside the page.
  *
  * The grammar handled is exactly what the report generator emits: headings,
  * paragraphs, `**bold**`/`_italic_`/`code`/links, standalone images, `<sub>`
@@ -183,9 +185,20 @@ function renderBlocks(lines: string[]): string[] {
   return out;
 }
 
-export function renderReportHtml(markdown: string): string {
+function readCropDataUrl(src: string, outDir: string, maxBytes: number): string | null {
+  const target = src.match(/(?:^|\/)crops\/([^/]+\.png)$/);
+  if (!target) return null;
+  const filename = path.join(outDir, 'crops', target[1]);
+  if (!fs.existsSync(filename)) return null;
+  if ((fs.statSync(filename).size * 4) / 3 > maxBytes) return null;
+  return `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`;
+}
+
+export function renderReportHtml(markdown: string, options?: { outDir: string; maxBytes?: number }): string {
+  const maxBytes = options?.maxBytes ?? 2_000_000;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('HTML byte budget must be a positive integer');
   const body = renderBlocks(markdown.split('\n')).join('\n');
-  return `<!doctype html>
+  let page = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -217,4 +230,39 @@ ${body}
 </body>
 </html>
 `;
+  if (!options) return page;
+  const images = [...page.matchAll(/<img src="([^"]*)" alt="([^"]*)" loading="lazy">/g)];
+  const captions = images.map((image) => `<span>${image[2]} (image omitted)</span>`);
+  images.forEach((image, i) => {
+    page = page.replace(image[0], `<!-- image-${i} -->`);
+  });
+  const banner = (count: number) =>
+    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; report.json holds the full data.</p>`;
+  let remaining = maxBytes - Buffer.byteLength(page + banner(images.length) + captions.join(''));
+  const rendered = [...captions];
+  let omitted = images.length;
+  // Reserve text first; new and removed surfaces have no paired evidence.
+  const priority = images
+    .map((image, i) => ({ image, i }))
+    .sort(
+      (a, b) =>
+        Number(/new surface|removed surface/i.test(b.image[2])) -
+        Number(/new surface|removed surface/i.test(a.image[2])),
+    );
+  for (const { image, i } of priority) {
+    const src = readCropDataUrl(image[1], options.outDir, remaining);
+    if (!src) continue;
+    const tag = `<img src="${src}" alt="${image[2]}" loading="lazy">`;
+    const cost = Buffer.byteLength(tag) - Buffer.byteLength(captions[i]);
+    if (cost > remaining) continue;
+    rendered[i] = tag;
+    remaining -= cost;
+    omitted -= 1;
+  }
+  page = page.replace(/<!-- image-(\d+) -->/g, (_match, i) => rendered[Number(i)]);
+  if (omitted) page = page.replace('<main>', `<main>${banner(omitted)}`);
+  if (Buffer.byteLength(page) > maxBytes) {
+    throw new Error('HTML byte budget cannot fit report text');
+  }
+  return page;
 }

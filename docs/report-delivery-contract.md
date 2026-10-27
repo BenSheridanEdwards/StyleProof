@@ -16,9 +16,9 @@ A complete publication contains:
 - `report.md`, the human review surface;
 - `report.html`, the same report rendered as a self-contained page — the in-browser review surface for packages that ship no rendered view (artifact storage, local output);
 - `report.json`, the machine-readable report;
-- crop and annotation images referenced by relative paths from `report.md` and `report.html`.
+- Artifact mode ships only these three files. HTML embeds crop images within `report-max-bytes` (default 2,000,000 HTML bytes; Markdown and JSON receipts are excluded); omitted images have captions and a visible notice pointing to the full data in `report.json`. If HTML text cannot fit, publication fails with an error naming `report-max-bytes`; the verdict is never replaced with a truncation-only page. Markdown crop links are local-only; branch mode still ships `crops/`.
 
-Branch publication succeeds only after the publisher reads the advertised commit back and verifies the run receipt embedded in `report.md`, which names the source head SHA, run ID and run attempt, and confirms `report.json` parses with no duplicate keys. Artifact publication appends the same run receipt to `report.md` before the upload step runs, so the approval readback binds both substrates identically; `if-no-files-found: error` makes an empty report directory a publication failure rather than a silent no-op. The Markdown, JSON, and crop paths remain one published evidence package in either mode.
+Branch publication succeeds only after the publisher reads the advertised commit back and verifies the run receipt embedded in `report.md`, which names the source head SHA, run ID and run attempt, and confirms `report.json` parses with no duplicate keys. Artifact publication appends the same run receipt to `report.md` before the upload step runs, so the approval readback binds both substrates identically; `if-no-files-found: error` makes an empty report directory a publication failure rather than a silent no-op. Both modes publish Markdown and JSON receipts; branch mode also publishes crop files, while artifact HTML embeds the images that fit. Artifact Markdown crop links require the original local crops.
 
 Artifact names are immutable per workflow run, so the upload sets `overwrite: true`: re-running the job in the same run replaces the earlier report artifact instead of failing on the name, and the comment and status always link the newest artifact.
 
@@ -45,7 +45,7 @@ The comment does not duplicate crops or per-element tables. This prevents a sepa
 Public and private repositories use the same linked-comment shape.
 
 - Branch mode: public viewers open the GitHub blob URL directly; private viewers need repository access and an authenticated GitHub session. Crops use relative paths inside the committed report.
-- Artifact mode: viewers follow the artifact entry or run page, download the report, and open `report.html` for the rendered page — GitHub always authenticates artifact downloads, so the link works identically for public and private repositories, and crops travel inside the artifact.
+- Artifact mode: viewers follow the artifact entry or run page, download the report, and open `report.html` for the rendered page — GitHub always authenticates artifact downloads, so the link works identically for public and private repositories, and images travel inside the HTML.
 
 StyleProof does not route private images through anonymous `raw.githubusercontent.com` or GitHub Camo fetches.
 
