@@ -11,7 +11,7 @@
     "state": 0
   },
   "reviewableCounts": {
-    "dom": 0,
+    "dom": 1,
     "style": 0,
     "state": 0
   },
@@ -22,7 +22,7 @@
       "state": 0
     },
     "reviewableCounts": {
-      "dom": 0,
+      "dom": 1,
       "style": 0,
       "state": 0
     },
@@ -30,7 +30,7 @@
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": false,
+    "hasReviewableEvidence": true,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
@@ -65,20 +65,21 @@
   "baselineFailures": [],
   "partialBaseline": false,
   "content": {
-    "evaluated": false,
-    "changes": 0,
-    "advisory": true
+    "evaluated": true,
+    "changes": 1,
+    "advisory": true,
+    "elevatedVisibleStructure": 1
   },
   "surfaces": [],
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 1,
+      "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 0
+      "captured": 1
     },
-    "completeness": "limited"
+    "completeness": "complete"
   },
   "legacyPairs": {
     "armed": true,
@@ -91,13 +92,13 @@
     "status": "bound",
     "compatibility": "matched",
     "before": {
-      "expected": "8c7465be9f32801f05625f447e44d3a6e1c1f6b2",
-      "observed": "8c7465be9f32801f05625f447e44d3a6e1c1f6b2",
+      "expected": "837a878b6585a814c9e9e2f37a7b4ae620cfc464",
+      "observed": "837a878b6585a814c9e9e2f37a7b4ae620cfc464",
       "result": "matched"
     },
     "after": {
-      "expected": "ac8740d37e260ef49fca869c310838057b8abb52",
-      "observed": "ac8740d37e260ef49fca869c310838057b8abb52",
+      "expected": "d11c0becbc287b7e3da5af0d6d1d356fb7f237fd",
+      "observed": "d11c0becbc287b7e3da5af0d6d1d356fb7f237fd",
       "result": "matched"
     }
   },
@@ -105,19 +106,19 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "e3256f63ea34cdbcd9fdb859d231dfb2a602b50675e2a089de48908bbbd65932",
+      "digest": "24aeb2eb01eaa36af686beb96dee49f32df6dd62199b630046ec58ee62026c9f",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "ed02373cb33b196a558be0795dc442ce2b693acbcec03fa33ea29b47cca7d014",
+      "digest": "bfa460b058e1ed9453453489fae28cc72f2de69f295bb42aad7db77b4b726b03",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1555
     }
   },
-  "actionTrustState": "CERTIFICATION_FAILED",
+  "actionTrustState": "STYLE_REVIEW_REQUIRED",
   "untrustedCapture": false
 }
