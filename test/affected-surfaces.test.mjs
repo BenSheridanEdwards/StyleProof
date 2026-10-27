@@ -344,6 +344,17 @@ for (const wrapper of [
   'src/pages/_app.jsx',
   'src/pages/_document.js',
   'src/App.tsx',
+  // Wrappers other frameworks inject around every page without a page importing them.
+  'app/root.tsx', // Remix, React Router 7
+  'src/routes/+layout.svelte', // SvelteKit
+  'src/routes/(app)/+layout@.svelte', // SvelteKit layout reset
+  'src/routes/+layout.ts', // SvelteKit layout load
+  'app.vue', // Nuxt
+  'layouts/default.vue', // Nuxt
+  'src/App.vue', // Vue SPA
+  'src/main.tsx', // Vite SPA mount, e.g. <Providers><App/></Providers>
+  'gatsby-browser.js', // Gatsby wrapPageElement
+  'gatsby-ssr.tsx', // Gatsby wrapPageElement
 ]) {
   test(`a change reaching ${wrapper} outside a surface → full re-capture, even with a test importer`, () => {
     const f = withLayout(wrapper);
