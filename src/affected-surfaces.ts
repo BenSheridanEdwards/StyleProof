@@ -57,8 +57,17 @@ const isConfig = (f: string) =>
 const isStyleSheet = (f: string) => /\.(css|scss|sass|less|styl)$/.test(f);
 const isCssModule = (f: string) => /\.module\.(css|scss|sass|less|styl)$/.test(f);
 const isCode = (f: string) => /\.[cm]?[jt]sx?$/.test(f);
-// Conventional wrappers can render around pages without an import from a page.
-const isWrapper = (f: string) => /(?:^|\/)(?:layout|template|_app|_document|App)\.[cm]?[jt]sx?$/.test(f);
+// Conventional wrappers can render around pages without an import from a page: Next
+// (`layout`, `template`, `_app`, `_document`), SPA `App` and its `main` mount, Remix /
+// React Router 7 `root`, Gatsby `gatsby-browser` / `gatsby-ssr`, SvelteKit `+layout`
+// (including `+layout@` resets and its load modules), and Vue / Nuxt `App.vue`,
+// `app.vue` and `layouts/*.vue`.
+const WRAPPERS = [
+  /(?:^|\/)(?:layout|template|_app|_document|App|main|root|gatsby-browser|gatsby-ssr)\.[cm]?[jt]sx?$/,
+  /(?:^|\/)\+layout(?:@[^/.]*)?(?:\.server)?\.(?:svelte|[cm]?[jt]s)$/,
+  /(?:^|\/)(?:App|app|layouts\/[^/]+)\.vue$/,
+];
+const isWrapper = (f: string) => WRAPPERS.some((wrapper) => wrapper.test(f));
 // A single-file component's `<style>` can be global (unscoped Vue, Svelte `:global`, Astro `is:global`).
 const isSfc = (f: string) => /\.(vue|svelte|astro)$/.test(f);
 
