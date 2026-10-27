@@ -388,3 +388,28 @@ export const noKnownValueWideningRule = defineRule({
 			},
 			ArrowFunctionExpression(node) {
 				if (node.body.type === "BlockStatement") return;
+				reportFlow(
+					node.body,
+					targetFromAnnotation(node.returnType),
+					`return value of \`${functionName(context.sourceCode, node)}\``,
+				);
+			},
+			TSAsExpression(node) {
+				if (environment === null || hasParentAssertion(node)) return;
+				reportFlow(
+					node.expression,
+					classifyWideningTarget(node.typeAnnotation, environment),
+					"assertion",
+				);
+			},
+			TSTypeAssertion(node) {
+				if (environment === null || hasParentAssertion(node)) return;
+				reportFlow(
+					node.expression,
+					classifyWideningTarget(node.typeAnnotation, environment),
+					"assertion",
+				);
+			},
+		};
+	},
+});
