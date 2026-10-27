@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Stop CI immediately when the map capture process is terminated by a signal, preserving the signal exit code and cleaning up temporary worktrees instead of starting a head dependency install after an interrupted baseline.
 - Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout. Keep config errors concise and load JSON config without an extra process.
 - Fix cold-base CI captures to reuse head tarballs and Git specs, resolve local tarballs against the head package directory, and log the installed runtime spec; directories, link specs, and missing manifests use the running CLI version. Mutable Git refs are resolved again; pin a full commit SHA for the same build.
+- Keep global forced-state and pseudo-element rules reached when their extra candidates are the head subtree or framework-ignored elements.
+
+- Restore full-page scroller declarations through CSSOM before restoring exact style attribute text, so strict style CSP cannot leave expansion overrides applied.
 
 > **StyleProof 9.0.0: stable keys and stricter gates**
 >
@@ -137,8 +140,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **`changeReach: 'gate'` holds the verdict on never-rendered CSS changes (#997).**
   The default `'warn'` preserves verdicts, exit codes and diff CLI output. Opt-in
-  gate holds never-rendered or blind-channel J1 changes and J1 ledger gaps,
-  including missing legacy ledgers: recapture with `captureReach`. Certify mode
+  gate holds never-rendered, unmeasured or blind-channel J1 changes and J1 ledger gaps,
+  including missing or unscoped legacy ledgers: recapture with `captureReach`. Certify mode
   fails with `CERTIFICATION_FAILED`; review-gate and migration need approval via
   the existing Approve box; advisory stays non-blocking for reach findings.
   Both comparison CLIs exit `1` when reach holds the run. The gate diff receipt
@@ -149,7 +152,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `captureReach` ledger, the report lists each changed CSS rule no captured state
   rendered: its rule, the at-rules that gate it, and the served stylesheet. It
   also adds a one-line reach status under the headline and `reach` to
-  `report.json`. The status never claims "Reach complete" yet, because
+  `report.json`. Outside-only changes stay `unmeasured`, with their own count
+  and detail table, including in bounded reports and gate CLI summaries.
+  The status never claims "Reach complete" yet, because
   render-code reach is not measured. The verdict does not change. Reports from
   captures without a ledger are unchanged.
 - **Change Reach J1 resolves `@property` and drives the reach corpus (#995).**
@@ -171,6 +176,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and pass it as `servedRules`. Otherwise linked stylesheets are counted
   `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
   `ServedRuleTracker`.
+- **Change Reach counts only compared elements (#993).** A rule matched only
+  inside shadow DOM, an iframe, or an ignored or volatile region now reads
+  `unmeasured` rather than reached. `reach.scope: 'compared'` marks scoped
+  ledgers; ledgers captured by the earlier unreleased #991 code read as
+  missing and must be re-captured. Matches under `@scope` or `@container`,
+  shadow selectors, and ownerless constructed or imported sheets on pages
+  with author shadow roots remain conservatively unmeasured; browser-owned
+  shadow roots in form controls and media elements do not count. Uncaptured
+  pseudo-elements such as `::selection`, `::-webkit-scrollbar`, `::highlight()`
+  and `::cue()` record outside matches. So do pseudo-classes whose state the
+  capture does not fingerprint (`:invalid`, `:indeterminate`, `:popover-open`,
+  `:open`, `:defined`, `:dir()` or any unlisted one), chained pseudo-elements
+  (`::before::marker`), and forced states on pseudo-elements other than
+  `::before`, `::after` and `::placeholder`. If the DOM tree, attributes, checked
+  state, field emptiness, text presence or URL fragment differ between the
+  start and stop of tracking, every match records outside. Full-page geometry
+  expansion restores exact inline style attributes, so inline-styled scrollers
+  do not spuriously mark compared rules unmeasured. Never-rendered
+  token consumers take precedence over outside-only consumers regardless of
+  key or property order. Direct tracker callers now pass the required compared
+  paths to `stop(ownCss, compared)`.
 - **Reach corpus (`bench/`, #988).** `npm run bench:reach` pins the miss Change
   Reach (#934) exists to close. A base/head fixture carries 14 seeded changes,
   13 of them visual. A spec that opens only the healthy state shows 1 of the 13

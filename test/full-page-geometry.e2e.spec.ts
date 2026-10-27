@@ -132,7 +132,9 @@ test('full-page rect alignment gates below-fold content while preserving driven 
 });
 
 // Expanding and restoring for rects must not alter the live captured surface.
-test('full-page rect alignment restores inline CSS priorities before later capture reads', async ({ page }) => {
+test('full-page rect alignment restores exact inline styles and priorities before later capture reads', async ({
+  page,
+}, testInfo) => {
   await page.setContent(`<!doctype html><html><head><style>
     .scroller { height: 300px !important; overflow: auto; }
   </style></head><body><div class="scroller" style="height:200px!important;overflow-x:hidden!important">
@@ -141,6 +143,7 @@ test('full-page rect alignment restores inline CSS priorities before later captu
   expect(await page.locator('html').getAttribute('style')).toBeNull();
   expect(await page.locator('body').getAttribute('style')).toBeNull();
   const before = await page.locator('.scroller').evaluate((el) => ({
+    style: el.getAttribute('style'),
     height: getComputedStyle(el).height,
     priority: (el as HTMLElement).style.getPropertyPriority('height'),
     overflowX: (el as HTMLElement).style.getPropertyValue('overflow-x'),
@@ -150,6 +153,7 @@ test('full-page rect alignment restores inline CSS priorities before later captu
   const first = await captureStyleMap(page, options);
   expect(
     await page.locator('.scroller').evaluate((el) => ({
+      style: el.getAttribute('style'),
       height: getComputedStyle(el).height,
       priority: (el as HTMLElement).style.getPropertyPriority('height'),
       overflowX: (el as HTMLElement).style.getPropertyValue('overflow-x'),
@@ -162,10 +166,14 @@ test('full-page rect alignment restores inline CSS priorities before later captu
   const second = await captureStyleMap(page, options);
   expect(second, 'a repeated capture has the same geometry and computed styles').toEqual(first);
   expect(await page.locator('html').getAttribute('style')).toBeNull();
-  const htmlStyle = 'color: rgb(12, 34, 56);';
+  const htmlStyle = 'margin:0;color:rgb(12,34,56)';
   await page.locator('html').evaluate((el, value) => el.setAttribute('style', value), htmlStyle);
   await captureStyleMap(page, options);
   expect(await page.locator('html').getAttribute('style'), 'pre-existing html style is byte-identical').toBe(htmlStyle);
+  await captureSurfaceScreenshots(page, testInfo.outputPath('inline-styles'));
+  expect(await page.locator('html').getAttribute('style')).toBe(htmlStyle);
+  expect(await page.locator('.scroller').getAttribute('style')).toBe(before.style);
+  expect(await page.locator('body').getAttribute('style')).toBeNull();
 });
 
 for (const mode of ['standards', 'quirks']) {

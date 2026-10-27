@@ -58,6 +58,7 @@ async function corpusProbe(mode, rootUrl) {
       captures++;
       const reach = {
         version: 2,
+        scope: 'compared',
         sheets: ['/app.css'],
         rules: [{ sheet: 0, key: '.probe', hash: page.side, used: true }],
         ...(mode === 'partial' ? { unreadable: 1 } : {}),

@@ -6,6 +6,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, loadStyleMap } from '../dist/index.js';
+import { alignRectsToFullPageGeometry, captureFullPageScreenshot } from '../dist/capture/full-page.js';
 import { parseCaptureUrlArgs, runCaptureUrl } from '../dist/capture-url.js';
 
 // A page whose style CSP disallows 'unsafe-inline' must still capture, with StyleProof's
@@ -108,3 +109,43 @@ test("the hover sink stays fixed at (0,0) under style-src-attr 'none'", async ({
     site.close();
   }
 });
+
+for (const operation of ['geometry', 'screenshot'] as const) {
+  test(`full-page ${operation} restores a CSSOM-styled scroller under strict CSP`, async ({ page }, testInfo) => {
+    const site = await serve(
+      "default-src 'self'; style-src-attr 'none'",
+      doc('<div class="scroller"><p>content</p></div>'),
+    );
+    try {
+      await page.goto(site.url);
+      await page.evaluate(() => {
+        const scroller = document.querySelector<HTMLElement>('.scroller')!;
+        scroller.setAttribute('style', 'height:1px');
+        if (getComputedStyle(scroller).height === '1px') throw new Error('CSP did not block style attributes');
+        scroller.style.setProperty('overflow', 'auto');
+        scroller.style.setProperty('height', '80px');
+        scroller.style.setProperty('max-height', '80px', 'important');
+        scroller.firstElementChild!.setAttribute('style', 'height:600px');
+        (scroller.firstElementChild as HTMLElement).style.setProperty('height', '600px');
+        scroller.scrollTop = 40;
+      });
+      const read = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll<HTMLElement>('html, body, .scroller')].map((el) => ({
+            attribute: el.getAttribute('style'),
+            cssText: el.style.cssText,
+            height: getComputedStyle(el).height,
+            overflow: getComputedStyle(el).overflowY,
+            maxHeight: getComputedStyle(el).maxHeight,
+            scrollTop: el.scrollTop,
+          })),
+        );
+      const before = await read();
+      if (operation === 'geometry') await alignRectsToFullPageGeometry(page, {});
+      else await captureFullPageScreenshot(page, testInfo.outputPath('full-page.png'));
+      expect(await read()).toEqual(before);
+    } finally {
+      site.close();
+    }
+  });
+}

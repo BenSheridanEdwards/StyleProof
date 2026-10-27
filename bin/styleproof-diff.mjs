@@ -213,7 +213,7 @@ const liveTextFreezeViolated = Boolean(liveTextAudit?.freeze && liveTextAudit.vi
 printLiveText(liveTextAudit, liveTextFreezeViolated);
 if (reachBlocking > 0) {
   printSection(
-    `✗ Change Reach gate: ${reach.counts['never-rendered']} never rendered, ${reach.counts['blind-channel']} blind-channel, ${reach.gaps.filter((gap) => gap.kind === 'ledger').length} evidence gap(s) — certify fails; review-gate needs approval (changeReach: 'gate')`,
+    `✗ Change Reach gate: ${reach.counts['never-rendered']} never rendered, ${reach.counts['blind-channel']} blind-channel, ${reach.counts.unmeasured} unmeasured, ${reach.gaps.filter((gap) => gap.kind === 'ledger').length} evidence gap(s) — certify fails; review-gate needs approval (changeReach: 'gate')`,
   );
 }
 
@@ -284,7 +284,7 @@ const GATES = [
   { blocks: total > 0 },
   {
     blocks: reachBlocking > 0,
-    note: ` + ${reachBlocking} changed CSS rule(s) or reach evidence gap(s) never rendered (changeReach: 'gate')`,
+    note: ` + ${reachBlocking} changed CSS rule(s) or reach evidence gap(s) held by changeReach: 'gate'`,
   },
   { blocks: partialBaseline },
   { blocks: comparison.blocksCertification },

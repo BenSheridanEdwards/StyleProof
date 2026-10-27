@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
+import * as reach from '../dist/capture/reach.js';
 import { servedRulesOf, trackServedRules } from '../dist/capture/reach.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
 
@@ -262,7 +264,7 @@ test('unsupported escaped font dependencies and shorthands fail with unknown rea
   }
 });
 
-async function trackedLedger(sheets) {
+async function trackedLedger(sheets, opts = {}) {
   let added;
   const client = {
     on: (event, listener) => {
@@ -271,10 +273,27 @@ async function trackedLedger(sheets) {
     send: async (command, params) => {
       if (command === 'CSS.enable') {
         for (const sheet of sheets) {
-          added({ header: { origin: 'regular', isInline: true, sourceURL: '', ...sheet } });
+          added({ header: { origin: 'regular', isInline: true, sourceURL: '', frameId: 'main', ...sheet } });
         }
       }
-      if (command === 'CSS.getStyleSheetText') return sheets.find((s) => s.styleSheetId === params.styleSheetId);
+      if (command === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' } } };
+      if (command === 'DOM.getDocument') {
+        return { root: opts.document ?? { children: opts.shadow ? [{ shadowRoots: [{}] }] : [] } };
+      }
+      if (command === 'DOM.resolveNode') {
+        const sheet = sheets.find((s) => s.ownerNode === params.backendNodeId);
+        if (sheet.resolveFails) throw new Error('owner unavailable');
+        return { object: { objectId: sheet.styleSheetId } };
+      }
+      if (command === 'Runtime.callFunctionOn') {
+        const sheet = sheets.find((s) => s.styleSheetId === params.objectId);
+        if (sheet.callFails) throw new Error('owner detached');
+        return { result: { value: sheet.inDocument ?? true } };
+      }
+      if (command === 'CSS.getStyleSheetText') {
+        opts.onRead?.();
+        return sheets.find((s) => s.styleSheetId === params.styleSheetId);
+      }
       if (command === 'CSS.stopRuleUsageTracking') {
         return {
           ruleUsage: sheets.flatMap((s) =>
@@ -286,10 +305,19 @@ async function trackedLedger(sheets) {
     },
     detach: async () => {},
   };
-  const tracker = await trackServedRules({ context: () => ({ newCDPSession: async () => client }) });
+  const tracker = await trackServedRules({
+    context: () => ({ newCDPSession: async () => client }),
+    evaluate: async (fn, input) => {
+      if (opts.evaluate) return opts.evaluate(fn, input);
+      return {
+        fingerprint: opts.prints ? opts.prints.shift() : 'dom',
+        matched: input?.probes.map((p) => p !== null && (opts.inScope ?? (() => true))(p)) ?? [],
+      };
+    },
+  });
   try {
     await tracker.start();
-    return await tracker.stop([]);
+    return await tracker.stop([], opts.compared ?? ['html']);
   } finally {
     await tracker.dispose();
   }
@@ -323,6 +351,7 @@ test('reach self-check rejects ledger drift and missing evidence with unchanged 
   for (const changed of [
     undefined,
     { ...reach, rules: [{ ...reach.rules[0], used: undefined }] },
+    { ...reach, rules: [{ ...reach.rules[0], used: undefined, outside: true }] },
     { ...reach, rules: [{ ...reach.rules[0], hash: 'def' }] },
     { ...reach, sheets: ['constructed'] },
     { ...reach, unreadable: 1 },
@@ -333,4 +362,398 @@ test('reach self-check rejects ledger drift and missing evidence with unchanged 
     );
   }
   assert.throws(() => assertDeterministicReach({ elements: [] }, { elements: [] }, 'home'), /reach.*missing/);
+});
+
+for (const [selector, expected, chain = []] of [
+  ['.link:hover', '.link'],
+  ['.a::after', '.a'],
+  ['.a ::before', '.a *'],
+  ['.a /* comment */::before', '.a /* comment */*'],
+  ['.a/* comment */::before', '.a/* comment */'],
+  [':host-context(.on)', undefined],
+  [':hover', '*'],
+  [':not(:hover)', ':not(*)'],
+  ['a[title=":hover"]', 'a[title=":hover"]'],
+  [String.raw`[title="a\":hover"]:focus`, String.raw`[title="a\":hover"]`],
+  [String.raw`.escaped\:hover`, String.raw`.escaped\:hover`],
+  ['[data-name="::part(title)"]:active', '[data-name="::part(title)"]'],
+  ['.a:focus-visible:focus-within:focus:active', '.a'],
+  ['.a:hovering', undefined],
+  [String.raw`.a::be\66 ore`, undefined],
+  [String.raw`.a:hove\72`, undefined],
+  ['.a::beforeé', undefined],
+  ['.a:hoveré', undefined],
+  ['.a:before, .b:after, .c:first-line, .d:first-letter', '.a, .b, .c, .d'],
+  ['.a::cue(:is(.b, .c))', undefined],
+  ['.a::selection', undefined],
+  ['.a::-webkit-scrollbar', undefined],
+  ['.a::highlight(x)', undefined],
+  ['::view-transition-old(root)', undefined],
+  ['.a::before-ish', undefined],
+  ['.a::selection, .b::before', undefined],
+  ['.a::marker', '.a'],
+  ['.a::placeholder', '.a'],
+  ['dialog::backdrop', 'dialog'],
+  ['input::file-selector-button', 'input'],
+  ['.a::first-line', '.a'],
+  ['.a ::marker', '.a *'],
+  ['.a > :hover + ::before', '.a > * + *'],
+  ['x-card::part(title)', undefined],
+  [':host(.on)', undefined],
+  ['::slotted(p)', undefined],
+  ['.c', undefined, ['@scope (.card)']],
+  ['.c', undefined, ['@container (min-width: 500px)']],
+  ['@page', undefined],
+  // State the DOM fingerprint does not track cannot be attributed.
+  ['.field:invalid', undefined],
+  ['.a:valid', undefined],
+  ['.a:user-invalid', undefined],
+  ['input:indeterminate', undefined],
+  ['.a:popover-open', undefined],
+  ['details:open', undefined],
+  ['dialog:modal', undefined],
+  ['x-el:defined', undefined],
+  ['input:autofill', undefined],
+  ['.a:dir(rtl)', undefined],
+  ['.a:state(x)', undefined],
+  ['a:visited', undefined],
+  ['.a:read-only', undefined],
+  [':is(.a:invalid)', undefined],
+  ['.a:has(:invalid)', undefined],
+  [':nth-child(2 of .a:invalid)', undefined],
+  ['.a, .b:invalid', undefined],
+  // Chained pseudo-elements and anything after a pseudo-element are never read.
+  ['.item::before::marker', undefined],
+  ['.a:before::marker', undefined],
+  ['.a::before:hover', undefined],
+  ['.a::before .b', undefined],
+  // Forced reads only capture ::before, ::after and ::placeholder.
+  ['input:hover::file-selector-button', undefined],
+  ['.a:focus::first-letter', undefined],
+  ['.a:hover:first-line', undefined],
+  ['dialog:focus-within::backdrop', undefined],
+  ['li:hover::marker', undefined],
+  ['.a:hover, input::file-selector-button', undefined],
+  ['.a:hover::before', '.a'],
+  ['input:focus::placeholder', 'input'],
+  ['input:checked + label', 'input:checked + label'],
+  ['.a:first-child:not(.b):is(.c)', '.a:first-child:not(.b):is(.c)'],
+  ['a:any-link', 'a:any-link'],
+  [':lang(en)', ':lang(en)'],
+  ['input:placeholder-shown', 'input:placeholder-shown'],
+  [':root', ':root'],
+  ['li:nth-child(2n+1 of .x)', 'li:nth-child(2n+1 of .x)'],
+]) {
+  test(`comparedProbe attributes ${selector} within ${chain.join(' > ')}`, () => {
+    assert.equal(reach.comparedProbe(selector, chain), expected);
+  });
+}
+
+const matchedSheet = { styleSheetId: 'one', text: '.a { color: red; }', used: true };
+
+test('tracked ledger marks every matched rule outside when the DOM changes during tracking', async () => {
+  for (const [prints, same] of [
+    [['before', 'after'], false],
+    [['before', 'before'], true],
+  ]) {
+    const ledger = await trackedLedger(
+      [
+        { ...matchedSheet, text: '.a { color: red; } .b { color: blue; }' },
+        { styleSheetId: 'idle', text: '.idle { color: green; }' },
+      ],
+      { prints },
+    );
+    assert.equal(ledger.scope, 'compared');
+    for (const rule of ledger.rules.filter((r) => r.key !== '.idle')) {
+      assert.equal(rule.used, same ? true : undefined, rule.key);
+      assert.equal(rule.outside, same ? undefined : true, rule.key);
+    }
+    const idle = ledger.rules.find((r) => r.key === '.idle');
+    assert.equal(idle.used, undefined);
+    assert.equal(idle.outside, undefined);
+  }
+});
+
+test('DOM changes during stylesheet reads cannot lend usage to a compared element', async () => {
+  let fingerprint = 'before';
+  const ledger = await trackedLedger([matchedSheet], {
+    prints: { shift: () => fingerprint },
+    onRead: () => {
+      fingerprint = 'after';
+    },
+  });
+  assert.equal(ledger.scope, 'compared');
+  assert.equal(ledger.rules[0].used, undefined);
+  assert.equal(ledger.rules[0].outside, true);
+});
+
+test('serialized DOM fingerprint detects selector state changes while allowing nonempty text updates', () => {
+  const element = (tagName) => ({ tagName, attributes: [], childNodes: [], children: [] });
+  class HTMLInputElement {
+    constructor() {
+      Object.assign(this, element('INPUT'), { checked: false, value: '' });
+    }
+  }
+  class HTMLTextAreaElement {
+    constructor() {
+      Object.assign(this, element('TEXTAREA'), { value: '' });
+    }
+  }
+  const input = new HTMLInputElement();
+  const textarea = new HTMLTextAreaElement();
+  const option = { ...element('OPTION'), selected: false };
+  const attribute = { name: 'class', value: 'before' };
+  input.attributes.push(attribute);
+  const text = { nodeType: 3, nodeValue: '' };
+  const root = { ...element('MAIN'), childNodes: [text], children: [input, textarea, option] };
+  const location = { hash: '' };
+  const fingerprint = () =>
+    runInNewContext(`(${reach.comparedSnapshot.toString()})()`, {
+      document: { documentElement: root },
+      location,
+      Node: { TEXT_NODE: 3 },
+      HTMLInputElement,
+      HTMLTextAreaElement,
+    }).fingerprint;
+  const before = fingerprint();
+  for (const [target, property, value] of [
+    [attribute, 'name', 'id'],
+    [attribute, 'value', 'after'],
+    [input, 'checked', true],
+    [input, 'value', 'filled'],
+    [textarea, 'value', 'filled'],
+    [option, 'selected', true],
+    [root, 'tagName', 'SECTION'],
+    [root, 'children', [textarea, input, option]],
+    [root, 'children', []],
+    [text, 'nodeValue', 'tick'],
+    [location, 'hash', '#target'],
+  ]) {
+    const saved = target[property];
+    target[property] = value;
+    assert.notEqual(fingerprint(), before, property);
+    target[property] = saved;
+    assert.equal(fingerprint(), before, `restored ${property}`);
+  }
+  text.nodeValue = 'tick';
+  const nonempty = fingerprint();
+  text.nodeValue = 'tock';
+  assert.equal(fingerprint(), nonempty);
+  text.nodeValue = ' ';
+  assert.equal(fingerprint(), nonempty);
+});
+
+test('tracked ledger marks uncaptured pseudo-element and unfingerprinted state matches outside compared scope', async () => {
+  for (const selector of [
+    '.a::selection',
+    '.a::-webkit-scrollbar',
+    '.a::highlight(x)',
+    '.a::cue(:is(.b, .c))',
+    '.field:invalid',
+    '.item::before::marker',
+    'input:hover::file-selector-button',
+  ]) {
+    const ledger = await trackedLedger([{ ...matchedSheet, text: `${selector} { color: red; }` }]);
+    assert.equal(ledger.scope, 'compared');
+    assert.equal(ledger.rules[0].used, undefined, selector);
+    assert.equal(ledger.rules[0].outside, true, selector);
+  }
+});
+
+for (const [name, header, opts = {}] of [
+  ['child iframe', { frameId: 'child' }],
+  ['missing frame', { frameId: undefined }],
+  ['shadow style', { ownerNode: 1, inDocument: false }],
+  ['unresolved owner', { ownerNode: 1, resolveFails: true }],
+  ['detached owner', { ownerNode: 1, callFails: true }],
+  ['constructed sheet with a shadow root', { isConstructed: true }, { shadow: true }],
+  [
+    'constructed sheet with a closed author shadow root',
+    { isConstructed: true },
+    { document: { children: [{ shadowRoots: [{ shadowRootType: 'closed' }] }] } },
+  ],
+  [
+    'constructed sheet with an author root nested in a user-agent root',
+    { isConstructed: true },
+    {
+      document: {
+        children: [
+          {
+            shadowRoots: [{ shadowRootType: 'user-agent', children: [{ shadowRoots: [{ shadowRootType: 'open' }] }] }],
+          },
+        ],
+      },
+    },
+  ],
+  ['imported sheet with a shadow root', {}, { shadow: true }],
+  [
+    'constructed sheet with a document owner and a shadow root',
+    { isConstructed: true, ownerNode: 1 },
+    { shadow: true },
+  ],
+  ['closed shadow root inside an iframe', {}, { document: { contentDocument: { children: [{ shadowRoots: [{}] }] } } }],
+  ['ignored or volatile match', {}, { inScope: () => false }],
+]) {
+  test(`tracked ledger marks ${name} matches outside compared scope`, async () => {
+    const ledger = await trackedLedger([{ ...matchedSheet, ...header }], opts);
+    assert.equal(ledger.scope, 'compared');
+    assert.equal(ledger.rules[0].used, undefined);
+    assert.equal(ledger.rules[0].outside, true);
+  });
+}
+
+test('tracked ledger keeps compared matches for document and unambiguous constructed sheets', async () => {
+  for (const [header, opts] of [
+    [{ ownerNode: 1 }, { shadow: true }],
+    [{ isConstructed: true }, {}],
+    [{ isConstructed: true }, { document: { children: [{ shadowRoots: [{ shadowRootType: 'user-agent' }] }] } }],
+    [{}, { document: { children: [{ shadowRoots: [{ shadowRootType: 'user-agent' }] }] } }],
+  ]) {
+    const ledger = await trackedLedger([{ ...matchedSheet, ...header }], opts);
+    assert.equal(ledger.scope, 'compared');
+    assert.equal(ledger.rules[0].used, true);
+    assert.equal(ledger.rules[0].outside, undefined);
+  }
+});
+
+test('tracked ledger preserves the selector and chain separately when probing child combinators', async () => {
+  const probes = [];
+  const ledger = await trackedLedger(
+    [{ ...matchedSheet, text: '@media (width > 1px) { .a > .b:hover { color: red; } }' }],
+    {
+      inScope: (probe) => {
+        probes.push(probe);
+        return true;
+      },
+    },
+  );
+  assert.deepEqual(probes, ['.a > .b']);
+  assert.equal(ledger.rules[0].used, true);
+});
+
+const snapshotElement = () => ({ tagName: 'HTML', attributes: [], childNodes: [], children: [], closest: () => null });
+const evaluateSnapshot = (fn, input, context) =>
+  runInNewContext(`(${fn.toString()})(input)`, {
+    input,
+    location: { hash: '' },
+    Node: { TEXT_NODE: 3 },
+    HTMLInputElement: class {},
+    HTMLTextAreaElement: class {},
+    ...context,
+  });
+
+test('in-page attribution uses only compared capture elements and rejects invalid selectors', async () => {
+  const html = snapshotElement(),
+    body = snapshotElement(),
+    compared = snapshotElement(),
+    ignored = snapshotElement(),
+    head = snapshotElement();
+  const paths = new Map([
+    [html, 'html'],
+    [body, 'body'],
+    [compared, 'measured'],
+    [ignored, 'ignored'],
+    [head, 'measured'],
+  ]);
+  const document = {
+    documentElement: html,
+    body,
+    querySelectorAll: (selector) => {
+      if (selector === 'body *') return [compared, ignored];
+      if (selector === '.invalid') throw new Error('invalid selector');
+      return { '.shared': [ignored, compared], '.ignored': [ignored], '.head': [head] }[selector] ?? [];
+    },
+  };
+  const ledger = await trackedLedger(
+    [
+      {
+        ...matchedSheet,
+        text: '.shared { color: red; } .ignored { color: red; } .head { color: red; } .invalid { color: red; }',
+      },
+    ],
+    {
+      compared: ['html', 'body', 'measured'],
+      evaluate: (fn, input) =>
+        evaluateSnapshot(fn, input, {
+          document,
+          window: { __spPathOf: (el) => paths.get(el) },
+        }),
+    },
+  );
+  assert.deepEqual(
+    ledger.rules.map((r) => [r.key, r.used, r.outside]),
+    [
+      ['.shared', true, undefined],
+      ['.ignored', undefined, true],
+      ['.head', undefined, true],
+      ['.invalid', undefined, true],
+    ],
+  );
+});
+
+test('in-page attribution fails when path identity is unavailable', async () => {
+  await assert.rejects(
+    trackedLedger([matchedSheet], {
+      evaluate: (fn, input) =>
+        evaluateSnapshot(fn, input, { document: { documentElement: snapshotElement() }, window: {} }),
+    }),
+    /path|__spPathOf/i,
+  );
+});
+
+test('relaxed state probes cannot borrow usage from excluded elements or negative selector branches', async () => {
+  const html = snapshotElement(),
+    body = snapshotElement(),
+    compared = snapshotElement(),
+    ignored = snapshotElement();
+  for (const [selector, candidates, reached] of [
+    ['.a:hover', [compared, ignored], false],
+    ['.a:hover', [compared], true],
+    ['.a::before', [compared, ignored], false],
+    ['.a:not(:hover), .b:hover', [compared], false],
+  ]) {
+    const ledger = await trackedLedger([{ ...matchedSheet, text: `${selector} { color: red; }` }], {
+      compared: ['measured'],
+      evaluate: (fn, input) =>
+        evaluateSnapshot(fn, input, {
+          window: { __spPathOf: (el) => (el === compared ? 'measured' : 'excluded') },
+          document: {
+            documentElement: html,
+            body,
+            querySelectorAll: (probe) => (probe === 'body *' ? [compared, ignored] : candidates),
+          },
+        }),
+    });
+    assert.equal(ledger.rules[0].used, reached ? true : undefined, selector);
+    assert.equal(ledger.rules[0].outside, reached ? undefined : true, selector);
+  }
+});
+
+test('relaxed global probes skip permanently ignored candidates but retain eligible outside matches', () => {
+  const element = (tagName, ignored = false) => ({
+    tagName,
+    attributes: [],
+    childNodes: [],
+    children: [],
+    closest: () => (ignored ? {} : null),
+  });
+  const html = element('HTML');
+  const body = element('BODY');
+  const div = element('DIV');
+  const ignored = ['HEAD', 'TITLE', 'SCRIPT', 'TEMPLATE', 'DIV'].map((tag) => element(tag, true));
+  const outside = element('DIV');
+  let candidates = [html, body, div, ...ignored];
+  const snapshot = () =>
+    runInNewContext(`(${reach.comparedSnapshot.toString()})(input)`, {
+      input: { probes: ['*', 'div'], exclusive: [true, true], compared: ['HTML', 'BODY', 'DIV'] },
+      document: { documentElement: html, body, querySelectorAll: () => candidates },
+      window: { __spPathOf: (el) => (el === outside ? 'outside' : el.tagName) },
+      location: { hash: '' },
+      Node: { TEXT_NODE: 3 },
+      HTMLInputElement: class {},
+      HTMLTextAreaElement: class {},
+    });
+  assert.deepEqual(Array.from(snapshot().matched), [true, true]);
+  candidates = [...candidates, outside];
+  assert.deepEqual(Array.from(snapshot().matched), [false, false]);
 });

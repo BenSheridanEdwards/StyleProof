@@ -86,7 +86,7 @@ function identicalPair({ bare = false } = {}) {
   return { root, A, B };
 }
 
-test('Change Reach CLI gate holds a blind channel despite identical computed styles', (t) => {
+test('Change Reach CLI gate holds blind-channel and unmeasured changes despite identical computed styles', (t) => {
   const { root, A, B } = identicalPair();
   t.after(() => rmTmp(root));
   for (const [dir, hash, sha] of [
@@ -100,10 +100,12 @@ test('Change Reach CLI gate holds a blind channel despite identical computed sty
         ...makeMap({ elements: { body: { tag: 'body', style: { color: 'rgb(0, 0, 0)' } } } }),
         reach: {
           version: 2,
+          scope: 'compared',
           sheets: ['/app.css'],
           rules: [
             { key: '@keyframes pulse', hash, sheet: 0 },
             { key: '.badge', hash: 'same', sheet: 0, used: true, refs: ['pulse'] },
+            { key: '.ignored', hash, sheet: 0, outside: true },
           ],
         },
       },
@@ -124,10 +126,12 @@ test('Change Reach CLI gate holds a blind channel despite identical computed sty
   const diff = spawnSync(process.execPath, [DIFF, ...args, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
   assert.equal(diff.status, 1, diff.stdout + diff.stderr);
   const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-  assert.equal(receipt.reach.blocking, 1);
+  assert.equal(receipt.reach.blocking, 2);
   assert.equal(receipt.reach.counts['blind-channel'], 1);
+  assert.equal(receipt.reach.counts.unmeasured, 1);
   assert.equal(receipt.certifiesFully, false);
   assert.match(diff.stdout, /1 blind-channel/);
+  assert.match(diff.stdout, /1 unmeasured/);
   assert.doesNotMatch(diff.stdout, /✓ 0 reviewable computed-style changes/);
   const report = spawnSync(process.execPath, [REPORT, ...args, '--out', path.join(root, 'report')], {
     cwd: root,

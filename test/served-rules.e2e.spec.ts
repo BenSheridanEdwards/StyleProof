@@ -55,7 +55,7 @@ const APP_CSS = `
 @media (prefers-color-scheme: dark) { .badge { background: rgb(17, 24, 39); } }
 @keyframes pulse { to { opacity: 0.5; } }`;
 
-async function serve() {
+async function serve(html = PAGE) {
   let sheetPending = false;
   const server = http.createServer((req, res) => {
     const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
@@ -76,7 +76,7 @@ async function serve() {
       'content-type': css ? 'text/css' : 'text/html',
       'cache-control': 'no-store',
     });
-    res.end(css ? (sheetAvailable ? APP_CSS : '') : PAGE);
+    res.end(css ? (sheetAvailable ? APP_CSS : '') : html);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return {
@@ -114,6 +114,7 @@ const rule = (map: StyleMap, key: string): ServedRule => {
 test('captureReach records which served rules matched, forced states included', async ({ page }) => {
   const servedRules = await open(page, site.url);
   const map = await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
+  expect(map.reach?.scope).toBe('compared');
 
   // Matched at rest, matched only under the forced :hover, and never matched.
   expect(rule(map, '.link').used).toBe(true);
@@ -139,6 +140,15 @@ test('captureReach records which served rules matched, forced states included', 
   expect(sheets).toEqual(expect.arrayContaining(['/assets/app.css', 'inline', 'constructed']));
   expect(map.reach?.rules.some((r) => r.key.startsWith('*,*::before'))).toBe(false);
   expect(map.reach?.unreadable).toBeUndefined();
+});
+
+test('browser-owned shadow roots keep document-adopted constructed sheets in compared scope', async ({ page }) => {
+  site.close();
+  site = await serve(PAGE.replace('<main>', '<main><input aria-label="search">'));
+  const servedRules = await open(page, site.url);
+  const map = await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
+  expect(map.reach?.scope).toBe('compared');
+  expect(rule(map, '.constructed-used').used).toBe(true);
 });
 
 test('the ledger is stable across captures and never changes the diff', async ({ page }) => {

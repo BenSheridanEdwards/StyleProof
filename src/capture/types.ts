@@ -143,8 +143,10 @@ export type ServedRule = {
   hash: string;
   /** Index into `ServedRules.sheets`. */
   sheet: number;
-  /** Matched an element while the map was read, at rest or in a forced state. Never set on `@keyframes`/`@font-face`. */
+  /** Matched an element the diff compares (in `StyleMap.elements`), at rest or in a forced state. */
   used?: true;
+  /** Matched only outside compared elements, or could not be attributed to one. Never set together with `used`. */
+  outside?: true;
   /** Custom properties the rule declares, each mapped to a digest of its value. */
   vars?: Record<string, string>;
   /** Custom properties the rule reads through `var()`. */
@@ -158,6 +160,8 @@ export type ServedRule = {
 export type ServedRules = {
   /** Ledger format. 2 records `aliases`; a ledger without it (captured before #995) cannot show which tokens feed which aliases. */
   version?: 2;
+  /** `used` is scoped to compared elements (#993); ledgers without this marker predate scoping. */
+  scope?: 'compared';
   /** Where each stylesheet came from: its URL path, `inline`, or `constructed`. */
   sheets: string[];
   rules: ServedRule[];

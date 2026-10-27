@@ -11,7 +11,7 @@ const map = (...rules) => ({
   defaults: {},
   elements: {},
   states: {},
-  reach: { version: 2, sheets: ['/app.css'], rules },
+  reach: { version: 2, scope: 'compared', sheets: ['/app.css'], rules },
 });
 const statusOf = (result, key) => result.rules.find((r) => r.key === key);
 
@@ -32,7 +32,7 @@ const cssMap = (...sheets) => {
       return { ...rule, key: n > 1 ? `${rule.key} #${n}` : rule.key, sheet: index };
     });
   });
-  return { ...map(), reach: { version: 2, sheets: sorted.map((s) => s.label), rules } };
+  return { ...map(), reach: { version: 2, scope: 'compared', sheets: sorted.map((s) => s.label), rules } };
 };
 
 test('an unchanged ledger has nothing to classify', () => {
@@ -251,6 +251,15 @@ test('a changed @property is a blind channel only when a rendered rule reads or 
     });
     const idle = statusOf(classifyRuleReach([side('p1', true)], [side('p2', false)]), '@property --brand');
     assert.deepEqual([idle.status, idle.why], ['never-rendered', 'no rendered rule references it']);
+    const outside = side('p2', false);
+    outside.reach.rules[1].outside = true;
+    assert.deepEqual(statusOf(classifyRuleReach([side('p1', true)], [outside]), '@property --brand'), {
+      key: '@property --brand',
+      change: 'changed',
+      status: 'unmeasured',
+      why: 'referenced only by .btn, which matched only elements StyleProof does not compare',
+      sheet: '/app.css',
+    });
   }
   const missing = classifyRuleReach([map(rule('@property --brand', 'p1'))], [map(rule('@property --brand', 'p2'))]);
   assert.deepEqual(
@@ -488,9 +497,9 @@ test('a commented var() still names its idle consumer', () => {
 test('unreadable stylesheets on either side are counted', () => {
   const base = {
     ...map(rule('.a', 'h1', { used: true })),
-    reach: { version: 2, sheets: [], rules: [], unreadable: 2 },
+    reach: { version: 2, scope: 'compared', sheets: [], rules: [], unreadable: 2 },
   };
-  const head = { ...map(), reach: { version: 2, sheets: [], rules: [], unreadable: 1 } };
+  const head = { ...map(), reach: { version: 2, scope: 'compared', sheets: [], rules: [], unreadable: 1 } };
   const result = classifyRuleReach([base], [head]);
   assert.equal(result.unreadableSheets, 3);
   assert.equal(result.ledger, 'partial');
@@ -622,6 +631,7 @@ test('the same maps in any order give the same result', () => {
     ...map(),
     reach: {
       version: 2,
+      scope: 'compared',
       sheets: [sheet],
       rules: [
         rule('@keyframes pulse', k),
@@ -648,7 +658,12 @@ test('the same maps in any order give the same result', () => {
   // Multiple bodies for one key choose the same result and sheet regardless of route order.
   const split = (hash, sheet, used) => ({
     ...map(),
-    reach: { version: 2, sheets: [sheet], rules: [rule('.split', hash, used ? { used: true } : {})] },
+    reach: {
+      version: 2,
+      scope: 'compared',
+      sheets: [sheet],
+      rules: [rule('.split', hash, used ? { used: true } : {})],
+    },
   });
   for (const used of [true, false]) {
     const variants = [split('B', '/b.css', used), split('A', '/a.css', used)];
@@ -656,5 +671,166 @@ test('the same maps in any order give the same result', () => {
     assert.deepEqual(classifyRuleReach([map()], [...variants].reverse()), result);
     assert.equal(statusOf(result, '.split').sheet, '/a.css');
     assert.deepEqual(classifyRuleReach(variants, [map()]), classifyRuleReach([...variants].reverse(), [map()]));
+  }
+});
+
+test('changed and removed outside-only rules are unmeasured', () => {
+  const base = map(rule('.ignored', 'old', { outside: true }));
+  for (const [head, change] of [
+    [map(rule('.ignored', 'new', { outside: true })), 'changed'],
+    [map(), 'removed'],
+  ]) {
+    assert.deepEqual(statusOf(classifyRuleReach([base], [head]), '.ignored'), {
+      key: '.ignored',
+      change,
+      status: 'unmeasured',
+      why: 'matched only elements StyleProof does not compare (shadow DOM, an iframe, or an ignored or volatile region)',
+      sheet: '/app.css',
+    });
+  }
+});
+
+test('a compared match wins over an outside match for the same body regardless of map order', () => {
+  const base = [map(rule('.shared', 'old', { outside: true }))];
+  const outside = map(rule('.shared', 'new', { outside: true }));
+  const compared = map(rule('.shared', 'new', { used: true }));
+  assert.equal(statusOf(classifyRuleReach(base, [outside]), '.shared').status, 'unmeasured');
+  // Base was measured here so the one-for-one replacement is judged on head.
+  base[0] = map(rule('.shared', 'old', { used: true }));
+  for (const head of [
+    [outside, compared],
+    [compared, outside],
+  ]) {
+    assert.equal(statusOf(classifyRuleReach(base, head), '.shared').status, 'reached');
+  }
+});
+
+test('any map with an unscoped ledger prevents classification on either side', () => {
+  const base = map(rule('.a', 'old', { used: true }));
+  const head = map(rule('.a', 'new', { used: true }));
+  const legacy = map(rule('.a', 'legacy', { used: true }));
+  delete legacy.reach.scope;
+  for (const [before, after] of [
+    [[base, legacy], [head]],
+    [[legacy, base], [head]],
+    [[base], [head, legacy]],
+    [[base], [legacy, head]],
+  ]) {
+    assert.deepEqual(classifyRuleReach(before, after), { ledger: 'missing', rules: [], unreadableSheets: 0 });
+  }
+});
+
+test('keyframes and font faces referenced only outside compared elements are unmeasured', () => {
+  for (const [key, refs] of [
+    ['@keyframes pulse', ['pulse']],
+    ['@font-face', ['Brand Sans']],
+  ]) {
+    const side = (hash, extra = { outside: true }) =>
+      map(rule(key, hash, key === '@font-face' ? { refs } : {}), rule('.outside', 'ref', { ...extra, refs }));
+    assert.deepEqual(statusOf(classifyRuleReach([side('old')], [side('new')]), key), {
+      key,
+      change: 'changed',
+      status: 'unmeasured',
+      why: 'referenced only by .outside, which matched only elements StyleProof does not compare',
+      sheet: '/app.css',
+    });
+    assert.equal(
+      statusOf(classifyRuleReach([side('old')], [side('new', { used: true })]), key).status,
+      'blind-channel',
+    );
+  }
+});
+
+test('a changed token whose consumer matched only outside compared elements is unmeasured', () => {
+  for (const aliased of [false, true]) {
+    const side = (value) =>
+      map(
+        rule(':root', value, { used: true, vars: { '--tone': value } }),
+        ...(aliased
+          ? [
+              rule('.theme', 'alias', {
+                used: true,
+                vars: { '--badge': 'var(--tone)' },
+                uses: ['--tone'],
+                aliases: { '--badge': ['--tone'] },
+              }),
+            ]
+          : []),
+        rule('.ignored', 'consumer', { outside: true, uses: [aliased ? '--badge' : '--tone'] }),
+      );
+    assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
+      key: ':root',
+      change: 'changed',
+      status: 'unmeasured',
+      why: `--tone changed${aliased ? ' through --badge' : ''}, and its consumer .ignored matched only elements StyleProof does not compare`,
+      sheet: '/app.css',
+    });
+  }
+});
+
+for (const outside of ['.a-outside', '.z-outside']) {
+  test(`a never-matched token consumer takes precedence over ${outside}`, () => {
+    const side = (value) =>
+      map(
+        rule(':root', value, { used: true, vars: { '--tone': value } }),
+        rule(outside, 'outside', { outside: true, uses: ['--tone'] }),
+        rule('.b-idle', 'idle', { uses: ['--tone'] }),
+      );
+    assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
+      key: ':root',
+      change: 'changed',
+      status: 'never-rendered',
+      why: '--tone changed, and its consumer .b-idle never matched',
+      sheet: '/app.css',
+    });
+  });
+}
+
+test('a later changed token with a never-matched consumer takes precedence over an outside-only consumer', () => {
+  const side = (value) =>
+    map(
+      rule(':root', value, { used: true, vars: { '--a': value, '--b': value } }),
+      rule('.outside', 'outside', { outside: true, uses: ['--a'] }),
+      rule('.idle', 'idle', { uses: ['--b'] }),
+    );
+  assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--b changed, and its consumer .idle never matched',
+    sheet: '/app.css',
+  });
+});
+
+test('an outside-only token declaration still reports its never-matched consumer', () => {
+  const side = (value) =>
+    map(
+      rule(':root', value, { outside: true, vars: { '--tone': value } }),
+      rule('.idle', 'idle', { uses: ['--tone'] }),
+    );
+  assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
+    key: ':root',
+    change: 'changed',
+    status: 'never-rendered',
+    why: '--tone changed, and its consumer .idle never matched',
+    sheet: '/app.css',
+  });
+});
+
+test('never-rendered takes precedence over unmeasured bodies regardless of map order', () => {
+  const outside = map(rule('.split', 'a', { outside: true }));
+  const idle = map(rule('.split', 'z'));
+  assert.equal(statusOf(classifyRuleReach([map()], [outside]), '.split').status, 'unmeasured');
+  for (const head of [
+    [outside, idle],
+    [idle, outside],
+  ]) {
+    assert.deepEqual(statusOf(classifyRuleReach([map()], head), '.split'), {
+      key: '.split',
+      change: 'added',
+      status: 'never-rendered',
+      why: 'its selector never matched',
+      sheet: '/app.css',
+    });
   }
 });

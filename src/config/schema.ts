@@ -81,7 +81,7 @@ export type StyleProofConfig = {
   requireApproval?: boolean;
   /** Unacknowledged inventory removals block unless explicitly false. */
   gateInventoryRemovals?: boolean;
-  /** Change Reach level (ADR 0009). 'warn' (default) never changes a verdict; 'gate' holds never-rendered J1 changes and J1 evidence gaps. */
+  /** Change Reach level (ADR 0009). 'warn' (default) never changes a verdict; 'gate' holds non-reached J1 changes and J1 evidence gaps. */
   changeReach?: ChangeReachLevel;
   /** Capture spec path (default e2e/styleproof.spec.ts), resolved from the config directory. */
   spec?: string;

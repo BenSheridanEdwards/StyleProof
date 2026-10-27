@@ -43,17 +43,22 @@ const CSS = {
     @media (prefers-color-scheme: dark) { .panel { background: rgb(17, 24, 39); } }`,
 };
 
-async function capture(page: Page, side: keyof typeof CSS, fault: boolean): Promise<StyleMap> {
+async function capture(
+  page: Page,
+  side: keyof typeof CSS,
+  fault: boolean,
+  fixture: { html?: string; css?: string; ignore?: string[] } = {},
+): Promise<StyleMap> {
   await page.unrouteAll();
   await page.route('http://reach.test/**', (route) =>
     new URL(route.request().url()).pathname === '/app.css'
-      ? route.fulfill({ contentType: 'text/css', body: CSS[side] })
-      : route.fulfill({ contentType: 'text/html', body: HTML(fault) }),
+      ? route.fulfill({ contentType: 'text/css', body: fixture.css ?? CSS[side] })
+      : route.fulfill({ contentType: 'text/html', body: fixture.html ?? HTML(fault) }),
   );
   const servedRules = await trackServedRules(page);
   try {
     await page.goto(`http://reach.test/?side=${side}&fault=${fault}`, { waitUntil: 'load' });
-    return await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules });
+    return await captureStyleMap(page, { stabilize: false, captureReach: true, servedRules, ignore: fixture.ignore });
   } finally {
     await servedRules.dispose();
   }
@@ -61,6 +66,60 @@ async function capture(page: Page, side: keyof typeof CSS, fault: boolean): Prom
 
 const statuses = (base: StyleMap[], head: StyleMap[]) =>
   Object.fromEntries(classifyRuleReach(base, head).rules.map((r) => [r.key, r.status]));
+
+test('global relaxed selectors remain reached around framework-ignored elements', async ({ page }) => {
+  const selectors = ['*, ::before, ::after', ':focus-visible', '::placeholder', '*::before', 'div:hover', 'div::after'];
+  const maps: StyleMap[] = [];
+  for (const side of ['base', 'head'] as const) {
+    const color = side === 'base' ? 'red' : 'blue';
+    maps.push(
+      await capture(page, side, false, {
+        html: `<!doctype html><html><head><title>Reach</title><link rel="stylesheet" href="/app.css"></head>
+        <body><div><a href="#docs">Docs</a><input placeholder="Name"></div>
+        <script type="application/json">{}</script><template><div>Template</div></template></body></html>`,
+        css: selectors.map((selector) => `${selector} { color: ${color}; }`).join(' '),
+      }),
+    );
+  }
+  expect(await page.locator('[data-styleproof-hover-sink]').count()).toBe(1);
+  expect(statuses([maps[0]], [maps[1]])).toEqual(
+    Object.fromEntries(selectors.map((selector) => [selector, 'reached'])),
+  );
+});
+
+test('inline-styled scrollers keep resting and forced-state changes reached', async ({ page }) => {
+  const html = `<!doctype html><html style="margin:0"><head><link rel="stylesheet" href="/app.css"></head>
+    <body style="margin:0"><main style=""><section>
+      <div class="scroller" style="overflow-y:auto;max-height:300px!important">
+        <a class="link" href="#docs">Docs</a>
+        <div class="indicator" style="height:1000px">Content</div>
+      </div>
+    </section></main></body></html>`;
+  const maps: StyleMap[] = [];
+  for (const side of ['base', 'head'] as const) {
+    const color = side === 'base' ? 'rgb(22, 163, 74)' : 'rgb(245, 158, 11)';
+    maps.push(
+      await capture(page, side, false, {
+        html,
+        css: `.indicator { color: ${color}; } .link:hover { color: ${color}; }`,
+      }),
+    );
+  }
+  expect(statuses([maps[0]], [maps[1]])).toEqual({
+    '.indicator': 'reached',
+    '.link:hover': 'reached',
+  });
+  expect(
+    diffStyleMaps(maps[0], maps[1])
+      .map((finding) => finding.kind)
+      .sort(),
+  ).toEqual(['state', 'style']);
+  expect(
+    await page
+      .locator('html, body, main, section, .scroller')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('style'))),
+  ).toEqual(['margin:0', 'margin:0', '', null, 'overflow-y:auto;max-height:300px!important']);
+});
 
 test('a restyle confined to an uncaptured state is clean in the diff and never-rendered in reach', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 700 });
@@ -153,4 +212,41 @@ test('the README hidden restyle fails certify and needs review with the reach ga
   } finally {
     rmTmp(root);
   }
+});
+
+test('rules matching only ignored, shadow or iframe elements are unmeasured', async ({ page }) => {
+  const fixture = (side: 'base' | 'head') => {
+    const color = side === 'base' ? 'rgb(22, 163, 74)' : 'rgb(245, 158, 11)';
+    return {
+      ignore: ['.ads'],
+      css: `.visible { color: ${color}; }
+        .ads .promo { color: ${color}; }
+        .shared { color: ${color}; }`,
+      html: `<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body>
+        <p class="visible">Visible</p>
+        <p class="shared">Shared and compared</p>
+        <div class="ads"><span class="promo shared">Ignored</span></div>
+        <div id="shadow-host"></div>
+        <iframe srcdoc="<style>.frame-copy { color: ${color}; }</style><p class='frame-copy'>Frame</p>"></iframe>
+        <script>
+          document.getElementById('shadow-host').attachShadow({ mode: 'open' }).innerHTML =
+            '<style>.shadow-title { color: ${color}; }</style><p class="shadow-title">Shadow</p>';
+        </script>
+      </body></html>`,
+    };
+  };
+  // capture() waits for load, including the same-origin srcdoc iframe, before reading either map.
+  const base = await capture(page, 'base', false, fixture('base'));
+  const head = await capture(page, 'head', false, fixture('head'));
+
+  const findings = diffStyleMaps(base, head);
+  expect(findings.map((f) => f.kind)).toEqual(['style', 'style']);
+  expect(findings.map((f) => f.cls).sort()).toEqual(['shared', 'visible']);
+  expect(statuses([base], [head])).toEqual({
+    '.ads .promo': 'unmeasured',
+    '.frame-copy': 'unmeasured',
+    '.shadow-title': 'unmeasured',
+    '.shared': 'reached',
+    '.visible': 'reached',
+  });
 });

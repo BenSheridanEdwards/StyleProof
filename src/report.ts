@@ -153,7 +153,7 @@ export type ReportOptions = {
   migration?: boolean;
   /** Operational mode recorded in report.json (#580). Defaults to 'certify'. */
   gateMode?: 'certify' | 'review-gate' | 'migration' | 'advisory';
-  /** Change Reach is advisory by default; gate holds never-rendered rules and J1 ledger gaps. */
+  /** Change Reach is advisory by default; gate holds non-reached J1 rules and J1 ledger gaps. */
   changeReach?: ChangeReachLevel;
 };
 

@@ -3,8 +3,8 @@ import type { Page } from '@playwright/test';
 
 type StyleShot = {
   el: HTMLElement;
-  hadStyleAttribute: boolean;
-  properties: { name: string; value: string; priority: string }[];
+  style: string | null;
+  declarations: [string, string, string][];
 };
 
 /** A scroller's offset before expansion, put back on restore so the captured state is unchanged. */
@@ -35,12 +35,11 @@ function expandInnerScrollContainers(): number {
     if (!saved.has(el)) {
       shots.push({
         el,
-        hadStyleAttribute: el.hasAttribute('style'),
-        properties: ['overflow-x', 'overflow-y', 'height', 'max-height'].map((name) => ({
-          name,
-          value: el.style.getPropertyValue(name),
-          priority: el.style.getPropertyPriority(name),
-        })),
+        style: el.getAttribute('style'),
+        declarations: Array.from({ length: el.style.length }, (_, index) => {
+          const name = el.style.item(index);
+          return [name, el.style.getPropertyValue(name), el.style.getPropertyPriority(name)];
+        }),
       });
       saved.add(el);
     }
@@ -103,13 +102,16 @@ function restoreInnerScrollContainers(): void {
   const state = w[restoreKey];
   if (!state) return;
   for (const shot of state.shots.slice().reverse()) {
-    for (const property of shot.properties) {
-      shot.el.style.setProperty(property.name, property.value, property.priority);
-    }
-    if (!shot.hadStyleAttribute) {
+    // CSP can block attribute parsing; restore the applied declarations through CSSOM first.
+    shot.el.style.cssText = '';
+    for (const [name, value, priority] of shot.declarations) shot.el.style.setProperty(name, value, priority);
+    if (shot.style === null) {
       // In Chromium, setProperty then removeAttribute can leave style="" without this read.
       void shot.el.getAttribute('style');
-      if (shot.el.style.length === 0) shot.el.removeAttribute('style');
+      shot.el.removeAttribute('style');
+    } else {
+      // Preserve source formatting too: CSSOM serialization would change the reach DOM fingerprint.
+      shot.el.setAttribute('style', shot.style);
     }
   }
   // Unlocking overflow drops a scroller's offset; put it back so later reads see the driven state.
