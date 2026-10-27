@@ -109,7 +109,15 @@ function computedStyle(properties) {
 }
 
 // The same isolated page realm also executes the real CDP snapshot expressions.
-function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupported, resetFailures = 0 } = {}) {
+function forcedStateHarness({
+  scope = 'document',
+  legacy,
+  drift,
+  settled,
+  unsupported,
+  resetFailures = 0,
+  replaceDocument = false,
+} = {}) {
   const { context, document, run } = capturePageHarness();
   const nodes = [];
   const make = (path, parentElement, button = false) => {
@@ -179,6 +187,7 @@ function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupp
     reads = 0;
   if (settled && drift === 'removal') nodes.pop().parentElement.children.pop();
   const visits = [];
+  const forces = [];
   context.getComputedStyle = (element, pseudo) => {
     reads++;
     const changed =
@@ -199,6 +208,7 @@ function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupp
       if (method === 'DOM.querySelectorAll')
         return { nodeIds: document.querySelectorAll(params.selector).map((n) => nodes.indexOf(n) + 1) };
       if (method === 'CSS.forcePseudoState') {
+        forces.push({ nodeId: params.nodeId, classes: [...params.forcedPseudoClasses] });
         const resetting = !params.forcedPseudoClasses.length;
         if (resetting && state === 'active' && forced === targets.at(-1) && resetFailures-- > 0)
           throw new Error('CSS.forcePseudoState: Could not find node with given id');
@@ -220,6 +230,14 @@ function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupp
       const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
       // Force the production legacy path; all per-target reads still run unmodified.
       if (legacy && sessionBaseline) return { result: { value: false } };
+
+      if (replaceDocument && expression.includes('"saveBaseline":true')) {
+        document.querySelector = () => null;
+
+        for (const key of Object.keys(context.window)) {
+          if (key.startsWith('__spForcedStateBaseline')) delete context.window[key];
+        }
+      }
       const value = runInContext(expression, context);
       if (expression.includes('"countOnly":true')) counts++;
       else if (expression.includes('"saveBaseline":true') && (!sessionBaseline || value)) baselines++;
@@ -246,7 +264,8 @@ function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupp
       assert.ok(nodes.every((node) => !node.attrs['data-styleproof-state-id']));
       assert.equal(forced, undefined);
       if (legacy) assert.equal(counts, 0);
-      return { result, warnings, visits, baselines, counts, reads, pathReads };
+
+      return { result, warnings, visits, baselines, counts, reads, pathReads, forces };
     } finally {
       console.warn = original;
     }
@@ -260,6 +279,29 @@ function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupp
       return reads;
     },
   };
+}
+
+for (const scope of ['document', 'fallback', 'subtree', 'parent']) {
+  test(`forced-state capture replaces each target's state before one final reset: ${scope}`, async () => {
+    const { result, forces } = await forcedStateHarness({ scope }).capture();
+    const targets = Object.keys(result.states);
+    const nodeIds = [...new Set(forces.map(({ nodeId }) => nodeId))];
+
+    assert.equal(result.skipped, false);
+    assert.equal(targets.length, 20);
+    assert.equal(nodeIds.length, targets.length);
+
+    for (const nodeId of nodeIds) {
+      const classes = forces.flatMap((force) => (force.nodeId === nodeId ? [force.classes] : []));
+      assert.equal(classes.length, 4, 'three forces and one reset per target');
+      assert.deepEqual(classes, [['hover'], ['focus', 'focus-visible'], ['active'], []]);
+    }
+
+    assert.deepEqual(
+      forces.map(({ nodeId }) => nodeId),
+      nodeIds.flatMap((nodeId) => Array(4).fill(nodeId)),
+    );
+  });
 }
 
 for (const scope of ['document', 'fallback', 'subtree', 'parent']) {
@@ -813,4 +855,13 @@ test('forced-state snapshots reject adopted-sheet replacement during a read', ()
     () => run(snapSubtree, { selector: 'body', skipSel: '*', skipPaths: [], maxElements: 10, saveBaseline: true }),
     freezeError,
   );
+});
+
+test('document replacement before a target baseline skips missing targets without calling the lost snapshot', async () => {
+  const { result, warnings, forces } = await forcedStateHarness({ scope: 'subtree', replaceDocument: true }).capture();
+  assert.equal(result.skipped, true);
+  assert.deepEqual(result.states, {});
+  assert.equal(forces.length, 0);
+  assert.equal(warnings.length, 20);
+  assert.ok(warnings.every((warning) => warning.includes('detached')));
 });

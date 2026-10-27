@@ -80,7 +80,7 @@ test('state layers capture every target in each state and leave all targets at r
   assert.equal(harness.peaks['DOM.querySelectorAll'], 3);
   assert.equal(harness.peaks['force:reset'], 3);
   for (const phase of ['force:hover', 'force:focus,focus-visible', 'force:active'])
-    assert.equal(harness.peaks[phase], 1);
+    assert.equal(harness.peaks[phase], 3, `${phase} issues every target's force before the first resolves`);
 });
 
 for (const phase of ['lookup', 'reset']) {
