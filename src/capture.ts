@@ -16,6 +16,7 @@ import {
   injectPathOf,
   installHoverSink,
   unfreezeMotion,
+  type CaptureArgs,
   type PageCapture,
 } from './capture/browser.js';
 import { captureForcedStates, resolveForcedStateLimits } from './capture/forced-states.js';
@@ -142,18 +143,19 @@ async function assertRequiredVisibleState(page: Page, required: CaptureOptions['
 
 type Elements = Record<string, ElementEntry>;
 
+type SettleResult = { volatile: string[]; settled?: PageCapture };
+
 /**
  * Poll until the map has been UNCHANGED for `quietFor` ms (through the lull before
  * late content paints) or the budget runs out. Returns the paths still changing at
- * timeout: genuine live regions to exclude.
+ * timeout: genuine live regions to exclude. Only a quiet exit carries a reusable capture.
  */
 async function stabilizePage(
   page: Page,
-  skipSel: string,
+  args: CaptureArgs,
   { interval, quietFor, timeout }: { interval: number; quietFor: number; timeout: number },
-  captureText: boolean,
   pending: () => number,
-): Promise<string[]> {
+): Promise<SettleResult> {
   // captureText participates so text-only churn (a clock) is excluded like style churn.
   const key = `__spSettle_${randomUUID()}`;
   // Evaluated callbacks cannot see module imports; install capture for subsequent polls.
@@ -161,11 +163,12 @@ async function stabilizePage(
     page.evaluate(
       `void Object.defineProperty(window, ${JSON.stringify(key)}, { configurable: true, value: { capture: (${capturePage.toString()}) } })`,
     );
-  const snap = (): Promise<string[] | null> =>
-    page.evaluate(capturePageChanges, {
-      key,
-      args: { skipSel, motionOnly: false, captureText, pseudoReferences: PSEUDO_REFERENCES },
-    });
+
+  const snap = (): Promise<string[] | null> => page.evaluate(capturePageChanges, { key, args });
+
+  let quiet = false;
+  let volatile: string[] = [];
+  let settled: PageCapture | undefined;
   try {
     await install();
     // realNow: under STYLEPROOF_FREEZE_SPEC_CLOCK a frozen Date would never advance these windows.
@@ -194,37 +197,50 @@ async function stabilizePage(
         // Quiet DOM but data requests in flight: the lull BEFORE the response paints.
         lastChangeAt = realNow();
       } else if (realNow() - lastChangeAt >= quietFor) {
-        return [];
+        quiet = true;
+        break;
       }
     }
+
     // Still changing at timeout: changed within the quiet window, or changed again in the last poll
     // that changed (in-flight requests can hold the loop open past a region ticking slower than
     // `quietFor`). Content that loaded late (in any number of steps) and then settled is compared,
     // and so is a path that changed only once, even while a request is still in flight.
-    const end = realNow();
-    const lastPoll = Math.max(...lastChangedAt.values());
-    return [...lastChangedAt]
-      .filter(([p, at]) => (at === lastPoll && changedAgain.has(p)) || end - at <= quietFor)
-      .map(([p]) => p);
+    if (!quiet) {
+      const end = realNow();
+
+      const lastPoll = Math.max(...lastChangedAt.values());
+      volatile = [...lastChangedAt].flatMap(([p, at]) =>
+        (at === lastPoll && changedAgain.has(p)) || end - at <= quietFor ? [p] : [],
+      );
+    }
   } finally {
     // Best-effort cleanup also covers a failed poll or a page that closed mid-settle.
-    await page
-      .evaluate((key) => {
-        delete (window as unknown as Record<string, unknown>)[key];
-      }, key)
-      .catch(() => {});
+    settled = await page
+      .evaluate(
+        ({ key, quiet }) => {
+          // SAFETY: install() owns this random key and each poll stores a PageCapture there.
+          const store = Object.getOwnPropertyDescriptor(window, key)?.value as { last?: PageCapture } | undefined;
+          Reflect.deleteProperty(window, key);
+
+          return quiet ? store?.last : undefined;
+        },
+        { key, quiet },
+      )
+      .catch(() => undefined);
   }
+
+  return { volatile, settled };
 }
 
-/** Settle the page and return the paths of live regions to exclude. */
+/** Settle the page and return live-region paths and, when quiet, the final capture. */
 async function detectVolatile(
   page: Page,
-  skipSel: string,
+  args: CaptureArgs,
   stabilize: CaptureOptions['stabilize'],
-  captureText: boolean,
   externalPending?: () => number,
-): Promise<string[]> {
-  if (stabilize === false) return [];
+): Promise<SettleResult> {
+  if (stabilize === false) return { volatile: [] };
   const opt = typeof stabilize === 'object' ? stabilize : {};
   // Prefer the runner's pre-navigation tracker (it saw the page's load fetches).
   const waitForRequests = opt.waitForRequests ?? true;
@@ -232,7 +248,8 @@ async function detectVolatile(
   const pending = (waitForRequests && (externalPending ?? tracker?.pending)) || ((): number => 0);
   try {
     const budget = { interval: opt.interval || 150, quietFor: opt.quietFor || 600, timeout: opt.timeout || 5000 };
-    const volatile = await stabilizePage(page, skipSel, budget, captureText, pending);
+    const result = await stabilizePage(page, args, budget, pending);
+    const { volatile } = result;
     if (volatile.length) {
       warn(
         `styleproof: ${volatile.length} live region(s) kept changing on their own and were excluded from ` +
@@ -240,7 +257,8 @@ async function detectVolatile(
           'they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.',
       );
     }
-    return volatile;
+
+    return result;
   } finally {
     tracker?.dispose();
   }
@@ -294,6 +312,8 @@ type SettledRead = {
   limits: Required<ForcedStateLimits>;
   ignore: string[];
   skipSel: string;
+  args: CaptureArgs;
+  settled?: PageCapture;
   volatile: string[];
   liveCandidates: LiveRegionCandidate[];
   motion: PageCapture['elements'];
@@ -303,13 +323,11 @@ type SettledRead = {
 async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap> {
   const { options, skipSel, volatile } = read;
   await assertRequiredVisibleState(page, options.requiredVisibleState);
-  const base = await page.evaluate(capturePage, {
-    skipSel,
-    motionOnly: false,
-    captureText: options.captureText ?? true,
-    captureComponent: options.captureComponent ?? false,
-    pseudoReferences: PSEUDO_REFERENCES,
-  });
+
+  const base =
+    (!options.captureComponent && !options.captureReach && options.stabilize !== false && read.settled) ||
+    (await page.evaluate(capturePage, { ...read.args, captureComponent: options.captureComponent ?? false }));
+
   for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
   // Full-page geometry for report crops and visible-structure gating.
   const screenshotHeight = await alignRectsToFullPageGeometry(page, base.elements);
@@ -363,6 +381,8 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const ignore = [...FRAMEWORK_IGNORE, ...(options.ignore ?? [])];
   const skipSel = skipSelector(ignore);
   const captureText = options.captureText ?? true;
+  // Shared by settle polls and the resting read; components require a separate capture.
+  const args = { skipSel, motionOnly: false, captureText, pseudoReferences: PSEUDO_REFERENCES };
   // Park the pointer over an ignored sink and blur focus: real :hover/:focus is
   // nondeterministic and would contaminate both the resting map and the forced deltas.
   await page.evaluate(installHoverSink);
@@ -374,7 +394,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   await page.evaluate(freezeMotion, FREEZE_CSS);
 
   options.onPhase?.('settle');
-  const volatile = await detectVolatile(page, skipSel, options.stabilize ?? true, captureText, options.pendingRequests);
+  const { volatile, settled } = await detectVolatile(page, args, options.stabilize ?? true, options.pendingRequests);
   options.onPhase?.('capture');
   await assertRequiredVisibleState(page, options.requiredVisibleState);
   // Live-region candidates are diagnostics only: stable status/alert UI is still captured.
@@ -393,12 +413,25 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   ).elements;
   // Removed again below so a page reused without a reload (SPA go(), self-check) starts unfrozen.
   await page.evaluate(freezeMotion, FREEZE_CSS);
+  // The identical freeze restores the polls' non-motion end state; mergeMotion supplies
+  // declared motion separately, so lifting the freeze for that read does not invalidate it.
   // Rule usage starts after the settle, so a rule matched only while the page was still
   // changing is not recorded as reached; starting it records every rule the settled page matches.
   const reach = options.captureReach ? (options.servedRules ?? (await trackServedRules(page))) : undefined;
   try {
     await reach?.start();
-    const map = await readSettledPage(page, { options, limits, ignore, skipSel, volatile, liveCandidates, motion });
+
+    const map = await readSettledPage(page, {
+      options,
+      limits,
+      ignore,
+      skipSel,
+      args,
+      settled,
+      volatile,
+      liveCandidates,
+      motion,
+    });
     // Matches outside the compared elements do not count as reached (#993).
     const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements)) } : map;
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
