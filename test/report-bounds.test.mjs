@@ -1637,7 +1637,7 @@ test('codeValue escapes only the pipe, leaving backslashes for cmark-gfm to rend
   assert.equal(codeValue(value), '`' + String.raw`content: "a\\|b" \| x\\\|y` + '`');
 });
 
-test('HTML inlines images offline and prioritizes changed regions within its byte ceiling', async () => {
+test('HTML inlines images offline and prioritizes new surfaces within its byte ceiling', async () => {
   const { renderReportHtml } = await import('../dist/report/html.js');
   const root = mkTmp();
   try {
@@ -1647,17 +1647,15 @@ test('HTML inlines images offline and prioritizes changed regions within its byt
     const md = '![New surface](crops/new.png)\n\n![Changed region](crops/changed.png)';
     const html = renderReportHtml(md, { outDir: root, maxBytes: 500_000 });
     assert.ok(Buffer.byteLength(html) <= 500_000);
-    assert.match(html, /1 images omitted/);
+    assert.match(html, /1 image omitted/);
     assert.match(html, /report.json holds the full data/);
     assert.doesNotMatch(html, /src="(?!data:)/);
-    assert.match(html, /src="data:image\/png;base64,AgIC/);
+    assert.match(html, /src="data:image\/png;base64,AQEB/);
     const full = renderReportHtml(md, { outDir: root, maxBytes: 1_000_000 });
     assert.equal((full.match(/src="data:/g) ?? []).length, 2);
     assert.doesNotMatch(full, /images omitted/);
     assert.throws(() => renderReportHtml(md, { outDir: root, maxBytes: 0 }), /positive integer/);
-    const tiny = renderReportHtml(md, { outDir: root, maxBytes: 150 });
-    assert.ok(Buffer.byteLength(tiny) <= 150);
-    assert.match(tiny, /report.json/);
+    assert.throws(() => renderReportHtml(md, { outDir: root, maxBytes: 150 }), /cannot fit report text/);
   } finally {
     rmTmp(root);
   }

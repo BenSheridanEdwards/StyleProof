@@ -5,7 +5,6 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -729,7 +728,7 @@ test('artifact upload contains only the three report files and validates the byt
   assert.match(action, /report-max-bytes must be a positive integer/);
 });
 
-test('artifact size step caps the combined files and refuses receipts that cannot fit', () => {
+test('artifact size step caps HTML while retaining large JSON receipts', () => {
   const action = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
   const script = action
     .split('    - name: Bound the artifact report size')[1]
@@ -738,13 +737,13 @@ test('artifact size step caps the combined files and refuses receipts that canno
     .split('\n')
     .map((line) => line.replace(/^ {8}/, ''))
     .join('\n');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-artifact-budget-'));
+  const dir = fs.mkdtempSync(path.join(root, '.tmp-artifact-budget-'));
   try {
     const report = path.join(dir, 'styleproof-report');
     fs.mkdirSync(path.join(report, 'crops'), { recursive: true });
     fs.writeFileSync(path.join(report, 'crops/changed.png'), Buffer.alloc(400_000));
     fs.writeFileSync(path.join(report, 'report.md'), '![changed](crops/changed.png)');
-    fs.writeFileSync(path.join(report, 'report.json'), JSON.stringify({ fullData: 'x'.repeat(10_000) }));
+    fs.writeFileSync(path.join(report, 'report.json'), JSON.stringify({ fullData: 'x'.repeat(3_000_000) }));
     for (const cap of [500_000, 100]) {
       const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
         cwd: dir,
@@ -752,16 +751,23 @@ test('artifact size step caps the combined files and refuses receipts that canno
         env: { ...process.env, GITHUB_ACTION_PATH: root, REPORT_MAX_BYTES: String(cap) },
       });
       assert.equal(result.status, cap === 100 ? 1 : 0, result.stderr);
-      if (cap === 100) assert.match(result.stderr, /cannot fit/);
+      if (cap === 100) assert.match(result.stderr, /report-max-bytes: .*cannot fit/);
       else {
-        const size = ['report.html', 'report.md', 'report.json'].reduce(
-          (sum, file) => sum + fs.statSync(path.join(report, file)).size,
-          0,
-        );
+        const size = fs.statSync(path.join(report, 'report.html')).size;
         assert.ok(size <= cap);
-        assert.match(fs.readFileSync(path.join(report, 'report.html'), 'utf8'), /1 images omitted/);
+        assert.match(fs.readFileSync(path.join(report, 'report.html'), 'utf8'), /1 image omitted/);
       }
     }
+    const branch = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, GITHUB_ACTION_PATH: root, REPORT_STORAGE: 'branch', REPORT_MAX_BYTES: '100' },
+    });
+    assert.equal(branch.status, 0, branch.stderr);
+    const branchHtml = fs.readFileSync(path.join(report, 'report.html'), 'utf8');
+    assert.match(branchHtml, /src="crops\/changed.png"/);
+    assert.doesNotMatch(branchHtml, /data:image/);
+    assert.ok(action.indexOf('    - name: Bound the artifact report size') < action.indexOf('    - id: publish'));
     assert.match(action, /steps.report-size.outcome.*=== 'failure'/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

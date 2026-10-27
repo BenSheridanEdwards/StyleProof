@@ -212,3 +212,8 @@ test('report.html refuses a non-http(s) link hidden behind a leading control cha
 test('report.html does not open a code span at a backslash-escaped backtick', () => {
   assert.match(renderReportHtml('**x\\`y** `sel`'), /<strong>x`y<\/strong> <code>sel<\/code>/);
 });
+
+test('text overflow preserves the verdict rather than replacing it with a truncation notice', () => {
+  const md = '## STYLE_REVIEW_REQUIRED\n\n' + 'review this change '.repeat(300);
+  assert.throws(() => renderReportHtml(md, { outDir: here, maxBytes: 3000 }), /cannot fit report text/);
+});

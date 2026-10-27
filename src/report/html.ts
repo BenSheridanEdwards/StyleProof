@@ -236,17 +236,18 @@ ${body}
   images.forEach((image, i) => {
     page = page.replace(image[0], `<!-- image-${i} -->`);
   });
-  const banner = (count: number) => `<p role="alert">${count} images omitted; report.json holds the full data.</p>`;
+  const banner = (count: number) =>
+    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; report.json holds the full data.</p>`;
   let remaining = maxBytes - Buffer.byteLength(page + banner(images.length) + captions.join(''));
   const rendered = [...captions];
   let omitted = images.length;
-  // Reserve the text and banner first; changed-region images get the bytes before one-sided views.
+  // Reserve text first; new and removed surfaces have no paired evidence.
   const priority = images
     .map((image, i) => ({ image, i }))
     .sort(
       (a, b) =>
-        Number(/new surface|removed surface|baseline repair needed/i.test(a.image[2])) -
-        Number(/new surface|removed surface|baseline repair needed/i.test(b.image[2])),
+        Number(/new surface|removed surface/i.test(b.image[2])) -
+        Number(/new surface|removed surface/i.test(a.image[2])),
     );
   for (const { image, i } of priority) {
     const src = readCropDataUrl(image[1], options.outDir, remaining);
@@ -261,8 +262,7 @@ ${body}
   page = page.replace(/<!-- image-(\d+) -->/g, (_match, i) => rendered[Number(i)]);
   if (omitted) page = page.replace('<main>', `<main>${banner(omitted)}`);
   if (Buffer.byteLength(page) > maxBytes) {
-    page = `<!doctype html><p>Report truncated. ${images.length} images omitted; report.json holds the full data.</p>`;
-    if (Buffer.byteLength(page) > maxBytes) throw new Error('HTML byte budget cannot fit truncation notice');
+    throw new Error('HTML byte budget cannot fit report text');
   }
   return page;
 }

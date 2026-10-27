@@ -205,7 +205,7 @@ variants) is in [docs/REFERENCE.md](docs/REFERENCE.md).
 Reports publish as workflow artifacts by default. The comment links the artifact on the run, and nothing is written to
 repository git history. Images travel inside the self-contained HTML.
 
-Report artifacts contain only `report.html`, `report.md` and `report.json`. Open HTML offline for embedded images. Set `report-max-bytes` (default `2000000`) to cap their combined size; omitted images have captions and a notice. Local reports support `--html-max-bytes`. Branch storage keeps crop files.
+Report artifacts contain only `report.html`, `report.md` and `report.json`. Open HTML offline for embedded images. Set `report-max-bytes` (default `2000000`) to cap HTML size; Markdown and JSON receipts are excluded; omitted images have captions and a notice. Local reports support `--html-max-bytes`. Branch storage keeps crop files.
 
 Every report viewer needs an authenticated GitHub session, because artifact downloads are never anonymous.
 `report-storage: branch` opts into the `styleproof-reports` orphan branch for an in-browser rendered report, with
