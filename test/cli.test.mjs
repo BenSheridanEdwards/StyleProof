@@ -1822,16 +1822,27 @@ test('diff default flow explains how to recover when cached maps are missing', (
   fs.writeFileSync(path.join(repo, 'feature'), 'x');
   spawnSync('git', ['add', '-A'], { cwd: repo });
   spawnSync('git', ['commit', '-qm', 'feature'], { cwd: repo });
+  // Work in progress the user has not committed: it belongs to head, never to the base capture.
+  fs.writeFileSync(path.join(repo, 'readme'), 'uncommitted');
   const r = runIn(repo, DIFF, ['main']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /cached maps are not available/);
   assert.match(r.stderr, /nothing was compared/);
   // This repo HAS an origin remote and still has no base map, so the hint must not send the
-  // user to "a repo with the origin remote". It names local steps that work and keep the tree.
+  // user to "a repo with the origin remote". Switching branches would carry the uncommitted
+  // edit into the base capture and hide it, so the base comes from a separate clean checkout.
   assert.doesNotMatch(r.stderr, /a repo with the 'origin' remote/);
-  assert.match(r.stderr, /git switch main && styleproof capture --dir base/);
-  assert.match(r.stderr, /git switch - && styleproof capture --dir head/);
-  assert.match(r.stderr, /styleproof-diff \.styleproof\/maps\/base \.styleproof\/maps\/head/);
+  assert.doesNotMatch(r.stderr, /git (switch|checkout)\b/);
+  assert.match(r.stderr, /npx styleproof capture --dir head/);
+  assert.match(r.stderr, /npx styleproof capture --base-dir \.\.\/maps --dir base/);
+  assert.match(r.stderr, /npx styleproof-diff \.styleproof\/maps\/base \.styleproof\/maps\/head/);
+  const worktreeAdd = r.stderr.split('\n').find((line) => line.trim().startsWith('git worktree add'));
+  assert.ok(worktreeAdd, r.stderr);
+  const [, ...args] = worktreeAdd.trim().split(/\s+/);
+  const added = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+  assert.equal(added.status, 0, added.stderr);
+  assert.equal(fs.readFileSync(path.join(repo, '.styleproof/base-checkout/readme'), 'utf8'), 'x', 'base is the commit');
+  assert.equal(fs.readFileSync(path.join(repo, 'readme'), 'utf8'), 'uncommitted', 'the working tree is untouched');
   rmTmp(repo);
 });
 
@@ -1860,6 +1871,8 @@ for (const [label, script, cmd] of [
     assert.match(r.stderr, /cached maps are not available/);
     assert.match(r.stderr, /nothing was compared/);
     assert.match(r.stderr, new RegExp(`${cmd} <beforeDir> <afterDir>`));
+    // The base the run inferred is printed, not a placeholder.
+    assert.match(r.stderr, /git worktree add --detach \.styleproof\/base-checkout main\n/);
     rmTmp(repo);
   });
 }
