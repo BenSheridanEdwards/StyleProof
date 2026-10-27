@@ -35,27 +35,27 @@
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
-    "unprovenSurfaces": 0,
-    "requiredUnprovenSurfaces": 0,
+    "unprovenSurfaces": 1,
+    "requiredUnprovenSurfaces": 1,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "comparable",
+    "status": "unproven",
     "requireStateIdentity": false,
-    "blocksCertification": false,
+    "blocksCertification": true,
     "counts": {
-      "comparable": 1,
+      "comparable": 0,
       "incomparable": 0,
-      "unproven": 0,
+      "unproven": 1,
       "notRequired": 0,
-      "requiredUnproven": 0,
+      "requiredUnproven": 1,
       "globalRequiredUnproven": 0
     }
   },
   "comparability": [
     {
       "surface": "home@320",
-      "status": "comparable",
+      "status": "unproven",
       "required": true,
-      "reason": "explicit-state-match"
+      "reason": "state-identity-missing"
     }
   ],
   "reportConsistency": {
@@ -82,9 +82,13 @@
   },
   "legacyPairs": {
     "armed": true,
-    "legacyPairs": [],
+    "legacyPairs": [
+      "home@320"
+    ],
     "declared": [],
-    "undeclared": [],
+    "undeclared": [
+      "home@320"
+    ],
     "staleAcknowledgements": []
   },
   "sourceBinding": {
@@ -105,19 +109,19 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "2fb1831105d5f4d05706f0e69332b6a702b3e0b3b3c3c9357746064e035232f7",
+      "digest": "54f87326a79b14e78952245752255b14741c25f79b5a57d941a38c6e13fec2de",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1482
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "b2a7746981acc89cc9af720ea6a62abb1b39a71de7b65db6a5075d16953dada6",
+      "digest": "aa9310df1e31acc63c2cfc9b49df5af3a99fc12ff286f8cfb1a7ccb9f8f36960",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1482
     }
   },
-  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED",
+  "actionTrustState": "CERTIFICATION_FAILED",
   "untrustedCapture": false
 }
