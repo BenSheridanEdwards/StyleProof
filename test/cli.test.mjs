@@ -662,9 +662,12 @@ test('styleproof-map runs configured variant crawl before Playwright capture', (
       },
     );
     assert.equal(r.status, 0, r.stderr);
+
+    const cpus = os.availableParallelism();
+
     assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
       'crawl:--base-url http://127.0.0.1:3000 --out styleproof.variants.generated.json --route / --route settings=/settings --strict',
-      'map:test --grep /(?:^|\\s)styleproof capture(?:\\s|$)/',
+      `map:test --grep /(?:^|\\s)styleproof capture(?:\\s|$)/ --workers=${Math.max(Math.ceil(cpus / 2), cpus - 2)}`,
     ]);
   } finally {
     rmTmp(root);

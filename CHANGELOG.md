@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Default capture workers to `max(ceil(cpus / 2), cpus - 2)` when no Playwright worker count is chosen (12 CPUs → 10 workers). Preserve explicit Playwright args and config workers; add `STYLEPROOF_WORKERS` for a positive-integer override.
 - Fix the local compare hint added in #1120. Its `git switch <base>` step carried uncommitted edits into the base capture, so a change still in the working tree compared as no change; it also failed on a ref such as `origin/main` and from a detached HEAD. The hint now captures this checkout as head, then the base from a clean `git worktree` of the base ref, installing with the project's package manager. It prints the inferred base instead of a placeholder and warns that a reused local server serves both captures the same build.
 - Fix selective remap reusing every base map when a change reaches a wrapper a framework injects around every page under a name the wrapper rule did not know: Remix / React Router 7 `root`, SvelteKit `+layout`, Vue/Nuxt `App.vue`, `app.vue` and `layouts/*.vue`, the Vite `main` mount, and Gatsby `gatsby-browser` / `gatsby-ssr`. These now count as wrappers and re-capture everything.
 - Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines.
