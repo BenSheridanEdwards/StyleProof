@@ -364,12 +364,15 @@ export function capturePageChanges({ key, args }: { key: string; args: CaptureAr
   const store = (
     window as unknown as Record<
       string,
-      { capture: typeof capturePage; entries?: Map<string, SnapshotEntry> } | undefined
+      { capture: typeof capturePage; entries?: Map<string, SnapshotEntry>; last?: PageCapture } | undefined
     >
   )[key];
   if (!store) return null;
+  store.last = store.capture(args);
+
   const current = new Map<string, SnapshotEntry>();
-  for (const [path, entry] of Object.entries(store.capture(args).elements)) {
+
+  for (const [path, entry] of Object.entries(store.last.elements)) {
     // Playwright preserves numeric specials; stringify normalizes -0 and non-finite
     // numbers identically here and after transfer, and omits undefined object fields.
     current.set(path, { entry, full: JSON.stringify(entry) });
