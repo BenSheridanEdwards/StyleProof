@@ -109,7 +109,8 @@ function initializeRepository(directory, env, format = 'sha1') {
     // This is disposable fixture configuration, not a behavior under test.
     fs.appendFileSync(
       path.join(template, '.git/config'),
-      '\n[user]\n\temail = fixture@example.test\n\tname = Tree fixture\n[commit]\n\tgpgSign = false\n',
+      '\n[user]\n\temail = fixture@example.test\n\tname = Tree fixture\n[commit]\n\tgpgSign = false\n' +
+        '[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\n',
     );
     emptyRepositories.set(format, path.join(template, '.git'));
   }
@@ -123,6 +124,8 @@ export function createFixture(t, options = {}) {
   t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
   const directory = path.join(workspace, 'repo');
   fs.mkdirSync(directory);
+  // Isolate fixture repositories from inherited Git directories, indexes and config.
+  // Maintenance settings live in the template config so child repositories keep them too.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
   const git = (args, opts = {}) => {
     const result = spawnSync('git', args, { cwd: directory, env, encoding: 'utf8', ...opts });
