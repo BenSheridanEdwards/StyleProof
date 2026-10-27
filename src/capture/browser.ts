@@ -358,6 +358,50 @@ export function capturePage({
   return { defaults, elements, shadowHosts, sameOriginFrames, scrollX, scrollY, documentHeight };
 }
 
+/** Poll using the capture function installed in this settle's non-enumerable window store. */
+export function capturePageChanges({ key, args }: { key: string; args: CaptureArgs }): string[] | null {
+  type SnapshotEntry = { entry: ElementEntry; full: string };
+  const store = (
+    window as unknown as Record<
+      string,
+      { capture: typeof capturePage; entries?: Map<string, SnapshotEntry> } | undefined
+    >
+  )[key];
+  if (!store) return null;
+  const current = new Map<string, SnapshotEntry>();
+  for (const [path, entry] of Object.entries(store.capture(args).elements)) {
+    // Playwright preserves numeric specials; stringify normalizes -0 and non-finite
+    // numbers identically here and after transfer, and omits undefined object fields.
+    current.set(path, { entry, full: JSON.stringify(entry) });
+  }
+  const previous = store.entries;
+  store.entries = current;
+  if (!previous) return [];
+  const changed = [...new Set([...previous.keys(), ...current.keys()])].filter(
+    (path) => previous.get(path)?.full !== current.get(path)?.full,
+  );
+  // The box and resolved longhands that follow it when a descendant grows or shrinks.
+  const FOLLOWED_GEOMETRY = new Set(
+    'width height inline-size block-size perspective-origin transform-origin'.split(' '),
+  );
+  const withoutGeometry = (entry: ElementEntry): string => {
+    const style = Object.entries(entry.style).filter(([prop]) => !FOLLOWED_GEOMETRY.has(prop));
+    return JSON.stringify({ ...entry, rect: undefined, style });
+  };
+  // Resizing ancestors must not exclude static siblings. Test against every changed
+  // path before pruning; html is an ancestor even though body paths omit its prefix.
+  return changed.filter((path) => {
+    const before = previous.get(path);
+    const after = current.get(path);
+    return !(
+      before &&
+      after &&
+      withoutGeometry(before.entry) === withoutGeometry(after.entry) &&
+      changed.some((other) => other !== path && (path === 'html' || other.startsWith(`${path} > `)))
+    );
+  });
+}
+
 export type SkipArgs = { skipSel: string };
 
 export function detectLiveCandidates({ skipSel }: SkipArgs): LiveRegionCandidate[] {

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
 import { captureStyleMap } from '../dist/capture.js';
-import { capturePage, freezeMotion, injectPathOf, snapSubtree } from '../dist/capture/browser.js';
+import { capturePage, capturePageChanges, freezeMotion, injectPathOf, snapSubtree } from '../dist/capture/browser.js';
 import { PSEUDO_REFERENCES } from '../dist/pseudo-references.js';
 import { skipSelector } from '../dist/capture/shared.js';
 
@@ -51,11 +51,13 @@ function capturePageHarness() {
     viewportSize: () => ({ width: 800, height: 600 }),
     waitForTimeout: async () => harness.onWait(),
     evaluate: async (fn, arg) => {
+      if (typeof fn === 'string') return runInContext(fn, context);
       let result;
       switch (fn.name) {
         case 'freezeMotion':
         case 'unfreezeMotion':
         case 'capturePage':
+        case 'capturePageChanges':
           result = run(fn, arg);
           break;
         case 'detectLiveCandidates':
@@ -74,7 +76,9 @@ function capturePageHarness() {
         case 'installHoverSink':
         case 'injectPathOf':
         case 'restoreInnerScrollContainers':
-        case '': // focus blur
+          break;
+        case '': // focus blur or settle-store cleanup
+          if (typeof arg === 'string') result = run(fn, arg);
           break;
         default:
           throw new Error(`Unexpected page callback: ${fn.name}`);
@@ -140,6 +144,148 @@ const pageCaptureArgs = {
   captureText: false,
   pseudoReferences: PSEUDO_REFERENCES,
 };
+
+const settleEntry = (overrides = {}) => ({
+  tag: 'div',
+  cls: '',
+  style: { color: 'red' },
+  rect: [0, 0, 10, 10],
+  ...overrides,
+});
+const resizedEntry = () => settleEntry({ style: { color: 'red', width: '20px' }, rect: [0, 0, 20, 10] });
+
+for (const [name, before, after, expected] of [
+  ['added element', {}, { body: settleEntry() }, ['body']],
+  ['removed element', { body: settleEntry() }, {}, ['body']],
+  ['style change', { body: settleEntry() }, { body: settleEntry({ style: { color: 'blue' } }) }, ['body']],
+  ['text change', { body: settleEntry({ text: 'one' }) }, { body: settleEntry({ text: 'two' }) }, ['body']],
+  ['geometry alone', { body: settleEntry() }, { body: resizedEntry() }, ['body']],
+  ['html geometry alone', { html: settleEntry() }, { html: resizedEntry() }, ['html']],
+  ['added descendant', { body: settleEntry() }, { body: resizedEntry(), 'body > div': settleEntry() }, ['body > div']],
+  ['unchanged', { body: settleEntry() }, { body: settleEntry() }, []],
+  ['undefined field', { body: settleEntry() }, { body: settleEntry({ text: undefined }) }, []],
+  [
+    'numeric serialization',
+    { body: settleEntry({ rect: [-0, NaN, Infinity, -Infinity] }) },
+    { body: settleEntry({ rect: [0, null, null, null] }) },
+    [],
+  ],
+  [
+    'property order',
+    { body: settleEntry({ style: { color: 'red', display: 'block' } }) },
+    { body: settleEntry({ style: { display: 'block', color: 'red' } }) },
+    ['body'],
+  ],
+  ...['width', 'height', 'inline-size', 'block-size', 'perspective-origin', 'transform-origin'].map((prop) => [
+    `followed ${prop} and html`,
+    { html: settleEntry(), body: settleEntry(), 'body > div': settleEntry() },
+    {
+      html: resizedEntry(),
+      body: settleEntry({ style: { color: 'red', [prop]: '20px' } }),
+      'body > div': resizedEntry(),
+    },
+    ['body > div'],
+  ]),
+  [
+    'geometry with removed descendant',
+    { body: settleEntry(), 'body > div': settleEntry() },
+    { body: resizedEntry() },
+    ['body > div'],
+  ],
+  [
+    'geometry with unrelated change',
+    { body: settleEntry() },
+    { body: resizedEntry(), 'bodyguard > div': settleEntry() },
+    ['body', 'bodyguard > div'],
+  ],
+]) {
+  test(`settle diff preserves the previous rule: ${name}`, () => {
+    const { context, run } = capturePageHarness();
+    context.snapshot = before;
+    runInContext(
+      `Object.defineProperty(window, 'settle', {
+      configurable: true, value: { capture: (args) => { captureArgs = args; return { elements: snapshot }; } }
+    })`,
+      context,
+    );
+    const poll = () => Array.from(run(capturePageChanges, { key: 'settle', args: pageCaptureArgs }));
+    assert.deepEqual(poll(), [], 'the first poll only records a baseline');
+    assert.deepEqual(JSON.parse(JSON.stringify(context.captureArgs)), pageCaptureArgs);
+    context.snapshot = after;
+    assert.deepEqual(poll(), expected);
+    assert.deepEqual(poll(), [], 'the previous snapshot advances after every poll');
+  });
+}
+
+test('settle diff returns null when its window store is missing', () => {
+  const { run } = capturePageHarness();
+  assert.equal(run(capturePageChanges, { key: 'missing', args: pageCaptureArgs }), null);
+});
+
+for (const outcome of ['quiet', 'timeout', 'churn']) {
+  test(`settle recovers a lost store between polls before ${outcome}`, async (t) => {
+    const host = { color: 'red' };
+    const { page, context, hooks } = pseudoPageHarness({ host });
+    let now = 0;
+    t.mock.method(Date, 'now', () => now);
+    let key;
+    hooks.onWait = () => {
+      now++;
+      const keys = Object.getOwnPropertyNames(context.window).filter((name) => name.startsWith('__spSettle_'));
+      assert.equal(keys.length, 1, 'the store is installed before each wait');
+      [key] = keys;
+      if (now === 2) {
+        delete context.window[key];
+        host.color = 'blue';
+      } else if (outcome === 'churn' && now > 2) {
+        host.color = now % 2 ? 'red' : 'blue';
+      }
+    };
+    const map = await captureStyleMap(page, {
+      captureStates: false,
+      pendingRequests: () => 0,
+      stabilize: { interval: 1, quietFor: 2, timeout: outcome === 'quiet' ? 10 : outcome === 'timeout' ? 2 : 4 },
+    });
+    // Only waits advance the mocked clock: recovery at 2 must restart the two-tick quiet window.
+    assert.equal(now, outcome === 'timeout' ? 2 : 4);
+    assert.deepEqual(map.volatile ?? [], outcome === 'churn' ? ['target'] : []);
+    if (outcome === 'churn') assert.equal(Object.hasOwn(map.elements, 'target'), false);
+    else assert.equal(map.elements.target.style.color, 'blue', 'the new document remains captured');
+    assert.equal(Object.hasOwn(context.window, key), false, 'the reinstalled store is cleaned up');
+  });
+}
+
+for (const outcome of ['quiet', 'timeout', 'wait error']) {
+  test(`settle clears its non-enumerable store after ${outcome}`, async (t) => {
+    const { page, context, hooks } = capturePageHarness();
+    let now = 0;
+    t.mock.method(Date, 'now', () => now);
+    let polls = 0;
+    hooks.afterRead = (name) => {
+      if (name === 'capturePageChanges') polls++;
+    };
+    let key;
+    hooks.onWait = () => {
+      now++;
+      const keys = Object.getOwnPropertyNames(context.window).filter((name) => name.startsWith('__spSettle_'));
+      assert.equal(keys.length, 1);
+      [key] = keys;
+      assert.equal(Object.getOwnPropertyDescriptor(context.window, key).enumerable, false);
+      if (outcome === 'wait error') throw new Error('wait between polls failed');
+    };
+    const capture = captureStyleMap(page, {
+      captureStates: false,
+      pendingRequests: () => (outcome === 'timeout' ? 1 : 0),
+      stabilize: { interval: 1, quietFor: 1, timeout: 25 },
+    });
+    if (outcome === 'wait error') await assert.rejects(capture, /wait between polls failed/);
+    else assert.deepEqual((await capture).volatile ?? [], []);
+    assert.ok(key, 'at least one poll ran');
+    // Only waits advance the mocked clock: one baseline, then one poll per elapsed tick.
+    assert.equal(polls, outcome === 'quiet' ? 2 : outcome === 'timeout' ? 26 : 1);
+    assert.equal(Object.hasOwn(context.window, key), false);
+  });
+}
 
 for (const { name, tag, property, hostValue, value, ua } of [
   {
@@ -301,7 +447,7 @@ for (const phase of ['settle', 'capture']) {
 }
 
 test('captureStyleMap rejects adopted-sheet replacement between stabilization polls', async () => {
-  const { page, document, hooks } = capturePageHarness();
+  const { page, document, hooks, context } = capturePageHarness();
   hooks.onWait = () => {
     document.adoptedStyleSheets = [];
   };
@@ -311,6 +457,10 @@ test('captureStyleMap rejects adopted-sheet replacement between stabilization po
       stabilize: { interval: 1, quietFor: 1, timeout: 100, waitForRequests: false },
     }),
     freezeError,
+  );
+  assert.equal(
+    Object.getOwnPropertyNames(context.window).some((key) => key.startsWith('__spSettle_')),
+    false,
   );
 });
 

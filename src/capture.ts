@@ -2,11 +2,13 @@
 // on every element, keyed by DOM structure (never class names) so a class rewrite
 // stays comparable. Public entry; the machinery lives under src/capture/.
 import type { Page } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
 import { realNow } from './spec-clock.js';
 import { PSEUDO_REFERENCES } from './pseudo-references.js';
 import {
   capturePage,
+  capturePageChanges,
   capturePageTokens,
   detectLiveCandidates,
   detectOverlayCandidates,
@@ -140,30 +142,6 @@ async function assertRequiredVisibleState(page: Page, required: CaptureOptions['
 
 type Elements = Record<string, ElementEntry>;
 
-// The box and the resolved longhands that follow it when a descendant grows or shrinks.
-const FOLLOWED_GEOMETRY = new Set('width height inline-size block-size perspective-origin transform-origin'.split(' '));
-
-function withoutGeometry(entry: ElementEntry): string {
-  const style = Object.entries(entry.style).filter(([prop]) => !FOLLOWED_GEOMETRY.has(prop));
-  return JSON.stringify({ ...entry, rect: undefined, style });
-}
-
-/**
- * Paths that changed between two polls. An ancestor that only resized because a changed
- * descendant did is not a change of its own: recording it would exclude every static
- * sibling, up to html and body.
- */
-function changedElementPaths(a: Elements, b: Elements): string[] {
-  const out: string[] = [];
-  for (const p of new Set([...Object.keys(a), ...Object.keys(b)]))
-    if (JSON.stringify(a[p]) !== JSON.stringify(b[p])) out.push(p);
-  const hasChangedDescendant = (p: string): boolean =>
-    out.some((q) => q !== p && (p === 'html' || q.startsWith(`${p} > `)));
-  return out.filter(
-    (p) => !(a[p] && b[p] && withoutGeometry(a[p]) === withoutGeometry(b[p]) && hasChangedDescendant(p)),
-  );
-}
-
 /**
  * Poll until the map has been UNCHANGED for `quietFor` ms (through the lull before
  * late content paints) or the budget runs out. Returns the paths still changing at
@@ -177,44 +155,65 @@ async function stabilizePage(
   pending: () => number,
 ): Promise<string[]> {
   // captureText participates so text-only churn (a clock) is excluded like style churn.
-  const snap = async (): Promise<Elements> =>
-    (await page.evaluate(capturePage, { skipSel, motionOnly: false, captureText, pseudoReferences: PSEUDO_REFERENCES }))
-      .elements as Elements;
-  // realNow: under STYLEPROOF_FREEZE_SPEC_CLOCK a frozen Date would never advance these windows.
-  const start = realNow();
-  let prev = await snap();
-  let lastChangeAt = start;
-  // Per path: when it last changed. Out-of-phase tickers never change in the same poll, so
-  // "the last poll's paths" would keep only one of them.
-  const lastChangedAt = new Map<string, number>();
-  const changedAgain = new Set<string>();
-  while (realNow() - start < timeout) {
-    await page.waitForTimeout(interval);
-    const cur = await snap();
-    const changed = changedElementPaths(prev, cur);
-    prev = cur;
-    if (changed.length) {
-      lastChangeAt = realNow();
-      for (const p of changed) {
-        if (lastChangedAt.has(p)) changedAgain.add(p);
-        lastChangedAt.set(p, lastChangeAt);
+  const key = `__spSettle_${randomUUID()}`;
+  // Evaluated callbacks cannot see module imports; install capture for subsequent polls.
+  const install = (): Promise<void> =>
+    page.evaluate(
+      `void Object.defineProperty(window, ${JSON.stringify(key)}, { configurable: true, value: { capture: (${capturePage.toString()}) } })`,
+    );
+  const snap = (): Promise<string[] | null> =>
+    page.evaluate(capturePageChanges, {
+      key,
+      args: { skipSel, motionOnly: false, captureText, pseudoReferences: PSEUDO_REFERENCES },
+    });
+  try {
+    await install();
+    // realNow: under STYLEPROOF_FREEZE_SPEC_CLOCK a frozen Date would never advance these windows.
+    const start = realNow();
+    await snap();
+    let lastChangeAt = start;
+    // Per path: when it last changed. Out-of-phase tickers never change in the same poll, so
+    // "the last poll's paths" would keep only one of them.
+    const lastChangedAt = new Map<string, number>();
+    const changedAgain = new Set<string>();
+    while (realNow() - start < timeout) {
+      await page.waitForTimeout(interval);
+      const changed = await snap();
+      if (changed === null) {
+        // A lost baseline cannot prove changed paths; do not mark an unchanged reload volatile.
+        lastChangeAt = realNow();
+        await install();
+        await snap();
+      } else if (changed.length) {
+        lastChangeAt = realNow();
+        for (const p of changed) {
+          if (lastChangedAt.has(p)) changedAgain.add(p);
+          lastChangedAt.set(p, lastChangeAt);
+        }
+      } else if (pending() > 0) {
+        // Quiet DOM but data requests in flight: the lull BEFORE the response paints.
+        lastChangeAt = realNow();
+      } else if (realNow() - lastChangeAt >= quietFor) {
+        return [];
       }
-    } else if (pending() > 0) {
-      // Quiet DOM but data requests in flight: the lull BEFORE the response paints.
-      lastChangeAt = realNow();
-    } else if (realNow() - lastChangeAt >= quietFor) {
-      return [];
     }
+    // Still changing at timeout: changed within the quiet window, or changed again in the last poll
+    // that changed (in-flight requests can hold the loop open past a region ticking slower than
+    // `quietFor`). Content that loaded late (in any number of steps) and then settled is compared,
+    // and so is a path that changed only once, even while a request is still in flight.
+    const end = realNow();
+    const lastPoll = Math.max(...lastChangedAt.values());
+    return [...lastChangedAt]
+      .filter(([p, at]) => (at === lastPoll && changedAgain.has(p)) || end - at <= quietFor)
+      .map(([p]) => p);
+  } finally {
+    // Best-effort cleanup also covers a failed poll or a page that closed mid-settle.
+    await page
+      .evaluate((key) => {
+        delete (window as unknown as Record<string, unknown>)[key];
+      }, key)
+      .catch(() => {});
   }
-  // Still changing at timeout: changed within the quiet window, or changed again in the last poll
-  // that changed (in-flight requests can hold the loop open past a region ticking slower than
-  // `quietFor`). Content that loaded late (in any number of steps) and then settled is compared,
-  // and so is a path that changed only once, even while a request is still in flight.
-  const end = realNow();
-  const lastPoll = Math.max(...lastChangedAt.values());
-  return [...lastChangedAt]
-    .filter(([p, at]) => (at === lastPoll && changedAgain.has(p)) || end - at <= quietFor)
-    .map(([p]) => p);
 }
 
 /** Settle the page and return the paths of live regions to exclude. */
