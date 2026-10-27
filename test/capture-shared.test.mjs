@@ -109,7 +109,15 @@ function computedStyle(properties) {
 }
 
 // The same isolated page realm also executes the real CDP snapshot expressions.
-function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupported, resetFailures = 0 } = {}) {
+function forcedStateHarness({
+  scope = 'document',
+  legacy,
+  drift,
+  settled,
+  unsupported,
+  resetFailures = 0,
+  replaceDocument = false,
+} = {}) {
   const { context, document, run } = capturePageHarness();
   const nodes = [];
   const make = (path, parentElement, button = false) => {
@@ -222,6 +230,14 @@ function forcedStateHarness({ scope = 'document', legacy, drift, settled, unsupp
       const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
       // Force the production legacy path; all per-target reads still run unmodified.
       if (legacy && sessionBaseline) return { result: { value: false } };
+
+      if (replaceDocument && expression.includes('"saveBaseline":true')) {
+        document.querySelector = () => null;
+
+        for (const key of Object.keys(context.window)) {
+          if (key.startsWith('__spForcedStateBaseline')) delete context.window[key];
+        }
+      }
       const value = runInContext(expression, context);
       if (expression.includes('"countOnly":true')) counts++;
       else if (expression.includes('"saveBaseline":true') && (!sessionBaseline || value)) baselines++;
@@ -839,4 +855,13 @@ test('forced-state snapshots reject adopted-sheet replacement during a read', ()
     () => run(snapSubtree, { selector: 'body', skipSel: '*', skipPaths: [], maxElements: 10, saveBaseline: true }),
     freezeError,
   );
+});
+
+test('document replacement before a target baseline skips missing targets without calling the lost snapshot', async () => {
+  const { result, warnings, forces } = await forcedStateHarness({ scope: 'subtree', replaceDocument: true }).capture();
+  assert.equal(result.skipped, true);
+  assert.deepEqual(result.states, {});
+  assert.equal(forces.length, 0);
+  assert.equal(warnings.length, 20);
+  assert.ok(warnings.every((warning) => warning.includes('detached')));
 });

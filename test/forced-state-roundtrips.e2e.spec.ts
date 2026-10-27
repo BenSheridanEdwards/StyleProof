@@ -126,6 +126,32 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
           true,
         );
     }
+    // One installed snapshot, five evaluations per target (baseline, three
+    // states, reset barrier), plus shared-baseline save/check for document reads.
+
+    const sharedBaseline = mode !== 'stylesheet';
+    expect(evaluates).toBe(1 + TARGETS * 5 + (sharedBaseline ? 2 : 0));
+    expect(commands.map(({ method }) => method)).toEqual([
+      'DOM.enable',
+      'CSS.enable',
+      'DOM.getDocument',
+      'Runtime.evaluate',
+      ...(sharedBaseline ? ['Runtime.evaluate'] : []),
+      ...Array(TARGETS).fill('DOM.querySelectorAll'),
+      ...Array.from({ length: TARGETS }, () => [
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+      ]).flat(),
+      ...(sharedBaseline ? ['Runtime.evaluate'] : []),
+      'detach',
+    ]);
     expect(forces.map(({ params }) => params?.forcedPseudoClasses)).toEqual(
       Array.from({ length: TARGETS }, () => [['hover'], ['focus', 'focus-visible'], ['active'], []]).flat(),
     );

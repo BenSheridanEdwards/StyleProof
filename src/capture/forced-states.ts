@@ -170,9 +170,8 @@ async function snapStateScopeInSession(
   const snapshot = `window[${codeLiteral(snapshotKey)}](${codeLiteral(args)})`;
   // Keep force -> liveness -> style flush -> snapshot on the same CDP session.
   // The pre-read barrier shares this evaluation; post-reset barriers stay separate.
-  const expression = args.saveBaseline
-    ? snapshot
-    : `(() => {
+
+  const expression = `(() => {
         const element = document.querySelector(${codeLiteral(args.selector)});
         if (!element) return { delta: {}, truncated: false, scanned: 0, targetMissing: true };
         getComputedStyle(element).display;
@@ -270,6 +269,7 @@ async function captureForcedStateVariation(
 
   // CDP replaces the forced set. The next read flushes styles for that set;
   // only the last variation needs to restore and settle the resting state.
+  // With stabilize:false, live transitions can carry hover values into focus.
   if (stateName === 'active') {
     await resetForcedStateTarget(context, target);
 
@@ -328,6 +328,13 @@ async function captureForcedStateTarget(
     ...scopeArgs(context, target.selector, true),
     countOnly: context.sharedBaseline,
   });
+
+  if (baseline.targetMissing) {
+    context.incomplete = true;
+    warnDetachedForcedStateTarget(context, marked.id);
+
+    return 'next-target';
+  }
   if (baseline.truncated) warnTruncatedForcedStateScan(context);
   if (budgetExhausted(context)) return 'stop-capture';
 
@@ -445,6 +452,7 @@ export async function captureForcedStates(
       context.sharedBaseline =
         context.readScope === 'document' && targets.length > 0 && (await sessionBaseline(context, targets));
       const captureTargets = async (): Promise<void> => {
+        // Resolve in one batch, including targets a later budget stop may skip.
         const resolved = await stateBatch(targets.map(({ id }) => resolveMarkedTarget(session, id)));
 
         for (const [index, markedElement] of targets.entries()) {
