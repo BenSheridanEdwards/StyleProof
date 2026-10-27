@@ -39,3 +39,16 @@ for (const flag of flags) {
 // Marker the contract test reads back out of a spawned child to prove the
 // preload ran there.
 process.env.STYLEPROOF_NO_CONCURRENT_JOBS = '1';
+
+// Commits otherwise launch detached auto-maintenance, which can recreate files
+// while tests remove temp repos (#1131). Git children inherit these overrides.
+// Append so caller-supplied config survives and these values take precedence.
+const gitConfigCount = Number(process.env.GIT_CONFIG_COUNT ?? '0');
+for (const [offset, [key, value]] of [
+  ['maintenance.auto', 'false'],
+  ['gc.auto', '0'],
+].entries()) {
+  process.env[`GIT_CONFIG_KEY_${gitConfigCount + offset}`] = key;
+  process.env[`GIT_CONFIG_VALUE_${gitConfigCount + offset}`] = value;
+}
+process.env.GIT_CONFIG_COUNT = String(gitConfigCount + 2);
