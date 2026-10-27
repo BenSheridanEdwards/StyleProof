@@ -1,6 +1,6 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { importConfigRecord } from './config/load.js';
 
 /** Leave two CPUs for the app server, while retaining at least Playwright's half-CPU default. */
 export function defaultCaptureWorkers(cpus: number): number {
@@ -30,9 +30,30 @@ async function configChoosesWorkers(args: readonly string[], cwd: string): Promi
       location = path.join(location, filename);
     }
 
-    const config = await importConfigRecord(location);
+    // A cold checkout can have its own Playwright install; never import it into
+    // the CLI process that already loaded the head's runner. Keep config logs
+    // separate from the boolean returned on fd 3.
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--experimental-strip-types',
+        '--input-type=module',
+        '-e',
+        `import { writeFileSync } from 'node:fs';
+         import { importConfigRecord } from ${JSON.stringify(new URL('./config/load.js', import.meta.url).href)};
+         try {
+           const config = await importConfigRecord(process.argv[1]);
+           writeFileSync(3, String('workers' in config));
+           process.exit(0);
+         } catch {
+           process.exit(1);
+         }`,
+        location,
+      ],
+      { cwd, encoding: 'utf8', stdio: ['ignore', 'inherit', 'inherit', 'pipe'] },
+    );
 
-    return 'workers' in config;
+    return result.error !== undefined || result.status !== 0 || result.output[3] !== 'false';
   } catch {
     // An unreadable or unloadable config may choose workers; preserve the adopter's choice.
     return true;
