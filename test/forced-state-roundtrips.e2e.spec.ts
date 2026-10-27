@@ -132,12 +132,14 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
     await expectClean(page, commands);
     expect(after).toEqual(rest);
     await originals.dispose();
-    // One baseline, then one combined liveness/flush/snapshot and one reset flush per state.
-    expect(evaluates).toBe(TARGETS * 7);
+    // Stylesheet-proven parent scopes retain per-target baselines without planning.
+    // Document reads share a baseline and add its final check; state barriers stay intact.
+    expect(evaluates).toBe(TARGETS * 7 + (mode === 'stylesheet' ? 0 : 2));
     expect(commands.map(({ method }) => method)).toEqual([
       'DOM.enable',
       'CSS.enable',
       'DOM.getDocument',
+      ...(mode === 'stylesheet' ? [] : ['Runtime.evaluate']),
       ...Array.from({ length: TARGETS }, () => [
         'DOM.querySelectorAll',
         'Runtime.evaluate',
@@ -148,6 +150,7 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
           'Runtime.evaluate',
         ]).flat(),
       ]).flat(),
+      ...(mode === 'stylesheet' ? [] : ['Runtime.evaluate']),
       'detach',
     ]);
   });
