@@ -12,21 +12,26 @@ export function projectConfigOrExit(cli: string, cwd = process.cwd()): StyleProo
 }
 
 /** "Cached maps couldn't be restored" guidance shared by styleproof-diff and styleproof-report.
- *  A local checkout rarely has a stored base map, so the hint names local steps that work
- *  without touching uncommitted changes. */
+ *  A local checkout rarely has a stored base map. Switching branches would carry uncommitted
+ *  edits into the base capture and hide them, so the base comes from a separate clean checkout. */
 export function cachedMapsUnavailableMessage(
   command: string,
   purpose: string,
   error: unknown,
-  baseRef = '<base-branch>',
+  { baseRef = '<base-ref>', install = 'npm ci' }: { baseRef?: string; install?: string } = {},
 ): string {
   return [
     `${command}: cached maps are not available for this ${purpose} — nothing was compared`,
     errorMessage(error),
-    'Next: in CI the base map is restored or captured for you. Locally, capture each side under its own label:',
-    `  git switch ${baseRef} && styleproof capture --dir base`,
-    '  git switch - && styleproof capture --dir head',
-    `  ${command} .styleproof/maps/base .styleproof/maps/head`,
+    'Next: in CI the base map is restored or captured for you. Locally, capture this checkout as head,',
+    'then the base from a clean checkout of it, so uncommitted changes stay out of the base:',
+    '  npx styleproof capture --dir head',
+    `  git worktree add --detach .styleproof/base-checkout ${baseRef}`,
+    `  (cd .styleproof/base-checkout && ${install} && npx styleproof capture --base-dir ../maps --dir base)`,
+    '  git worktree remove --force .styleproof/base-checkout',
+    `  npx ${command} .styleproof/maps/base .styleproof/maps/head`,
+    "Stop any server already running on the app's port first: outside CI Playwright reuses it, so both",
+    'captures would see the same build.',
     `Any two capture directories work: ${command} <beforeDir> <afterDir>.`,
   ].join('\n');
 }

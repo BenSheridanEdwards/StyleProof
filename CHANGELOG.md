@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Fix the local compare hint added in #1120. Its `git switch <base>` step carried uncommitted edits into the base capture, so a change still in the working tree compared as no change; it also failed on a ref such as `origin/main` and from a detached HEAD. The hint now captures this checkout as head, then the base from a clean `git worktree` of the base ref, installing with the project's package manager. It prints the inferred base instead of a placeholder and warns that a reused local server serves both captures the same build.
 - Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines.
 - Avoid redundant head npm installs after cold base capture when checkout, metadata, and hidden-lockfile checks permit reuse. Missing optional packages are allowed only when their folders are absent and OS, CPU, or libc constraints exclude the current platform.
 - Schedule parallel head captures largest-first by base map file size, preserving artifact ordering and explicit serial capture order.

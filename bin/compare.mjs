@@ -11,6 +11,8 @@ import {
   specPathForCwd,
 } from '../dist/config.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { detectPackageManagerPlan } from '../dist/ci.js';
+import { inferBaseRef } from '../dist/gitref.js';
 import {
   criticalStatesGateArmed,
   readCriticalStatesFile,
@@ -148,9 +150,24 @@ function cachedDirs(name, opts, args, purpose, usage) {
     });
     return { beforeDir: cacheCapture.beforeDir, afterDir: cacheCapture.afterDir, cacheCapture };
   } catch (error) {
-    console.error(cachedMapsUnavailableMessage(name, purpose, error, args[0]));
+    console.error(cachedMapsUnavailableMessage(name, purpose, error, localCompareHint(args[0])));
     return process.exit(2);
   }
+}
+
+/** The base ref this run compared against and the project's install command, for the local hint. */
+function localCompareHint(baseArg) {
+  const attempt = (read) => {
+    try {
+      return read();
+    } catch {
+      return undefined;
+    }
+  };
+  return {
+    baseRef: baseArg ?? attempt(() => inferBaseRef()),
+    install: attempt(() => detectPackageManagerPlan(process.cwd()).install.join(' ')),
+  };
 }
 
 function explicitDirs(name, args) {

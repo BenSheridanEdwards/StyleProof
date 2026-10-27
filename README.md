@@ -445,14 +445,20 @@ never committed to the PR branch — or via the opt-in `styleproof-maps` store
 branch. Nothing under `.styleproof/` belongs in a commit.
 
 `compare` restores the base map from the map store, so on a local checkout without
-one it stops and prints the local steps: capture each side under its own label,
-then compare the two directories.
+one it stops and prints the local steps. Capture this checkout as head, then the
+base from a clean worktree, so uncommitted changes never leak into the base
+(switching branches would carry them along and hide them from the diff):
 
 ```bash
-git switch main && npx styleproof capture --dir base
-git switch - && npx styleproof capture --dir head
+npx styleproof capture --dir head
+git worktree add --detach .styleproof/base-checkout origin/main
+(cd .styleproof/base-checkout && npm ci && npx styleproof capture --base-dir ../maps --dir base)
+git worktree remove --force .styleproof/base-checkout
 npx styleproof-diff .styleproof/maps/base .styleproof/maps/head
 ```
+
+Stop any server already running on the app's port first: outside CI Playwright
+reuses it, so both captures would see the same build.
 
 For the hand-wired Action form, the fork/Dependabot split, the map-store and
 report branches, the CI base publisher, and every config key and flag, see
