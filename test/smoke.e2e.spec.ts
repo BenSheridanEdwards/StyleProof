@@ -189,7 +189,7 @@ test('waits for every forced pseudo-state transition before reading computed sty
     );
   const first = await capture();
   const replay = await capture();
-  expect(transitions).toBeGreaterThanOrEqual(24); // two targets × three states × force/reset × two captures
+  expect(transitions).toBe(16); // two targets × (three forces + one reset) × two captures
   expect(diffStyleMaps(first, replay), 'independent forced-state sweeps are byte-equivalent').toEqual([]);
   for (const [path] of Object.entries(first.elements).filter(([, entry]) => entry.tag === 'button')) {
     expect(first.states[path]?.hover, `${path} captured :hover`).toBeTruthy();
@@ -643,7 +643,7 @@ test('state-layer batches preserve sequential PNG bytes and reset every target',
     'CSS.forcePseudoState:["focus","focus-visible"]',
     'CSS.forcePseudoState:["active"]',
   ]) {
-    expect(peaks[phase], `${phase} awaits each target's command`).toBe(1);
+    expect(peaks[phase], `${phase} sends independent commands together`).toBe(count);
   }
   for (const state of ['hover', 'focus', 'active']) {
     expect(fs.readFileSync(testInfo.outputPath(`batched.${state}.png`))).toEqual(

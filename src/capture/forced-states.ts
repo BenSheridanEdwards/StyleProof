@@ -162,8 +162,12 @@ async function settleForcedState(client: CDPSession, selector: string): Promise<
 
 type SessionScopeResult = StateScopeResult & { targetMissing?: true };
 
-async function snapStateScopeInSession(client: CDPSession, args: StateScopeArgs): Promise<SessionScopeResult> {
-  const snapshot = `(${snapSubtree.toString()})(${codeLiteral(args)})`;
+async function snapStateScopeInSession(
+  client: CDPSession,
+  args: StateScopeArgs,
+  snapshotKey: string,
+): Promise<SessionScopeResult> {
+  const snapshot = `window[${codeLiteral(snapshotKey)}](${codeLiteral(args)})`;
   // Keep force -> liveness -> style flush -> snapshot on the same CDP session.
   // The pre-read barrier shares this evaluation; post-reset barriers stay separate.
   const expression = args.saveBaseline
@@ -188,6 +192,7 @@ type ForcedStateCaptureContext = {
   /** Typed OM margin proof per owner/state; dropped (undefined) once any read lacked Typed OM. */
   stateComputedValueStyle: StyleMap['stateComputedValueStyle'];
   baselineKey: string;
+  snapshotKey: string;
   skipSel: string;
   skipPaths: string[];
   incomplete: boolean;
@@ -228,7 +233,7 @@ function scopeArgs(context: ForcedStateCaptureContext, selector: string, saveBas
 }
 
 async function readScope(context: ForcedStateCaptureContext, args: StateScopeArgs): Promise<SessionScopeResult> {
-  const read = await snapStateScopeInSession(context.session.client, args);
+  const read = await snapStateScopeInSession(context.session.client, args, context.snapshotKey);
   context.scanWorkRemaining -= read.scanned;
   context.incomplete ||= read.truncated;
   return read;
@@ -263,11 +268,17 @@ async function captureForcedStateVariation(
     return 'next-target';
   }
 
-  await resetForcedStateTarget(context, target);
-  if (!(await settleForcedState(session.client, target.selector))) {
-    context.incomplete = true;
-    warnDetachedForcedStateTarget(context, id, 'while resetting forced state');
-    return 'next-target';
+  // CDP replaces the forced set. The next read flushes styles for that set;
+  // only the last variation needs to restore and settle the resting state.
+  if (stateName === 'active') {
+    await resetForcedStateTarget(context, target);
+
+    if (!(await settleForcedState(session.client, target.selector))) {
+      context.incomplete = true;
+      warnDetachedForcedStateTarget(context, id, 'while resetting forced state');
+
+      return 'next-target';
+    }
   }
   if (Object.keys(forced.delta).length) (context.states[elementPath] ??= {})[stateName] = forced.delta;
   recordStateComputedValueStyle(context, elementPath, stateName, forced.typedMargins);
@@ -302,9 +313,9 @@ function warnTruncatedForcedStateScan(context: ForcedStateCaptureContext): void 
 async function captureForcedStateTarget(
   context: ForcedStateCaptureContext,
   marked: MarkedInteractive,
+  target: ForcedStateTarget | undefined,
 ): Promise<ForcedStateCaptureFlow> {
   if (budgetExhausted(context)) return 'stop-capture';
-  const target = await resolveMarkedTarget(context.session, marked.id);
   if (!target) {
     context.incomplete = true;
     context.warnings.push(
@@ -329,8 +340,16 @@ async function captureForcedStateTarget(
       stateName,
       forcedPseudoClasses,
     );
-    if (flow === 'stop-capture') return flow;
-    if (flow === 'next-target') return baseline.truncated ? 'stop-capture' : flow;
+
+    if (flow !== 'continue') {
+      // A budget stop or stale node may interrupt the sweep before active.
+      if (context.session.applied.has(target)) {
+        await resetForcedStateTarget(context, target);
+        await settleForcedState(context.session.client, target.selector);
+      }
+
+      return baseline.truncated ? 'stop-capture' : flow;
+    }
   }
   // A known-incomplete document scope cannot be restored by more targets: stop after this one.
   return baseline.truncated ? 'stop-capture' : 'continue';
@@ -350,7 +369,7 @@ async function sessionBaseline(
     maxElements: context.limits.maxForcedStateScanWork,
   };
   const { result, exceptionDetails } = await context.session.client.send('Runtime.evaluate', {
-    expression: `(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, ${snapSubtree.toString()})`,
+    expression: `(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, window[${codeLiteral(context.snapshotKey)}])`,
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
@@ -385,11 +404,17 @@ export async function captureForcedStates(
 }> {
   const skipSel = skipSelector(ignore);
   const baselineKey = `${STATE_BASELINE_KEY}-${Math.random().toString(36).slice(2)}`;
+  const snapshotKey = `${baselineKey}-snapshot`;
   let skipped = true;
   const { states, stateComputedValueStyle } = await withForcedStateSession(
     page,
     skipSel,
     async (session) => {
+      const { exceptionDetails } = await session.client.send('Runtime.evaluate', {
+        expression: `window[${codeLiteral(snapshotKey)}] = ${snapSubtree.toString()}; void 0;`,
+      });
+
+      if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
       const marked = session.marked.filter((m) => !(skipPaths.length && isUnder(m.path, skipPaths)));
       const truncated = marked.length > maxInteractive;
       const context: ForcedStateCaptureContext = {
@@ -397,6 +422,7 @@ export async function captureForcedStates(
         states: {},
         stateComputedValueStyle: {},
         baselineKey,
+        snapshotKey,
         skipSel,
         skipPaths,
         incomplete: truncated,
@@ -419,8 +445,10 @@ export async function captureForcedStates(
       context.sharedBaseline =
         context.readScope === 'document' && targets.length > 0 && (await sessionBaseline(context, targets));
       const captureTargets = async (): Promise<void> => {
-        for (const markedElement of targets) {
-          if ((await captureForcedStateTarget(context, markedElement)) === 'stop-capture') break;
+        const resolved = await stateBatch(targets.map(({ id }) => resolveMarkedTarget(session, id)));
+
+        for (const [index, markedElement] of targets.entries()) {
+          if ((await captureForcedStateTarget(context, markedElement, resolved[index])) === 'stop-capture') break;
         }
       };
       try {
@@ -458,7 +486,10 @@ export async function captureForcedStates(
       const proof = skipped ? undefined : context.stateComputedValueStyle;
       return { states: context.states, stateComputedValueStyle: proof };
     },
-    () => page.evaluate(clearStateBaseline, baselineKey).catch(() => undefined),
+    async () => {
+      await page.evaluate(clearStateBaseline, baselineKey).catch(() => undefined);
+      await page.evaluate(clearStateBaseline, snapshotKey).catch(() => undefined);
+    },
   );
   return { states, skipped, ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}) };
 }
@@ -482,7 +513,7 @@ export async function captureStateLayerScreenshots(
       )
     ).filter((target) => target !== undefined);
     for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
-      for (const target of targets) await forcePseudoState(session, target, forcedPseudoClasses);
+      await stateBatch(targets.map((target) => forcePseudoState(session, target, forcedPseudoClasses)));
       const dest = stateLayerScreenshotPath(stem, stateName);
       await captureFullPageScreenshot(page, dest);
       written.push(dest);

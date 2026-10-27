@@ -127,34 +127,59 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
         );
     }
     expect(forces.map(({ params }) => params?.forcedPseudoClasses)).toEqual(
-      Array.from({ length: TARGETS }, () => [['hover'], [], ['focus', 'focus-visible'], [], ['active'], []]).flat(),
+      Array.from({ length: TARGETS }, () => [['hover'], ['focus', 'focus-visible'], ['active'], []]).flat(),
     );
     await expectClean(page, commands);
     expect(after).toEqual(rest);
     await originals.dispose();
-    // Stylesheet-proven parent scopes retain per-target baselines without planning.
-    // Document reads share a baseline and add its final check; state barriers stay intact.
-    expect(evaluates).toBe(TARGETS * 7 + (mode === 'stylesheet' ? 0 : 2));
-    expect(commands.map(({ method }) => method)).toEqual([
-      'DOM.enable',
-      'CSS.enable',
-      'DOM.getDocument',
-      ...(mode === 'stylesheet' ? [] : ['Runtime.evaluate']),
-      ...Array.from({ length: TARGETS }, () => [
-        'DOM.querySelectorAll',
-        'Runtime.evaluate',
-        ...Array.from({ length: 3 }, () => [
-          'CSS.forcePseudoState',
-          'Runtime.evaluate',
-          'CSS.forcePseudoState',
-          'Runtime.evaluate',
-        ]).flat(),
-      ]).flat(),
-      ...(mode === 'stylesheet' ? [] : ['Runtime.evaluate']),
-      'detach',
-    ]);
   });
 }
+
+test('forced-state output matches the pre-change deltas for sibling, focus-visible, active and :has rules', async ({
+  page,
+}) => {
+  const html = `<!doctype html><html><head><style>
+    section, button, output { all: initial; display: block; background-color: rgb(1, 2, 3); }
+    button { outline: 2px solid rgb(4, 5, 6); outline-offset: 0; }
+    button:hover { background-color: rgb(10, 20, 30); }
+    button:hover ~ output { background-color: rgb(40, 50, 60); }
+    section:has(button:hover) { background-color: rgb(70, 80, 90); }
+    button:focus-visible { outline-color: rgb(100, 110, 120); }
+    button:active { background-color: rgb(130, 140, 150); }
+    button:hover:focus-visible { background-color: rgb(200, 0, 0); }
+  </style></head><body>${'<section><button>Control</button><output>Ready</output></section>'.repeat(3)}</body></html>`;
+
+  // Each rule changes one non-inherited longhand. These are the complete deltas
+  // from forcing each state from rest in the pre-change algorithm.
+  const expected = Object.fromEntries(
+    [1, 2, 3].map((index) => {
+      const parent = `body > section:nth-child(${index})`;
+      const button = `${parent} > button:nth-child(1)`;
+      const sibling = `${parent} > output:nth-child(2)`;
+
+      return [
+        button,
+        {
+          hover: {
+            [button]: { 'background-color': 'rgb(10, 20, 30)' },
+            [parent]: { 'background-color': 'rgb(70, 80, 90)' },
+            [sibling]: { 'background-color': 'rgb(40, 50, 60)' },
+          },
+          focus: { [button]: { 'outline-color': 'rgb(100, 110, 120)' } },
+          active: { [button]: { 'background-color': 'rgb(130, 140, 150)' } },
+        },
+      ];
+    }),
+  );
+
+  for (const forcedStateScope of ['document', 'stylesheet'] as const) {
+    await page.setContent(html);
+    const map = await captureStyleMap(page, { stabilize: false, forcedStateScope });
+    expect(map.statesSkipped).toBeFalsy();
+    expect(map.states).toEqual(expected);
+    expect(await page.locator('[data-styleproof-state-id]').count()).toBe(0);
+  }
+});
 
 for (const fault of ['removed', 'snapshot-error'] as const) {
   test(`cleans the applied state when the pre-read target is ${fault}`, async ({ page }, testInfo) => {
