@@ -101,7 +101,7 @@ test('live StyleProof-on-StyleProof arms declare-or-fail-closed with stamped hom
 
 test('hosted required CI does not gate the advisory dogfood path', () => {
   const required = ci.match(/ {2}required:[\s\S]*$/)?.[0] ?? '';
-  assert.match(required, /needs: \[changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(required, /needs:\s+\[changes, build, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
   assert.doesNotMatch(required, /dogfood/);
   assert.match(workflow, /NOT part of the hosted `required` check/);
 });

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { load } from 'js-yaml';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ci = fs.readFileSync(path.join(here, '..', '.github/workflows/ci.yml'), 'utf8');
@@ -95,8 +96,70 @@ test('reach-cost summary preserves benchmark output and the full receipt without
   }
 });
 
+test('coverage runs the supported unsharded gate and remains required', () => {
+  const { jobs } = load(ci);
+  const coverage = jobs.coverage;
+  assert.equal(coverage.name, 'coverage (node 22)');
+  assert.equal(coverage['runs-on'], 'ubuntu-latest');
+  assert.equal(coverage.strategy, undefined);
+  assert.equal(coverage.if, undefined);
+  assert.equal(coverage['continue-on-error'], undefined);
+  assert.equal(coverage.env, undefined);
+  assert.deepEqual(
+    Object.keys(jobs).filter((name) => name.startsWith('coverage')),
+    ['coverage'],
+  );
+  assert.ok(jobs.required.needs.includes('coverage'));
+  assert.ok(coverage.steps.some((step) => step.uses === 'actions/checkout@v7'));
+  assert.ok(coverage.steps.some((step) => step.uses === 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413'));
+  assert.ok(coverage.steps.some((step) => step.with?.['node-version'] === '22'));
+  assert.deepEqual(
+    coverage.steps.filter((step) => step.run).map((step) => step.run),
+    ['pnpm install --frozen-lockfile', 'pnpm run build', 'pnpm run test:coverage'],
+  );
+
+  const gate = coverage.steps.find((step) => step.run === 'pnpm run test:coverage');
+  assert.equal(gate.if, undefined);
+  assert.equal(gate['continue-on-error'], undefined);
+  assert.equal(gate.env, undefined);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-coverage-gate-'));
+
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'pnpm'),
+      '#!/bin/sh\n[ "$*" = "run test:coverage" ] || exit 99\nexit "$COVERAGE_EXIT"\n',
+      { mode: 0o755 },
+    );
+
+    for (const status of [0, 23]) {
+      const result = spawnSync('bash', ['-e', '-c', gate.run], {
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, COVERAGE_EXIT: String(status) },
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+
+      assert.ifError(result.error);
+      assert.equal(result.status, status, result.stderr);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+
+  const workflows = path.join(here, '..', '.github/workflows');
+
+  for (const file of fs.readdirSync(workflows).filter((name) => /\.ya?ml$/.test(name))) {
+    assert.doesNotMatch(
+      fs.readFileSync(path.join(workflows, file), 'utf8'),
+      /--expose-internals|internal\/test_runner\/coverage/,
+      file,
+    );
+  }
+});
+
 test('CI runs E2E in parallel without deleting unit, platform, or determinism evidence', () => {
-  const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
+  const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}coverage:)/)?.[0] ?? '';
+  const coverageJob = ci.match(/ {2}coverage:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
   const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
   const evidenceJob = ci.match(/ {2}e2e-evidence:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
   const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}detection-corpus:)/)?.[0] ?? '';
@@ -117,7 +180,9 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(buildJob, /if: matrix\.node != '22'/);
   assert.match(buildJob, /pnpm run test:unit/);
   assert.match(buildJob, /if: matrix\.node == '22'/);
-  assert.match(buildJob, /pnpm run test:coverage/);
+
+  assert.match(coverageJob, /run: pnpm run test:coverage/);
+  assert.doesNotMatch(buildJob, /pnpm run test:coverage/);
   assert.doesNotMatch(buildJob, /playwright|determinism-oracle/);
   assert.doesNotMatch(buildJob, /pnpm test|pnpm run test:e2e|pnpm run typecheck/);
 
@@ -179,7 +244,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
 
   assert.match(required, /name: required/);
   assert.match(required, /if: always\(\)/);
-  assert.match(required, /needs: \[changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(required, /needs:\s+\[changes, build, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
   assert.match(required, /CHANGES_RESULT: \$\{\{ needs\.changes\.result \}\}/);
   assert.match(required, /BUILD_RESULT: \$\{\{ needs\.build\.result \}\}/);
   assert.match(required, /E2E_RESULT: \$\{\{ needs\.e2e\.result \}\}/);

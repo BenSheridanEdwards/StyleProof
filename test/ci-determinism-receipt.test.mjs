@@ -28,7 +28,7 @@ test('CI transfers the determinism receipt between jobs for verification without
   );
   assert.match(workflow, /include-hidden-files: true/);
   assert.match(workflow, /node scripts\/verify-e2e-shards.mjs/);
-  assert.match(workflow, /needs: \[changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(workflow, /needs:\s+\[changes, build, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
   assert.match(workflow, /if-no-files-found: error/);
   assert.match(workflow, /retention-days: 1\s*$/m);
 });
