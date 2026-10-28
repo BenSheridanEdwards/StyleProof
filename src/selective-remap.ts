@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { captureKeyFromMapFile, loadStyleMap } from './capture/map-io.js';
+import { captureKeyFromMapFile, loadSharedStyleMap } from './capture/map-io.js';
 import { affectedSurfaces, classifyStyleChange, type AffectedSurfaces } from './affected-surfaces.js';
 import { resolveStyleProofConfigPath } from './config.js';
 import { isMapFile } from './map-store.js';
@@ -246,10 +246,9 @@ export function surfaceKeysInMapDir(dir: string): Set<string> {
 export function authoringSurfaceKeysInMapDir(dir: string): Set<string> {
   const keys = new Set<string>();
   if (!fs.existsSync(dir)) return keys;
-  // One map at a time, dropped after its key is read: holding every parsed base map makes each
-  // further read's GC walk them all, which turns a 300-map base into minutes.
+  // Reuse the process memo so later evidence reads do not parse these maps again.
   for (const file of fs.readdirSync(dir).filter(isMapFile)) {
-    const surfaceKey = loadStyleMap(path.join(dir, file)).metadata?.surfaceKey;
+    const surfaceKey = loadSharedStyleMap(path.join(dir, file)).metadata?.surfaceKey;
     keys.add(surfaceKey ?? captureKeyFromMapFile(file).replace(/@\d+$/, ''));
   }
   return keys;

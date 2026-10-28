@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Read and parse each capture map once per diff/report process instead of up to nine times, and compute structure-elevation content changes once. Output unchanged; the public `loadStyleMap` still returns a fresh map.
 - Keep the default capture worker count on cold base checkouts with a separate Playwright install by inspecting config workers in an isolated process. Preserve explicit worker arguments, `STYLEPROOF_WORKERS`, and config worker settings.
 - Drop placeholder size and origin changes that exactly echo a host size reflow already proven by CSS Typed OM. Keep origin changes unless the placeholder's own size change matched that reflow and was dropped. Warn once on stderr when shared stylesheet-free UA defaults drift between base and head, naming the affected surface count and up to three distinct property changes plus an overflow count. Lazily recorded defaults present on only one side are ignored; other findings remain unchanged.
 - Reduce forced-state capture browser round trips by batching target lookups, replacing each forced state directly before one final reset, and reusing the snapshot function within each session. Batch state-layer screenshot forces while preserving target order, read budgets and output.

@@ -1,5 +1,7 @@
 import { collectElevatedNavigableChromeAdds, type ElevatedNavigableChrome } from './chrome-navigable-gate.js';
 import type { DiffCounts } from './diff.js';
+import { contentSurfaces } from './report/content-layer.js';
+import { structureGateRenderCtx } from './report/shared.js';
 import {
   collectElevatedVisibleStructure,
   combinedStructureElevationCount,
@@ -31,8 +33,11 @@ export function collectStructureElevation(opts: {
   surfaceKeyOf: (captureKey: string) => string | undefined;
 }): StructureElevation {
   const { migration, ...dirs } = opts;
-  const chrome = migration ? { count: 0, elevated: [] } : collectElevatedNavigableChromeAdds(dirs);
-  const visible = migration ? { count: 0, elevated: [] } : collectElevatedVisibleStructure(dirs);
+  const ctx = structureGateRenderCtx(dirs.beforeDir, dirs.afterDir);
+  const shared = { ...dirs, ctx, withContent: migration ? [] : contentSurfaces(ctx) };
+  const chrome = migration ? { count: 0, elevated: [] } : collectElevatedNavigableChromeAdds(shared);
+  const visible = migration ? { count: 0, elevated: [] } : collectElevatedVisibleStructure(shared);
+
   return {
     chrome,
     visible,
