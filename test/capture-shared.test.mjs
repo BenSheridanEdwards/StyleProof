@@ -57,7 +57,7 @@ function capturePageHarness() {
     mouse: { move: async () => {} },
     emulateMedia: async () => {},
     viewportSize: () => ({ width: 800, height: 600 }),
-    waitForTimeout: async () => harness.onWait(),
+    waitForTimeout: async (ms) => harness.onWait(ms),
     evaluate: async (fn, arg) => {
       if (typeof fn === 'string') return runInContext(fn, context);
       let result;
@@ -569,6 +569,73 @@ for (const [name, before, after, expected] of [
 test('settle diff returns null when its window store is missing', () => {
   const { run } = capturePageHarness();
   assert.equal(run(capturePageChanges, { key: 'missing', args: pageCaptureArgs }), null);
+});
+
+async function timedSettle(t, { snapDurations = [116], changeOnWait, pendingThroughPoll = 0 } = {}) {
+  const host = { color: 'red' };
+  const { page, hooks } = pseudoPageHarness({ host });
+  let now = 0;
+  let exitAt;
+  const waits = [];
+  const pollEnds = [];
+  t.mock.method(Date, 'now', () => now);
+  hooks.onWait = (ms) => {
+    waits.push(ms);
+    now += ms;
+
+    if (waits.length === changeOnWait) host.color = 'blue';
+  };
+
+  hooks.afterRead = (name) => {
+    if (name === 'capturePageChanges') {
+      now += snapDurations[pollEnds.length] ?? snapDurations.at(-1);
+      pollEnds.push(now);
+    } else if (name === 'detectLiveCandidates') {
+      exitAt = now;
+    }
+  };
+
+  const map = await captureStyleMap(page, {
+    captureStates: false,
+    pendingRequests: () => (pollEnds.length <= pendingThroughPoll ? 1 : 0),
+    stabilize: { interval: 150, quietFor: 600, timeout: 5000 },
+  });
+
+  return { map, waits, pollEnds, exitAt };
+}
+
+test("settle ends a still page's quiet window at its edge (#1122)", async (t) => {
+  const { map, waits, pollEnds, exitAt } = await timedSettle(t);
+  assert.equal(exitAt, 600);
+  assert.deepEqual(waits, [126, 126]);
+  assert.ok(waits.every((ms) => ms >= 0 && ms <= 150));
+  assert.equal(pollEnds.length, 3);
+  assert.deepEqual(map.volatile ?? [], []);
+});
+
+test('settle restarts a full quiet window after a change and ends it at the edge (#1122)', async (t) => {
+  // Change before poll 2: its end is 358 ms when the waits land on the window edge.
+  const { map, waits, pollEnds, exitAt } = await timedSettle(t, { changeOnWait: 1 });
+  assert.equal(exitAt - pollEnds[1], 600);
+  assert.equal(pollEnds[1], 358);
+  assert.ok(waits.every((ms) => ms >= 0 && ms <= 150));
+  assert.equal(map.elements.target.style.color, 'blue');
+  assert.deepEqual(map.volatile ?? [], []);
+});
+
+test('settle never exits before the quiet window when a poll runs faster than expected (#1122)', async (t) => {
+  const { waits, pollEnds, exitAt } = await timedSettle(t, { snapDurations: [116, 116, 60] });
+  assert.ok(exitAt >= 600, `quiet exit at ${exitAt} must cover the full window`);
+  assert.equal(pollEnds.length, 4, 'the faster third poll must not end settling');
+  assert.ok(pollEnds[2] < 600);
+  assert.ok(waits.every((ms) => ms >= 0 && ms <= 150));
+});
+
+test('settle with a pending request keeps the window open, then ends it at the edge (#1122)', async (t) => {
+  const { map, waits, pollEnds, exitAt } = await timedSettle(t, { pendingThroughPoll: 2 });
+  assert.equal(exitAt - pollEnds[1], 600);
+  assert.ok(waits.every((ms) => ms >= 0 && ms <= 150));
+  assert.deepEqual(map.volatile ?? [], []);
 });
 
 for (const outcome of ['quiet', 'timeout', 'churn']) {
