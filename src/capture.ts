@@ -145,6 +145,14 @@ type Elements = Record<string, ElementEntry>;
 
 type SettleResult = { volatile: string[]; settled?: PageCapture };
 
+function waitUntilQuietEdge(remaining: number, snapMs: number, interval: number): number {
+  if (remaining <= 0) return 0;
+  // Spread the remaining window over the fewest polls allowed by the interval.
+  const polls = Math.max(1, Math.ceil(remaining / (snapMs + interval)));
+
+  return Math.min(interval, Math.max(0, Math.round(remaining / polls - snapMs)));
+}
+
 /**
  * Poll until the map has been UNCHANGED for `quietFor` ms (through the lull before
  * late content paints) or the budget runs out. Returns the paths still changing at
@@ -164,7 +172,15 @@ async function stabilizePage(
       `void Object.defineProperty(window, ${JSON.stringify(key)}, { configurable: true, value: { capture: (${capturePage.toString()}) } })`,
     );
 
-  const snap = (): Promise<string[] | null> => page.evaluate(capturePageChanges, { key, args });
+  let snapMs = Infinity;
+
+  const snap = async (): Promise<string[] | null> => {
+    const startedAt = realNow();
+    const changed = await page.evaluate(capturePageChanges, { key, args });
+    snapMs = Math.min(snapMs, realNow() - startedAt);
+
+    return changed;
+  };
 
   let quiet = false;
   let volatile: string[] = [];
@@ -180,7 +196,7 @@ async function stabilizePage(
     const lastChangedAt = new Map<string, number>();
     const changedAgain = new Set<string>();
     while (realNow() - start < timeout) {
-      await page.waitForTimeout(interval);
+      await page.waitForTimeout(waitUntilQuietEdge(quietFor - (realNow() - lastChangeAt), snapMs, interval));
       const changed = await snap();
       if (changed === null) {
         // A lost baseline cannot prove changed paths; do not mark an unchanged reload volatile.
