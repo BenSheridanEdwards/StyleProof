@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { load, dump } from 'js-yaml';
+import { COVERAGE_SHARD_COUNT } from '../scripts/coverage-shards.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ci = fs.readFileSync(path.join(here, '..', '.github/workflows/ci.yml'), 'utf8');
@@ -119,12 +121,12 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(buildJob, /pnpm run test:unit/);
   assert.match(buildJob, /if: matrix\.node == '22'/);
 
-  for (const shard of [1, 2, 3]) {
-    const job = ci.match(new RegExp(` {2}coverage-${shard}:[\\s\\S]*?(?=\\n {2}[\\w-]+:)`))?.[0] ?? '';
+  for (let shard = 1; shard <= COVERAGE_SHARD_COUNT; shard++) {
+    const job = dump(load(ci).jobs[`coverage-${shard}`], { lineWidth: -1 });
     assert.match(job, /node-version: '22'/);
     assert.match(job, /pnpm install --frozen-lockfile/);
     assert.match(job, /pnpm run build/);
-    assert.ok(job.includes(`run: node scripts/coverage-shards.mjs run ${shard} 3`));
+    assert.ok(job.includes('run: node --expose-internals scripts/coverage-shards.mjs run "${GITHUB_JOB#coverage-}"'));
     assert.match(job, /summary: \$\{\{ steps.coverage.outputs.summary \}\}/);
     assert.doesNotMatch(job, /actions\/(?:upload-artifact|cache)@|cache: pnpm/);
   }
@@ -132,7 +134,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(coverageJob, /needs: \[coverage-1, coverage-2, coverage-3\]/);
   assert.match(coverageJob, /if: always\(\)/);
   assert.match(coverageJob, /COVERAGE_NEEDS: \$\{\{ toJSON\(needs\) \}\}/);
-  assert.match(coverageJob, /run: node scripts\/coverage-shards.mjs merge/);
+  assert.match(coverageJob, /run: node --expose-internals scripts\/coverage-shards.mjs merge/);
   assert.doesNotMatch(coverageJob, /pnpm|actions\/(?:upload-artifact|cache)@/);
   assert.doesNotMatch(buildJob, /playwright|determinism-oracle/);
   assert.doesNotMatch(buildJob, /pnpm test|pnpm run test:e2e|pnpm run typecheck/);
