@@ -82,6 +82,8 @@ import { countShownChanges, groupBySignature } from './report/regions.js';
 import { assessReach, reachSectionLines, reachStripLines, reachSummaryLine, type ReportReach } from './report/reach.js';
 import {
   ReportMarkdown,
+  DEFAULT_MAX_JSON_BYTES,
+  DEFAULT_MAX_REPORT_BYTES,
   renderChangedSections,
   renderOneSidedSections,
   stateCoverageLines,
@@ -532,7 +534,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
 
   // 3. Render report.md: verdict first (above the fold), then the product-state warning when it
   // fires — never the certification checklist first, and never a green product-state peer card.
-  const md = new ReportMarkdown(opts.maxReportBytes ?? 400_000);
+  const md = new ReportMarkdown(opts.maxReportBytes ?? DEFAULT_MAX_REPORT_BYTES);
   const headline = reportHeadline({
     changeGroups: view.changeGroups,
     missing: view.missing,
@@ -661,7 +663,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       ? [
           '',
           `_${findingsOmitted.rows} finding row(s) in ${findingsOmitted.groups} change group(s) omitted from report.json ` +
-            `at its byte budget (${(opts.maxJsonBytes ?? 450_000) / 1000} KB); every change is counted, ` +
+            `at its byte budget (${(opts.maxJsonBytes ?? DEFAULT_MAX_JSON_BYTES) / 1000} KB); every change is counted, ` +
             'use the original diff input for every finding (not included in the report artifact)._',
         ]
       : [];

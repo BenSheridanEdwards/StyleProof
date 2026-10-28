@@ -63,20 +63,20 @@ function sameFindings(actual, expected) {
 test('whole-report crop budget preserves findings and certification', async (t) => {
   const dirs = tmpDirs();
   t.after(() => rmTmp(dirs.root));
-  const beforePng = noisePng(400, 480, 1);
-  const afterPng = noisePng(400, 480, 2);
+  const beforePng = noisePng(64, 64, 1);
+  const afterPng = noisePng(64, 64, 2);
 
-  for (let surface = 0; surface < 12; surface++) {
+  for (let surface = 0; surface < 3; surface++) {
     writeCapture(dirs.beforeDir, `surface-${surface}@1280`, surfaceMap(surface, 0), beforePng);
     writeCapture(dirs.afterDir, `surface-${surface}@1280`, surfaceMap(surface, 30), afterPng);
   }
 
   writeCapture(dirs.afterDir, 'new@1280', surfaceMap(20, 0), afterPng);
   const full = report(dirs, 'full', { maxCropFiles: 1000, maxCropBytes: Number.MAX_SAFE_INTEGER });
-  assert.equal(full.json.surfaces.length, 13);
+  assert.equal(full.json.surfaces.length, 4);
   assert.ok(full.result.totalFindings > 0);
   assert.ok(full.files.length > 5, 'fixture must exceed the file budget');
-  assert.ok(full.bytes > 60_000, 'fixture must exceed the byte budget');
+  assert.ok(full.bytes > 6_000, 'fixture must exceed the byte budget');
   assert.equal(Object.hasOwn(full.json, 'cropBudget'), false);
 
   await t.test('file cap is shared across all surfaces and names every omitted crop', () => {
@@ -93,9 +93,9 @@ test('whole-report crop budget preserves findings and certification', async (t) 
   });
 
   await t.test('byte cap is hard even when the next PNG does not fit', () => {
-    const capped = report(dirs, 'bytes', { maxCropBytes: 60_000 });
-    assert.ok(capped.bytes <= 60_000, `wrote ${capped.bytes} crop bytes`);
-    assert.equal(capped.json.cropBudget.maxBytes, 60_000);
+    const capped = report(dirs, 'bytes', { maxCropBytes: 6_000 });
+    assert.ok(capped.bytes <= 6_000, `wrote ${capped.bytes} crop bytes`);
+    assert.equal(capped.json.cropBudget.maxBytes, 6_000);
     assert.equal(capped.json.cropBudget.bytes, capped.bytes);
     sameFindings(capped, full);
   });
@@ -154,9 +154,9 @@ test('one-sided pages retain partial tiles and the page-capped warning', (t) => 
 test('a tall changed element has a composite clipped to the pixel cap', (t) => {
   const dirs = tmpDirs();
   t.after(() => rmTmp(dirs.root));
-  const rect = [0, 0, 1280, 2000];
-  writeCapture(dirs.beforeDir, 'tall@1280', surfaceMap(0, 0, rect), solidPng(1280, 2400));
-  writeCapture(dirs.afterDir, 'tall@1280', surfaceMap(0, 30, rect), solidPng(1280, 2400, [100, 100, 100]));
+  const rect = [0, 0, 1280, 801];
+  writeCapture(dirs.beforeDir, 'tall@1280', surfaceMap(0, 0, rect), solidPng(1280, 801));
+  writeCapture(dirs.afterDir, 'tall@1280', surfaceMap(0, 30, rect), solidPng(1280, 801, [100, 100, 100]));
   const capped = report(dirs, 'pixels');
   const composites = capped.files.filter((file) => file.endsWith('-composite.png'));
   assert.ok(composites.length > 0);

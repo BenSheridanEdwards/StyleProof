@@ -42,8 +42,8 @@ test('a large uncapped report keeps every section and its Evidence tail without 
 
 test('report.md stays under its byte budget (GitHub-renderable); report.json keeps every surface', () => {
   const { beforeDir, afterDir, outDir, root } = tmpDirs();
-  const N = 40;
-  const M = 15;
+  const N = 6;
+  const M = 3;
   // Each surface carries a DISTINCT change (values keyed by surface index) so they
   // don't collapse into one "identical across N surfaces" group — N real detail blocks.
   const surfaceMap = (s, shift) =>
@@ -65,20 +65,19 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
         ]),
       ),
     });
-  // The screenshot only needs to hold every changed rect (y <= 464); report.md is
-  // byte-identical to a 1280x800 run, at a fraction of the PNG encode/decode cost.
+  // The screenshot only needs to hold the three changed rects.
   for (let s = 0; s < N; s++) {
     const surface = `surface-${s}@1280`;
-    writeCapture(beforeDir, surface, surfaceMap(s, 0), solidPng(400, 480));
-    writeCapture(afterDir, surface, surfaceMap(s, 5), solidPng(400, 480));
+    writeCapture(beforeDir, surface, surfaceMap(s, 0), solidPng(224, 112));
+    writeCapture(afterDir, surface, surfaceMap(s, 5), solidPng(224, 112));
   }
 
-  const budget = 15_000;
+  const budget = 4_000;
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes: budget });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
 
-  assert.ok(md.length < budget * 2, `report.md must stay bounded near the budget (was ${md.length})`);
+  assert.ok(Buffer.byteLength(md) <= budget, `report.md must stay bounded near the budget (was ${md.length})`);
   assert.match(md, /summarized to keep this report renderable/, 'the cap is announced, not silent');
   assert.match(md, /· \d+ change\(s\)/, 'capped surfaces appear as one-line summaries');
   assert.equal(json.surfaces.length, N, 'report.json keeps every surface — the cap relocates detail, never drops it');
@@ -91,6 +90,7 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
     maxReportBytes: Infinity,
   });
   const mdFull = fs.readFileSync(full.reportMdPath, 'utf8');
+  assert.ok(Buffer.byteLength(mdFull) > budget, 'uncapped fixture exceeds the markdown budget');
   assert.ok(
     mdFull.length > md.length * 2,
     `uncapped report should be far larger (capped ${md.length}, full ${mdFull.length})`,

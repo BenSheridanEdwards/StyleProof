@@ -5,6 +5,11 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import {
+  DEFAULT_MAX_ARTIFACT_BYTES,
+  DEFAULT_MAX_JSON_BYTES,
+  DEFAULT_MAX_REPORT_BYTES,
+} from '../dist/report/sections.js';
 import { tmpDirs, makeMap, writeCapture, solidPng, rmTmp, spawnSyncBounded } from './helpers.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
@@ -33,7 +38,7 @@ function noisePng(width, height, seed) {
   return PNG.sync.write(png);
 }
 
-function surfaceMap(surface, shift, rect = [10, 20, 200, 40], properties = 30) {
+function surfaceMap(surface, shift, rect = [10, 20, 200, 40], properties = 4) {
   const style = Object.fromEntries(
     Array.from({ length: properties }, (_, i) => [`property-${i}`, `${surface + shift + i}px`]),
   );
@@ -68,10 +73,10 @@ function equalArtifacts(first, second) {
 test('large report artifact budget preserves counts, one-sided entries and deterministic output', async (t) => {
   const dirs = tmpDirs();
   t.after(() => rmTmp(dirs.root));
-  const beforePng = noisePng(400, 480, 1);
-  const afterPng = noisePng(400, 480, 2);
+  const beforePng = noisePng(64, 64, 1);
+  const afterPng = noisePng(64, 64, 2);
 
-  for (let surface = 0; surface < 250; surface++) {
+  for (let surface = 0; surface < 8; surface++) {
     writeCapture(dirs.beforeDir, `surface-${surface}@1280`, surfaceMap(surface, 0), beforePng);
     writeCapture(dirs.afterDir, `surface-${surface}@1280`, surfaceMap(surface, 30), afterPng);
   }
@@ -80,18 +85,19 @@ test('large report artifact budget preserves counts, one-sided entries and deter
     writeCapture(dirs.afterDir, `new-${surface}@1280`, surfaceMap(surface, 0), afterPng);
   }
 
+  const caps = { maxArtifactBytes: 90_000, maxJsonBytes: 18_000, maxReportBytes: 8_000 };
   const full = report(dirs, 'full', unlimited);
-  assert.ok(fs.statSync(full.result.reportJsonPath).size > 2_000_000, 'fixture exceeds the JSON budget');
-  assert.ok(Buffer.byteLength(full.md) > 400_000, 'fixture exceeds the retained markdown cap');
-  const capped = report(dirs, 'capped');
+  assert.ok(artifactBytes(full.outDir) > caps.maxArtifactBytes, 'fixture exceeds the combined artifact budget');
+  assert.ok(fs.statSync(full.result.reportJsonPath).size > caps.maxJsonBytes, 'fixture exceeds the JSON budget');
+  assert.ok(Buffer.byteLength(full.md) > caps.maxReportBytes, 'fixture exceeds the retained markdown cap');
+  const capped = report(dirs, 'capped', caps);
 
-  await t.test('html, markdown and JSON together fit the default 2 MB budget', () => {
-    assert.ok(artifactBytes(capped.outDir) <= 2_000_000, `${artifactBytes(capped.outDir)} artifact bytes`);
-    assert.ok(fs.statSync(capped.result.reportJsonPath).size <= 450_000);
-    assert.ok(Buffer.byteLength(capped.md) > 300_000, 'default markdown cap must remain 400 KB');
-    assert.ok(Buffer.byteLength(capped.md) <= 400_000);
+  await t.test('html, markdown and JSON together fit the test budget', () => {
+    assert.ok(artifactBytes(capped.outDir) <= caps.maxArtifactBytes, `${artifactBytes(capped.outDir)} artifact bytes`);
+    assert.ok(fs.statSync(capped.result.reportJsonPath).size <= caps.maxJsonBytes);
+    assert.ok(Buffer.byteLength(capped.md) <= caps.maxReportBytes);
     const budget = capped.json.findingsBudget;
-    assert.equal(budget.maxBytes, 450_000);
+    assert.equal(budget.maxBytes, caps.maxJsonBytes);
     assert.equal(budget.listed + budget.omitted, budget.total);
     assert.equal(budget.total, capped.result.totalFindings);
     assert.ok(budget.omitted > 0);
@@ -127,16 +133,15 @@ test('large report artifact budget preserves counts, one-sided entries and deter
   });
 
   await t.test('two output directories contain byte-identical artifacts', () => {
-    const repeated = report(dirs, 'repeated');
+    const repeated = report(dirs, 'repeated', caps);
     equalArtifacts(capped.outDir, repeated.outDir);
   });
 
   await t.test('CLI honors --report-max-bytes after adding bindings and diagnostic text', () => {
-    // The 250-surface fixture's text alone cannot fit 1.5 MB with the retained 400 KB Markdown cap.
     const cliDirs = tmpDirs();
     t.after(() => rmTmp(cliDirs.root));
 
-    for (let surface = 0; surface < 60; surface++) {
+    for (let surface = 0; surface < 4; surface++) {
       writeCapture(cliDirs.beforeDir, `surface-${surface}@1280`, surfaceMap(surface, 0), beforePng);
       writeCapture(cliDirs.afterDir, `surface-${surface}@1280`, surfaceMap(surface, 30), afterPng);
     }
@@ -148,12 +153,12 @@ test('large report artifact budget preserves counts, one-sided entries and deter
 
     const child = spawnSyncBounded(
       process.execPath,
-      [cli, cliDirs.beforeDir, cliDirs.afterDir, '--out', outDir, '--report-max-bytes', '1500000'],
+      [cli, cliDirs.beforeDir, cliDirs.afterDir, '--out', outDir, '--report-max-bytes', '90000'],
       { cwd: dirs.root, encoding: 'utf8' },
     );
 
     assert.equal(child.status, 1, child.stderr + child.stdout);
-    assert.ok(artifactBytes(outDir) <= 1_500_000, `${artifactBytes(outDir)} artifact bytes`);
+    assert.ok(artifactBytes(outDir) <= 90_000, `${artifactBytes(outDir)} artifact bytes`);
     const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
     assert.ok(json.sourceBinding);
     assert.ok(json.evidenceBinding);
@@ -174,14 +179,18 @@ test('small report artifacts are unchanged by default budgets', (t) => {
   const full = report(dirs, 'full', unlimited);
   equalArtifacts(capped.outDir, full.outDir);
   assert.equal(Object.hasOwn(capped.json, 'findingsBudget'), false);
+  assert.equal(DEFAULT_MAX_ARTIFACT_BYTES, 2_000_000);
+  assert.equal(DEFAULT_MAX_JSON_BYTES, 450_000);
+  assert.equal(DEFAULT_MAX_REPORT_BYTES, 400_000);
 });
 
 test('large noise crops are downscaled to at most 300 KB per file', (t) => {
   const dirs = tmpDirs();
   t.after(() => rmTmp(dirs.root));
-  const rect = [0, 0, 1000, 700];
-  writeCapture(dirs.beforeDir, 'large@1280', surfaceMap(0, 0, rect), noisePng(2000, 1600, 1));
-  writeCapture(dirs.afterDir, 'large@1280', surfaceMap(0, 30, rect), noisePng(2000, 1600, 2));
+  const rect = [0, 0, 320, 320];
+  assert.ok(noisePng(320, 320, 1).length > 300_000, 'undownscaled crop exceeds the per-file cap');
+  writeCapture(dirs.beforeDir, 'large@1280', surfaceMap(0, 0, rect), noisePng(320, 320, 1));
+  writeCapture(dirs.afterDir, 'large@1280', surfaceMap(0, 30, rect), noisePng(320, 320, 2));
   const capped = report(dirs, 'capped');
   const cropsDir = path.join(capped.outDir, 'crops');
   const files = fs.readdirSync(cropsDir);

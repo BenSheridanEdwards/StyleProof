@@ -17,6 +17,10 @@ import { formatSurfaceWithContext, type ChangeGroup, type PreparedSurface, type 
 
 /** Section loops, the report.md byte budget, and the report.json writer. */
 
+export const DEFAULT_MAX_ARTIFACT_BYTES = 2_000_000;
+export const DEFAULT_MAX_JSON_BYTES = 450_000;
+export const DEFAULT_MAX_REPORT_BYTES = 400_000;
+
 // Hidden marker on a new-surface heading so the PR-comment layer recognises one-sided surfaces.
 const NEW_SURFACE_MARKER = '<!-- styleproof-new -->';
 
@@ -462,7 +466,7 @@ export function buildReportJson(a: ReportArtifacts) {
     });
   }
 
-  return capFindings(json, a.maxJsonBytes ?? 450_000);
+  return capFindings(json, a.maxJsonBytes ?? DEFAULT_MAX_JSON_BYTES);
 }
 
 function capFindings(json: Pick<ReportArtifacts, 'surfaces'>, maxBytes: number) {
@@ -522,7 +526,7 @@ export function writeReportArtifacts(a: ReportArtifacts, json = buildReportJson(
       reportHtmlPath,
       renderArtifactHtml(a.md.join('\n'), {
         outDir: a.outDir,
-        maxBytes: a.maxArtifactBytes ?? 2_000_000,
+        maxBytes: a.maxArtifactBytes ?? DEFAULT_MAX_ARTIFACT_BYTES,
         htmlMaxBytes: a.htmlMaxBytes,
         receiptBytes: Buffer.byteLength(markdown) + Buffer.byteLength(serialized) + 256,
       }),
