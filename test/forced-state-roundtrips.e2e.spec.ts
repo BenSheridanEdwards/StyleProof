@@ -162,6 +162,106 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
   });
 }
 
+test('subtree scope shares one resting baseline: call sequence', async ({ page }) => {
+  // Keep four targets, including an ancestor/descendant pair. Use independent
+  // longhands so the complete expected deltas do not depend on UA border defaults.
+  const html = fixture(false)
+    .replace('button:hover + output { color: rgb(120, 130, 140); }', '')
+    .replace('button { color:', 'button { border-style: solid; color:')
+    .replace('button:hover span { color:', 'button:hover span { background-color:')
+    .replace('button:focus { border-color:', 'button:focus { border-top-color:')
+    .replace('outline: 3px solid rgb(60, 70, 80)', 'outline-color: rgb(60, 70, 80)')
+    .replace(/<section><button><span>Choice [23]<\/span><\/button><output>Ready<\/output><\/section>/g, '')
+    .replace('</body>', '<section><a href="#nested"><button><span>Nested</span></button></a></section></body>')
+    .replace(
+      '</style>',
+      `
+      a, a:focus-visible { outline: 0; color: rgb(10, 20, 30); }
+      a:hover { background-color: rgb(180, 190, 200); }
+      a:focus { background-color: rgb(150, 160, 170); }
+      a:active { background-color: rgb(210, 220, 230); }
+    </style>`,
+    );
+
+  await page.setContent(html);
+  const originals = await page.evaluateHandle(() => [...document.querySelectorAll('body *')]);
+
+  try {
+    const rest = await restingStyles(page, originals);
+    const commands: Command[] = [];
+
+    const map = await observeSession(
+      page,
+      commands,
+      (call, forward) => forward(call.method, call.params),
+      () => captureStyleMap(page, { forcedStateScope: 'stylesheet' }),
+    );
+
+    expect(map.statesSkipped).toBeFalsy();
+    const link = 'body > section:nth-child(3) > a:sp-key(2nfcss)';
+
+    const buttons = [
+      'body > section:nth-child(1) > button:nth-child(1)',
+      'body > section:nth-child(2) > button:nth-child(1)',
+      `${link} > button:nth-child(1)`,
+    ];
+
+    const expected: typeof map.states = Object.fromEntries(
+      buttons.map((button) => [
+        button,
+        {
+          hover: { [`${button} > span:nth-child(1)`]: { 'background-color': 'rgb(100, 110, 120)' } },
+          focus: {
+            [button]: {
+              'border-top-color': 'rgb(30, 40, 50)',
+              'border-block-start-color': 'rgb(30, 40, 50)',
+              'outline-color': 'rgb(60, 70, 80)',
+            },
+          },
+          active: { [button]: { 'background-color': 'rgb(90, 100, 110)' } },
+        },
+      ]),
+    );
+
+    expected[link] = {
+      hover: { [link]: { 'background-color': 'rgb(180, 190, 200)' } },
+      focus: { [link]: { 'background-color': 'rgb(150, 160, 170)', 'outline-offset': '1px' } },
+      active: { [link]: { 'background-color': 'rgb(210, 220, 230)' } },
+    };
+    expect(map.states).toEqual(expected);
+    expect(Object.keys(map.states)).toEqual([buttons[0], buttons[1], link, buttons[2]]);
+    expect(commands.map(({ method }) => method)).toEqual([
+      'DOM.enable',
+      'CSS.enable',
+      'DOM.getDocument',
+      'Runtime.evaluate',
+      'Runtime.evaluate',
+      ...Array(TARGETS).fill('DOM.querySelectorAll'),
+      ...Array.from({ length: TARGETS }, () => [
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+      ]).flat(),
+      'Runtime.evaluate',
+      'Runtime.evaluate',
+      'detach',
+    ]);
+    expect(
+      commands.flatMap(({ method, params }) =>
+        method === 'CSS.forcePseudoState' ? [params?.forcedPseudoClasses] : [],
+      ),
+    ).toEqual(Array.from({ length: TARGETS }, () => [['hover'], ['focus', 'focus-visible'], ['active'], []]).flat());
+    expect(await restingStyles(page, originals)).toEqual(rest);
+    await expectClean(page, commands);
+  } finally {
+    await originals.dispose();
+  }
+});
+
 for (const which of ['first', 'last'] as const) {
   test(`a target removed after its reset is warned, uncertified and loses only its active delta: ${which}`, async ({
     page,

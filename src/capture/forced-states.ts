@@ -213,6 +213,7 @@ type ForcedStateCaptureContext = {
   /** Elements each read compares; `'document'` unless `forcedStateScope: 'stylesheet'` proved a narrower one. */
   readScope: ForcedStateReadScope;
   sharedBaseline: boolean;
+  restingCounts?: number[];
   warnings: string[];
   pendingSettle?: PendingSettle;
 };
@@ -350,10 +351,28 @@ function warnTruncatedForcedStateScan(context: ForcedStateCaptureContext): void 
   );
 }
 
+async function readRestingBaseline(
+  context: ForcedStateCaptureContext,
+  target: ForcedStateTarget,
+  resting?: number,
+): Promise<SessionScopeResult> {
+  if (resting !== undefined) {
+    context.scanWorkRemaining -= resting;
+
+    return { delta: {}, truncated: false, scanned: resting };
+  }
+
+  return readScope(context, {
+    ...scopeArgs(context, target.selector, true),
+    countOnly: context.sharedBaseline,
+  });
+}
+
 async function captureForcedStateTarget(
   context: ForcedStateCaptureContext,
   marked: MarkedInteractive,
   target: ForcedStateTarget | undefined,
+  resting?: number,
 ): Promise<ForcedStateCaptureFlow> {
   if (budgetExhausted(context)) return 'stop-capture';
   if (!target) {
@@ -364,10 +383,7 @@ async function captureForcedStateTarget(
     return 'next-target';
   }
 
-  const baseline = await readScope(context, {
-    ...scopeArgs(context, target.selector, true),
-    countOnly: context.sharedBaseline,
-  });
+  const baseline = await readRestingBaseline(context, target, resting);
 
   if (baseline.targetMissing) {
     context.incomplete = true;
@@ -403,14 +419,14 @@ async function captureForcedStateTarget(
 }
 
 /**
- * Save/check a document baseline in-page, outside the logical per-target budget.
+ * Save/check a scope baseline in-page, outside the logical per-target budget.
  * The final comparison cannot detect resting styles that change and then revert.
  */
 async function sessionBaseline(
   context: ForcedStateCaptureContext,
   targets: MarkedInteractive[],
   check = false,
-): Promise<boolean> {
+): Promise<boolean | number[]> {
   const args: StateScopeArgs = {
     ...scopeArgs(context, targets.map(({ id }) => `[${STATE_ID_ATTR}="${id}"]`).join(','), true),
     maxElements: context.limits.maxForcedStateScanWork,
@@ -420,7 +436,8 @@ async function sessionBaseline(
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
-  return result.value === true;
+
+  return result.value;
 }
 
 /**
@@ -488,27 +505,42 @@ export async function captureForcedStates(
         );
       }
       const targets = marked.slice(0, maxInteractive);
-      // Only document reads (including stylesheet fallback) share a baseline.
+
       // Mixed Typed OM support must retain the legacy per-scope availability rule.
-      context.sharedBaseline =
-        context.readScope === 'document' && targets.length > 0 && (await sessionBaseline(context, targets));
+      const shared =
+        context.readScope !== 'parent' && targets.length > 0 ? await sessionBaseline(context, targets) : false;
+
+      context.sharedBaseline = shared !== false;
+      context.restingCounts = Array.isArray(shared) ? shared : undefined;
+
       const captureTargets = async (): Promise<void> => {
         // Resolve in one batch, including targets a later budget stop may skip.
         const resolved = await stateBatch(targets.map(({ id }) => resolveMarkedTarget(session, id)));
 
         for (const [index, markedElement] of targets.entries()) {
-          if ((await captureForcedStateTarget(context, markedElement, resolved[index])) === 'stop-capture') break;
+          if (
+            (await captureForcedStateTarget(
+              context,
+              markedElement,
+              resolved[index],
+              context.restingCounts?.[index],
+            )) === 'stop-capture'
+          )
+            break;
         }
 
         await flushPendingSettle(context);
       };
       try {
         await captureTargets();
-        if (context.sharedBaseline && !(await sessionBaseline(context, targets, true))) {
+        const checked = context.sharedBaseline ? await sessionBaseline(context, targets, true) : true;
+
+        if (checked !== true && JSON.stringify(checked) !== JSON.stringify(context.restingCounts)) {
           // Discard all tentative output and warnings; retry the entire session once using
           // the original per-target baselines, with the original budget and target order.
           Object.assign(context, {
             sharedBaseline: false,
+            restingCounts: undefined,
             states: {},
             stateComputedValueStyle: {},
             warnings: [],
