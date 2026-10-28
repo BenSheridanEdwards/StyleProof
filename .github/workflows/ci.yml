@@ -54,7 +54,7 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      # Lint, format, privacy, audit, coverage, and demo run once, on the '22' leg.
+      # Lint, format, privacy, audit, and demo run once, on the '22' leg.
       - name: Lint
         if: matrix.node == '22'
         run: pnpm run lint
@@ -98,15 +98,69 @@ jobs:
 
       - name: Unit tests
         # Build already emitted and typechecked this exact checkout above.
-        # Coverage runs once, on the '22' leg; the other legs run plain units.
+        # Node 22 units run in the coverage shards; other legs run plain units.
         if: matrix.node != '22'
         run: pnpm run test:unit
 
-      - name: Unit tests + coverage floor
-        # Same suite as test:unit, with Node built-in coverage gated at the
-        # measured dist/ floor (see scripts/check-coverage.mjs / CONTRIBUTING).
-        if: matrix.node == '22'
-        run: pnpm run test:coverage
+  coverage-1:
+    name: coverage shard (node 22, 1/3)
+    runs-on: ubuntu-latest
+    outputs:
+      summary: ${{ steps.coverage.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile && pnpm run build
+      - id: coverage
+        run: node scripts/coverage-shards.mjs run 1 3
+
+  coverage-2:
+    name: coverage shard (node 22, 2/3)
+    runs-on: ubuntu-latest
+    outputs:
+      summary: ${{ steps.coverage.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile && pnpm run build
+      - id: coverage
+        run: node scripts/coverage-shards.mjs run 2 3
+
+  coverage-3:
+    name: coverage shard (node 22, 3/3)
+    runs-on: ubuntu-latest
+    outputs:
+      summary: ${{ steps.coverage.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile && pnpm run build
+      - id: coverage
+        run: node scripts/coverage-shards.mjs run 3 3
+
+  coverage:
+    name: coverage (node 22)
+    needs: [coverage-1, coverage-2, coverage-3]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Merge line coverage and enforce floor
+        env:
+          COVERAGE_NEEDS: ${{ toJSON(needs) }}
+        run: node scripts/coverage-shards.mjs merge
 
   # Run the complete browser and determinism path beside the Node matrix instead
   # of placing it after every Node 22 static and unit gate.
@@ -292,7 +346,8 @@ jobs:
   required:
     name: required
     if: always()
-    needs: [changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus]
+    needs:
+      [changes, build, coverage-1, coverage-2, coverage-3, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required CI evidence
@@ -301,6 +356,10 @@ jobs:
           E2E_DECISION: ${{ needs.changes.outputs.e2e }}
           E2E_PROOF: ${{ needs.changes.outputs.e2e_proof }}
           BUILD_RESULT: ${{ needs.build.result }}
+          COVERAGE_1_RESULT: ${{ needs.coverage-1.result }}
+          COVERAGE_2_RESULT: ${{ needs.coverage-2.result }}
+          COVERAGE_3_RESULT: ${{ needs.coverage-3.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
           CLI_SMOKE_RESULT: ${{ needs.cli-smoke.result }}
@@ -309,7 +368,7 @@ jobs:
           set -euo pipefail
           status=0
           reject() { echo "::error::$1"; status=1; }
-          for name in CHANGES_RESULT BUILD_RESULT CLI_SMOKE_RESULT; do
+          for name in CHANGES_RESULT BUILD_RESULT COVERAGE_1_RESULT COVERAGE_2_RESULT COVERAGE_3_RESULT COVERAGE_RESULT CLI_SMOKE_RESULT; do
             val="${!name:-}"
             [ "$val" = success ] || reject "$name was '$val' (want success)"
           done

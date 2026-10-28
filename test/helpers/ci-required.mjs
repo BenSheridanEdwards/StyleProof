@@ -47,6 +47,10 @@ export function productChange(overrides = {}) {
   return {
     changes: { result: 'success', outputs: { e2e: 'true' } },
     build: { result: 'success' },
+    'coverage-1': { result: 'success' },
+    'coverage-2': { result: 'success' },
+    'coverage-3': { result: 'success' },
+    coverage: { result: 'success' },
     'cli-smoke': { result: 'success' },
     e2e: { result: 'success' },
     'e2e-evidence': { result: 'success' },

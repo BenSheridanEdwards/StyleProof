@@ -96,7 +96,8 @@ test('reach-cost summary preserves benchmark output and the full receipt without
 });
 
 test('CI runs E2E in parallel without deleting unit, platform, or determinism evidence', () => {
-  const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
+  const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}coverage-1:)/)?.[0] ?? '';
+  const coverageJob = ci.match(/ {2}coverage:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
   const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
   const evidenceJob = ci.match(/ {2}e2e-evidence:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
   const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}detection-corpus:)/)?.[0] ?? '';
@@ -117,7 +118,22 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(buildJob, /if: matrix\.node != '22'/);
   assert.match(buildJob, /pnpm run test:unit/);
   assert.match(buildJob, /if: matrix\.node == '22'/);
-  assert.match(buildJob, /pnpm run test:coverage/);
+
+  for (const shard of [1, 2, 3]) {
+    const job = ci.match(new RegExp(` {2}coverage-${shard}:[\\s\\S]*?(?=\\n {2}[\\w-]+:)`))?.[0] ?? '';
+    assert.match(job, /node-version: '22'/);
+    assert.match(job, /pnpm install --frozen-lockfile/);
+    assert.match(job, /pnpm run build/);
+    assert.ok(job.includes(`run: node scripts/coverage-shards.mjs run ${shard} 3`));
+    assert.match(job, /summary: \$\{\{ steps.coverage.outputs.summary \}\}/);
+    assert.doesNotMatch(job, /actions\/(?:upload-artifact|cache)@|cache: pnpm/);
+  }
+
+  assert.match(coverageJob, /needs: \[coverage-1, coverage-2, coverage-3\]/);
+  assert.match(coverageJob, /if: always\(\)/);
+  assert.match(coverageJob, /COVERAGE_NEEDS: \$\{\{ toJSON\(needs\) \}\}/);
+  assert.match(coverageJob, /run: node scripts\/coverage-shards.mjs merge/);
+  assert.doesNotMatch(coverageJob, /pnpm|actions\/(?:upload-artifact|cache)@/);
   assert.doesNotMatch(buildJob, /playwright|determinism-oracle/);
   assert.doesNotMatch(buildJob, /pnpm test|pnpm run test:e2e|pnpm run typecheck/);
 
@@ -179,7 +195,10 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
 
   assert.match(required, /name: required/);
   assert.match(required, /if: always\(\)/);
-  assert.match(required, /needs: \[changes, build, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(
+    required,
+    /needs:\s+\[changes, build, coverage-1, coverage-2, coverage-3, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus\]/,
+  );
   assert.match(required, /CHANGES_RESULT: \$\{\{ needs\.changes\.result \}\}/);
   assert.match(required, /BUILD_RESULT: \$\{\{ needs\.build\.result \}\}/);
   assert.match(required, /E2E_RESULT: \$\{\{ needs\.e2e\.result \}\}/);
