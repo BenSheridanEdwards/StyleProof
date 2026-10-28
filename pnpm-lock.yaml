@@ -60,6 +60,12 @@ importers:
       oxlint:
         specifier: 1.89.0
         version: 1.89.0
+      playwright:
+        specifier: ^1.60.0
+        version: 1.61.1
+      playwright-core:
+        specifier: ^1.60.0
+        version: 1.61.1
       prettier:
         specifier: ^3.9.6
         version: 3.9.6

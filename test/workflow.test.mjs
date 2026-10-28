@@ -143,7 +143,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(e2eJob, /if: matrix\.shard == 5/);
   assert.match(
     e2eJob,
-    /pnpm exec playwright test --config=playwright\.ci\.config\.ts --list --reporter=json > \.styleproof\/ci\/inventory\.json/,
+    /pnpm --silent exec playwright test --config=playwright\.ci\.config\.ts --list --reporter=json > \.styleproof\/ci\/inventory\.json/,
   );
   assert.match(evidenceJob, /name: e2e \(node 22\)/);
   assert.match(evidenceJob, /needs: e2e/);

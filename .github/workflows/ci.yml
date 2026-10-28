@@ -169,7 +169,8 @@ jobs:
         if: matrix.shard == 5
         run: |
           mkdir -p .styleproof/ci
-          pnpm exec playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
+          # --silent keeps pnpm's own "Already up to date" line out of the JSON.
+          pnpm --silent exec playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
 
       - name: Browser shard
         env:
