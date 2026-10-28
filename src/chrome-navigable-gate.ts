@@ -15,6 +15,7 @@ import {
   contentSurfaces,
   splitChromeStructure,
   type ChromeStructureChange,
+  type ContentSurface,
 } from './report/content-layer.js';
 import { structureGateRenderCtx, type RenderCtx } from './report/shared.js';
 
@@ -73,6 +74,24 @@ function isNavigableAddition(change: StructureChange, entry: ElementEntry | unde
   return isInventoryClassElement(entry, change.path);
 }
 
+function structureAdditionsByIdentity(
+  withContent: ContentSurface[],
+): Map<string, { change: StructureChange; surfaces: string[] }> {
+  const byIdentity = new Map<string, { change: StructureChange; surfaces: string[] }>();
+
+  for (const { surface, changes } of withContent) {
+    for (const c of changes) {
+      if (c.kind !== 'structure' || c.change !== 'added') continue;
+      const id = oneSidedIdentity(c);
+      const row = byIdentity.get(id) ?? { change: c, surfaces: [] };
+      row.surfaces.push(surface);
+      byIdentity.set(id, row);
+    }
+  }
+
+  return byIdentity;
+}
+
 /**
  * Collect Global chrome navigable *additions* that must elevate to reviewable,
  * plus multi-base navigable adds that chromeHosted failed to collapse (fail-closed).
@@ -82,13 +101,15 @@ export function collectElevatedNavigableChromeAdds(opts: {
   afterDir: string;
   surfacePaths?: Map<string, Set<string>>;
   surfaceKeyOf?: (captureKey: string) => string | undefined;
+  withContent?: ContentSurface[];
+  ctx?: RenderCtx;
 }): ElevatedNavigableChrome {
   const { beforeDir, afterDir } = opts;
   const surfaceKeyOf = opts.surfaceKeyOf ?? mergeSurfaceKeyLookup(beforeDir, afterDir);
   const surfacePaths = opts.surfacePaths ?? surfaceElementPaths(beforeDir, afterDir);
-  const ctx = structureGateRenderCtx(beforeDir, afterDir);
+  const ctx = opts.ctx ?? structureGateRenderCtx(beforeDir, afterDir);
 
-  const withContent = contentSurfaces(ctx);
+  const withContent = opts.withContent ?? contentSurfaces(ctx);
   const hosting = contentHostingSurfacePaths(beforeDir, afterDir, surfacePaths);
   const split = splitChromeStructure(withContent, hosting, surfaceKeyOf);
 
@@ -108,17 +129,7 @@ export function collectElevatedNavigableChromeAdds(opts: {
 
   // Fail-closed: navigable additions that hit ≥2 surface bases but were not chrome-promoted
   // (collapse residual / ambiguous host coverage) still elevate.
-  const byIdentity = new Map<string, { change: StructureChange; surfaces: string[] }>();
-  for (const { surface, changes } of withContent) {
-    for (const c of changes) {
-      if (c.kind !== 'structure' || c.change !== 'added') continue;
-      const id = oneSidedIdentity(c);
-      const row = byIdentity.get(id) ?? { change: c, surfaces: [] };
-      row.surfaces.push(surface);
-      byIdentity.set(id, row);
-    }
-  }
-  for (const row of byIdentity.values()) {
+  for (const row of structureAdditionsByIdentity(withContent).values()) {
     const bases = countCapturedSurfaceBases(row.surfaces, surfaceKeyOf);
     if (bases < 2) continue;
     consider({ change: row.change, surfaces: row.surfaces, bases });

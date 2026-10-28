@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { PNG } from 'pngjs';
-import { loadStyleMap, type ElementEntry, type LiveRegionCandidate, type StyleMap } from '../capture.js';
+import type { ElementEntry, LiveRegionCandidate, StyleMap } from '../capture.js';
+import { loadSharedStyleMap } from '../capture/map-io.js';
 import type { Finding, SurfaceDiff } from '../diff.js';
 import { isMapFile } from '../map-store.js';
 import { formatSurfaceList, pushSurfaceWidth, renderSurfaceGroups, surfaceBase } from '../change-groups.js';
@@ -25,7 +26,8 @@ export function createMapLoader(): MapLoader {
   const cache = new Map<string, StyleMap>();
   return (dir, surface) => {
     const key = path.join(dir, surface);
-    if (!cache.has(key)) cache.set(key, loadStyleMap(findCapture(dir, surface)));
+
+    if (!cache.has(key)) cache.set(key, loadSharedStyleMap(findCapture(dir, surface)));
     return cache.get(key)!;
   };
 }
@@ -103,7 +105,7 @@ export function collectLiveCandidateLabels(beforeDir: string, afterDir: string):
   for (const dir of [beforeDir, afterDir]) {
     const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(isMapFile) : [];
     for (const file of files) {
-      for (const candidate of loadStyleMap(path.join(dir, file)).liveCandidates ?? []) {
+      for (const candidate of loadSharedStyleMap(path.join(dir, file)).liveCandidates ?? []) {
         seen.add(liveCandidateLabel(candidate));
       }
     }

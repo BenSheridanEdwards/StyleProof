@@ -8,7 +8,7 @@
 import { isUnder, type ElementEntry, type StyleMap } from './capture.js';
 import type { ContentChange } from './diff.js';
 import { concreteContentChanges, contentSurfaces, type ContentSurface } from './report/content-layer.js';
-import { structureGateRenderCtx } from './report/shared.js';
+import { structureGateRenderCtx, type RenderCtx } from './report/shared.js';
 
 type StructureChange = Extract<ContentChange, { kind: 'structure' }>;
 
@@ -122,12 +122,14 @@ export function collectElevatedVisibleStructure(opts: {
   afterDir: string;
   surfacePaths?: Map<string, Set<string>>;
   surfaceKeyOf?: (captureKey: string) => string | undefined;
+  withContent?: ContentSurface[];
+  ctx?: RenderCtx;
 }): ElevatedVisibleStructureResult {
   const { beforeDir, afterDir } = opts;
   void opts.surfacePaths;
   void opts.surfaceKeyOf;
-  const ctx = structureGateRenderCtx(beforeDir, afterDir);
-  const withContent: ContentSurface[] = contentSurfaces(ctx);
+  const ctx = opts.ctx ?? structureGateRenderCtx(beforeDir, afterDir);
+  const withContent = opts.withContent ?? contentSurfaces(ctx);
 
   const elevated: ElevatedVisibleStructure[] = [];
   const seen = new Set<string>();

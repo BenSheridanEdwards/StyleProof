@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadStyleMap, isUnder, validateProductStateIdentity, type StyleMap } from './capture.js';
+import { isUnder, validateProductStateIdentity, type StyleMap } from './capture.js';
+import { loadSharedStyleMap } from './capture/map-io.js';
 import { type ProductStateComparabilityStatus } from './comparability-status.js';
 export {
   isProductStateComparabilityStatus,
@@ -622,7 +623,7 @@ export function diffStyleMapDirs(
     if (pair.findings.length)
       surfaces.push({ surface, findings: pair.findings, classification: 'changed', isNew: false });
     if (options.pixels) {
-      const [mapA, mapB] = [loadStyleMap(indexA[surface]), loadStyleMap(indexB[surface])];
+      const [mapA, mapB] = [loadSharedStyleMap(indexA[surface]), loadSharedStyleMap(indexB[surface])];
       pixels.push(pixelDiffSurface(dirA, dirB, surface, mapA, mapB, pixelOptions));
     }
   }
@@ -702,8 +703,8 @@ function diffSurfacePair(
   uncompared: UncomparedTally,
   options: DiffStyleOptions,
 ): { findings: Finding[]; comparability: SurfaceComparability; hostUaDrift: PropChange[] } {
-  const mapA = loadStyleMap(fileA);
-  const mapB = loadStyleMap(fileB);
+  const mapA = loadSharedStyleMap(fileA);
+  const mapB = loadSharedStyleMap(fileB);
   uncompared.volatile += volatilePaths(mapA, mapB).length;
   if (forcedStateEvidenceIncomplete(mapA) || forcedStateEvidenceIncomplete(mapB)) uncompared.statesUncertified++;
   // Certification excludes structure, so a moved element must be paired back onto
@@ -785,7 +786,7 @@ export function diffContentDirs(
   const surfaces: { surface: string; changes: ContentChange[] }[] = [];
   let count = 0;
   for (const surface of pairedSurfaces(indexA, indexB)) {
-    const changes = diffContentMaps(loadStyleMap(indexA[surface]), loadStyleMap(indexB[surface]));
+    const changes = diffContentMaps(loadSharedStyleMap(indexA[surface]), loadSharedStyleMap(indexB[surface]));
     if (changes.length) {
       surfaces.push({ surface, changes });
       count += changes.length;
@@ -804,8 +805,8 @@ export function auditLiveTextDirs(dirA: string, dirB: string): LiveTextAudit {
   const indexB = indexDir(dirB);
   const audits: LiveTextAudit[] = [];
   for (const surface of pairedSurfaces(indexA, indexB)) {
-    const before = loadStyleMap(indexA[surface]);
-    const after = loadStyleMap(indexB[surface]);
+    const before = loadSharedStyleMap(indexA[surface]);
+    const after = loadSharedStyleMap(indexB[surface]);
     const declaration = resolveLiveTextDeclaration(after, before);
     const tags: Record<string, string> = {};
     for (const path of new Set([...Object.keys(before.elements), ...Object.keys(after.elements)])) {
