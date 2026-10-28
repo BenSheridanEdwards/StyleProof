@@ -22,8 +22,13 @@ export function cropPng(src: PNG, box: Box, w: number, h: number): Crop {
 // Lossless but lean: opaque output, max deflate, adaptive filtering. Never lossy —
 // these images are eyeballed for intentional change.
 const PNG_OPTS = { deflateLevel: 9, filterType: -1, colorType: 2, inputColorType: 6 } as const;
+
+export function encodePng(png: PNG): Buffer {
+  return PNG.sync.write(png, PNG_OPTS);
+}
+
 export function writePng(file: string, png: PNG): void {
-  fs.writeFileSync(file, PNG.sync.write(png, PNG_OPTS));
+  fs.writeFileSync(file, encodePng(png));
 }
 
 export function readPng(file: string): PNG | null {

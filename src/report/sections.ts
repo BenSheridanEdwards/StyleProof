@@ -6,7 +6,8 @@ import type { DiffCounts } from '../diff.js';
 import type { BaselineProvenance, SurfaceCaptureFailure } from '../map-store.js';
 import type { ReportOptions, ReportResult } from '../report.js';
 import { chromeSpanLabel, safeKey, surfaceBase } from '../change-groups.js';
-import { cropPng, cropStem, readPng, writePng } from './png.js';
+import { cropPng, cropStem, readPng } from './png.js';
+import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
 import { renderReportHtml } from './html.js';
 import type { DigestRow } from './digest.js';
@@ -56,7 +57,11 @@ function writeOneSidedTiles(ctx: RenderCtx, png: PNG, surface: string, tileHeigh
     const h = Math.min(tileHeight, png.height - top);
     // The first tile keeps the pre-#756 name, so single-viewport reports are unchanged.
     const stem = cropStem(surface, `${crop}-new${i === 0 ? '' : `-${i + 1}`}`);
-    writePng(path.join(ctx.outDir, `${stem}.png`), cropPng(png, { x: 0, y: top, w: png.width, h }, png.width, h).png);
+
+    if (!writeBudgetedPng(ctx, `${stem}.png`, cropPng(png, { x: 0, y: top, w: png.width, h }, png.width, h).png)) {
+      ctx.crops.omitted++;
+      break;
+    }
     tiles.push({ stem, top, bottom: top + h });
   }
   return tiles;
@@ -107,13 +112,18 @@ function renderOneSided(
     seq.crop++;
     const tileHeight = Math.max(1, Math.min(ctx.maxHeight, png.height, map.viewport?.height ?? png.height));
     const tiles = writeOneSidedTiles(ctx, png, p.sd.surface, tileHeight, seq.crop);
-    const caption = `${side} · ${formatSurfaceWithContext(p.sd.surface, map)}`;
-    md.push(...oneSidedTileLines(ctx, tiles, png.height, `${text.alt} — ${side}`, caption));
-    json.image = `${tiles[0].stem}.png`;
-    // Additive (#756): every tile, and how much of the captured height they show.
-    json.images = tiles.map((t) => `${t.stem}.png`);
-    json.shownHeight = tiles[tiles.length - 1].bottom;
-    json.capturedHeight = png.height;
+
+    if (tiles.length > 0) {
+      const caption = `${side} · ${formatSurfaceWithContext(p.sd.surface, map)}`;
+      md.push(...oneSidedTileLines(ctx, tiles, png.height, `${text.alt} — ${side}`, caption));
+      json.image = `${tiles[0].stem}.png`;
+      // Additive (#756): every tile, and how much of the captured height they show.
+      json.images = tiles.map((t) => `${t.stem}.png`);
+      json.shownHeight = tiles[tiles.length - 1].bottom;
+      json.capturedHeight = png.height;
+    } else {
+      md.push('', cropBudgetNote(ctx.crops));
+    }
   } else {
     md.push(
       '',
@@ -366,6 +376,7 @@ export type ReportArtifacts = Pick<
 > & {
   outDir: string;
   htmlMaxBytes?: number;
+  crops: CropBudget;
   md: string[];
   gateMode: NonNullable<ReportOptions['gateMode']>;
   counts: DiffCounts;
@@ -436,6 +447,18 @@ export function writeReportArtifacts(a: ReportArtifacts): {
     // Additive (#996), only when a capture carries a reach ledger, so other reports keep their bytes.
     ...(a.reach ? { reach: a.reach } : {}),
   };
+
+  if (a.crops.omitted) {
+    Object.assign(json, {
+      cropBudget: {
+        maxFiles: a.crops.maxFiles,
+        maxBytes: a.crops.maxBytes,
+        files: a.crops.files,
+        bytes: a.crops.bytes,
+        omitted: a.crops.omitted,
+      },
+    });
+  }
   fs.writeFileSync(reportJsonPath, JSON.stringify(json, null, 2));
   return { reportMdPath, reportJsonPath, reportHtmlPath };
 }

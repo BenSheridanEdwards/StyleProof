@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { PNG } from 'pngjs';
 import { renderCropPair } from '../dist/report/crop-pair.js';
+import { createCropBudget } from '../dist/report/crop-budget.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 // Each row painted with its page y, so a crop's top row says which page rectangle it shows.
@@ -25,6 +26,7 @@ test('renderCropPair crops the same page rectangle on both sides when the page g
   try {
     fs.mkdirSync(path.join(outDir, 'crops'));
     const ctx = { outDir, img: (rel) => rel, padBy: 0, minWidth: 320, minHeight: 180, maxHeight: 1600, zoomBelow: 0 };
+    ctx.crops = createCropBudget(60, 5_000_000);
     const result = renderCropPair(ctx, {
       surface: 'home@800',
       suffix: '1',
@@ -60,6 +62,7 @@ test("renderCropPair still shows a change added below the shorter page's end", (
     fs.mkdirSync(path.join(outDir, 'crops'));
     const ctx = { outDir, img: (rel) => rel, padBy: 0, minWidth: 320, minHeight: 180, maxHeight: 1600, zoomBelow: 0 };
     const block = { x: 100, y: 1400, w: 200, h: 40 };
+    ctx.crops = createCropBudget(60, 5_000_000);
     const result = renderCropPair(ctx, {
       surface: 'home@800',
       suffix: '1',
@@ -88,6 +91,7 @@ test("renderCropPair still shows a change added below the shorter page's end", (
 function paddedRowsPair(outDir, box, skipIdentical) {
   fs.mkdirSync(path.join(outDir, 'crops'));
   const ctx = { outDir, img: (rel) => rel, padBy: 12, minWidth: 320, minHeight: 180, maxHeight: 1600, zoomBelow: 0 };
+  ctx.crops = createCropBudget(60, 5_000_000);
   return renderCropPair(ctx, {
     surface: 'home@800',
     suffix: '1',

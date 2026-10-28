@@ -10,6 +10,8 @@ import { emptyLiveTextAudit, type LiveTextAudit } from '../live-text.js';
 import { isSameOrDescendant, rectToBox, screenshotRectOf, visible } from './geometry.js';
 import { readPng } from './png.js';
 import { codeValue } from '../code-span.js';
+import { createCropBudget, type CropBudget } from './crop-budget.js';
+import { presentationBeforeMap } from '../path-correspondence.js';
 
 /** Loads a surface's style map from a capture dir, cached for the run. */
 export type MapLoader = (dir: string, surface: string) => StyleMap;
@@ -45,11 +47,19 @@ export type RenderCtx = {
   maxHeight: number;
   zoomBelow: number;
   maxCrops: number;
+  crops: CropBudget;
   foldDetailsAt: number;
   liveText: LiveTextAudit;
   includeNoise: boolean;
   requireStateIdentity: boolean;
 };
+
+/** Load a pair with base paths aligned to the head for report presentation. */
+export function presentationMaps(ctx: RenderCtx, surface: string): [StyleMap, StyleMap] {
+  const after = ctx.load(ctx.afterDir, surface);
+
+  return [presentationBeforeMap(ctx.load(ctx.beforeDir, surface), after), after];
+}
 
 /** The before/after screenshots for a surface (`suffix` picks a forced-state layer). */
 export function screenshotPair(ctx: RenderCtx, surface: string, suffix = ''): [PNG | null, PNG | null] {
@@ -162,6 +172,7 @@ export function structureGateRenderCtx(beforeDir: string, afterDir: string): Ren
     maxHeight: 10_000,
     zoomBelow: 0,
     maxCrops: 0,
+    crops: createCropBudget(0, 0),
     foldDetailsAt: 0,
     liveText: emptyLiveTextAudit(),
     includeNoise: false,

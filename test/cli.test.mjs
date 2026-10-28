@@ -2165,8 +2165,23 @@ test('report CLI help states current crop defaults', () => {
   assert.equal(r.status, 0);
   assert.match(r.stdout, /--pad <px>[\s\S]*default: 12/);
   assert.match(r.stdout, /--max-crops <n>[\s\S]*default: 8/);
+  assert.match(r.stdout, /--max-crop-files <n>[^\n]*default: 60/);
+  assert.match(r.stdout, /--max-crop-bytes <bytes>[^\n]*default: 5000000/);
   assert.doesNotMatch(r.stdout, /default: 24/);
-  assert.doesNotMatch(r.stdout, /default: 6/);
+  assert.doesNotMatch(r.stdout, /default: 6\)/);
+});
+
+test('report CLI crop budgets require non-negative safe integers', (t) => {
+  const { root, A, B } = differingPair();
+  t.after(() => rmTmp(root));
+
+  for (const flag of ['--max-crop-files', '--max-crop-bytes']) {
+    for (const value of ['-1', '1.5', '9007199254740992']) {
+      const r = run(REPORT, [A, B, flag, value]);
+      assert.equal(r.status, 2, r.stderr);
+      assert.match(r.stderr, new RegExp(`${flag} must be a non-negative safe integer`));
+    }
+  }
 });
 
 test('report CLI exits 2 on wrong argument count', () => {

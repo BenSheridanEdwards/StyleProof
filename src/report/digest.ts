@@ -1,10 +1,9 @@
 import { formatSurfaceList, safeKey } from '../change-groups.js';
 import { codeValue } from '../code-span.js';
 import { describeElement, tokenIndex } from '../describe.js';
-import { presentationBeforeMap } from '../path-correspondence.js';
 import type { OneSidedStatus } from './headline.js';
 import { buildElementChanges, clipText } from './markdown.js';
-import type { ChangeGroup, RenderCtx } from './shared.js';
+import { presentationMaps, type ChangeGroup, type RenderCtx } from './shared.js';
 
 /** The "What changed" block: one row per one-sided surface and per change group, above the PR-comment cut. */
 
@@ -41,8 +40,7 @@ const ONE_SIDED_TEXT: Record<OneSidedStatus, string> = {
 
 function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow {
   const { sd, findings } = cg.rep;
-  const mapB = ctx.load(ctx.afterDir, sd.surface);
-  const mapA = presentationBeforeMap(ctx.load(ctx.beforeDir, sd.surface), mapB);
+  const [mapA, mapB] = presentationMaps(ctx, sd.surface);
   const describeCtx = { tokensBefore: identTokens(mapA.tokens), tokensAfter: identTokens(mapB.tokens) };
   const els = buildElementChanges(findings);
   const elements = els.slice(0, MAX_ELEMENTS).map((el) => {

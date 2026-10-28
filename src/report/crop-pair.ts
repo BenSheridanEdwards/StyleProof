@@ -1,7 +1,8 @@
 import type { PNG } from 'pngjs';
 import type { Rect } from '../capture.js';
 import { pad, unionRects, type Box } from './geometry.js';
-import { annotateCrop, cropPng, cropStem, writeComposite, zoomCrop } from './png.js';
+import { annotateCrop, compositePair, cropPng, cropStem, zoomCrop } from './png.js';
+import { cropBudgetNote, cropBudgetOpen, writeBudgetedPng } from './crop-budget.js';
 import type { RenderCtx } from './shared.js';
 
 /** Relative paths of the images written for one crop region (the report.json sidecar). */
@@ -43,17 +44,44 @@ function zoomPlan(rectsA: Rect[], rectsB: Rect[], zoomBelow: number): { box: Box
   return { box, factor: Math.min(8, Math.max(2, Math.round(240 / Math.max(box.w, box.h)))) };
 }
 
+const MAX_CROP_W = 1280;
+const MAX_CROP_AREA = 1_024_000;
+
+function omittedCrop(ctx: RenderCtx) {
+  ctx.crops.omitted++;
+
+  return { md: ['', cropBudgetNote(ctx.crops)], images: {}, omitted: true };
+}
+
+function zoomOverlay(ctx: RenderCtx, spec: CropPairSpec, images: CropImages): string[] {
+  const { pngA, pngB, rectsA, rectsB, captions } = spec;
+  const zoom = zoomPlan(rectsA, rectsB, ctx.zoomBelow);
+
+  if (!zoom || !cropBudgetOpen(ctx.crops)) return [];
+  const rel = `${cropStem(spec.surface, spec.suffix)}-zoom.png`;
+  const zoomed = (png: PNG, rects: Rect[]): PNG => zoomCrop(png, zoom.box, rects, zoom.factor);
+
+  if (!writeBudgetedPng(ctx, rel, compositePair(zoomed(pngA, rectsA), zoomed(pngB, rectsB)))) return [];
+  images.zoom = rel;
+  const { left = 'before', right = 'after' } = spec.labels ?? {};
+
+  return ['', `![zoomed ${left} ◀ │ ▶ ${right}](${ctx.img(rel)})`, '', `<sub>🔬 ${captions.zoom(zoom.factor)}</sub>`];
+}
+
 /**
  * Crop, composite, annotate and (for small changes) zoom one before/after pair,
  * writing the PNGs and returning the image markdown plus the images sidecar.
  * Returns null only for `skipIdentical` pairs whose pixels match.
  */
-export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string[]; images: CropImages } | null {
+export function renderCropPair(
+  ctx: RenderCtx,
+  spec: CropPairSpec,
+): { md: string[]; images: CropImages; omitted?: boolean } | null {
   const { box, pngA, pngB, rectsA, rectsB, captions } = spec;
   const left = spec.labels?.left ?? 'before';
   const right = spec.labels?.right ?? 'after';
-  const w = Math.max(ctx.minWidth, box.w);
-  const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
+  const w = Math.min(Math.max(ctx.minWidth, box.w), MAX_CROP_W);
+  const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h), Math.floor(MAX_CROP_AREA / w));
   // When the box lies in the area both screenshots cover, crop one origin clamped to the
   // smaller screenshot so both sides show the SAME page rectangle even when the change grew
   // or shrank the page. A box past the shorter page's end (content added at the bottom)
@@ -72,9 +100,12 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
   const before = cropPng(pngA, inCommon ? aligned : box, w, h);
   const after = cropPng(pngB, inCommon ? aligned : box, w, h);
   if (spec.skipIdentical && before.png.data.equals(after.png.data)) return null;
+
+  if (!cropBudgetOpen(ctx.crops)) return omittedCrop(ctx);
   const stem = cropStem(spec.surface, spec.suffix);
   const images: CropImages = { composite: `${stem}-composite.png` };
-  writeComposite(ctx.outDir, images.composite!, [before.png, after.png]);
+
+  if (!writeBudgetedPng(ctx, images.composite!, compositePair(before.png, after.png))) return omittedCrop(ctx);
   const md = [
     '',
     `![${left} ◀ │ ▶ ${right}](${ctx.img(images.composite!)})`,
@@ -87,9 +118,13 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
   const overlay: string[] = [];
   const annotatedA = annotateCrop(before, rectsA);
   const annotatedB = annotateCrop(after, rectsB);
-  if (annotatedA.highlighted || annotatedB.highlighted) {
-    images.annotated = `${stem}-annotated.png`;
-    writeComposite(ctx.outDir, images.annotated, [annotatedA.png, annotatedB.png]);
+  const annotated = `${stem}-annotated.png`;
+
+  if (
+    (annotatedA.highlighted || annotatedB.highlighted) &&
+    writeBudgetedPng(ctx, annotated, compositePair(annotatedA.png, annotatedB.png))
+  ) {
+    images.annotated = annotated;
     overlay.push(
       '',
       `![highlighted ${left} ◀ │ ▶ ${right}](${ctx.img(images.annotated)})`,
@@ -98,18 +133,7 @@ export function renderCropPair(ctx: RenderCtx, spec: CropPairSpec): { md: string
     );
   }
 
-  const zoom = zoomPlan(rectsA, rectsB, ctx.zoomBelow);
-  if (zoom) {
-    images.zoom = `${stem}-zoom.png`;
-    const zoomed = (png: PNG, rects: Rect[]): PNG => zoomCrop(png, zoom.box, rects, zoom.factor);
-    writeComposite(ctx.outDir, images.zoom, [zoomed(pngA, rectsA), zoomed(pngB, rectsB)]);
-    overlay.push(
-      '',
-      `![zoomed ${left} ◀ │ ▶ ${right}](${ctx.img(images.zoom)})`,
-      '',
-      `<sub>🔬 ${captions.zoom(zoom.factor)}</sub>`,
-    );
-  }
+  overlay.push(...zoomOverlay(ctx, spec, images));
   if (overlay.length) {
     md.push('', '<details>', '<summary>Show highlight overlay</summary>', ...overlay, '', '</details>');
   }

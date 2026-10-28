@@ -207,6 +207,8 @@ repository git history. Images travel inside the self-contained HTML.
 
 Report artifacts contain only `report.html`, `report.md` and `report.json`. Open HTML offline for embedded images. Set `report-max-bytes` (default `2000000`) to cap HTML size; Markdown and JSON receipts are excluded; omitted images have captions and a notice. Local reports support `--html-max-bytes`. Branch storage keeps crop files.
 
+Reports cap crops at 60 files and 5,000,000 bytes across all surfaces. Local reports support `--max-crop-files` and `--max-crop-bytes` (`0` disables crops); omissions are named, and every change remains listed and counted.
+
 Every report viewer needs an authenticated GitHub session, because artifact downloads are never anonymous.
 `report-storage: branch` opts into the `styleproof-reports` orphan branch for an in-browser rendered report, with
 anonymous access on public repositories only. PR reports use `pr-<n>/`; runs without a resolved PR use
