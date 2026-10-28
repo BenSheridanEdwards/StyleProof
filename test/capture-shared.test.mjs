@@ -186,7 +186,8 @@ function forcedStateHarness({
     baselines = 0,
     counts = 0,
     reads = 0,
-    resetBarriers = 0;
+    resetBarriers = 0,
+    evaluates = 0;
   if (settled && drift === 'removal') nodes.pop().parentElement.children.pop();
   const visits = [];
   const forces = [];
@@ -239,6 +240,8 @@ function forcedStateHarness({
       const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
       // Force the production legacy path; all per-target reads still run unmodified.
       if (legacy && sessionBaseline) return { result: { value: false } };
+      // Count evaluations that reach the page, excluding the intercepted legacy probe.
+      evaluates++;
 
       if (replaceDocument && expression.includes('"saveBaseline":true')) {
         document.querySelector = () => null;
@@ -274,7 +277,7 @@ function forcedStateHarness({
       assert.equal(forced, undefined);
       if (legacy) assert.equal(counts, 0);
 
-      return { result, warnings, visits, baselines, counts, reads, pathReads, forces, resetBarriers };
+      return { result, warnings, visits, baselines, counts, reads, pathReads, forces, resetBarriers, evaluates };
     } finally {
       console.warn = original;
     }
@@ -362,7 +365,19 @@ for (const scope of ['document', 'fallback', 'subtree', 'parent']) {
       assert.deepEqual(shared.warnings, legacy.warnings);
       assert.deepEqual(shared.visits, legacy.visits, 'truncation lands on the same target and state');
       if (shared.counts) assert.equal(shared.baselines, 2, 'one shared baseline plus its final check');
-      assert.ok(shared.reads <= legacy.reads, 'avoid extra style reads for disjoint or budget-limited scopes');
+      const targetCount = options.maxInteractive ?? 20;
+
+      const sharedSubtree =
+        scope === 'subtree' &&
+        targetCount > 2 &&
+        (options.maxForcedStateElements ?? 2000) >= size &&
+        (options.maxForcedStateScanWork ?? 32000) >= targetCount * size * 4;
+
+      if (sharedSubtree) {
+        assert.equal(shared.baselines, 2);
+        assert.equal(shared.reads - legacy.reads, targetCount * size * 3);
+        assert.equal(shared.pathReads - legacy.pathReads, targetCount * size * 3);
+      } else assert.ok(shared.reads <= legacy.reads, 'avoid extra style reads for disjoint or budget-limited scopes');
       if (!Object.keys(options).length) {
         t.diagnostic(`style reads: ${legacy.reads} legacy, ${shared.reads} shared`);
         if (scope === 'fallback')
@@ -372,6 +387,9 @@ for (const scope of ['document', 'fallback', 'subtree', 'parent']) {
         if (documentScope) {
           assert.ok(shared.reads < legacy.reads, 'sharing must save style reads');
           assert.equal(shared.pathReads - legacy.pathReads, size * 3, 'one count, shared save and end check');
+        } else if (scope === 'subtree') {
+          assert.equal(shared.reads - legacy.reads, 20 * size * 3);
+          assert.equal(shared.pathReads - legacy.pathReads, 20 * size * 3, 'count and save at start and check');
         } else {
           assert.equal(shared.reads, legacy.reads);
           assert.equal(shared.pathReads, legacy.pathReads, 'narrow scopes bypass the planner');
@@ -387,6 +405,82 @@ for (const scope of ['document', 'fallback', 'subtree', 'parent']) {
     );
   });
 }
+
+test('subtree shared baseline drops every per-target baseline round trip', async () => {
+  const shared = await forcedStateHarness({ scope: 'subtree' }).capture();
+  const legacy = await forcedStateHarness({ scope: 'subtree', legacy: true }).capture();
+  assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+  assert.deepEqual(shared.warnings, legacy.warnings);
+  assert.deepEqual(shared.visits, legacy.visits);
+  assert.deepEqual(shared.forces, legacy.forces);
+  assert.equal(shared.baselines, 2);
+  assert.equal(legacy.baselines, 20);
+  assert.equal(shared.counts, 0);
+  assert.equal(shared.resetBarriers, 1);
+  assert.equal(shared.evaluates, legacy.evaluates - 20 + 2);
+});
+
+test('subtree shared baseline falls back at every gate', async (t) => {
+  for (const options of [
+    { maxInteractive: 2 },
+    { maxForcedStateElements: 1 },
+    { maxForcedStateScanWork: 159 },
+    { unsupported: true },
+  ]) {
+    await t.test(JSON.stringify(options), async () => {
+      const sharedHarness = forcedStateHarness({ scope: 'subtree', unsupported: options.unsupported });
+      const legacyHarness = forcedStateHarness({ scope: 'subtree', unsupported: options.unsupported, legacy: true });
+      // The harness's unsupported output is outside every subtree; disable a target too.
+
+      if (options.unsupported) {
+        sharedHarness.targets.at(-1).computedStyleMap = undefined;
+        legacyHarness.targets.at(-1).computedStyleMap = undefined;
+      }
+
+      const shared = await sharedHarness.capture(options);
+      const legacy = await legacyHarness.capture(options);
+      assert.equal(shared.baselines, legacy.baselines);
+      assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+      assert.deepEqual(shared.warnings, legacy.warnings);
+    });
+  }
+
+  const options = { maxForcedStateScanWork: 160 };
+  const shared = await forcedStateHarness({ scope: 'subtree' }).capture(options);
+  const legacy = await forcedStateHarness({ scope: 'subtree', legacy: true }).capture(options);
+  assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+  assert.deepEqual(shared.warnings, legacy.warnings);
+  assert.equal(shared.baselines, 2, 'the exact four-read work boundary permits sharing');
+});
+
+for (const drift of ['style', 'typed', 'removal']) {
+  test(`subtree end-check drift retries per target: ${drift}`, async () => {
+    const shared = await forcedStateHarness({ scope: 'subtree', drift }).capture();
+    const legacy = await forcedStateHarness({ scope: 'subtree', legacy: true, drift, settled: true }).capture();
+    assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+    assert.deepEqual(shared.warnings, legacy.warnings);
+
+    const firstHoverVisits = shared.visits.filter(
+      ([path, state]) => path === shared.visits[0][0] && state === 'hover',
+    ).length;
+
+    assert.equal(firstHoverVisits, drift === 'removal' ? 1 : 2);
+
+    if (drift === 'removal') assert.equal(shared.baselines, 2, 'outside-subtree removal does not retry');
+  });
+}
+
+test('subtree shared reset detachment keeps warning order', async () => {
+  const options = { maxInteractive: 3 };
+  const shared = await forcedStateHarness({ scope: 'subtree', removeAfterReset: 0 }).capture(options);
+  const legacy = await forcedStateHarness({ scope: 'subtree', removeAfterReset: 0, legacy: true }).capture(options);
+  assert.equal(JSON.stringify(shared.result), JSON.stringify(legacy.result));
+  assert.deepEqual(shared.warnings, legacy.warnings);
+  assert.match(shared.warnings[0], /exceeds maxInteractive=3/);
+  assert.match(shared.warnings[1], /sp-0 detached while resetting forced state/);
+  assert.equal(shared.warnings.length, 2);
+  assert.equal(shared.baselines, 2, 'losing only the mark does not change the resting union');
+});
 
 test('baseline planning stops visiting targets once the scan budget is exhausted', async (t) => {
   for (const maxForcedStateScanWork of [82 * 4, 82 * 4 - 1]) {

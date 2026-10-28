@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Share one resting subtree baseline per forced-state session, removing per-target baseline round trips when counts, budgets and Typed OM permit; retain per-target retries on end-check drift and preserve serialized output.
 - Fold each forced-state reset's liveness check and style flush into the next scope read, with one final flush per capture pass. Preserve deltas, key order, warnings, scan budgets and independent self-check captures.
 - Reuse report path reconciliation per map pair and decoded screenshots for the current surface, keeping memory bounded and report files and crops byte-identical.
 - Shorten settle waits so the final quiet poll aims for the quiet window's edge, using the shortest observed capture duration. Preserve the full quiet window, maximum poll interval, volatile rules, final capture reuse and independent self-check.

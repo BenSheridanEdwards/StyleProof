@@ -604,22 +604,26 @@ export type StateScopeResult = {
  * over CDP. Serialized via Runtime.evaluate.
  */
 // fallow-ignore-next-line complexity
-export function snapSubtree({
-  selector,
-  skipSel,
-  skipPaths,
-  maxElements,
-  baselineKey,
-  saveBaseline,
-  countOnly = false,
-  scope = 'document',
-}: StateScopeArgs) {
+export function snapSubtree(
+  {
+    selector,
+    skipSel,
+    skipPaths,
+    maxElements,
+    baselineKey,
+    saveBaseline,
+    countOnly = false,
+    scope = 'document',
+  }: StateScopeArgs,
+  root?: Element | null,
+) {
   const assertFrozen = (window as unknown as WithFreeze).__spAssertFrozen;
   assertFrozen?.();
-  const target = document.querySelector(selector);
+  const target = root === undefined ? document.querySelector(selector) : root;
   const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
   const stateWindow = window as unknown as Record<string, Record<string, Record<string, string>> | undefined>;
-  if (!target) return { delta: {}, truncated: true, scanned: 0 };
+
+  if (!target || target.isConnected === false) return { delta: {}, truncated: true, scanned: 0 };
 
   const seen = new Set<Element>();
   const elements: Array<{ element: Element; path: string }> = [];
@@ -725,16 +729,69 @@ export function snapSubtree({
   return { delta: result, truncated, scanned: elements.length, ...(typedMargins ? { typedMargins } : {}) };
 }
 
-/** Plan and save/check a shared document baseline. Serialized with its snapshot reader over CDP. */
+/** Plan and save/check a shared scope baseline. Serialized with its snapshot reader over CDP. */
 export function snapSessionBaseline(
   args: StateScopeArgs,
   maxElements: number,
   check: boolean,
-  snap: typeof snapSubtree,
-): boolean {
+  snap: (typeof snapSubtree & { restingTargets?: Array<Element | null> }) | undefined,
+): boolean | number[] {
+  if (!snap) return false;
+
   const stateWindow = window as unknown as Record<string, unknown>;
   const typedKey = `${args.baselineKey}-typed-margins`;
   const previousBaseline = JSON.stringify([stateWindow[args.baselineKey], stateWindow[typedKey]]);
+
+  // Keep the subtree planner local: this function is serialized over CDP.
+  const subtreeBaseline = (): number[] | false => {
+    const selectors = args.selector.split(',');
+    // Keep references on the session reader: losing a mark alone is not resting drift.
+    const targets = check ? snap.restingTargets : selectors.map((selector) => document.querySelector(selector));
+
+    if (!targets) return false;
+
+    const counts = selectors.map(
+      (selector, index) =>
+        snap({ ...args, selector, maxElements: maxElements + 1, countOnly: true }, targets[index]).scanned,
+    );
+
+    const total = counts.reduce((sum, count) => sum + count, 0);
+
+    // Stay within complete per-target reads and their four-read work budget.
+    if (
+      selectors.length <= 2 ||
+      counts.some((count) => count === 0 || count > maxElements) ||
+      total * 4 > args.maxElements
+    )
+      return false;
+
+    const baseline = {},
+      typed = {};
+
+    if (!check) snap.restingTargets = targets;
+
+    for (const [index, selector] of selectors.entries()) {
+      const target = targets[index];
+
+      // Move the per-target baseline's liveness/style flush into the session save.
+      if (!check && target) getComputedStyle(target).getPropertyValue('display');
+      snap({ ...args, selector, maxElements }, target);
+
+      // Mixed Typed OM retains the per-scope availability rule.
+      if (!stateWindow[typedKey]) return false;
+
+      Object.assign(baseline, stateWindow[args.baselineKey]);
+      Object.assign(typed, stateWindow[typedKey]);
+    }
+
+    stateWindow[args.baselineKey] = baseline;
+    stateWindow[typedKey] = typed;
+
+    return !check || previousBaseline === JSON.stringify([baseline, typed]) ? counts : false;
+  };
+
+  if (args.scope === 'subtree') return subtreeBaseline();
+
   if (!check) {
     const documentCount = snap({ ...args, countOnly: true });
     // Every document baseline has the same count. Never replace a limited prefix;
