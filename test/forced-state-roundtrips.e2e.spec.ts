@@ -396,13 +396,20 @@ for (const fault of ['removed', 'snapshot-error'] as const) {
             injected = true;
             await page.evaluate((mode) => {
               if (mode === 'removed') document.querySelector('button')!.remove();
-              else
+              else {
+                Object.defineProperty(window, '__spCreatePathOf', {
+                  configurable: true,
+                  value: () => () => {
+                    throw new Error('deliberate snapshot failure');
+                  },
+                });
                 Object.defineProperty(window, '__spPathOf', {
                   configurable: true,
                   value: () => {
                     throw new Error('deliberate snapshot failure');
                   },
                 });
+              }
             }, fault);
           }
           return result;
