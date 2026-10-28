@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { diffStyleMapDirs } from '../dist/diff.js';
 import { loadStyleMap } from '../dist/index.js';
 import * as mapIO from '../dist/capture/map-io.js';
+import { authoringSurfaceKeysInMapDir } from '../dist/selective-remap.js';
 import { MAP_MANIFEST } from '../dist/map-store.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { collectStructureElevation } from '../dist/structure-elevation.js';
@@ -155,7 +156,7 @@ test('warm and cold paths produce identical report digests, verdicts and diffs',
   assert.deepEqual(diffStyleMapDirs(cold.beforeDir, cold.afterDir), firstDiff);
 });
 
-test('rewrites invalidate shared maps even at the same size with restored mtime', (t) => {
+test('rewrites invalidate shared maps even at the same size with restored mtime', async (t) => {
   const dirs = fixture(t);
   const file = path.join(dirs.afterDir, 'plain@1280.json');
   fs.copyFileSync(path.join(dirs.beforeDir, 'home@1280.json.gz'), path.join(dirs.beforeDir, 'plain@1280.json.gz'));
@@ -178,8 +179,16 @@ test('rewrites invalidate shared maps even at the same size with restored mtime'
   const before = fs.statSync(file, { bigint: true });
   const times = fs.statSync(file);
   map.elements[BUTTON].style.color = 'orange';
-  fs.writeFileSync(file, JSON.stringify(map));
-  fs.utimesSync(file, times.atime, times.mtime);
+  // Wait for an observable filesystem tick rather than assuming nanosecond precision.
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    fs.writeFileSync(file, JSON.stringify(map));
+    fs.utimesSync(file, times.atime, times.mtime);
+
+    if (fs.statSync(file, { bigint: true }).ctimeNs !== before.ctimeNs) break;
+  }
+
   const after = fs.statSync(file, { bigint: true });
   assert.equal(after.size, before.size, 'same-size replacement');
   assert.equal(after.mtimeNs, before.mtimeNs, 'mtime restored exactly');
@@ -254,4 +263,42 @@ test('shared loader refuses symlinks on cold and previously cached paths', (t) =
       (e) => e.message === message,
     );
   }
+});
+
+test('shared loader evicts old maps after 128 distinct captures', (t) => {
+  const dirs = fixture(t);
+  const firstFile = dirs.maps[0];
+  const first = mapIO.loadSharedStyleMap(firstFile);
+
+  for (let index = 0; index < 128; index++) {
+    const file = path.join(dirs.root, `capture-${index}.json`);
+    fs.writeFileSync(file, JSON.stringify(makeMap()));
+    mapIO.loadSharedStyleMap(file);
+  }
+
+  assert.notStrictEqual(mapIO.loadSharedStyleMap(firstFile), first);
+});
+
+test('authoring key scans do not retain parsed base maps', (t) => {
+  const dirs = fixture(t);
+  authoringSurfaceKeysInMapDir(dirs.beforeDir);
+  const files = dirs.maps.filter((file) => path.dirname(file) === dirs.beforeDir);
+  const assertReads = countMapReads(t, files);
+
+  for (const file of files) mapIO.loadSharedStyleMap(file);
+  assertReads();
+});
+
+test('migration structure elevation does not read capture maps', (t) => {
+  const dirs = fixture(t);
+  fs.writeFileSync(dirs.maps[0], 'corrupt');
+  assert.deepEqual(
+    collectStructureElevation({
+      ...dirs,
+      migration: true,
+      surfacePaths: new Map(),
+      surfaceKeyOf: () => undefined,
+    }),
+    { chrome: { count: 0, elevated: [] }, visible: { count: 0, elevated: [] }, dom: 0 },
+  );
 });

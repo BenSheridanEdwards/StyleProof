@@ -32,11 +32,15 @@ export function collectStructureElevation(opts: {
   surfacePaths: Map<string, Set<string>>;
   surfaceKeyOf: (captureKey: string) => string | undefined;
 }): StructureElevation {
-  const { migration, ...dirs } = opts;
+  if (opts.migration) {
+    return { chrome: { count: 0, elevated: [] }, visible: { count: 0, elevated: [] }, dom: 0 };
+  }
+
+  const dirs = opts;
   const ctx = structureGateRenderCtx(dirs.beforeDir, dirs.afterDir);
-  const shared = { ...dirs, ctx, withContent: migration ? [] : contentSurfaces(ctx) };
-  const chrome = migration ? { count: 0, elevated: [] } : collectElevatedNavigableChromeAdds(shared);
-  const visible = migration ? { count: 0, elevated: [] } : collectElevatedVisibleStructure(shared);
+  const shared = { ...dirs, ctx, withContent: contentSurfaces(ctx) };
+  const chrome = collectElevatedNavigableChromeAdds(shared);
+  const visible = collectElevatedVisibleStructure(shared);
 
   return {
     chrome,

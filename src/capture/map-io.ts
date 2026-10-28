@@ -59,12 +59,14 @@ function parseStyleMap(filePath: string, limits: StyleMapReadLimits = {}): Style
   }
 }
 
+const MAX_SHARED_MAPS = 128;
 const sharedMaps = new Map<string, { id: string; map: StyleMap }>();
 
 function fileIdentity(filePath: string): string | undefined {
   try {
     const stat = fs.lstatSync(filePath, { bigint: true });
 
+    // Same-size rewrites within one filesystem clock tick can retain this identity.
     return stat.isFile() ? [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(':') : undefined;
   } catch {
     return undefined;
@@ -87,7 +89,7 @@ function deepFreeze(map: StyleMap): StyleMap {
   return map;
 }
 
-/** Internal process memo at default limits. Deep-frozen; keeps the StyleMap type for reader compatibility. */
+/** Bounded internal process memo at default limits. Deep-frozen; keeps the StyleMap type for reader compatibility. */
 export function loadSharedStyleMap(filePath: string): StyleMap {
   const id = fileIdentity(filePath);
 
@@ -98,7 +100,12 @@ export function loadSharedStyleMap(filePath: string): StyleMap {
   if (cached?.id === id) return cached.map;
   const map = deepFreeze(parseStyleMap(filePath));
 
-  if (fileIdentity(filePath) === id) sharedMaps.set(key, { id, map });
+  if (fileIdentity(filePath) === id) {
+    sharedMaps.delete(key);
+    sharedMaps.set(key, { id, map });
+
+    if (sharedMaps.size > MAX_SHARED_MAPS) sharedMaps.delete(sharedMaps.keys().next().value!);
+  }
 
   return map;
 }
