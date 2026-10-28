@@ -624,6 +624,9 @@ test('styleproof-map --upload from a package subdirectory: the Next shim and map
 });
 
 test('styleproof-map runs configured variant crawl before Playwright capture', () => {
+  const cpus = os.availableParallelism();
+  const inherited = { ...process.env };
+  delete inherited.STYLEPROOF_WORKERS;
   const root = mkTmp();
   try {
     const spec = path.join(root, 'e2e/styleproof.spec.ts');
@@ -659,10 +662,9 @@ test('styleproof-map runs configured variant crawl before Playwright capture', (
         cwd: root,
         encoding: 'utf8',
         env: {
-          ...process.env,
+          ...inherited,
           PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
           STYLEPROOF_TEST_LOG: log,
-          STYLEPROOF_WORKERS: '3',
         },
       },
     );
@@ -670,7 +672,7 @@ test('styleproof-map runs configured variant crawl before Playwright capture', (
 
     assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
       'crawl:--base-url http://127.0.0.1:3000 --out styleproof.variants.generated.json --route / --route settings=/settings --strict',
-      `map:test --grep /(?:^|\\s)styleproof capture(?:\\s|$)/ --workers=3`,
+      `map:test --grep /(?:^|\\s)styleproof capture(?:\\s|$)/ --workers=${Math.max(Math.ceil(cpus / 2), cpus - 2)}`,
     ]);
   } finally {
     rmTmp(root);
