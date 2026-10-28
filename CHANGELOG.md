@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Cache structural paths and sibling identities within each synchronous snapshot read to reduce repeated keyed-list attribute work.
+
 - Share one resting subtree baseline per forced-state session, removing per-target baseline round trips when counts, budgets and Typed OM permit; retain per-target retries on end-check drift and preserve serialized output.
 - Run Node 22 unit coverage in a dedicated, unsharded CI job using the supported coverage command and unchanged 40% line floor.
 - Fold each forced-state reset's liveness check and style flush into the next scope read, with one final flush per capture pass. Preserve deltas, key order, warnings, scan budgets and independent self-check captures.

@@ -4,7 +4,7 @@ import type { CapturedOverlay, ElementEntry, LiveRegionCandidate, Props } from '
 import type { PseudoReferences } from '../pseudo-references.js';
 
 /** In-page shape of the window after {@link injectPathOf} runs. */
-type WithPathOf = { __spPathOf?: (el: Element) => string };
+type WithPathOf = { __spPathOf?: (el: Element) => string; __spCreatePathOf?: () => (el: Element) => string };
 
 /** In-page shape of the window once {@link freezeMotion} has run. */
 type WithFreeze = { __spFreeze?: CSSStyleSheet; __spAssertFrozen?: () => void };
@@ -50,9 +50,9 @@ export function unfreezeMotion(validate = false): void {
 
 /** Define the structural-path helper on `window` once so every serialized function shares it. */
 export function injectPathOf(): void {
-  (window as unknown as WithPathOf).__spPathOf = (el: Element): string => {
-    if (el === document.documentElement) return 'html';
-    if (el === document.body) return 'body';
+  const createPathOf = (): ((el: Element) => string) => {
+    const paths = new Map<Element, string>();
+    const siblingIdentities = new Map<Element, Map<string, number>>();
     // A framework-generated id renumbers when an unrelated component starts or stops calling the
     // generator, so it never names an element. Same rules as inventory.ts `isStableId`, copied
     // because this function is serialized into the page.
@@ -88,23 +88,57 @@ export function injectPathOf(): void {
       return (hash >>> 0).toString(36);
     };
     const stableSegment = (element: Element, parent: Element): string => {
-      const candidate = identityCandidates(element).find(
-        (identity) =>
-          [...parent.children].filter((sibling) => identityCandidates(sibling).includes(identity)).length === 1,
-      );
+      let counts = siblingIdentities.get(parent);
+
+      if (!counts) {
+        counts = new Map<string, number>();
+
+        for (const sibling of Array.from(parent.children)) {
+          for (const identity of identityCandidates(sibling)) counts.set(identity, (counts.get(identity) ?? 0) + 1);
+        }
+
+        siblingIdentities.set(parent, counts);
+      }
+
+      const candidate = identityCandidates(element).find((identity) => counts.get(identity) === 1);
       if (candidate) return `${element.tagName.toLowerCase()}:sp-key(${privacySafeHash(candidate)})`;
       return `${element.tagName.toLowerCase()}:nth-child(${Array.prototype.indexOf.call(parent.children, element) + 1})`;
     };
-    const parts: string[] = [];
-    let element: Element | null = el;
-    while (element && element !== document.body) {
-      const parent: Element | null = element.parentElement;
-      if (!parent) break;
-      parts.unshift(stableSegment(element, parent));
-      element = parent;
-    }
-    return 'body > ' + parts.join(' > ');
+
+    return (el: Element): string => {
+      if (el === document.documentElement) return 'html';
+
+      if (el === document.body) return 'body';
+      const parts: Array<{ element: Element; segment: string }> = [];
+      let element: Element | null = el;
+
+      while (element && element !== document.body && !paths.has(element)) {
+        const parent: Element | null = element.parentElement;
+
+        if (!parent) break;
+        parts.push({ element, segment: stableSegment(element, parent) });
+        element = parent;
+      }
+
+      let path = (element && paths.get(element)) ?? 'body';
+      // Preserve the existing prefix even for detached elements.
+
+      if (!parts.length && !paths.has(el)) path += ' > ';
+
+      for (const part of parts.reverse()) {
+        path += ' > ' + part.segment;
+        paths.set(part.element, path);
+      }
+
+      return path;
+    };
   };
+  // Each synchronous reader owns its cache; standalone calls must see DOM mutations.
+  // SAFETY: this initializer installs both helpers on the page window.
+
+  const target = window as Window & WithPathOf;
+  target.__spCreatePathOf = createPathOf;
+  target.__spPathOf = (el) => createPathOf()(el);
 }
 
 export type CaptureArgs = {
@@ -145,7 +179,9 @@ export function capturePage({
   const inherited = new Set(pseudoReferences.inherited);
   const currentColor = new Set(pseudoReferences.currentColor);
   const BLOCK_CONTAINER = new Set(['block', 'inline-block', 'list-item', 'flow-root', 'table-cell', 'table-caption']);
-  const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
+  // SAFETY: injectPathOf installs both helpers before snapshot readers run.
+  const pathWindow = window as Window & WithPathOf;
+  const pathOf = pathWindow.__spCreatePathOf?.() ?? pathWindow.__spPathOf!;
 
   // Per-tag (and per-tag-per-pseudo) UA defaults from a stylesheet-free iframe prune the maps.
   const frame = document.createElement('iframe');
@@ -408,7 +444,9 @@ export function capturePageChanges({ key, args }: { key: string; args: CaptureAr
 export type SkipArgs = { skipSel: string };
 
 export function detectLiveCandidates({ skipSel }: SkipArgs): LiveRegionCandidate[] {
-  const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
+  // SAFETY: injectPathOf installs both helpers before snapshot readers run.
+  const pathWindow = window as Window & WithPathOf;
+  const pathOf = pathWindow.__spCreatePathOf?.() ?? pathWindow.__spPathOf!;
   const reasonsFor = (role: string, ariaLive: string, ariaBusy: string): string[] => {
     const reasons: string[] = [];
     if (ariaLive && ariaLive !== 'off') reasons.push(`aria-live=${ariaLive}`);
@@ -440,7 +478,9 @@ export function detectLiveCandidates({ skipSel }: SkipArgs): LiveRegionCandidate
 }
 
 export function detectOverlayCandidates({ skipSel }: SkipArgs): CapturedOverlay[] {
-  const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
+  // SAFETY: injectPathOf installs both helpers before snapshot readers run.
+  const pathWindow = window as Window & WithPathOf;
+  const pathOf = pathWindow.__spCreatePathOf?.() ?? pathWindow.__spPathOf!;
   const visible = (el: Element): boolean => {
     if ((el as HTMLElement).hidden || el.getAttribute('aria-hidden') === 'true') return false;
     const rect = el.getBoundingClientRect();
@@ -620,7 +660,9 @@ export function snapSubtree(
   const assertFrozen = (window as unknown as WithFreeze).__spAssertFrozen;
   assertFrozen?.();
   const target = root === undefined ? document.querySelector(selector) : root;
-  const pathOf = (window as unknown as Required<WithPathOf>).__spPathOf;
+  // SAFETY: injectPathOf installs both helpers before snapshot readers run.
+  const pathWindow = window as Window & WithPathOf;
+  const pathOf = pathWindow.__spCreatePathOf?.() ?? pathWindow.__spPathOf!;
   const stateWindow = window as unknown as Record<string, Record<string, Record<string, string>> | undefined>;
 
   if (!target || target.isConnected === false) return { delta: {}, truncated: true, scanned: 0 };
@@ -828,7 +870,9 @@ export type MarkedInteractive = { id: string; path: string };
  * `path` is empty when {@link injectPathOf} has not run (screenshot-only callers).
  */
 export function markInteractiveElements({ selector, skipSel, attr }: MarkArgs): MarkedInteractive[] {
-  const pathOf = (window as unknown as WithPathOf).__spPathOf ?? ((): string => '');
+  // SAFETY: screenshot-only callers may omit the injected helpers.
+  const pathWindow = window as Window & WithPathOf;
+  const pathOf = pathWindow.__spCreatePathOf?.() ?? pathWindow.__spPathOf ?? ((): string => '');
   let i = 0;
   return [...document.querySelectorAll(selector)].flatMap((el) => {
     if (skipSel && el.matches(skipSel)) return [];
