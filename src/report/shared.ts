@@ -54,6 +54,19 @@ export type RenderCtx = {
   requireStateIdentity: boolean;
 };
 
+/** The current surface's decoded screenshots, per render ctx: rendering visits one surface at a time. */
+const surfacePngs = new WeakMap<RenderCtx, { surface: string; files: Map<string, PNG | null> }>();
+
+function cachedPng(ctx: RenderCtx, surface: string, file: string): PNG | null {
+  let slot = surfacePngs.get(ctx);
+
+  if (slot?.surface !== surface) surfacePngs.set(ctx, (slot = { surface, files: new Map() }));
+
+  if (!slot.files.has(file)) slot.files.set(file, readPng(file));
+
+  return slot.files.get(file)!;
+}
+
 /** Load a pair with base paths aligned to the head for report presentation. */
 export function presentationMaps(ctx: RenderCtx, surface: string): [StyleMap, StyleMap] {
   const after = ctx.load(ctx.afterDir, surface);
@@ -64,8 +77,8 @@ export function presentationMaps(ctx: RenderCtx, surface: string): [StyleMap, St
 /** The before/after screenshots for a surface (`suffix` picks a forced-state layer). */
 export function screenshotPair(ctx: RenderCtx, surface: string, suffix = ''): [PNG | null, PNG | null] {
   return [
-    readPng(path.join(ctx.beforeDir, `${surface}${suffix}.png`)),
-    readPng(path.join(ctx.afterDir, `${surface}${suffix}.png`)),
+    cachedPng(ctx, surface, path.join(ctx.beforeDir, `${surface}${suffix}.png`)),
+    cachedPng(ctx, surface, path.join(ctx.afterDir, `${surface}${suffix}.png`)),
   ];
 }
 

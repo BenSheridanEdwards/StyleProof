@@ -10,6 +10,20 @@ import { containerOf, innermost } from './geometry.js';
 
 type PathMatches = { beforeToAfter: Map<string, string>; afterToBefore: Map<string, string> };
 
+const reconciled = new WeakMap<StyleMap, WeakMap<StyleMap, PathMatches>>();
+
+/** Report maps are read-only for a render, so one reconciliation per pair object is exact. */
+function memoizedReconcile(before: StyleMap, after: StyleMap): PathMatches {
+  let byAfter = reconciled.get(before);
+
+  if (!byAfter) reconciled.set(before, (byAfter = new WeakMap()));
+  let matches = byAfter.get(after);
+
+  if (!matches) byAfter.set(after, (matches = reconcilePaths(before, after)));
+
+  return matches;
+}
+
 const byName = (left: string, right: string): number => left.localeCompare(right, 'en');
 const byPath = (left: string, right: string): number => left.localeCompare(right, 'en', { numeric: true });
 const sortedProperties = (props: Record<string, string>): [string, string][] =>
@@ -145,7 +159,7 @@ export function annotationPaths(
   before: StyleMap,
   after: StyleMap,
 ): { before: string[]; after: string[] } {
-  const matches = reconcilePaths(before, after);
+  const matches = memoizedReconcile(before, after);
   const beforePaths = new Set<string>();
   const afterPaths = new Set<string>();
   for (const f of findings) {
