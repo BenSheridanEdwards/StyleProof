@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createCropBudget } from './report/crop-budget.js';
 import type { ChangeReachLevel } from './config.js';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
 import { collectStructureElevation, elevateReviewable, type StructureElevation } from './structure-elevation.js';
@@ -125,6 +126,9 @@ export type ReportOptions = {
   zoomBelow?: number;
   /** Max crop regions per surface before collapsing into one union crop (default 8). */
   maxCrops?: number;
+  /** Whole-report crop ceilings (default 60 files / 5_000_000 bytes). Zero disables crops. */
+  maxCropFiles?: number;
+  maxCropBytes?: number;
   /** Row count at which a crop's property tables fold under `<details>` (default 0 = always; Infinity = never). */
   foldDetailsAt?: number;
   /** Include size/position-derived longhands. Off by default: on a reflow they would anchor crops to the whole page. */
@@ -209,6 +213,7 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     maxHeight: opts.maxHeight ?? 1600,
     zoomBelow: opts.zoomBelow ?? 64,
     maxCrops: opts.maxCrops ?? 8,
+    crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 5_000_000),
     foldDetailsAt: opts.foldDetailsAt ?? 0,
     includeNoise: opts.includeLayoutNoise === true,
     requireStateIdentity: opts.requireStateIdentity === true,
@@ -569,6 +574,14 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfaceKeyOf,
   });
 
+  if (ctx.crops.omitted > 0) {
+    md.append([
+      '',
+      `_${ctx.crops.omitted} crop(s) omitted at the report crop budget ` +
+        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB); every change is still listed and counted in report.json._`,
+    ]);
+  }
+
   // Evidence (failures/warnings only) collapses by default under the fold.
   const certIssues = certificationLines(
     beforeDir,
@@ -604,6 +617,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // 4. Write report.md and report.json, and return the result.
   const paths = writeReportArtifacts({
     outDir,
+    crops: ctx.crops,
     htmlMaxBytes: opts.htmlMaxBytes,
     md: md.lines,
     gateMode,

@@ -21,6 +21,8 @@ const cli = defineCli({
     pad: { value: 'px', help: 'padding around changed rects when cropping (default: 12)' },
     'html-max-bytes': { value: 'bytes', help: 'self-contained HTML byte ceiling (default: 2000000)' },
     'max-crops': { value: 'n', help: 'max crop regions per surface before collapsing (default: 8)' },
+    'max-crop-files': { value: 'n', help: 'whole-report crop file ceiling (default: 60)' },
+    'max-crop-bytes': { value: 'bytes', help: 'whole-report crop byte ceiling (default: 5000000)' },
     'fold-details-at': {
       value: 'n',
       help: "row count at which a crop's property tables fold under a <details> toggle (default: 0 = always; 'Infinity' = never)",
@@ -55,6 +57,19 @@ if (!Number.isSafeInteger(htmlMaxBytes) || htmlMaxBytes <= 0) {
   console.error('--html-max-bytes must be a positive integer');
   process.exit(2);
 }
+
+const maxCropFiles = numeric('max-crop-files') ?? 60;
+const maxCropBytes = numeric('max-crop-bytes') ?? 5_000_000;
+
+for (const [flag, value] of [
+  ['max-crop-files', maxCropFiles],
+  ['max-crop-bytes', maxCropBytes],
+]) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    console.error(`--${flag} must be a non-negative safe integer`);
+    process.exit(2);
+  }
+}
 const migration = Boolean(opts.migration);
 const includeContent = Boolean(opts['include-content']);
 
@@ -67,6 +82,8 @@ const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs,
     pad: numeric('pad'),
     htmlMaxBytes,
     maxCrops: numeric('max-crops'),
+    maxCropFiles,
+    maxCropBytes,
     foldDetailsAt,
     minWidth: numeric('min-width'),
     minHeight: numeric('min-height'),

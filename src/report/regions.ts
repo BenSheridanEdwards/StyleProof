@@ -25,6 +25,7 @@ import {
   formatSurfaceWithContext,
   hasActiveModal,
   hasExposedChangedEntry,
+  presentationMaps,
   screenshotPair,
   shortElementName,
   type ChangeGroup,
@@ -145,7 +146,13 @@ type RegionArgs = {
   spacing: SiblingSpacingChange[];
 };
 
-type CropPack = { md: string[]; images: CropImages; visualEvidence?: 'not-rendered'; reason?: string };
+type CropPack = {
+  md: string[];
+  images: CropImages;
+  omitted?: boolean;
+  visualEvidence?: 'not-rendered';
+  reason?: string;
+};
 
 /** Crop one region's pair (or explain why there is none). */
 function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, state?: string): CropPack {
@@ -228,7 +235,7 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
 }
 
 /** One crop region: heading, resting crop, then each forced-state crop. */
-function renderRegion(a: RegionArgs): { md: string[]; regionJson: Record<string, unknown> } {
+function renderRegion(a: RegionArgs) {
   const { g, cg, ctx, describeCtx, surfaceList, region, pngs } = a;
   const regionFindings = cg.rep.findings.filter((f) => g.paths.some((root) => isSameOrDescendant(f.path, root)));
   const rest = regionFindings.filter((f) => f.kind !== 'state');
@@ -250,7 +257,8 @@ function renderRegion(a: RegionArgs): { md: string[]; regionJson: Record<string,
   }
   md.push(...section.trailing);
   const { visualEvidence, reason } = resting;
-  return {
+
+  const rendered = {
     md,
     regionJson: {
       paths: g.paths,
@@ -262,6 +270,10 @@ function renderRegion(a: RegionArgs): { md: string[]; regionJson: Record<string,
       ...spacingJson(a.spacing),
     },
   };
+
+  if (resting.omitted) Object.assign(rendered.regionJson, { cropOmitted: 'budget' });
+
+  return rendered;
 }
 
 export type RenderedGroup = { md: string[]; json: Record<string, unknown>; findingCount: number };
@@ -269,9 +281,8 @@ export type RenderedGroup = { md: string[]; json: Record<string, unknown>; findi
 /** One change group: its representative's crop regions (collapsed past maxCrops), top-to-bottom. */
 export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: number }): RenderedGroup {
   const { sd, findings } = cg.rep;
-  const mapB = ctx.load(ctx.afterDir, sd.surface);
   // Same correspondence rewrite as prepareReportSurfaces, so crops resolve corresponded head paths.
-  const mapA = presentationBeforeMap(ctx.load(ctx.beforeDir, sd.surface), mapB);
+  const [mapA, mapB] = presentationMaps(ctx, sd.surface);
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);

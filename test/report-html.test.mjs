@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { renderReportHtml } from '../dist/report/html.js';
 import { writeReportArtifacts } from '../dist/report/sections.js';
+import { createCropBudget } from '../dist/report/crop-budget.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -95,6 +96,7 @@ test('writeReportArtifacts emits report.html beside report.md and report.json (#
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-html-'));
   t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
   const paths = writeReportArtifacts({
+    crops: createCropBudget(60, 5_000_000),
     outDir,
     md: ['## report', '', 'one `change` here'],
     gateMode: 'certify',
