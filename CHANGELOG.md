@@ -7,6 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Keep parsed maps for the duration of a diff/report operation so catalogues larger than the 128-map process cache do not repeatedly decompress and parse every capture. Release the operation cache on success or failure; preserve file-change checks and comparison results.
 - Reuse parsed capture maps in a bounded 128-map diff/report process cache instead of reading each up to nine times; keep CI base-key scans uncached, and compute structure-elevation content changes once. Output unchanged; the public `loadStyleMap` still returns a fresh map.
 - Cap the report's crops at 60 files and 5,000,000 bytes across the whole report, configurable with `--max-crop-files` and `--max-crop-bytes`. Clip paired crops to 1280px wide and 1,024,000 pixels at 1:1; name budget omissions while keeping every change listed and counted.
 - Keep the default capture worker count on cold base checkouts with a separate Playwright install by inspecting config workers in an isolated process. Preserve explicit worker arguments, `STYLEPROOF_WORKERS`, and config worker settings.

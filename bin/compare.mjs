@@ -3,6 +3,7 @@
 // flags, trusted source SHAs, and the read-while-the-dirs-exist bracket.
 import fs from 'node:fs';
 import path from 'node:path';
+import { withStyleMapReadScope } from '../dist/capture/map-io.js';
 import { cachedMapsUnavailableMessage, missingManualCaptureMessage, projectConfigOrExit } from '../dist/cli-errors.js';
 import {
   loadStyleProofConfigWithLocation,
@@ -206,7 +207,8 @@ export function withCaptureDirs(name, inputs, read) {
       beforeSha: inputs.expectedBeforeSha,
       afterSha: inputs.expectedAfterSha,
     });
-    const result = read(sourceBinding);
+
+    const result = withStyleMapReadScope(() => read(sourceBinding));
     const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
     if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
       throw new Error(`capture evidence changed while ${name} was reading it`);

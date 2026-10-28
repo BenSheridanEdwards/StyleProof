@@ -438,6 +438,8 @@ Cold-base CI captures reuse the head’s StyleProof tarball or Git spec (local t
 
 If the map capture process is terminated by a signal, CI stops and cleans up its temporary worktrees. An interrupted baseline does not start a head dependency install or capture; the command exits with the signal's conventional exit code (130 for SIGINT, 143 for SIGTERM).
 
+Diff and report operations reuse parsed maps across their audits, including catalogues larger than the 128-map process cache. The operation cache is released on success or failure.
+
 Run `styleproof --help` for the whole journey or `styleproof <command> --help`
 for command-specific options. The existing `styleproof-*` binaries remain as
 backwards-compatible aliases for one major version.
