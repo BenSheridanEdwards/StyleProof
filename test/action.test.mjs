@@ -18,6 +18,95 @@ const publishBin = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-publ
 const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publish.ts'), 'utf8');
 const gitDataModule = fs.readFileSync(path.join(here, '..', 'src', 'github-git-data.ts'), 'utf8');
 
+test('artifact size step preserves receipts with tiny, zero and negative remaining budgets', (t) => {
+  const step = actionYml.match(/- name: Bound the artifact report size[\s\S]*?(?=\n\s{4}- id: publish)/);
+  assert.ok(step);
+
+  const program = step[0].match(/node --input-type=module <<'NODE'\n([\s\S]*?) {8}NODE/)[1].replace(/^ {8}/gm, '');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-budget-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const dir = path.join(root, 'styleproof-report');
+  fs.mkdirSync(dir);
+  const markdown = '# Receipt report\n';
+  const json = JSON.stringify({ receipt: 'x'.repeat(5000) });
+  fs.writeFileSync(path.join(dir, 'report.md'), markdown);
+  fs.writeFileSync(path.join(dir, 'report.json'), json);
+
+  for (const remaining of [100, 0, -100]) {
+    const child = spawnSync(process.execPath, ['--input-type=module'], {
+      input: program,
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_ACTION_PATH: path.join(here, '..'),
+        REPORT_STORAGE: 'artifact',
+        REPORT_MAX_BYTES: String(Buffer.byteLength(markdown + json) + remaining),
+      },
+    });
+
+    assert.equal(child.status, 0, child.stderr);
+    assert.match(fs.readFileSync(path.join(dir, 'report.html'), 'utf8'), /Receipt report/);
+
+    assert.equal(fs.readFileSync(path.join(dir, 'report.json'), 'utf8'), json);
+  }
+});
+
+test('artifact HTML can use a budget above 2 MB', (t) => {
+  const step = actionYml.match(/- name: Bound the artifact report size[\s\S]*?(?=\n\s{4}- id: publish)/)[0];
+  const program = step.match(/node --input-type=module <<'NODE'\n([\s\S]*?) {8}NODE/)[1].replace(/^ {8}/gm, '');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-large-budget-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const dir = path.join(root, 'styleproof-report');
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, 'report.md'), '# Large report\n' + 'Report text. '.repeat(180_000));
+  fs.writeFileSync(path.join(dir, 'report.json'), '{}');
+
+  const child = spawnSync(process.execPath, ['--input-type=module'], {
+    input: program,
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_ACTION_PATH: path.join(here, '..'),
+      REPORT_STORAGE: 'artifact',
+      REPORT_MAX_BYTES: '5000000',
+    },
+  });
+
+  assert.equal(child.status, 0, child.stderr);
+  assert.ok(fs.statSync(path.join(dir, 'report.html')).size > 2_000_000);
+});
+
+test('report generation only passes the budget in artifact mode', () => {
+  const step = actionYml.match(/- id: report\n[\s\S]*?node .*styleproof-report.mjs.*\n/)[0];
+  const script = step.split('      run: |\n')[1].replace(/^ {8}/gm, '');
+  const setup = script.slice(script.indexOf('report_budget_arguments=()'));
+
+  for (const storage of ['branch', 'artifact']) {
+    const child = spawnSync('bash', ['-c', 'node() { printf "%s\\n" "$@"; };\n' + setup], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_ACTION_PATH: '.',
+        STYLEPROOF_BASELINE_DIR: 'before',
+        STYLEPROOF_FRESH_DIR: 'after',
+        REPORT_STORAGE: storage,
+        REPORT_MAX_BYTES: 'invalid',
+        STYLEPROOF_EXPECTED_BASE_SHA: 'base',
+        STYLEPROOF_EXPECTED_HEAD_SHA: 'head',
+        STYLEPROOF_INCLUDE_CONTENT: 'false',
+        STYLEPROOF_REQUIRE_STATE_IDENTITY: 'false',
+        STYLEPROOF_MODE: 'advisory',
+      },
+    });
+
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(child.stdout.includes('--report-max-bytes'), storage === 'artifact');
+  }
+});
+
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
 }

@@ -237,7 +237,7 @@ ${body}
     page = page.replace(image[0], `<!-- image-${i} -->`);
   });
   const banner = (count: number) =>
-    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; report.json holds the full data.</p>`;
+    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; use the original diff input for full findings.</p>`;
   let remaining = maxBytes - Buffer.byteLength(page + banner(images.length) + captions.join(''));
   const rendered = [...captions];
   let omitted = images.length;
@@ -265,4 +265,26 @@ ${body}
     throw new Error('HTML byte budget cannot fit report text');
   }
   return page;
+}
+
+/** Preserve receipts when their remaining budget cannot hold the HTML text. */
+export function renderArtifactHtml(
+  markdown: string,
+  options: { outDir: string; maxBytes: number; receiptBytes: number; htmlMaxBytes?: number },
+): string {
+  const htmlMaxBytes = Math.min(options.htmlMaxBytes ?? 2_000_000, options.maxBytes);
+  const remaining = options.maxBytes - options.receiptBytes;
+
+  if (remaining > 0) {
+    try {
+      return renderReportHtml(markdown, { outDir: options.outDir, maxBytes: Math.min(htmlMaxBytes, remaining) });
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== 'HTML byte budget cannot fit report text') throw error;
+    }
+  }
+
+  return renderReportHtml(`${markdown}\n\n_Combined artifact byte budget exceeded to preserve report receipts._`, {
+    outDir: options.outDir,
+    maxBytes: htmlMaxBytes,
+  });
 }

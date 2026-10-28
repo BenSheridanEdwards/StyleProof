@@ -2166,7 +2166,7 @@ test('report CLI help states current crop defaults', () => {
   assert.match(r.stdout, /--pad <px>[\s\S]*default: 12/);
   assert.match(r.stdout, /--max-crops <n>[\s\S]*default: 8/);
   assert.match(r.stdout, /--max-crop-files <n>[^\n]*default: 60/);
-  assert.match(r.stdout, /--max-crop-bytes <bytes>[^\n]*default: 5000000/);
+  assert.match(r.stdout, /--max-crop-bytes <bytes>[^\n]*default: 900000/);
   assert.doesNotMatch(r.stdout, /default: 24/);
   assert.doesNotMatch(r.stdout, /default: 6\)/);
 });

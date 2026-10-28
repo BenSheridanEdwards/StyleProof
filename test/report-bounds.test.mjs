@@ -1648,7 +1648,7 @@ test('HTML inlines images offline and prioritizes new surfaces within its byte c
     const html = renderReportHtml(md, { outDir: root, maxBytes: 500_000 });
     assert.ok(Buffer.byteLength(html) <= 500_000);
     assert.match(html, /1 image omitted/);
-    assert.match(html, /report.json holds the full data/);
+    assert.match(html, /use the original diff input for full findings/);
     assert.doesNotMatch(html, /src="(?!data:)/);
     assert.match(html, /src="data:image\/png;base64,AQEB/);
     const full = renderReportHtml(md, { outDir: root, maxBytes: 1_000_000 });
@@ -1659,4 +1659,14 @@ test('HTML inlines images offline and prioritizes new surfaces within its byte c
   } finally {
     rmTmp(root);
   }
+});
+
+test('findings omissions survive replacement of an oversized Evidence tail', () => {
+  const report = new ReportMarkdown(1000);
+  report.lines.push('# Report');
+  const notice = ['', '_Finding rows omitted from report.json; use the original diff input._'];
+  report.finish(['Evidence'.repeat(1000)], notice);
+  assert.match(report.lines.join('\n'), /Finding rows omitted/);
+  assert.match(report.lines.join('\n'), /Evidence .* omitted/);
+  assert.ok(Buffer.byteLength(report.lines.join('\n')) <= 1000);
 });

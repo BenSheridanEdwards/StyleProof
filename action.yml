@@ -41,7 +41,7 @@ inputs:
     description: 'When to publish a report: on-change skips trusted clean runs without included content changes; always publishes every defined verdict, including clean runs.'
     default: 'on-change'
   report-max-bytes:
-    description: 'Maximum report.html bytes in artifact mode. Markdown and JSON receipts are excluded. Positive integer.'
+    description: 'Maximum combined bytes of report.html, report.md and report.json in artifact mode; html gets what md and json leave. Positive integer.'
     default: '2000000'
   report-retention-days:
     description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer in either storage mode; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
@@ -326,6 +326,8 @@ runs:
     - id: report
       shell: bash
       env:
+        REPORT_STORAGE: ${{ inputs.report-storage }}
+        REPORT_MAX_BYTES: ${{ inputs.report-max-bytes }}
         STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
         STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
         STYLEPROOF_EXPECTED_BASE_SHA: ${{ steps.context.outputs.base-sha }}
@@ -336,6 +338,10 @@ runs:
       run: |
         set -euo pipefail
         rm -rf styleproof-report
+        report_budget_arguments=()
+        if [ "$REPORT_STORAGE" = artifact ]; then
+          report_budget_arguments+=(--report-max-bytes "$REPORT_MAX_BYTES")
+        fi
         report_content_arguments=()
         state_identity_arguments=()
         trusted_sha_arguments=()
@@ -362,7 +368,7 @@ runs:
           *) echo "mode must be certify, review-gate, migration, or advisory" >&2; exit 2 ;;
         esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "$STYLEPROOF_BASELINE_DIR" "$STYLEPROOF_FRESH_DIR" --out styleproof-report ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "$STYLEPROOF_BASELINE_DIR" "$STYLEPROOF_FRESH_DIR" --out styleproof-report ${report_budget_arguments[@]+"${report_budget_arguments[@]}"} ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
@@ -776,15 +782,25 @@ runs:
         node --input-type=module <<'NODE'
         import fs from 'node:fs';
         import { pathToFileURL } from 'node:url';
-        const { renderReportHtml } = await import(pathToFileURL(`${process.env.GITHUB_ACTION_PATH}/dist/report/html.js`));
+
+        const { renderReportHtml, renderArtifactHtml } = await import(pathToFileURL(`${process.env.GITHUB_ACTION_PATH}/dist/report/html.js`));
         const dir = 'styleproof-report';
-        const options = process.env.REPORT_STORAGE === 'branch' ? undefined : { outDir: dir, maxBytes: Number(process.env.REPORT_MAX_BYTES) };
+        const markdown = fs.readFileSync(`${dir}/report.md`, 'utf8');
         let html;
+
         try {
-          html = renderReportHtml(fs.readFileSync(`${dir}/report.md`, 'utf8'), options);
+          html = process.env.REPORT_STORAGE === 'branch'
+            ? renderReportHtml(markdown)
+            : renderArtifactHtml(markdown, {
+                outDir: dir,
+                maxBytes: Number(process.env.REPORT_MAX_BYTES),
+                htmlMaxBytes: Number(process.env.REPORT_MAX_BYTES),
+                receiptBytes: fs.statSync(`${dir}/report.md`).size + fs.statSync(`${dir}/report.json`).size,
+              });
         } catch (error) {
           throw new Error(`report-max-bytes: ${error.message}; increase the budget`);
         }
+
         fs.writeFileSync(`${dir}/report.html`, html);
         NODE
 

@@ -4,7 +4,7 @@
 // Exit 0 = no changes, 1 = report generated, 2 = usage error.
 import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
-import { renderReportHtml } from '../dist/report/html.js';
+import { renderArtifactHtml } from '../dist/report/html.js';
 import { defineCli, exitWhenDrained, number } from './cli.mjs';
 import { compareFlags, coverageExclusions, resolveCompareInputs, withCaptureDirs } from './compare.mjs';
 
@@ -19,10 +19,11 @@ const cli = defineCli({
     out: { value: 'dir', help: 'output directory', default: 'styleproof-report' },
     'image-base-url': { value: 'url', help: 'prefix for image URLs in report.md (default: relative)' },
     pad: { value: 'px', help: 'padding around changed rects when cropping (default: 12)' },
+    'report-max-bytes': { value: 'bytes', help: 'combined HTML, Markdown and JSON byte ceiling (default: 2000000)' },
     'html-max-bytes': { value: 'bytes', help: 'self-contained HTML byte ceiling (default: 2000000)' },
     'max-crops': { value: 'n', help: 'max crop regions per surface before collapsing (default: 8)' },
     'max-crop-files': { value: 'n', help: 'whole-report crop file ceiling (default: 60)' },
-    'max-crop-bytes': { value: 'bytes', help: 'whole-report crop byte ceiling (default: 5000000)' },
+    'max-crop-bytes': { value: 'bytes', help: 'whole-report crop byte ceiling (default: 900000)' },
     'fold-details-at': {
       value: 'n',
       help: "row count at which a crop's property tables fold under a <details> toggle (default: 0 = always; 'Infinity' = never)",
@@ -58,8 +59,15 @@ if (!Number.isSafeInteger(htmlMaxBytes) || htmlMaxBytes <= 0) {
   process.exit(2);
 }
 
+const maxArtifactBytes = numeric('report-max-bytes') ?? 2_000_000;
+
+if (!Number.isSafeInteger(maxArtifactBytes) || maxArtifactBytes <= 0) {
+  console.error('--report-max-bytes must be a positive integer');
+  process.exit(2);
+}
+
 const maxCropFiles = numeric('max-crop-files') ?? 60;
-const maxCropBytes = numeric('max-crop-bytes') ?? 5_000_000;
+const maxCropBytes = numeric('max-crop-bytes') ?? 900_000;
 
 for (const [flag, value] of [
   ['max-crop-files', maxCropFiles],
@@ -81,6 +89,8 @@ const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs,
     imageBaseUrl: opts['image-base-url'] || undefined,
     pad: numeric('pad'),
     htmlMaxBytes,
+    deferHtml: true,
+    maxArtifactBytes,
     maxCrops: numeric('max-crops'),
     maxCropFiles,
     maxCropBytes,
@@ -117,11 +127,22 @@ if (sourceBindingFailed) {
   const labeled =
     relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled;
   fs.writeFileSync(result.reportMdPath, labeled);
-  // report.html was rendered from the unlabelled markdown; render it again so both carry the label (#964).
+}
+// Bindings and diagnostic labels change sibling sizes; use their final bytes.
+
+try {
   fs.writeFileSync(
     result.reportHtmlPath,
-    renderReportHtml(labeled.replace(/\n$/, ''), { outDir: opts.out, maxBytes: htmlMaxBytes }),
+    renderArtifactHtml(fs.readFileSync(result.reportMdPath, 'utf8').replace(/\n$/, ''), {
+      outDir: opts.out,
+      htmlMaxBytes,
+      maxBytes: maxArtifactBytes,
+      receiptBytes: fs.statSync(result.reportMdPath).size + fs.statSync(result.reportJsonPath).size,
+    }),
   );
+} catch (error) {
+  console.error(`report-max-bytes: ${error.message}; increase the budget`);
+  process.exit(2);
 }
 
 const consistencyFailed = result.reportConsistency?.ok === false;

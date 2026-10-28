@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { PNG } from 'pngjs';
+import { createCropBudget, cropBudgetNote, writeBudgetedPng } from '../dist/report/crop-budget.js';
 import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
 import { tmpDirs, makeMap, writeCapture, solidPng, rmTmp } from './helpers.mjs';
 
@@ -113,6 +114,13 @@ test('whole-report crop budget preserves findings and certification', async (t) 
     }
   });
 
+  await t.test('zero bytes disables crops and preserves findings', () => {
+    const capped = report(dirs, 'zero-bytes', { maxCropBytes: 0 });
+    assert.deepEqual(capped.files, []);
+    assert.match(capped.md, /Crop omitted: the report reached its crop budget/);
+    sameFindings(capped, full);
+  });
+
   await t.test('zero files keeps the allowed one-sided shape and announces the omission', () => {
     const capped = report(dirs, 'zero', { maxCropFiles: 0 });
     assert.deepEqual(capped.files, []);
@@ -172,4 +180,44 @@ test('clean maps write no crops or crop-budget metadata', (t) => {
   assert.deepEqual(clean.files, []);
   assert.equal(Object.hasOwn(clean.json, 'cropBudget'), false);
   assert.equal(clean.result.totalFindings, 0);
+});
+
+test('an oversized one-sided tile does not block a later small tile', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  fs.mkdirSync(dirs.beforeDir);
+  const png = PNG.sync.read(noisePng(400, 801, 1));
+  png.data.fill(255, 400 * 800 * 4);
+  const map = { ...surfaceMap(0, 0), viewport: { width: 400, height: 800 } };
+  writeCapture(dirs.afterDir, 'new@400', map, PNG.sync.write(png));
+  const capped = report(dirs, 'partial', { maxCropBytes: 100 });
+  assert.equal(capped.files.length, 1);
+  assert.match(capped.files[0], /new-2/);
+  assert.doesNotMatch(capped.md, /the report reached its crop budget/);
+});
+
+test('a crop rejected after downscaling names the report byte limit and leaves room for smaller crops', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  const crops = createCropBudget(60, 100);
+  const ctx = { outDir: dirs.root, crops };
+  assert.equal(writeBudgetedPng(ctx, 'large.png', PNG.sync.read(noisePng(400, 400, 1))), false);
+  assert.equal(crops.exhausted, false);
+  assert.match(cropBudgetNote(crops), /report byte limit after downscaling/);
+  assert.doesNotMatch(cropBudgetNote(crops), /reached its crop budget/);
+  assert.equal(writeBudgetedPng(ctx, 'small.png', PNG.sync.read(solidPng(1, 1))), true);
+});
+
+test('zero crop bytes skips encoding and reports an exhausted budget', () => {
+  const crops = createCropBudget(60, 0);
+
+  const png = {
+    get width() {
+      throw new Error('disabled crops must not be encoded');
+    },
+  };
+
+  assert.equal(writeBudgetedPng({ crops }, 'disabled.png', png), false);
+  assert.equal(crops.exhausted, true);
+  assert.match(cropBudgetNote(crops), /reached its crop budget/);
 });

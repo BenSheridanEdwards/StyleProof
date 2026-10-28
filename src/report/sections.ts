@@ -9,7 +9,7 @@ import { chromeSpanLabel, safeKey, surfaceBase } from '../change-groups.js';
 import { cropPng, cropStem, readPng } from './png.js';
 import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
-import { renderReportHtml } from './html.js';
+import { renderArtifactHtml } from './html.js';
 import type { DigestRow } from './digest.js';
 import type { ReportReach } from './reach.js';
 import { renderChangeGroup } from './regions.js';
@@ -60,7 +60,9 @@ function writeOneSidedTiles(ctx: RenderCtx, png: PNG, surface: string, tileHeigh
 
     if (!writeBudgetedPng(ctx, `${stem}.png`, cropPng(png, { x: 0, y: top, w: png.width, h }, png.width, h).png)) {
       ctx.crops.omitted++;
-      break;
+
+      if (ctx.crops.exhausted) break;
+      continue;
     }
     tiles.push({ stem, top, bottom: top + h });
   }
@@ -72,14 +74,17 @@ function oneSidedTileLines(ctx: RenderCtx, tiles: Tile[], capturedHeight: number
   const md: string[] = [];
   tiles.forEach((t, i) => {
     const part =
-      tiles.length > 1 ? ` · part ${i + 1} of ${tiles.length} · ${t.top}–${t.bottom} of ${capturedHeight}px` : '';
+      tiles.length > 1 || t.top > 0
+        ? ` · part ${i + 1} of ${tiles.length} · ${t.top}–${t.bottom} of ${capturedHeight}px`
+        : '';
     md.push('', `![${alt}](${ctx.img(`${t.stem}.png`)})`, '', `<sub>${caption}${part}</sub>`);
   });
-  const shown = tiles[tiles.length - 1].bottom;
+  const shown = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
+  const omittedPosition = tiles[0].top === 0 && shown === tiles[tiles.length - 1].bottom ? ' below' : '';
   if (shown < capturedHeight) {
     md.push(
       '',
-      `_⚠️ Page capped: showing ${shown} of ${capturedHeight}px — the remaining ${capturedHeight - shown}px below are ` +
+      `_⚠️ Page capped: showing ${shown} of ${capturedHeight}px — the remaining ${capturedHeight - shown}px${omittedPosition} are ` +
         `not shown in this report, so approving this surface accepts content not reviewed here._`,
     );
   }
@@ -119,7 +124,7 @@ function renderOneSided(
       json.image = `${tiles[0].stem}.png`;
       // Additive (#756): every tile, and how much of the captured height they show.
       json.images = tiles.map((t) => `${t.stem}.png`);
-      json.shownHeight = tiles[tiles.length - 1].bottom;
+      json.shownHeight = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
       json.capturedHeight = png.height;
     } else {
       md.push('', cropBudgetNote(ctx.crops));
@@ -155,7 +160,7 @@ function cappedNoticeLines(budget: number): string[] {
     '',
     `_This report reached its ~${Math.round(budget / 1000)} KB display budget (GitHub does not render ` +
       `markdown past ~512 KB), so the surfaces below are listed as one-liners. Their full property ` +
-      `tables are in \`report.json\` and their crops in \`crops/\` — the certification above covers every ` +
+      `tables remain in the original diff input; available crops are in \`crops/\` — the certification above covers every ` +
       `surface; only the inline detail is capped._`,
     '',
   ];
@@ -163,7 +168,11 @@ function cappedNoticeLines(budget: number): string[] {
 
 /** The shorter cap notice, for budgets too small for cappedNoticeLines. */
 function omittedNoticeLines(budget: number): string[] {
-  return ['', `_Inline detail omitted at the ${budget}-byte display budget; full data is in \`report.json\`._`, ''];
+  return [
+    '',
+    `_Inline detail omitted at the ${budget}-byte display budget; use the original diff input for full data._`,
+    '',
+  ];
 }
 
 /** One-liner for a budget-capped change group: name · change count · crop link. */
@@ -176,7 +185,7 @@ function compactChangeSummary(ctx: RenderCtx, cg: ChangeGroup, json: Record<stri
 
 /** The closing count for summaries that no longer fit (#953). */
 function moreSectionsLines(n: number): string[] {
-  return ['', `_…and ${n} more section(s) not listed here — full data is in \`report.json\`._`];
+  return ['', `_…and ${n} more section(s) not listed here — use the original diff input for full data._`];
 }
 
 /** Stands in for an Evidence block too large for the budget, so it is never dropped silently. */
@@ -196,7 +205,7 @@ type Block = { full: string[]; summary?: string };
  * written as queued; otherwise full detail runs while it leaves room for the cap
  * notice, a closing count and the Evidence tail, each remaining section becomes its
  * one-line summary, and summaries that no longer fit are counted (the data stays in
- * report.json and crops/). An Evidence tail too large for that is replaced by a
+ * the original diff input). An Evidence tail too large for that is replaced by a
  * one-line stand-in.
  */
 export class ReportMarkdown {
@@ -220,12 +229,13 @@ export class ReportMarkdown {
   }
 
   /** Lay out the queued sections, then the tail (the Evidence block), inside the budget. */
-  finish(tail: string[]): void {
+  finish(evidence: string[], notices: string[] = []): void {
+    let tail = [...notices, ...evidence];
     if (this.push([...this.blocks.flatMap((b) => b.full), ...tail], 0)) return;
     const count = addedBytes(moreSectionsLines(this.summariesFrom(0)));
     // Evidence that leaves no room for the short notice and the count gives way to a stand-in line.
     if (!this.fits(tail, addedBytes(omittedNoticeLines(this.maxBytes)) + count)) {
-      tail = evidenceOmittedLines(this.maxBytes);
+      tail = [...notices, ...evidenceOmittedLines(this.maxBytes)];
     }
     const closing = count + addedBytes(tail);
     const dropped = this.layOutCapped(closing);
@@ -376,6 +386,9 @@ export type ReportArtifacts = Pick<
 > & {
   outDir: string;
   htmlMaxBytes?: number;
+  deferHtml?: boolean;
+  maxJsonBytes?: number;
+  maxArtifactBytes?: number;
   crops: CropBudget;
   md: string[];
   gateMode: NonNullable<ReportOptions['gateMode']>;
@@ -399,19 +412,8 @@ export type ReportArtifacts = Pick<
   reach?: ReportReach;
 };
 
-/** Write report.md, report.json, and report.html. The JSON key order is a byte-stable contract. */
-export function writeReportArtifacts(a: ReportArtifacts): {
-  reportMdPath: string;
-  reportJsonPath: string;
-  reportHtmlPath: string;
-} {
-  const reportMdPath = path.join(a.outDir, 'report.md');
-  const reportJsonPath = path.join(a.outDir, 'report.json');
-  const reportHtmlPath = path.join(a.outDir, 'report.html');
-  fs.writeFileSync(reportMdPath, a.md.length > 0 ? `${a.md.join('\n')}\n` : '');
-  // The rendered sibling of report.md: artifact storage and local output ship
-  // no rendered view, so the review surface travels inside the package (#698).
-  fs.writeFileSync(reportHtmlPath, renderReportHtml(a.md.join('\n'), { outDir: a.outDir, maxBytes: a.htmlMaxBytes }));
+/** Build the JSON before finishing Markdown, so its omissions can be disclosed inside the cap. */
+export function buildReportJson(a: ReportArtifacts) {
   const json = {
     gateMode: a.gateMode,
     counts: a.counts,
@@ -459,6 +461,72 @@ export function writeReportArtifacts(a: ReportArtifacts): {
       },
     });
   }
-  fs.writeFileSync(reportJsonPath, JSON.stringify(json, null, 2));
+
+  return capFindings(json, a.maxJsonBytes ?? 450_000);
+}
+
+function capFindings(json: Pick<ReportArtifacts, 'surfaces'>, maxBytes: number) {
+  const unchanged = { json, findingsOmitted: { rows: 0, groups: 0 } };
+
+  if (Buffer.byteLength(JSON.stringify(json, null, 2)) <= maxBytes) return unchanged;
+
+  const surfaces = json.surfaces.map((s) =>
+    Array.isArray(s.findings) && s.findings.length > 0 ? { ...s, findings: [], findingsOmitted: s.findings.length } : s,
+  );
+
+  const total = surfaces.reduce((n, s) => n + (Number(s.findingsOmitted) || 0), 0);
+  const findingsBudget = { maxBytes, listed: 0, omitted: total, total };
+  const capped = { ...json, surfaces, findingsBudget };
+  const fits = () => Buffer.byteLength(JSON.stringify(capped, null, 2)) <= maxBytes;
+  // Untrimmable metadata and one-sided entries must survive even when the skeleton cannot fit.
+
+  if (!fits())
+    return {
+      json: capped,
+      findingsOmitted: { rows: total, groups: surfaces.filter((s) => s.findingsOmitted).length },
+    };
+
+  for (const [i, original] of json.surfaces.entries()) {
+    if (!Array.isArray(original.findings)) continue;
+    const skeleton = surfaces[i];
+    surfaces[i] = original;
+    findingsBudget.listed += original.findings.length;
+    findingsBudget.omitted -= original.findings.length;
+
+    if (fits()) continue;
+    surfaces[i] = skeleton;
+    findingsBudget.listed -= original.findings.length;
+    findingsBudget.omitted += original.findings.length;
+    break;
+  }
+
+  return {
+    json: capped,
+    findingsOmitted: { rows: findingsBudget.omitted, groups: surfaces.filter((s) => s.findingsOmitted).length },
+  };
+}
+
+/** Write the three siblings within one artifact budget. */
+export function writeReportArtifacts(a: ReportArtifacts, json = buildReportJson(a).json) {
+  const reportMdPath = path.join(a.outDir, 'report.md');
+  const reportJsonPath = path.join(a.outDir, 'report.json');
+  const reportHtmlPath = path.join(a.outDir, 'report.html');
+  const markdown = a.md.length > 0 ? `${a.md.join('\n')}\n` : '';
+  const serialized = JSON.stringify(json, null, 2);
+
+  fs.writeFileSync(reportMdPath, markdown);
+  fs.writeFileSync(reportJsonPath, serialized);
+
+  if (!a.deferHtml) {
+    fs.writeFileSync(
+      reportHtmlPath,
+      renderArtifactHtml(a.md.join('\n'), {
+        outDir: a.outDir,
+        maxBytes: a.maxArtifactBytes ?? 2_000_000,
+        htmlMaxBytes: a.htmlMaxBytes,
+        receiptBytes: Buffer.byteLength(markdown) + Buffer.byteLength(serialized) + 256,
+      }),
+    );
+  }
   return { reportMdPath, reportJsonPath, reportHtmlPath };
 }

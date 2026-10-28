@@ -67,6 +67,8 @@ const EMPTY_ARRAY_ENVIRONMENT = {
   // Both defaults produce EMPTY argument arrays — the exact configuration that
   // broke every macOS consumer.
   STYLEPROOF_REQUIRE_STATE_IDENTITY: 'false',
+  REPORT_STORAGE: 'artifact',
+  REPORT_MAX_BYTES: '2000000',
   STYLEPROOF_INCLUDE_CONTENT: 'false',
   STYLEPROOF_MODE: 'certify', // default mode produces empty migration_arguments array
   STYLEPROOF_EXPECTED_BASE_SHA: 'a'.repeat(40),

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { renderReportHtml } from '../dist/report/html.js';
+import { renderArtifactHtml, renderReportHtml } from '../dist/report/html.js';
 import { writeReportArtifacts } from '../dist/report/sections.js';
 import { createCropBudget } from '../dist/report/crop-budget.js';
 
@@ -218,4 +218,15 @@ test('report.html does not open a code span at a backslash-escaped backtick', ()
 test('text overflow preserves the verdict rather than replacing it with a truncation notice', () => {
   const md = '## STYLE_REVIEW_REQUIRED\n\n' + 'review this change '.repeat(300);
   assert.throws(() => renderReportHtml(md, { outDir: here, maxBytes: 3000 }), /cannot fit report text/);
+});
+
+test('HTML announces when preserved receipts exceed the combined artifact budget', () => {
+  const html = renderArtifactHtml('# Report', { outDir: '.', maxBytes: 10000, receiptBytes: 10000 });
+  assert.match(html, /Combined artifact byte budget exceeded to preserve report receipts/);
+});
+
+test('omitted HTML images do not promise complete findings in capped JSON', () => {
+  const html = renderReportHtml('![Crop](crops/missing.png)', { outDir: '.', maxBytes: 10000 });
+  assert.match(html, /1 image omitted/);
+  assert.doesNotMatch(html, /report.json holds the full data/);
 });
