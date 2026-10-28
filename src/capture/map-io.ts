@@ -61,6 +61,19 @@ function parseStyleMap(filePath: string, limits: StyleMapReadLimits = {}): Style
 
 const MAX_SHARED_MAPS = 128;
 const sharedMaps = new Map<string, { id: string; map: StyleMap }>();
+let scopedMaps: typeof sharedMaps | undefined;
+
+/** Retain maps across a synchronous compare's audit passes; release them even if a reader throws. */
+export function withStyleMapReadScope<T>(read: () => T): T {
+  if (scopedMaps) return read();
+  scopedMaps = new Map();
+
+  try {
+    return read();
+  } finally {
+    scopedMaps = undefined;
+  }
+}
 
 function fileIdentity(filePath: string): string | undefined {
   try {
@@ -95,14 +108,19 @@ export function loadSharedStyleMap(filePath: string): StyleMap {
 
   if (id === undefined) return parseStyleMap(filePath);
   const key = path.resolve(filePath);
-  const cached = sharedMaps.get(key);
+  const cached = scopedMaps?.get(key) ?? sharedMaps.get(key);
 
-  if (cached?.id === id) return cached.map;
+  if (cached?.id === id) {
+    scopedMaps?.set(key, cached);
+
+    return cached.map;
+  }
   const map = deepFreeze(parseStyleMap(filePath));
 
   if (fileIdentity(filePath) === id) {
     sharedMaps.delete(key);
     sharedMaps.set(key, { id, map });
+    scopedMaps?.set(key, { id, map });
 
     if (sharedMaps.size > MAX_SHARED_MAPS) sharedMaps.delete(sharedMaps.keys().next().value!);
   }

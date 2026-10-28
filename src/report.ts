@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createCropBudget } from './report/crop-budget.js';
 import type { ChangeReachLevel } from './config.js';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
+import { withStyleMapReadScope } from './capture/map-io.js';
 import { collectStructureElevation, elevateReviewable, type StructureElevation } from './structure-elevation.js';
 import { readBaselineProvenance, type BaselineFailureReceipt } from './map-store.js';
 import {
@@ -670,10 +671,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
 
 /** Generate the public report. Navigable Global chrome (#766) and visible paired-surface add/remove elevate; invisible structure and pure text stay advisory. */
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
-  return generateStyleMapReportInternal(opts, false);
+  return withStyleMapReadScope(() => generateStyleMapReportInternal(opts, false));
 }
 
 /** @internal Retains direct coverage of the low-level structural renderer. */
 export function generateStructuralStyleMapReportForTesting(opts: ReportOptions): ReportResult {
-  return generateStyleMapReportInternal(opts, true);
+  return withStyleMapReadScope(() => generateStyleMapReportInternal(opts, true));
 }

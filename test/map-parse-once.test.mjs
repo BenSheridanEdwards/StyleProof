@@ -11,7 +11,9 @@ import { MAP_MANIFEST } from '../dist/map-store.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { collectStructureElevation } from '../dist/structure-elevation.js';
 import { generateStructuralStyleMapReportForTesting as generateReport } from '../dist/report.js';
+import { generateStyleMapReport } from '../dist/report.js';
 import { readCompareEvidence } from '../bin/diff/read.mjs';
+import { withCaptureDirs } from '../bin/compare.mjs';
 import { mkTmp, rmTmp, makeMap, writeCapture, fixtureCompatibilityKey } from './helpers.mjs';
 
 const BUTTON = 'body > main > button';
@@ -89,7 +91,7 @@ function fixture(t) {
   return { root, beforeDir, afterDir, maps };
 }
 
-function countMapReads(t, maps) {
+function countMapReads(t, maps, expected = 1) {
   const open = t.mock.method(fs, 'openSync');
 
   return () => {
@@ -97,8 +99,8 @@ function countMapReads(t, maps) {
     open.mock.restore();
     assert.deepEqual(
       counts,
-      maps.map((file) => [file, 1]),
-      'each capture must be opened exactly once',
+      maps.map((file) => [file, expected]),
+      `each capture must be opened exactly ${expected} time(s)`,
     );
   };
 }
@@ -142,6 +144,65 @@ test('report opens each map once across repeated reports in one process', (t) =>
   const second = reportEvidence(dirs, path.join(dirs.root, 'report-2'));
   assert.deepEqual(second, first);
   assertReads();
+});
+
+test('large no-change catalogue reports parse each capture once and still catch injected changes', async (t) => {
+  for (const mode of ['nochange', 'css', 'element']) {
+    await t.test(mode, (t) => {
+      const dirs = fixture(t);
+
+      for (const file of dirs.maps) fs.unlinkSync(file);
+      const files = [];
+
+      for (let index = 0; index < 265; index++) {
+        for (const dir of [dirs.beforeDir, dirs.afterDir]) {
+          const map = makeMap({
+            elements: {
+              [BUTTON]: { tag: 'button', rect: [20, 80, 100, 40], style: { color: 'gray' } },
+            },
+          });
+
+          if (dir === dirs.afterDir && index === 264) {
+            if (mode === 'css') map.elements[BUTTON].style.color = 'blue';
+
+            if (mode === 'element') map.elements[ADDED] = { tag: 'p', cls: '', rect: [20, 150, 100, 40], style: {} };
+          }
+
+          const surface = `example-${index}@1280`;
+          writeCapture(dir, surface, map);
+          files.push(path.join(dir, `${surface}.json.gz`));
+        }
+      }
+
+      const assertReads = countMapReads(t, files);
+      const result = generateStyleMapReport({ ...dirs, outDir: path.join(dirs.root, 'report') });
+      assert.equal(result.comparison.hasReviewableEvidence, mode !== 'nochange');
+      assert.equal(result.comparison.blocksCertification, false);
+      assert.equal(result.totalFindings, mode === 'css' ? 1 : 0);
+      assert.equal(result.comparison.reviewableCounts.dom, mode === 'element' ? 1 : 0);
+      assertReads();
+
+      // The CLI bracket hashes every file before and after reading: two receipt reads plus one parse.
+      const assertDiffReads = countMapReads(t, files, 3);
+
+      const evidence = withCaptureDirs('styleproof-diff', dirs, () => {
+        const evidence = readCompareEvidence('styleproof-diff', dirs, { migration: false, pixels: false });
+
+        const elevation = collectStructureElevation({
+          ...dirs,
+          migration: false,
+          surfacePaths: evidence.surfacePaths,
+          surfaceKeyOf: evidence.surfaceKeyOf,
+        });
+
+        return { ...evidence, elevation };
+      });
+
+      assert.equal(evidence.result.counts.style, mode === 'css' ? 1 : 0);
+      assert.equal(evidence.elevation.dom, mode === 'element' ? 1 : 0);
+      assertDiffReads();
+    });
+  }
 });
 
 test('warm and cold paths produce identical report digests, verdicts and diffs', (t) => {
@@ -277,6 +338,34 @@ test('shared loader evicts old maps after 128 distinct captures', (t) => {
   }
 
   assert.notStrictEqual(mapIO.loadSharedStyleMap(firstFile), first);
+});
+
+test('read scopes retain maps through nested readers and release them after success or failure', (t) => {
+  const dirs = fixture(t);
+  const firstFile = dirs.maps[0];
+
+  for (const fail of [false, true]) {
+    let first;
+
+    const read = () =>
+      mapIO.withStyleMapReadScope(() => {
+        first = mapIO.loadSharedStyleMap(firstFile);
+        mapIO.withStyleMapReadScope(() => {
+          for (let index = 0; index < 129; index++) {
+            const file = path.join(dirs.root, `scoped-${index}.json`);
+            fs.writeFileSync(file, JSON.stringify(makeMap()));
+            mapIO.loadSharedStyleMap(file);
+          }
+        });
+        assert.strictEqual(mapIO.loadSharedStyleMap(firstFile), first);
+
+        if (fail) throw new Error('reader failed');
+      });
+
+    if (fail) assert.throws(read, /reader failed/);
+    else read();
+    assert.notStrictEqual(mapIO.loadSharedStyleMap(firstFile), first);
+  }
 });
 
 test('authoring key scans do not retain parsed base maps', (t) => {
