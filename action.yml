@@ -776,16 +776,22 @@ runs:
         node --input-type=module <<'NODE'
         import fs from 'node:fs';
         import { pathToFileURL } from 'node:url';
+
         const { renderReportHtml } = await import(pathToFileURL(`${process.env.GITHUB_ACTION_PATH}/dist/report/html.js`));
         const dir = 'styleproof-report';
-        const options = process.env.REPORT_STORAGE === 'branch' ? undefined : { outDir: dir, maxBytes: Number(process.env.REPORT_MAX_BYTES) - fs.statSync(`${dir}/report.md`).size - fs.statSync(`${dir}/report.json`).size };
+        const remainingBytes = Number(process.env.REPORT_MAX_BYTES) - fs.statSync(`${dir}/report.md`).size - fs.statSync(`${dir}/report.json`).size;
+
+        // Preserve pre-existing JSON receipts even when they exceed the artifact budget.
+        const options = process.env.REPORT_STORAGE === 'branch' ? undefined : { outDir: dir, maxBytes: remainingBytes > 0 ? remainingBytes : Number(process.env.REPORT_MAX_BYTES) };
         let html;
+
         try {
           if (options && options.maxBytes <= 0) throw new Error('HTML byte budget cannot fit report text');
           html = renderReportHtml(fs.readFileSync(`${dir}/report.md`, 'utf8'), options);
         } catch (error) {
           throw new Error(`report-max-bytes: ${error.message}; increase the budget`);
         }
+
         fs.writeFileSync(`${dir}/report.html`, html);
         NODE
 
