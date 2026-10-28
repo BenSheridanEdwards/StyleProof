@@ -196,14 +196,14 @@ test('an oversized one-sided tile does not block a later small tile', (t) => {
   assert.doesNotMatch(capped.md, /the report reached its crop budget/);
 });
 
-test('a crop rejected after downscaling names the image limit and leaves room for smaller crops', (t) => {
+test('a crop rejected after downscaling names the report byte limit and leaves room for smaller crops', (t) => {
   const dirs = tmpDirs();
   t.after(() => rmTmp(dirs.root));
   const crops = createCropBudget(60, 100);
   const ctx = { outDir: dirs.root, crops };
   assert.equal(writeBudgetedPng(ctx, 'large.png', PNG.sync.read(noisePng(400, 400, 1))), false);
   assert.equal(crops.exhausted, false);
-  assert.match(cropBudgetNote(crops), /per-file size limit after downscaling/);
+  assert.match(cropBudgetNote(crops), /report byte limit after downscaling/);
   assert.doesNotMatch(cropBudgetNote(crops), /reached its crop budget/);
   assert.equal(writeBudgetedPng(ctx, 'small.png', PNG.sync.read(solidPng(1, 1))), true);
 });

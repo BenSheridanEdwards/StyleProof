@@ -167,6 +167,7 @@ function actionEnvironment(captures, outputs) {
     STYLEPROOF_BASELINE_DIR: captures.before,
     STYLEPROOF_FRESH_DIR: captures.after,
     STYLEPROOF_REQUIRE_STATE_IDENTITY: 'true',
+    REPORT_STORAGE: 'artifact',
     REPORT_MAX_BYTES: '2000000',
     STYLEPROOF_INCLUDE_CONTENT: 'false',
     STYLEPROOF_MODE: 'certify',

@@ -56,6 +56,6 @@ export function writeBudgetedPng(ctx: RenderCtx, rel: string, png: PNG): boolean
 
 export const cropBudgetNote = (b: CropBudget): string =>
   !b.exhausted && b.files < b.maxFiles
-    ? `_Crop omitted: the image could not fit the per-file size limit after downscaling. The change is still listed and counted._`
+    ? `_Crop omitted: the image could not fit the ${b.maxBytes < MAX_CROP_FILE_BYTES ? 'report byte limit' : 'per-file size limit'} after downscaling. The change is still listed and counted._`
     : `_Crop omitted: the report reached its crop budget (${b.maxFiles} files / ${b.maxBytes / 1_000_000} MB, ` +
       '`--max-crop-files` / `--max-crop-bytes`). The change is still listed and counted._';

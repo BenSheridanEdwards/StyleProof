@@ -326,6 +326,7 @@ runs:
     - id: report
       shell: bash
       env:
+        REPORT_STORAGE: ${{ inputs.report-storage }}
         REPORT_MAX_BYTES: ${{ inputs.report-max-bytes }}
         STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
         STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
@@ -337,6 +338,10 @@ runs:
       run: |
         set -euo pipefail
         rm -rf styleproof-report
+        report_budget_arguments=()
+        if [ "$REPORT_STORAGE" = artifact ]; then
+          report_budget_arguments+=(--report-max-bytes "$REPORT_MAX_BYTES")
+        fi
         report_content_arguments=()
         state_identity_arguments=()
         trusted_sha_arguments=()
@@ -363,7 +368,7 @@ runs:
           *) echo "mode must be certify, review-gate, migration, or advisory" >&2; exit 2 ;;
         esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "$STYLEPROOF_BASELINE_DIR" "$STYLEPROOF_FRESH_DIR" --out styleproof-report --report-max-bytes "$REPORT_MAX_BYTES" ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "$STYLEPROOF_BASELINE_DIR" "$STYLEPROOF_FRESH_DIR" --out styleproof-report ${report_budget_arguments[@]+"${report_budget_arguments[@]}"} ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
@@ -789,6 +794,7 @@ runs:
             : renderArtifactHtml(markdown, {
                 outDir: dir,
                 maxBytes: Number(process.env.REPORT_MAX_BYTES),
+                htmlMaxBytes: Number(process.env.REPORT_MAX_BYTES),
                 receiptBytes: fs.statSync(`${dir}/report.md`).size + fs.statSync(`${dir}/report.json`).size,
               });
         } catch (error) {
