@@ -32,8 +32,8 @@
 
 - Unit: Node's built-in test runner (`node --test test/*.test.mjs`) against
   `dist/`, run through `scripts/run-node-test.mjs`, which preloads
-  `test/no-concurrent-jobs.cjs` (#711). One file: `npm run test:unit -- <file>`.
-- E2E: Playwright (`npm run test:e2e`).
+  `test/no-concurrent-jobs.cjs` (#711). One file: `pnpm run test:unit <file>`.
+- E2E: Playwright (`pnpm run test:e2e`).
 
 ## CI / automation (`.github/workflows/`)
 

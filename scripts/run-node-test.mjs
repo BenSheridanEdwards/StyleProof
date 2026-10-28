@@ -75,7 +75,7 @@ export function snapshotChanges(before, after) {
 }
 
 /**
- * `--watch` plus any test file paths, so `npm run test:unit -- test/x.test.mjs`
+ * `--watch` plus any test file paths, so `pnpm run test:unit test/x.test.mjs`
  * runs one file with the same preload as the whole suite. A plain
  * `node --test <file>` skips the preload (#799). No paths means every file.
  */

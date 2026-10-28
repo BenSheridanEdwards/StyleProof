@@ -294,7 +294,7 @@ explicit rather than receiving invented provenance.
 The fixture includes a
 new surface, two real restyles, an added element, and a structural insertion.
 With content comparison off, only the new surface and real restyles appear;
-`npm run demo:check` verifies that this default report matches current code.
+`pnpm run demo:check` verifies that this default report matches current code.
 
 The report shown at the top of this README renders this exact entry:
 

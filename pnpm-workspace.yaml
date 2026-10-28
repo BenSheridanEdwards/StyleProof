@@ -1,0 +1,8 @@
+# pnpm settings (pnpm 11 reads them here, not from package.json). This is a
+# single-package repo, so there is no `packages:` list.
+
+# pnpm blocks dependency build scripts by default, and we keep it that way.
+# esbuild gets its binary from an optional platform package, so its postinstall
+# check is not needed. `false` records that we chose this.
+allowBuilds:
+  esbuild: false

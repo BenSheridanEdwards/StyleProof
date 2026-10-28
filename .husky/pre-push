@@ -6,7 +6,7 @@ echo "› anti-slop lint"
 if ! command -v node >/dev/null 2>&1; then
   echo "  ⚠ node not found; skipping anti-slop lint (CI runs it on Node 22)."
 elif node -e 'process.exit(process.features.typescript ? 0 : 1)'; then
-  npm run lint:slop
+  pnpm run lint:slop
 else
   echo "  ⚠ this Node cannot strip types; skipping anti-slop lint (CI runs it on Node 22)."
 fi
@@ -14,7 +14,7 @@ fi
 echo "› unit tests"
 # Git hook env leaks into the temp repos used by CLI tests.
 unset $(git rev-parse --local-env-vars)
-npm test
+pnpm test
 
 echo "› browser e2e (shared path policy)"
 # Share CI's tree-proof decision for staged and pushed content. Only proven

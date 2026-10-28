@@ -113,11 +113,11 @@ async function main() {
 
   const executablePath = await resolveChromiumPath();
   if (!chromiumInstalled({ executablePath })) {
-    throw new Error('Playwright Chromium not installed. Run `npx playwright install chromium` before pushing.');
+    throw new Error('Playwright Chromium not installed. Run `pnpm exec playwright install chromium` before pushing.');
   }
 
   console.log(`  › pre-push e2e (tree proofs: ${reasons})`);
-  const result = spawnSync('npm', ['run', 'test:e2e', '--', '--workers=4'], {
+  const result = spawnSync('pnpm', ['run', 'test:e2e', '--workers=4'], {
     cwd: ROOT,
     stdio: 'inherit',
     env: process.env,

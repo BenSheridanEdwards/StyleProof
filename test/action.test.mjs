@@ -682,9 +682,10 @@ test('composite action builds its checkout before running local bins', () => {
   const installStep = actionYml.match(/- name: Install StyleProof action runtime[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
 
   assert.ok(installStep, 'action.yml should include an action runtime install step');
-  assert.match(installStep[0], /npm ci --ignore-scripts/);
-  assert.match(installStep[0], /npm run build/);
-  assert.doesNotMatch(installStep[0], /npm ci .*--omit=dev/);
+  assert.match(installStep[0], /npm exec --yes --package="\$package_manager" -- pnpm "\$@"/);
+  assert.match(installStep[0], /pnpm install --frozen-lockfile --ignore-scripts/);
+  assert.match(installStep[0], /pnpm run build/);
+  assert.doesNotMatch(installStep[0], /pnpm install .*--prod/);
 });
 
 test('action runtime bootstrap installs once per exact action checkout in one job', () => {
@@ -697,11 +698,12 @@ test('action runtime bootstrap installs once per exact action checkout in one jo
     fs.mkdirSync(actionPath, { recursive: true });
     fs.mkdirSync(runnerTemp);
     fs.mkdirSync(fakeBin);
-    fs.writeFileSync(path.join(actionPath, 'package-lock.json'), '{"lockfileVersion":3}\n');
+    fs.writeFileSync(path.join(actionPath, 'package.json'), '{"packageManager":"pnpm@11.7.0"}\n');
+    fs.writeFileSync(path.join(actionPath, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
     const fakeNpm = path.join(fakeBin, 'npm');
     fs.writeFileSync(
       fakeNpm,
-      '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$NPM_LOG"\nif [ "${FAIL_BUILD:-0}" = 1 ] && [ "$*" = "run build" ]; then exit 9; fi\n',
+      '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$NPM_LOG"\nif [ "${FAIL_BUILD:-0}" = 1 ] && [ "$*" = "exec --yes --package=pnpm@11.7.0 -- pnpm run build" ]; then exit 9; fi\n',
     );
     fs.chmodSync(fakeNpm, 0o755);
 
@@ -715,11 +717,17 @@ test('action runtime bootstrap installs once per exact action checkout in one jo
     };
     const first = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
     assert.equal(first.status, 0, first.stderr);
-    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), ['ci --ignore-scripts', 'run build']);
+    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
+      'exec --yes --package=pnpm@11.7.0 -- pnpm install --frozen-lockfile --ignore-scripts',
+      'exec --yes --package=pnpm@11.7.0 -- pnpm run build',
+    ]);
 
     const second = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
     assert.equal(second.status, 0, second.stderr);
-    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), ['ci --ignore-scripts', 'run build']);
+    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
+      'exec --yes --package=pnpm@11.7.0 -- pnpm install --frozen-lockfile --ignore-scripts',
+      'exec --yes --package=pnpm@11.7.0 -- pnpm run build',
+    ]);
     const firstStamp = fs.readdirSync(runnerTemp).find((name) => name.endsWith('.stamp'));
     assert.ok(firstStamp);
 
@@ -728,13 +736,13 @@ test('action runtime bootstrap installs once per exact action checkout in one jo
     assert.equal(malformed.status, 0, malformed.stderr);
     assert.equal(fs.readFileSync(npmLog, 'utf8').trim().split('\n').length, 4);
 
-    fs.writeFileSync(path.join(actionPath, 'package-lock.json'), '{"lockfileVersion":3,"changed":true}\n');
+    fs.writeFileSync(path.join(actionPath, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\nchanged: true\n");
     const changedLock = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
     assert.equal(changedLock.status, 0, changedLock.stderr);
     assert.equal(fs.readFileSync(npmLog, 'utf8').trim().split('\n').length, 6);
     assert.equal(fs.readdirSync(runnerTemp).filter((name) => name.endsWith('.stamp')).length, 2);
 
-    fs.writeFileSync(path.join(actionPath, 'package-lock.json'), '{"lockfileVersion":3,"failed":true}\n');
+    fs.writeFileSync(path.join(actionPath, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\nfailed: true\n");
     const failed = spawnSync('bash', ['-c', actionRuntimeInstallScript()], {
       env: { ...env, FAIL_BUILD: '1' },
       encoding: 'utf8',

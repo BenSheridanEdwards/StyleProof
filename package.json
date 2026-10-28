@@ -68,6 +68,7 @@
   "engines": {
     "node": ">=22.13.0"
   },
+  "packageManager": "pnpm@11.7.0",
   "devEngines": {
     "runtime": {
       "name": "node",
@@ -89,23 +90,23 @@
     "check:anti-slop-vendor": "node scripts/check-anti-slop-vendor.mjs",
     "check:context": "node scripts/check-context-layer.mjs",
     "check:suppressions": "node scripts/check-suppressions.mjs",
-    "verify": "npm run check:context && npm run check:suppressions && npm run typecheck && npm run lint && npm run lint:slop && npm run format:check && npm run privacy:check && npm test",
-    "test": "npm run build && node scripts/run-node-test.mjs",
+    "verify": "pnpm run check:context && pnpm run check:suppressions && pnpm run typecheck && pnpm run lint && pnpm run lint:slop && pnpm run format:check && pnpm run privacy:check && pnpm test",
+    "test": "pnpm run build && node scripts/run-node-test.mjs",
     "test:unit": "node scripts/run-node-test.mjs",
     "test:coverage": "node scripts/check-coverage.mjs",
     "test:watch": "node scripts/run-node-test.mjs --watch",
-    "test:e2e": "npm run build && playwright test",
-    "bench": "npm run build && node bench/gate-speed.mjs",
-    "demo:report": "npm run build && node scripts/demo-report.mjs",
-    "demo:check": "npm run build && node scripts/demo-report.mjs --check",
+    "test:e2e": "pnpm run build && playwright test",
+    "bench": "pnpm run build && node bench/gate-speed.mjs",
+    "demo:report": "pnpm run build && node scripts/demo-report.mjs",
+    "demo:check": "pnpm run build && node scripts/demo-report.mjs --check",
     "init": "node ./bin/styleproof-init.mjs",
-    "prepare": "npm run build && node .husky/install.mjs",
-    "prepublishOnly": "npm run clean && npm run build && npm run typecheck && npm run lint && npm run format:check && npm run privacy:check && npm test && npm run test:e2e",
-    "bench:detection": "npm run build && node bench/detection-rate.mjs",
-    "bench:detection:check": "npm run build && node bench/detection-rate.mjs --check",
-    "bench:reach": "npm run build && node bench/reach-corpus.mjs",
-    "bench:reach:check": "npm run build && node bench/reach-corpus.mjs --check",
-    "bench:reach-cost": "npm run build && node bench/reach-cost.mjs"
+    "prepare": "pnpm run build && node .husky/install.mjs",
+    "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run privacy:check && pnpm test && pnpm run test:e2e",
+    "bench:detection": "pnpm run build && node bench/detection-rate.mjs",
+    "bench:detection:check": "pnpm run build && node bench/detection-rate.mjs --check",
+    "bench:reach": "pnpm run build && node bench/reach-corpus.mjs",
+    "bench:reach:check": "pnpm run build && node bench/reach-corpus.mjs --check",
+    "bench:reach-cost": "pnpm run build && node bench/reach-cost.mjs"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.45"

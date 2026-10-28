@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { load } from 'js-yaml';
 import { resolveSpawnPlan } from '../bin/platform-command.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -37,9 +38,9 @@ function commandFailure(result) {
 }
 
 function peerVersion(name) {
-  const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-  const version = lock.packages?.[`node_modules/${name}`]?.version;
-  assert.ok(version, `missing ${name} in package-lock.json`);
+  const lock = load(fs.readFileSync(path.join(root, 'pnpm-lock.yaml'), 'utf8'));
+  const version = lock.importers?.['.']?.devDependencies?.[name]?.version?.split('(')[0];
+  assert.ok(version, `missing ${name} in pnpm-lock.yaml`);
   return version;
 }
 

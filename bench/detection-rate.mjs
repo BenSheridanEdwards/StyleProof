@@ -1,8 +1,8 @@
 // Detection-rate corpus: does a seeded CSS/DOM change actually surface in the
 // computed-style diff — and does a computed-identical change stay silent?
 //
-//   npm run bench:detection          # measure (writes bench/detection-corpus.results.json)
-//   npm run bench:detection:check    # same, exit 1 on any violated expectation
+//   pnpm run bench:detection          # measure (writes bench/detection-corpus.results.json)
+//   pnpm run bench:detection:check    # same, exit 1 on any violated expectation
 //
 // Every case runs the real path — a mutated fixture page rendered in Chromium,
 // captured by captureStyleMap, compared by diffStyleMaps — never a synthetic

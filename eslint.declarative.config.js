@@ -2,8 +2,8 @@ import tseslint from 'typescript-eslint';
 
 import baseConfig from './eslint.config.js';
 
-// Advisory declarative-style rules, run on their own by `npm run lint:declarative`.
-// Every rule is a warning. This config is deliberately NOT part of `npm run lint`:
+// Advisory declarative-style rules, run on their own by `pnpm run lint:declarative`.
+// Every rule is a warning. This config is deliberately NOT part of `pnpm run lint`:
 // that gate fails on any warning (--max-warnings=0), and these rules report on
 // existing code. Same scope as the main lint: its global ignores, its file types.
 const { ignores } = baseConfig.find((entry) => entry.ignores && Object.keys(entry).length === 1);

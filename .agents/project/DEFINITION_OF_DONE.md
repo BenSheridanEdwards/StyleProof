@@ -8,10 +8,10 @@ report excerpt, or screenshots/video for UI behaviour. "The gates are green" and
 
 ## Required proof
 
-- `npm run verify` passes: the context and suppression checks, typecheck,
-  lint (zero warnings), anti-slop lint, format check, privacy scan, and `npm test` (which
+- `pnpm run verify` passes: the context and suppression checks, typecheck,
+  lint (zero warnings), anti-slop lint, format check, privacy scan, and `pnpm test` (which
   builds first).
-- `npm run test:e2e` passes when capture, diff, report, Action, or engine
+- `pnpm run test:e2e` passes when capture, diff, report, Action, or engine
   behaviour changes.
 - For package/release changes, `npm pack --dry-run --json` succeeds and the packed
   package contains the expected `dist`, `bin`, docs, changelog, and license files.
@@ -22,17 +22,17 @@ report excerpt, or screenshots/video for UI behaviour. "The gates are green" and
 - `pre-commit` runs lint, format check, a staged-diff gitleaks scan (skipped
   with a warning if gitleaks is not installed locally; never skipped in CI),
   Fallow audit, and `fallow health --production` on the staged diff.
-- No hook runs typecheck, `npm run privacy:check`, or the context and
-  suppression checks; `npm run verify` runs them all (CI and `prepublishOnly`
+- No hook runs typecheck, `pnpm run privacy:check`, or the context and
+  suppression checks; `pnpm run verify` runs them all (CI and `prepublishOnly`
   enforce them).
-- `pre-push` runs `npm test`, then the full browser suite unless pushed and
+- `pre-push` runs `pnpm test`, then the full browser suite unless pushed and
   staged tree proofs permit a skip; unknown evidence runs or blocks. See
   `QUALITY_GATES.md` for the proof rules.
-- `npm run test:e2e` and `npm pack --dry-run --json` stay explicit because they
+- `pnpm run test:e2e` and `npm pack --dry-run --json` stay explicit because they
   depend on the touched surface.
 
 See [`QUALITY_GATES.md`](./QUALITY_GATES.md) for the full gate matrix, including
-the CI-only gates (CodeQL, gitleaks full-history, npm audit, PR-body validation,
+the CI-only gates (CodeQL, gitleaks full-history, pnpm audit, PR-body validation,
 demo-report freshness, action dogfood).
 
 ## Scope and implementation

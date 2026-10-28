@@ -7,7 +7,7 @@ import test from 'node:test';
 
 test('prepare builds the package without requiring consumer-side Husky', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(packageJson.scripts.prepare, 'npm run build && node .husky/install.mjs');
+  assert.equal(packageJson.scripts.prepare, 'pnpm run build && node .husky/install.mjs');
 
   const scratch = mkdtempSync(path.join(tmpdir(), 'styleproof-consumer-install-'));
   const installer = path.join(scratch, 'install.mjs');

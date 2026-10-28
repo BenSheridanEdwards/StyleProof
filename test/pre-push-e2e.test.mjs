@@ -45,7 +45,7 @@ test('local tree proofs require browsers for capture/diff/report/engine and READ
     assert.equal(proofs.at(-1).kind, 'differs', file);
     const result = f.run(f.pushed());
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n', file);
+    assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n', file);
     f.git('read-tree', f.base);
   }
 });
@@ -76,7 +76,7 @@ test('collector retains both staged and pushed tree proofs', (t) => {
 test('pre-push runs unit tests then the staged e2e gate', () => {
   const syntax = spawnSync('sh', ['-n', '.husky/pre-push'], { encoding: 'utf8' });
   assert.equal(syntax.status, 0, syntax.stderr);
-  assert.match(hook, /npm test/);
+  assert.match(hook, /pnpm test/);
   assert.match(hook, /scripts\/pre-push-e2e\.mjs/);
 });
 
@@ -84,9 +84,9 @@ test('pre-push still fails closed when unit tests fail before e2e', () => {
   const fakeBin = mkdtempSync(join(tmpdir(), 'styleproof-contributor-hook-'));
 
   try {
-    const npm = join(fakeBin, 'npm');
-    writeFileSync(npm, '#!/bin/sh\necho "fake npm $*"\nif [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 17\n');
-    chmodSync(npm, 0o755);
+    const pnpm = join(fakeBin, 'pnpm');
+    writeFileSync(pnpm, '#!/bin/sh\necho "fake pnpm $*"\nif [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 17\n');
+    chmodSync(pnpm, 0o755);
     symlinkSync(process.execPath, join(fakeBin, 'node'));
 
     const result = spawnSync('sh', ['.husky/pre-push'], {
@@ -95,7 +95,7 @@ test('pre-push still fails closed when unit tests fail before e2e', () => {
       encoding: 'utf8',
     });
 
-    assert.match(result.stdout, /fake npm test/);
+    assert.match(result.stdout, /fake pnpm test/);
     assert.equal(result.status, 17, `${result.stdout}\n${result.stderr}`);
     assert.doesNotMatch(result.stdout + result.stderr, /pre-push-e2e/);
   } finally {
@@ -108,7 +108,7 @@ test('pre-push explains when node is missing', (t) => {
   t.after(() => rmSync(fakeBin, { recursive: true, force: true }));
 
   for (const [name, source] of [
-    ['npm', '#!/bin/sh\nexit 17\n'],
+    ['pnpm', '#!/bin/sh\nexit 17\n'],
     ['git', '#!/bin/sh\nexit 0\n'],
   ]) {
     writeFileSync(join(fakeBin, name), source);
@@ -129,7 +129,7 @@ test('pre-push e2e gate explains how to repair missing Chromium without skipping
   const script = readFileSync(new URL('../scripts/pre-push-e2e.mjs', import.meta.url), 'utf8');
   assert.match(script, /Playwright Chromium not installed/);
   assert.doesNotMatch(script, /skipping staged e2e/);
-  assert.match(script, /npx playwright install chromium/);
+  assert.match(script, /pnpm exec playwright install chromium/);
   assert.match(hook, /scripts\/pre-push-e2e\.mjs/);
 });
 
@@ -154,7 +154,7 @@ test('local selection shares the hosted tree policy, including fixtures and e2e-
     assert.equal(browserLanesRequired(proofs), true, file);
     const result = f.run(f.pushed(head, f.base));
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n', file);
+    assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n', file);
   }
   assert.equal(browserLanesRequired(collectPrePushProofs({ git: makeGit(f.root) })), true);
   const head = f.git('rev-parse', 'HEAD');
@@ -193,8 +193,8 @@ let fixtureRepository;
 function fixture(t, options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'styleproof-pre-push-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const { write, run, npmArgs } = localProcess(root, options);
-  write('.gitignore', 'node_modules/\nfake-bin/\nnpm-args\nchrome\n');
+  const { write, run, pnpmArgs } = localProcess(root, options);
+  write('.gitignore', 'node_modules/\nfake-bin/\npnpm-args\nchrome\n');
   const git = (...args) => {
     const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stdout}\n${result.stderr}`);
@@ -221,7 +221,7 @@ function fixture(t, options = {}) {
   }
   const pushed = (localOid = base, remoteOid = base, localRef = 'HEAD') =>
     `${localRef} ${localOid} refs/heads/test ${remoteOid}\n`;
-  return { root, write, git, commit, base, run, pushed, npmArgs };
+  return { root, write, git, commit, base, run, pushed, pnpmArgs };
 }
 
 test('a first push with a clean index runs all browser tests with at most four workers', (t) => {
@@ -233,7 +233,7 @@ test('a first push with a clean index runs all browser tests with at most four w
   const head = f.commit();
   const result = f.run(f.pushed(head, '0'.repeat(40)));
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('missing push stdin runs the browser gate instead of pretending the diff is empty', (t) => {
@@ -241,7 +241,7 @@ test('missing push stdin runs the browser gate instead of pretending the diff is
   for (const input of ['', '\n \t\n']) {
     const result = f.run(input);
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
   }
 });
 
@@ -258,7 +258,7 @@ test('verified empty and deletion-only ranges may skip', (t) => {
     const result = f.run(input);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /skipped/);
-    assert.equal(f.npmArgs(), null);
+    assert.equal(f.pnpmArgs(), null);
   }
 });
 
@@ -268,7 +268,7 @@ test('a README-only push runs the full browser gate', (t) => {
   const head = f.commit();
   const result = f.run(f.pushed(head, f.base));
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('a known range retains the old style path when renamed to a documentation path', (t) => {
@@ -279,7 +279,7 @@ test('a known range retains the old style path when renamed to a documentation p
   const head = f.commit();
   const result = f.run(f.pushed(head, base));
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('multiple push records cannot hide unknown, browser-changing, or malformed later records', (t) => {
@@ -296,12 +296,12 @@ test('multiple push records cannot hide unknown, browser-changing, or malformed 
     for (const first of [safe, f.pushed(docs, docs, 'HEAD~')]) {
       const result = f.run(first + second);
       assert.equal(result.status, 0, result.stdout + result.stderr);
-      assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+      assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
     }
   }
   const malformed = f.run(safe + 'malformed second record\n');
   assert.equal(malformed.status, 1, malformed.stdout + malformed.stderr);
-  assert.equal(f.npmArgs(), null);
+  assert.equal(f.pnpmArgs(), null);
 });
 
 test('annotated tags work for both known ranges and unknown first pushes', (t) => {
@@ -315,7 +315,7 @@ test('annotated tags work for both known ranges and unknown first pushes', (t) =
   ]) {
     const result = f.run(f.pushed(tag, remote, 'refs/tags/v1').replace('refs/heads/test', 'refs/tags/v1'));
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), runs ? 'run\ntest:e2e\n--\n--workers=4\n' : null);
+    assert.equal(f.pnpmArgs(), runs ? 'run\ntest:e2e\n--workers=4\n' : null);
   }
 });
 
@@ -345,7 +345,7 @@ test('staged paths preserve literal spaces, line terminators and backslashes', (
   assert.notEqual(f.git('write-tree'), f.git('rev-parse', 'HEAD^{tree}'));
   const result = f.run(f.pushed());
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 for (const file of [
@@ -374,7 +374,7 @@ for (const file of [
     assert.notEqual(f.git('rev-parse', `${head}^{tree}`), f.git('rev-parse', `${base}^{tree}`));
     const result = f.run(f.pushed(head, base));
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
   });
 }
 
@@ -388,7 +388,7 @@ test('a Git type-change record still runs browsers', (t) => {
   assert.equal(f.git('diff', '--name-status', base, head), 'T\ttheme.css');
   const result = f.run(f.pushed(head, base));
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 function submoduleFixture(t, ignoreSource) {
@@ -444,7 +444,7 @@ for (const ignoreSource of ['.gitmodules', 'diff.ignoreSubmodules', 'submodule.s
       const result = f.run(f.pushed(head, f.base));
       assert.equal(result.status, 0, result.stdout + result.stderr);
       assert.doesNotMatch(result.stdout, /skipped/);
-      assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+      assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
     });
   }
 }
@@ -483,7 +483,7 @@ for (const replacedObject of ['commit', 'tree']) {
       const result = f.run(input);
       assert.equal(result.status, 0, result.stdout + result.stderr);
       assert.doesNotMatch(result.stdout, /skipped/);
-      assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+      assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
     });
   }
 }
@@ -497,7 +497,7 @@ test('missing or malformed shared decider aborts the real hook process, includin
     const result = f.run(f.pushed(head, head));
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stderr, /ERR_MODULE_NOT_FOUND|SyntaxError/);
-    assert.equal(f.npmArgs(), null);
+    assert.equal(f.pnpmArgs(), null);
   }
 });
 
@@ -508,18 +508,18 @@ test('selected browser tests fail closed when Chromium is missing', (t) => {
   const result = f.run(f.pushed());
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stderr, /Playwright Chromium not installed/);
-  assert.match(result.stderr, /npx playwright install chromium/);
+  assert.match(result.stderr, /pnpm exec playwright install chromium/);
   assert.doesNotMatch(result.stdout + result.stderr, /skipping|skipped/);
-  assert.equal(f.npmArgs(), null);
+  assert.equal(f.pnpmArgs(), null);
 });
 
 test('browser-test failures propagate without changing the full-suite invocation', (t) => {
-  const f = fixture(t, { npmExit: 23 });
+  const f = fixture(t, { pnpmExit: 23 });
   f.write('src/capture.ts', 'export {};');
   f.git('add', '.');
   const result = f.run(f.pushed());
   assert.equal(result.status, 23, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('malformed push metadata fails rather than returning a docs-only success', (t) => {
@@ -543,7 +543,7 @@ test('malformed push metadata fails rather than returning a docs-only success', 
     const result = f.run(input);
     assert.equal(result.status, 1, `${JSON.stringify(input)}: ${result.stdout}\n${result.stderr}`);
     assert.match(result.stderr, /Invalid|git .*failed/i);
-    assert.equal(f.npmArgs(), null);
+    assert.equal(f.pnpmArgs(), null);
   }
 });
 
@@ -557,11 +557,11 @@ test('Git failures abort both staged and push-range inventory collection', (t) =
   const brokenGit = f.run(f.pushed());
   assert.equal(brokenGit.status, 1, brokenGit.stdout + brokenGit.stderr);
   assert.match(brokenGit.stderr, /fixture Git failed/);
-  assert.equal(f.npmArgs(), null);
+  assert.equal(f.pnpmArgs(), null);
 });
 
 test('M5: grafted parents cannot hide a pushed or staged CSS tree change', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   f.write('theme.css', 'body { color: black }');
   const base = f.commit();
   f.write('theme.css', 'body { color: magenta }');
@@ -574,13 +574,13 @@ test('M5: grafted parents cannot hide a pushed or staged CSS tree change', (t) =
     }
     const result = f.run(input);
     assert.equal(result.status, 37, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
   }
 });
 
 for (const variable of ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE']) {
   test(`M6: leaked ${variable} cannot hide the canonical staged CSS tree`, (t) => {
-    const f = fixture(t, { npmExit: 37 });
+    const f = fixture(t, { pnpmExit: 37 });
     f.write('theme.css', 'body { color: black }');
     const base = f.commit();
     const clean = fixture(t);
@@ -595,12 +595,12 @@ for (const variable of ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE']) {
     const value = variable === 'GIT_INDEX_FILE' ? savedIndex : variable === 'GIT_DIR' ? join(other, '.git') : other;
     const result = f.run(f.pushed(base, base), { [variable]: value });
     assert.equal(result.status, 37, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
   });
 }
 
 test('M6: core.worktree and diff.relative cannot hide a staged CSS tree', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   f.write('theme.css', 'body { color: black }');
   const base = f.commit();
   f.write('theme.css', 'body { color: magenta }');
@@ -610,11 +610,11 @@ test('M6: core.worktree and diff.relative cannot hide a staged CSS tree', (t) =>
   assert.notEqual(f.git('write-tree'), f.git('rev-parse', 'HEAD^{tree}'));
   const result = f.run(f.pushed(base, base));
   assert.equal(result.status, 37, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('M10: an ignored stdin descriptor still requires browser verification', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   const result = spawnSync(process.execPath, ['scripts/pre-push-e2e.mjs'], {
     cwd: f.root,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -622,23 +622,23 @@ test('M10: an ignored stdin descriptor still requires browser verification', (t)
     encoding: 'utf8',
   });
   assert.equal(result.status, 37, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('M11: deletion plus a changed tree or a first push still requires browsers', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   f.write('theme.css', 'body { color: magenta }');
   const head = f.commit();
   const deletion = f.pushed('0'.repeat(40), f.base, '(delete)');
   for (const remote of [f.base, '0'.repeat(40)]) {
     const result = f.run(deletion + f.pushed(head, remote).replace('refs/heads/test', 'refs/heads/changed'));
     assert.equal(result.status, 37, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+    assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
   }
 });
 
 test('M12: a tag pointing at a blob blocks a known comparison and runs on first push', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   const blob = f.git('rev-parse', 'HEAD:.gitignore');
   f.git(
     '-c',
@@ -659,7 +659,7 @@ test('M12: a tag pointing at a blob blocks a known comparison and runs on first 
   ]) {
     const result = f.run(f.pushed(tag, remote, 'refs/tags/blob'));
     assert.equal(result.status, expected, result.stdout + result.stderr);
-    assert.equal(f.npmArgs(), expected === 37 ? 'run\ntest:e2e\n--\n--workers=4\n' : null);
+    assert.equal(f.pnpmArgs(), expected === 37 ? 'run\ntest:e2e\n--workers=4\n' : null);
   }
 });
 
@@ -669,16 +669,16 @@ test('M14: a real shallow clone with a missing remote object blocks rather than 
   const head = f.commit();
   const shallow = join(f.root, 'shallow');
   f.git('clone', '-q', '--depth=1', pathToFileURL(f.root).href, shallow);
-  const p = localProcess(shallow, { npmExit: 37 });
+  const p = localProcess(shallow, { pnpmExit: 37 });
   const missing = spawnSync('git', ['cat-file', '-e', f.base], { cwd: shallow, encoding: 'utf8' });
   assert.notEqual(missing.status, 0);
   const result = p.run(`HEAD ${head} refs/heads/test ${f.base}\n`);
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(p.npmArgs(), null);
+  assert.equal(p.pnpmArgs(), null);
 });
 
 test('M15: an unmerged index cannot supply a same-tree proof', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   const blob = f.git('rev-parse', 'HEAD:.gitignore');
   const result = spawnSync('git', ['update-index', '--index-info'], {
     cwd: f.root,
@@ -690,16 +690,16 @@ test('M15: an unmerged index cannot supply a same-tree proof', (t) => {
   assert.equal(proofs.at(-1).kind, 'unknown');
   const run = f.run(f.pushed());
   assert.equal(run.status, 37, run.stdout + run.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('M15: an unborn HEAD with staged CSS requires browsers', (t) => {
   const f = createFixture(t);
-  const p = localProcess(f.directory, { npmExit: 37 });
+  const p = localProcess(f.directory, { pnpmExit: 37 });
   f.setEntry('theme.css', '100644', 'body { color: magenta }');
   const result = p.run('');
   assert.equal(result.status, 37, result.stdout + result.stderr);
-  assert.equal(p.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(p.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('M16: missing Chromium blocks changed, first-push, and unknown-stdin paths', (t) => {
@@ -710,7 +710,7 @@ test('M16: missing Chromium blocks changed, first-push, and unknown-stdin paths'
     const result = f.run(input);
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stderr, /Playwright Chromium not installed/);
-    assert.equal(f.npmArgs(), null);
+    assert.equal(f.pnpmArgs(), null);
   }
 });
 
@@ -718,10 +718,10 @@ test('M17: the full shell hook propagates e2e exit 37 after unit success', (t) =
   const f = fixture(t);
   f.write('.husky/pre-push', hook);
   f.write(
-    'fake-bin/npm',
-    '#!/bin/sh\nprintf "%s\\n" "$*" >> npm-args\nif [ "$1" = test ] || [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 37\n',
+    'fake-bin/pnpm',
+    '#!/bin/sh\nprintf "%s\\n" "$*" >> pnpm-args\nif [ "$1" = test ] || [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 37\n',
   );
-  chmodSync(join(f.root, 'fake-bin/npm'), 0o755);
+  chmodSync(join(f.root, 'fake-bin/pnpm'), 0o755);
   symlinkSync(process.execPath, join(f.root, 'fake-bin/node'));
   const head = f.commit();
 
@@ -734,7 +734,7 @@ test('M17: the full shell hook propagates e2e exit 37 after unit success', (t) =
 
   assert.equal(result.status, 37, result.stdout + result.stderr);
   const lintArgs = process.features.typescript ? 'run lint:slop\n' : '';
-  assert.equal(f.npmArgs(), `${lintArgs}test\nrun test:e2e -- --workers=4\n`);
+  assert.equal(f.pnpmArgs(), `${lintArgs}test\nrun test:e2e --workers=4\n`);
 });
 
 test('M7: distinct commits with an identical root tree may skip with a clean index', (t) => {
@@ -755,11 +755,11 @@ test('M7: distinct commits with an identical root tree may skip with a clean ind
   const result = f.run(f.pushed(head, f.base));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /skipped/);
-  assert.equal(f.npmArgs(), null);
+  assert.equal(f.pnpmArgs(), null);
 });
 
 test('M12: an annotated tag with a changed target tree runs browsers', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   f.write('theme.css', 'body { color: magenta }');
   const head = f.commit();
   f.git(
@@ -777,12 +777,12 @@ test('M12: an annotated tag with a changed target tree runs browsers', (t) => {
   const tag = f.git('rev-parse', 'refs/tags/changed');
   const result = f.run(f.pushed(tag, f.base, 'refs/tags/changed'));
   assert.equal(result.status, 37, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('M13: full SHA-256 records retain same-tree and first-push behavior but reject mixed formats', (t) => {
   const f = createFixture(t, { format: 'sha256' });
-  const p = localProcess(f.directory, { npmExit: 37 });
+  const p = localProcess(f.directory, { pnpmExit: 37 });
   f.setEntry('theme.css', '100644', 'body { color: black }');
   const base = f.commit();
   f.git(['update-ref', 'refs/heads/test', base]);
@@ -795,17 +795,17 @@ test('M13: full SHA-256 records retain same-tree and first-push behavior but rej
   ]) {
     const result = p.run(`HEAD ${base} refs/heads/test ${remote}\n`);
     assert.equal(result.status, expected, result.stdout + result.stderr);
-    assert.equal(p.npmArgs(), expected === 37 ? 'run\ntest:e2e\n--\n--workers=4\n' : null);
+    assert.equal(p.pnpmArgs(), expected === 37 ? 'run\ntest:e2e\n--workers=4\n' : null);
   }
 });
 
 test('M15: deletion-only metadata cannot hide an actual staged CSS tree change', (t) => {
-  const f = fixture(t, { npmExit: 37 });
+  const f = fixture(t, { pnpmExit: 37 });
   f.write('theme.css', 'body { color: magenta }');
   f.git('add', 'theme.css');
   const result = f.run(f.pushed('0'.repeat(40), f.base, '(delete)'));
   assert.equal(result.status, 37, result.stdout + result.stderr);
-  assert.equal(f.npmArgs(), 'run\ntest:e2e\n--\n--workers=4\n');
+  assert.equal(f.pnpmArgs(), 'run\ntest:e2e\n--workers=4\n');
 });
 
 test('pre-push fixture templates keep objects, refs, config and index independent', (t) => {
@@ -829,6 +829,6 @@ test('pre-push fixture templates keep objects, refs, config and index independen
     const result = f.run(f.pushed());
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /skipped/);
-    assert.equal(f.npmArgs(), null);
+    assert.equal(f.pnpmArgs(), null);
   }
 });

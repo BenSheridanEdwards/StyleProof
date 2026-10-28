@@ -34,7 +34,7 @@ const ALLOWED_GITHUB = new Set([
   'github.com/vojtaholik/good-css',
 ]);
 // Generated lockfile: third-party registry metadata (funding links), not authored content.
-const GITHUB_URL_EXEMPT = new Set(['package-lock.json']);
+const GITHUB_URL_EXEMPT = new Set(['pnpm-lock.yaml']);
 
 function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
