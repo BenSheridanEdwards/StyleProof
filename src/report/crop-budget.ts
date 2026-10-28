@@ -15,7 +15,7 @@ export type CropBudget = {
 };
 
 export function createCropBudget(maxFiles: number, maxBytes: number): CropBudget {
-  return { maxFiles, maxBytes, files: 0, bytes: 0, exhausted: false, omitted: 0, downscaled: 0 };
+  return { maxFiles, maxBytes, files: 0, bytes: 0, exhausted: maxBytes === 0, omitted: 0, downscaled: 0 };
 }
 
 export const cropBudgetOpen = (b: CropBudget): boolean => !b.exhausted && b.files < b.maxFiles;

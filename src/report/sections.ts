@@ -160,7 +160,7 @@ function cappedNoticeLines(budget: number): string[] {
     '',
     `_This report reached its ~${Math.round(budget / 1000)} KB display budget (GitHub does not render ` +
       `markdown past ~512 KB), so the surfaces below are listed as one-liners. Their full property ` +
-      `tables are in \`report.json\` and their crops in \`crops/\` — the certification above covers every ` +
+      `tables remain in the original diff input; available crops are in \`crops/\` — the certification above covers every ` +
       `surface; only the inline detail is capped._`,
     '',
   ];
@@ -168,7 +168,11 @@ function cappedNoticeLines(budget: number): string[] {
 
 /** The shorter cap notice, for budgets too small for cappedNoticeLines. */
 function omittedNoticeLines(budget: number): string[] {
-  return ['', `_Inline detail omitted at the ${budget}-byte display budget; full data is in \`report.json\`._`, ''];
+  return [
+    '',
+    `_Inline detail omitted at the ${budget}-byte display budget; use the original diff input for full data._`,
+    '',
+  ];
 }
 
 /** One-liner for a budget-capped change group: name · change count · crop link. */
@@ -181,7 +185,7 @@ function compactChangeSummary(ctx: RenderCtx, cg: ChangeGroup, json: Record<stri
 
 /** The closing count for summaries that no longer fit (#953). */
 function moreSectionsLines(n: number): string[] {
-  return ['', `_…and ${n} more section(s) not listed here — full data is in \`report.json\`._`];
+  return ['', `_…and ${n} more section(s) not listed here — use the original diff input for full data._`];
 }
 
 /** Stands in for an Evidence block too large for the budget, so it is never dropped silently. */
@@ -201,7 +205,7 @@ type Block = { full: string[]; summary?: string };
  * written as queued; otherwise full detail runs while it leaves room for the cap
  * notice, a closing count and the Evidence tail, each remaining section becomes its
  * one-line summary, and summaries that no longer fit are counted (the data stays in
- * report.json and crops/). An Evidence tail too large for that is replaced by a
+ * the original diff input). An Evidence tail too large for that is replaced by a
  * one-line stand-in.
  */
 export class ReportMarkdown {
@@ -225,12 +229,13 @@ export class ReportMarkdown {
   }
 
   /** Lay out the queued sections, then the tail (the Evidence block), inside the budget. */
-  finish(tail: string[]): void {
+  finish(evidence: string[], notices: string[] = []): void {
+    let tail = [...notices, ...evidence];
     if (this.push([...this.blocks.flatMap((b) => b.full), ...tail], 0)) return;
     const count = addedBytes(moreSectionsLines(this.summariesFrom(0)));
     // Evidence that leaves no room for the short notice and the count gives way to a stand-in line.
     if (!this.fits(tail, addedBytes(omittedNoticeLines(this.maxBytes)) + count)) {
-      tail = evidenceOmittedLines(this.maxBytes);
+      tail = [...notices, ...evidenceOmittedLines(this.maxBytes)];
     }
     const closing = count + addedBytes(tail);
     const dropped = this.layOutCapped(closing);
@@ -466,7 +471,7 @@ function capFindings(json: Pick<ReportArtifacts, 'surfaces'>, maxBytes: number) 
   if (Buffer.byteLength(JSON.stringify(json, null, 2)) <= maxBytes) return unchanged;
 
   const surfaces = json.surfaces.map((s) =>
-    Array.isArray(s.findings) ? { ...s, findings: [], findingsOmitted: s.findings.length } : s,
+    Array.isArray(s.findings) && s.findings.length > 0 ? { ...s, findings: [], findingsOmitted: s.findings.length } : s,
   );
 
   const total = surfaces.reduce((n, s) => n + (Number(s.findingsOmitted) || 0), 0);

@@ -186,7 +186,10 @@ function renderElements(findings: Finding[], maxElements = 40): string[] {
   const out: string[] = [];
   for (const [i, b] of blocks.entries()) {
     if (i >= maxElements) {
-      out.push('', `_…and ${blocks.length - i} more element(s) — see report.json._`);
+      out.push(
+        '',
+        `_…and ${blocks.length - i} more element(s) — see report.json (subject to its findings cap), or the original diff input._`,
+      );
       break;
     }
     out.push('', b.count > 1 ? `${b.head} ×${b.count}` : b.head, ...b.body);

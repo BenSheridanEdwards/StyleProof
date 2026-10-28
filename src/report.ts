@@ -152,7 +152,7 @@ export type ReportOptions = {
   /** Coverage-ledger exclusion keys — a declared obligation that is also excluded fails closed. */
   coverageExclusions?: Iterable<string>;
   /** Byte ceiling for report.md (GitHub stops rendering past ~512 KB); past it, surfaces become one-liners
-   *  while styleproof-diff.json keeps every row. Default 400_000; Infinity never caps. */
+   *  while the original diff input keeps every row. Default 400_000; Infinity never caps. */
   maxReportBytes?: number;
   /** Findings byte ceiling for report.json. Default 450_000; Infinity never caps. */
   maxJsonBytes?: number;
@@ -400,7 +400,7 @@ function reportComparison(
 /**
  * Everything below the headline, in render order: baseline failure receipts, one-sided and
  * changed surfaces, Global chrome, the migration gallery, and advisory content. Budget-aware:
- * past the display budget, each block collapses to its one-line notice (report.json keeps it all).
+ * past the display budget, each block collapses to its one-line notice (the original diff input keeps it all).
  */
 function renderReportBody(
   ctx: RenderCtx,
@@ -587,7 +587,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     md.append([
       '',
       `_${ctx.crops.omitted} crop(s) omitted by crop size or report budget limits ` +
-        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB); every change is still counted; full findings remain in styleproof-diff.json._`,
+        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB); every change is still counted; full findings remain in the original diff input (not included in the report artifact)._`,
     ]);
   }
 
@@ -661,14 +661,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       ? [
           '',
           `_${findingsOmitted.rows} finding row(s) in ${findingsOmitted.groups} change group(s) omitted from report.json ` +
-            `at its byte budget (${(opts.maxJsonBytes ?? 450_000) / 1000} KB); every change is listed and counted above, ` +
-            'and styleproof-diff.json holds every finding._',
+            `at its byte budget (${(opts.maxJsonBytes ?? 450_000) / 1000} KB); every change is counted, ` +
+            'use the original diff input for every finding (not included in the report artifact)._',
         ]
       : [];
 
-  md.finish([
-    ...findingsNotice,
-    ...evidenceSection(
+  md.finish(
+    evidenceSection(
       evidenceLines({
         certIssues,
         liveText,
@@ -678,7 +677,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         criticalObligations: opts.criticalObligations,
       }),
     ),
-  ]);
+    findingsNotice,
+  );
 
   const paths = writeReportArtifacts(artifacts, json);
   return {

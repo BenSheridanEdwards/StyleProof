@@ -237,7 +237,7 @@ ${body}
     page = page.replace(image[0], `<!-- image-${i} -->`);
   });
   const banner = (count: number) =>
-    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; report.json holds the full data.</p>`;
+    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; use the original diff input for full findings.</p>`;
   let remaining = maxBytes - Buffer.byteLength(page + banner(images.length) + captions.join(''));
   const rendered = [...captions];
   let omitted = images.length;
@@ -283,5 +283,8 @@ export function renderArtifactHtml(
     }
   }
 
-  return renderReportHtml(markdown, { outDir: options.outDir, maxBytes: htmlMaxBytes });
+  return renderReportHtml(`${markdown}\n\n_Combined artifact byte budget exceeded to preserve report receipts._`, {
+    outDir: options.outDir,
+    maxBytes: htmlMaxBytes,
+  });
 }

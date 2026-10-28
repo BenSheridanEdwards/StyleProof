@@ -114,6 +114,13 @@ test('whole-report crop budget preserves findings and certification', async (t) 
     }
   });
 
+  await t.test('zero bytes disables crops and preserves findings', () => {
+    const capped = report(dirs, 'zero-bytes', { maxCropBytes: 0 });
+    assert.deepEqual(capped.files, []);
+    assert.match(capped.md, /Crop omitted: the report reached its crop budget/);
+    sameFindings(capped, full);
+  });
+
   await t.test('zero files keeps the allowed one-sided shape and announces the omission', () => {
     const capped = report(dirs, 'zero', { maxCropFiles: 0 });
     assert.deepEqual(capped.files, []);
@@ -199,4 +206,18 @@ test('a crop rejected after downscaling names the image limit and leaves room fo
   assert.match(cropBudgetNote(crops), /per-file size limit after downscaling/);
   assert.doesNotMatch(cropBudgetNote(crops), /reached its crop budget/);
   assert.equal(writeBudgetedPng(ctx, 'small.png', PNG.sync.read(solidPng(1, 1))), true);
+});
+
+test('zero crop bytes skips encoding and reports an exhausted budget', () => {
+  const crops = createCropBudget(60, 0);
+
+  const png = {
+    get width() {
+      throw new Error('disabled crops must not be encoded');
+    },
+  };
+
+  assert.equal(writeBudgetedPng({ crops }, 'disabled.png', png), false);
+  assert.equal(crops.exhausted, true);
+  assert.match(cropBudgetNote(crops), /reached its crop budget/);
 });

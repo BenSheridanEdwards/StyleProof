@@ -96,6 +96,8 @@ test('large report artifact budget preserves counts, one-sided entries and deter
     assert.equal(budget.total, capped.result.totalFindings);
     assert.ok(budget.omitted > 0);
     assert.match(capped.md, /omitted from report.json at its byte budget/);
+    assert.match(capped.md, /original diff input/);
+    assert.doesNotMatch(capped.md, /styleproof-diff.json/);
 
     for (const key of ['counts', 'comparison', 'reportConsistency']) {
       assert.deepEqual(capped.json[key], full.json[key], key);

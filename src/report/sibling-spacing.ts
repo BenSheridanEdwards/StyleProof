@@ -150,7 +150,11 @@ export function spacingLines(changes: SiblingSpacingChange[]): string[] {
     return `Spacing between ${change.siblings.map(codeValue).join(', ')} siblings ${gaps.join(', ')} _(measured between their rendered boxes)_`;
   });
   const more = changes.length - SPACING_LINES_MAX;
-  if (more > 0) lines.push(`_…and ${more} more spacing change(s) — see report.json._`);
+
+  if (more > 0)
+    lines.push(
+      `_…and ${more} more spacing change(s) — see report.json (subject to its findings cap), or the original diff input._`,
+    );
   return ['', lines.join('<br>\n')];
 }
 
