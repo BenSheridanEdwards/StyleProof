@@ -22,15 +22,52 @@ function currentLibc(): string | undefined {
   return report.sharedObjects.some((file) => /\/(?:ld-musl-|libc\.musl-)/.test(file)) ? 'musl' : undefined;
 }
 
-function optionalPackageExcluded(expected: Record<string, unknown>, key: string, consumerCwd: string): boolean {
-  if (expected.optional !== true) return false;
-  if (!key.startsWith('node_modules/') || fs.existsSync(path.join(consumerCwd, key))) return false;
+type NpmLockfileRecord = NonNullable<ReturnType<typeof asRecord>>;
+
+function absentOptional(expected: NpmLockfileRecord, key: string, cwd: string): boolean {
+  return expected.optional === true && key.startsWith('node_modules/') && !fs.existsSync(path.join(cwd, key));
+}
+
+function platformExcluded(expected: NpmLockfileRecord): boolean {
   if (platformExcludes(expected.os, process.platform) || platformExcludes(expected.cpu, process.arch)) return true;
   // Only a known libc can prove exclusion; an inconclusive report must run the install.
   return !!expected.libc && process.platform === 'linux' && platformExcludes(expected.libc, currentLibc());
 }
 
-/** Match installed identities, allowing absent platform-excluded optional packages; ignore root metadata. */
+function lockfileKey(packages: NpmLockfileRecord, from: string, name: string): string | undefined {
+  for (let base = from; ;) {
+    const key = `${base ? `${base}/` : ''}node_modules/${name}`;
+
+    if (Object.hasOwn(packages, key)) return key;
+
+    if (!base) return undefined;
+    const parent = base.lastIndexOf('/node_modules/');
+    base = parent < 0 ? '' : base.slice(0, parent);
+  }
+}
+
+function dependentsByKey(packages: NpmLockfileRecord): Map<string, string[]> {
+  const dependents = new Map<string, string[]>();
+
+  for (const [from, value] of Object.entries(packages)) {
+    const entry = asRecord(value);
+
+    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'devDependencies']) {
+      for (const name of Object.keys(asRecord(entry?.[field]) ?? {})) {
+        const key = lockfileKey(packages, from, name);
+
+        if (key === undefined) continue;
+        const sources = dependents.get(key) ?? [];
+        sources.push(from);
+        dependents.set(key, sources);
+      }
+    }
+  }
+
+  return dependents;
+}
+
+/** Match installed identities, allowing absent optionals excluded by platform or all dependents; ignore root metadata. */
 export function npmLockfilesMatch(
   lockfile: string | undefined,
   hiddenLockfile: string | undefined,
@@ -42,10 +79,32 @@ export function npmLockfilesMatch(
     if (!packages || !installed) return false;
     const keys = Object.keys(packages).filter((key) => key !== '');
     if (Object.keys(installed).some((key) => key !== '' && !Object.hasOwn(packages, key))) return false;
+    const dependents = dependentsByKey(packages);
+    const memo = new Map<string, boolean>();
+
+    const excluded = (key: string): boolean => {
+      const cached = memo.get(key);
+
+      if (cached !== undefined) return cached;
+      memo.set(key, false); // A cycle never proves exclusion.
+      const expected = asRecord(packages[key]);
+      const from = dependents.get(key) ?? [];
+
+      const result =
+        expected !== null &&
+        !Object.hasOwn(installed, key) &&
+        absentOptional(expected, key, consumerCwd) &&
+        (platformExcluded(expected) || (from.length > 0 && from.every(excluded)));
+
+      memo.set(key, result);
+
+      return result;
+    };
     return keys.every((key) => {
       const expected = asRecord(packages[key]);
       if (expected === null) return false;
-      if (!Object.hasOwn(installed, key)) return optionalPackageExcluded(expected, key, consumerCwd);
+
+      if (!Object.hasOwn(installed, key)) return excluded(key);
       const actual = asRecord(installed[key]);
       return (
         actual !== null &&
