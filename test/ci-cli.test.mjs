@@ -2082,6 +2082,79 @@ test('npmLockfilesMatch allows absent optional packages only when the platform e
   }
 });
 
+test('npmLockfilesMatch allows absent optionals needed only by excluded packages', () => {
+  const root = mkTmp('styleproof-ci-lock-');
+  const binding = 'node_modules/@example/binding-wasm32-wasi';
+  const runtime = 'node_modules/@example/wasm-runtime';
+
+  const installed = {
+    ...installedPackages,
+    'node_modules/example': {
+      ...installedPackages['node_modules/example'],
+      optionalDependencies: { '@example/binding-wasm32-wasi': '1.0.0' },
+      dependencies: { tslib: '1.0.0' },
+    },
+    'node_modules/tslib': { version: '1.0.0' },
+  };
+
+  const packages = {
+    ...installed,
+    [binding]: {
+      optional: true,
+      cpu: ['wasm32'],
+      dependencies: { '@example/wasm-runtime': '1.0.0', tslib: '1.0.0' },
+    },
+    [runtime]: { optional: true, dependencies: { '@example/wasi-util': '1.0.0' } },
+    'node_modules/@example/wasi-util': { optional: true },
+    [`${binding}/node_modules/tslib`]: { optional: true },
+  };
+
+  const hidden = npmLock(installed);
+  const matches = (entries) => ciRuntime.npmLockfilesMatch(npmLock(entries), hidden, root);
+
+  try {
+    assert.equal(matches(packages), true, 'excluded binding owns the missing hoisted and nested optionals');
+    const needsRuntime = { version: '1.0.0', dependencies: { '@example/wasm-runtime': '1.0.0' } };
+    assert.equal(
+      ciRuntime.npmLockfilesMatch(
+        npmLock({ ...packages, 'node_modules/needs-runtime': needsRuntime }),
+        npmLock({ ...installed, 'node_modules/needs-runtime': needsRuntime }),
+        root,
+      ),
+      false,
+      'an installed dependent needs the runtime',
+    );
+    assert.equal(
+      matches({
+        ...packages,
+        'node_modules/example': {
+          ...installed['node_modules/example'],
+          dependencies: { tslib: '1.0.0', '@example/plain': '1.0.0' },
+        },
+        'node_modules/@example/plain': { optional: true },
+      }),
+      false,
+      'an installed package needs a compatible optional',
+    );
+    assert.equal(matches({ ...packages, [binding]: { ...packages[binding], cpu: undefined } }), false);
+    assert.equal(matches({ ...packages, 'node_modules/@example/orphan': { optional: true } }), false);
+    assert.equal(
+      matches({
+        ...packages,
+        [binding]: { ...packages[binding], dependencies: { ...packages[binding].dependencies, '@example/a': '1' } },
+        'node_modules/@example/a': { optional: true, dependencies: { '@example/b': '1' } },
+        'node_modules/@example/b': { optional: true, dependencies: { '@example/a': '1' } },
+      }),
+      false,
+      'a cycle cannot prove exclusion',
+    );
+    fs.mkdirSync(path.join(root, runtime), { recursive: true });
+    assert.equal(matches(packages), false, 'an optional folder exists on disk');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 for (const scenario of [
   'matching',
   'optional-absent',
