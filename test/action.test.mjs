@@ -18,13 +18,45 @@ const publishBin = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-publ
 const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publish.ts'), 'utf8');
 const gitDataModule = fs.readFileSync(path.join(here, '..', 'src', 'github-git-data.ts'), 'utf8');
 
-test('artifact size step subtracts markdown and JSON from report-max-bytes', () => {
+test('artifact size step preserves receipts with tiny, zero and negative remaining budgets', (t) => {
   const step = actionYml.match(/- name: Bound the artifact report size[\s\S]*?(?=\n\s{4}- id: publish)/);
   assert.ok(step);
-  assert.match(
-    step[0],
-    /Number\(process\.env\.REPORT_MAX_BYTES\)\s*-\s*fs\.statSync\(`\$\{dir\}\/report\.md`\)\.size\s*-\s*fs\.statSync\(`\$\{dir\}\/report\.json`\)\.size/,
-  );
+
+  const program = step[0].match(/node --input-type=module <<'NODE'\n([\s\S]*?) {8}NODE/)[1].replace(/^ {8}/gm, '');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-budget-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const dir = path.join(root, 'styleproof-report');
+  fs.mkdirSync(dir);
+  const markdown = '# Receipt report\n';
+  const json = JSON.stringify({ receipt: 'x'.repeat(5000) });
+  fs.writeFileSync(path.join(dir, 'report.md'), markdown);
+  fs.writeFileSync(path.join(dir, 'report.json'), json);
+
+  for (const remaining of [100, 0, -100]) {
+    const child = spawnSync(process.execPath, ['--input-type=module'], {
+      input: program,
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_ACTION_PATH: path.join(here, '..'),
+        REPORT_STORAGE: 'artifact',
+        REPORT_MAX_BYTES: String(Buffer.byteLength(markdown + json) + remaining),
+      },
+    });
+
+    assert.equal(child.status, 0, child.stderr);
+    assert.match(fs.readFileSync(path.join(dir, 'report.html'), 'utf8'), /Receipt report/);
+
+    assert.equal(fs.readFileSync(path.join(dir, 'report.json'), 'utf8'), json);
+  }
+});
+
+test('report generation passes the Action report budget to the CLI', () => {
+  const step = actionYml.match(/- id: report\n[\s\S]*?node .*styleproof-report.mjs.*\n/)[0];
+  assert.match(step, /REPORT_MAX_BYTES: \$\{\{ inputs.report-max-bytes \}\}/);
+  assert.match(step, /--report-max-bytes "\$REPORT_MAX_BYTES"/);
 });
 
 function extractActionStep(stepStartPattern, stepEndPattern) {

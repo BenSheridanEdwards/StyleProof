@@ -4,7 +4,7 @@
 // Exit 0 = no changes, 1 = report generated, 2 = usage error.
 import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
-import { renderReportHtml } from '../dist/report/html.js';
+import { renderArtifactHtml } from '../dist/report/html.js';
 import { defineCli, exitWhenDrained, number } from './cli.mjs';
 import { compareFlags, coverageExclusions, resolveCompareInputs, withCaptureDirs } from './compare.mjs';
 
@@ -89,6 +89,7 @@ const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs,
     imageBaseUrl: opts['image-base-url'] || undefined,
     pad: numeric('pad'),
     htmlMaxBytes,
+    deferHtml: true,
     maxArtifactBytes,
     maxCrops: numeric('max-crops'),
     maxCropFiles,
@@ -129,16 +130,20 @@ if (sourceBindingFailed) {
 }
 // Bindings and diagnostic labels change sibling sizes; use their final bytes.
 
-fs.writeFileSync(
-  result.reportHtmlPath,
-  renderReportHtml(fs.readFileSync(result.reportMdPath, 'utf8').replace(/\n$/, ''), {
-    outDir: opts.out,
-    maxBytes: Math.min(
+try {
+  fs.writeFileSync(
+    result.reportHtmlPath,
+    renderArtifactHtml(fs.readFileSync(result.reportMdPath, 'utf8').replace(/\n$/, ''), {
+      outDir: opts.out,
       htmlMaxBytes,
-      maxArtifactBytes - fs.statSync(result.reportMdPath).size - fs.statSync(result.reportJsonPath).size,
-    ),
-  }),
-);
+      maxBytes: maxArtifactBytes,
+      receiptBytes: fs.statSync(result.reportMdPath).size + fs.statSync(result.reportJsonPath).size,
+    }),
+  );
+} catch (error) {
+  console.error(`report-max-bytes: ${error.message}; increase the budget`);
+  process.exit(2);
+}
 
 const consistencyFailed = result.reportConsistency?.ok === false;
 const { changedSurfaces, oneSidedSurfaces, newSurfaces, totalFindings, contentChanges } = result;

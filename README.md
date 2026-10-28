@@ -205,7 +205,7 @@ variants) is in [docs/REFERENCE.md](docs/REFERENCE.md).
 Reports publish as workflow artifacts by default. The comment links the artifact on the run, and nothing is written to
 repository git history. Images travel inside the self-contained HTML.
 
-Report artifacts contain only `report.html`, `report.md` and `report.json`. Open HTML offline for embedded images. Set `report-max-bytes` (default `2000000`) to cap their combined size; HTML gets what Markdown (400 KB cap) and JSON (450 KB findings cap) leave. For pre-existing receipts that exhaust the combined budget, the Action retains them and applies the cap to HTML. Full findings live in `styleproof-diff.json`; omissions are named. Local reports support `--report-max-bytes` and `--html-max-bytes`. Branch storage keeps crop files.
+Report artifacts contain only `report.html`, `report.md` and `report.json`. Open HTML offline for embedded images. Set `report-max-bytes` (default `2000000`) to cap their combined size; HTML gets what Markdown (400 KB cap) and JSON (450 KB findings cap) leave. For pre-existing receipts that exhaust the combined budget, the library, CLI and Action retain them and apply the cap to HTML when the remaining bytes cannot hold report text. Crops may be downscaled to fit the 300 KB per-image limit. Full findings live in `styleproof-diff.json`; omissions are named. Local reports support `--report-max-bytes` and `--html-max-bytes`. Branch storage keeps crop files.
 
 Reports cap crops at 60 files and 900,000 bytes across all surfaces. Crops over 300 KB are downscaled, then omitted if they still exceed the per-file cap. Local reports support `--max-crop-files` and `--max-crop-bytes` (`0` disables crops); omissions are named, and every change remains listed and counted.
 

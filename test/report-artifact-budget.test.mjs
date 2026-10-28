@@ -192,6 +192,58 @@ test('large noise crops are downscaled to at most 300 KB per file', (t) => {
 
   const composite = PNG.sync.read(fs.readFileSync(path.join(cropsDir, composites[0])));
   assert.ok(composite.width < 2 * 1280, 'composite must have been downscaled');
+  assert.match(capped.md, /crop\(s\) downscaled.*smaller than 1:1/);
 
   if (capped.json.cropBudget) assert.ok(capped.json.cropBudget.omitted > 0);
+});
+
+test('outline over the JSON cap still omits all findings', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  writeCapture(dirs.beforeDir, 'changed@1280', surfaceMap(0, 0), solidPng(400, 480));
+  writeCapture(dirs.afterDir, 'changed@1280', surfaceMap(0, 30), solidPng(400, 480));
+  writeCapture(dirs.afterDir, 'new@1280', surfaceMap(1, 0), solidPng(400, 480));
+  const capped = report(dirs, 'outline', { maxJsonBytes: 1 });
+  assert.equal(capped.json.findingsBudget.listed, 0);
+  assert.equal(capped.json.findingsBudget.omitted, capped.result.totalFindings);
+  assert.ok(capped.json.surfaces.some((surface) => surface.missing));
+  assert.ok(capped.json.surfaces.every((surface) => !surface.findings?.length));
+});
+
+test('receipts leaving tiny, zero or negative HTML budgets preserve report text', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  writeCapture(dirs.beforeDir, 'changed@1280', surfaceMap(0, 0), solidPng(400, 480));
+  writeCapture(dirs.afterDir, 'changed@1280', surfaceMap(0, 30), solidPng(400, 480));
+  const full = report(dirs, 'full');
+  const receipts = fs.statSync(full.result.reportMdPath).size + fs.statSync(full.result.reportJsonPath).size;
+
+  for (const remaining of [100, 0, -100]) {
+    const capped = report(dirs, `remaining-${remaining}`, { maxArtifactBytes: receipts + remaining });
+    assert.equal(capped.md, full.md);
+    assert.deepEqual(capped.json, full.json);
+    assert.match(fs.readFileSync(capped.result.reportHtmlPath, 'utf8'), /StyleProof report/);
+  }
+});
+
+test('CLI reports an unusable HTML cap as exit 2 without a stack trace', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  writeCapture(dirs.beforeDir, 'changed@1280', surfaceMap(0, 0), solidPng(400, 480));
+  writeCapture(dirs.afterDir, 'changed@1280', surfaceMap(0, 30), solidPng(400, 480));
+  stampCertifyingFixture(dirs.beforeDir, 'a'.repeat(40));
+
+  stampCertifyingFixture(dirs.afterDir, 'b'.repeat(40));
+  const cli = fileURLToPath(new URL('../bin/styleproof-report.mjs', import.meta.url));
+
+  const child = spawnSyncBounded(
+    process.execPath,
+    [cli, dirs.beforeDir, dirs.afterDir, '--out', path.join(dirs.root, 'cli'), '--html-max-bytes', '1'],
+
+    { encoding: 'utf8' },
+  );
+
+  assert.equal(child.status, 2, child.stderr);
+  assert.match(child.stderr, /increase the budget/);
+  assert.doesNotMatch(child.stderr, /at renderReportHtml/);
 });

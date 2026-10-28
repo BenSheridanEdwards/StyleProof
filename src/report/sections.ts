@@ -9,7 +9,7 @@ import { chromeSpanLabel, safeKey, surfaceBase } from '../change-groups.js';
 import { cropPng, cropStem, readPng } from './png.js';
 import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
-import { renderReportHtml } from './html.js';
+import { renderArtifactHtml } from './html.js';
 import type { DigestRow } from './digest.js';
 import type { ReportReach } from './reach.js';
 import { renderChangeGroup } from './regions.js';
@@ -60,7 +60,9 @@ function writeOneSidedTiles(ctx: RenderCtx, png: PNG, surface: string, tileHeigh
 
     if (!writeBudgetedPng(ctx, `${stem}.png`, cropPng(png, { x: 0, y: top, w: png.width, h }, png.width, h).png)) {
       ctx.crops.omitted++;
-      break;
+
+      if (ctx.crops.exhausted) break;
+      continue;
     }
     tiles.push({ stem, top, bottom: top + h });
   }
@@ -72,14 +74,17 @@ function oneSidedTileLines(ctx: RenderCtx, tiles: Tile[], capturedHeight: number
   const md: string[] = [];
   tiles.forEach((t, i) => {
     const part =
-      tiles.length > 1 ? ` · part ${i + 1} of ${tiles.length} · ${t.top}–${t.bottom} of ${capturedHeight}px` : '';
+      tiles.length > 1 || t.top > 0
+        ? ` · part ${i + 1} of ${tiles.length} · ${t.top}–${t.bottom} of ${capturedHeight}px`
+        : '';
     md.push('', `![${alt}](${ctx.img(`${t.stem}.png`)})`, '', `<sub>${caption}${part}</sub>`);
   });
-  const shown = tiles[tiles.length - 1].bottom;
+  const shown = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
+  const omittedPosition = tiles[0].top === 0 && shown === tiles[tiles.length - 1].bottom ? ' below' : '';
   if (shown < capturedHeight) {
     md.push(
       '',
-      `_⚠️ Page capped: showing ${shown} of ${capturedHeight}px — the remaining ${capturedHeight - shown}px below are ` +
+      `_⚠️ Page capped: showing ${shown} of ${capturedHeight}px — the remaining ${capturedHeight - shown}px${omittedPosition} are ` +
         `not shown in this report, so approving this surface accepts content not reviewed here._`,
     );
   }
@@ -119,7 +124,7 @@ function renderOneSided(
       json.image = `${tiles[0].stem}.png`;
       // Additive (#756): every tile, and how much of the captured height they show.
       json.images = tiles.map((t) => `${t.stem}.png`);
-      json.shownHeight = tiles[tiles.length - 1].bottom;
+      json.shownHeight = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
       json.capturedHeight = png.height;
     } else {
       md.push('', cropBudgetNote(ctx.crops));
@@ -376,6 +381,7 @@ export type ReportArtifacts = Pick<
 > & {
   outDir: string;
   htmlMaxBytes?: number;
+  deferHtml?: boolean;
   maxJsonBytes?: number;
   maxArtifactBytes?: number;
   crops: CropBudget;
@@ -469,7 +475,11 @@ function capFindings(json: Pick<ReportArtifacts, 'surfaces'>, maxBytes: number) 
   const fits = () => Buffer.byteLength(JSON.stringify(capped, null, 2)) <= maxBytes;
   // Untrimmable metadata and one-sided entries must survive even when the skeleton cannot fit.
 
-  if (!fits()) return unchanged;
+  if (!fits())
+    return {
+      json: capped,
+      findingsOmitted: { rows: total, groups: surfaces.filter((s) => s.findingsOmitted).length },
+    };
 
   for (const [i, original] of json.surfaces.entries()) {
     if (!Array.isArray(original.findings)) continue;
@@ -499,13 +509,19 @@ export function writeReportArtifacts(a: ReportArtifacts, json = buildReportJson(
   const markdown = a.md.length > 0 ? `${a.md.join('\n')}\n` : '';
   const serialized = JSON.stringify(json, null, 2);
 
-  const maxBytes = Math.min(
-    a.htmlMaxBytes ?? 2_000_000,
-    (a.maxArtifactBytes ?? 2_000_000) - Buffer.byteLength(markdown) - Buffer.byteLength(serialized) - 256,
-  );
-
   fs.writeFileSync(reportMdPath, markdown);
   fs.writeFileSync(reportJsonPath, serialized);
-  fs.writeFileSync(reportHtmlPath, renderReportHtml(a.md.join('\n'), { outDir: a.outDir, maxBytes }));
+
+  if (!a.deferHtml) {
+    fs.writeFileSync(
+      reportHtmlPath,
+      renderArtifactHtml(a.md.join('\n'), {
+        outDir: a.outDir,
+        maxBytes: a.maxArtifactBytes ?? 2_000_000,
+        htmlMaxBytes: a.htmlMaxBytes,
+        receiptBytes: Buffer.byteLength(markdown) + Buffer.byteLength(serialized) + 256,
+      }),
+    );
+  }
   return { reportMdPath, reportJsonPath, reportHtmlPath };
 }

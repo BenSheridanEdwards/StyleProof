@@ -160,6 +160,8 @@ export type ReportOptions = {
   maxArtifactBytes?: number;
   /** Self-contained HTML byte ceiling. Default 2_000_000. */
   htmlMaxBytes?: number;
+  /** @internal CLI renders HTML after finalizing receipt bindings. */
+  deferHtml?: boolean;
   /** Migration mode (#566): add the Changed styles / New surfaces / New-removed elements gallery. Gates unchanged. */
   migration?: boolean;
   /** Operational mode recorded in report.json (#580). Defaults to 'certify'. */
@@ -584,8 +586,15 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   if (ctx.crops.omitted > 0) {
     md.append([
       '',
-      `_${ctx.crops.omitted} crop(s) omitted at the report crop budget ` +
-        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB); every change is still listed and counted in report.json._`,
+      `_${ctx.crops.omitted} crop(s) omitted by crop size or report budget limits ` +
+        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB); every change is still counted; full findings remain in styleproof-diff.json._`,
+    ]);
+  }
+
+  if (ctx.crops.downscaled > 0) {
+    md.append([
+      '',
+      `_${ctx.crops.downscaled} crop(s) downscaled to fit the per-image byte limit; these images are smaller than 1:1._`,
     ]);
   }
 
@@ -614,6 +623,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     outDir,
     crops: ctx.crops,
     htmlMaxBytes: opts.htmlMaxBytes,
+    deferHtml: opts.deferHtml,
     maxJsonBytes: opts.maxJsonBytes,
     maxArtifactBytes: opts.maxArtifactBytes,
     md: md.lines,

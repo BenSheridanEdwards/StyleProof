@@ -266,3 +266,22 @@ ${body}
   }
   return page;
 }
+
+/** Preserve receipts when their remaining budget cannot hold the HTML text. */
+export function renderArtifactHtml(
+  markdown: string,
+  options: { outDir: string; maxBytes: number; receiptBytes: number; htmlMaxBytes?: number },
+): string {
+  const htmlMaxBytes = Math.min(options.htmlMaxBytes ?? 2_000_000, options.maxBytes);
+  const remaining = options.maxBytes - options.receiptBytes;
+
+  if (remaining > 0) {
+    try {
+      return renderReportHtml(markdown, { outDir: options.outDir, maxBytes: Math.min(htmlMaxBytes, remaining) });
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== 'HTML byte budget cannot fit report text') throw error;
+    }
+  }
+
+  return renderReportHtml(markdown, { outDir: options.outDir, maxBytes: htmlMaxBytes });
+}
