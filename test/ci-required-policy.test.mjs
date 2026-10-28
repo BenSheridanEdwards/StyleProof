@@ -17,11 +17,10 @@ test('the required step reads the tree decision, proof and every needed job resu
   assert.equal(step.env.E2E_DECISION, 'needs.changes.outputs.e2e');
   assert.equal(step.env.E2E_PROOF, 'needs.changes.outputs.e2e_proof');
   assert.equal(step.env.CHANGES_RESULT, 'needs.changes.result');
+
   const needs = ci.match(/\n {2}required:\n(?: {4}.+\n)*? {4}needs:\s+\[([^\]]+)\]/)?.[1].split(', ');
-  assert.deepEqual(
-    needs,
-    'changes build coverage-1 coverage-2 coverage-3 coverage e2e e2e-evidence cli-smoke detection-corpus'.split(' '),
-  );
+  assert.deepEqual(needs, 'changes build coverage e2e e2e-evidence cli-smoke detection-corpus'.split(' '));
+
   for (const job of needs.filter((name) => name !== 'changes')) {
     assert.ok(Object.values(step.env).includes(`needs.${job}.result`), `required reads needs.${job}.result`);
   }
@@ -98,7 +97,7 @@ for (const [label, changes] of [
   });
 }
 
-for (const job of ['build', 'cli-smoke', 'coverage-1', 'coverage-2', 'coverage-3', 'coverage']) {
+for (const job of ['build', 'cli-smoke', 'coverage']) {
   for (const result of badResults) {
     for (const [kind, change] of [
       ['product', productChange],

@@ -98,36 +98,23 @@ jobs:
 
       - name: Unit tests
         # Build already emitted and typechecked this exact checkout above.
-        # Node 22 units run in the coverage shards; other legs run plain units.
+        # Node 22 units run in the coverage job; other legs run plain units.
         if: matrix.node != '22'
         run: pnpm run test:unit
 
-  coverage-1: &coverage-shard
+  coverage:
+    name: coverage (node 22)
     runs-on: ubuntu-latest
-    outputs: { summary: '${{ steps.coverage.outputs.summary }}' }
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - { uses: actions/setup-node@v7, with: { node-version: '22' } }
-      - run: pnpm install --frozen-lockfile && pnpm run build
-      - id: coverage
-        run: node --expose-internals scripts/coverage-shards.mjs run "${GITHUB_JOB#coverage-}"
-
-  coverage-2: *coverage-shard
-  coverage-3: *coverage-shard
-
-  coverage:
-    name: coverage (node 22)
-    needs: [coverage-1, coverage-2, coverage-3]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - { uses: actions/setup-node@v7, with: { node-version: '22' } }
-      - name: Merge line coverage and enforce floor
-        env:
-          COVERAGE_NEEDS: ${{ toJSON(needs) }}
-        run: node --expose-internals scripts/coverage-shards.mjs merge
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Unit coverage
+        run: pnpm run test:coverage
 
   # Run the complete browser and determinism path beside the Node matrix instead
   # of placing it after every Node 22 static and unit gate.
@@ -313,8 +300,7 @@ jobs:
   required:
     name: required
     if: always()
-    needs:
-      [changes, build, coverage-1, coverage-2, coverage-3, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus]
+    needs: [changes, build, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required CI evidence
@@ -323,9 +309,6 @@ jobs:
           E2E_DECISION: ${{ needs.changes.outputs.e2e }}
           E2E_PROOF: ${{ needs.changes.outputs.e2e_proof }}
           BUILD_RESULT: ${{ needs.build.result }}
-          COVERAGE_1_RESULT: ${{ needs.coverage-1.result }}
-          COVERAGE_2_RESULT: ${{ needs.coverage-2.result }}
-          COVERAGE_3_RESULT: ${{ needs.coverage-3.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
@@ -335,7 +318,7 @@ jobs:
           set -euo pipefail
           status=0
           reject() { echo "::error::$1"; status=1; }
-          for name in CHANGES_RESULT BUILD_RESULT COVERAGE_1_RESULT COVERAGE_2_RESULT COVERAGE_3_RESULT COVERAGE_RESULT CLI_SMOKE_RESULT; do
+          for name in CHANGES_RESULT BUILD_RESULT COVERAGE_RESULT CLI_SMOKE_RESULT; do
             val="${!name:-}"
             [ "$val" = success ] || reject "$name was '$val' (want success)"
           done

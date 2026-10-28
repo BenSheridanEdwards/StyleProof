@@ -77,7 +77,7 @@ without it a CLI child that a test spawns can hang at exit on Node 26 (#711, #79
 `test:coverage` uses Node's `--experimental-test-coverage` with
 `--test-coverage-include=dist/** (excluding node_modules)` and a **line floor of 40%** (measured main
 baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
-it on Node’s coverage metric merged from three Node 22 jobs. Develop with Node 22.13+ so the floor flags exist;
+it in the unsharded `coverage (node 22)` job using `pnpm run test:coverage`. Develop with Node 22.13+ so the floor flags exist;
 older Node exits non-zero with a clear message instead of silently skipping.
 
 `pre-push` always runs `pnpm test`. It shares `browserLanesRequired` in
