@@ -117,6 +117,7 @@ function forcedStateHarness({
   unsupported,
   resetFailures = 0,
   replaceDocument = false,
+  removeAfterReset,
 } = {}) {
   const { context, document, run } = capturePageHarness();
   const nodes = [];
@@ -184,7 +185,8 @@ function forcedStateHarness({
     mutated = settled,
     baselines = 0,
     counts = 0,
-    reads = 0;
+    reads = 0,
+    resetBarriers = 0;
   if (settled && drift === 'removal') nodes.pop().parentElement.children.pop();
   const visits = [];
   const forces = [];
@@ -210,6 +212,10 @@ function forcedStateHarness({
       if (method === 'CSS.forcePseudoState') {
         forces.push({ nodeId: params.nodeId, classes: [...params.forcedPseudoClasses] });
         const resetting = !params.forcedPseudoClasses.length;
+
+        if (resetting && nodes[params.nodeId - 1] === targets[removeAfterReset])
+          delete targets[removeAfterReset].attrs['data-styleproof-state-id'];
+
         if (resetting && state === 'active' && forced === targets.at(-1) && resetFailures-- > 0)
           throw new Error('CSS.forcePseudoState: Could not find node with given id');
         forced = resetting ? undefined : nodes[params.nodeId - 1];
@@ -227,6 +233,9 @@ function forcedStateHarness({
       }
       if (method !== 'Runtime.evaluate') return {};
       const expression = params.expression;
+
+      if (expression.endsWith('getComputedStyle(element).display; return true; })()')) resetBarriers++;
+
       const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
       // Force the production legacy path; all per-target reads still run unmodified.
       if (legacy && sessionBaseline) return { result: { value: false } };
@@ -265,7 +274,7 @@ function forcedStateHarness({
       assert.equal(forced, undefined);
       if (legacy) assert.equal(counts, 0);
 
-      return { result, warnings, visits, baselines, counts, reads, pathReads, forces };
+      return { result, warnings, visits, baselines, counts, reads, pathReads, forces, resetBarriers };
     } finally {
       console.warn = original;
     }
@@ -280,6 +289,35 @@ function forcedStateHarness({
     },
   };
 }
+
+for (const scope of ['subtree', 'parent', 'document', 'fallback']) {
+  test(`post-reset barriers fold into the next read: ${scope}`, async () => {
+    const folded = await forcedStateHarness({ scope }).capture();
+    const legacy = await forcedStateHarness({ scope, legacy: true }).capture();
+    assert.equal(JSON.stringify(folded.result), JSON.stringify(legacy.result));
+    assert.deepEqual(folded.warnings, legacy.warnings);
+    assert.equal(folded.resetBarriers, 1, 'only the final target needs an explicit reset barrier');
+    assert.equal(legacy.resetBarriers, 1, 'per-target baselines also carry the preceding reset barrier');
+  });
+}
+
+test('reset detachment preserves serialized deltas and warning order before a budget stop', async () => {
+  const { result, warnings } = await forcedStateHarness({ scope: 'subtree', removeAfterReset: 0 }).capture({
+    maxInteractive: 2,
+    maxForcedStateScanWork: 9,
+  });
+
+  assert.deepEqual(warnings, [
+    'styleproof: 20 interactive elements exceeds maxInteractive=2; forced-state capture truncated to the first 2. Raise maxInteractive to cover them all.',
+    'styleproof: interactive element sp-0 detached while resetting forced state; skipping it.',
+    'styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=9 budget; capture is target-first and truncated, so the forced-state layer is not certified.',
+    'styleproof: forced-state aggregate scan exhausted its 9-element work budget; capture stopped and the forced-state layer is not certified.',
+  ]);
+  assert.equal(
+    JSON.stringify(result),
+    '{"states":{"body > section:nth-child(1) > button:nth-child(1)":{"hover":{"body > section:nth-child(1) > button:nth-child(1)":{"color":"hover-0"},"body > section:nth-child(1) > button:nth-child(1)::before":{"content":"\\"state\\""},"body > section:nth-child(1) > button:nth-child(1) > span":{"color":"hover-0"},"body > section:nth-child(1) > button:nth-child(1) > span::before":{"content":"\\"state\\""}},"focus":{"body > section:nth-child(1) > button:nth-child(1)":{"color":"focus-0"},"body > section:nth-child(1) > button:nth-child(1)::before":{"content":"\\"state\\""},"body > section:nth-child(1) > button:nth-child(1) > span":{"color":"focus-0"},"body > section:nth-child(1) > button:nth-child(1) > span::before":{"content":"\\"state\\""}}}},"skipped":true}',
+  );
+});
 
 for (const scope of ['document', 'fallback', 'subtree', 'parent']) {
   test(`forced-state capture replaces each target's state before one final reset: ${scope}`, async () => {

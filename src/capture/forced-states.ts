@@ -160,22 +160,25 @@ async function settleForcedState(client: CDPSession, selector: string): Promise<
   return result.value === true;
 }
 
-type SessionScopeResult = StateScopeResult & { targetMissing?: true };
+type SessionScopeResult = StateScopeResult & { targetMissing?: true; settled?: boolean };
 
 async function snapStateScopeInSession(
   client: CDPSession,
   args: StateScopeArgs,
   snapshotKey: string,
+  settleSelector?: string,
 ): Promise<SessionScopeResult> {
   const snapshot = `window[${codeLiteral(snapshotKey)}](${codeLiteral(args)})`;
   // Keep force -> liveness -> style flush -> snapshot on the same CDP session.
-  // The pre-read barrier shares this evaluation; post-reset barriers stay separate.
+  // Also settle the preceding target's reset before reading this target.
 
   const expression = `(() => {
+        const s = ${settleSelector ? `document.querySelector(${codeLiteral(settleSelector)})` : 'null'};
+        const settled = !!s && (getComputedStyle(s).display, true);
         const element = document.querySelector(${codeLiteral(args.selector)});
-        if (!element) return { delta: {}, truncated: false, scanned: 0, targetMissing: true };
+        if (!element) return { delta: {}, truncated: false, scanned: 0, targetMissing: true, settled };
         getComputedStyle(element).display;
-        return ${snapshot};
+        return { ...${snapshot}, settled };
       })()`;
   const { result, exceptionDetails } = await client.send('Runtime.evaluate', {
     expression,
@@ -184,6 +187,15 @@ async function snapStateScopeInSession(
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
   return (result.value ?? { delta: {}, truncated: true, scanned: 0 }) as SessionScopeResult;
 }
+
+type PendingSettle = {
+  selector: string;
+  id: string;
+  elementPath: string;
+  delta: Record<string, Props>;
+  typedMargins?: Record<string, Props>;
+  warningIndex: number;
+};
 
 type ForcedStateCaptureContext = {
   session: ForcedStateSession;
@@ -202,16 +214,13 @@ type ForcedStateCaptureContext = {
   readScope: ForcedStateReadScope;
   sharedBaseline: boolean;
   warnings: string[];
+  pendingSettle?: PendingSettle;
 };
 
 type ForcedStateCaptureFlow = 'continue' | 'next-target' | 'stop-capture';
 
-function warnDetachedForcedStateTarget(
-  context: ForcedStateCaptureContext,
-  id: string,
-  action = 'during forced-state capture',
-): void {
-  context.warnings.push(`styleproof: interactive element ${id} detached ${action}; skipping it.`);
+function detachedForcedStateTargetWarning(id: string, action = 'during forced-state capture'): string {
+  return `styleproof: interactive element ${id} detached ${action}; skipping it.`;
 }
 
 async function resetForcedStateTarget(context: ForcedStateCaptureContext, target: ForcedStateTarget): Promise<void> {
@@ -232,10 +241,38 @@ function scopeArgs(context: ForcedStateCaptureContext, selector: string, saveBas
 }
 
 async function readScope(context: ForcedStateCaptureContext, args: StateScopeArgs): Promise<SessionScopeResult> {
-  const read = await snapStateScopeInSession(context.session.client, args, context.snapshotKey);
+  const pending = context.pendingSettle;
+  context.pendingSettle = undefined;
+  const read = await snapStateScopeInSession(context.session.client, args, context.snapshotKey, pending?.selector);
+
+  if (pending) commitSettle(context, pending, read.settled === true);
   context.scanWorkRemaining -= read.scanned;
   context.incomplete ||= read.truncated;
   return read;
+}
+
+function commitSettle(context: ForcedStateCaptureContext, pending: PendingSettle, ok: boolean): void {
+  if (!ok) {
+    context.incomplete = true;
+    context.warnings.splice(
+      pending.warningIndex,
+      0,
+      detachedForcedStateTargetWarning(pending.id, 'while resetting forced state'),
+    );
+
+    return;
+  }
+
+  if (Object.keys(pending.delta).length) (context.states[pending.elementPath] ??= {}).active = pending.delta;
+  recordStateComputedValueStyle(context, pending.elementPath, 'active', pending.typedMargins);
+}
+
+async function flushPendingSettle(context: ForcedStateCaptureContext): Promise<void> {
+  const pending = context.pendingSettle;
+
+  if (!pending) return;
+  context.pendingSettle = undefined;
+  commitSettle(context, pending, await settleForcedState(context.session.client, pending.selector));
 }
 
 function budgetExhausted(context: ForcedStateCaptureContext): boolean {
@@ -256,14 +293,14 @@ async function captureForcedStateVariation(
   const { session } = context;
   if (!(await forcePseudoState(session, target, forcedPseudoClasses))) {
     context.incomplete = true;
-    warnDetachedForcedStateTarget(context, id);
+    context.warnings.push(detachedForcedStateTargetWarning(id));
     return 'next-target';
   }
   const forced = await readScope(context, scopeArgs(context, target.selector, false));
   if (forced.targetMissing) {
     await resetForcedStateTarget(context, target);
     context.incomplete = true;
-    warnDetachedForcedStateTarget(context, id);
+    context.warnings.push(detachedForcedStateTargetWarning(id));
     return 'next-target';
   }
 
@@ -272,13 +309,16 @@ async function captureForcedStateVariation(
   // With stabilize:false, live transitions can carry hover values into focus.
   if (stateName === 'active') {
     await resetForcedStateTarget(context, target);
+    context.pendingSettle = {
+      selector: target.selector,
+      id,
+      elementPath,
+      delta: forced.delta,
+      typedMargins: forced.typedMargins,
+      warningIndex: context.warnings.length,
+    };
 
-    if (!(await settleForcedState(session.client, target.selector))) {
-      context.incomplete = true;
-      warnDetachedForcedStateTarget(context, id, 'while resetting forced state');
-
-      return 'next-target';
-    }
+    return 'continue';
   }
   if (Object.keys(forced.delta).length) (context.states[elementPath] ??= {})[stateName] = forced.delta;
   recordStateComputedValueStyle(context, elementPath, stateName, forced.typedMargins);
@@ -331,7 +371,7 @@ async function captureForcedStateTarget(
 
   if (baseline.targetMissing) {
     context.incomplete = true;
-    warnDetachedForcedStateTarget(context, marked.id);
+    context.warnings.push(detachedForcedStateTargetWarning(marked.id));
 
     return 'next-target';
   }
@@ -439,6 +479,7 @@ export async function captureForcedStates(
         readScope: await resolveReadScope(page, limits),
         sharedBaseline: false,
         warnings: [],
+        pendingSettle: undefined,
       };
       if (truncated) {
         warn(
@@ -458,6 +499,8 @@ export async function captureForcedStates(
         for (const [index, markedElement] of targets.entries()) {
           if ((await captureForcedStateTarget(context, markedElement, resolved[index])) === 'stop-capture') break;
         }
+
+        await flushPendingSettle(context);
       };
       try {
         await captureTargets();
@@ -472,6 +515,7 @@ export async function captureForcedStates(
             incomplete: truncated,
             scanWarningEmitted: false,
             scanWorkRemaining: limits.maxForcedStateScanWork,
+            pendingSettle: undefined,
           });
           for (const target of [...session.applied]) {
             await resetForcedStateTarget(context, target);
