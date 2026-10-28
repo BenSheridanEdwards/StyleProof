@@ -1,6 +1,6 @@
 dist
 node_modules
-package-lock.json
+pnpm-lock.yaml
 .gitnexus
 graphify-out
 **/__stylemaps__

@@ -37,7 +37,7 @@ commit headers, and clear repository-local Git environment variables.
 | ------------ | --------------------------------------------------------------------------------------------------------------- |
 | `pre-commit` | Lint, format, gitleaks when installed, and Fallow over staged changes; CI separately covers build and typecheck |
 | `commit-msg` | Commitlint                                                                                                      |
-| `pre-push`   | `npm test`, then full `npm run test:e2e -- --workers=4` unless pushed and staged tree proofs permit skipping    |
+| `pre-push`   | `pnpm test`, then full `pnpm run test:e2e --workers=4` unless pushed and staged tree proofs permit skipping    |
 
 The local hook shares the pure `browserLanesRequired` function with CI. Every
 pushed range must have equal root trees or delete a ref. In addition, the staged

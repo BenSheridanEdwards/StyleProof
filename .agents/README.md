@@ -20,22 +20,22 @@ notes in the CHANGELOG.
 
 | Task               | Command                                                          |
 | ------------------ | ---------------------------------------------------------------- |
-| Every local gate   | `npm run verify`                                                 |
-| Build              | `npm run build`                                                  |
-| Typecheck          | `npm run typecheck`                                              |
-| Lint               | `npm run lint` (`npm run lint:fix` to autofix)                   |
-| Anti-slop lint     | `npm run lint:slop` (`npx --no-install oxlint <files>` shows warnings too)    |
-| Format             | `npm run format` (`npm run format:check` to verify)              |
-| Privacy scan       | `npm run privacy:check`                                          |
-| Context layer      | `npm run check:context`                                          |
-| Suppressions       | `npm run check:suppressions`                                     |
-| Unit tests         | `npm test`                                                       |
-| E2E tests          | `npm run test:e2e`                                               |
-| Demo report        | `npm run demo:report` (`npm run demo:check` to verify freshness) |
-| Dependency audit   | `npm audit --audit-level=high`                                   |
+| Every local gate   | `pnpm run verify`                                                 |
+| Build              | `pnpm run build`                                                  |
+| Typecheck          | `pnpm run typecheck`                                              |
+| Lint               | `pnpm run lint` (`pnpm run lint:fix` to autofix)                   |
+| Anti-slop lint     | `pnpm run lint:slop` (`pnpm exec oxlint <files>` shows warnings too)    |
+| Format             | `pnpm run format` (`pnpm run format:check` to verify)              |
+| Privacy scan       | `pnpm run privacy:check`                                          |
+| Context layer      | `pnpm run check:context`                                          |
+| Suppressions       | `pnpm run check:suppressions`                                     |
+| Unit tests         | `pnpm test`                                                       |
+| E2E tests          | `pnpm run test:e2e`                                               |
+| Demo report        | `pnpm run demo:report` (`pnpm run demo:check` to verify freshness) |
+| Dependency audit   | `pnpm audit --audit-level=high`                                   |
 
-`npm run verify` runs the context and suppression checks, typecheck, lint, anti-slop lint,
-format check, privacy scan and unit tests. Run `npm run test:e2e` as well when
+`pnpm run verify` runs the context and suppression checks, typecheck, lint, anti-slop lint,
+format check, privacy scan and unit tests. Run `pnpm run test:e2e` as well when
 capture, diff, report, Action, or engine behaviour changes.
 
 ## Golden operating rules
@@ -58,7 +58,7 @@ capture, diff, report, Action, or engine behaviour changes.
 7. **Fail loudly.** Report the exact failure of any command, test, build, or
    hook. Never relabel partial success as done.
 8. **Done means the gates are green.** Report a task complete once
-   `npm run verify` passes, plus `npm run test:e2e` when the browser surface
+   `pnpm run verify` passes, plus `pnpm run test:e2e` when the browser surface
    changed; see [`project/DEFINITION_OF_DONE.md`](project/DEFINITION_OF_DONE.md).
 9. **PRs carry proof.** Complete the pull request template and follow
    [`project/PR_QUALITY.md`](project/PR_QUALITY.md) before opening a PR or
@@ -84,18 +84,18 @@ holds until a check exists.
 | Commits and PR titles follow Conventional Commits. | commitlint on `commit-msg`; `PR body` workflow (`scripts/validate-pr-body.mjs`) |
 | Every hook runs; `--no-verify` (and abbreviations), `git commit -n` (and clusters such as `-nm`), `HUSKY=0`, and writes to `core.hooksPath`, a git alias, or a config include are refused. | `.claude/hooks/block-gate-bypass.sh` for Claude Code (`.claude/settings.json`) and Codex (`.codex/hooks.json`); CI re-runs every gate |
 | A change to a gate file (`.husky/**`, `.github/workflows/**`, `eslint.config.js`, `.oxlintrc.json`, `vendor/anti-slop/**`, `commitlint.config.js`, `scripts/check-anti-slop-vendor.mjs`, the suppression and context checks, the sign-off gate itself) waits for BenSheridanEdwards to tick a sign-off bound to the head commit. | `enforcement-approval` commit status from `.github/workflows/enforcement-approval.yml` (`scripts/enforcement-approval.mjs`, [ADR 0008](decisions/0008-sign-off-enforcement-changes.md)); it blocks a merge once branch protection requires it |
-| Lint passes with zero warnings, and every inline `eslint-disable` is used. | `npm run lint` (`--max-warnings=0`, `reportUnusedDisableDirectives: 'error'`) in `pre-commit` and CI |
-| No anti-slop rule set to `error` fails ([ADR 0010](decisions/0010-anti-slop-oxlint-rules.md)). | `npm run lint:slop` in `pre-push` and CI |
-| Every inline `eslint-disable*` or `oxlint-disable*` names its rules and a `-- reason`; every type suppression is a `@ts-expect-error` with its reason. | `npm run check:suppressions` in CI |
-| Formatting matches Prettier. | `npm run format:check` in `pre-commit` and CI |
-| `strict` TypeScript compiles. | `npm run build` in CI on Node 22.13.0, 22 and 24 |
-| No private project names, local paths or denylisted tokens in any tracked text file. | `npm run privacy:check` in CI and `prepublishOnly` |
+| Lint passes with zero warnings, and every inline `eslint-disable` is used. | `pnpm run lint` (`--max-warnings=0`, `reportUnusedDisableDirectives: 'error'`) in `pre-commit` and CI |
+| No anti-slop rule set to `error` fails ([ADR 0010](decisions/0010-anti-slop-oxlint-rules.md)). | `pnpm run lint:slop` in `pre-push` and CI |
+| Every inline `eslint-disable*` or `oxlint-disable*` names its rules and a `-- reason`; every type suppression is a `@ts-expect-error` with its reason. | `pnpm run check:suppressions` in CI |
+| Formatting matches Prettier. | `pnpm run format:check` in `pre-commit` and CI |
+| `strict` TypeScript compiles. | `pnpm run build` in CI on Node 22.13.0, 22 and 24 |
+| No private project names, local paths or denylisted tokens in any tracked text file. | `pnpm run privacy:check` in CI and `prepublishOnly` |
 | Secrets stay out of commits. | gitleaks in `pre-commit` (skipped with a warning when absent) and `secret-scan.yml` |
 | No new dead code, duplication, or complexity over the baseline. | Fallow in `pre-commit` and `fallow.yml` |
-| `CLAUDE.md` defers to `AGENTS.md`, which points here; ADR numbers are unique and match their titles; no agent doc repeats a section. | `npm run check:context` in CI |
+| `CLAUDE.md` defers to `AGENTS.md`, which points here; ADR numbers are unique and match their titles; no agent doc repeats a section. | `pnpm run check:context` in CI |
 | The PR body keeps the eight template sections in order and carries inline proof. | `PR body` workflow (`scripts/validate-pr-body.mjs`) |
-| The committed demo report matches the renderer. | `npm run demo:check` in CI |
-| Unit coverage stays at or above the floor. | `npm run test:coverage` in CI (Node 22) |
+| The committed demo report matches the renderer. | `pnpm run demo:check` in CI |
+| Unit coverage stays at or above the floor. | `pnpm run test:coverage` in CI (Node 22) |
 | Done means the hosted `required` check is green on the latest commit. | `required` job in `ci.yml` |
 | Every behaviour change ships a test; every bug fix ships the test that fails without it. | **Not enforced yet** (review) |
 | Breaking changes ship only in a major release, with migration notes in the CHANGELOG. | **Not enforced yet** (review) |

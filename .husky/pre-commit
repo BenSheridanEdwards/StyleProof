@@ -2,12 +2,12 @@
 set -e
 
 # Lean pre-commit: staged-relevant static checks only.
-# Full build and typecheck run in CI (and on pre-push via npm test).
+# Full build and typecheck run in CI (and on pre-push via pnpm test).
 # Privacy and secret scanning stay fail-closed in CI (secret-scan.yml).
 
 echo "› lint + format"
-npm run lint
-npm run format:check
+pnpm run lint
+pnpm run format:check
 
 # gitleaks — scan the STAGED diff for secrets before they enter a commit.
 # Locally the binary is optional: if it isn't installed we warn loudly and skip,
@@ -31,8 +31,8 @@ echo "› fallow"
 FALLOW_STAGED_DIFF="$(mktemp)"
 trap 'rm -f "$FALLOW_STAGED_DIFF"' EXIT HUP INT TERM
 git diff --cached --unified=0 -- . > "$FALLOW_STAGED_DIFF"
-npx --no-install fallow audit --base HEAD --health-baseline .fallow/health-baseline.json
-npx --no-install fallow health \
+pnpm exec fallow audit --base HEAD --health-baseline .fallow/health-baseline.json
+pnpm exec fallow health \
   --production \
   --baseline .fallow/health-baseline.json \
   --changed-since HEAD \

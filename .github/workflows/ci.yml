@@ -42,51 +42,52 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       # Lint, format, privacy, audit, coverage, and demo run once, on the '22' leg.
       - name: Lint
         if: matrix.node == '22'
-        run: npm run lint
+        run: pnpm run lint
 
       # Vendored anti-slop Oxlint rules; only rules set to error fail (ADR 0010).
       - name: Anti-slop lint
         if: matrix.node == '22'
-        run: npm run lint:slop
+        run: pnpm run lint:slop
 
       - name: Format check
         if: matrix.node == '22'
-        run: npm run format:check
+        run: pnpm run format:check
 
       # The agent docs keep their pointer chain, links and unique ADR numbers,
       # and every suppression comment says why (ADR 0007).
       - name: Context layer
         if: matrix.node == '22'
-        run: npm run check:context
+        run: pnpm run check:context
 
       - name: Suppressions
         if: matrix.node == '22'
-        run: npm run check:suppressions
+        run: pnpm run check:suppressions
       - name: Privacy check
         if: matrix.node == '22'
         env:
           STYLEPROOF_PRIVACY_DENYLIST: ${{ secrets.STYLEPROOF_PRIVACY_DENYLIST }}
-        run: npm run privacy:check
+        run: pnpm run privacy:check
 
       # Fail the build on a known high/critical-severity vulnerability in the
       # dependency tree. Runs once on the supported toolchain, like lint/format.
       - name: Dependency audit
         if: matrix.node == '22'
-        run: npm audit --audit-level=high
+        run: pnpm audit --audit-level=high
 
       # The committed demo report (docs/demo/) must match what the current report
       # renderer produces — so every PR shows the REAL report, never a stale one.
@@ -99,13 +100,13 @@ jobs:
         # Build already emitted and typechecked this exact checkout above.
         # Coverage runs once, on the '22' leg; the other legs run plain units.
         if: matrix.node != '22'
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Unit tests + coverage floor
         # Same suite as test:unit, with Node built-in coverage gated at the
         # measured dist/ floor (see scripts/check-coverage.mjs / CONTRIBUTING).
         if: matrix.node == '22'
-        run: npm run test:coverage
+        run: pnpm run test:coverage
 
   # Run the complete browser and determinism path beside the Node matrix instead
   # of placing it after every Node 22 static and unit gate.
@@ -126,23 +127,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       # The one place the browser capture path (page.evaluate + CDP) is
       # exercised — a self-contained file:// fixture, no live server. The
       # Node-sensitive paths remain covered by units on every build matrix leg.
       - name: Get Playwright version
         id: playwright-version
-        run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(pnpm ls @playwright/test --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: playwright-cache
@@ -153,11 +155,11 @@ jobs:
 
       - name: Install browsers (cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium firefox
+        run: pnpm exec playwright install --with-deps chromium firefox
 
       - name: Install browsers (cache hit, no OS deps)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install chromium firefox
+        run: pnpm exec playwright install chromium firefox
 
       # One shard generates the full test inventory so the evidence job can verify
       # completeness without installing Playwright again. If-condition ensures
@@ -167,13 +169,14 @@ jobs:
         if: matrix.shard == 5
         run: |
           mkdir -p .styleproof/ci
-          npx playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
+          # --silent keeps pnpm's own "Already up to date" line out of the JSON.
+          pnpm --silent exec playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
 
       - name: Browser shard
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: .styleproof/ci/shard.json
           STYLEPROOF_DETERMINISM_RECEIPT: .styleproof/ci/determinism-oracle.json
-        run: npx playwright test --config=playwright.ci.config.ts --shard=${{ matrix.shard }}/6 --reporter=line,json
+        run: pnpm exec playwright test --config=playwright.ci.config.ts --shard=${{ matrix.shard }}/6 --reporter=line,json
 
       - name: Upload browser shard evidence
         if: ${{ !cancelled() }}
@@ -191,7 +194,7 @@ jobs:
   # The evidence job verifies that the shards cover the full inventory and that
   # the determinism oracle proved repeatability. The inventory is produced by
   # shard 5 (no separate Playwright install needed here), so this job only needs
-  # Node.js to run the verification script — a pure-Node path with no npm ci.
+  # Node.js to run the verification script — a pure-Node path with no dependency install.
   e2e-evidence:
     name: e2e (node 22)
     needs: e2e
@@ -220,13 +223,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
-      - run: npm run build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
       - run: node --test test/package-smoke.test.mjs
 
   # Detection-rate corpus: the seeded-mutation measurement must stay green, or a
@@ -242,20 +246,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Get Playwright version
         id: playwright-version
-        run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(pnpm ls @playwright/test --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: playwright-cache
@@ -266,11 +271,11 @@ jobs:
 
       - name: Install browsers (cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Install browsers (cache hit, no OS deps)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
 
       - name: Detection-rate corpus
         run: node bench/detection-rate.mjs --check

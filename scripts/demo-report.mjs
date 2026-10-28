@@ -251,7 +251,7 @@ function pixelsEqual(a, b) {
 
 if (process.argv.includes('--check')) {
   if (!fs.existsSync(path.join(DEMO_DIR, 'report.md'))) {
-    console.error('styleproof: docs/demo/ is missing. Run `npm run demo:report` and commit the result.');
+    console.error('styleproof: docs/demo/ is missing. Run `pnpm run demo:report` and commit the result.');
     process.exit(1);
   }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-demo-check-'));
@@ -278,7 +278,7 @@ if (process.argv.includes('--check')) {
   fs.rmSync(tmp, { recursive: true, force: true });
   if (problems.length) {
     console.error('styleproof: the committed demo report is stale —\n  ' + problems.join('\n  '));
-    console.error('\nReport rendering changed. Run `npm run demo:report` and commit docs/demo/.');
+    console.error('\nReport rendering changed. Run `pnpm run demo:report` and commit docs/demo/.');
     process.exit(1);
   }
   console.log('styleproof: docs/demo/ is up to date.');

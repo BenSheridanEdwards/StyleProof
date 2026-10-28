@@ -105,7 +105,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
 
   assert.equal(packageJson.scripts['test:unit'], 'node scripts/run-node-test.mjs');
   assert.equal(packageJson.scripts['test:coverage'], 'node scripts/check-coverage.mjs');
-  assert.equal(packageJson.scripts.test, 'npm run build && node scripts/run-node-test.mjs');
+  assert.equal(packageJson.scripts.test, 'pnpm run build && node scripts/run-node-test.mjs');
   assert.equal(packageJson.scripts['test:watch'], 'node scripts/run-node-test.mjs --watch');
   assert.match(fs.readFileSync(path.join(here, '..', 'scripts/run-node-test.mjs'), 'utf8'), /nodeMajor >= 20/);
   assert.match(
@@ -113,24 +113,24 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
     /COVERAGE_LINE_FLOOR = 40/,
   );
   assert.match(buildJob, /matrix:\n[\s\S]*node: \['22\.13\.0', '22', '24'\]/);
-  assert.match(buildJob, /npm run build/);
+  assert.match(buildJob, /pnpm run build/);
   assert.match(buildJob, /if: matrix\.node != '22'/);
-  assert.match(buildJob, /npm run test:unit/);
+  assert.match(buildJob, /pnpm run test:unit/);
   assert.match(buildJob, /if: matrix\.node == '22'/);
-  assert.match(buildJob, /npm run test:coverage/);
+  assert.match(buildJob, /pnpm run test:coverage/);
   assert.doesNotMatch(buildJob, /playwright|determinism-oracle/);
-  assert.doesNotMatch(buildJob, /npm test|npm run test:e2e|npm run typecheck/);
+  assert.doesNotMatch(buildJob, /pnpm test|pnpm run test:e2e|pnpm run typecheck/);
 
   assert.match(e2eJob, /name: e2e \(node 22, shard/);
   assert.match(e2eJob, /shard: \[1, 2, 3, 4, 5, 6\]/);
   assert.match(e2eJob, /node-version: '22'/);
-  assert.match(e2eJob, /run: npm ci/);
-  assert.match(e2eJob, /run: npm run build/);
-  assert.match(e2eJob, /npx playwright install --with-deps chromium firefox/);
-  assert.match(e2eJob, /npx playwright install chromium firefox/);
+  assert.match(e2eJob, /run: pnpm install --frozen-lockfile/);
+  assert.match(e2eJob, /run: pnpm run build/);
+  assert.match(e2eJob, /pnpm exec playwright install --with-deps chromium firefox/);
+  assert.match(e2eJob, /pnpm exec playwright install chromium firefox/);
   assert.match(
     e2eJob,
-    /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/6 --reporter=line,json/,
+    /run: pnpm exec playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/6 --reporter=line,json/,
   );
   assert.match(e2eJob, /needs: changes/);
   assert.match(e2eJob, /if: needs\.changes\.outputs\.e2e == 'true'/);
@@ -143,12 +143,12 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(e2eJob, /if: matrix\.shard == 5/);
   assert.match(
     e2eJob,
-    /npx playwright test --config=playwright\.ci\.config\.ts --list --reporter=json > \.styleproof\/ci\/inventory\.json/,
+    /pnpm --silent exec playwright test --config=playwright\.ci\.config\.ts --list --reporter=json > \.styleproof\/ci\/inventory\.json/,
   );
   assert.match(evidenceJob, /name: e2e \(node 22\)/);
   assert.match(evidenceJob, /needs: e2e/);
-  assert.doesNotMatch(evidenceJob, /npm ci/);
-  assert.doesNotMatch(evidenceJob, /npx playwright/);
+  assert.doesNotMatch(evidenceJob, /pnpm install/);
+  assert.doesNotMatch(evidenceJob, /pnpm exec playwright/);
   assert.match(
     evidenceJob,
     /node scripts\/verify-e2e-shards.mjs \.styleproof\/ci\/shards\/e2e-shard-5\/inventory\.json \.styleproof\/ci\/shards 6$/m,
@@ -162,18 +162,18 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(playwrightConfig, /grep: \/non-Chromium capture persists unsupported forced-state evidence\$\//);
   assert.match(playwrightConfig, /Desktop Firefox/);
 
-  assert.match(cliSmoke, /npm run build/);
+  assert.match(cliSmoke, /pnpm run build/);
   assert.match(cliSmoke, /node --test test\/package-smoke\.test\.mjs/);
-  assert.doesNotMatch(cliSmoke, /npm run typecheck|playwright/);
+  assert.doesNotMatch(cliSmoke, /pnpm run typecheck|playwright/);
 
   // The corpus job mirrors the e2e browser setup but needs Chromium only.
   assert.match(detectionCorpus, /name: detection corpus/);
   assert.match(detectionCorpus, /node-version: '22'/);
-  assert.match(detectionCorpus, /npm ci/);
-  assert.match(detectionCorpus, /npm run build/);
+  assert.match(detectionCorpus, /pnpm install/);
+  assert.match(detectionCorpus, /pnpm run build/);
   assert.match(detectionCorpus, /Cache Playwright browsers/);
-  assert.match(detectionCorpus, /npx playwright install --with-deps chromium/);
-  assert.match(detectionCorpus, /npx playwright install chromium/);
+  assert.match(detectionCorpus, /pnpm exec playwright install --with-deps chromium/);
+  assert.match(detectionCorpus, /pnpm exec playwright install chromium/);
   assert.doesNotMatch(detectionCorpus, /firefox/);
   assert.match(detectionCorpus, /node bench\/detection-rate\.mjs --check/);
 
@@ -213,8 +213,7 @@ test('gitleaks keeps its full-history fail-closed scan without uploading an unre
 test('the build matrix tests the exact Node floor every manifest declares', () => {
   const floor = packageJson.engines.node.match(/^>=(\d+\.\d+\.\d+)$/)?.[1];
   assert.ok(floor, `engines.node must be a plain >=X.Y.Z floor (got ${packageJson.engines.node})`);
-  const lock = JSON.parse(fs.readFileSync(path.join(here, '..', 'package-lock.json'), 'utf8'));
-  assert.equal(lock.packages[''].engines.node, packageJson.engines.node);
+  assert.match(packageJson.packageManager, /^pnpm@\d+\.\d+\.\d+$/, 'package.json pins the exact pnpm CI installs');
   assert.equal(packageJson.devEngines.runtime.version, packageJson.engines.node);
   assert.match(ci, new RegExp(`node: \\['${floor.replaceAll('.', '\\.')}',`));
   const nvmrc = fs.readFileSync(path.join(here, '..', '.nvmrc'), 'utf8').trim();
@@ -239,7 +238,7 @@ test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
   assert.match(ci, /os: \[macos-latest, windows-latest\]/);
   assert.match(ci, /node-version: '22'/);
   assert.match(ci, /node --test test\/package-smoke\.test\.mjs/);
-  assert.doesNotMatch(ci.match(/cli-smoke:[\s\S]*$/)?.[0] ?? '', /npm run test:e2e/);
+  assert.doesNotMatch(ci.match(/cli-smoke:[\s\S]*$/)?.[0] ?? '', /pnpm run test:e2e/);
 });
 
 test('workflows that can run on main never unconditionally cancel in-progress runs', () => {
@@ -341,18 +340,25 @@ test('shipped and generated workflows carry no stale actions/* pins (#706)', () 
 test('release installs without dependency scripts and never persists the checkout token', () => {
   const checkout = release.match(/- uses: actions\/checkout@v7\n {8}with:\n([\s\S]*?)\n\n/)?.[1] ?? '';
   assert.match(checkout, /fetch-depth: 0/);
-  assert.match(checkout, /persist-credentials: false/, 'the write token must not sit in .git/config during npm ci');
-  assert.match(release, /- name: Install dependencies\n[^\n]*\n {8}run: npm ci --ignore-scripts\n/);
-  assert.doesNotMatch(release, /run: npm ci\n/);
+  assert.match(
+    checkout,
+    /persist-credentials: false/,
+    'the write token must not sit in .git/config during pnpm install',
+  );
+  assert.match(
+    release,
+    /- name: Install dependencies\n[^\n]*\n {8}run: pnpm install --frozen-lockfile --ignore-scripts\n/,
+  );
+  assert.doesNotMatch(release, /run: pnpm install --frozen-lockfile\n/);
 });
 
 test('the GitHub Packages mirror installs without dependency scripts and never persists the checkout token', () => {
   const mirror = fs.readFileSync(path.join(here, '..', '.github/workflows/github-packages.yml'), 'utf8');
   assert.match(mirror, /packages: write/);
   assert.match(mirror, /- uses: actions\/checkout@v7\n {8}with:\n {10}persist-credentials: false\b/);
-  assert.match(mirror, /- run: npm ci --ignore-scripts\b/);
-  assert.doesNotMatch(mirror, /run: npm ci\s*\n/);
-  assert.match(mirror, /- run: npm run build\n/, 'dist/ is still built explicitly');
+  assert.match(mirror, /- run: pnpm install --frozen-lockfile --ignore-scripts\b/);
+  assert.doesNotMatch(mirror, /run: pnpm install --frozen-lockfile\s*\n/);
+  assert.match(mirror, /- run: pnpm run build\n/, 'dist/ is still built explicitly');
 });
 
 test('every release tag push carries explicit, step-scoped credentials', () => {

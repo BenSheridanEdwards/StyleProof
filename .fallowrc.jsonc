@@ -4,8 +4,10 @@
 
   // Vendored upstream Oxlint plugin, loaded by Oxlint as a JS plugin, not imported (vendor/anti-slop/README.md).
   "ignorePatterns": ["vendor/anti-slop/**"],
-  // Imported only by that plugin.
-  "ignoreDependencies": ["@oxlint/plugins"],
+  // @oxlint/plugins is imported only by that plugin. playwright-core is loaded by
+  // tests through createRequire and resolved from node_modules paths, which pnpm's
+  // strict layout only exposes for direct dependencies.
+  "ignoreDependencies": ["@oxlint/plugins", "playwright-core"],
 
   // Run duplication and complexity in production mode so they skip test/dev files.
   // Test code is procedural by nature (setup boilerplate, pixel scans), and CRAP —

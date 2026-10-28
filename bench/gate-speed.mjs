@@ -1,7 +1,7 @@
 // Benchmark: the committed-map gate (CI diffs precomputed maps) vs the classic
 // flow (CI captures BOTH base and head in a browser, then diffs).
 //
-//   npm run bench         # builds, then runs this
+//   pnpm run bench         # builds, then runs this
 //
 // It measures two real costs and projects them to a sample app:
 //   - capture: one in-browser captureStyleMap of a representative fixture — the

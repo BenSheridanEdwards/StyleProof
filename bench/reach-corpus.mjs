@@ -2,8 +2,8 @@
 // of its visual changes does today's diff show — and do the reach joins name the
 // rest? J1 runs classifyRuleReach on the captureReach ledger; J2/J3 are prototypes.
 //
-//   npm run bench:reach          # measure (writes bench/reach-corpus.results.json)
-//   npm run bench:reach:check    # same, exit 1 on any violated expectation
+//   pnpm run bench:reach          # measure (writes bench/reach-corpus.results.json)
+//   pnpm run bench:reach:check    # same, exit 1 on any violated expectation
 //
 // The fixture is the base side. The head side is the base plus every case's
 // `edit`, so each seeded change belongs to the case that declares it. The real

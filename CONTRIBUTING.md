@@ -9,15 +9,15 @@ way (one job, done well, no native deps) are the easiest to merge.
 ```sh
 git clone https://github.com/BenSheridanEdwards/StyleProof
 cd styleproof
-npm install                 # also runs `npm run build` via the `prepare` script
-npx playwright install chromium   # for the smoke e2e
+corepack enable            # or install pnpm 11; package.json pins pnpm@11.7.0
+pnpm install                # also runs `pnpm run build` via the `prepare` script
+pnpm exec playwright install chromium   # for the smoke e2e
 ```
 
 The package requires Node 22.13+ (`engines.node: ">=22.13.0"`). CI runs its build
 and unit tests on Node 22.13.0 (the floor itself), 22, and 24. `.nvmrc` selects
-Node 22. `devEngines` makes npm 10.9+ refuse to install on a Node below the floor.
-npm before 10.9 (bundled with Node 18, 20 and 22 before 22.10) ignores
-`devEngines` and prints only `EBADENGINE` warnings.
+Node 22. The repo uses pnpm (`packageManager` in `package.json`); `devEngines`
+and `engines` record the Node floor for consumers and tooling.
 The floor is the oldest Node 22 release the dev toolchain supports: ESLint 10
 declares `^20.19.0 || ^22.13.0 || >=24`, `@commitlint/cli` `>=22.12.0`, and
 `fallow` `>=22`. The runtime itself needs 22.6+ for type stripping. Lint and the
@@ -59,18 +59,18 @@ keep them self-contained.
 Everything CI runs, locally:
 
 ```sh
-npm run build         # tsc → dist/  (the bins import dist/, so build first)
-npm run typecheck     # tsc --noEmit, strict
-npm run lint          # eslint .
-npm run format:check  # prettier --check  (use `npm run format` to fix)
-npm run privacy:check # scan every git-tracked + npm-packed text file for private leaks
-npm test              # builds, then node --test over test/*.test.mjs (fast, no browser)
-npm run test:unit -- test/<name>.test.mjs  # one file, same runner and preload (after a build)
-npm run test:coverage # same unit suite + Node built-in coverage floor on dist/ (Node 22.8+)
-npm run test:e2e      # Playwright smoke: the page.evaluate + CDP capture path
+pnpm run build         # tsc → dist/  (the bins import dist/, so build first)
+pnpm run typecheck     # tsc --noEmit, strict
+pnpm run lint          # eslint .
+pnpm run format:check  # prettier --check  (use `pnpm run format` to fix)
+pnpm run privacy:check # scan every git-tracked + npm-packed text file for private leaks
+pnpm test              # builds, then node --test over test/*.test.mjs (fast, no browser)
+pnpm run test:unit test/<name>.test.mjs  # one file, same runner and preload (after a build)
+pnpm run test:coverage # same unit suite + Node built-in coverage floor on dist/ (Node 22.8+)
+pnpm run test:e2e      # Playwright smoke: the page.evaluate + CDP capture path
 ```
 
-Run a single unit test file with `npm run test:unit -- <file>`, not a plain
+Run a single unit test file with `pnpm run test:unit <file>`, not a plain
 `node --test <file>`. The runner preloads `test/no-concurrent-jobs.cjs`, and
 without it a CLI child that a test spawns can hang at exit on Node 26 (#711, #799).
 
@@ -80,8 +80,8 @@ baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
 it on the Node 22 matrix leg. Develop with Node 22.13+ so the floor flags exist;
 older Node exits non-zero with a clear message instead of silently skipping.
 
-`pre-push` always runs `npm test`. It shares `browserLanesRequired` in
-`scripts/browser-lanes.mjs` with CI and runs `npm run test:e2e -- --workers=4`
+`pre-push` always runs `pnpm test`. It shares `browserLanesRequired` in
+`scripts/browser-lanes.mjs` with CI and runs `pnpm run test:e2e --workers=4`
 unless every pushed range has equal root trees or deletes a ref, and the staged
 index is proven equal to `HEAD`. The index proof uses `write-tree` plus a
 `diff-index --cached --quiet --ignore-submodules=none` cross-check; disagreement
@@ -92,8 +92,8 @@ First pushes, absent stdin and unknown evidence run the full suite; malformed
 records, missing Chromium and unreadable pushed objects block the push.
 Deleting a tracked file changes the tree and runs browsers. The command tests
 the current checkout, not a separate checkout of each pushed ref. Install Chromium
-with `npx playwright install chromium` before pushing changes.
-`npm run demo:check` verifies demo Markdown, HTML and decoded crop pixels.
+with `pnpm exec playwright install chromium` before pushing changes.
+`pnpm run demo:check` verifies demo Markdown, HTML and decoded crop pixels.
 
 Hosted pushes always require browser lanes, including empty-tree pushes. PRs
 may skip only with a verified two-parent merge of the event's base whose root
@@ -104,7 +104,7 @@ capture cannot reuse a merge/base identity proof. See [quality gates](docs/quali
 for the scope and proposed follow-ups.
 
 The unit suite imports the **built `dist/`** (the same surface the bins and consumers
-use), so a stale build can't yield a false green — `npm test` rebuilds first. Add or
+use), so a stale build can't yield a false green — `pnpm test` rebuilds first. Add or
 update tests for any behaviour you change. The smoke e2e is the only coverage of the
 browser-evaluated capture functions; run it when you touch `src/capture.ts`.
 
@@ -119,15 +119,15 @@ You can also **dogfood** the tool against a real production build, which is the 
 way to see a change end to end:
 
 ```sh
-BASE_URL=http://localhost:3000 STYLEMAP_DIR=before npx playwright test example/
+BASE_URL=http://localhost:3000 STYLEMAP_DIR=before pnpm exec playwright test example/
 # ...make a deliberate CSS change in the target site, rebuild it...
-BASE_URL=http://localhost:3000 STYLEMAP_DIR=after  npx playwright test example/
-npx styleproof-diff __stylemaps__/before __stylemaps__/after
+BASE_URL=http://localhost:3000 STYLEMAP_DIR=after  pnpm exec playwright test example/
+pnpm exec styleproof-diff __stylemaps__/before __stylemaps__/after
 ```
 
 When dogfooding the full consumer flow (`styleproof-init` → `styleproof-map`) in a
 scratch project, install the repo as a **tarball**, not a path: `npm install
-$(npm pack --pack-destination /tmp /path/to/StyleProof | tail -1)`. A path install
+$(pnpm pack --pack-destination /tmp --dir /path/to/StyleProof | tail -1)`. A path install
 symlinks `node_modules/styleproof` to the repo, and in a CommonJS consumer
 Playwright's transpiler then treats the linked ESM `dist/` as project code —
 `styleproof-map` dies with a misleading `Cannot use 'import.meta' outside a module`
@@ -189,8 +189,9 @@ merge that does not bump the version is a clean no-op.
 So a release is just a version bump in a normal PR:
 
 1. Move the `## [Unreleased]` notes into a new version section in `CHANGELOG.md`.
-2. `npm version <patch|minor|major> --no-git-tag-version` — bumps `package.json`
-   and `package-lock.json` only (the workflow creates the tag, not you).
+2. `pnpm version <patch|minor|major> --no-git-tag-version` — bumps `package.json`
+   only (the workflow creates the tag, not you; `pnpm-lock.yaml` does not record
+   the root version).
 3. Open the PR, get it green, and merge. Merging publishes.
 
 The publish step is **idempotent and fail-closed**: it skips publication only when

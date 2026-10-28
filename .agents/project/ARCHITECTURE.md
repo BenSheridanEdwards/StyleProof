@@ -55,7 +55,7 @@ folder of the same name that holds the implementation.
    `report/png.ts`, `report/markdown.ts`, `report/content-layer.ts`,
    `report/migration-gallery.ts`, `report/sections.ts`, `report/geometry.ts`,
    `report/annotation-paths.ts`, `report/shared.ts`. Output must stay
-   byte-identical to `docs/demo/` (`npm run demo:report -- --check`).
+   byte-identical to `docs/demo/` (`pnpm run demo:report --check`).
 
 Configuration lives in `config.ts` → `config/` (`schema.ts` is the table-driven
 validator, `load.ts` / `load-ts.ts` discover and evaluate the file, `spec.ts`
