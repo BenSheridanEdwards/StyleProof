@@ -1,5 +1,6 @@
 import { expect, test, type CDPSession, type JSHandle, type Page, type TestInfo } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
+import { mock } from 'node:test';
 import { captureStyleMap } from '../dist/index.js';
 
 type Command = { method: string; params?: Record<string, unknown> };
@@ -126,11 +127,11 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
           true,
         );
     }
-    // One installed snapshot, five evaluations per target (baseline, three
-    // states, reset barrier), plus shared-baseline save/check for document reads.
+    // One installed snapshot, four evaluations per target (baseline and three
+    // states), one final reset barrier, plus shared save/check for document reads.
 
     const sharedBaseline = mode !== 'stylesheet';
-    expect(evaluates).toBe(1 + TARGETS * 5 + (sharedBaseline ? 2 : 0));
+    expect(evaluates).toBe(1 + TARGETS * 4 + 1 + (sharedBaseline ? 2 : 0));
     expect(commands.map(({ method }) => method)).toEqual([
       'DOM.enable',
       'CSS.enable',
@@ -147,8 +148,8 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
         'CSS.forcePseudoState',
         'Runtime.evaluate',
         'CSS.forcePseudoState',
-        'Runtime.evaluate',
       ]).flat(),
+      'Runtime.evaluate',
       ...(sharedBaseline ? ['Runtime.evaluate'] : []),
       'detach',
     ]);
@@ -160,6 +161,72 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
     await originals.dispose();
   });
 }
+
+for (const which of ['first', 'last'] as const) {
+  test(`a target removed after its reset is warned, uncertified and loses only its active delta: ${which}`, async ({
+    page,
+  }) => {
+    await page.setContent(fixture(false));
+    const index = which === 'first' ? 0 : TARGETS - 1;
+    const removed = `body > section:nth-child(${index + 1}) > button:nth-child(1)`;
+    const warnings: string[] = [];
+    const warningSpy = mock.method(console, 'warn', (message: string) => warnings.push(message));
+
+    let resets = 0;
+
+    try {
+      const map = await observeSession(
+        page,
+        [],
+        async (call, forward) => {
+          const result = await forward(call.method, call.params);
+          const classes = call.params?.forcedPseudoClasses;
+
+          if (call.method === 'CSS.forcePseudoState' && Array.isArray(classes) && classes.length === 0) {
+            if (resets++ === index) await page.evaluate((i) => document.querySelectorAll('section')[i].remove(), index);
+          }
+
+          return result;
+        },
+        () => captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' }),
+      );
+
+      expect(map.statesSkipped).toBe(true);
+      expect(map.stateComputedValueStyle).toBeUndefined();
+      expect(Object.keys(map.states)).toHaveLength(TARGETS);
+      expect(Object.keys(map.states[removed])).toEqual(['hover', 'focus']);
+
+      for (const [path, states] of Object.entries(map.states)) {
+        if (path !== removed) expect(Object.keys(states)).toEqual(['hover', 'focus', 'active']);
+      }
+
+      expect(warnings).toEqual([
+        `styleproof: interactive element sp-${index} detached while resetting forced state; skipping it.`,
+      ]);
+    } finally {
+      warningSpy.mock.restore();
+    }
+  });
+}
+
+test('deferred active commits keep states key order', async ({ page }) => {
+  await page.setContent(`<!doctype html><html><head><style>
+    button { all: initial; display: block; background-color: rgb(1, 2, 3); }
+    .a:active, .c:active { background-color: rgb(10, 20, 30); }
+    .b:hover { background-color: rgb(40, 50, 60); }
+  </style></head><body><button class="a">A</button><button class="b">B</button><button class="c">C</button></body></html>`);
+  const a = 'body > button:nth-child(1)';
+  const b = 'body > button:nth-child(2)';
+  const c = 'body > button:nth-child(3)';
+  const map = await captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
+  expect(map.statesSkipped).toBeFalsy();
+  expect(Object.keys(map.states)).toEqual([a, b, c]);
+  expect(map.states).toEqual({
+    [a]: { active: { [a]: { 'background-color': 'rgb(10, 20, 30)' } } },
+    [b]: { hover: { [b]: { 'background-color': 'rgb(40, 50, 60)' } } },
+    [c]: { active: { [c]: { 'background-color': 'rgb(10, 20, 30)' } } },
+  });
+});
 
 test('forced-state output matches the pre-change deltas for sibling, focus-visible, active and :has rules', async ({
   page,
