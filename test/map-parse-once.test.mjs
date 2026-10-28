@@ -393,32 +393,32 @@ test('migration structure elevation does not read capture maps', (t) => {
 });
 
 // The report CLI nests the report's read scope inside its evidence-binding scope.
-test('report CLI reads a large unchanged catalogue once without hiding later changes', (t) => {
-  const dirs = fixture(t);
-
-  for (const file of dirs.maps) fs.unlinkSync(file);
-  const files = [];
-
-  const map = makeMap({
-    elements: {
-      [BUTTON]: { tag: 'button', rect: [20, 80, 100, 40], style: { color: 'gray' } },
-    },
-  });
-
-  for (let index = 0; index < 265; index++) {
-    for (const dir of [dirs.beforeDir, dirs.afterDir]) {
-      const surface = `example-${index}@1280`;
-      writeCapture(dir, surface, map);
-      files.push(path.join(dir, `${surface}.json.gz`));
-    }
-  }
-
+test('report evidence scope parses each capture once for unchanged, CSS-only and element-only catalogues', (t) => {
   for (const mode of ['nochange', 'css', 'element']) {
+    const dirs = fixture(t);
+
+    for (const file of dirs.maps) fs.unlinkSync(file);
+    const files = [];
+
+    const map = makeMap({
+      elements: {
+        [BUTTON]: { tag: 'button', rect: [20, 80, 100, 40], style: { color: 'gray' } },
+      },
+    });
+
+    for (let index = 0; index < 265; index++) {
+      for (const dir of [dirs.beforeDir, dirs.afterDir]) {
+        const surface = `example-${index}@1280`;
+        writeCapture(dir, surface, map);
+        files.push(path.join(dir, `${surface}.json.gz`));
+      }
+    }
+
     if (mode === 'css') map.elements[BUTTON].style.color = 'blue';
 
     if (mode === 'element') map.elements[ADDED] = { tag: 'p', cls: '', rect: [20, 150, 100, 40], style: {} };
     writeCapture(dirs.afterDir, 'example-264@1280', map);
-    // Two evidence-receipt reads and one parse per file, even above the process cache capacity.
+    // Fresh paths require two evidence-receipt reads and one parse per file.
     const assertReads = countMapReads(t, files, 3);
 
     const report = withCaptureDirs('styleproof-report', dirs, () =>
@@ -427,7 +427,7 @@ test('report CLI reads a large unchanged catalogue once without hiding later cha
 
     assert.equal(report.comparison.hasReviewableEvidence, mode !== 'nochange');
     assert.equal(report.comparison.blocksCertification, false);
-    assert.equal(report.totalFindings, mode === 'nochange' ? 0 : 1);
+    assert.equal(report.totalFindings, mode === 'css' ? 1 : 0);
     assert.equal(report.comparison.reviewableCounts.dom, mode === 'element' ? 1 : 0);
     assertReads();
   }
