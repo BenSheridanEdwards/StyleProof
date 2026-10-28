@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { PNG } from 'pngjs';
-import { encodePng } from './png.js';
+import { encodePng, halvePng } from './png.js';
 import type { RenderCtx } from './shared.js';
 
 export type CropBudget = {
@@ -19,12 +19,23 @@ export function createCropBudget(maxFiles: number, maxBytes: number): CropBudget
 
 export const cropBudgetOpen = (b: CropBudget): boolean => !b.exhausted && b.files < b.maxFiles;
 
+export const MAX_CROP_FILE_BYTES = 300_000;
+
 /** Stop after the first PNG that does not fit; later crops never encode. */
 export function writeBudgetedPng(ctx: RenderCtx, rel: string, png: PNG): boolean {
   const b = ctx.crops;
 
   if (!cropBudgetOpen(b)) return false;
-  const encoded = encodePng(png);
+  const cap = Math.min(MAX_CROP_FILE_BYTES, b.maxBytes);
+  let encoded = encodePng(png);
+
+  for (let tries = 0; encoded.length > cap && tries < 3; tries++) {
+    png = halvePng(png);
+    encoded = encodePng(png);
+  }
+  // Callers count omitted crops. An oversized file must not block later smaller ones.
+
+  if (encoded.length > cap) return false;
 
   if (b.files + 1 > b.maxFiles || b.bytes + encoded.length > b.maxBytes) {
     b.exhausted = true;

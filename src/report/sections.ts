@@ -376,6 +376,8 @@ export type ReportArtifacts = Pick<
 > & {
   outDir: string;
   htmlMaxBytes?: number;
+  maxJsonBytes?: number;
+  maxArtifactBytes?: number;
   crops: CropBudget;
   md: string[];
   gateMode: NonNullable<ReportOptions['gateMode']>;
@@ -399,19 +401,8 @@ export type ReportArtifacts = Pick<
   reach?: ReportReach;
 };
 
-/** Write report.md, report.json, and report.html. The JSON key order is a byte-stable contract. */
-export function writeReportArtifacts(a: ReportArtifacts): {
-  reportMdPath: string;
-  reportJsonPath: string;
-  reportHtmlPath: string;
-} {
-  const reportMdPath = path.join(a.outDir, 'report.md');
-  const reportJsonPath = path.join(a.outDir, 'report.json');
-  const reportHtmlPath = path.join(a.outDir, 'report.html');
-  fs.writeFileSync(reportMdPath, a.md.length > 0 ? `${a.md.join('\n')}\n` : '');
-  // The rendered sibling of report.md: artifact storage and local output ship
-  // no rendered view, so the review surface travels inside the package (#698).
-  fs.writeFileSync(reportHtmlPath, renderReportHtml(a.md.join('\n'), { outDir: a.outDir, maxBytes: a.htmlMaxBytes }));
+/** Build the JSON before finishing Markdown, so its omissions can be disclosed inside the cap. */
+export function buildReportJson(a: ReportArtifacts) {
   const json = {
     gateMode: a.gateMode,
     counts: a.counts,
@@ -459,6 +450,62 @@ export function writeReportArtifacts(a: ReportArtifacts): {
       },
     });
   }
-  fs.writeFileSync(reportJsonPath, JSON.stringify(json, null, 2));
+
+  return capFindings(json, a.maxJsonBytes ?? 450_000);
+}
+
+function capFindings(json: Pick<ReportArtifacts, 'surfaces'>, maxBytes: number) {
+  const unchanged = { json, findingsOmitted: { rows: 0, groups: 0 } };
+
+  if (Buffer.byteLength(JSON.stringify(json, null, 2)) <= maxBytes) return unchanged;
+
+  const surfaces = json.surfaces.map((s) =>
+    Array.isArray(s.findings) ? { ...s, findings: [], findingsOmitted: s.findings.length } : s,
+  );
+
+  const total = surfaces.reduce((n, s) => n + (Number(s.findingsOmitted) || 0), 0);
+  const findingsBudget = { maxBytes, listed: 0, omitted: total, total };
+  const capped = { ...json, surfaces, findingsBudget };
+  const fits = () => Buffer.byteLength(JSON.stringify(capped, null, 2)) <= maxBytes;
+  // Untrimmable metadata and one-sided entries must survive even when the skeleton cannot fit.
+
+  if (!fits()) return unchanged;
+
+  for (const [i, original] of json.surfaces.entries()) {
+    if (!Array.isArray(original.findings)) continue;
+    const skeleton = surfaces[i];
+    surfaces[i] = original;
+    findingsBudget.listed += original.findings.length;
+    findingsBudget.omitted -= original.findings.length;
+
+    if (fits()) continue;
+    surfaces[i] = skeleton;
+    findingsBudget.listed -= original.findings.length;
+    findingsBudget.omitted += original.findings.length;
+    break;
+  }
+
+  return {
+    json: capped,
+    findingsOmitted: { rows: findingsBudget.omitted, groups: surfaces.filter((s) => s.findingsOmitted).length },
+  };
+}
+
+/** Write the three siblings within one artifact budget. */
+export function writeReportArtifacts(a: ReportArtifacts, json = buildReportJson(a).json) {
+  const reportMdPath = path.join(a.outDir, 'report.md');
+  const reportJsonPath = path.join(a.outDir, 'report.json');
+  const reportHtmlPath = path.join(a.outDir, 'report.html');
+  const markdown = a.md.length > 0 ? `${a.md.join('\n')}\n` : '';
+  const serialized = JSON.stringify(json, null, 2);
+
+  const maxBytes = Math.min(
+    a.htmlMaxBytes ?? 2_000_000,
+    (a.maxArtifactBytes ?? 2_000_000) - Buffer.byteLength(markdown) - Buffer.byteLength(serialized) - 256,
+  );
+
+  fs.writeFileSync(reportMdPath, markdown);
+  fs.writeFileSync(reportJsonPath, serialized);
+  fs.writeFileSync(reportHtmlPath, renderReportHtml(a.md.join('\n'), { outDir: a.outDir, maxBytes }));
   return { reportMdPath, reportJsonPath, reportHtmlPath };
 }

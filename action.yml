@@ -41,7 +41,7 @@ inputs:
     description: 'When to publish a report: on-change skips trusted clean runs without included content changes; always publishes every defined verdict, including clean runs.'
     default: 'on-change'
   report-max-bytes:
-    description: 'Maximum report.html bytes in artifact mode. Markdown and JSON receipts are excluded. Positive integer.'
+    description: 'Maximum combined bytes of report.html, report.md and report.json in artifact mode; html gets what md and json leave. Positive integer.'
     default: '2000000'
   report-retention-days:
     description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer in either storage mode; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
@@ -778,9 +778,10 @@ runs:
         import { pathToFileURL } from 'node:url';
         const { renderReportHtml } = await import(pathToFileURL(`${process.env.GITHUB_ACTION_PATH}/dist/report/html.js`));
         const dir = 'styleproof-report';
-        const options = process.env.REPORT_STORAGE === 'branch' ? undefined : { outDir: dir, maxBytes: Number(process.env.REPORT_MAX_BYTES) };
+        const options = process.env.REPORT_STORAGE === 'branch' ? undefined : { outDir: dir, maxBytes: Number(process.env.REPORT_MAX_BYTES) - fs.statSync(`${dir}/report.md`).size - fs.statSync(`${dir}/report.json`).size };
         let html;
         try {
+          if (options && options.maxBytes <= 0) throw new Error('HTML byte budget cannot fit report text');
           html = renderReportHtml(fs.readFileSync(`${dir}/report.md`, 'utf8'), options);
         } catch (error) {
           throw new Error(`report-max-bytes: ${error.message}; increase the budget`);

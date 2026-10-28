@@ -18,6 +18,15 @@ const publishBin = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-publ
 const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publish.ts'), 'utf8');
 const gitDataModule = fs.readFileSync(path.join(here, '..', 'src', 'github-git-data.ts'), 'utf8');
 
+test('artifact size step subtracts markdown and JSON from report-max-bytes', () => {
+  const step = actionYml.match(/- name: Bound the artifact report size[\s\S]*?(?=\n\s{4}- id: publish)/);
+  assert.ok(step);
+  assert.match(
+    step[0],
+    /Number\(process\.env\.REPORT_MAX_BYTES\)\s*-\s*fs\.statSync\(`\$\{dir\}\/report\.md`\)\.size\s*-\s*fs\.statSync\(`\$\{dir\}\/report\.json`\)\.size/,
+  );
+});
+
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
 }

@@ -86,6 +86,8 @@ import {
   renderOneSidedSections,
   stateCoverageLines,
   writeReportArtifacts,
+  buildReportJson,
+  type ReportArtifacts,
   type SectionState,
 } from './report/sections.js';
 
@@ -127,7 +129,7 @@ export type ReportOptions = {
   zoomBelow?: number;
   /** Max crop regions per surface before collapsing into one union crop (default 8). */
   maxCrops?: number;
-  /** Whole-report crop ceilings (default 60 files / 5_000_000 bytes). Zero disables crops. */
+  /** Whole-report crop ceilings (default 60 files / 900_000 bytes). Zero disables crops. */
   maxCropFiles?: number;
   maxCropBytes?: number;
   /** Row count at which a crop's property tables fold under `<details>` (default 0 = always; Infinity = never). */
@@ -150,8 +152,12 @@ export type ReportOptions = {
   /** Coverage-ledger exclusion keys — a declared obligation that is also excluded fails closed. */
   coverageExclusions?: Iterable<string>;
   /** Byte ceiling for report.md (GitHub stops rendering past ~512 KB); past it, surfaces become one-liners
-   *  while report.json keeps every row. Default 400_000; Infinity never caps. */
+   *  while styleproof-diff.json keeps every row. Default 400_000; Infinity never caps. */
   maxReportBytes?: number;
+  /** Findings byte ceiling for report.json. Default 450_000; Infinity never caps. */
+  maxJsonBytes?: number;
+  /** Combined report.html + report.md + report.json byte ceiling. Default 2_000_000. */
+  maxArtifactBytes?: number;
   /** Self-contained HTML byte ceiling. Default 2_000_000. */
   htmlMaxBytes?: number;
   /** Migration mode (#566): add the Changed styles / New surfaces / New-removed elements gallery. Gates unchanged. */
@@ -214,7 +220,7 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     maxHeight: opts.maxHeight ?? 1600,
     zoomBelow: opts.zoomBelow ?? 64,
     maxCrops: opts.maxCrops ?? 8,
-    crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 5_000_000),
+    crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 900_000),
     foldDetailsAt: opts.foldDetailsAt ?? 0,
     includeNoise: opts.includeLayoutNoise === true,
     requireStateIdentity: opts.requireStateIdentity === true,
@@ -602,24 +608,14 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   ) {
     md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
   }
-  md.finish(
-    evidenceSection(
-      evidenceLines({
-        certIssues,
-        liveText,
-        provenanceLine: baselineProvenanceLine(baselineProvenance),
-        comparison,
-        gates,
-        criticalObligations: opts.criticalObligations,
-      }),
-    ),
-  );
-
   // 4. Write report.md and report.json, and return the result.
-  const paths = writeReportArtifacts({
+
+  const artifacts: ReportArtifacts = {
     outDir,
     crops: ctx.crops,
     htmlMaxBytes: opts.htmlMaxBytes,
+    maxJsonBytes: opts.maxJsonBytes,
+    maxArtifactBytes: opts.maxArtifactBytes,
     md: md.lines,
     gateMode,
     counts: view.shown,
@@ -646,7 +642,35 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     criticalStates: gates.criticalStates,
     digest,
     reach,
-  });
+  };
+
+  const { json, findingsOmitted } = buildReportJson(artifacts);
+
+  const findingsNotice =
+    findingsOmitted.rows > 0
+      ? [
+          '',
+          `_${findingsOmitted.rows} finding row(s) in ${findingsOmitted.groups} change group(s) omitted from report.json ` +
+            `at its byte budget (${(opts.maxJsonBytes ?? 450_000) / 1000} KB); every change is listed and counted above, ` +
+            'and styleproof-diff.json holds every finding._',
+        ]
+      : [];
+
+  md.finish([
+    ...findingsNotice,
+    ...evidenceSection(
+      evidenceLines({
+        certIssues,
+        liveText,
+        provenanceLine: baselineProvenanceLine(baselineProvenance),
+        comparison,
+        gates,
+        criticalObligations: opts.criticalObligations,
+      }),
+    ),
+  ]);
+
+  const paths = writeReportArtifacts(artifacts, json);
   return {
     changedSurfaces: view.prepared.length - view.missing.length,
     newSurfaces: oneSided.greenfieldNewSurfaces,
