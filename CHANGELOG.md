@@ -15,6 +15,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Later-attempt receipts need a bot or repository write permission, so read-only members and
   collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
 
+### Security
+
+- Bind enforcement sign-off statuses to the gate's successful default-branch
+  comment run triggered by the approver (#1149).
+
 ## [9.0.0] - 2026-10-29
 
 > **StyleProof 9.0.0: stable keys and stricter gates**

@@ -345,15 +345,60 @@ async function gateEvent(github, context) {
   };
 }
 
+/** Whether a run is a successful default-branch enforcement-approval comment run by APPROVER. */
+function isApprovalRun(workflowRun, defaultBranch) {
+  return (
+    Boolean(defaultBranch) &&
+    workflowRun.path === '.github/workflows/enforcement-approval.yml' &&
+    workflowRun.event === 'issue_comment' &&
+    workflowRun.head_branch === defaultBranch &&
+    workflowRun.triggering_actor?.login?.toLowerCase() === APPROVER.toLowerCase() &&
+    workflowRun.status === 'completed' &&
+    workflowRun.conclusion === 'success'
+  );
+}
+
+/** Whether a status time falls inside a run's window; unparsable times fail closed. */
+function withinRunWindow(workflowRun, createdAt) {
+  const start = Date.parse(workflowRun.run_started_at);
+  const end = Date.parse(workflowRun.updated_at);
+  const statusAt = Date.parse(createdAt);
+  // GitHub timestamps can lag the status write by a few seconds.
+  const slack = 5000;
+  return Number.isFinite(start) && Number.isFinite(end) && statusAt >= start && statusAt <= end + slack;
+}
+
 /**
- * Whether the gate's own latest status on `head` is the sign-off. Anyone with
- * write access can post a status, so only the gate's count.
+ * Whether the latest bot sign-off on `head` links to a successful, completed
+ * default-branch enforcement-approval issue_comment run triggered by APPROVER.
+ * Its status time must fall within that run's window, with 5 s of end slack.
+ * This narrows provenance; statuses: write can still forge a status in that window.
  */
-async function isSignedOff(github, repo, head) {
-  const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ ...repo, ref: head, per_page: 100 });
-  const latest = statuses.find((status) => status.context === STATUS_CONTEXT && status.creator?.login === GATE_AUTHOR);
-  const signed = signedOffStatus(head);
-  return latest?.state === signed.state && latest?.description === signed.description;
+async function isSignedOff(github, repo, head, context) {
+  try {
+    const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ ...repo, ref: head, per_page: 100 });
+
+    const latest = statuses.find(
+      (status) => status.context === STATUS_CONTEXT && status.creator?.login === GATE_AUTHOR,
+    );
+
+    const signed = signedOffStatus(head);
+
+    if (latest?.state !== signed.state || latest?.description !== signed.description) return false;
+    const prefix = `${context.serverUrl || 'https://github.com'}/${repo.owner}/${repo.repo}/actions/runs/`;
+
+    if (!latest.target_url?.startsWith(prefix)) return false;
+    const id = latest.target_url.slice(prefix.length);
+
+    if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id))) return false;
+    const { data: workflowRun } = await github.rest.actions.getWorkflowRun({ ...repo, run_id: Number(id) });
+
+    if (!isApprovalRun(workflowRun, context.payload.repository?.default_branch)) return false;
+
+    return withinRunWindow(workflowRun, latest.created_at);
+  } catch {
+    return false;
+  }
 }
 
 /** Create or update the gate's comment when its body changes. */
@@ -402,7 +447,7 @@ export async function run({ github, context, core }) {
     head,
     problems,
     comment: existing,
-    signedOff: await isSignedOff(github, repo, head),
+    signedOff: await isSignedOff(github, repo, head, context),
     event,
   });
   await writeComment({ github, repo, number, existing, body: plan.commentBody });
@@ -417,6 +462,7 @@ export async function run({ github, context, core }) {
     context: STATUS_CONTEXT,
     state: plan.status.state,
     description: plan.status.description,
+    target_url: `${context.serverUrl || 'https://github.com'}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`,
   });
   core.info(`${STATUS_CONTEXT}: ${plan.status.state} — ${plan.status.description}`);
 }
