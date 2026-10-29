@@ -906,11 +906,11 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
 
       // The publish/restore contract still holds when upload is allowed (the
       // trusted publish-base job on the default branch). Prove it with the same
-      // first-adoption args minus the generated --no-store flag.
+      // first-adoption args minus the generated --no-store and --no-upload flags.
       fs.rmSync(mapRoot, { recursive: true, force: true });
       const publishOutput = path.join(root, 'github-output-publish');
-      const publishScript = generatedMapScript.replace(/ --no-store\b/g, '');
-      assert.doesNotMatch(publishScript, /--no-store/);
+      const publishScript = generatedMapScript.replace(/ --no-(store|upload)\b/g, '');
+      assert.doesNotMatch(publishScript, /--no-(store|upload)/);
       const published = spawnSync('/bin/bash', ['-c', publishScript], {
         cwd: repo,
         encoding: 'utf8',
