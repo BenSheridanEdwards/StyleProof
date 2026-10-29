@@ -29,6 +29,7 @@ export interface MapManifest {
   dirtyAllow?: string[];
   spec: string;
   specHash: string;
+  harnessHash?: string;
   lockfile?: string;
   lockfileHash?: string;
   playwrightVersion?: string;
@@ -134,72 +135,93 @@ function realPath(target: string): string {
   }
 }
 
-/** Match the spec-ref overlay's recursive harness scope; root-level specs own only
- *  themselves. Include the config because first adoption can overlay it too. Hash
- *  checkout bytes rather than git blobs so overlaid, head-only files count. Git
- *  excludes ignored capture outputs; non-git directories use a recursive walk. */
-function harnessHash(cwd: string, spec: string): string {
+function collectHarnessEntries(directory: string, files: Map<string, string>, relative = '.'): void {
+  let entries: fs.Dirent[];
+
+  try {
+    entries = fs.readdirSync(path.resolve(directory, relative), { withFileTypes: true });
+  } catch {
+    files.set(relative.replace(/\\/g, '/'), path.resolve(directory, relative));
+
+    return;
+  }
+
+  for (const entry of entries) {
+    const file = path.join(relative, entry.name);
+
+    if (entry.isDirectory()) collectHarnessEntries(directory, files, file);
+    else files.set(file.replace(/\\/g, '/'), path.resolve(directory, file));
+  }
+}
+
+function hashHarnessEntry([file, absolute]: [string, string]): string[] {
+  try {
+    let bytes: Buffer | string;
+
+    if (fs.lstatSync(absolute).isSymbolicLink()) {
+      bytes = fs.readlinkSync(absolute);
+
+      if (fs.existsSync(absolute) && fs.statSync(absolute).isFile()) bytes = fs.readFileSync(absolute);
+    } else bytes = fs.readFileSync(absolute);
+
+    return [file.replace(/\\/g, '/'), sha256(bytes)];
+  } catch (error) {
+    // SAFETY: filesystem errors carry errno codes; never hash paths or error messages.
+    return [file.replace(/\\/g, '/'), `unreadable:${(error as NodeJS.ErrnoException).code ?? 'unknown'}`];
+  }
+}
+
+function collectGitHarnessEntries(directory: string, files: Map<string, string>): void {
+  const listed = git(directory, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
+
+  if (listed.status !== 0 || listed.error) return collectHarnessEntries(directory, files);
+
+  for (const file of listed.stdout.split('\0').filter(Boolean)) {
+    files.set(file.replace(/\\/g, '/'), path.resolve(directory, file));
+  }
+}
+
+function collectOverlayHarnessEntries(
+  cwd: string,
+  directory: string,
+  files: Map<string, string>,
+  overlay: readonly string[],
+): void {
+  const prefix = gitStdout(cwd, ['rev-parse', '--show-prefix']);
+
+  for (const file of overlay) {
+    const relative = path.relative(directory, path.resolve(cwd, path.relative(prefix || '.', file)));
+
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+      files.set(relative.replace(/\\/g, '/'), path.resolve(directory, relative));
+    }
+  }
+}
+/** Hash checkout bytes of the recursive colocated harness, excluding ignored outputs.
+ * Root specs own only themselves; root config stays outside the overlay identity. */
+
+function harnessHash(cwd: string, spec: string, harnessFiles: readonly string[] = []): string {
   const directory = path.dirname(spec);
   const recursive = directory !== '.' && !spec.split(path.sep).includes('..');
   const harnessDirectory = recursive ? realPath(path.resolve(cwd, directory)) : cwd;
-  const files = new Map([
-    [recursive ? path.basename(spec) : spec, path.resolve(cwd, spec)],
-    ['playwright.styleproof.config.ts', path.resolve(cwd, 'playwright.styleproof.config.ts')],
-  ]);
-
-  const visit = (directory: string): void => {
-    let entries: fs.Dirent[];
-
-    try {
-      entries = fs.readdirSync(path.resolve(harnessDirectory, directory), { withFileTypes: true });
-    } catch (error) {
-      // SAFETY: filesystem errors carry errno codes; only a missing directory is ignored.
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-      throw error;
-    }
-
-    for (const entry of entries) {
-      const relative = path.join(directory, entry.name);
-
-      if (entry.isDirectory()) visit(relative);
-      else files.set(relative, path.resolve(harnessDirectory, relative));
-    }
-  };
+  const files = new Map([[(recursive ? path.basename(spec) : spec).replace(/\\/g, '/'), path.resolve(cwd, spec)]]);
 
   if (recursive) {
-    const listed = git(harnessDirectory, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
-
-    if (listed.status === 0 && !listed.error) {
-      for (const file of listed.stdout.split('\0').filter(Boolean)) {
-        files.set(file, path.resolve(harnessDirectory, file));
-      }
-    } else visit('.');
+    collectGitHarnessEntries(harnessDirectory, files);
+    collectOverlayHarnessEntries(cwd, harnessDirectory, files, harnessFiles);
   }
 
-  const contents = [...files]
-    .sort(([left], [right]) => left.localeCompare(right, 'en'))
-    .map(([file, absolute]) => {
-      try {
-        let bytes: Buffer | string;
-
-        if (fs.lstatSync(absolute).isSymbolicLink()) {
-          bytes = fs.readlinkSync(absolute);
-
-          if (fs.existsSync(absolute) && fs.statSync(absolute).isFile()) bytes = fs.readFileSync(absolute);
-        } else bytes = fs.readFileSync(absolute);
-
-        return [file.replace(/\\/g, '/'), sha256(bytes)];
-      } catch (error) {
-        // SAFETY: filesystem errors carry errno codes; only a missing file gets a sentinel.
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [file, 'missing'];
-        throw error;
-      }
-    });
-
-  return sha256(JSON.stringify(contents));
+  return sha256(
+    JSON.stringify([...files].sort(([left], [right]) => left.localeCompare(right, 'en')).map(hashHarnessEntry)),
+  );
 }
 
-function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: string }) {
+function compatibilityInput(options: {
+  cwd: string;
+  spec: string;
+  baseUrl?: string;
+  harnessFiles?: readonly string[];
+}) {
   // Resolve FIRST: a relative cwd made createRequire throw inside playwrightVersion, so
   // publish and restore stamped different keys for one environment and every lookup missed.
   const cwd = path.resolve(options.cwd);
@@ -226,7 +248,7 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
     packageVersion: styleProofPackageVersion(),
     spec,
     specHash,
-    harnessHash: harnessHash(cwd, spec),
+    harnessHash: harnessHash(cwd, spec, options.harnessFiles),
     lockfile: lock.file,
     lockfileHash: lock.hash,
     playwrightRuntimeHash: lock.playwrightRuntimeHash,
@@ -243,20 +265,9 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
  *  restore probe (no node_modules): the full lockfile and installed Playwright stay
  *  provenance, the lockfile's Playwright descriptor is the contract. */
 function compatibilityKeyForInput(input: CompatibilityInput): string {
-  const { packageVersion, spec, specHash, harnessHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl } =
-    input;
+  const { packageVersion, spec, specHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl } = input;
 
-  const stable = {
-    packageVersion,
-    spec,
-    specHash,
-    harnessHash,
-    playwrightRuntimeHash,
-    platform,
-    arch,
-    nodeMajor,
-    baseUrl,
-  };
+  const stable = { packageVersion, spec, specHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl };
 
   return sha256(JSON.stringify(stable)).slice(0, 16);
 }
@@ -266,6 +277,16 @@ export function expectedCompatibilityKey(options: { cwd?: string; spec?: string;
   return compatibilityKeyForInput(
     compatibilityInput({ cwd, spec: options.spec ?? 'e2e/styleproof.spec.ts', baseUrl: options.baseUrl }),
   );
+}
+
+export function expectedHarnessHash(
+  options: { cwd?: string; spec?: string; harnessFiles?: readonly string[] } = {},
+): string {
+  return compatibilityInput({
+    cwd: options.cwd ?? process.cwd(),
+    spec: options.spec ?? 'e2e/styleproof.spec.ts',
+    harnessFiles: options.harnessFiles,
+  }).harnessHash;
 }
 
 /** The PR / workflow_run head from the event payload. pull_request_target is deliberately
@@ -354,7 +375,13 @@ function stampManifest(
   source: (cwd: string, env?: NodeJS.ProcessEnv) => Pick<MapManifest, 'sha' | 'dirty' | 'surfaceCaptureFailures'>,
 ): MapManifest {
   const cwd = options.cwd ?? process.cwd();
-  const input = compatibilityInput({ cwd, spec, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
+
+  const input = compatibilityInput({
+    cwd,
+    spec,
+    baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL,
+    harnessFiles: options.dirtyAllow,
+  });
   const { sha, dirty, surfaceCaptureFailures } = source(cwd, options.env);
   const manifest = compact<MapManifest>({
     version: 1,
@@ -364,6 +391,7 @@ function stampManifest(
     dirtyAllow: options.dirtyAllow?.length ? [...options.dirtyAllow] : undefined,
     spec: input.spec,
     specHash: input.specHash,
+    harnessHash: input.harnessHash,
     lockfile: input.lockfile || undefined,
     lockfileHash: input.lockfileHash || undefined,
     playwrightVersion: input.playwrightVersion || undefined,
@@ -454,6 +482,7 @@ const MANIFEST_FIELD_RULES: Record<keyof MapManifest, FieldRule> = {
     (Array.isArray(value) && value.length <= 1_000 && value.every((entry) => boundedString(entry))),
   spec: (value) => boundedString(value),
   specHash: canonicalContentHash,
+  harnessHash: (value) => value === undefined || matchesBoundedString(value, /^[0-9a-f]{64}$/, 64),
   lockfile: (value, manifest) =>
     value === undefined
       ? manifest.lockfileHash === undefined

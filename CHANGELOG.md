@@ -10,7 +10,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Keep CSS-only hover and focus states through state-recipe capture and self-check (#1134).
-- Key stored bases on all spec-ref harness files and the first-adoption config; existing stored bases invalidate once (#1135).
+- Miss stored-base restores when the colocated harness changes, without changing base/head comparability (#1135).
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
 - Review runs set the status pending before processing, so a failing re-run cannot keep an
   earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).

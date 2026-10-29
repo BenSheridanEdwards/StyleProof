@@ -25,6 +25,7 @@ import {
   clearCaptureOutput,
   currentGitSha,
   expectedCompatibilityKey,
+  expectedHarnessHash,
   isMapFile,
   publishMapBundle,
   baselineFailureMatchesSurface,
@@ -338,6 +339,7 @@ function restoreFromStore() {
       gitTimeoutMs: projectConfig.mapStore?.gitTimeoutMs,
       // The upload keyed the bundle by this job's BASE_URL (writeMapManifest), so the lookup must too.
       compatibilityKey: expectedCompatibilityKey({ spec, baseUrl: env.BASE_URL }),
+      harnessHash: expectedHarnessHash({ spec, harnessFiles: dirtyAllow }),
     });
     // Greppable exact-hit line for consumer Visual / CI watchers (#734). Soft-pass HOLD: observe only.
     // CI suppresses this when it emits the final decision line itself.

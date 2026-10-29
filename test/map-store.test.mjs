@@ -1969,6 +1969,58 @@ test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-le
 // faults must be retried. The CLI/CI maps these to exit 4 (miss → recapture) vs
 // exit 5 (fault → fail loudly), so the two must never be conflated. ──
 
+test('#1135 restore rejects changed or missing harness hashes before clearing output', async () => {
+  const root = mkTmp('styleproof-harness-restore-');
+
+  try {
+    const sha = 'a'.repeat(40);
+    const key = 'b'.repeat(16);
+    const { consumer } = seedMapStore(root, sha, key);
+    fs.mkdirSync(path.join(consumer, 'e2e'));
+    const spec = path.join(consumer, 'e2e/styleproof.spec.ts');
+    const helper = path.join(consumer, 'e2e/helper.ts');
+    fs.writeFileSync(spec, 'export {};');
+    fs.writeFileSync(helper, 'export const value = 1;');
+    const capture = path.join(root, 'capture');
+
+    const stamp = (dir) =>
+      writeMapManifest({
+        cwd: consumer,
+        dir,
+        spec: 'e2e/styleproof.spec.ts',
+        sha,
+        dirty: false,
+        screenshots: false,
+      });
+
+    const before = stamp(capture);
+    const outDir = path.join(root, 'restored');
+
+    const restore = (harnessHash, compatibilityKey = before.compatibilityKey) =>
+      restoreMapBundle({ cwd: consumer, sha, outDir, compatibilityKey, harnessHash });
+
+    assert.throws(
+      () => restore('c'.repeat(64), key),
+      (error) => error.coldReason === 'compat_mismatch',
+    );
+    await publishMapBundle({ cwd: consumer, dir: capture });
+    assert.equal(restore(before.harnessHash).sha, sha);
+    fs.writeFileSync(path.join(outDir, 'home@800.json'), 'keep');
+    fs.writeFileSync(helper, 'export const value = 2;');
+
+    const after = stamp(path.join(root, 'probe'));
+
+    assert.equal(before.compatibilityKey, after.compatibilityKey);
+    assert.throws(
+      () => restore(after.harnessHash),
+      (error) => error.coldReason === 'compat_mismatch',
+    );
+    assert.equal(fs.readFileSync(path.join(outDir, 'home@800.json'), 'utf8'), 'keep');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 /** Stand up a bare remote whose `styleproof-maps` branch holds one bundle for
  *  `seededSha`, and a consumer repo pointing at it by local path. Returns paths. */
 function seedMapStore(root, seededSha, compatibilityKey) {
