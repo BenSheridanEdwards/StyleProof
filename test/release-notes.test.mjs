@@ -61,6 +61,27 @@ for (const [section, prs] of [
   });
 }
 
+test('the README migration link targets the package version CHANGELOG heading', () => {
+  const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  const { version } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const heading = changelog.split('\n').find((line) => line.startsWith(`## [${version}]`));
+  assert.ok(heading, `the CHANGELOG must have a heading for ${version}`);
+
+  const anchor = heading
+    .slice(3)
+    .toLowerCase()
+    .replace(/[[\].]/g, '')
+    .replace(/ /g, '-');
+
+  const migrationLink = [...readme.matchAll(/\[([^\]]+)\]\(CHANGELOG\.md#([^)]+)\)/g)].find(
+    ([, label]) => label === `${version} changelog`,
+  );
+
+  assert.ok(migrationLink, `the README must link to the ${version} migration list`);
+  assert.equal(migrationLink[2], anchor, 'the README migration link must match the release heading anchor');
+});
+
 // The release workflow publishes the package version's section as the GitHub
 // release notes. Renaming the previous release's heading instead of adding a
 // new one dropped [7.4.0] and published its entry again under 7.5.0 (#797).

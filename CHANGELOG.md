@@ -7,45 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Cache structural paths and sibling identities within each synchronous snapshot read to reduce repeated keyed-list attribute work.
-
-- Share one resting subtree baseline per forced-state session, removing per-target baseline round trips when counts, budgets and Typed OM permit; retain per-target retries on end-check drift and preserve serialized output.
-- Run Node 22 unit coverage in a dedicated, unsharded CI job using the supported coverage command and unchanged 40% line floor.
-- Fold each forced-state reset's liveness check and style flush into the next scope read, with one final flush per capture pass. Preserve deltas, key order, warnings, scan budgets and independent self-check captures.
-- Reuse report path reconciliation per map pair and decoded screenshots for the current surface, keeping memory bounded and report files and crops byte-identical.
-- Shorten settle waits so the final quiet poll aims for the quiet window's edge, using the shortest observed capture duration. Preserve the full quiet window, maximum poll interval, volatile rules, final capture reuse and independent self-check.
-- Develop the repository with pnpm (`packageManager: pnpm@11.7.0`, `pnpm-lock.yaml`) instead of npm. The report Action now installs its own runtime with that exact pnpm, run through `npm exec`, so a consumer runner needs npm and Node 22.13+ but no pnpm or corepack. The published package, its install instructions and `npm publish` are unchanged.
-- Keep parsed maps for the duration of a diff/report operation so catalogues larger than the 128-map process cache do not repeatedly decompress and parse every capture. Release the operation cache on success or failure; preserve file-change checks and comparison results.
-- Cap uploaded `report.html` + `report.md` + `report.json` together at `report-max-bytes` (default 2,000,000); keep the Markdown cap at 400,000 bytes. Large JSON reports retain whole finding groups in order up to 450 KB (stopping at the first group that does not fit), then expose positive per-surface `findingsOmitted` counts and top-level `findingsBudget`; full findings remain in the original diff input, which must be preserved separately and is not included in the report artifact. The CLI accepts `--report-max-bytes`. The Action applies this input only in artifact mode, and HTML can use the full remaining budget even above 2 MB. The library, CLI and Action preserve oversized receipts, falling back to the HTML-only cap when the remaining budget cannot hold report text, with an explicit HTML overrun notice. Zero crop bytes disables encoding, and findings-omission notices survive Evidence truncation.
-- Reuse parsed capture maps in a bounded 128-map diff/report process cache instead of reading each up to nine times; keep CI base-key scans uncached, and compute structure-elevation content changes once. Output unchanged; the public `loadStyleMap` still returns a fresh map.
-- Cap the report's crops at 60 files and 900,000 bytes across the whole report, with deterministic downscaling to a 300 KB per-file cap, configurable with `--max-crop-files` and `--max-crop-bytes`. Clip paired crops to 1280px wide and 1,024,000 pixels before optional downscaling; name budget omissions while keeping every change listed and counted.
-- Keep the default capture worker count on cold base checkouts with a separate Playwright install by inspecting config workers in an isolated process. Preserve explicit worker arguments, `STYLEPROOF_WORKERS`, and config worker settings.
-- Drop placeholder size and origin changes that exactly echo a host size reflow already proven by CSS Typed OM. Keep origin changes unless the placeholder's own size change matched that reflow and was dropped. Warn once on stderr when shared stylesheet-free UA defaults drift between base and head, naming the affected surface count and up to three distinct property changes plus an overflow count. Lazily recorded defaults present on only one side are ignored; other findings remain unchanged.
-- Reduce forced-state capture browser round trips by batching target lookups, replacing each forced state directly before one final reset, and reusing the snapshot function within each session. Batch state-layer screenshot forces while preserving target order, read budgets and output.
-- Reuse the final quiet settle snapshot for resting style capture, avoiding another full document pass. Component and reach captures, disabled settling, and settle timeouts keep a fresh read.
-- Default capture workers to `max(ceil(cpus / 2), cpus - 2)` when no Playwright worker count is chosen (12 CPUs → 10 workers). Preserve explicit Playwright args and config workers; add `STYLEPROOF_WORKERS` for a positive-integer override.
-- Fix the local compare hint added in #1120. Its `git switch <base>` step carried uncommitted edits into the base capture, so a change still in the working tree compared as no change; it also failed on a ref such as `origin/main` and from a detached HEAD. The hint now captures this checkout as head, then the base from a clean `git worktree` of the base ref, installing with the project's package manager. It prints the inferred base instead of a placeholder and warns that a reused local server serves both captures the same build.
-- Fix selective remap reusing every base map when a change reaches a wrapper a framework injects around every page under a name the wrapper rule did not know: Remix / React Router 7 `root`, SvelteKit `+layout`, Vue/Nuxt `App.vue`, `app.vue` and `layouts/*.vue`, the Vite `main` mount, and Gatsby `gatsby-browser` / `gatsby-ssr`. These now count as wrappers and re-capture everything.
-- Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines.
-- Avoid redundant head npm installs after cold base capture when checkout, metadata, and hidden-lockfile checks permit reuse. Missing optional packages are allowed only when their folders are absent and OS, CPU, or libc constraints exclude the current platform, or when every package that depends on them is itself absent and excluded (e.g. wasm32 fallback bindings' runtime packages).
-- Schedule parallel head captures largest-first by base map file size, preserving artifact ordering and explicit serial capture order.
-- Fix the approve workflow ignoring every tick once anyone posted a comment containing the hidden `<!-- styleproof-report -->` marker. Only the bot's own comments now compete for the marker, so a pasted copy can no longer block approval; a second report comment from the bot still makes the marker ambiguous and refuses.
-- Fix selective remap reusing base maps for changes reaching conventional wrappers (`layout`, `template`, `_app`, `_document`, `App`) before a declared surface. These changes now return `'all'`, while SPA page changes stay selective and test, story, script, or undeclared-route importers alone do not force a full re-capture.
-- Fix the report and `styleproof-diff` hiding a changed `:hover`/`:focus`/`:active` value whenever the element's resting value of the same property also changed. The gate counted the state change, but the reviewer never saw it. A state row is now dropped as an echo only when the state renders the same value on both sides, or exactly the resting value on each side, for the owner as for any other target.
-- Fix element paths keying on framework-generated ids (React `useId` in every format through 19.2, Radix, Headless UI, MUI, hash-like ids). Adding one `useId` consumer renumbered every later id, so a pure refactor read as removed and added structure, and a real restyle on a renumbered element was never compared. Those ids now fall back to the next identity or the element's position; authored ids key the path as before. The inventory's `isStableId` learns the React 19.1 and 19.2 formats too. Paths on pages with such ids change, so an 8.x baseline needs one re-capture, as the 9.0.0 migration already says.
-- Fix `styleproof-init` and `styleproof setup` from the npm package never writing the `styleproof-lint-artifacts.yml` guard: its template, `example/lint-map-artifacts.yml`, was not in the published files, so init warned and skipped it, and `--check`/`--upgrade` ignored it. The package smoke test now packs exactly the manifest's `files` and runs every declared bin, so a missing runtime file fails CI.
-- Fix the hint `styleproof-diff`, `styleproof-report` and `styleproof compare` print when no base map can be restored. It sent local users to "a repo with the 'origin' remote", which does not help when the remote has no map store. It now prints the local steps that work: capture base and head under their own labels, then compare the two directories. The README's quickstart shows the same steps.
-- Fix the Action resolving a `workflow_run` to a PR whose head lives in another repository. A fork that pushed the exact head commit of another PR could have its untrusted capture posted onto that PR; the PR's head repository must now match the run's head repository. A `workflow_run` with no head repository now resolves no PR, so its comment and status steps are skipped.
-- Stop CI immediately when the map capture process is terminated by a signal, preserving the signal exit code and cleaning up temporary worktrees instead of starting a head dependency install after an interrupted baseline.
-- Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout. Keep config errors concise and load JSON config without an extra process.
-- Fix cold-base CI captures to reuse head tarballs and Git specs, resolve local tarballs against the head package directory, and log the installed runtime spec; directories, link specs, and missing manifests use the running CLI version. Mutable Git refs are resolved again; pin a full commit SHA for the same build.
-- Keep global forced-state and pseudo-element rules reached when their extra candidates are the head subtree or framework-ignored elements.
-
-- Restore full-page scroller declarations through CSSOM before restoring exact style attribute text, so strict style CSP cannot leave expansion overrides applied.
-## [9.0.0] - 2026-10-21
-
-## [9.0.0] - 2026-10-25
-## [9.0.0] - 2026-10-27
+## [9.0.0] - 2026-10-29
 
 > **StyleProof 9.0.0: stable keys and stricter gates**
 >
@@ -56,8 +18,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > `@v9` Action, ancestor baseline reuse counts every change unless roots are
 > declared, non-PR reports move to `run-<run_id>/`, and Node 22.13 is the
 > minimum. Opt-in Change Reach records served CSS rules, names changed rules
-> no captured state rendered, and can hold the verdict on those gaps. Several
-> of these changes affect what an existing baseline holds, so an unchanged
+> no captured state rendered, and can hold the verdict on those gaps. Capture,
+> diff and report work is faster through shared snapshot baselines, fewer browser
+> round trips and cached map and screenshot reads. Report artifacts share one
+> `report-max-bytes` budget (default 2,000,000 bytes), with explicit omission
+> and overrun notices. Several of these changes affect what an existing
+> baseline holds, so an unchanged
 > page can need review against an 8.x baseline. Upgrade, re-capture
 > the baseline once, then update any committed keys named below.
 
@@ -161,8 +127,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- `report-max-bytes` Action input caps artifact HTML, excluding Markdown and JSON receipts (default 2,000,000 bytes); `styleproof-report --html-max-bytes` caps standalone HTML.
-
+- `report-max-bytes` Action input caps uploaded `report.html`, `report.md` and `report.json` together (default 2,000,000 bytes); `styleproof-report --html-max-bytes` caps standalone HTML (#1127, #1172).
 - **`changeReach: 'gate'` holds the verdict on never-rendered CSS changes (#997).**
   The default `'warn'` preserves verdicts, exit codes and diff CLI output. Opt-in
   gate holds never-rendered, unmeasured or blind-channel J1 changes and J1 ledger gaps,
@@ -222,7 +187,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Otherwise linked stylesheets are counted
   `unreadable`. New exports: `trackServedRules`, `ServedRule`, `ServedRules`,
   `ServedRuleTracker`.
-- **Change Reach counts only compared elements (#993).** A rule matched only
+- **Change Reach counts only compared elements (#993, #1077).** A rule matched only
   inside shadow DOM, an iframe, or an ignored or volatile region now reads
   `unmeasured` rather than reached. `reach.scope: 'compared'` marks scoped
   ledgers; ledgers captured by the earlier unreleased #991 code read as
@@ -270,16 +235,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines.
-- Avoid redundant head npm installs after cold base capture when checkout, metadata, and hidden-lockfile checks permit reuse. Missing optional packages are allowed only when their folders are absent and OS, CPU, or libc constraints exclude the current platform.
-- Schedule parallel head captures largest-first by base map file size, preserving artifact ordering and explicit serial capture order.
-- Report artifacts are kept 14 days by default (was 30).
-- The artifact holds one self-contained `report.html`, plus `report.md` and `report.json`, without `crops/`. Images beyond the budget become captions with a visible omission notice. Oversized JSON receipts do not prevent publication. HTML text that cannot fit fails explicitly instead of dropping the verdict.
+- Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines (#1129).
+- Avoid redundant head npm installs after cold base capture when checkout, metadata, and hidden-lockfile checks permit reuse. Missing optional packages are allowed only when their folders are absent and OS, CPU, or libc constraints exclude the current platform, or when every package that depends on them is itself absent and excluded (e.g. wasm32 fallback bindings' runtime packages) (#1130, #1168).
+- Schedule parallel head captures largest-first by base map file size, preserving artifact ordering and explicit serial capture order (#1130).
+- Report artifacts are kept 14 days by default (was 30) (#1126).
+- The artifact holds one self-contained `report.html`, plus `report.md` and `report.json`, without `crops/`. Images beyond the budget become captions with a visible omission notice. Oversized JSON receipts do not prevent publication. HTML text that cannot fit fails explicitly instead of dropping the verdict (#1127).
 - A clean run no longer uploads a report artifact or publishes a report-branch folder; the verdict stays in the comment and the run summary (#1083).
   Fork captures, failure verdicts, and included advisory content changes still
   publish. Adopters on `@v9` receive this default when the major tag moves;
   set `report-upload: always` to keep clean-run reports.
-
 - **BREAKING: ancestor baseline reuse no longer assumes `src` is the only
   source root (#826).** With no `ancestorBaseline.roots` and no
   `STYLEPROOF_ANCESTOR_BASELINE_ROOTS`, `styleproof-ci` treated only `src` as
@@ -323,6 +287,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   shared by the pre-commit hook and the CI complexity gate) and the
   transitive `fast-uri` development dependency to `3.1.9`. No runtime or
   report output changes.
+- Cache structural paths and sibling identities within each synchronous snapshot read to reduce repeated keyed-list attribute work (#1182).
+- Share one resting subtree baseline per forced-state session, removing per-target baseline round trips when counts, budgets and Typed OM permit; retain per-target retries on end-check drift and preserve serialized output (#1178).
+- Fold each forced-state reset's liveness check and style flush into the next scope read, with one final flush per capture pass. Preserve deltas, key order, warnings, scan budgets and independent self-check captures (#1173).
+- Reuse report path reconciliation per map pair and decoded screenshots for the current surface, keeping memory bounded and report files and crops byte-identical (#1174).
+- Shorten settle waits so the final quiet poll aims for the quiet window's edge, using the shortest observed capture duration. Preserve the full quiet window, maximum poll interval, volatile rules, final capture reuse and independent self-check (#1175).
+- Develop the repository with pnpm (`packageManager: pnpm@11.7.0`, `pnpm-lock.yaml`) instead of npm. The report Action now installs its own runtime with that exact pnpm, run through `npm exec`, so a consumer runner needs npm and Node 22.13+ but no pnpm or corepack. The published package, its install instructions and `npm publish` are unchanged (#1176).
+- Keep parsed maps for the duration of a diff/report operation so catalogues larger than the 128-map process cache do not repeatedly decompress and parse every capture. Release the operation cache on success or failure; preserve file-change checks and comparison results (#1169).
+- Cap uploaded `report.html` + `report.md` + `report.json` together at `report-max-bytes` (default 2,000,000); keep the Markdown cap at 400,000 bytes. Large JSON reports retain whole finding groups in order up to 450 KB (stopping at the first group that does not fit), then expose positive per-surface `findingsOmitted` counts and top-level `findingsBudget`; full findings remain in the original diff input, which must be preserved separately and is not included in the report artifact. The CLI accepts `--report-max-bytes`. The Action applies this input only in artifact mode, and HTML can use the full remaining budget even above 2 MB. The library, CLI and Action preserve oversized receipts, falling back to the HTML-only cap when the remaining budget cannot hold report text, with an explicit HTML overrun notice. Zero crop bytes disables encoding, and findings-omission notices survive Evidence truncation (#1172).
+- Reuse parsed capture maps in a bounded 128-map diff/report process cache instead of reading each up to nine times; keep CI base-key scans uncached, and compute structure-elevation content changes once. Output unchanged; the public `loadStyleMap` still returns a fresh map (#1165).
+- Cap the report's crops at 60 files and 900,000 bytes across the whole report, with deterministic downscaling to a 300 KB per-file cap, configurable with `--max-crop-files` and `--max-crop-bytes`. Clip paired crops to 1280px wide and 1,024,000 pixels before optional downscaling; name budget omissions while keeping every change listed and counted (#1166).
+- Reduce forced-state capture browser round trips by batching target lookups, replacing each forced state directly before one final reset, and reusing the snapshot function within each session. Batch state-layer screenshot forces while preserving target order, read budgets and output (#1164).
+- Reuse the final quiet settle snapshot for resting style capture, avoiding another full document pass. Component and reach captures, disabled settling, and settle timeouts keep a fresh read (#1160).
+- Default capture workers to `max(ceil(cpus / 2), cpus - 2)` when no Playwright worker count is chosen (12 CPUs → 10 workers). Preserve explicit Playwright args and config workers; add `STYLEPROOF_WORKERS` for a positive-integer override (#1159).
 
 ### Removed
 
@@ -352,15 +329,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Fix the approve workflow ignoring every tick once anyone posted a comment containing the hidden `<!-- styleproof-report -->` marker. Only the bot's own comments now compete for the marker, so a pasted copy can no longer block approval; a second report comment from the bot still makes the marker ambiguous and refuses.
-- Fix selective remap reusing base maps for changes reaching conventional wrappers (`layout`, `template`, `_app`, `_document`, `App`) before a declared surface. These changes now return `'all'`, while SPA page changes stay selective and test, story, script, or undeclared-route importers alone do not force a full re-capture.
-- Fix the report and `styleproof-diff` hiding a changed `:hover`/`:focus`/`:active` value whenever the element's resting value of the same property also changed. The gate counted the state change, but the reviewer never saw it. A state row is now dropped as an echo only when the state renders the same value on both sides, or exactly the resting value on each side, for the owner as for any other target.
-- Fix element paths keying on framework-generated ids (React `useId` in every format through 19.2, Radix, Headless UI, MUI, hash-like ids). Adding one `useId` consumer renumbered every later id, so a pure refactor read as removed and added structure, and a real restyle on a renumbered element was never compared. Those ids now fall back to the next identity or the element's position; authored ids key the path as before. The inventory's `isStableId` learns the React 19.1 and 19.2 formats too. Paths on pages with such ids change, so an 8.x baseline needs one re-capture, as the 9.0.0 migration already says.
-- Fix `styleproof-init` and `styleproof setup` from the npm package never writing the `styleproof-lint-artifacts.yml` guard: its template, `example/lint-map-artifacts.yml`, was not in the published files, so init warned and skipped it, and `--check`/`--upgrade` ignored it. The package smoke test now packs exactly the manifest's `files` and runs every declared bin, so a missing runtime file fails CI.
-- Fix the hint `styleproof-diff`, `styleproof-report` and `styleproof compare` print when no base map can be restored. It sent local users to "a repo with the 'origin' remote", which does not help when the remote has no map store. It now prints the local steps that work: capture base and head under their own labels, then compare the two directories. The README's quickstart shows the same steps.
-- Fix the Action resolving a `workflow_run` to a PR whose head lives in another repository. A fork that pushed the exact head commit of another PR could have its untrusted capture posted onto that PR; the PR's head repository must now match the run's head repository. A `workflow_run` with no head repository now resolves no PR, so its comment and status steps are skipped.
-- Stop CI immediately when the map capture process is terminated by a signal, preserving the signal exit code and cleaning up temporary worktrees instead of starting a head dependency install after an interrupted baseline.
-- Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout (#1091, #1093). Keep config errors concise and load JSON config without an extra process.
+- Fix the approve workflow ignoring every tick once anyone posted a comment containing the hidden `<!-- styleproof-report -->` marker. Only the bot's own comments now compete for the marker, so a pasted copy can no longer block approval; a second report comment from the bot still makes the marker ambiguous and refuses (#1115).
+- Fix selective remap reusing base maps for changes reaching conventional wrappers (`layout`, `template`, `_app`, `_document`, `App`) before a declared surface. These changes now return `'all'`, while SPA page changes stay selective and test, story, script, or undeclared-route importers alone do not force a full re-capture (#1116).
+- Fix the report and `styleproof-diff` hiding a changed `:hover`/`:focus`/`:active` value whenever the element's resting value of the same property also changed. The gate counted the state change, but the reviewer never saw it. A state row is now dropped as an echo only when the state renders the same value on both sides, or exactly the resting value on each side, for the owner as for any other target (#1117).
+- Fix element paths keying on framework-generated ids (React `useId` in every format through 19.2, Radix, Headless UI, MUI, hash-like ids). Adding one `useId` consumer renumbered every later id, so a pure refactor read as removed and added structure, and a real restyle on a renumbered element was never compared. Those ids now fall back to the next identity or the element's position; authored ids key the path as before. The inventory's `isStableId` learns the React 19.1 and 19.2 formats too. Paths on pages with such ids change, so an 8.x baseline needs one re-capture, as the 9.0.0 migration already says (#1118).
+- Fix `styleproof-init` and `styleproof setup` from the npm package never writing the `styleproof-lint-artifacts.yml` guard: its template, `example/lint-map-artifacts.yml`, was not in the published files, so init warned and skipped it, and `--check`/`--upgrade` ignored it. The package smoke test now packs exactly the manifest's `files` and runs every declared bin, so a missing runtime file fails CI (#1119).
+- Fix the hint `styleproof-diff`, `styleproof-report` and `styleproof compare` print when no base map can be restored. It sent local users to "a repo with the 'origin' remote", which does not help when the remote has no map store. It now prints the local steps that work: capture base and head under their own labels, then compare the two directories. The README's quickstart shows the same steps (#1120).
+- Fix the Action resolving a `workflow_run` to a PR whose head lives in another repository. A fork that pushed the exact head commit of another PR could have its untrusted capture posted onto that PR; the PR's head repository must now match the run's head repository. A `workflow_run` with no head repository now resolves no PR, so its comment and status steps are skipped (#1113).
+- Stop CI immediately when the map capture process is terminated by a signal, preserving the signal exit code and cleaning up temporary worktrees instead of starting a head dependency install after an interrupted baseline (#1114).
+- Fix cold-base CI config loading when npm installs a separate Playwright copy, including the map CLI launched from the head checkout (#1091, #1093, #1096). Keep config errors concise and load JSON config without an extra process.
 - Fix cold-base CI captures to reuse head tarballs and Git specs, resolve local tarballs against the head package directory, and log the installed runtime spec; directories, link specs, and missing manifests use the running CLI version (#1094). Mutable Git refs are resolved again; pin a full commit SHA for the same build.
 - **`styleproof setup` installs with npm, pnpm and Yarn on Windows (#970).**
   Setup spawned `npm.cmd`/`pnpm.cmd`/`yarn.cmd` directly, which Node rejects
@@ -988,7 +965,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   alongside closed PR reports by retention and one oldest-first budget order.
   Open PR reports and undated folders are always kept; failed PR or commit
   listings and non-404 lookup failures abort without deleting reports.
-
 - **An `auto` margin that only echoes a forced-state width change no longer
   reports (#917).** An `auto`-centred child whose `:hover` width changed
   reported `margin-left`/`margin-right` (and the logical pair) rows beside the
@@ -1141,7 +1117,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow changes and their own e2e specs. Tree-identity proofs now replace path
   filters, with no path exemptions, as described above. Unknown evidence runs
   the lanes or blocks the check; it never permits a skip.
-
 - **The headline counts every elevated structure change.** It showed the
   visible count or the navigable-chrome count, whichever was non-zero, while
   the gate counted both: "1 … needs review" when 2 gated. The headline and its
@@ -1266,6 +1241,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   drops moves that only permute paths present on both sides, and never moves an
   element whose own text shows it stayed in place. Both siblings are reported.
   A sibling that was really inserted or removed still pairs as before.
+- Keep the default capture worker count on cold base checkouts with a separate Playwright install by inspecting config workers in an isolated process. Preserve explicit worker arguments, `STYLEPROOF_WORKERS`, and config worker settings (#1162).
+- Drop placeholder size and origin changes that exactly echo a host size reflow already proven by CSS Typed OM. Keep origin changes unless the placeholder's own size change matched that reflow and was dropped. Warn once on stderr when shared stylesheet-free UA defaults drift between base and head, naming the affected surface count and up to three distinct property changes plus an overflow count. Lazily recorded defaults present on only one side are ignored; other findings remain unchanged (#1161, #1163).
+- Fix the local compare hint added in #1120. Its `git switch <base>` step carried uncommitted edits into the base capture, so a change still in the working tree compared as no change; it also failed on a ref such as `origin/main` and from a detached HEAD. The hint now captures this checkout as head, then the base from a clean `git worktree` of the base ref, installing with the project's package manager. It prints the inferred base instead of a placeholder and warns that a reused local server serves both captures the same build (#1155).
+- Fix selective remap reusing every base map when a change reaches a wrapper a framework injects around every page under a name the wrapper rule did not know: Remix / React Router 7 `root`, SvelteKit `+layout`, Vue/Nuxt `App.vue`, `app.vue` and `layouts/*.vue`, the Vite `main` mount, and Gatsby `gatsby-browser` / `gatsby-ssr`. These now count as wrappers and re-capture everything (#1156).
+- Keep global forced-state and pseudo-element rules reached when their extra candidates are the head subtree or framework-ignored elements (#1077).
+- Restore full-page scroller declarations through CSSOM before restoring exact style attribute text, so strict style CSP cannot leave expansion overrides applied (#1077).
 
 ## [8.0.1] - 2026-10-17
 
