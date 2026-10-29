@@ -85,14 +85,17 @@ function makeZip(entries) {
 }
 
 function approveScript() {
-  const match = approveYml.match(/\n {10}script: \|\n([\s\S]*)$/);
+  const match = approveYml.match(/\n {10}script: \|\n([\s\S]*?)(?=\n {6}- uses:|$)/);
   assert.ok(match, 'example/styleproof-approve.yml should contain a github-script program');
   const source = match[1]
     .split('\n')
     .map((line) => line.replace(/^ {12}/, ''))
     .join('\n');
   assert.doesNotMatch(source, /\$\{\{/);
-  return new AsyncFunction('github', 'context', source);
+
+  const program = new AsyncFunction('github', 'context', 'core', 'require', source);
+
+  return (github, context) => program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
 }
 
 function reportComment({

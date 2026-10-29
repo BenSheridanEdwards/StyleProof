@@ -2042,19 +2042,15 @@ test('approval run receipts fail closed on invalid metadata or timestamps', asyn
   const rejected = { approved: 'false', approver: '' };
 
   for (const run of [
+    ...['status', 'conclusion', 'event', 'head_branch', 'triggering_actor', 'run_started_at', 'updated_at'].map(
+      (key) => ({ [key]: undefined }),
+    ),
     { status: 'in_progress' },
-    { status: undefined },
     { conclusion: 'failure' },
-    { conclusion: undefined },
     { event: 'pull_request' },
-    { event: undefined },
     { head_branch: 'feature' },
-    { head_branch: undefined },
     { triggering_actor: { login: 'someone-else' } },
-    { triggering_actor: undefined },
-    { run_started_at: undefined },
     { run_started_at: 'invalid' },
-    { updated_at: undefined },
     { updated_at: '2026-10-20T09:00:00Z' },
   ])
     assert.deepEqual(await runGateStep([status], run), rejected);
@@ -2069,7 +2065,12 @@ test('approval run receipts fail closed on invalid metadata or timestamps', asyn
     'false',
   );
 
-  for (const artifacts of [[], [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: true }]]) {
+  for (const artifacts of [
+    [],
+    [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: true }],
+    [{ name: `styleproof-approval-43-${'a'.repeat(40)}`, expired: false }],
+    [{ name: `styleproof-approval-42-${'b'.repeat(40)}`, expired: false }],
+  ]) {
     assert.deepEqual(await runGateStep([status], {}, false, artifacts), rejected);
   }
   // A later carry-forward receipt must still have the original status in history.
@@ -2081,27 +2082,6 @@ test('approval run receipts fail closed on invalid metadata or timestamps', asyn
   const revoked = { ...status, state: 'failure', description: 'Tick "Approve all changes" to sign off' };
   assert.deepEqual(await runGateStep([carried, revoked, status]), rejected);
 });
-
-for (const [label, name] of [
-  ['another PR', `styleproof-approval-43-${'a'.repeat(40)}`],
-  ['another SHA', `styleproof-approval-42-${'b'.repeat(40)}`],
-]) {
-  test(`approval artifact for ${label} cannot authorize this head`, async () => {
-    const status = {
-      context: 'StyleProof',
-      state: 'success',
-      description: 'Approved by @reviewer (run 123)',
-      creator: { login: 'github-actions[bot]', type: 'Bot' },
-      created_at: '2026-10-20T10:00:30Z',
-    };
-
-    assert.equal((await runGateStep([status])).approved, 'true');
-    assert.deepEqual(await runGateStep([status], {}, false, [{ name, expired: false }]), {
-      approved: 'false',
-      approver: '',
-    });
-  });
-}
 
 test('composite action retries transient GitHub API failures on networked github-script steps', () => {
   const networkedSteps = [

@@ -46,7 +46,10 @@ function programSource(yml, file) {
 function approveScript() {
   const source = programSource(approveYml, 'example/styleproof-approve.yml');
   assert.doesNotMatch(source, /\$\{\{/, 'the approve program must not interpolate workflow expressions');
-  return new AsyncFunction('github', 'context', source);
+
+  const program = new AsyncFunction('github', 'context', 'core', 'require', source);
+
+  return (github, context) => program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
 }
 
 /**
@@ -827,13 +830,21 @@ test('a token without pull-requests: write names the missing permission, not a b
 });
 
 test('approved runs upload a receipt bound to the PR and SHA', () => {
-  const steps = yaml.load(reusableApproveYml).jobs.approve.steps;
-  const upload = steps.find((step) => step.uses === 'actions/upload-artifact@v6');
-  assert.equal(upload.if, "steps.approval.outputs.approved-sha != ''");
-  assert.equal(
-    upload.with.name,
-    'styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}',
-  );
-  assert.match(reusableApproveYml, /if \(approved\) \{\s+core.setOutput\('approved-pr'/);
-  assert.match(reusableApproveYml, /core.setOutput\('approved-sha', headSha\)/);
+  for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'example/styleproof-approve.yml']) {
+    const workflow = yaml.load(fs.readFileSync(path.join(root, file), 'utf8'));
+    const steps = workflow.jobs.approve.steps;
+    const approval = steps.find((step) => step.id === 'approval');
+    const upload = steps.find((step) => step.uses === 'actions/upload-artifact@v6');
+    assert.equal(upload.if, "steps.approval.outputs.approved-sha != ''");
+    assert.deepEqual(upload.with, {
+      name: 'styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}',
+      path: 'styleproof-approval.txt',
+      'retention-days': '${{ github.retention_days }}',
+      'if-no-files-found': 'error',
+    });
+    assert.match(
+      approval.with.script,
+      /if \(approved\) \{\s+core.setOutput\('approved-pr', String\(context.payload.issue.number\)\);\s+core.setOutput\('approved-sha', headSha\);\s+require\('node:fs'\).writeFileSync\('styleproof-approval.txt', headSha\);\s+\}/,
+    );
+  }
 });

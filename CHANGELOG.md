@@ -17,14 +17,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
-- Bind carried approvals to a successful approver-triggered run and its artifact naming the PR
-  and head SHA; an untick or later failure revokes approval (#1145).
-  - Approvals given before this release do not carry over a rerun; re-tick once.
-  - Action jobs need `actions: read`; missing access fails closed.
-  - Approval stops carrying when the artifact expires under repository artifact retention.
-  - Re-running an old approve run changes its triggering actor and revokes carried approval.
-- Generated single-job capture steps no longer get a map-store token. Private repositories with
-  branch storage recapture base maps on every PR (#1145).
+- Bind carried approvals to successful approver runs and PR/SHA artifacts; require `actions: read` (#1145).
+  Re-tick legacy approvals; unticks, failures, artifact expiry, and changed rerun actors revoke carry-over.
+- Remove map-store tokens from generated capture steps; private branch storage recaptures base (#1145).
 - Bind enforcement sign-off statuses to the gate's successful default-branch
   comment run triggered by the approver (#1149).
 

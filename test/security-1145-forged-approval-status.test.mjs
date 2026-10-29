@@ -30,19 +30,14 @@ test('1145: a bot status without an approve-workflow run cannot carry approval f
     await new AsyncFunction('github', 'context', 'core', source)(
       {},
       { repo: { owner: 'owner', repo: 'repo' } },
-      {
-        setOutput: (key, value) => {
-          outputs[key] = value;
-        },
-      },
+      { setOutput: (key, value) => Object.assign(outputs, { [key]: value }) },
     );
   } finally {
     if (previousPrior === undefined) delete process.env.STYLEPROOF_PRIOR_STATUS;
     else process.env.STYLEPROOF_PRIOR_STATUS = previousPrior;
   }
 
-  assert.equal(outputs.approved, 'false', 'a capture job can impersonate the approval bot with its GITHUB_TOKEN');
-  assert.equal(outputs.approver, '');
+  assert.deepEqual(outputs, { approved: 'false', approver: '' });
 });
 
 test('1145: generated branch-storage capture cannot use a status-writing job token', () => {
