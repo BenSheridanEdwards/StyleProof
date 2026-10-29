@@ -345,9 +345,34 @@ async function gateEvent(github, context) {
   };
 }
 
+/** Whether a run is a successful default-branch enforcement-approval comment run by APPROVER. */
+function isApprovalRun(workflowRun, defaultBranch) {
+  return (
+    Boolean(defaultBranch) &&
+    workflowRun.path === '.github/workflows/enforcement-approval.yml' &&
+    workflowRun.event === 'issue_comment' &&
+    workflowRun.head_branch === defaultBranch &&
+    workflowRun.triggering_actor?.login?.toLowerCase() === APPROVER.toLowerCase() &&
+    workflowRun.status === 'completed' &&
+    workflowRun.conclusion === 'success'
+  );
+}
+
+/** Whether a status time falls inside a run's window; unparsable times fail closed. */
+function withinRunWindow(workflowRun, createdAt) {
+  const start = Date.parse(workflowRun.run_started_at);
+  const end = Date.parse(workflowRun.updated_at);
+  const statusAt = Date.parse(createdAt);
+  // GitHub timestamps can lag the status write by a few seconds.
+  const slack = 5000;
+  return Number.isFinite(start) && Number.isFinite(end) && statusAt >= start && statusAt <= end + slack;
+}
+
 /**
- * Whether the gate's own latest status on `head` is the sign-off. Anyone with
- * write access can post a status, so only the gate's count.
+ * Whether the latest bot sign-off on `head` links to a successful, completed
+ * default-branch enforcement-approval issue_comment run triggered by APPROVER.
+ * Its status time must fall within that run's window, with 5 s of end slack.
+ * This narrows provenance; statuses: write can still forge a status in that window.
  */
 async function isSignedOff(github, repo, head, context) {
   try {
@@ -367,26 +392,10 @@ async function isSignedOff(github, repo, head, context) {
 
     if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id))) return false;
     const { data: workflowRun } = await github.rest.actions.getWorkflowRun({ ...repo, run_id: Number(id) });
-    const defaultBranch = context.payload.repository?.default_branch;
 
-    if (
-      !defaultBranch ||
-      workflowRun.path !== '.github/workflows/enforcement-approval.yml' ||
-      workflowRun.event !== 'issue_comment' ||
-      workflowRun.head_branch !== defaultBranch
-    )
-      return false;
-    const start = workflowRun.run_started_at || workflowRun.created_at;
-    const end = workflowRun.updated_at;
-    const statusAt = Date.parse(latest.created_at);
-    // GitHub timestamps can lag the status write by a few seconds.
-    const slack = 5000;
+    if (!isApprovalRun(workflowRun, context.payload.repository?.default_branch)) return false;
 
-    if (start && !(statusAt >= Date.parse(start))) return false;
-
-    if (end && !(statusAt <= Date.parse(end) + slack)) return false;
-
-    return true;
+    return withinRunWindow(workflowRun, latest.created_at);
   } catch {
     return false;
   }

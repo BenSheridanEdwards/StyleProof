@@ -17,8 +17,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
-- Bind enforcement sign-off statuses to the gate's default-branch comment run
-  and scope dogfood write permissions to the job that needs them (#1149).
+- Bind enforcement sign-off statuses to the gate's successful default-branch
+  comment run triggered by the approver (#1149).
 
 ## [9.0.0] - 2026-10-29
 

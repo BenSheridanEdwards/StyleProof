@@ -115,12 +115,13 @@ a fresh tick by Ben on the current head:
 
 - Anyone acting with Ben's GitHub credentials ticks as Ben, an agent included.
 - The gate only carries a sign-off forward when its status links to an
-  enforcement-approval `issue_comment` run on the default branch and was
-  written during that run. A PR-authored workflow, or PR code in a job with
-  `statuses: write`, can still post a status that branch protection reads
-  directly as `github-actions[bot]`. Closing that needs an author only the gate
-  can use, a repository settings change; ADR 0005 records the same limit for
-  the review gate.
+  successful enforcement-approval `issue_comment` run on the default branch
+  triggered by the approver, with the status time inside that run's window.
+  This narrows, but does not prove, authorship: PR code with `statuses: write`
+  can still post a status during the approver's own tick run, and branch
+  protection reads any `github-actions[bot]` status directly. Closing that
+  needs an author only the gate can use (a repository settings change);
+  ADR 0005 records the same limit for the review gate.
 - Between an edit and the run that clears it, the comment shows what the editor
   typed. The status is the record, not the comment.
 
