@@ -477,7 +477,10 @@ export function detectLiveCandidates({ skipSel }: SkipArgs): LiveRegionCandidate
     });
 }
 
-export function detectOverlayCandidates({ skipSel }: SkipArgs): CapturedOverlay[] {
+export function detectOverlayCandidates({
+  skipSel,
+  captureText = true,
+}: SkipArgs & { captureText?: boolean }): CapturedOverlay[] {
   // SAFETY: injectPathOf installs both helpers before snapshot readers run.
   const pathWindow = window as Window & WithPathOf;
   const pathOf = pathWindow.__spCreatePathOf?.() ?? pathWindow.__spPathOf!;
@@ -523,7 +526,7 @@ export function detectOverlayCandidates({ skipSel }: SkipArgs): CapturedOverlay[
       const ariaLive = (el.getAttribute('aria-live') ?? '').trim().toLowerCase();
       const reasons = reasonsFor(el, role, ariaModal);
       if (!reasons.length) return [];
-      const text = textOf(el);
+      const text = captureText ? textOf(el) : undefined;
       return [
         {
           path: pathOf(el),

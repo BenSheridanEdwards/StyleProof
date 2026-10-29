@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Omit overlay text and popup copy from maps and popup identities when `captureText: false` (#1142).
 - Keep workflow_run default-branch captures under the checkout SHA instead of the PR head (#1136).
 - Keep CSS-only hover and focus states through state-recipe capture and self-check (#1134).
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).

@@ -8,6 +8,7 @@ export type PopupDomSnapshot = { keys: string[]; candidates: PopupCandidate[]; f
 
 export type PopupSnapshotArgs = {
   popupSelector: string;
+  captureText?: boolean;
   triggerSelector?: string;
   attr?: string;
   max?: number;
@@ -19,6 +20,7 @@ export type PopupSnapshotArgs = {
 /** Visible overlay keys, plus either an enumeration of marked triggers or one re-bound trigger. */
 export function popupDomSnapshot({
   popupSelector,
+  captureText = true,
   triggerSelector,
   attr,
   max = 0,
@@ -55,6 +57,7 @@ export function popupDomSnapshot({
   const clean = (value: string | null): string => (value ?? '').replace(/\s+/g, ' ').trim();
   // Accessible name (aria-label, name, text, title) — same precedence as the crawlers.
   const labelOf = (el: Element): string => {
+    if (!captureText) return pathOf(el);
     const sources = [el.getAttribute('aria-label'), el.getAttribute('name'), el.textContent, el.getAttribute('title')];
     const own = clean(sources.find(Boolean) ?? null).slice(0, 80);
     return own || el.tagName.toLowerCase();
@@ -69,9 +72,11 @@ export function popupDomSnapshot({
     'data-toast',
   ];
   const popupKey = (el: Element): string =>
-    [pathOf(el), ...KEY_ATTRS.map((name) => el.getAttribute(name) ?? ''), clean(el.textContent).slice(0, 120)].join(
-      '|',
-    );
+    [
+      pathOf(el),
+      ...KEY_ATTRS.map((name) => el.getAttribute(name) ?? ''),
+      captureText ? clean(el.textContent).slice(0, 120) : '',
+    ].join('|');
   const popups = qsa(popupSelector).filter(visible);
   const keys = popups.map(popupKey);
   if (!triggerSelector || !attr) return { keys, candidates: [], found: false };

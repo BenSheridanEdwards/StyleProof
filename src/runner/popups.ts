@@ -40,12 +40,14 @@ async function openPopupCandidate(
   options: ResolvedPopupCaptureOptions,
   candidate: PopupCandidate,
   pristine: ReadonlySet<string>,
+  captureText: boolean | undefined,
 ): Promise<PopupOpenResult> {
   await page.setViewportSize(viewport);
   await page.keyboard.press('Escape').catch(() => {});
   await surface.go(page);
   const reset = await snapshot(page, {
     popupSelector: options.overlays,
+    captureText,
     triggerSelector: options.triggers,
     attr: POPUP_TRIGGER_ATTR,
     relocatePath: candidate.path,
@@ -64,7 +66,7 @@ async function openPopupCandidate(
 
   const deadline = realNow() + options.timeoutMs;
   do {
-    const { keys } = await snapshot(page, { popupSelector: options.overlays });
+    const { keys } = await snapshot(page, { popupSelector: options.overlays, captureText });
     const opened = keys.find((key) => !before.has(key));
     if (opened) return { status: 'opened', key: opened };
     await page.waitForTimeout(50);
@@ -125,7 +127,15 @@ async function assertPopupDeterministic(
   popupId: string,
   first: StyleMap,
 ): Promise<string[] | undefined> {
-  const reopened = await openPopupCandidate(run.page, run.surface, run.viewport, run.options, candidate, run.pristine);
+  const reopened = await openPopupCandidate(
+    run.page,
+    run.surface,
+    run.viewport,
+    run.options,
+    candidate,
+    run.pristine,
+    run.s.captureText,
+  );
   if (reopened.status === 'leaked') return reopened.leaked;
   if (reopened.status !== 'opened') {
     throw new Error(
@@ -150,7 +160,16 @@ async function capturePopupCandidate(run: PopupRun, candidate: PopupCandidate): 
   const skip = (reason: string): void => {
     warn(`styleproof: skipped ${surface.key}-${popupId}@${run.viewport.width} — ${reason}`);
   };
-  const opened = await openPopupCandidate(page, surface, run.viewport, run.options, candidate, run.pristine);
+
+  const opened = await openPopupCandidate(
+    page,
+    surface,
+    run.viewport,
+    run.options,
+    candidate,
+    run.pristine,
+    run.s.captureText,
+  );
   if (opened.status === 'none') return;
   if (opened.status !== 'opened')
     return skip(SKIP_REASONS[opened.status](opened.status === 'leaked' ? opened.leaked : []));
@@ -183,6 +202,7 @@ export async function capturePopupSurfaces(
     const { keys, candidates } = await snapshot(page, {
       triggerSelector: options.triggers,
       popupSelector: options.overlays,
+      captureText: s.captureText,
       attr: POPUP_TRIGGER_ATTR,
       max: options.max,
     });
