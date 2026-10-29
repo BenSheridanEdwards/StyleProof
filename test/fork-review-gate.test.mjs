@@ -91,6 +91,7 @@ function values({
   return {
     'steps.certify-success.outputs.succeeded': runSucceeded ? 'true' : '',
     'github.event_name': event,
+    'inputs.allow-self-approval': 'false',
     'inputs.fail-on-diff': failOnDiff ? 'true' : 'false',
     'steps.comment.outputs.stale-delivery': staleDelivery,
     'steps.review-pending.outputs.stale-delivery': reviewStale,
@@ -131,6 +132,9 @@ function values({
 /** `prior` is what GitHub already holds for HEAD_SHA, newest first. */
 async function run(stepName, scenario, prior = [], thread = []) {
   const inputs = values(scenario);
+  inputs['steps.review-pending.outputs.prior-status'] = JSON.stringify(
+    prior[0] ?? { description: `Approved by @${scenario.approver || 'maintainer'} (run 123)` },
+  );
 
   if (stepName === 'gate') {
     const pending = await run('Mark review status pending', scenario, prior, thread);
@@ -139,7 +143,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
 
   const { environment, program } = stepProgram(stepName, inputs);
   const statuses = scenario.statuses ?? [];
-  const storedStatuses = [...prior];
+  const storedStatuses = prior.map((status) => ({ created_at: '2026-10-20T10:00:30Z', ...status }));
   const comments = [];
   const updated = [];
   const outputs = {};
@@ -159,6 +163,20 @@ async function run(stepName, scenario, prior = [], thread = []) {
     paginate: async (route, params) => (await route(params)).data,
     rest: {
       actions: {
+        listWorkflowRunArtifacts: async () => ({
+          data: { artifacts: [{ name: `styleproof-approval-42-${HEAD_SHA}`, expired: false }] },
+        }),
+        getWorkflowRun: async () => ({
+          data: {
+            status: 'completed',
+            conclusion: 'success',
+            event: 'issue_comment',
+            head_branch: 'main',
+            triggering_actor: { login: prior[0]?.description?.match(/@([A-Za-z0-9_-]+)/)?.[1] },
+            run_started_at: '2026-10-20T10:00:00Z',
+            updated_at: '2026-10-20T10:01:00Z',
+          },
+        }),
         listWorkflowRuns: async (input) => {
           runsLookups.push(input);
           assert.notEqual(scenario.forbidRunsLookup, true, 'capture ordering is certify-only');
@@ -169,7 +187,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
       },
       repos: {
         getCollaboratorPermissionLevel: async ({ username }) => ({
-          data: { permission: username === 'maintainer' ? 'write' : 'read' },
+          data: { permission: ['maintainer', 'octocat_acme'].includes(username) ? 'write' : 'read' },
         }),
         createCommitStatus: async (input) => {
           await scenario.beforeStatusWrite?.(input);
@@ -195,7 +213,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
     repo: { owner: 'acme', repo: 'app' },
     runId: 9001,
     eventName: scenario.event ?? 'pull_request',
-    payload: { repository: { private: false }, workflow_run: workflowRun },
+    payload: { repository: { private: false, default_branch: 'main' }, workflow_run: workflowRun },
   };
   const core = { setOutput: (name, value) => (outputs[name] = value), info() {}, warning() {} };
   const requireForScript = (specifier) => (specifier === 'fs' ? { existsSync: () => false } : nativeRequire(specifier));
@@ -261,7 +279,7 @@ test('a fork capture with changes is pending until a maintainer approves it', as
   });
   assert.deepEqual(
     { state: cleanApproved.statuses[0].state, description: cleanApproved.statuses[0].description },
-    { state: 'success', description: 'Approved by @maintainer' },
+    { state: 'success', description: 'Approved by @maintainer (run 123)' },
   );
 });
 
@@ -430,7 +448,7 @@ test('an upgrade rejects the anonymous approval left by a buggy rerun of a clean
 test('a real sign-off on the same head SHA preserves its identity across reruns, from the canonical writer only', async () => {
   const signOff = (description, creator = BOT) => ({ context: 'StyleProof', state: 'success', description, creator });
   for (const approver of ['maintainer', 'octocat_acme']) {
-    const description = `Approved by @${approver}`;
+    const description = `Approved by @${approver} (run 123)`;
     const first = await rerunWithChanges(signOff(description));
     assert.deepEqual(first, {
       gate: { approved: 'true', approver },
@@ -446,7 +464,10 @@ test('a real sign-off on the same head SHA preserves its identity across reruns,
     assert.equal(statuses[0].description, description);
     assert.deepEqual((await run('gate', fork, [{ ...statuses[0], creator: BOT }])).outputs, gate);
   }
-  const foreign = await rerunWithChanges(signOff('Approved by @maintainer', { login: 'some-app[bot]', type: 'Bot' }));
+
+  const foreign = await rerunWithChanges(
+    signOff('Approved by @maintainer (run 123)', { login: 'some-app[bot]', type: 'Bot' }),
+  );
   assert.deepEqual(foreign.gate, { approved: 'false', approver: '' });
 });
 
@@ -861,10 +882,16 @@ test('the verdict step records the trusted untrusted-capture flag and the gate r
 
 test('an approved rerun saves sign-off before pending, then stays green with a ticked box', async () => {
   const scenario = { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true };
-  const prior = { context: 'StyleProof', state: 'success', description: 'Approved by @maintainer', creator: BOT };
+
+  const prior = {
+    context: 'StyleProof',
+    state: 'success',
+    description: 'Approved by @maintainer (run 123)',
+    creator: BOT,
+  };
   const pending = await run('Mark review status pending', scenario, [prior]);
   assert.equal(pending.statuses[0].state, 'pending');
-  assert.deepEqual(JSON.parse(pending.outputs['prior-status']), prior);
+  assert.deepEqual(JSON.parse(pending.outputs['prior-status']), { created_at: '2026-10-20T10:00:30Z', ...prior });
   const { gate, status } = await rerunWithChanges(prior);
   assert.deepEqual(gate, { approved: 'true', approver: 'maintainer' });
   assert.equal(status.state, 'success');

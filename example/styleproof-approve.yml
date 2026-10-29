@@ -75,6 +75,7 @@ jobs:
       STYLEPROOF_ALLOW_SELF_APPROVAL: 'false'
     steps:
       - uses: actions/github-script@v9
+        id: approval
         if: contains(github.event.comment.body, env.STYLEPROOF_COMMENT_MARKER)
         with:
           script: |
@@ -535,9 +536,22 @@ jobs:
               sha: headSha,
               context: STATUS,
               state: approved ? 'success' : 'failure',
-              description: approved ? `Approved by @${actor}` : 'Tick "Approve all changes" to sign off',
+              description: approved ? `Approved by @${actor} (run ${context.runId})` : 'Tick "Approve all changes" to sign off',
               ...(reportUrl ? { target_url: reportUrl } : {}),
             });
 
             // Reflect the approver in the comment itself for instant feedback.
             await renderBox(approved, approved ? ` — _approved by @${actor}_` : '');
+
+            if (approved) {
+              core.setOutput('approved-pr', String(context.payload.issue.number));
+              core.setOutput('approved-sha', headSha);
+              require('node:fs').writeFileSync('styleproof-approval.txt', headSha);
+            }
+      - uses: actions/upload-artifact@v6
+        if: steps.approval.outputs.approved-sha != ''
+        with:
+          name: styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}
+          path: styleproof-approval.txt
+          retention-days: ${{ github.retention_days }}
+          if-no-files-found: error

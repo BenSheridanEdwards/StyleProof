@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import test from 'node:test';
+import yaml from 'js-yaml';
+import { ciWorkflow, PACKAGE_MANAGERS } from '../bin/init/templates.mjs';
+
+const action = yaml.load(fs.readFileSync(new URL('../action.yml', import.meta.url), 'utf8'));
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+test('1145: a bot status without an approve-workflow run cannot carry approval forward', async () => {
+  const outputs = {};
+
+  const status = {
+    context: 'StyleProof',
+    state: 'success',
+    description: 'Approved by @someReviewer',
+    creator: { login: 'github-actions[bot]', type: 'Bot' },
+  };
+
+  const source = action.runs.steps
+    .find((step) => step.id === 'gate')
+    .with.script.replaceAll('${{ steps.diff.outputs.changed }}', 'true')
+    .replaceAll('${{ steps.context.outputs.head-sha }}', 'a'.repeat(40))
+    .replaceAll('${{ steps.context.outputs.untrusted-capture }}', 'false');
+
+  const previousPrior = process.env.STYLEPROOF_PRIOR_STATUS;
+  process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(status);
+
+  try {
+    await new AsyncFunction('github', 'context', 'core', source)(
+      {},
+      { repo: { owner: 'owner', repo: 'repo' } },
+      { setOutput: (key, value) => Object.assign(outputs, { [key]: value }) },
+    );
+  } finally {
+    if (previousPrior === undefined) delete process.env.STYLEPROOF_PRIOR_STATUS;
+    else process.env.STYLEPROOF_PRIOR_STATUS = previousPrior;
+  }
+
+  assert.deepEqual(outputs, { approved: 'false', approver: '' });
+});
+
+test('1145: generated branch-storage capture cannot use a status-writing job token', () => {
+  const workflow = yaml.load(
+    ciWorkflow({
+      scaffold: { workflow: 'single', storage: 'branch', gate: 'review-gate', branch: 'main' },
+      PM: PACKAGE_MANAGERS.npm,
+    }),
+  );
+
+  for (const job of Object.values(workflow.jobs)) {
+    const permission = (job.permissions ?? workflow.permissions)?.statuses;
+
+    for (const step of job.steps ?? []) {
+      if (step.env?.STYLEPROOF_MAP_STORE_TOKEN === '${{ github.token }}') {
+        assert.notEqual(permission, 'write', 'PR-code capture receives github.token in a job with statuses: write');
+      }
+    }
+  }
+});

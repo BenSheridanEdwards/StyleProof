@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import yaml from 'js-yaml';
 import { fileURLToPath } from 'node:url';
 import { APPROVE_WORKFLOW } from '../bin/init/templates.mjs';
 
@@ -35,19 +36,20 @@ const blobSha = (source) =>
 
 /** The dedented github-script program a workflow file runs. */
 function programSource(yml, file) {
-  const match = yml.match(/\n {10}script: \|\n([\s\S]*)$/);
-  assert.ok(match, `${file} should contain a github-script program`);
-  return match[1]
-    .split('\n')
-    .map((line) => line.replace(/^ {12}/, ''))
-    .join('\n');
+  const step = yaml.load(yml).jobs.approve.steps.find((step) => step.with?.script);
+  assert.ok(step, `${file} should contain a github-script program`);
+
+  return step.with.script;
 }
 
 /** Compile the workflow's real github-script program — never a copy of it. */
 function approveScript() {
   const source = programSource(approveYml, 'example/styleproof-approve.yml');
   assert.doesNotMatch(source, /\$\{\{/, 'the approve program must not interpolate workflow expressions');
-  return new AsyncFunction('github', 'context', source);
+
+  const program = new AsyncFunction('github', 'context', 'core', 'require', source);
+
+  return (github, context) => program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
 }
 
 /**
@@ -58,12 +60,12 @@ function approveScript() {
 function reusableApproveScript() {
   const source = programSource(reusableApproveYml, '.github/workflows/styleproof-approve-reusable.yml');
   assert.doesNotMatch(source, /\$\{\{/, 'the reusable approve program must not interpolate workflow expressions');
-  const program = new AsyncFunction('github', 'context', source);
+  const program = new AsyncFunction('github', 'context', 'core', 'require', source);
   return async (github, context) => {
     const previous = process.env.STYLEPROOF_STATUS_CONTEXT;
     process.env.STYLEPROOF_STATUS_CONTEXT = 'StyleProof';
     try {
-      await program(github, context);
+      await program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
     } finally {
       if (previous === undefined) delete process.env.STYLEPROOF_STATUS_CONTEXT;
       else process.env.STYLEPROOF_STATUS_CONTEXT = previous;
@@ -224,6 +226,7 @@ async function runApprove({
   };
   const context = {
     repo: { owner: 'acme', repo: 'app' },
+    runId: 123,
     payload: { sender: { login: actor }, comment: { id: 99 }, issue: { number: 7 } },
   };
 
@@ -244,7 +247,7 @@ test('a write-access reviewer who is not the author still signs off (#477)', asy
 
   assert.deepEqual(
     statuses.map((s) => [s.state, s.description]),
-    [['success', `Approved by @${REVIEWER}`]],
+    [['success', `Approved by @${REVIEWER} (run 123)`]],
   );
   assert.equal(statuses[0].sha, REPORT_SHA);
   assert.equal(created.length, 0, 'a valid approval posts no refusal reply');
@@ -275,7 +278,7 @@ test('a marker comment someone else posts cannot block a valid approval', async 
     const { statuses } = await runApprove({ actor: REVIEWER, existingComments: copies, program: program() });
     assert.deepEqual(
       statuses.map((s) => [s.state, s.description]),
-      [['success', `Approved by @${REVIEWER}`]],
+      [['success', `Approved by @${REVIEWER} (run 123)`]],
     );
   }
 });
@@ -378,7 +381,7 @@ test('solo repositories opt in explicitly, and any other value refuses (#477)', 
     const optedIn = await runApprove({ actor: AUTHOR, allowSelfApproval: 'true', program: program() });
     assert.deepEqual(
       optedIn.statuses.map((s) => [s.state, s.description]),
-      [['success', `Approved by @${AUTHOR}`]],
+      [['success', `Approved by @${AUTHOR} (run 123)`]],
       `${file}: STYLEPROOF_ALLOW_SELF_APPROVAL=true lets the author sign off`,
     );
 
@@ -782,7 +785,7 @@ test('a report.json over the contents API 1 MB inline limit still lets a valid t
     const { statuses, updated } = await runApprove({ actor: REVIEWER, reportJson, program: program() });
     assert.deepEqual(
       statuses.map((s) => [s.state, s.description]),
-      [['success', `Approved by @${REVIEWER}`]],
+      [['success', `Approved by @${REVIEWER} (run 123)`]],
       `${file}: a large published report must not silently drop the sign-off`,
     );
     assert.match(updated[0].body, /- \[x\] \*\*Approve all changes\*\* — _approved by @a-reviewer_/);
@@ -823,5 +826,25 @@ test('a token without pull-requests: write names the missing permission, not a b
         return true;
       });
     }
+  }
+});
+
+test('approved runs upload a receipt bound to the PR and SHA', () => {
+  for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'example/styleproof-approve.yml']) {
+    const workflow = yaml.load(fs.readFileSync(path.join(root, file), 'utf8'));
+    const steps = workflow.jobs.approve.steps;
+    const approval = steps.find((step) => step.id === 'approval');
+    const upload = steps.find((step) => step.uses === 'actions/upload-artifact@v6');
+    assert.equal(upload.if, "steps.approval.outputs.approved-sha != ''");
+    assert.deepEqual(upload.with, {
+      name: 'styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}',
+      path: 'styleproof-approval.txt',
+      'retention-days': '${{ github.retention_days }}',
+      'if-no-files-found': 'error',
+    });
+    assert.match(
+      approval.with.script,
+      /if \(approved\) \{\s+core.setOutput\('approved-pr', String\(context.payload.issue.number\)\);\s+core.setOutput\('approved-sha', headSha\);\s+require\('node:fs'\).writeFileSync\('styleproof-approval.txt', headSha\);\s+\}/,
+    );
   }
 });
