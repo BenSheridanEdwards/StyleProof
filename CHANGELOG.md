@@ -14,6 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and set failure on run errors, preserving canonical reviewer sign-offs.
 - Later-attempt report receipts require a bot or verified repository write permission;
   read-only members and collaborators cannot suppress delivery.
+- Reviewer ticks wait until the pending run finishes; advisory runs turn red when a gate step fails.
 
 ## [9.0.0] - 2026-10-29
 

@@ -272,7 +272,7 @@ runs:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
-          const { shouldSupersedeExistingComment } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
+          const { findLaterAttemptReceipt } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const marker = process.env.STYLEPROOF_COMMENT_MARKER;
           const comments = await github.paginate(github.rest.issues.listComments, {
             ...context.repo, issue_number: Number('${{ steps.context.outputs.pr-number }}'), per_page: 100,
@@ -280,24 +280,9 @@ runs:
           const markerComments = comments.filter((c) => c.body?.includes(marker));
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
-          const permissions = new Map();
-          let laterAttempt = false;
-          for (const c of markerComments) {
-            if (shouldSupersedeExistingComment({ existingCommentBody: c.body, runId, runAttempt })) continue;
-            if (c.user?.type === 'Bot') { laterAttempt = true; break; }
-            const login = c.user?.login;
-            if (!login) continue;
-            const key = login.toLowerCase();
-            if (!permissions.has(key)) {
-              try {
-                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({ ...context.repo, username: login });
-                permissions.set(key, ['write', 'maintain', 'admin'].includes(data.permission));
-              } catch {
-                permissions.set(key, false);
-              }
-            }
-            if (permissions.get(key)) { laterAttempt = true; break; }
-          }
+          const laterAttempt = await findLaterAttemptReceipt({
+            github, repo: context.repo, comments: markerComments, runId, runAttempt,
+          });
           core.setOutput('stale-delivery', laterAttempt ? 'true' : 'false');
           if (laterAttempt) return;
           const { data } = await github.rest.repos.listCommitStatusesForRef({
@@ -924,7 +909,7 @@ runs:
         retries: 3
         script: |
           const fs = require('fs');
-          const { shouldSupersedeExistingComment, formatRunAttemptReceiptMarker } =
+          const { findLaterAttemptReceipt, formatRunAttemptReceiptMarker } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery, buildArtifactReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
@@ -958,24 +943,9 @@ runs:
           // delivery with a forged receipt.
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
-          const permissions = new Map();
-          let laterAttempt = false;
-          for (const c of markerComments) {
-            if (shouldSupersedeExistingComment({ existingCommentBody: c.body, runId, runAttempt })) continue;
-            if (c.user?.type === 'Bot') { laterAttempt = true; break; }
-            const login = c.user?.login;
-            if (!login) continue;
-            const key = login.toLowerCase();
-            if (!permissions.has(key)) {
-              try {
-                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({ ...context.repo, username: login });
-                permissions.set(key, ['write', 'maintain', 'admin'].includes(data.permission));
-              } catch {
-                permissions.set(key, false);
-              }
-            }
-            if (permissions.get(key)) { laterAttempt = true; break; }
-          }
+          const laterAttempt = await findLaterAttemptReceipt({
+            github, repo: context.repo, comments: markerComments, runId, runAttempt,
+          });
           if (laterAttempt) {
             core.setOutput('stale-delivery', 'true');
             core.info(`StyleProof: the report comment was already published by a later attempt of run ${runId} — leaving it (and the commit status) in place.`);
@@ -1431,7 +1401,7 @@ runs:
 
     - name: Set review failure status
       if: >-
-        failure() &&
+        failure() && steps.status.outcome != 'success' &&
         steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
         steps.review-pending.outputs.stale-delivery != 'true' &&
         steps.comment.outputs.stale-delivery != 'true'

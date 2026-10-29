@@ -496,13 +496,13 @@ test('composite action wires the rerun ordering guard into the comment and statu
   assert.ok(commentStep, 'action.yml should include a PR comment step');
   // The step consumes the SAME compiled guard the unit tests exercise.
   assert.match(commentStep[0], /dist\/comment-supersession\.js/);
-  assert.match(commentStep[0], /shouldSupersedeExistingComment/);
+  assert.match(commentStep[0], /findLaterAttemptReceipt/);
   assert.match(commentStep[0], /formatRunAttemptReceiptMarker/);
   // Attempt identity comes from GitHub's own run context, never from artifacts.
   assert.match(commentStep[0], /const runId = '\$\{\{ github\.run_id \}\}'/);
   assert.match(commentStep[0], /const runAttempt = '\$\{\{ github\.run_attempt \}\}'/);
   // The guard runs BEFORE the upsert and short-circuits a stale delivery.
-  const guardIndex = commentStep[0].indexOf('shouldSupersedeExistingComment');
+  const guardIndex = commentStep[0].indexOf('findLaterAttemptReceipt');
   const upsertIndex = commentStep[0].indexOf('const upsert =');
   assert.ok(guardIndex > 0 && upsertIndex > guardIndex, 'the guard must be evaluated before the upsert');
   assert.match(commentStep[0], /setOutput\('stale-delivery', 'true'\)/);
