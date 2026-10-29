@@ -8,6 +8,12 @@ export type CapturePhase = 'navigate' | 'settle' | 'capture' | 'self-check';
 /** Default per-surface ceiling: 5 minutes — only a genuinely stuck surface hits it. */
 export const DEFAULT_SURFACE_TIMEOUT_MS = 300_000;
 
+/** Maximum wait for timed-out work to stop using its page. */
+export const SURFACE_TIMEOUT_DRAIN_MS = 3_000;
+
+/** The abandoned work still owns a shared page; callers must stop the run. */
+export class UndrainedSurfaceTimeoutError extends Error {}
+
 /**
  * Default navigate-phase budget under the overall ceiling. Stuck navigate must fail
  * the surface well before the full 300s ceiling burns (~60s).
@@ -130,6 +136,8 @@ export type SurfaceRun = {
 };
 
 export type RunWithSurfaceTimeoutOptions = {
+  /** The page will be reused by another surface; undrained work must stop the sweep. */
+  pageIsShared?: boolean;
   /** Navigate-phase budget in ms; capped by `timeoutMs`. Default: min(60s, overall). */
   navigateTimeoutMs?: number;
 };
@@ -139,8 +147,8 @@ export type RunWithSurfaceTimeoutOptions = {
  * `navigate`, the navigate budget can fire first (named navigate, navigate ms in
  * the message). After leaving navigate, only the overall remaining budget applies.
  * Playwright work is not abortable, so on breach `isActive()` flips false and
- * callers must refuse artifact writes; a later rejection from the abandoned work
- * is detached, never unhandled.
+ * callers must refuse artifact writes. Wait for abandoned work before returning
+ * the page; if it cannot drain, fail fatally only when callers reuse that page.
  */
 export async function runWithSurfaceTimeout<ResultType>(
   captureKey: string,
@@ -153,8 +161,10 @@ export async function runWithSurfaceTimeout<ResultType>(
   let overallTimer: NodeJS.Timeout | undefined;
   let navigateTimer: NodeJS.Timeout | undefined;
   let active = true;
+  let timeoutError: Error | undefined;
   const working = Promise.resolve().then(() => work({ isActive: () => active }));
   working.catch(() => {});
+
   try {
     return await Promise.race([
       working,
@@ -164,14 +174,43 @@ export async function runWithSurfaceTimeout<ResultType>(
           active = false;
           clearTimeout(overallTimer);
           clearTimeout(navigateTimer);
-          reject(new Error(surfaceTimeoutErrorMessage(captureKey, currentPhase(), budgetMs, budget)));
+          timeoutError = new Error(surfaceTimeoutErrorMessage(captureKey, currentPhase(), budgetMs, budget));
+          reject(timeoutError);
         };
+
         overallTimer = setTimeout(() => fail('surface', timeoutMs), timeoutMs);
         navigateTimer = setTimeout(() => {
           if (currentPhase() === 'navigate') fail('navigate', navigateBudgetMs);
         }, navigateBudgetMs);
       }),
     ]);
+  } catch (error) {
+    if (!timeoutError || error !== timeoutError) throw error;
+    let drainTimer: NodeJS.Timeout | undefined;
+
+    try {
+      const settled = await Promise.race([
+        working.then(
+          () => true,
+          () => true,
+        ),
+        new Promise<false>((resolve) => {
+          drainTimer = setTimeout(() => resolve(false), SURFACE_TIMEOUT_DRAIN_MS);
+        }),
+      ]);
+
+      if (!settled && options.pageIsShared) {
+        throw new UndrainedSurfaceTimeoutError(
+          `${timeoutError.message} Abandoned surface work did not settle within the ` +
+            `${secondsLabel(SURFACE_TIMEOUT_DRAIN_MS)} drain window; the shared page could not be reused ` +
+            `and surface-failure tolerance was not applied.`,
+        );
+      }
+
+      throw timeoutError;
+    } finally {
+      clearTimeout(drainTimer);
+    }
   } finally {
     clearTimeout(overallTimer);
     clearTimeout(navigateTimer);
