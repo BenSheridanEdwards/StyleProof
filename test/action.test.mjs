@@ -1970,7 +1970,7 @@ async function runGateStep(statuses) {
   const outputs = {};
   const github = { rest: { repos: { listCommitStatusesForRef: async () => ({ data: statuses }) } } };
   const core = { setOutput: (name, value) => (outputs[name] = value) };
-  process.env.STYLEPROOF_STATUS_CONTEXT = 'StyleProof';
+  process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(statuses.find((s) => s.context === 'StyleProof') || null);
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   await new AsyncFunction('github', 'context', 'core', script)(github, { repo: { owner: 'o', repo: 'r' } }, core);
   return outputs;

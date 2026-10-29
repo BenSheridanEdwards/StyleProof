@@ -260,6 +260,44 @@ runs:
             target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
           });
 
+    # Save sign-off evidence before pending replaces the latest status.
+    - name: Mark review status pending
+      id: review-pending
+      if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory')
+      uses: actions/github-script@v9
+      env:
+        STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        retries: 3
+        script: |
+          const { findLaterAttemptReceipt } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
+          const marker = process.env.STYLEPROOF_COMMENT_MARKER;
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            ...context.repo, issue_number: Number('${{ steps.context.outputs.pr-number }}'), per_page: 100,
+          });
+          const markerComments = comments.filter((c) => c.body?.includes(marker));
+          const runId = '${{ github.run_id }}';
+          const runAttempt = '${{ github.run_attempt }}';
+          const laterAttempt = await findLaterAttemptReceipt({
+            github, repo: context.repo, comments: markerComments, runId, runAttempt,
+          });
+          core.setOutput('stale-delivery', laterAttempt ? 'true' : 'false');
+          if (laterAttempt) return;
+          const { data } = await github.rest.repos.listCommitStatusesForRef({
+            ...context.repo, ref: '${{ steps.context.outputs.head-sha }}', per_page: 100,
+          });
+          core.setOutput('prior-status', JSON.stringify(data.find((s) => s.context === process.env.STYLEPROOF_STATUS_CONTEXT) || null));
+          await github.rest.repos.createCommitStatus({
+            ...context.repo,
+            sha: '${{ steps.context.outputs.head-sha }}',
+            context: process.env.STYLEPROOF_STATUS_CONTEXT,
+            state: 'pending',
+            description: 'StyleProof report running — no verdict yet',
+            target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+          });
+
     # Policy config: an optional styleproof.config.json at the consumer repo root.
     # Today it carries one setting — `blocking` — but it's the home for future gate
     # policy. Absent → all defaults (blocking on; opt out with "blocking": false);
@@ -641,7 +679,7 @@ runs:
           core.setOutput('data-residue-keys', JSON.stringify(dataResidueKeys));
           core.info(`StyleProof trust state: ${state}`);
 
-    # Is THIS commit's diff already signed off? Read the existing review status so a
+    # Is THIS commit's diff already signed off? Use the saved review status so a
     # re-run after approval keeps the check green (and renders the box ticked) instead
     # of clobbering the approval the approve workflow set. Meaningful when changed, or
     # for an untrusted (fork) capture, whose clean verdict also needs sign-off.
@@ -650,20 +688,17 @@ runs:
       if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory')
       uses: actions/github-script@v9
       env:
-        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+        STYLEPROOF_PRIOR_STATUS: ${{ steps.review-pending.outputs.prior-status }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
-          const sha = '${{ steps.context.outputs.head-sha }}';
           const untrustedCapture = '${{ steps.context.outputs.untrusted-capture }}' === 'true';
-          const STATUS = process.env.STYLEPROOF_STATUS_CONTEXT;
           let approved = false;
           let approver = '';
           if (changed || untrustedCapture) {
-            const { data } = await github.rest.repos.listCommitStatusesForRef({ ...context.repo, ref: sha, per_page: 100 });
-            const mine = data.find((s) => s.context === STATUS);
+            const mine = JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null');
             // Trust only the canonical writer, as the approve workflow does: this Action and
             // the approve workflow both write as github-actions[bot]. A success status from any
             // other integration or user with statuses:write is not a sign-off.
@@ -874,7 +909,7 @@ runs:
         retries: 3
         script: |
           const fs = require('fs');
-          const { shouldSupersedeExistingComment, formatRunAttemptReceiptMarker } =
+          const { findLaterAttemptReceipt, formatRunAttemptReceiptMarker } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery, buildArtifactReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
@@ -908,10 +943,9 @@ runs:
           // delivery with a forged receipt.
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
-          const publishers = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
-          const laterAttempt = markerComments.find((c) =>
-            (c.user?.type === 'Bot' || publishers.has(c.author_association)) &&
-            !shouldSupersedeExistingComment({ existingCommentBody: c.body, runId, runAttempt }));
+          const laterAttempt = await findLaterAttemptReceipt({
+            github, repo: context.repo, comments: markerComments, runId, runAttempt,
+          });
           if (laterAttempt) {
             core.setOutput('stale-delivery', 'true');
             core.info(`StyleProof: the report comment was already published by a later attempt of run ${runId} — leaving it (and the commit status) in place.`);
@@ -1362,5 +1396,27 @@ runs:
             context: process.env.STYLEPROOF_STATUS_CONTEXT,
             state: 'failure',
             description: `StyleProof certify run failed (${trust || 'no verdict'}) — see the run`.slice(0, 140),
+            target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+          });
+
+    - name: Set review failure status
+      if: >-
+        failure() && steps.status.outcome != 'success' &&
+        steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
+        steps.review-pending.outputs.stale-delivery != 'true' &&
+        steps.comment.outputs.stale-delivery != 'true'
+      uses: actions/github-script@v9
+      env:
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        retries: 3
+        script: |
+          await github.rest.repos.createCommitStatus({
+            ...context.repo,
+            sha: '${{ steps.context.outputs.head-sha }}',
+            context: process.env.STYLEPROOF_STATUS_CONTEXT,
+            state: 'failure',
+            description: 'StyleProof run failed — see the run',
             target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
           });

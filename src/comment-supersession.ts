@@ -39,6 +39,54 @@ export function shouldSupersedeExistingComment(options: {
   return existingAttempt <= deliveryAttempt;
 }
 
+/** Accept later-attempt receipts only from bots or verified repository writers. */
+export async function findLaterAttemptReceipt(options: {
+  github: {
+    rest: {
+      repos: {
+        getCollaboratorPermissionLevel(parameters: {
+          owner: string;
+          repo: string;
+          username: string;
+        }): Promise<{ data: { permission: string } }>;
+      };
+    };
+  };
+  repo: { owner: string; repo: string };
+  comments: readonly { body?: string | null; user?: { type?: string; login?: string } | null }[];
+  runId: string;
+  runAttempt: string;
+}): Promise<boolean> {
+  const permissions = new Map<string, boolean>();
+
+  for (const comment of options.comments) {
+    if (shouldSupersedeExistingComment({ ...options, existingCommentBody: comment.body })) continue;
+
+    if (comment.user?.type === 'Bot') return true;
+    const login = comment.user?.login;
+
+    if (!login) continue;
+    const key = login.toLowerCase();
+
+    if (!permissions.has(key)) {
+      try {
+        const { data } = await options.github.rest.repos.getCollaboratorPermissionLevel({
+          ...options.repo,
+          username: login,
+        });
+
+        permissions.set(key, ['write', 'maintain', 'admin'].includes(data.permission));
+      } catch {
+        permissions.set(key, false);
+      }
+    }
+
+    if (permissions.get(key)) return true;
+  }
+
+  return false;
+}
+
 export type CaptureRunIdentity = {
   id: number;
   run_attempt: number;

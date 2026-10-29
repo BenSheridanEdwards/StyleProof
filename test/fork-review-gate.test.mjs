@@ -79,6 +79,7 @@ function values({
   failOnDiff = true,
   requireApproval = false,
   staleDelivery = 'false',
+  reviewStale = 'false',
   pendingSuperseded = 'false',
   statusSuperseded = 'false',
   statusState = '',
@@ -92,6 +93,7 @@ function values({
     'github.event_name': event,
     'inputs.fail-on-diff': failOnDiff ? 'true' : 'false',
     'steps.comment.outputs.stale-delivery': staleDelivery,
+    'steps.review-pending.outputs.stale-delivery': reviewStale,
     'steps.certify-pending.outputs.superseded': pendingSuperseded,
     'steps.status.outputs.superseded': statusSuperseded,
     'steps.status.outputs.state': statusState,
@@ -111,6 +113,7 @@ function values({
     'steps.publish.outputs.sha': '',
     'steps.report.outputs.content-changes': '0',
     'toJSON(inputs.comment-marker)': JSON.stringify(MARKER),
+    'inputs.comment-marker': MARKER,
     'github.run_id': '9001',
     'github.run_attempt': runAttempt,
     'inputs.mode': mode,
@@ -127,8 +130,16 @@ function values({
 
 /** `prior` is what GitHub already holds for HEAD_SHA, newest first. */
 async function run(stepName, scenario, prior = [], thread = []) {
-  const { environment, program } = stepProgram(stepName, values(scenario));
+  const inputs = values(scenario);
+
+  if (stepName === 'gate') {
+    const pending = await run('Mark review status pending', scenario, prior, thread);
+    inputs['steps.review-pending.outputs.prior-status'] = pending.outputs['prior-status'] ?? '';
+  }
+
+  const { environment, program } = stepProgram(stepName, inputs);
   const statuses = scenario.statuses ?? [];
+  const storedStatuses = [...prior];
   const comments = [];
   const updated = [];
   const outputs = {};
@@ -157,11 +168,15 @@ async function run(stepName, scenario, prior = [], thread = []) {
         },
       },
       repos: {
+        getCollaboratorPermissionLevel: async ({ username }) => ({
+          data: { permission: username === 'maintainer' ? 'write' : 'read' },
+        }),
         createCommitStatus: async (input) => {
           await scenario.beforeStatusWrite?.(input);
           statuses.push(input);
+          storedStatuses.unshift({ ...input, creator: { login: 'github-actions[bot]', type: 'Bot' } });
         },
-        listCommitStatusesForRef: async () => ({ data: prior }),
+        listCommitStatusesForRef: async () => ({ data: storedStatuses }),
       },
       issues: {
         listComments: async () => ({ data: thread }),
@@ -843,3 +858,72 @@ test('the verdict step records the trusted untrusted-capture flag and the gate r
   const contextStep = actionYml.match(/- id: context[\s\S]*?(?=\n {4}#|\n {4}- id:)/)[0];
   assert.match(contextStep, /core\.setOutput\('untrusted-capture', resolved && untrustedCapture \? 'true' : 'false'\)/);
 });
+
+test('an approved rerun saves sign-off before pending, then stays green with a ticked box', async () => {
+  const scenario = { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true };
+  const prior = { context: 'StyleProof', state: 'success', description: 'Approved by @maintainer', creator: BOT };
+  const pending = await run('Mark review status pending', scenario, [prior]);
+  assert.equal(pending.statuses[0].state, 'pending');
+  assert.deepEqual(JSON.parse(pending.outputs['prior-status']), prior);
+  const { gate, status } = await rerunWithChanges(prior);
+  assert.deepEqual(gate, { approved: 'true', approver: 'maintainer' });
+  assert.equal(status.state, 'success');
+  const comment = await run('Upsert PR comment', { ...scenario, approved: true });
+  assert.match(comment.comments[0].body, /- \[x\] \*\*Approve all changes/);
+});
+
+test('a stale review delivery leaves the newer status untouched before processing', async () => {
+  const result = await run(
+    'Mark review status pending',
+    {},
+    [],
+    [
+      {
+        user: BOT,
+        body: `${MARKER}\n${receipt(2)}`,
+      },
+    ],
+  );
+
+  assert.equal(result.outputs['stale-delivery'], 'true');
+  assert.deepEqual(result.statuses, []);
+});
+
+test('review failure status runs only for real failures, never deliberate stale skips', () => {
+  for (const mode of ['review-gate', 'migration', 'advisory']) {
+    assert.equal(stepRuns('Set review failure status', { mode, failed: true }), true);
+    assert.equal(stepRuns('Set review failure status', { mode, failed: false }), false);
+    assert.equal(stepRuns('Set review failure status', { mode, failed: true, staleDelivery: 'true' }), false);
+    assert.equal(stepRuns('Set review failure status', { mode, failed: true, reviewStale: 'true' }), false);
+  }
+});
+
+for (const untrusted of [false, true]) {
+  test(`a deliberate unapproved-diff block preserves the approvable status (fork: ${untrusted})`, async () => {
+    const scenario = { untrusted, changed: true, trustState: 'STYLE_REVIEW_REQUIRED' };
+    const { statuses } = await run('Set review status', scenario);
+    assert.equal(statuses[0].state, untrusted ? 'pending' : 'failure');
+    assert.equal(
+      statuses[0].description,
+      untrusted ? UNTRUSTED_DESCRIPTION : 'StyleProof changes need sign-off — tick the box in the report comment',
+    );
+    assert.equal(statuses[0].target_url, ARTIFACT_URL);
+    assert.equal(stepRuns('Block on unapproved changes', scenario), true);
+    const block = actionYml.match(/- name: Block on unapproved changes\n[\s\S]*?run: \|\n([\s\S]*?exit 1)/)[1];
+    assert.equal(nativeRequire('node:child_process').spawnSync('bash', ['-c', block]).status, 1);
+    const failed = { ...scenario, failed: true, statusOutcome: 'success', statuses };
+
+    if (stepRuns('Set review failure status', failed)) await run('Set review failure status', failed);
+    assert.equal(statuses.length, 1, 'the latest status must remain bound to the approvable report');
+  });
+}
+
+for (const statusOutcome of ['skipped', 'failure']) {
+  test(`a failure before a verdict replaces pending when status outcome is ${statusOutcome}`, async () => {
+    const scenario = { failed: true, statusOutcome };
+    assert.equal(stepRuns('Set review failure status', scenario), true);
+    const { statuses } = await run('Set review failure status', scenario);
+    assert.equal(statuses[0].state, 'failure');
+    assert.equal(statuses[0].description, 'StyleProof run failed — see the run');
+  });
+}

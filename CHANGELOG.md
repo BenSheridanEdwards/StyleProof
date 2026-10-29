@@ -7,7 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
+- Review runs set the status pending before processing, so a failing re-run cannot keep an
+  earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).
+- Later-attempt receipts need a bot or repository write permission, so read-only members and
+  collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
 
 ## [9.0.0] - 2026-10-29
 
