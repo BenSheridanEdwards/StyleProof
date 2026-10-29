@@ -257,12 +257,16 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(required, /actions\/checkout/);
 });
 
-test('repository workflows upload only the browser shards consumed by the evidence job', () => {
+test('repository workflows upload only consumed browser shards and approval receipts', () => {
   const workflowsDir = path.join(here, '..', '.github/workflows');
   for (const file of fs.readdirSync(workflowsDir).filter((name) => /\.ya?ml$/.test(name))) {
     const workflow = fs.readFileSync(path.join(workflowsDir, file), 'utf8');
     const uploads = [...workflow.matchAll(/^\s*(?:- )?uses: actions\/upload-artifact@/gm)];
-    assert.equal(uploads.length, file === 'ci.yml' ? 1 : 0, `${file} must not store unread artifacts`);
+    assert.equal(
+      uploads.length,
+      ['ci.yml', 'styleproof-approve-reusable.yml'].includes(file) ? 1 : 0,
+      `${file} must not store unread artifacts`,
+    );
   }
 });
 

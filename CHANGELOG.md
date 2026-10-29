@@ -17,6 +17,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+- Bind carried approvals to successful approver runs and PR/SHA artifacts; require `actions: read` (#1145).
+  Re-tick legacy approvals; unticks, failures, artifact expiry, and changed rerun actors revoke carry-over.
+- Remove map-store tokens from generated capture steps; private branch storage recaptures base (#1145).
 - Bind enforcement sign-off statuses to the gate's successful default-branch
   comment run triggered by the approver (#1149).
 

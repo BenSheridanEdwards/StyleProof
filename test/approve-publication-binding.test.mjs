@@ -85,14 +85,17 @@ function makeZip(entries) {
 }
 
 function approveScript() {
-  const match = approveYml.match(/\n {10}script: \|\n([\s\S]*)$/);
+  const match = approveYml.match(/\n {10}script: \|\n([\s\S]*?)(?=\n {6}- uses:|$)/);
   assert.ok(match, 'example/styleproof-approve.yml should contain a github-script program');
   const source = match[1]
     .split('\n')
     .map((line) => line.replace(/^ {12}/, ''))
     .join('\n');
   assert.doesNotMatch(source, /\$\{\{/);
-  return new AsyncFunction('github', 'context', source);
+
+  const program = new AsyncFunction('github', 'context', 'core', 'require', source);
+
+  return (github, context) => program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
 }
 
 function reportComment({
@@ -238,6 +241,7 @@ async function runApproval({
     },
   };
   const context = {
+    runId: 123,
     repo: { owner: 'acme', repo: 'app' },
     payload: { sender: { login: actor }, comment: { id: 99 }, issue: { number: 7 } },
   };
@@ -694,7 +698,7 @@ test('a maintainer tick turns a pending fork (untrusted capture) verdict green, 
     const result = await runApproval({ status: untrustedStatus, reportJson });
     assert.deepEqual(
       result.statuses.map(({ state, description }) => ({ state, description })),
-      [{ state: 'success', description: 'Approved by @reviewer' }],
+      [{ state: 'success', description: 'Approved by @reviewer (run 123)' }],
     );
   }
 });

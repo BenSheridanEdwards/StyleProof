@@ -1956,23 +1956,57 @@ test('composite action never splices string inputs into run or script bodies', (
   assert.deepEqual(inputsInScriptBodies(reusableApprove), []);
 });
 
-async function runGateStep(statuses) {
+async function runGateStep(
+  statuses,
+  runOverrides = {},
+  lookupError = false,
+  artifacts = [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: false }],
+) {
   const match = actionYml.match(/- id: gate[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
   assert.ok(match, 'action.yml should contain the gate github-script program');
   const script = match[1]
     .split('\n')
     .map((line) => line.replace(/^ {10}/, ''))
     .join('\n')
+    .replaceAll('${{ steps.context.outputs.pr-number }}', '42')
     .replace("'${{ steps.diff.outputs.changed }}'", "'true'")
-    .replace("'${{ steps.context.outputs.head-sha }}'", `'${'a'.repeat(40)}'`)
+    .replaceAll('${{ steps.context.outputs.head-sha }}', 'a'.repeat(40))
     .replace("'${{ steps.context.outputs.untrusted-capture }}'", "'false'");
   assert.doesNotMatch(script, /\$\{\{/);
   const outputs = {};
-  const github = { rest: { repos: { listCommitStatusesForRef: async () => ({ data: statuses }) } } };
+
+  const github = {
+    rest: {
+      actions: {
+        listWorkflowRunArtifacts: async () => ({ data: { artifacts } }),
+        getWorkflowRun: async () => {
+          if (lookupError) throw new Error('run unavailable');
+
+          return {
+            data: {
+              status: 'completed',
+              conclusion: 'success',
+              event: 'issue_comment',
+              head_branch: 'main',
+              triggering_actor: { login: 'reviewer' },
+              run_started_at: '2026-10-20T10:00:00Z',
+              updated_at: '2026-10-20T10:01:00Z',
+              ...runOverrides,
+            },
+          };
+        },
+      },
+      repos: { listCommitStatusesForRef: async () => ({ data: statuses }) },
+    },
+  };
   const core = { setOutput: (name, value) => (outputs[name] = value) };
   process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(statuses.find((s) => s.context === 'StyleProof') || null);
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-  await new AsyncFunction('github', 'context', 'core', script)(github, { repo: { owner: 'o', repo: 'r' } }, core);
+  await new AsyncFunction('github', 'context', 'core', script)(
+    github,
+    { repo: { owner: 'o', repo: 'r' }, payload: { repository: { default_branch: 'main' } } },
+    core,
+  );
   return outputs;
 }
 
@@ -1980,7 +2014,8 @@ test('gate honours a prior approval only from the canonical github-actions[bot] 
   const status = (creator) => ({
     context: 'StyleProof',
     state: 'success',
-    description: 'Approved by @reviewer',
+    description: 'Approved by @reviewer (run 123)',
+    created_at: '2026-10-20T10:00:30Z',
     creator,
   });
   const canonical = await runGateStep([status({ login: 'github-actions[bot]', type: 'Bot' })]);
@@ -1993,6 +2028,59 @@ test('gate honours a prior approval only from the canonical github-actions[bot] 
   ]) {
     assert.deepEqual(await runGateStep([status(creator)]), { approved: 'false', approver: '' });
   }
+});
+
+test('approval run receipts fail closed on invalid metadata or timestamps', async () => {
+  const status = {
+    context: 'StyleProof',
+    state: 'success',
+    description: 'Approved by @reviewer (run 123)',
+    creator: { login: 'github-actions[bot]', type: 'Bot' },
+    created_at: '2026-10-20T10:00:30Z',
+  };
+
+  const rejected = { approved: 'false', approver: '' };
+
+  for (const run of [
+    ...['status', 'conclusion', 'event', 'head_branch', 'triggering_actor', 'run_started_at', 'updated_at'].map(
+      (key) => ({ [key]: undefined }),
+    ),
+    { status: 'in_progress' },
+    { conclusion: 'failure' },
+    { event: 'pull_request' },
+    { head_branch: 'feature' },
+    { triggering_actor: { login: 'someone-else' } },
+    { run_started_at: 'invalid' },
+    { updated_at: '2026-10-20T09:00:00Z' },
+  ])
+    assert.deepEqual(await runGateStep([status], run), rejected);
+
+  for (const created_at of [undefined, 'invalid', '2026-10-20T09:59:59Z', '2026-10-20T10:01:06Z']) {
+    assert.deepEqual(await runGateStep([{ ...status, created_at }]), rejected);
+  }
+
+  assert.equal((await runGateStep([status], { triggering_actor: { login: 'REVIEWER' } })).approved, 'true');
+  assert.equal(
+    (await runGateStep([status], { triggering_actor: undefined, actor: { login: 'reviewer' } })).approved,
+    'false',
+  );
+
+  for (const artifacts of [
+    [],
+    [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: true }],
+    [{ name: `styleproof-approval-43-${'a'.repeat(40)}`, expired: false }],
+    [{ name: `styleproof-approval-42-${'b'.repeat(40)}`, expired: false }],
+  ]) {
+    assert.deepEqual(await runGateStep([status], {}, false, artifacts), rejected);
+  }
+  // A later carry-forward receipt must still have the original status in history.
+
+  const carried = { ...status, created_at: '2026-10-21T10:00:00Z' };
+  assert.deepEqual(await runGateStep([carried]), rejected);
+  assert.equal((await runGateStep([carried, status])).approved, 'true');
+  assert.deepEqual(await runGateStep([status], {}, true), rejected);
+  const revoked = { ...status, state: 'failure', description: 'Tick "Approve all changes" to sign off' };
+  assert.deepEqual(await runGateStep([carried, revoked, status]), rejected);
 });
 
 test('composite action retries transient GitHub API failures on networked github-script steps', () => {

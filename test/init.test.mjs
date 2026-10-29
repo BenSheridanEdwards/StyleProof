@@ -298,7 +298,7 @@ test('styleproof-init: default scaffold is one workflow, no map-store branch, ad
     // One job: in-job capture with no map-store branch, then the Action diffs
     // and publishes in place. Advisory mode never blocks the PR.
     assert.match(workflow, /--no-store/);
-    assert.doesNotMatch(workflow, /--no-upload/);
+    assert.match(workflow, /--no-upload/);
     assert.match(workflow, /BenSheridanEdwards\/StyleProof@v9/);
     assert.match(workflow, /mode: advisory/);
     assert.doesNotMatch(workflow, /require-approval/);
@@ -851,7 +851,7 @@ test("styleproof-init: the publisher follows the remote's default branch and the
 test('styleproof-init: the one-job layout never persists the checkout token into PR-code steps', () => {
   for (const [storageArgs, expectsMapStoreToken] of [
     [[], false],
-    [BRANCH, true],
+    [BRANCH, false],
   ]) {
     const root = mkTmp();
     try {
@@ -862,7 +862,7 @@ test('styleproof-init: the one-job layout never persists the checkout token into
       // statuses:write + PR code: the token must not sit in .git/config for every step.
       const checkout = job.match(/- uses: actions\/checkout@v7\n\s+with:\n([\s\S]*?)\n\s+- /)[1];
       assert.match(checkout, /persist-credentials: false/);
-      // Branch storage restores/publishes maps with git, so that one step gets a scoped token.
+      // PR capture must not receive the status-writing token, including with branch storage.
       const mapsStep = job.match(/- id: maps[\s\S]*?run: \|/)[0];
       assert.equal(/STYLEPROOF_MAP_STORE_TOKEN: \$\{\{ github\.token \}\}/.test(mapsStep), expectsMapStoreToken);
     } finally {
