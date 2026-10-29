@@ -213,8 +213,6 @@ export async function captureSurface(
           },
         });
 
-        await stop();
-
         if (s.selfCheck) {
           phase = 'self-check';
           const selfCheckStartedAtMs = realNow();
