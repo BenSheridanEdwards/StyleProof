@@ -11,14 +11,14 @@ test('#1139 a settle timeout with a request in flight is recorded and printed', 
 
   const server = http.createServer((req, res) => {
     if (req.url?.startsWith('/api/')) {
-      held.push(res); // never answers within the settle budget (fetch starts after capture's tracker is armed)
+      held.push(res); // Keep each request open throughout the settle budget.
 
       return;
     }
 
     res.setHeader('content-type', 'text/html');
     res.end(`<!doctype html><html><body><main id="app">loading…</main>
-      <script>setTimeout(() => fetch('/api/slow').then((r) => r.json()).then(() => { app.textContent = 'data'; }), 300);</script></body></html>`);
+      <script>setInterval(() => { void fetch('/api/slow'); }, 25);</script></body></html>`);
   });
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -41,7 +41,8 @@ test('#1139 a settle timeout with a request in flight is recorded and printed', 
       console.warn = original;
     }
 
-    expect(held.length, 'the data request reached the server and is still open').toBe(1);
+    expect(held.length, 'data requests reached the server and are still open').toBeGreaterThan(0);
+    expect(map.metadata?.settleTimedOutWithRequestsInFlight).toBeGreaterThan(0);
     const recorded = JSON.stringify(map.metadata ?? {});
     const printed = warnings.join('\n');
     expect({ recorded, printed }).toEqual({

@@ -7,10 +7,6 @@ base branch and on the pull request, and posts what changed as a PR comment. The
 reads the report and confirms that it shows the visual change the pull request set out to make. Approve the changes
 you meant. In review-gate mode, the `StyleProof` check stays red until a reviewer approves them.
 
-If settling times out with requests in flight, capture continues with a warning and records the request
-count in `metadata.settleTimedOutWithRequestsInFlight`. Settle the page in `go()` or raise
-`stabilize.timeout` if the capture shows a loading state.
-
 [![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
@@ -613,6 +609,10 @@ the opt-in gate. Global state and pseudo-element probes exclude the head subtree
 framework-ignored elements, including the hover sink. Full-page capture preserves inline style attributes, including
 on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
 Render-code reach (J2/J3) is not measured yet.
+
+If settling times out with requests in flight, capture continues with a warning and records the request
+count in `metadata.settleTimedOutWithRequestsInFlight`. Settle the page in `go()` or raise
+`stabilize.timeout` if the capture shows a loading state.
 
 ## Reference
 

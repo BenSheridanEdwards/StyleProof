@@ -1,33 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import { saveStyleMap, loadStyleMap, loadSharedStyleMap } from '../dist/capture/map-io.js';
-import { mkTmp, rmTmp } from './helpers.mjs';
+import { hashDeterminismMap } from '../dist/determinism-oracle.js';
 
-for (const extension of ['json', 'json.gz']) {
-  test(`settle timeout metadata survives ${extension} save/load`, (t) => {
-    const dir = mkTmp('styleproof-settle-');
-    t.after(() => rmTmp(dir));
-    const file = path.join(dir, `home@1280.${extension}`);
+test('settle request diagnostics do not change hashes, but styles and other metadata do', () => {
+  const map = {
+    metadata: { surfaceKey: 'home', settleTimedOutWithRequestsInFlight: 1 },
+    defaults: {},
+    elements: { app: { color: 'red' } },
+    states: {},
+  };
 
-    const map = {
-      metadata: { surfaceKey: 'home', inputs: 'live', settleTimedOutWithRequestsInFlight: 2 },
-      defaults: {},
-      elements: {},
-      states: {},
-    };
+  const hash = hashDeterminismMap(map);
 
-    saveStyleMap(file, map);
-    assert.deepEqual(loadStyleMap(file), map);
-    assert.deepEqual(loadSharedStyleMap(file), map);
+  const withCount = (count) => ({
+    ...map,
+    metadata: { ...map.metadata, settleTimedOutWithRequestsInFlight: count },
   });
-}
 
-test('older maps without settle timeout metadata still load', (t) => {
-  const dir = mkTmp('styleproof-settle-');
-  t.after(() => rmTmp(dir));
-  const file = path.join(dir, 'home@1280.json');
-  const map = { defaults: {}, elements: {}, states: {} };
-  saveStyleMap(file, map);
-  assert.deepEqual(loadStyleMap(file), map);
+  assert.equal(hash, hashDeterminismMap(withCount(2)));
+  assert.equal(hash, hashDeterminismMap({ ...map, metadata: { surfaceKey: 'home' } }));
+  assert.notEqual(hash, hashDeterminismMap({ ...map, elements: { app: { color: 'blue' } } }));
+  assert.notEqual(hash, hashDeterminismMap({ ...map, metadata: { surfaceKey: 'pricing' } }));
+  assert.notEqual(hash, hashDeterminismMap({ ...map, states: { settleTimedOutWithRequestsInFlight: 2 } }));
+  assert.equal(map.metadata.settleTimedOutWithRequestsInFlight, 1);
 });
