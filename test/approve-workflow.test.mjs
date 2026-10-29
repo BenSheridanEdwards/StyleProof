@@ -604,7 +604,13 @@ test('reusable approval workflow has the same job guard as the reference (#598)'
   const reusableIf = extractIfCondition(reusableApproveYml);
   assert.ok(refIf, 'reference workflow must have job guard');
   assert.ok(reusableIf, 'reusable workflow must have job guard');
-  assert.equal(refIf, reusableIf, 'the job guard must match the reference implementation');
+  assert.equal(
+    reusableIf,
+    `${refIf} && contains(github.event.comment.body, inputs.comment-marker)`,
+    'the reusable job must keep the reference trust guard and filter its instance marker',
+  );
+  assert.match(approveYml, /if: contains\(github\.event\.comment\.body, env\.STYLEPROOF_COMMENT_MARKER\)/);
+  assert.match(approveYml, /STYLEPROOF_COMMENT_MARKER: '<!-- styleproof-report -->'/);
 });
 
 test('reusable approval workflow uses the input status-context (#598)', () => {

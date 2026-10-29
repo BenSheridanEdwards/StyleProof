@@ -506,6 +506,10 @@ utility-class migration, a design-system swap, a dependency or build-tooling
 bump. Zero diff is the contract; one drifting longhand is a regression to
 investigate, not a change to approve.
 
+When running multiple Action instances, pass each instance's `comment-marker`
+to the reusable approval workflow as well (default `<!-- styleproof-report -->`).
+Approval uses it to select the matching comment and report artifact.
+
 There's also a third, spec-less use — pointing the one-shot capture at a design
 mockup and diffing your build against it until the number hits zero. See
 [Match a design pixel-for-pixel](docs/REFERENCE.md#match-a-design-pixel-for-pixel).
