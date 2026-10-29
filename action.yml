@@ -55,9 +55,6 @@ inputs:
   fail-on-diff:
     description: 'Certify mode: fail the job when any difference is found. Ignored when require-approval is true.'
     default: 'true'
-  allow-self-approval:
-    description: 'Allow the pull request author to approve their own changes (solo repos). Must mirror the approve workflow input.'
-    default: 'false'
   require-approval:
     description: >-
       Review-gate mode. Instead of failing the job, set a `StyleProof` commit
@@ -691,7 +688,6 @@ runs:
       if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory')
       uses: actions/github-script@v9
       env:
-        STYLEPROOF_ALLOW_SELF_APPROVAL: ${{ inputs.allow-self-approval }}
         STYLEPROOF_PRIOR_STATUS: ${{ steps.review-pending.outputs.prior-status }}
       with:
         github-token: ${{ inputs.github-token }}
@@ -722,29 +718,19 @@ runs:
                 if (canonical(mine) && run.status === 'completed' && run.conclusion === 'success' && run.event === 'issue_comment' && branch && run.head_branch === branch &&
                     actor?.toLowerCase() === m[1].toLowerCase() && Number.isFinite(start) &&
                     Number.isFinite(end) && end >= start) {
-                  const { data: pr } = await github.rest.pulls.get({
-                    ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
+                  const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+                    ...context.repo, run_id: m[2], per_page: 100,
                   });
-                  const author = pr.user?.login;
-                  const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel({
-                    ...context.repo, username: m[1],
-                  });
-                  if (!author || (author.toLowerCase() === m[1].toLowerCase() &&
-                      process.env.STYLEPROOF_ALLOW_SELF_APPROVAL !== 'true') ||
-                      !['write', 'maintain', 'admin'].includes(access.permission)) {
-                    core.setOutput('approved', 'false');
-                    core.setOutput('approver', '');
-                    return;
-                  }
-                  // Reruns carry the run reference forward, but cannot mint a new
-                  // approval timestamp. Require the original receipt on this SHA.
+                  const bound = artifacts.artifacts.some((artifact) => !artifact.expired &&
+                    artifact.name === 'styleproof-approval-${{ steps.context.outputs.pr-number }}-${{ steps.context.outputs.head-sha }}');
+                  // Carry-forward statuses still need the original receipt on this SHA.
                   const { data } = await github.rest.repos.listCommitStatusesForRef({
                     ...context.repo, ref: '${{ steps.context.outputs.head-sha }}', per_page: 100,
                   });
                   const original = data.findIndex(inWindow);
                   // An untick or a later failure revokes that receipt. Never replay
                   // an older approval across a status that withdrew it.
-                  approved = original >= 0 && data.slice(0, original).every((status) =>
+                  approved = bound && original >= 0 && data.slice(0, original).every((status) =>
                     status.context !== mine.context ||
                     (canonical(status) && ((status.state === 'success' && status.description === mine.description) ||
                       (status.state === 'pending' && status.description === 'StyleProof report running — no verdict yet'))));

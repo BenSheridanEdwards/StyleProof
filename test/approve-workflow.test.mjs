@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import yaml from 'js-yaml';
 import { fileURLToPath } from 'node:url';
 import { APPROVE_WORKFLOW } from '../bin/init/templates.mjs';
 
@@ -35,12 +36,10 @@ const blobSha = (source) =>
 
 /** The dedented github-script program a workflow file runs. */
 function programSource(yml, file) {
-  const match = yml.match(/\n {10}script: \|\n([\s\S]*)$/);
-  assert.ok(match, `${file} should contain a github-script program`);
-  return match[1]
-    .split('\n')
-    .map((line) => line.replace(/^ {12}/, ''))
-    .join('\n');
+  const step = yaml.load(yml).jobs.approve.steps.find((step) => step.with?.script);
+  assert.ok(step, `${file} should contain a github-script program`);
+
+  return step.with.script;
 }
 
 /** Compile the workflow's real github-script program — never a copy of it. */
@@ -58,12 +57,12 @@ function approveScript() {
 function reusableApproveScript() {
   const source = programSource(reusableApproveYml, '.github/workflows/styleproof-approve-reusable.yml');
   assert.doesNotMatch(source, /\$\{\{/, 'the reusable approve program must not interpolate workflow expressions');
-  const program = new AsyncFunction('github', 'context', source);
+  const program = new AsyncFunction('github', 'context', 'core', 'require', source);
   return async (github, context) => {
     const previous = process.env.STYLEPROOF_STATUS_CONTEXT;
     process.env.STYLEPROOF_STATUS_CONTEXT = 'StyleProof';
     try {
-      await program(github, context);
+      await program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
     } finally {
       if (previous === undefined) delete process.env.STYLEPROOF_STATUS_CONTEXT;
       else process.env.STYLEPROOF_STATUS_CONTEXT = previous;
@@ -825,4 +824,16 @@ test('a token without pull-requests: write names the missing permission, not a b
       });
     }
   }
+});
+
+test('approved runs upload a receipt bound to the PR and SHA', () => {
+  const steps = yaml.load(reusableApproveYml).jobs.approve.steps;
+  const upload = steps.find((step) => step.uses === 'actions/upload-artifact@v6');
+  assert.equal(upload.if, "steps.approval.outputs.approved-sha != ''");
+  assert.equal(
+    upload.with.name,
+    'styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}',
+  );
+  assert.match(reusableApproveYml, /if \(approved\) \{\s+core.setOutput\('approved-pr'/);
+  assert.match(reusableApproveYml, /core.setOutput\('approved-sha', headSha\)/);
 });

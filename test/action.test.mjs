@@ -1956,25 +1956,29 @@ test('composite action never splices string inputs into run or script bodies', (
   assert.deepEqual(inputsInScriptBodies(reusableApprove), []);
 });
 
-async function runGateStep(statuses, runOverrides = {}, lookupError = false, policy = {}) {
+async function runGateStep(
+  statuses,
+  runOverrides = {},
+  lookupError = false,
+  artifacts = [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: false }],
+) {
   const match = actionYml.match(/- id: gate[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
   assert.ok(match, 'action.yml should contain the gate github-script program');
   const script = match[1]
     .split('\n')
     .map((line) => line.replace(/^ {10}/, ''))
     .join('\n')
-    .replace("'${{ steps.context.outputs.pr-number }}'", "'42'")
+    .replaceAll('${{ steps.context.outputs.pr-number }}', '42')
     .replace("'${{ steps.diff.outputs.changed }}'", "'true'")
-    .replace("'${{ steps.context.outputs.head-sha }}'", `'${'a'.repeat(40)}'`)
+    .replaceAll('${{ steps.context.outputs.head-sha }}', 'a'.repeat(40))
     .replace("'${{ steps.context.outputs.untrusted-capture }}'", "'false'");
   assert.doesNotMatch(script, /\$\{\{/);
   const outputs = {};
-  policy = { author: 'author', permission: 'write', ...policy };
-  process.env.STYLEPROOF_ALLOW_SELF_APPROVAL = policy.allowSelf || 'false';
 
   const github = {
     rest: {
       actions: {
+        listWorkflowRunArtifacts: async () => ({ data: { artifacts } }),
         getWorkflowRun: async () => {
           if (lookupError) throw new Error('run unavailable');
 
@@ -1992,15 +1996,7 @@ async function runGateStep(statuses, runOverrides = {}, lookupError = false, pol
           };
         },
       },
-      pulls: { get: async () => ({ data: { user: { login: policy.author } } }) },
-      repos: {
-        listCommitStatusesForRef: async () => ({ data: statuses }),
-        getCollaboratorPermissionLevel: async () => {
-          if (policy.permissionError) throw new Error('permission unavailable');
-
-          return { data: { permission: policy.permission } };
-        },
-      },
+      repos: { listCommitStatusesForRef: async () => ({ data: statuses }) },
     },
   };
   const core = { setOutput: (name, value) => (outputs[name] = value) };
@@ -2073,18 +2069,11 @@ test('approval run receipts fail closed on invalid metadata or timestamps', asyn
     'false',
   );
 
-  for (const policy of [
-    { author: 'REVIEWER' },
-    { author: undefined },
-    { permission: 'read' },
-    { permission: undefined },
-    { permissionError: true },
-  ]) {
-    assert.deepEqual(await runGateStep([status], {}, false, policy), rejected);
+  for (const artifacts of [[], [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: true }]]) {
+    assert.deepEqual(await runGateStep([status], {}, false, artifacts), rejected);
   }
-
-  assert.equal((await runGateStep([status], {}, false, { author: 'REVIEWER', allowSelf: 'true' })).approved, 'true');
   // A later carry-forward receipt must still have the original status in history.
+
   const carried = { ...status, created_at: '2026-10-21T10:00:00Z' };
   assert.deepEqual(await runGateStep([carried]), rejected);
   assert.equal((await runGateStep([carried, status])).approved, 'true');
@@ -2092,6 +2081,27 @@ test('approval run receipts fail closed on invalid metadata or timestamps', asyn
   const revoked = { ...status, state: 'failure', description: 'Tick "Approve all changes" to sign off' };
   assert.deepEqual(await runGateStep([carried, revoked, status]), rejected);
 });
+
+for (const [label, name] of [
+  ['another PR', `styleproof-approval-43-${'a'.repeat(40)}`],
+  ['another SHA', `styleproof-approval-42-${'b'.repeat(40)}`],
+]) {
+  test(`approval artifact for ${label} cannot authorize this head`, async () => {
+    const status = {
+      context: 'StyleProof',
+      state: 'success',
+      description: 'Approved by @reviewer (run 123)',
+      creator: { login: 'github-actions[bot]', type: 'Bot' },
+      created_at: '2026-10-20T10:00:30Z',
+    };
+
+    assert.equal((await runGateStep([status])).approved, 'true');
+    assert.deepEqual(await runGateStep([status], {}, false, [{ name, expired: false }]), {
+      approved: 'false',
+      approver: '',
+    });
+  });
+}
 
 test('composite action retries transient GitHub API failures on networked github-script steps', () => {
   const networkedSteps = [

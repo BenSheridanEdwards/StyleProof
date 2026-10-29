@@ -14,12 +14,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).
 - Later-attempt receipts need a bot or repository write permission, so read-only members and
   collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
-- Bind carried review approvals to a successful approver-triggered approve run, its original status
-  receipt and the approver's write permission; self-approval needs `allow-self-approval` (#1145).
-- Generated PR capture steps no longer get a workflow token or upload maps; publish-base uploads (#1145).
 
 ### Security
 
+- Bind carried approvals to a successful approver-triggered run and its artifact naming the PR
+  and head SHA; an untick or later failure revokes approval (#1145).
+  - Approvals given before this release do not carry over a rerun; re-tick once.
+  - Action jobs need `actions: read`; missing access fails closed.
+  - Approval stops carrying when the artifact expires under repository artifact retention.
+  - Re-running an old approve run changes its triggering actor and revokes carried approval.
+- Generated single-job capture steps no longer get a map-store token. Private repositories with
+  branch storage recapture base maps on every PR (#1145).
 - Bind enforcement sign-off statuses to the gate's successful default-branch
   comment run triggered by the approver (#1149).
 

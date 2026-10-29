@@ -10,28 +10,11 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 test('1145: a bot status without an approve-workflow run cannot carry approval forward', async () => {
   const outputs = {};
 
-  const github = {
-    rest: {
-      repos: {
-        listCommitStatusesForRef: async () => ({
-          data: [
-            {
-              context: 'StyleProof',
-              state: 'success',
-              description: 'Approved by @someReviewer',
-              creator: { login: 'github-actions[bot]', type: 'Bot' },
-              target_url: 'https://github.com/owner/repo/actions/runs/123',
-            },
-          ],
-        }),
-      },
-      actions: {
-        getWorkflowRun: async () => ({
-          data: { id: 123, path: '.github/workflows/capture.yml', event: 'pull_request', head_branch: 'feature' },
-        }),
-        listWorkflowRuns: async () => ({ data: { total_count: 0, workflow_runs: [] } }),
-      },
-    },
+  const status = {
+    context: 'StyleProof',
+    state: 'success',
+    description: 'Approved by @someReviewer',
+    creator: { login: 'github-actions[bot]', type: 'Bot' },
   };
 
   const source = action.runs.steps
@@ -41,13 +24,11 @@ test('1145: a bot status without an approve-workflow run cannot carry approval f
     .replaceAll('${{ steps.context.outputs.untrusted-capture }}', 'false');
 
   const previousPrior = process.env.STYLEPROOF_PRIOR_STATUS;
-  process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify((await github.rest.repos.listCommitStatusesForRef()).data[0]);
-  const previous = process.env.STYLEPROOF_STATUS_CONTEXT;
-  process.env.STYLEPROOF_STATUS_CONTEXT = 'StyleProof';
+  process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(status);
 
   try {
     await new AsyncFunction('github', 'context', 'core', source)(
-      github,
+      {},
       { repo: { owner: 'owner', repo: 'repo' } },
       {
         setOutput: (key, value) => {
@@ -58,9 +39,6 @@ test('1145: a bot status without an approve-workflow run cannot carry approval f
   } finally {
     if (previousPrior === undefined) delete process.env.STYLEPROOF_PRIOR_STATUS;
     else process.env.STYLEPROOF_PRIOR_STATUS = previousPrior;
-
-    if (previous === undefined) delete process.env.STYLEPROOF_STATUS_CONTEXT;
-    else process.env.STYLEPROOF_STATUS_CONTEXT = previous;
   }
 
   assert.equal(outputs.approved, 'false', 'a capture job can impersonate the approval bot with its GITHUB_TOKEN');

@@ -20,6 +20,13 @@ test('workflow uploads have explicit short retention and exclude bulky browser e
       const inputs = step.with ?? {};
       const label = `${file}: ${inputs.name ?? step.uses}`;
       assert.ok(Object.hasOwn(inputs, 'retention-days'), `${label}: explicit retention required`);
+
+      // Approval receipts carry authorization for the repository's retention window.
+      if (file === '.github/workflows/styleproof-approve-reusable.yml') {
+        assert.equal(inputs['retention-days'], '${{ github.retention_days }}');
+        assert.equal(inputs.path, 'styleproof-approval.txt');
+        continue;
+      }
       const limit = file.startsWith('example/') ? 3 : 1;
       assert.ok(
         Number.isInteger(inputs['retention-days']) && inputs['retention-days'] > 0 && inputs['retention-days'] <= limit,

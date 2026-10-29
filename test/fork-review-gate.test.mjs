@@ -162,8 +162,10 @@ async function run(stepName, scenario, prior = [], thread = []) {
   const github = {
     paginate: async (route, params) => (await route(params)).data,
     rest: {
-      pulls: { get: async () => ({ data: { user: { login: 'author' } } }) },
       actions: {
+        listWorkflowRunArtifacts: async () => ({
+          data: { artifacts: [{ name: `styleproof-approval-42-${HEAD_SHA}`, expired: false }] },
+        }),
         getWorkflowRun: async () => ({
           data: {
             status: 'completed',
