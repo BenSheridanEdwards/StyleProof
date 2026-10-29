@@ -14,6 +14,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).
 - Later-attempt receipts need a bot or repository write permission, so read-only members and
   collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
+### Security
+
+- Bind enforcement sign-off statuses to the gate's default-branch comment run
+  and scope dogfood write permissions to the job that needs them (#1149).
 
 ## [9.0.0] - 2026-10-29
 

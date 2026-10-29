@@ -420,8 +420,13 @@ const repo = { owner: 'o', repo: 'r' };
 const core = { info: () => undefined };
 const pullRequestContext = {
   eventName: 'pull_request_target',
+  runId: 123,
   repo,
-  payload: { action: 'synchronize', pull_request: { number: 7, head: { sha: HEAD } } },
+  payload: {
+    action: 'synchronize',
+    pull_request: { number: 7, head: { sha: HEAD } },
+    repository: { default_branch: 'main' },
+  },
 };
 
 /** An in-memory GitHub with just the calls the gate makes. */
@@ -430,6 +435,15 @@ function fakeGitHub({ files, contents, comments = [] }) {
   const calls = { createComment: [], updateComment: 0, createCommitStatus: [] };
   const notFound = () => Object.assign(new Error('Not Found'), { status: 404 });
   const rest = {
+    actions: {
+      getWorkflowRun: async () => ({
+        data: {
+          path: '.github/workflows/enforcement-approval.yml',
+          event: 'issue_comment',
+          head_branch: 'main',
+        },
+      }),
+    },
     pulls: {
       get: async () => ({ data: { head: { sha: state.head }, base: { sha: 'base-sha' } } }),
       listFiles: async () => ({ data: files }),
@@ -485,9 +499,11 @@ function fakeGitHub({ files, contents, comments = [] }) {
     comment.updated_at = at;
     return {
       eventName: 'issue_comment',
+      runId: 123,
       repo,
       payload: {
         action: 'edited',
+        repository: { default_branch: 'main' },
         issue: { number: 7, pull_request: {} },
         comment: { ...comment },
         changes: { body: { from } },
@@ -509,6 +525,73 @@ const loosening = () => ({
 const LABEL = `<sub><i>Approved by Ben @${APPROVER} on Monday, the 12th of October, at 3 pm</i></sub>`;
 const lastStatus = (calls) => calls.createCommitStatus.at(-1);
 
+test('run: preserves a genuine sign-off bound to an issue_comment run on main', async () => {
+  const { github, calls, editBy } = fakeGitHub(loosening());
+  await run({ github, context: pullRequestContext, core });
+  await run({ github, context: editBy(ben, (body) => tick(body)), core });
+  github.rest.actions.getWorkflowRun = async ({ run_id }) => {
+    assert.equal(run_id, 123);
+
+    return {
+      data: {
+        path: '.github/workflows/enforcement-approval.yml',
+        event: 'issue_comment',
+        head_branch: 'main',
+        run_started_at: AT,
+        updated_at: AT,
+      },
+    };
+  };
+
+  const listStatuses = github.rest.repos.listCommitStatusesForRef;
+  github.rest.repos.listCommitStatusesForRef = async (parameters) => ({
+    data: (await listStatuses(parameters)).data.map((status) => ({ ...status, created_at: AT })),
+  });
+  const writes = [calls.updateComment, calls.createCommitStatus.length];
+  await run({ github, context: pullRequestContext, core });
+  assert.deepEqual([calls.updateComment, calls.createCommitStatus.length], writes);
+});
+
+for (const [name, runChanges, statusChanges] of [
+  ['wrong workflow', { path: '.github/workflows/capture.yml' }, {}],
+  ['wrong event', { event: 'pull_request_target' }, {}],
+  ['wrong branch', { head_branch: 'feature' }, {}],
+  ['before run', {}, { created_at: '2026-10-12T13:59:59Z' }],
+  ['after run', {}, { created_at: '2026-10-12T14:00:06Z' }],
+  ['missing status time', {}, { created_at: undefined }],
+  ['another repository', {}, { target_url: `https://github.com/${repo.owner}/another/actions/runs/123` }],
+  ['run URL suffix', {}, { target_url: `https://github.com/${repo.owner}/${repo.repo}/actions/runs/123/jobs` }],
+  ['lookup error', null, {}],
+]) {
+  test(`run: resets a sign-off with ${name}`, async () => {
+    const { github, calls, comments, editBy } = fakeGitHub(loosening());
+    await run({ github, context: pullRequestContext, core });
+    await run({ github, context: editBy(ben, (body) => tick(body)), core });
+    github.rest.actions.getWorkflowRun = async () => {
+      if (runChanges === null) throw new Error('lookup failed');
+
+      return {
+        data: {
+          path: '.github/workflows/enforcement-approval.yml',
+          event: 'issue_comment',
+          head_branch: 'main',
+          run_started_at: AT,
+          updated_at: AT,
+          ...runChanges,
+        },
+      };
+    };
+
+    const listStatuses = github.rest.repos.listCommitStatusesForRef;
+    github.rest.repos.listCommitStatusesForRef = async (parameters) => ({
+      data: (await listStatuses(parameters)).data.map((status) => ({ ...status, created_at: AT, ...statusChanges })),
+    });
+    await run({ github, context: pullRequestContext, core });
+    assert.equal(lastStatus(calls).state, 'pending');
+    assert.equal(comments[0].body, unticked);
+  });
+}
+
 test('run: posts one sign-off comment and a pending status on the head, then stays idle on a rerun', async () => {
   const { github, comments, calls } = fakeGitHub(loosening());
   await run({ github, context: pullRequestContext, core });
@@ -516,7 +599,15 @@ test('run: posts one sign-off comment and a pending status on the head, then sta
     comments.map((comment) => comment.body),
     [unticked],
   );
-  assert.deepEqual(calls.createCommitStatus, [{ ...repo, sha: HEAD, context: STATUS_CONTEXT, ...PENDING }]);
+  assert.deepEqual(calls.createCommitStatus, [
+    {
+      ...repo,
+      sha: HEAD,
+      context: STATUS_CONTEXT,
+      target_url: `https://github.com/${repo.owner}/${repo.repo}/actions/runs/123`,
+      ...PENDING,
+    },
+  ]);
 
   await run({ github, context: pullRequestContext, core });
   assert.equal(calls.createComment.length, 1);
@@ -546,7 +637,13 @@ test("run: the approver's tick labels the box with the London time and turns the
   assert.equal(lastStatus(calls).state, 'pending');
   await run({ github, context: editBy(ben, (body) => tick(body)), core });
   assert.deepEqual(boxLines(comments[0].body), [`- [x] Approve these enforcement changes at \`${HEAD}\` ${LABEL}`]);
-  assert.deepEqual(lastStatus(calls), { ...repo, sha: HEAD, context: STATUS_CONTEXT, ...SIGNED });
+  assert.deepEqual(lastStatus(calls), {
+    ...repo,
+    sha: HEAD,
+    context: STATUS_CONTEXT,
+    target_url: `https://github.com/${repo.owner}/${repo.repo}/actions/runs/123`,
+    ...SIGNED,
+  });
   assert.equal(calls.createComment.length, 1);
 });
 

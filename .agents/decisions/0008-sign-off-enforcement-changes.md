@@ -114,11 +114,13 @@ a fresh tick by Ben on the current head:
 ### Paths that stay open
 
 - Anyone acting with Ben's GitHub credentials ticks as Ben, an agent included.
-- A workflow on any branch of this repository posts statuses and edits comments
-  as `github-actions[bot]`, the gate's own author, so it can forge a green
-  status and a labelled box. Closing this needs an author only the gate can use,
-  a repository settings change. ADR 0005 records the same limit for the review
-  gate.
+- The gate only carries a sign-off forward when its status links to an
+  enforcement-approval `issue_comment` run on the default branch and was
+  written during that run. A PR-authored workflow, or PR code in a job with
+  `statuses: write`, can still post a status that branch protection reads
+  directly as `github-actions[bot]`. Closing that needs an author only the gate
+  can use, a repository settings change; ADR 0005 records the same limit for
+  the review gate.
 - Between an edit and the run that clears it, the comment shows what the editor
   typed. The status is the record, not the comment.
 

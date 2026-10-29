@@ -349,11 +349,47 @@ async function gateEvent(github, context) {
  * Whether the gate's own latest status on `head` is the sign-off. Anyone with
  * write access can post a status, so only the gate's count.
  */
-async function isSignedOff(github, repo, head) {
-  const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ ...repo, ref: head, per_page: 100 });
-  const latest = statuses.find((status) => status.context === STATUS_CONTEXT && status.creator?.login === GATE_AUTHOR);
-  const signed = signedOffStatus(head);
-  return latest?.state === signed.state && latest?.description === signed.description;
+async function isSignedOff(github, repo, head, context) {
+  try {
+    const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ ...repo, ref: head, per_page: 100 });
+
+    const latest = statuses.find(
+      (status) => status.context === STATUS_CONTEXT && status.creator?.login === GATE_AUTHOR,
+    );
+
+    const signed = signedOffStatus(head);
+
+    if (latest?.state !== signed.state || latest?.description !== signed.description) return false;
+    const prefix = `${context.serverUrl || 'https://github.com'}/${repo.owner}/${repo.repo}/actions/runs/`;
+
+    if (!latest.target_url?.startsWith(prefix)) return false;
+    const id = latest.target_url.slice(prefix.length);
+
+    if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id))) return false;
+    const { data: workflowRun } = await github.rest.actions.getWorkflowRun({ ...repo, run_id: Number(id) });
+    const defaultBranch = context.payload.repository?.default_branch;
+
+    if (
+      !defaultBranch ||
+      workflowRun.path !== '.github/workflows/enforcement-approval.yml' ||
+      workflowRun.event !== 'issue_comment' ||
+      workflowRun.head_branch !== defaultBranch
+    )
+      return false;
+    const start = workflowRun.run_started_at || workflowRun.created_at;
+    const end = workflowRun.updated_at;
+    const statusAt = Date.parse(latest.created_at);
+    // GitHub timestamps can lag the status write by a few seconds.
+    const slack = 5000;
+
+    if (start && !(statusAt >= Date.parse(start))) return false;
+
+    if (end && !(statusAt <= Date.parse(end) + slack)) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Create or update the gate's comment when its body changes. */
@@ -402,7 +438,7 @@ export async function run({ github, context, core }) {
     head,
     problems,
     comment: existing,
-    signedOff: await isSignedOff(github, repo, head),
+    signedOff: await isSignedOff(github, repo, head, context),
     event,
   });
   await writeComment({ github, repo, number, existing, body: plan.commentBody });
@@ -417,6 +453,7 @@ export async function run({ github, context, core }) {
     context: STATUS_CONTEXT,
     state: plan.status.state,
     description: plan.status.description,
+    target_url: `${context.serverUrl || 'https://github.com'}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`,
   });
   core.info(`${STATUS_CONTEXT}: ${plan.status.state} — ${plan.status.description}`);
 }

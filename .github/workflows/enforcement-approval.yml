@@ -43,6 +43,7 @@ jobs:
     # not cover pull request comments); statuses:write for the gate. The
     # approver's public profile name for the label needs no scope.
     permissions:
+      actions: read
       contents: read
       pull-requests: write
       statuses: write
