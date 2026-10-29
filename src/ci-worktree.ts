@@ -80,6 +80,50 @@ export class CiProcessExit {
   }
 }
 
+function errorCode(error: unknown): unknown {
+  return error instanceof Error && 'code' in error ? error.code : undefined;
+}
+
+/** Pid recorded in a scratch dir's owner.pid, or undefined when absent or malformed. */
+function scratchOwnerPid(dir: string): number | undefined {
+  let owner: string;
+  try {
+    owner = fs.readFileSync(path.join(dir, 'owner.pid'), 'utf8');
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return undefined;
+    throw error;
+  }
+  const pid = Number(owner);
+  return /^[1-9]\d*$/.test(owner) && Number.isSafeInteger(pid) ? pid : undefined;
+}
+
+function processIsGone(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return errorCode(error) === 'ESRCH';
+  }
+}
+
+/** Remove styleproof-ci-wt-* dirs whose recorded owner process has exited (a killed job skips dispose()). */
+function sweepDeadScratch(parent: string): void {
+  for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^styleproof-ci-wt-[A-Za-z0-9]+$/.test(entry.name)) continue;
+    const dir = path.join(parent, entry.name);
+    const pid = scratchOwnerPid(dir);
+    if (pid !== undefined && pid !== process.pid && processIsGone(pid)) removeDirRecursive(dir);
+  }
+}
+
+function createScratchParent(): string {
+  const parent = ciWorktreeScratchParent();
+  sweepDeadScratch(parent);
+  const dir = fs.mkdtempSync(path.join(parent, 'styleproof-ci-wt-'));
+  fs.writeFileSync(path.join(dir, 'owner.pid'), String(process.pid));
+  return dir;
+}
+
 export class CiWorktreeSession {
   private readonly repoRoot: string;
   private readonly scratchParent: string;
@@ -88,7 +132,7 @@ export class CiWorktreeSession {
 
   constructor(repoRoot: string, scratchParent?: string) {
     this.repoRoot = path.resolve(repoRoot);
-    this.scratchParent = scratchParent ?? fs.mkdtempSync(path.join(ciWorktreeScratchParent(), 'styleproof-ci-wt-'));
+    this.scratchParent = scratchParent ?? createScratchParent();
     // A hard kill skips dispose() and leaves stale registrations that accumulate on
     // persistent runners; pruning at START cleans up after any predecessor's crash.
     runGit(this.repoRoot, ['worktree', 'prune']);

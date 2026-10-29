@@ -198,3 +198,33 @@ test('consumerRelativeFromRepoRoot: a repository at the filesystem root keeps it
   const repo = path.join(root, 'repo');
   assert.throws(() => consumerRelativeFromRepoRoot(repo, path.join(root, 'repo-other')), CiWorktreeError);
 });
+
+test('CiWorktreeSession sweeps dead owners and writes its own owner pid', () => {
+  const parent = mkTmp('styleproof-ci-owners-');
+  const previous = process.env.RUNNER_TEMP;
+  process.env.RUNNER_TEMP = parent;
+  let session;
+
+  try {
+    const dead = spawnSync(process.execPath, ['-e', '']);
+    const stale = path.join(parent, 'styleproof-ci-wt-dead');
+    const live = path.join(parent, 'styleproof-ci-wt-live');
+    const unowned = path.join(parent, 'styleproof-ci-wt-unowned');
+
+    for (const dir of [stale, live, unowned]) fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(stale, 'owner.pid'), String(dead.pid));
+    fs.writeFileSync(path.join(live, 'owner.pid'), String(process.pid));
+    git(parent, ['init', '-q']);
+    session = new CiWorktreeSession(parent);
+    assert.equal(fs.existsSync(stale), false);
+    assert.ok(fs.existsSync(live));
+    assert.ok(fs.existsSync(unowned));
+    assert.equal(fs.readFileSync(path.join(session.scratchRoot(), 'owner.pid'), 'utf8'), String(process.pid));
+  } finally {
+    session?.dispose();
+
+    if (previous === undefined) delete process.env.RUNNER_TEMP;
+    else process.env.RUNNER_TEMP = previous;
+    rmTmp(parent);
+  }
+});

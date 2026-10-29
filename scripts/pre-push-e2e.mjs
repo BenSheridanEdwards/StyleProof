@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { runWithTmp } from './run-tmp.mjs';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -117,13 +117,14 @@ async function main() {
   }
 
   console.log(`  › pre-push e2e (tree proofs: ${reasons})`);
-  const result = spawnSync('pnpm', ['run', 'test:e2e', '--workers=4'], {
+
+  const code = await runWithTmp('pnpm', ['run', 'test:e2e', '--workers=4'], {
     cwd: ROOT,
-    stdio: 'inherit',
+    prefix: 'styleproof-e2e-run-',
     env: process.env,
   });
-  if (result.error) throw result.error;
-  process.exit(result.status ?? 1);
+
+  process.exit(code);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
