@@ -1,4 +1,5 @@
 import type { Finding, PropChange } from '../diff.js';
+import { derivedLonghandCount } from '../findings-clean.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import { describeChange, toHex, type DescribeCtx, type ElementChange } from '../describe.js';
 import {
@@ -233,16 +234,60 @@ export function buildElementChanges(findings: Finding[]): ElementChange[] {
   });
 }
 
+/** Rows folded by presentation cleanup, using the CLI's summarised longhand counting. */
+export function foldedGeometryFindings(raw: Finding[], shown: Finding[]): Finding[] {
+  const identity = (f: Finding) =>
+    JSON.stringify([f.path, f.kind, f.kind === 'state' ? [f.state, f.sub] : f.kind === 'style' ? f.pseudo : '']);
+
+  const visible = new Map(
+    shown.flatMap((f): [string, Set<string>][] =>
+      f.kind === 'dom' ? [] : [[identity(f), new Set(summarizeProps(f.props).map((p) => p.prop))]],
+    ),
+  );
+
+  return raw.flatMap((f): Finding[] => {
+    if (f.kind === 'dom') return [];
+
+    const props = summarizeProps(f.props).filter(
+      (p) => !visible.get(identity(f))?.has(p.prop) && derivedLonghandCount([{ ...f, props: [p] }]) > 0,
+    );
+
+    return props.length ? [{ ...f, props }] : [];
+  });
+}
+
 /** A crop's changes: property tables, folded under plain-English bullets once they
- *  reach `foldAt` rows (≤ 0 folds always, Infinity never). */
-export function renderCropChanges(findings: Finding[], foldAt: number, ctx: DescribeCtx): string[] {
+ *  reach `foldAt` rows (≤ 0 folds always, Infinity never), or contain folded geometry. */
+export function renderCropChanges(
+  findings: Finding[],
+  foldAt: number,
+  ctx: DescribeCtx,
+  folded: Finding[] = [],
+): string[] {
   const tables = renderElements(findings);
   if (!tables.length) return [];
   const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
-  if (rows < foldAt) return tables;
+  const foldedCount = derivedLonghandCount(folded);
+
+  if (rows < foldAt && !foldedCount) return tables;
+  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded, Infinity)] : [];
   const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
-  return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`, ...tables, '', '</details>'];
+
+  if (foldedCount)
+    summary[summary.length - 1] += ` (+${foldedCount} size/position row${foldedCount === 1 ? '' : 's'} folded)`;
+
+  return [
+    '',
+    ...summary,
+    '',
+    '<details>',
+    `<summary>${foldSummary(findings)}</summary>`,
+    ...tables,
+    ...foldedTables,
+    '',
+    '</details>',
+  ];
 }
 
 /** A crop's heading: human label, selector, then what happened inside it. */

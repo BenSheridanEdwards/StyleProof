@@ -144,6 +144,7 @@ type RegionArgs = {
   seq: { crop: number };
   /** Sibling spacing changes whose run this region shows (#755). */
   spacing: SiblingSpacingChange[];
+  changes: (findings: Finding[]) => string[];
 };
 
 type CropPack = {
@@ -210,7 +211,8 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     } else {
       md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
     }
-    md.push(...renderCropChanges(sf, a.ctx.foldDetailsAt, a.describeCtx));
+
+    md.push(...a.changes(sf));
   }
   return { md, stateImages };
 }
@@ -230,13 +232,13 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
   if (glance) md.push('', glance);
   md.push(...spacingLines(a.spacing));
   const pack = regionCrop(a, cropFindings, a.pngs);
-  md.push(...pack.md, ...renderCropChanges(cropFindings, a.ctx.foldDetailsAt, a.describeCtx));
+  md.push(...pack.md, ...a.changes(cropFindings));
   return { md, pack, trailing: [] };
 }
 
 /** One crop region: heading, resting crop, then each forced-state crop. */
 function renderRegion(a: RegionArgs) {
-  const { g, cg, ctx, describeCtx, surfaceList, region, pngs } = a;
+  const { g, cg, surfaceList, region, pngs } = a;
   const regionFindings = cg.rep.findings.filter((f) => g.paths.some((root) => isSameOrDescendant(f.path, root)));
   const rest = regionFindings.filter((f) => f.kind !== 'state');
   const hasDom = regionFindings.some((f) => f.kind === 'dom');
@@ -253,7 +255,7 @@ function renderRegion(a: RegionArgs) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
     const note = cropNote(region, ...pngs);
     if (note) md.push('', note);
-    md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
+    md.push(...a.changes(regionFindings));
   }
   md.push(...section.trailing);
   const { visualEvidence, reason } = resting;
@@ -284,6 +286,14 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   // Same correspondence rewrite as prepareReportSurfaces, so crops resolve corresponded head paths.
   const [mapA, mapB] = presentationMaps(ctx, sd.surface);
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
+  let folded = cg.rep.folded ?? [];
+
+  const changes = (shown: Finding[]): string[] => {
+    const lines = renderCropChanges(shown, ctx.foldDetailsAt, describeCtx, folded);
+    folded = [];
+
+    return lines;
+  };
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);
   const findingCount = findings.length;
@@ -316,7 +326,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
         `_${reason}_`,
         ...spacingLines(spacing),
         '',
-        ...renderCropChanges(findings, ctx.foldDetailsAt, describeCtx),
+        ...changes(findings),
       ],
       json: {
         ...json,
@@ -336,7 +346,8 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const rendered = groups.map((g) => {
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(spacing, g.paths, claimed);
-    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own });
+
+    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own, changes });
   });
   const regions = rendered.map((r) => r.regionJson);
   // A changed run no crop region shows is still named, once, under the group.

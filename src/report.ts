@@ -1,3 +1,4 @@
+import { foldedGeometryFindings } from './report/markdown.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCropBudget } from './report/crop-budget.js';
@@ -281,7 +282,10 @@ function prepareReportSurfaces(
       const [before, after] = [ctx.load(ctx.beforeDir, sd.surface), ctx.load(ctx.afterDir, sd.surface)];
       const corresponded = presentationDiffStyleMaps(before, after, { includeStructure });
       const focused = ctx.includeNoise ? corresponded : cleanFindingsForDisplay(corresponded);
-      return { sd, findings: dropDeclaredLiveTextGeometry(focused, ctx.liveText, sd.surface) };
+      const findings = dropDeclaredLiveTextGeometry(focused, ctx.liveText, sd.surface);
+      const raw = dropDeclaredLiveTextGeometry(corresponded, ctx.liveText, sd.surface);
+
+      return { sd, findings, folded: foldedGeometryFindings(raw, findings) };
     })
     .filter((s) => s.sd.missing || s.findings.length > 0);
 }

@@ -83,7 +83,7 @@ export function screenshotPair(ctx: RenderCtx, surface: string, suffix = ''): [P
 }
 
 /** A prepared surface: its diff plus the findings kept after noise-cleaning. */
-export type PreparedSurface = { sd: SurfaceDiff; findings: Finding[] };
+export type PreparedSurface = { sd: SurfaceDiff; findings: Finding[]; folded?: Finding[] };
 /** Surfaces that changed the SAME way, collapsed to one group with a representative. */
 export type ChangeGroup = { surfaces: string[]; rep: PreparedSurface; findings: Finding[] };
 
