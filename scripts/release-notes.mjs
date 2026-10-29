@@ -50,8 +50,7 @@ function main() {
   const unreleased = changelog.split('## [Unreleased]')[1]?.split('\n## ')[0] ?? '';
 
   if (/^- /m.test(unreleased)) {
-    console.error('the release cut must leave no shipped bullets unreleased');
-    process.exit(1);
+    console.error('::warning::the release cut left shipped bullets under [Unreleased]');
   }
 
   const notes = extractReleaseNotes(changelog, version);

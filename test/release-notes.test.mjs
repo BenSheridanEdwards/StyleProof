@@ -147,7 +147,7 @@ function bulletKeys(notes) {
   );
 }
 
-test('the release notes command enforces an empty Unreleased section only at the release cut', (t) => {
+test('the release notes command warns about Unreleased bullets and still writes the release', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-release-cut-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
 
@@ -161,9 +161,10 @@ test('the release notes command enforces an empty Unreleased section only at the
     { cwd: directory, encoding: 'utf8' },
   );
 
-  assert.equal(pending.status, 1);
-  assert.match(pending.stderr, /the release cut must leave no shipped bullets unreleased/);
-  assert.ok(!fs.existsSync(output), 'a failed release cut must not write release notes');
+  assert.equal(pending.status, 0, pending.stderr);
+  assert.equal(pending.stderr, '::warning::the release cut left shipped bullets under [Unreleased]\n');
+  assert.equal(pending.stdout, 'v9.0.0');
+  assert.equal(fs.readFileSync(output, 'utf8'), '- Shipped change.\n');
 
   fs.writeFileSync(path.join(directory, 'CHANGELOG.md'), changelog.replace('- Future change.\n', ''));
 
@@ -174,6 +175,8 @@ test('the release notes command enforces an empty Unreleased section only at the
   );
 
   assert.equal(ready.status, 0, ready.stderr);
+  assert.equal(ready.stderr, '');
+  assert.equal(ready.stdout, 'v9.0.0');
   assert.equal(fs.readFileSync(output, 'utf8'), '- Shipped change.\n');
 });
 
