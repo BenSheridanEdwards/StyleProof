@@ -75,7 +75,7 @@ async function sweepCrawlSurfaces(
       await withSurfaceFailureTolerance(
         settings,
         `${surface.key}@${width}`,
-        () => captureSurface(page, surface, width, settings, ordinal, baseURL),
+        () => captureSurface(page, surface, width, settings, ordinal, baseURL, { pageIsShared: true }),
         aggregate,
       );
     }
