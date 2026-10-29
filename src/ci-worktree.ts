@@ -80,6 +80,60 @@ export class CiProcessExit {
   }
 }
 
+/** Pid recorded in a scratch dir's owner.pid, or undefined when malformed. */
+function scratchOwnerPid(dir: string): number | undefined {
+  const owner = fs.readFileSync(path.join(dir, 'owner.pid'), 'utf8');
+  const pid = Number(owner);
+
+  return /^[1-9]\d*$/.test(owner) && Number.isSafeInteger(pid) ? pid : undefined;
+}
+
+function processIsGone(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+
+    return false;
+  } catch (error) {
+    return error instanceof Error && 'code' in error && error.code === 'ESRCH';
+  }
+}
+
+function sweepScratchEntry(dir: string): void {
+  try {
+    const stat = fs.lstatSync(dir);
+
+    if (!stat.isDirectory() || (process.getuid && stat.uid !== process.getuid())) return;
+
+    // A PID can be invisible in another container sharing this temp mount.
+    if (Date.now() - stat.mtimeMs < 60 * 60_000) return;
+    const pid = scratchOwnerPid(dir);
+
+    if (pid !== undefined && pid !== process.pid && processIsGone(pid)) removeDirRecursive(dir);
+  } catch {
+    // Shared temp entries may be unreadable or impossible to remove.
+  }
+}
+
+/** Best-effort cleanup of old scratch dirs whose recorded owner has exited. */
+function sweepDeadScratch(parent: string): void {
+  try {
+    for (const name of fs.readdirSync(parent)) {
+      if (/^styleproof-ci-wt-[A-Za-z0-9]+$/.test(name)) sweepScratchEntry(path.join(parent, name));
+    }
+  } catch {
+    // A failed listing must not prevent creating this session's scratch dir.
+  }
+}
+
+function createScratchParent(): string {
+  const parent = ciWorktreeScratchParent();
+  sweepDeadScratch(parent);
+  const dir = fs.mkdtempSync(path.join(parent, 'styleproof-ci-wt-'));
+  fs.writeFileSync(path.join(dir, 'owner.pid'), String(process.pid));
+
+  return dir;
+}
+
 export class CiWorktreeSession {
   private readonly repoRoot: string;
   private readonly scratchParent: string;
@@ -88,7 +142,7 @@ export class CiWorktreeSession {
 
   constructor(repoRoot: string, scratchParent?: string) {
     this.repoRoot = path.resolve(repoRoot);
-    this.scratchParent = scratchParent ?? fs.mkdtempSync(path.join(ciWorktreeScratchParent(), 'styleproof-ci-wt-'));
+    this.scratchParent = scratchParent ?? createScratchParent();
     // A hard kill skips dispose() and leaves stale registrations that accumulate on
     // persistent runners; pruning at START cleans up after any predecessor's crash.
     runGit(this.repoRoot, ['worktree', 'prune']);

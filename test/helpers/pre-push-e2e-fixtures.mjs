@@ -10,7 +10,8 @@ export function localProcess(root, { browser = true, pnpmExit = 0 } = {}) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), content);
   };
-  for (const file of ['scripts/pre-push-e2e.mjs', 'scripts/browser-lanes.mjs']) {
+
+  for (const file of ['scripts/pre-push-e2e.mjs', 'scripts/browser-lanes.mjs', 'scripts/run-tmp.mjs']) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     copyFileSync(new URL(`../../${file}`, import.meta.url), join(root, file));
   }

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { runWithTmp } from './run-tmp.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,11 +84,11 @@ export function runnerOptions(argv) {
   return { watch: argv.includes('--watch'), files: files.length ? files : undefined };
 }
 
-function main() {
+async function main() {
   const { watch, files } = runnerOptions(process.argv.slice(2));
   const dist = path.join(ROOT, 'dist');
   const before = watch ? null : fileSnapshot(dist);
-  const result = spawnSync(process.execPath, nodeTestArgs({ watch, files }), { stdio: 'inherit', env: nodeTestEnv() });
+  const code = await runWithTmp(process.execPath, nodeTestArgs({ watch, files }), { env: nodeTestEnv() });
   const changed = before ? snapshotChanges(before, fileSnapshot(dist)) : [];
   if (changed.length) {
     console.error(
@@ -98,7 +98,8 @@ function main() {
     );
     process.exit(1);
   }
-  process.exit(result.status ?? 1);
+
+  process.exit(code);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

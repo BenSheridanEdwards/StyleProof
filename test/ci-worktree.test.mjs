@@ -198,3 +198,69 @@ test('consumerRelativeFromRepoRoot: a repository at the filesystem root keeps it
   const repo = path.join(root, 'repo');
   assert.throws(() => consumerRelativeFromRepoRoot(repo, path.join(root, 'repo-other')), CiWorktreeError);
 });
+
+test('CiWorktreeSession sweeps dead owners and writes its own owner pid', () => {
+  const parent = mkTmp('styleproof-ci-owners-');
+  const previous = process.env.RUNNER_TEMP;
+  process.env.RUNNER_TEMP = parent;
+  let session;
+
+  try {
+    const dead = spawnSync(process.execPath, ['-e', '']);
+    const stale = path.join(parent, 'styleproof-ci-wt-dead');
+    const fresh = path.join(parent, 'styleproof-ci-wt-fresh');
+    const live = path.join(parent, 'styleproof-ci-wt-live');
+    const unowned = path.join(parent, 'styleproof-ci-wt-unowned');
+
+    for (const dir of [stale, fresh, live, unowned]) fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(stale, 'owner.pid'), String(dead.pid));
+    fs.writeFileSync(path.join(fresh, 'owner.pid'), String(dead.pid));
+    const old = new Date(Date.now() - 61 * 60_000);
+    fs.writeFileSync(path.join(live, 'owner.pid'), String(process.ppid));
+
+    for (const dir of [stale, live, unowned]) fs.utimesSync(dir, old, old);
+    git(parent, ['init', '-q']);
+    session = new CiWorktreeSession(parent);
+    assert.equal(fs.existsSync(stale), false);
+    assert.ok(fs.existsSync(fresh));
+    assert.ok(fs.existsSync(live));
+    assert.ok(fs.existsSync(unowned));
+    assert.equal(fs.readFileSync(path.join(session.scratchRoot(), 'owner.pid'), 'utf8'), String(process.pid));
+  } finally {
+    session?.dispose();
+
+    if (previous === undefined) delete process.env.RUNNER_TEMP;
+    else process.env.RUNNER_TEMP = previous;
+    rmTmp(parent);
+  }
+});
+
+test(
+  'CiWorktreeSession skips unreadable owner files',
+  { skip: process.platform === 'win32' || process.getuid?.() === 0 },
+  (t) => {
+    const parent = mkTmp('styleproof-ci-unreadable-');
+    const previous = process.env.RUNNER_TEMP;
+    process.env.RUNNER_TEMP = parent;
+    const dir = path.join(parent, 'styleproof-ci-wt-locked');
+    fs.mkdirSync(dir);
+    const owner = path.join(dir, 'owner.pid');
+    fs.writeFileSync(owner, '123');
+    const old = new Date(Date.now() - 61 * 60_000);
+    fs.utimesSync(dir, old, old);
+    t.after(() => {
+      fs.chmodSync(owner, 0o600);
+
+      if (previous === undefined) delete process.env.RUNNER_TEMP;
+      else process.env.RUNNER_TEMP = previous;
+      rmTmp(parent);
+    });
+    fs.chmodSync(owner, 0);
+    let session;
+    assert.doesNotThrow(() => {
+      session = new CiWorktreeSession(parent);
+    });
+    session.dispose();
+    assert.ok(fs.existsSync(dir));
+  },
+);
