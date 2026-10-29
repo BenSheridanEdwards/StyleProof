@@ -404,11 +404,22 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const captureText = options.captureText ?? true;
   // Shared by settle polls and the resting read; components require a separate capture.
   const args = { skipSel, motionOnly: false, captureText, pseudoReferences: PSEUDO_REFERENCES };
-  // Park the pointer over an ignored sink and blur focus: real :hover/:focus is
-  // nondeterministic and would contaminate both the resting map and the forced deltas.
-  await page.evaluate(installHoverSink);
-  await page.mouse.move(0, 0);
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+
+  // Resting captures clear ambient interactions; recipe captures keep the state
+  // their driver deliberately reached, including CSS-only :hover and :focus.
+  const recipeAction =
+    options.metadata?.variantKind === 'state-recipe' ? options.metadata.stateRecipe?.action : undefined;
+
+  if (recipeAction !== 'hover') {
+    await page.evaluate(installHoverSink);
+    await page.mouse.move(0, 0);
+  }
+
+  if (recipeAction !== 'focus' && recipeAction !== 'press') {
+    // SAFETY: only the optional blur method is used; null and elements without it are skipped.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  }
+
   await page.evaluate(injectPathOf);
   // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
