@@ -114,13 +114,10 @@ test('missing or mismatched detection recordings warn and detect live without na
 test('record mode pins the detection load at the fixed viewport', async (t) => {
   const { page, surface, settings, calls } = fixture(t, { replay: false });
   assert.deepEqual(await detectSurfaceWidths(page, surface, settings, VIEWPORT), [360, 720, 1100]);
-  assert.deepEqual(
-    calls.find(([name]) => name === 'routeFromHAR'),
-    [
-      'routeFromHAR',
-      path.join(settings.outDir, 'widget@auto-1280x720.har'),
-      { url: REPLAY_URL, update: true, updateContent: 'embed' },
-    ],
+  assert.equal(fs.existsSync(path.join(settings.outDir, 'widget@auto-1280x720.har')), true);
+  assert.equal(
+    calls.some(([name]) => name === 'routeFromHAR'),
+    false,
   );
   assert.ok(calls.findIndex(([name]) => name === 'setFixedTime') < calls.findIndex(([name]) => name === 'go'));
   assert.deepEqual(calls.at(-1), ['unroute', REPLAY_URL]);
@@ -133,10 +130,7 @@ test('the default detection viewport is the fresh page viewport', async (t) => {
     calls.find(([name]) => name === 'setViewportSize'),
     ['setViewportSize', VIEWPORT],
   );
-  assert.equal(
-    calls.find(([name]) => name === 'routeFromHAR')[1],
-    path.join(settings.outDir, 'widget@auto-1280x720.har'),
-  );
+  assert.equal(fs.existsSync(path.join(settings.outDir, 'widget@auto-1280x720.har')), true);
 });
 
 test('null viewport uses the auto HAR without resizing', async (t) => {
@@ -273,4 +267,19 @@ test('a new width without a HAR clears the previous width replay before its live
   const cleanup = calls.findIndex(([name]) => name === 'unroute');
   assert.ok(cleanup > firstLoad && cleanup < secondLoad, 'the old HAR route must not intercept the new width');
   assert.match(warnings.mock.calls.at(-1).arguments[0], /widget@1100.har.*NON-deterministic/);
+});
+
+test('failed detection finalizes its recording before the next load', async (t) => {
+  const { page, surface, settings } = fixture(t, { replay: false });
+  const failure = new Error('navigation failed');
+
+  surface.go = async () => {
+    throw failure;
+  };
+
+  await assert.rejects(detectSurfaceWidths(page, surface, settings, VIEWPORT), (error) => error === failure);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(settings.outDir, 'widget@auto-1280x720.har'), 'utf8')).log.entries,
+    [],
+  );
 });
