@@ -62,17 +62,26 @@ function checkScenario(t, scenario) {
 
   assert.equal(before.compatibilityKey, after.compatibilityKey);
 
-  if (['config', 'root', 'ignored', 'gitlink'].includes(scenario)) assert.equal(before.harnessHash, after.harnessHash);
+  if (['ignored', 'gitlink'].includes(scenario)) assert.equal(before.harnessHash, after.harnessHash);
   else assert.notEqual(before.harnessHash, after.harnessHash);
+
+  if (['config', 'root'].includes(scenario)) {
+    write('playwright.styleproof.config.ts', 'export const changed = true;');
+    const changed = stamp('changed');
+
+    assert.notEqual(after.harnessHash, changed.harnessHash);
+    assert.equal(after.compatibilityKey, changed.compatibilityKey);
+  }
 }
 
 test('helper edits, paths and nested head-only files affect restore identity', (t) => {
   for (const scenario of ['helper', 'nested', 'renamed', 'deleted']) checkScenario(t, scenario);
 });
 
-test('first-adoption config leaves both identities stable', (t) => checkScenario(t, 'config'));
+test('first-adoption config changes restore identity without changing comparability', (t) =>
+  checkScenario(t, 'config'));
 
-test('root specs do not own project files', (t) => checkScenario(t, 'root'));
+test('root specs include the cwd config in restore identity', (t) => checkScenario(t, 'root'));
 
 test('ignored capture output stays stable; explicit overlays affect restore identity', (t) => {
   for (const scenario of ['ignored', 'overlay']) checkScenario(t, scenario);

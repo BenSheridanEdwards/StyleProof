@@ -197,9 +197,9 @@ function collectOverlayHarnessEntries(
     }
   }
 }
-/** Hash checkout bytes of the recursive colocated harness, excluding ignored outputs.
- * Root specs own only themselves; root config stays outside the overlay identity. */
 
+/** Hash checkout bytes of the recursive colocated harness, excluding ignored outputs.
+ * Always include the cwd config, including when the spec lives at the project root. */
 function harnessHash(cwd: string, spec: string, harnessFiles: readonly string[] = []): string {
   const directory = path.dirname(spec);
   const recursive = directory !== '.' && !spec.split(path.sep).includes('..');
@@ -211,8 +211,13 @@ function harnessHash(cwd: string, spec: string, harnessFiles: readonly string[] 
     collectOverlayHarnessEntries(cwd, harnessDirectory, files, harnessFiles);
   }
 
+  const config = path.resolve(cwd, 'playwright.styleproof.config.ts');
+  files.set(path.relative(harnessDirectory, config).replace(/\\/g, '/'), config);
+
   return sha256(
-    JSON.stringify([...files].sort(([left], [right]) => left.localeCompare(right, 'en')).map(hashHarnessEntry)),
+    JSON.stringify(
+      [...files].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)).map(hashHarnessEntry),
+    ),
   );
 }
 
@@ -266,9 +271,7 @@ function compatibilityInput(options: {
  *  provenance, the lockfile's Playwright descriptor is the contract. */
 function compatibilityKeyForInput(input: CompatibilityInput): string {
   const { packageVersion, spec, specHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl } = input;
-
   const stable = { packageVersion, spec, specHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl };
-
   return sha256(JSON.stringify(stable)).slice(0, 16);
 }
 
@@ -377,7 +380,6 @@ function stampManifest(
   source: (cwd: string, env?: NodeJS.ProcessEnv) => Pick<MapManifest, 'sha' | 'dirty' | 'surfaceCaptureFailures'>,
 ): MapManifest {
   const cwd = options.cwd ?? process.cwd();
-
   const input = compatibilityInput({
     cwd,
     spec,

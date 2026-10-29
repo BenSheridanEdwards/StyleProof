@@ -329,7 +329,6 @@ async function withOverlay(cwd, cwdSpec, phase, fn) {
 /** Probe the map store for `sha` under the same overlay the cold path publishes with. */
 async function restore(sha, dir, cwd) {
   const probeSpec = await specFor(cwd);
-
   return withOverlay(cwd, probeSpec, '', (overlayArgs) =>
     restoreMap(['--sha', sha, '--dir', dir, '--base-dir', root, '--spec', probeSpec, ...overlayArgs], {
       cwd,
