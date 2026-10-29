@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Record and warn when settling times out with requests in flight (#1139).
 - Keep CSS-only hover and focus states through state-recipe capture and self-check (#1134).
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
 - Review runs set the status pending before processing, so a failing re-run cannot keep an

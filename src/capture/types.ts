@@ -45,6 +45,8 @@ export type ProductStateIdentity = {
 };
 
 export type CaptureMetadata = {
+  /** Requests still in flight when settling timed out; the capture may show a loading state. */
+  settleTimedOutWithRequestsInFlight?: number;
   surfaceKey?: string;
   variantKey?: string;
   variantKind?: 'variant' | 'live-state' | 'popup' | 'state-recipe';
