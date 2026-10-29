@@ -91,6 +91,7 @@ function values({
   return {
     'steps.certify-success.outputs.succeeded': runSucceeded ? 'true' : '',
     'github.event_name': event,
+    'inputs.allow-self-approval': 'false',
     'inputs.fail-on-diff': failOnDiff ? 'true' : 'false',
     'steps.comment.outputs.stale-delivery': staleDelivery,
     'steps.review-pending.outputs.stale-delivery': reviewStale,
@@ -161,9 +162,12 @@ async function run(stepName, scenario, prior = [], thread = []) {
   const github = {
     paginate: async (route, params) => (await route(params)).data,
     rest: {
+      pulls: { get: async () => ({ data: { user: { login: 'author' } } }) },
       actions: {
         getWorkflowRun: async () => ({
           data: {
+            status: 'completed',
+            conclusion: 'success',
             event: 'issue_comment',
             head_branch: 'main',
             triggering_actor: { login: prior[0]?.description?.match(/@([A-Za-z0-9_-]+)/)?.[1] },
@@ -181,7 +185,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
       },
       repos: {
         getCollaboratorPermissionLevel: async ({ username }) => ({
-          data: { permission: username === 'maintainer' ? 'write' : 'read' },
+          data: { permission: ['maintainer', 'octocat_acme'].includes(username) ? 'write' : 'read' },
         }),
         createCommitStatus: async (input) => {
           await scenario.beforeStatusWrite?.(input);

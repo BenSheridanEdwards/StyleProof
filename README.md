@@ -493,6 +493,8 @@ Review-gate Action jobs require `actions: read` to verify the issue-comment appr
 The scaffold's default gate is **advisory** — the evidence posts on every PR
 without blocking. These are the two gate modes you opt into:
 
+Callers using `allow-self-approval: true` in the approve workflow must also set it on the Action.
+
 **Review-gate mode** (`require-approval: true`) is for normal feature work:
 every visual change is reported with evidence, the `StyleProof` status stays red
 until a reviewer ticks **Approve all changes**, and approved changes become the

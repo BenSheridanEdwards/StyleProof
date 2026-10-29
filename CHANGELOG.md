@@ -18,7 +18,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Bind review approvals to the approving issue-comment run and its original status receipt (#1145).
+- Bind review approvals to a successful approver-triggered issue-comment run, its original status receipt, and reviewer permissions (#1145).
 - Keep workflow tokens out of generated PR map capture steps (#1145).
 
 - Review-gate, migration and advisory runs clear earlier success before processing
