@@ -5,7 +5,6 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { defineCrawlCapture, loadStyleMap } from '../dist/index.js';
-
 import { captureSurface } from '../dist/runner/surface-capture.js';
 import { resolveSettings } from '../dist/runner/settings.js';
 
@@ -15,8 +14,7 @@ test.afterAll(() => fs.rmSync(directory, { recursive: true, force: true }));
 
 const PAGE = (name: string) => `<!doctype html><html><body><nav><a href="/alpha">a</a> <a href="/beta">b</a></nav>
 <main id="app">loading</main><script>
-  fetch('/api/${name}?w=' + innerWidth).then((r) => r.json())
-    .then((d) => { document.getElementById('app').innerHTML = '<div id="loaded">' + d.label + '</div>'; });
+  fetch('/api/${name}?w=' + innerWidth).then((r) => r.json()).then((d) => { document.getElementById('app').innerHTML = '<div id="loaded">' + d.label + '</div>'; });
 </script></body></html>`;
 
 let popupLabel = 'recorded';
@@ -76,8 +74,9 @@ test.describe.serial('#1138 HAR scope', () => {
     const map = loadStyleMap(path.join(directory, 'replay', 'popup-popup-01@800.json.gz'));
     expect(Object.values(map.elements).some((element) => element.text === 'record')).toBe(true);
   });
-  // SAFETY: the fixture supplies the crawl settings consumed by defineCrawlCapture.
-  test.describe('crawl', () =>
+  test.describe('crawl', () => {
+    test.use({ baseURL: origin });
+    // SAFETY: the fixture supplies the crawl settings consumed by defineCrawlCapture.
     defineCrawlCapture({
       ...shared,
       dir: 'crawl',
@@ -85,7 +84,8 @@ test.describe.serial('#1138 HAR scope', () => {
       match: /\/(alpha|beta)$/,
       settle,
       widths: [800],
-    } as never));
+    } as never);
+  });
   test('each crawled surface HAR holds only its own load', () => {
     for (const key of ['alpha', 'beta']) {
       expect(urlsIn(path.join(directory, 'crawl', `${key}@800.har`))).toEqual([`/api/${key}?w=800`]);
