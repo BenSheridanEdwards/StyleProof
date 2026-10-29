@@ -211,10 +211,12 @@ export function currentGitSha(cwd = process.cwd(), env: NodeJS.ProcessEnv = proc
   }
   const fromEvent = eventHeadSha(env);
   const head = gitStdout(cwd, ['rev-parse', 'HEAD']);
-  // The checked-out tree is the truth. Only a checkout of the synthetic GITHUB_SHA (merge
-  // commit) is labeled with the event's real head; a base-branch checkout keeps its own SHA
-  // so a base-tree map is never published under the head's store key.
-  if (head) return fromEvent && head === env.GITHUB_SHA ? fromEvent : head;
+
+  // The checked-out tree is the truth. Only pull_request uses a synthetic merge
+  // GITHUB_SHA that should be labeled with the event's real head. workflow_run and
+  // base-branch checkouts keep their own SHA so maps use the checked-out tree's store key.
+  if (head) return env.GITHUB_EVENT_NAME === 'pull_request' && fromEvent && head === env.GITHUB_SHA ? fromEvent : head;
+
   const fallback = fromEvent ?? env.GITHUB_SHA;
   if (fallback && COMMIT_SHA.test(fallback)) return fallback;
   throw new MapStoreError('must run inside a git repository, or pass --sha <commit>');
