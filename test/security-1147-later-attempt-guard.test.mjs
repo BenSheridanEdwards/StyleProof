@@ -9,67 +9,69 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 for (const stepId of ['comment', 'review-pending']) {
   for (const association of ['MEMBER', 'COLLABORATOR']) {
-    test(`1147: a read-only ${association} cannot suppress ${stepId} delivery`, async () => {
-      const outputs = {};
-      const statuses = [];
-      const step = action.runs.steps.find((step) => step.id === stepId);
-      // Execute the real guard through its return, before report rendering or filesystem reads.
-
-      const source = step.with.script
-        .split('const reportStorage =')[0]
-        .replaceAll('${{ toJSON(inputs.comment-marker) }}', JSON.stringify('<!-- styleproof-report -->'))
-        .replaceAll('${{ github.run_id }}', '4242')
-        .replaceAll('${{ github.run_attempt }}', '1')
-        .replaceAll('${{ steps.context.outputs.pr-number }}', '7')
-        .replaceAll('${{ steps.diff.outputs.changed }}', 'true');
-
-      const comments = [
-        {
-          id: 1,
-          user: { type: 'User', login: 'read-only-reviewer' },
-          author_association: association,
-          body: '<!-- styleproof-report -->\n<!-- styleproof-run-id:4242 run-attempt:99 -->',
-        },
-      ];
-
-      const github = {
-        paginate: async () => comments,
-        rest: {
-          issues: { listComments: async () => ({ data: comments }) },
-          repos: {
-            getCollaboratorPermissionLevel: async () => ({ data: { permission: 'read' } }),
-            listCommitStatusesForRef: async () => ({ data: [] }),
-            createCommitStatus: async (status) => statuses.push(status),
-          },
-        },
-      };
-
-      const previous = process.env.GITHUB_ACTION_PATH;
-      process.env.GITHUB_ACTION_PATH = new URL('../', import.meta.url).pathname;
-
-      try {
-        await new AsyncFunction('github', 'context', 'core', 'require', source)(
-          github,
-          { repo: { owner: 'owner', repo: 'repo' } },
+    for (const permission of ['read', 'write']) {
+      test(`1147: ${association} with ${permission} permission controls ${stepId} delivery`, async () => {
+        const outputs = {};
+        const statuses = [];
+        const permissionCalls = [];
+        const source = action.runs.steps
+          .find((step) => step.id === stepId)
+          .with.script.split('const reportStorage =')[0]
+          .replaceAll('${{ toJSON(inputs.comment-marker) }}', JSON.stringify('<!-- styleproof-report -->'))
+          .replaceAll('${{ github.run_id }}', '4242')
+          .replaceAll('${{ github.run_attempt }}', '1')
+          .replaceAll('${{ steps.context.outputs.pr-number }}', '7');
+        const comments = [
           {
-            setOutput: (key, value) => {
-              outputs[key] = value;
-            },
-            info: () => {},
+            user: { type: 'User', login: 'reviewer' },
+            author_association: association,
+            body: '<!-- styleproof-report -->\n<!-- styleproof-run-id:4242 run-attempt:99 -->',
           },
-          createRequire(import.meta.url),
-        );
-      } finally {
-        if (previous === undefined) delete process.env.GITHUB_ACTION_PATH;
-        else process.env.GITHUB_ACTION_PATH = previous;
-      }
+        ];
+        const github = {
+          paginate: async () => comments,
+          rest: {
+            issues: { listComments: async () => ({ data: comments }) },
+            repos: {
+              getCollaboratorPermissionLevel: async (request) => {
+                permissionCalls.push(request.username);
 
-      if (stepId === 'review-pending') assert.equal(statuses[0]?.state, 'pending');
-      assert.equal(
-        outputs['stale-delivery'],
-        'false',
-        `${association} with read permission forged a later-attempt receipt and suppressed delivery`,
-      );
-    });
+                return { data: { permission } };
+              },
+              listCommitStatusesForRef: async () => ({ data: [] }),
+              createCommitStatus: async (status) => statuses.push(status),
+            },
+          },
+        };
+        const env = {
+          GITHUB_ACTION_PATH: new URL('../', import.meta.url).pathname,
+          STYLEPROOF_COMMENT_MARKER: '<!-- styleproof-report -->',
+          STYLEPROOF_STATUS_CONTEXT: 'StyleProof / review',
+        };
+        const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
+        Object.assign(process.env, env);
+
+        try {
+          await new AsyncFunction('github', 'context', 'core', 'require', source)(
+            github,
+            { repo: { owner: 'owner', repo: 'repo' } },
+            {
+              setOutput: (key, value) => Object.assign(outputs, { [key]: value }),
+              info: () => {},
+            },
+            createRequire(import.meta.url),
+          );
+        } finally {
+          for (const [key, value] of Object.entries(previous)) {
+            if (value === undefined) delete process.env[key];
+            else process.env[key] = value;
+          }
+        }
+        assert.deepEqual(permissionCalls, ['reviewer']);
+        assert.equal(outputs['stale-delivery'], permission === 'write' ? 'true' : 'false');
+        assert.equal(statuses.length, stepId === 'review-pending' && permission === 'read' ? 1 : 0);
+        if (statuses.length) assert.equal(statuses[0].state, 'pending');
+      });
+    }
   }
 }

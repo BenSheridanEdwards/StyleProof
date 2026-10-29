@@ -10,11 +10,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
-- Review-gate, migration and advisory runs clear earlier success before processing
-  and set failure on run errors, preserving canonical reviewer sign-offs.
-- Later-attempt report receipts require a bot or verified repository write permission;
-  read-only members and collaborators cannot suppress delivery.
-- Reviewer ticks wait until the pending run finishes; advisory runs turn red when a gate step fails.
+- Review runs set the status pending before processing, so a failing re-run cannot keep an
+  earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).
+- Later-attempt receipts need a bot or repository write permission, so read-only members and
+  collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
 
 ## [9.0.0] - 2026-10-29
 
