@@ -7,9 +7,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
 ### Fixed
 
+- Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
 - Review-gate, migration and advisory runs clear earlier success before processing
   and set failure on run errors, preserving canonical reviewer sign-offs.
 - Later-attempt report receipts require a bot or verified repository write permission;
