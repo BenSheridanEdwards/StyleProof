@@ -17,8 +17,12 @@ name: StyleProof approve (reusable)
 on:
   workflow_call:
     inputs:
+      comment-marker:
+        description: 'Report comment marker (must match the Action instance)'
+        type: string
+        default: '<!-- styleproof-report -->'
       status-context:
-        description: 'Commit status name (must match the Action''s status-context input)'
+        description: "Commit status name (must match the Action's status-context input)"
         type: string
         default: 'StyleProof'
       allow-self-approval:
@@ -52,7 +56,7 @@ jobs:
       github.event.issue.pull_request &&
       github.event.comment.user.type == 'Bot' &&
       github.event.sender.type == 'User' &&
-      contains(github.event.comment.body, '<!-- styleproof-report -->')
+      contains(github.event.comment.body, inputs.comment-marker)
     # The runs-on input defaults to ubuntu-latest, which is fine where you have
     # GitHub-hosted Actions minutes. On a PRIVATE repo without them (or behind a
     # billing / spending-limit block) this job never starts — pass the same
@@ -64,12 +68,17 @@ jobs:
       - uses: actions/github-script@v9
         env:
           # Passed through env, never spliced into the script source.
+          STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
           STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
           STYLEPROOF_ALLOW_SELF_APPROVAL: ${{ inputs.allow-self-approval }}
         with:
           github-token: ${{ secrets.token }}
           script: |
             const STATUS = process.env.STYLEPROOF_STATUS_CONTEXT;
+            const marker = process.env.STYLEPROOF_COMMENT_MARKER || '<!-- styleproof-report -->';
+            const artifactSlug = marker.replace(/^<!--\s*/, '').replace(/\s*-->\s*$/, '')
+              .replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+/, '').replace(/-+$/, '').slice(0, 80);
+            if (!artifactSlug) return;
             const allowSelfApproval = process.env.STYLEPROOF_ALLOW_SELF_APPROVAL === 'true';
 
             // Minimal zip reader for artifact publications (#587): the report
@@ -123,7 +132,7 @@ jobs:
             // Parse every identity exactly once. Duplicate markers are ambiguous, and
             // case-folded SHAs are not repaired: an immutable publication identity is
             // either canonical byte-for-byte or it is not approvable.
-            const reportMarkers = body.match(/<!-- styleproof-report -->/g) || [];
+            const reportMarkers = body.split(marker).slice(1);
             const shaMarkers = body.match(/<!-- styleproof-sha:/g) || [];
             const runMarkers = body.match(/<!-- styleproof-run-id:/g) || [];
             const shaMatches = [...body.matchAll(/<!-- styleproof-sha:([0-9a-f]{40}) -->/g)];
@@ -273,7 +282,7 @@ jobs:
                 (comment) =>
                   comment.user?.type === 'Bot' &&
                   comment.user?.login === 'github-actions[bot]' &&
-                  (comment.body || '').includes('<!-- styleproof-report -->'),
+                  (comment.body || '').includes(marker),
               );
               if (
                 canonicalComments.length !== 1 ||
@@ -345,7 +354,7 @@ jobs:
                         { ...context.repo, run_id: Number(publication.runId), per_page: 100 },
                       );
                       const matches = (listed || []).filter(
-                        (artifact) => artifact && artifact.name === `styleproof-report-pr-${context.payload.issue.number}`,
+                        (artifact) => artifact && artifact.name === `${artifactSlug}-pr-${context.payload.issue.number}`,
                       );
                       if (matches.length === 0) {
                         artifactGone = true;

@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
+
 ## [9.0.0] - 2026-10-29
 
 > **StyleProof 9.0.0: stable keys and stricter gates**

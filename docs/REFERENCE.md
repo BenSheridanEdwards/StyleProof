@@ -205,6 +205,12 @@ Only for this hand-wired path: copy [`example/styleproof-approve.yml`](https://g
 
 The supported adopter contract is that **thin caller**: `styleproof-init` writes `.github/workflows/styleproof-approve.yml` calling `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v9`. StyleProof dogfoods the same shape in [`.github/workflows/styleproof-approve.yml`](../.github/workflows/styleproof-approve.yml), pinned to `@main` so self-hosting tracks the default-branch reusable. The dogfood stub does not set `require-approval` and does not change certify or advisory evidence. Reviewer ticks on StyleProof PRs stay inert until a live advisory workflow enables `require-approval`. How to approve those findings, when they exist, is in [CONTRIBUTING.md](../CONTRIBUTING.md#approving-styleproof-dogfood-findings).
 
+The reusable workflow also accepts `status-context` (default `StyleProof`),
+`allow-self-approval` (default `false`), and `comment-marker` (default
+`<!-- styleproof-report -->`). Match `comment-marker` to the Action instance
+so approval selects that instance's comment and report artifact. In the standalone
+example, set `STYLEPROOF_COMMENT_MARKER` to the same value.
+
 The approve job runs on `ubuntu-latest` by default. GitHub-hosted runners bill the calling repository, so a private repository with no Actions minutes, or one behind a billing or spending-limit block, never starts the job and the tick does nothing. Pass the runner your CI already uses through the reusable workflow's `runs-on` input: one label, or a JSON array of labels.
 
 ```yaml
