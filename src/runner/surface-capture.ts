@@ -168,6 +168,7 @@ export async function captureSurface(
   s: Settings,
   ordinal: HeartbeatOrdinal,
   baseURL?: string,
+  options: { pageIsShared?: boolean } = {},
 ): Promise<void> {
   // Declared BEFORE go(): JS animation libraries read prefers-reduced-motion at mount.
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -230,7 +231,7 @@ export async function captureSurface(
         saveStyleMap(`${stem}.json.gz`, map);
         if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
       },
-      { navigateTimeoutMs: s.navigateTimeoutMs },
+      { navigateTimeoutMs: s.navigateTimeoutMs, pageIsShared: options.pageIsShared },
     );
     // One stable, greppable line per completed capture (failures already name themselves).
     process.stderr.write(

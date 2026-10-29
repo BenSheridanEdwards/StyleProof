@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { withSurfaceFailureTolerance } from '../dist/runner/self-check.js';
+import { readFatalCaptureFailure, readSurfaceCaptureFailures } from '../dist/map-store.js';
 import {
+  SURFACE_TIMEOUT_DRAIN_MS,
+  UndrainedSurfaceTimeoutError,
   DEFAULT_NAVIGATE_TIMEOUT_MS,
   DEFAULT_SURFACE_TIMEOUT_MS,
   captureTestBudgetMs,
@@ -211,7 +218,10 @@ test('runWithSurfaceTimeout: stuck navigate fails under the navigate budget, not
     },
   );
   const elapsed = Date.now() - started;
-  assert.ok(elapsed < 2_000, `navigate breach must not wait the 300s ceiling (elapsed ${elapsed}ms)`);
+  assert.ok(
+    elapsed < SURFACE_TIMEOUT_DRAIN_MS + 2_000,
+    `navigate breach must not wait the 300s ceiling (elapsed ${elapsed}ms)`,
+  );
 });
 
 test('runWithSurfaceTimeout: after leaving navigate, settle can still use the long overall ceiling', async () => {
@@ -261,4 +271,91 @@ test('surfaceTimeoutErrorMessage: navigate budget mentions navigate knobs withou
   assert.match(msg, /surfaceTimeoutMs/); // overall ceiling still named for context
   assert.doesNotMatch(msg, /raise `surfaceTimeoutMs`/);
   assert.equal(isSelfCheckCaptureFailure(msg), false);
+});
+
+test('timeout waits for work to settle and preserves the timeout after a late work failure', async () => {
+  let settled = false;
+  const expected = surfaceTimeoutErrorMessage('slow@1280', 'capture', 10);
+  await assert.rejects(
+    runWithSurfaceTimeout(
+      'slow@1280',
+      10,
+      () => 'capture',
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        settled = true;
+        throw new Error('late work failure');
+      },
+    ),
+    (error) => {
+      assert.equal(settled, true);
+      assert.equal(error.message, expected);
+      assert.equal(error instanceof UndrainedSurfaceTimeoutError, false);
+
+      return true;
+    },
+  );
+});
+
+test('undrained timeout is fatal even with tolerance and crawl aggregation', async (t) => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'surface-drain-'));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  let aggregated = false;
+  let nextSurfaceStarted = false;
+  const started = Date.now();
+  await assert.rejects(
+    async () => {
+      await withSurfaceFailureTolerance(
+        { outDir, tolerateSurfaceFailures: true },
+        'stuck@1280',
+        () =>
+          runWithSurfaceTimeout(
+            'stuck@1280',
+            10,
+            () => 'capture',
+            () => new Promise(() => {}),
+            { pageIsShared: true },
+          ),
+        () => {
+          aggregated = true;
+        },
+      );
+      nextSurfaceStarted = true;
+    },
+    (error) => {
+      assert.ok(error instanceof UndrainedSurfaceTimeoutError);
+      assert.match(error.message, /Abandoned surface work did not settle within the 3.0s drain window/);
+      assert.match(error.message, /shared page could not be reused.*tolerance was not applied/);
+      assert.equal(isSelfCheckCaptureFailure(error.message), false);
+
+      return true;
+    },
+  );
+  assert.ok(Date.now() - started >= SURFACE_TIMEOUT_DRAIN_MS);
+  assert.equal(aggregated, false);
+  assert.equal(nextSurfaceStarted, false);
+  assert.ok(readFatalCaptureFailure(outDir));
+});
+
+test('own-page undrained timeout stays ledgered and tolerated so survivors can continue', async (t) => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'surface-own-page-'));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  const settings = { outDir, tolerateSurfaceFailures: true };
+  await withSurfaceFailureTolerance(settings, 'stuck@1280', () =>
+    runWithSurfaceTimeout(
+      'stuck@1280',
+      10,
+      () => 'navigate',
+      () => new Promise(() => {}),
+    ),
+  );
+  let survivorCaptured = false;
+  await withSurfaceFailureTolerance(settings, 'survivor@1280', async () => {
+    survivorCaptured = true;
+  });
+  assert.equal(survivorCaptured, true);
+  assert.equal(readFatalCaptureFailure(outDir), undefined);
+  assert.deepEqual(readSurfaceCaptureFailures(outDir), [
+    { key: 'stuck@1280', reason: surfaceTimeoutErrorMessage('stuck@1280', 'navigate', 10), kind: 'capture' },
+  ]);
 });
