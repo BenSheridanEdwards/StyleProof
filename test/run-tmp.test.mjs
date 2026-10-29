@@ -79,15 +79,19 @@ test('sweep removes only exact dead-pid roots and cleanup is idempotent', async 
   assert.equal(fs.existsSync(root.dir), false);
 });
 
-test('runWithTmp forwards SIGTERM and removes its root before returning', async (t) => {
-  const parent = parentDir(t);
-  const ready = path.join(parent, 'ready');
-  const module = new URL('../scripts/run-tmp.mjs', import.meta.url).href;
+for (const [signal, expected] of [
+  ['SIGTERM', 143],
+  ['SIGINT', 130],
+]) {
+  test(`runWithTmp forwards ${signal} and removes its root before returning`, async (t) => {
+    const parent = parentDir(t);
+    const ready = path.join(parent, 'ready');
+    const module = new URL('../scripts/run-tmp.mjs', import.meta.url).href;
 
-  const child = spawn(process.execPath, [
-    '--input-type=module',
-    '-e',
-    `
+    const child = spawn(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `
     import { runWithTmp } from ${JSON.stringify(module)};
     const code = await runWithTmp(process.execPath, ['-e', ${JSON.stringify(`
       require('node:fs').writeFileSync(${JSON.stringify(ready)}, 'ready');
@@ -95,19 +99,37 @@ test('runWithTmp forwards SIGTERM and removes its root before returning', async 
     `)}], { env: { ...process.env, TMPDIR: ${JSON.stringify(parent)} } });
     process.exitCode = code;
   `,
-  ]);
+    ]);
 
-  t.after(() => child.kill('SIGKILL'));
-  const exited = once(child, 'exit');
-  const deadline = Date.now() + 10_000;
+    t.after(() => child.kill('SIGKILL'));
+    const exited = once(child, 'exit');
+    const deadline = Date.now() + 10_000;
 
-  while (!fs.existsSync(ready)) {
-    assert.ok(Date.now() < deadline, 'child became ready');
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
+    while (!fs.existsSync(ready)) {
+      assert.ok(Date.now() < deadline, 'child became ready');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
 
-  child.kill('SIGTERM');
-  assert.deepEqual(await exited, [143, null]);
-  fs.unlinkSync(ready);
-  assert.deepEqual(fs.readdirSync(parent), []);
-});
+    const started = Date.now();
+    child.kill(signal);
+    assert.deepEqual(await exited, [expected, null]);
+
+    if (signal === 'SIGINT') assert.ok(Date.now() - started >= 2900, 'waits for the grace period');
+    fs.unlinkSync(ready);
+    assert.deepEqual(fs.readdirSync(parent), []);
+  });
+}
+
+test(
+  'sweep skips roots it cannot remove',
+  { skip: process.platform === 'win32' || process.getuid?.() === 0 },
+  async (t) => {
+    t.after(() => fs.chmodSync(parent, 0o700));
+    const parent = parentDir(t);
+    const stale = path.join(parent, `styleproof-run-${await deadPid()}-locked`);
+    fs.mkdirSync(stale);
+    fs.chmodSync(parent, 0o500);
+    assert.doesNotThrow(() => sweepStaleRunTmp({ parent }));
+    assert.ok(fs.existsSync(stale));
+  },
+);

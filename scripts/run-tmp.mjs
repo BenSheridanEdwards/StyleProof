@@ -12,26 +12,49 @@ export function createRunTmp({ prefix = 'styleproof-run-', parent = os.tmpdir() 
 export function sweepStaleRunTmp({ prefix = 'styleproof-run-', parent = os.tmpdir() } = {}) {
   const removed = [];
 
-  for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
+  let entries;
+
+  try {
+    entries = fs.readdirSync(parent, { withFileTypes: true });
+  } catch {
+    return removed;
+  }
+
+  for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
     const match = /^([1-9]\d*)-[A-Za-z0-9]+$/.exec(entry.name.slice(prefix.length));
-
-    if (!match) continue;
-    const pid = Number(match[1]);
+    const pid = Number(match?.[1]);
 
     if (!Number.isSafeInteger(pid) || pid === process.pid) continue;
+    const dir = path.join(parent, entry.name);
 
-    try {
-      process.kill(pid, 0);
-    } catch (error) {
-      if (error.code !== 'ESRCH') continue;
-      const dir = path.join(parent, entry.name);
-      fs.rmSync(dir, { recursive: true, force: true });
-      removed.push(dir);
-    }
+    if (removeDeadRunTmp(dir, pid)) removed.push(dir);
   }
 
   return removed;
+}
+
+function removeDeadRunTmp(dir, pid) {
+  try {
+    const stat = fs.lstatSync(dir);
+
+    if (!stat.isDirectory() || (process.getuid && stat.uid !== process.getuid())) return false;
+
+    try {
+      process.kill(pid, 0);
+
+      return false;
+    } catch (error) {
+      if (error.code !== 'ESRCH') return false;
+    }
+
+    fs.rmSync(dir, { recursive: true, force: true });
+
+    return true;
+  } catch {
+    // Shared temp entries may be unreadable or impossible to remove.
+    return false;
+  }
 }
 
 export async function runWithTmp(command, args, { cwd, env = process.env, prefix } = {}) {
@@ -47,9 +70,17 @@ export async function runWithTmp(command, args, { cwd, env = process.env, prefix
         stdio: 'inherit',
       });
 
-      const handlers = new Map(['SIGINT', 'SIGTERM', 'SIGHUP'].map((signal) => [signal, () => child.kill(signal)]));
+      let interruptTimer;
+      const signals = process.platform === 'win32' ? ['SIGTERM'] : ['SIGTERM', 'SIGHUP'];
+      const handlers = new Map(signals.map((signal) => [signal, () => child.kill(signal)]));
+      handlers.set('SIGINT', () => {
+        // Terminal SIGINT already reaches the child's process group.
+        interruptTimer ??= setTimeout(() => child.kill('SIGINT'), 3000);
+      });
 
       const detach = () => {
+        clearTimeout(interruptTimer);
+
         for (const [signal, handler] of handlers) process.off(signal, handler);
       };
 
