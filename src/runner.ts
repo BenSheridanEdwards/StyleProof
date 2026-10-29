@@ -134,9 +134,10 @@ export function defineStyleMapCapture(options: DefineOptions): void {
         width: number,
         ordinal: HeartbeatOrdinal,
         baseURL: string | undefined,
+        pageIsShared = false,
       ): Promise<void> =>
         withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
-          captureSurface(page, surface, width, settings, ordinal, baseURL),
+          captureSurface(page, surface, width, settings, ordinal, baseURL, { pageIsShared }),
         );
       if (width !== undefined) {
         const ordinal: HeartbeatOrdinal = { index: ++unit, total };
@@ -160,7 +161,8 @@ export function defineStyleMapCapture(options: DefineOptions): void {
             );
           });
           test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs, widths.length));
-          for (const width of widths) await capture(page, width, ordinal, baseURL ?? contextOptions.baseURL);
+
+          for (const width of widths) await capture(page, width, ordinal, baseURL ?? contextOptions.baseURL, true);
         });
       }
     }

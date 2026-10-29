@@ -8,10 +8,10 @@ export type CapturePhase = 'navigate' | 'settle' | 'capture' | 'self-check';
 /** Default per-surface ceiling: 5 minutes — only a genuinely stuck surface hits it. */
 export const DEFAULT_SURFACE_TIMEOUT_MS = 300_000;
 
-/** Maximum wait for timed-out work to stop using its page before failing the run. */
+/** Maximum wait for timed-out work to stop using its page. */
 export const SURFACE_TIMEOUT_DRAIN_MS = 3_000;
 
-/** The abandoned work still owns the page; callers must stop the run. */
+/** The abandoned work still owns a shared page; callers must stop the run. */
 export class UndrainedSurfaceTimeoutError extends Error {}
 
 /**
@@ -136,6 +136,8 @@ export type SurfaceRun = {
 };
 
 export type RunWithSurfaceTimeoutOptions = {
+  /** The page will be reused by another surface; undrained work must stop the sweep. */
+  pageIsShared?: boolean;
   /** Navigate-phase budget in ms; capped by `timeoutMs`. Default: min(60s, overall). */
   navigateTimeoutMs?: number;
 };
@@ -146,7 +148,7 @@ export type RunWithSurfaceTimeoutOptions = {
  * the message). After leaving navigate, only the overall remaining budget applies.
  * Playwright work is not abortable, so on breach `isActive()` flips false and
  * callers must refuse artifact writes. Wait for abandoned work before returning
- * the page; if it cannot drain, fail fatally so callers cannot reuse that page.
+ * the page; if it cannot drain, fail fatally only when callers reuse that page.
  */
 export async function runWithSurfaceTimeout<ResultType>(
   captureKey: string,
@@ -197,7 +199,14 @@ export async function runWithSurfaceTimeout<ResultType>(
         }),
       ]);
 
-      if (!settled) throw new UndrainedSurfaceTimeoutError(timeoutError.message);
+      if (!settled && options.pageIsShared) {
+        throw new UndrainedSurfaceTimeoutError(
+          `${timeoutError.message} Abandoned surface work did not settle within the ` +
+            `${secondsLabel(SURFACE_TIMEOUT_DRAIN_MS)} drain window; the shared page could not be reused ` +
+            `and surface-failure tolerance was not applied.`,
+        );
+      }
+
       throw timeoutError;
     } finally {
       clearTimeout(drainTimer);

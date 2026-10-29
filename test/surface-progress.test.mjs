@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { withSurfaceFailureTolerance } from '../dist/runner/self-check.js';
-import { readFatalCaptureFailure } from '../dist/map-store.js';
+import { readFatalCaptureFailure, readSurfaceCaptureFailures } from '../dist/map-store.js';
 import {
   SURFACE_TIMEOUT_DRAIN_MS,
   UndrainedSurfaceTimeoutError,
@@ -314,6 +314,7 @@ test('undrained timeout is fatal even with tolerance and crawl aggregation', asy
             10,
             () => 'capture',
             () => new Promise(() => {}),
+            { pageIsShared: true },
           ),
         () => {
           aggregated = true;
@@ -323,7 +324,8 @@ test('undrained timeout is fatal even with tolerance and crawl aggregation', asy
     },
     (error) => {
       assert.ok(error instanceof UndrainedSurfaceTimeoutError);
-      assert.equal(error.message, surfaceTimeoutErrorMessage('stuck@1280', 'capture', 10));
+      assert.match(error.message, /Abandoned surface work did not settle within the 3.0s drain window/);
+      assert.match(error.message, /shared page could not be reused.*tolerance was not applied/);
       assert.equal(isSelfCheckCaptureFailure(error.message), false);
 
       return true;
@@ -333,4 +335,27 @@ test('undrained timeout is fatal even with tolerance and crawl aggregation', asy
   assert.equal(aggregated, false);
   assert.equal(nextSurfaceStarted, false);
   assert.ok(readFatalCaptureFailure(outDir));
+});
+
+test('own-page undrained timeout stays ledgered and tolerated so survivors can continue', async (t) => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'surface-own-page-'));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  const settings = { outDir, tolerateSurfaceFailures: true };
+  await withSurfaceFailureTolerance(settings, 'stuck@1280', () =>
+    runWithSurfaceTimeout(
+      'stuck@1280',
+      10,
+      () => 'navigate',
+      () => new Promise(() => {}),
+    ),
+  );
+  let survivorCaptured = false;
+  await withSurfaceFailureTolerance(settings, 'survivor@1280', async () => {
+    survivorCaptured = true;
+  });
+  assert.equal(survivorCaptured, true);
+  assert.equal(readFatalCaptureFailure(outDir), undefined);
+  assert.deepEqual(readSurfaceCaptureFailures(outDir), [
+    { key: 'stuck@1280', reason: surfaceTimeoutErrorMessage('stuck@1280', 'navigate', 10), kind: 'capture' },
+  ]);
 });

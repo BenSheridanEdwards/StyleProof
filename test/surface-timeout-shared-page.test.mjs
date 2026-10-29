@@ -84,6 +84,7 @@ test('#1137 a timed-out surface does not touch the page after captureSurface set
     async go(p) {
       await sleep(300); // outlives the 100ms surface budget
       await p.goto('http://example.invalid/next'); // the abandoned run keeps driving the page
+      throw new Error('navigation failed after timeout'); // explicitly end the abandoned work
     },
   };
 
@@ -95,7 +96,10 @@ test('#1137 a timed-out surface does not touch the page after captureSurface set
   };
 
   fs.mkdirSync(settings.outDir);
-  await assert.rejects(captureSurface(page, surface, 1280, settings, { index: 1, total: 2 }), /timed out/);
+  await assert.rejects(
+    captureSurface(page, surface, 1280, settings, { index: 1, total: 2 }, undefined, { pageIsShared: true }),
+    /timed out/,
+  );
   handedBack = true; // the crawl now starts the next surface on this page
   await sleep(600);
   assert.deepEqual(lateCalls, [], 'the abandoned run acted on the page the next surface is using');
