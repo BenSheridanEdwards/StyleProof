@@ -134,6 +134,71 @@ function realPath(target: string): string {
   }
 }
 
+/** Match the spec-ref overlay's recursive harness scope; root-level specs own only
+ *  themselves. Include the config because first adoption can overlay it too. Hash
+ *  checkout bytes rather than git blobs so overlaid, head-only files count. Git
+ *  excludes ignored capture outputs; non-git directories use a recursive walk. */
+function harnessHash(cwd: string, spec: string): string {
+  const directory = path.dirname(spec);
+  const recursive = directory !== '.' && !spec.split(path.sep).includes('..');
+  const harnessDirectory = recursive ? realPath(path.resolve(cwd, directory)) : cwd;
+  const files = new Map([
+    [recursive ? path.basename(spec) : spec, path.resolve(cwd, spec)],
+    ['playwright.styleproof.config.ts', path.resolve(cwd, 'playwright.styleproof.config.ts')],
+  ]);
+
+  const visit = (directory: string): void => {
+    let entries: fs.Dirent[];
+
+    try {
+      entries = fs.readdirSync(path.resolve(harnessDirectory, directory), { withFileTypes: true });
+    } catch (error) {
+      // SAFETY: filesystem errors carry errno codes; only a missing directory is ignored.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+
+    for (const entry of entries) {
+      const relative = path.join(directory, entry.name);
+
+      if (entry.isDirectory()) visit(relative);
+      else files.set(relative, path.resolve(harnessDirectory, relative));
+    }
+  };
+
+  if (recursive) {
+    const listed = git(harnessDirectory, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
+
+    if (listed.status === 0 && !listed.error) {
+      for (const file of listed.stdout.split('\0').filter(Boolean)) {
+        files.set(file, path.resolve(harnessDirectory, file));
+      }
+    } else visit('.');
+  }
+
+  const contents = [...files]
+    .sort(([left], [right]) => left.localeCompare(right, 'en'))
+    .map(([file, absolute]) => {
+      try {
+        let bytes: Buffer | string;
+
+        if (fs.lstatSync(absolute).isSymbolicLink()) {
+          bytes = fs.readlinkSync(absolute);
+
+          if (fs.existsSync(absolute) && fs.statSync(absolute).isFile()) bytes = fs.readFileSync(absolute);
+        } else bytes = fs.readFileSync(absolute);
+
+        return [file.replace(/\\/g, '/'), sha256(bytes)];
+      } catch (error) {
+        // SAFETY: filesystem errors carry errno codes; only a missing file gets a sentinel.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [file, 'missing'];
+        throw error;
+      }
+    });
+
+  return sha256(JSON.stringify(contents));
+}
+
 function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: string }) {
   // Resolve FIRST: a relative cwd made createRequire throw inside playwrightVersion, so
   // publish and restore stamped different keys for one environment and every lookup missed.
@@ -161,6 +226,7 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
     packageVersion: styleProofPackageVersion(),
     spec,
     specHash,
+    harnessHash: harnessHash(cwd, spec),
     lockfile: lock.file,
     lockfileHash: lock.hash,
     playwrightRuntimeHash: lock.playwrightRuntimeHash,
@@ -177,8 +243,21 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
  *  restore probe (no node_modules): the full lockfile and installed Playwright stay
  *  provenance, the lockfile's Playwright descriptor is the contract. */
 function compatibilityKeyForInput(input: CompatibilityInput): string {
-  const { packageVersion, spec, specHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl } = input;
-  const stable = { packageVersion, spec, specHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl };
+  const { packageVersion, spec, specHash, harnessHash, playwrightRuntimeHash, platform, arch, nodeMajor, baseUrl } =
+    input;
+
+  const stable = {
+    packageVersion,
+    spec,
+    specHash,
+    harnessHash,
+    playwrightRuntimeHash,
+    platform,
+    arch,
+    nodeMajor,
+    baseUrl,
+  };
+
   return sha256(JSON.stringify(stable)).slice(0, 16);
 }
 
