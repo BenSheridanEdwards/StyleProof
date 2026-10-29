@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Keep workflow_run default-branch captures under the checkout SHA instead of the PR head (#1136).
 - Keep CSS-only hover and focus states through state-recipe capture and self-check (#1134).
 - Miss stored-base restores when the colocated harness changes, without changing base/head comparability (#1135).
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
