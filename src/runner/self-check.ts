@@ -135,6 +135,7 @@ export async function assertDeterministic(
   const again = await captureStyleMap(page, {
     ...captureOptionsFor(surface, settings, pending, servedRules),
     requiredVisibleState: surface.requiredVisibleState,
+    metadata: surface.metadata,
   });
   if (settings.captureReach) assertDeterministicReach(first, again, surface.key);
   const drift = diffStyleMaps(first, again);
