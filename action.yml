@@ -699,16 +699,40 @@ runs:
           let approver = '';
           if (changed || untrustedCapture) {
             const mine = JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null');
-            // Trust only the canonical writer, as the approve workflow does: this Action and
-            // the approve workflow both write as github-actions[bot]. A success status from any
-            // other integration or user with statuses:write is not a sign-off.
-            const canonical = !!mine && mine.creator?.type === 'Bot' && mine.creator.login === 'github-actions[bot]';
-            // Only a sign-off counts: the approve workflow's "Approved by @x", or this Action
-            // carrying that identity forward. Legacy anonymous approvals are ambiguous:
-            // older versions could write them without a sign-off after a clean success.
-            // Enterprise Managed User logins carry an underscore (octocat_acme).
-            const m = (mine?.description || '').match(/^Approved by @([A-Za-z0-9_-]+)$/);
-            approved = canonical && mine.state === 'success' && !!m;
+            // A bot identity alone is shared by every workflow token. Read back the
+            // issue-comment run named by the approval and its original status receipt.
+            const m = (mine?.description || '').match(/^Approved by @([A-Za-z0-9_-]+) \(run ([1-9][0-9]*)\)$/);
+            if (mine?.state === 'success' && m && Number.isFinite(Date.parse(mine.created_at))) {
+              try {
+                const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: m[2] });
+                const actor = run.triggering_actor?.login || run.actor?.login;
+                const start = Date.parse(run.run_started_at);
+                const end = Date.parse(run.updated_at);
+                const branch = context.payload.repository.default_branch;
+                const canonical = (status) => status?.creator?.type === 'Bot' && status.creator.login === 'github-actions[bot]';
+                const inWindow = (status) => {
+                  const created = Date.parse(status?.created_at);
+                  return canonical(status) && status.context === mine.context && status.state === 'success' && status.description === mine.description &&
+                    Number.isFinite(created) && created >= start && created <= end + 5000;
+                };
+                if (canonical(mine) && run.event === 'issue_comment' && branch && run.head_branch === branch &&
+                    actor?.toLowerCase() === m[1].toLowerCase() && Number.isFinite(start) &&
+                    Number.isFinite(end) && end >= start) {
+                  // Reruns carry the run reference forward, but cannot mint a new
+                  // approval timestamp. Require the original receipt on this SHA.
+                  const { data } = await github.rest.repos.listCommitStatusesForRef({
+                    ...context.repo, ref: '${{ steps.context.outputs.head-sha }}', per_page: 100,
+                  });
+                  const original = data.findIndex(inWindow);
+                  // An untick or a later failure revokes that receipt. Never replay
+                  // an older approval across a status that withdrew it.
+                  approved = original >= 0 && data.slice(0, original).every((status) =>
+                    status.context !== mine.context ||
+                    (canonical(status) && ((status.state === 'success' && status.description === mine.description) ||
+                      (status.state === 'pending' && status.description === 'StyleProof report running — no verdict yet'))));
+                }
+              } catch { /* Missing run access or receipts cannot authorize approval. */ }
+            }
             if (approved) approver = m[1];
           }
           core.setOutput('approved', approved ? 'true' : 'false');
@@ -1115,6 +1139,7 @@ runs:
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       env:
+        STYLEPROOF_PRIOR_STATUS: ${{ steps.review-pending.outputs.prior-status }}
         STYLEPROOF_MODE: ${{ inputs.mode }}
         STYLEPROOF_REQUIRE_APPROVAL: ${{ inputs.require-approval }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
@@ -1161,7 +1186,7 @@ runs:
             STYLE_REVIEW_REQUIRED: certify
               ? 'Style changes detected — certify mode fails on any diff'
               : approved
-                ? `Approved by @${approver}`
+                ? JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null')?.description
                 : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
@@ -1186,7 +1211,7 @@ runs:
             description: decision.awaitingMaintainer
               ? UNTRUSTED_CAPTURE_STATUS_DESCRIPTION
               : untrustedCapture && decision.state === 'success'
-                ? `Approved by @${approver}`
+                ? JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null')?.description
                 : descriptions[trustState] || `StyleProof trust failure: ${trustState}`,
             // The approve workflow binds a tick to this target_url, so every approvable
             // pending/red status carries it.

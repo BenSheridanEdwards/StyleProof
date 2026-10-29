@@ -238,6 +238,7 @@ async function runApproval({
     },
   };
   const context = {
+    runId: 123,
     repo: { owner: 'acme', repo: 'app' },
     payload: { sender: { login: actor }, comment: { id: 99 }, issue: { number: 7 } },
   };
@@ -694,7 +695,7 @@ test('a maintainer tick turns a pending fork (untrusted capture) verdict green, 
     const result = await runApproval({ status: untrustedStatus, reportJson });
     assert.deepEqual(
       result.statuses.map(({ state, description }) => ({ state, description })),
-      [{ state: 'success', description: 'Approved by @reviewer' }],
+      [{ state: 'success', description: 'Approved by @reviewer (run 123)' }],
     );
   }
 });

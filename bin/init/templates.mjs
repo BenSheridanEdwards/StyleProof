@@ -398,12 +398,8 @@ ${PM.setup}
 `;
 
 const captureStep = ({ scaffold }) => {
-  const flags = [
-    scaffold.workflow === 'split' ? '--no-upload' : '',
-    scaffold.storage === 'artifact' ? '--no-store' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  // PR capture never receives a write token; only publish-base uploads cached maps.
+  const flags = ['--no-upload', scaffold.storage === 'artifact' ? '--no-store' : ''].filter(Boolean).join(' ');
   return `          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"${flags ? ` ${flags}` : ''}`;
@@ -533,15 +529,6 @@ ${captureStep(ctx)}
           if-no-files-found: error
 ${mapStoreJobs(ctx)}`;
 
-// Branch storage restores/publishes maps with git; without persisted checkout
-// credentials the map store authenticates with this step-scoped token instead.
-const mapStoreTokenEnv = (ctx) =>
-  isBranch(ctx)
-    ? `
-        env:
-          STYLEPROOF_MAP_STORE_TOKEN: \${{ github.token }}`
-    : '';
-
 // --workflow single (default): one job captures, diffs, and publishes.
 const singleWorkflow = (ctx) => `name: StyleProof
 
@@ -576,7 +563,7 @@ ${ctx.PM.setup}
 ${VERIFY_STEP}
       - id: maps
         name: Capture StyleProof maps for base and head
-        shell: bash${mapStoreTokenEnv(ctx)}
+        shell: bash
         run: |
 ${captureStep(ctx)}
 ${actionStep(ctx, 'steps.maps.outputs.base-capture-failed')}

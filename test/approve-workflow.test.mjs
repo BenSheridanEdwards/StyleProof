@@ -224,6 +224,7 @@ async function runApprove({
   };
   const context = {
     repo: { owner: 'acme', repo: 'app' },
+    runId: 123,
     payload: { sender: { login: actor }, comment: { id: 99 }, issue: { number: 7 } },
   };
 
@@ -244,7 +245,7 @@ test('a write-access reviewer who is not the author still signs off (#477)', asy
 
   assert.deepEqual(
     statuses.map((s) => [s.state, s.description]),
-    [['success', `Approved by @${REVIEWER}`]],
+    [['success', `Approved by @${REVIEWER} (run 123)`]],
   );
   assert.equal(statuses[0].sha, REPORT_SHA);
   assert.equal(created.length, 0, 'a valid approval posts no refusal reply');
@@ -275,7 +276,7 @@ test('a marker comment someone else posts cannot block a valid approval', async 
     const { statuses } = await runApprove({ actor: REVIEWER, existingComments: copies, program: program() });
     assert.deepEqual(
       statuses.map((s) => [s.state, s.description]),
-      [['success', `Approved by @${REVIEWER}`]],
+      [['success', `Approved by @${REVIEWER} (run 123)`]],
     );
   }
 });
@@ -378,7 +379,7 @@ test('solo repositories opt in explicitly, and any other value refuses (#477)', 
     const optedIn = await runApprove({ actor: AUTHOR, allowSelfApproval: 'true', program: program() });
     assert.deepEqual(
       optedIn.statuses.map((s) => [s.state, s.description]),
-      [['success', `Approved by @${AUTHOR}`]],
+      [['success', `Approved by @${AUTHOR} (run 123)`]],
       `${file}: STYLEPROOF_ALLOW_SELF_APPROVAL=true lets the author sign off`,
     );
 
@@ -782,7 +783,7 @@ test('a report.json over the contents API 1 MB inline limit still lets a valid t
     const { statuses, updated } = await runApprove({ actor: REVIEWER, reportJson, program: program() });
     assert.deepEqual(
       statuses.map((s) => [s.state, s.description]),
-      [['success', `Approved by @${REVIEWER}`]],
+      [['success', `Approved by @${REVIEWER} (run 123)`]],
       `${file}: a large published report must not silently drop the sign-off`,
     );
     assert.match(updated[0].body, /- \[x\] \*\*Approve all changes\*\* — _approved by @a-reviewer_/);

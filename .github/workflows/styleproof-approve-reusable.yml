@@ -531,7 +531,7 @@ jobs:
               sha: headSha,
               context: STATUS,
               state: approved ? 'success' : 'failure',
-              description: approved ? `Approved by @${actor}` : 'Tick "Approve all changes" to sign off',
+              description: approved ? `Approved by @${actor} (run ${context.runId})` : 'Tick "Approve all changes" to sign off',
               ...(reportUrl ? { target_url: reportUrl } : {}),
             });
 

@@ -488,6 +488,8 @@ agreement, private-repository permissions, stale-history limits and fork approva
 
 ## Two modes: review or certify
 
+Review-gate Action jobs require `actions: read` to verify the issue-comment approval run.
+
 The scaffold's default gate is **advisory** — the evidence posts on every PR
 without blocking. These are the two gate modes you opt into:
 
