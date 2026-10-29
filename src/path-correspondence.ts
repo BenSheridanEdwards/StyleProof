@@ -165,13 +165,20 @@ function applyPathMoves(before: StyleMap, beforeToAfter: Map<string, string>): S
 }
 
 /** Re-key identifiable base elements onto their head paths: own-text identity, plus the nth-child shift for the rest. */
-export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
+export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap, preserveOneSided = false): StyleMap {
   const identified = ownTextIdentityMoves(before, after);
   const inPlace = new Set(
     ownTextAnchors(before, after).flatMap(([beforePath, afterPath]) => (beforePath === afterPath ? [beforePath] : [])),
   );
   const shifted = correspondingPathsByContentSignature(before, after, identified, inPlace);
-  return applyPathMoves(before, new Map([...shifted, ...identified]));
+
+  // Presentation keeps wholly one-sided inventories and their forced-state crops.
+  // Overlapping paths must shift together or they compare against the wrong siblings.
+  const retainedShifts = preserveOneSided
+    ? [...shifted].filter(([from, to]) => from in after.elements || to in before.elements)
+    : [...shifted];
+
+  return applyPathMoves(before, new Map([...retainedShifts, ...identified]));
 }
 
 // ─── pass 2: geometry ──────────────────────────────────────────────────────────
@@ -374,10 +381,11 @@ function ownTextIdentityMoves(before: StyleMap, after: StyleMap): Map<string, st
   );
 }
 
-/** Presentation: own-text identity, then geometry; a shifted sibling without either still shows as one-sided. */
+/** Presentation shares overlapping content shifts, retaining one-sided inventories and broader geometry pairing. */
 export function presentationBeforeMap(before: StyleMap, after: StyleMap): StyleMap {
-  const identified = applyPathMoves(before, ownTextIdentityMoves(before, after));
-  return remapBeforeStyleMap(identified, correspondElementPaths(identified, after));
+  const shifted = correspondContentShiftedPaths(before, after, true);
+
+  return remapBeforeStyleMap(shifted, correspondElementPaths(shifted, after));
 }
 
 /** Certification: own-text identity and content shift first, then geometry among whatever is still one-sided. */
