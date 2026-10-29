@@ -24,6 +24,7 @@ import {
 import { realNow } from '../spec-clock.js';
 import { formatSurfaceHeartbeat, runWithSurfaceTimeout, type CapturePhase } from '../surface-progress.js';
 import { captureArtifactStem } from '../surface-keys.js';
+import { recordLoadHar } from './har-recording.js';
 import { capturePopupSurfaces } from './popups.js';
 import { assertDeterministic } from './self-check.js';
 import { captureOptionsFor } from './settings.js';
@@ -44,12 +45,18 @@ export async function passLiveStreams(page: Page, url: string): Promise<void> {
 
 /**
  * Replay the baseline's recorded data (or record ours) for the data URLs only, then freeze the clock.
- * Returns `false` when replay was requested but no HAR exists, so the capture runs live.
+ * Marks inputs live when replay was requested but no HAR exists; stop finalizes recording.
  */
-async function pinInputs(page: Page, harName: string, s: Settings): Promise<boolean> {
+async function pinInputs(
+  page: Page,
+  harName: string,
+  s: Settings,
+): Promise<{ intercepting: boolean; stop: () => Promise<void> }> {
+  let stop = async (): Promise<void> => {};
   let intercepting = true;
+
   if (!s.replayFrom) {
-    await page.routeFromHAR(path.join(s.outDir, harName), { url: s.replayUrl, update: true, updateContent: 'embed' });
+    stop = await recordLoadHar(page, s.replayUrl, path.join(s.outDir, harName));
   } else if (fs.existsSync(path.join(s.replayFrom, harName))) {
     // notFound:'abort' — an unrecorded request fails deterministically rather than hitting the live backend.
     await page.routeFromHAR(path.join(s.replayFrom, harName), { url: s.replayUrl, update: false, notFound: 'abort' });
@@ -59,9 +66,18 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<bool
     warn(`styleproof: no replay HAR at ${path.join(s.replayFrom, harName)} — capturing live (NON-deterministic)`);
     intercepting = false;
   }
-  if (intercepting) await passLiveStreams(page, s.replayUrl);
-  if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
-  return intercepting;
+
+  try {
+    if (intercepting) await passLiveStreams(page, s.replayUrl);
+
+    if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
+
+    return { intercepting, stop };
+  } catch (error) {
+    await stop();
+
+    throw error;
+  }
 }
 
 function viewportHeight(surface: ExpandedSurface, width: number): number {
@@ -98,8 +114,10 @@ export async function detectSurfaceWidths(
   // Drop routes an earlier surface left on a shared crawl page before pinning this detection load.
   await page.unroute(s.replayUrl);
   const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key, baseURL);
+  let stop = async (): Promise<void> => {};
+
   try {
-    await pinInputs(page, autoHarName(surface.key, viewport), s);
+    ({ stop } = await pinInputs(page, autoHarName(surface.key, viewport), s));
     await surface.go(page);
     const widths = await detectViewportWidths(page);
     const failures = residue.residue();
@@ -113,6 +131,7 @@ export async function detectSurfaceWidths(
     return widths;
   } finally {
     residue.dispose();
+    await stop();
     // Drop every route on the replay URL (other URL patterns' routes survive); each width pins its own HAR.
     await page.unroute(s.replayUrl);
   }
@@ -149,25 +168,34 @@ export async function captureSurface(
   s: Settings,
   ordinal: HeartbeatOrdinal,
   baseURL?: string,
+  options: { pageIsShared?: boolean } = {},
 ): Promise<void> {
   // Declared BEFORE go(): JS animation libraries read prefers-reduced-motion at mount.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const pinned = await pinInputs(page, `${declared.key}@${width}.har`, s);
-  // A live fallback is stamped on the map (and its popups) so the gate never reads it as replay-proven.
-  const surface = pinned ? declared : { ...declared, metadata: { ...declared.metadata, inputs: 'live' as const } };
-  const height = viewportHeight(surface, width);
+  const height = viewportHeight(declared, width);
   await page.setViewportSize({ width, height });
   // Both trackers are armed BEFORE go() so the surface's own load requests are seen. Residue
   // is keyed on the BASE surface key so liveStates splits and widths dedupe to one entry.
   const requests = trackInflightRequests(page);
-  const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key, baseURL);
+  const residue = trackDataResidue(page, s.replayUrl, declared.metadata?.surfaceKey ?? declared.key, baseURL);
   // Change Reach: Chromium keeps linked stylesheets' text only when this is armed before they load.
   const servedRules = s.captureReach ? await trackServedRules(page) : undefined;
-  const captureKey = `${surface.key}@${width}`;
+  const captureKey = `${declared.key}@${width}`;
   const startedAtMs = realNow(); // realNow: the spec-process clock may be frozen
   let phase: CapturePhase = 'navigate';
   let selfCheckMs: number | undefined;
+  let stop = async (): Promise<void> => {};
+
   try {
+    const inputs = await pinInputs(page, `${declared.key}@${width}.har`, s);
+
+    stop = inputs.stop;
+
+    // A missing replay HAR stamps this capture and its popups as live.
+    const surface = inputs.intercepting
+      ? declared
+      : { ...declared, metadata: { ...declared.metadata, inputs: 'live' as const } };
+
     await runWithSurfaceTimeout(
       captureKey,
       s.surfaceTimeoutMs,
@@ -185,6 +213,7 @@ export async function captureSurface(
             phase = captureStylePhase;
           },
         });
+
         if (s.selfCheck) {
           phase = 'self-check';
           const selfCheckStartedAtMs = realNow();
@@ -202,7 +231,7 @@ export async function captureSurface(
         saveStyleMap(`${stem}.json.gz`, map);
         if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
       },
-      { navigateTimeoutMs: s.navigateTimeoutMs },
+      { navigateTimeoutMs: s.navigateTimeoutMs, pageIsShared: options.pageIsShared },
     );
     // One stable, greppable line per completed capture (failures already name themselves).
     process.stderr.write(
@@ -214,6 +243,8 @@ export async function captureSurface(
     requests.dispose();
     residue.dispose();
     await servedRules?.dispose();
+    await stop();
+    await page.unroute(s.replayUrl);
   }
 }
 
