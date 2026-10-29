@@ -216,8 +216,9 @@ test('CiWorktreeSession sweeps dead owners and writes its own owner pid', () => 
     fs.writeFileSync(path.join(stale, 'owner.pid'), String(dead.pid));
     fs.writeFileSync(path.join(fresh, 'owner.pid'), String(dead.pid));
     const old = new Date(Date.now() - 61 * 60_000);
-    fs.utimesSync(stale, old, old);
-    fs.writeFileSync(path.join(live, 'owner.pid'), String(process.pid));
+    fs.writeFileSync(path.join(live, 'owner.pid'), String(process.ppid));
+
+    for (const dir of [stale, live, unowned]) fs.utimesSync(dir, old, old);
     git(parent, ['init', '-q']);
     session = new CiWorktreeSession(parent);
     assert.equal(fs.existsSync(stale), false);

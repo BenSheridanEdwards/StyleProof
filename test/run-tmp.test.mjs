@@ -67,7 +67,13 @@ test('sweep removes only exact dead-pid roots and cleanup is idempotent', async 
   const parent = parentDir(t);
   const pid = await deadPid();
   const stale = path.join(parent, `styleproof-run-${pid}-abc`);
-  const kept = [`styleproof-run-${process.pid}-abc`, 'styleproof-other', `styleproof-run-${pid}x-abc`];
+
+  const kept = [
+    `styleproof-run-${process.pid}-abc`,
+    `styleproof-run-${process.ppid}-abc`,
+    'styleproof-other',
+    `styleproof-run-${pid}x-abc`,
+  ];
 
   for (const name of [stale, ...kept.map((name) => path.join(parent, name))]) fs.mkdirSync(name);
   assert.deepEqual(sweepStaleRunTmp({ parent }), [stale]);
