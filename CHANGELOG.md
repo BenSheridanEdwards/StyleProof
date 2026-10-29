@@ -147,15 +147,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The status never claims "Reach complete" yet, because
   render-code reach is not measured. The verdict does not change. Reports from
   captures without a ledger are unchanged.
-- **Change Reach J1 resolves `@property` and drives the reach corpus (#995).**
-  A changed `@property` is a blind channel when a rendered rule reads it outside
-  a custom-property alias, or declares it, otherwise never rendered. A changed
-  token that no served rule reads outside a custom property, or that only feeds
-  unread aliases, is never rendered instead of reached. Ledger rules gain `aliases`.
-  `report.json`. The status never claims "Reach complete" yet, because
-  render-code reach is not measured. With the default `changeReach: 'warn'`,
-  the verdict does not change and reports from captures without a ledger are
-  unchanged. Opt-in `'gate'` also holds runs with missing ledgers, as above.
+- **Change Reach J1 drives the reach corpus (#995).** The corpus records
+  `captureReach` ledgers and runs the production J1 classifier, with checks for
+  missing, partial or non-deterministic reach evidence.
 - **Change Reach J1 classifies changed served CSS rules (#1056, #995).**
   Across captured surfaces and widths, each changed rule is classified as
   `reached`, `never-rendered` (with the at-rule condition that kept it hidden),
@@ -235,6 +229,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Run Node 22 unit coverage in a dedicated, unsharded CI job using the supported coverage command and unchanged 40% line floor (#1179).
 - Improve forced-state capture performance by sharing a document baseline when it saves work, including stylesheet scopes that fall back to the document. Plan from one element count; if the final baseline check detects drift, discard the pass and retry once with per-target baselines (#1129).
 - Avoid redundant head npm installs after cold base capture when checkout, metadata, and hidden-lockfile checks permit reuse. Missing optional packages are allowed only when their folders are absent and OS, CPU, or libc constraints exclude the current platform, or when every package that depends on them is itself absent and excluded (e.g. wasm32 fallback bindings' runtime packages) (#1130, #1168).
 - Schedule parallel head captures largest-first by base map file size, preserving artifact ordering and explicit serial capture order (#1130).

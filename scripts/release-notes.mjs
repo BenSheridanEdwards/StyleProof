@@ -47,6 +47,13 @@ function main() {
     process.exit(2);
   }
   const changelog = fs.existsSync('CHANGELOG.md') ? fs.readFileSync('CHANGELOG.md', 'utf8') : '';
+  const unreleased = changelog.split('## [Unreleased]')[1]?.split('\n## ')[0] ?? '';
+
+  if (/^- /m.test(unreleased)) {
+    console.error('the release cut must leave no shipped bullets unreleased');
+    process.exit(1);
+  }
+
   const notes = extractReleaseNotes(changelog, version);
   fs.writeFileSync(output, notes.body ? `${notes.body}\n` : '');
   process.stdout.write(notes.title);
