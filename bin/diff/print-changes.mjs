@@ -1,5 +1,6 @@
 // styleproof-diff human output, first half: baseline notes, product-state comparability,
 // one-sided surfaces, and the changed surfaces grouped the way the report groups them.
+import { isChromeLandmarkPath } from '../../dist/change-chrome.js';
 import { findingLabel } from '../../dist/diff.js';
 import {
   chromeSpanLabel,
@@ -177,7 +178,7 @@ export function printChangeGroups({
     const bases = countCapturedSurfaceBases([...surfacePaths.keys()], surfaceKeyOf);
     const span = chromeSpanLabel(countChangedSurfaceScope(chrome, surfaceKeyOf).bases, bases);
     printSection(
-      `🧱 Global chrome change(s) — across ${span} captured surface base(s): ${chrome.length} change(s) rode the shared frame (a persistent nav, header, or footer).`,
+      `🧱 Global chrome change(s) — across ${span} captured surface base(s): ${chrome.length} change(s): the affected element changed identically on every surface base that renders it${chrome.every((group) => group.findings.every((finding) => isChromeLandmarkPath(finding.path))) ? ' (inside a nav, header or footer)' : ''}.`,
     );
   }
   for (const cg of [...chrome, ...rest]) printGroup(cg, max);
