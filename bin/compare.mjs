@@ -2,6 +2,8 @@
 // (styleproof-diff and styleproof-report): the cached-map source, the ledger
 // flags, trusted source SHAs, and the read-while-the-dirs-exist bracket.
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { captureMap, ExitError } from './ci-shared.mjs';
 import path from 'node:path';
 import { withStyleMapReadScope } from '../dist/capture/map-io.js';
 import { cachedMapsUnavailableMessage, missingManualCaptureMessage, projectConfigOrExit } from '../dist/cli-errors.js';
@@ -40,6 +42,7 @@ import { errorMessage, fail } from './cli.mjs';
 /** Flags every compare command accepts. */
 export function compareFlags() {
   return {
+    'capture-base': { help: 'capture missing maps with the base in a temporary detached worktree' },
     spec: {
       value: 'path',
       help: 'StyleProof spec used to select compatible cached maps (default: e2e/styleproof.spec.ts)',
@@ -84,11 +87,14 @@ function captureSource(name, opts) {
       opts['cache-branch'] ?? process.env.STYLEPROOF_CACHE_BRANCH ?? config.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH,
     remote: opts.remote ?? process.env.STYLEPROOF_REMOTE ?? config.remote ?? DEFAULT_REMOTE,
     gitTimeoutMs: config.mapStore?.gitTimeoutMs,
+    captureMissing: opts['capture-base'] ? captureMissing : undefined,
   };
 }
 
 /** The capture dirs (restored or explicit), trusted SHAs, and armed ledgers a compare needs. Exits 2 on usage problems. */
 export function resolveCompareInputs(name, { opts, args, purpose, usage }) {
+  if (opts['capture-base'] && args.length > 1)
+    fail(name, '--capture-base requires cached mode with at most one baseRef');
   let config;
   let configDir;
   try {
@@ -151,8 +157,70 @@ function cachedDirs(name, opts, args, purpose, usage) {
     });
     return { beforeDir: cacheCapture.beforeDir, afterDir: cacheCapture.afterDir, cacheCapture };
   } catch (error) {
-    console.error(cachedMapsUnavailableMessage(name, purpose, error, localCompareHint(args[0])));
+    if (error instanceof ExitError) {
+      console.error(error.message);
+
+      return process.exit(error.exitCode);
+    }
+
+    console.error(
+      cachedMapsUnavailableMessage(name, purpose, error, {
+        ...localCompareHint(args[0]),
+        captureBase: opts['capture-base'],
+      }),
+    );
     return process.exit(2);
+  }
+}
+
+function captureMissing(cwd, outDir, spec, side) {
+  if (side === 'base') withBaseSignals(() => installBase(cwd));
+
+  const capture = () =>
+    captureMap('compare', ['--spec', spec, '--base-dir', path.dirname(outDir), '--dir', path.basename(outDir)], {
+      cwd,
+    });
+
+  const status = side === 'base' ? withBaseSignals(capture) : capture();
+
+  if (side === 'base' && (status === 130 || status === 143))
+    throw new ExitError(`capture interrupted by ${status === 130 ? 'SIGINT' : 'SIGTERM'}`, status);
+
+  if (status !== 0) {
+    throw new Error(
+      `${side} capture failed in ${side === 'base' ? 'worktree ' : ''}${cwd}: styleproof-map --spec ${spec} --base-dir ${path.dirname(outDir)} --dir ${path.basename(outDir)} (exit ${status})`,
+    );
+  }
+}
+
+function withBaseSignals(run) {
+  const ignore = () => {};
+
+  process.on('SIGINT', ignore);
+  process.on('SIGTERM', ignore);
+
+  try {
+    return run();
+  } finally {
+    process.removeListener('SIGINT', ignore);
+    process.removeListener('SIGTERM', ignore);
+  }
+}
+
+function installBase(cwd) {
+  const plan = detectPackageManagerPlan(cwd);
+  const result = spawnSync(plan.install[0], plan.install.slice(1), { cwd, stdio: ['ignore', 2, 2] });
+
+  const signal = result.signal ?? { 130: 'SIGINT', 143: 'SIGTERM' }[result.status];
+
+  if (signal === 'SIGINT' || signal === 'SIGTERM') {
+    throw new ExitError(`install interrupted by ${signal}`, signal === 'SIGINT' ? 130 : 143);
+  }
+
+  if (result.status !== 0) {
+    throw new Error(
+      `base install failed in worktree ${cwd}: ${plan.install.join(' ')} (exit ${result.status}${result.signal ? `, signal ${result.signal}` : ''})${result.error ? `: ${result.error.message}` : ''}`,
+    );
   }
 }
 

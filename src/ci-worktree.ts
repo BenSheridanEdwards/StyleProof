@@ -98,7 +98,7 @@ function processIsGone(pid: number): boolean {
   }
 }
 
-function sweepScratchEntry(dir: string): void {
+function sweepScratchEntry(dir: string, remove: (dir: string) => void): void {
   try {
     const stat = fs.lstatSync(dir);
 
@@ -108,17 +108,21 @@ function sweepScratchEntry(dir: string): void {
     if (Date.now() - stat.mtimeMs < 60 * 60_000) return;
     const pid = scratchOwnerPid(dir);
 
-    if (pid !== undefined && pid !== process.pid && processIsGone(pid)) removeDirRecursive(dir);
+    if (pid !== undefined && pid !== process.pid && processIsGone(pid)) remove(dir);
   } catch {
     // Shared temp entries may be unreadable or impossible to remove.
   }
 }
 
 /** Best-effort cleanup of old scratch dirs whose recorded owner has exited. */
-function sweepDeadScratch(parent: string): void {
+export function sweepDeadScratch(
+  parent: string,
+  pattern = /^styleproof-ci-wt-[A-Za-z0-9]+$/,
+  remove: (dir: string) => void = removeDirRecursive,
+): void {
   try {
     for (const name of fs.readdirSync(parent)) {
-      if (/^styleproof-ci-wt-[A-Za-z0-9]+$/.test(name)) sweepScratchEntry(path.join(parent, name));
+      if (pattern.test(name)) sweepScratchEntry(path.join(parent, name), remove);
     }
   } catch {
     // A failed listing must not prevent creating this session's scratch dir.

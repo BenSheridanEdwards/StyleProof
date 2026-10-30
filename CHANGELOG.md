@@ -7,6 +7,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).
+  During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. Compare-only SIGTERM is ignored, so container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or crashes can leave `<repo>/.worktrees/styleproof-base-*`; the next `--capture-base` removes only hour-old, current-user scratch dirs with confirmed dead owners. The nested base checkout can inherit head root files through Node module resolution, postcss/browserslist config or pnpm workspace detection when the base lacks its own. The flag rejects two explicit directories.
+
 ### Fixed
 
 - **BREAKING (#1143):** discovery refuses submits and side-effect verbs. Recipe labels/stateKeys such as `saved`, `submitted`, `cancel-dialog`, and `Confirm modal` throw `StateRecipeError`; rename them to describe fixture state. Crawl records `unsafe-control` skips for submits and Save/Cancel/Send/Confirm; acknowledge exit 6 with a reasoned `incompleteUiExclude`. Popup capture refuses side-effect labels; re-capture the base to align renumbered `popup-XX` IDs.

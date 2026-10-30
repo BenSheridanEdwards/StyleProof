@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeRunCwd } from '../ci-worktree.js';
+import { sweepDeadScratch } from '../ci-worktree.js';
 import { inferBaseRef } from '../gitref.js';
 import { removeDirRecursive } from '../node-util.js';
 import { errorMessage } from '../util.js';
@@ -357,6 +358,7 @@ export function resolveCachedCaptureDirs(
     spec: string;
     baseUrl?: string;
     usage: string;
+    captureMissing?: (cwd: string, outDir: string, spec: string, side: string) => void;
   },
 ): CachedCaptureDirs {
   const cwd = options.cwd ?? process.cwd();
@@ -373,22 +375,67 @@ export function resolveCachedCaptureDirs(
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const dirs = { beforeDir: path.join(tmpRoot, 'base'), afterDir: path.join(tmpRoot, 'head') };
 
-  const restore = (sha: string, outDir: string, key: string, probeCwd: string) =>
-    restoreMapBundle({
-      sha,
-      outDir,
-      branch: options.branch,
-      remote: options.remote,
-      gitTimeoutMs: options.gitTimeoutMs,
-      cwd,
-      compatibilityKey: key,
-      harnessHash: expectedHarnessHash({ cwd: probeCwd, spec }),
-    });
+  const restore = (sha: string, outDir: string, key: string, probeCwd: string, side: string) => {
+    try {
+      restoreMapBundle({
+        sha,
+        outDir,
+        branch: options.branch,
+        remote: options.remote,
+        gitTimeoutMs: options.gitTimeoutMs,
+        cwd,
+        compatibilityKey: key,
+        harnessHash: expectedHarnessHash({ cwd: probeCwd, spec }),
+      });
+    } catch (error) {
+      if (!options.captureMissing) throw error;
+      process.stderr.write(`${side} restore failed: ${errorMessage(error)}; capturing locally\n`);
+      options.captureMissing(probeCwd, outDir, spec, side);
+    }
+  };
+
   let worktrees: CiWorktreeSession | undefined;
+
+  let createdParent: string | undefined;
+
+  const cleanup = () => {
+    worktrees?.dispose();
+
+    if (createdParent && fs.existsSync(createdParent) && fs.readdirSync(createdParent).length === 0) {
+      fs.rmdirSync(createdParent);
+    }
+
+    if (options.captureMissing) git(cwd, ['worktree', 'prune']);
+  };
+
+  process.once('exit', cleanup);
+
   try {
     const repoRoot = gitRepoRoot(cwd);
     const consumerRel = consumerRelativeFromRepoRoot(repoRoot, cwd);
-    worktrees = new CiWorktreeSession(repoRoot);
+    let scratchParent: string | undefined;
+
+    if (options.captureMissing) {
+      const parent = path.join(repoRoot, '.worktrees');
+
+      if (!fs.existsSync(parent)) {
+        fs.mkdirSync(parent);
+        createdParent = parent;
+      }
+
+      sweepDeadScratch(parent, /^styleproof-base-[A-Za-z0-9]{6}$/, (dir) => {
+        for (const child of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (child.isDirectory()) git(repoRoot, ['worktree', 'remove', '--force', path.join(dir, child.name)]);
+        }
+
+        git(repoRoot, ['worktree', 'prune']);
+        fs.rmSync(dir, { recursive: true, force: true });
+      });
+      scratchParent = fs.mkdtempSync(path.join(parent, 'styleproof-base-'));
+      fs.writeFileSync(path.join(scratchParent, 'owner.pid'), String(process.pid));
+    }
+
+    worktrees = new CiWorktreeSession(repoRoot, scratchParent);
     const baseWorktree = worktrees.addDetached(baseSha, 'cache-base');
     const baseCwd = worktreeRunCwd(baseWorktree, consumerRel);
     restore(
@@ -396,14 +443,20 @@ export function resolveCachedCaptureDirs(
       dirs.beforeDir,
       expectedCompatibilityKey({ cwd: baseCwd, spec, baseUrl: options.baseUrl }),
       baseCwd,
+      'base',
     );
-    restore(headSha, dirs.afterDir, compatibilityKey, cwd);
+    worktrees.remove('cache-base');
+    cleanup();
+    restore(headSha, dirs.afterDir, compatibilityKey, cwd, 'head');
+
     return { ...dirs, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };
   } catch (error) {
     removeTempWorkspace(tmpRoot);
     throw error;
   } finally {
-    worktrees?.dispose();
+    process.removeListener('exit', cleanup);
+
+    cleanup();
   }
 }
 
