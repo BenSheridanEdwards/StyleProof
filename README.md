@@ -501,6 +501,10 @@ new baseline on merge. A surface that exists only on the PR head is still
 reviewable: it holds the status red until approved, then becomes part of the
 baseline once merged.
 
+In both the reusable and example approval workflows, re-running an approve run
+by anyone other than the original ticker is refused;
+tick the approval box again.
+
 **Certify mode** (`fail-on-diff: true`) proves a change touched _nothing_
 visual: any difference at all fails the job. It's the job StyleProof was born
 for — certifying a CSS-to-Tailwind migration rendered byte-for-byte identical.

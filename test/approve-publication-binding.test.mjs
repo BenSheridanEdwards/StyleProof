@@ -95,7 +95,20 @@ function approveScript() {
 
   const program = new AsyncFunction('github', 'context', 'core', 'require', source);
 
-  return (github, context) => program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
+  return async (github, context) => {
+    const env = { STYLEPROOF_RUN_ATTEMPT: '1', STYLEPROOF_TRIGGERING_ACTOR: context.payload.sender.login };
+    const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
+    Object.assign(process.env, env);
+
+    try {
+      await program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  };
 }
 
 function reportComment({
