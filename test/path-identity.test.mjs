@@ -1,5 +1,7 @@
+import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { injectPathOf } from '../dist/capture/browser.js';
 import { isStableId } from '../dist/inventory.js';
 
@@ -18,8 +20,54 @@ const GENERATED = [
   'headlessui-tabs-tab-3',
   'mui-42',
   'a1b2c3d4e5',
+  'ABCDEF0123',
+  'app-:r7:',
+  'app-«R8»',
+  'radix-12',
+  'react-aria123-4',
+  'react-aria-4',
+  'react-aria123-_r_4_',
+  'floating-ui-abcd12',
+  'downshift-1',
+  'downshift-1-toggle-button',
+  'downshift-1-item-2',
+  'reach-menu-button-3',
+  'mat-input-0',
+  'cdk-overlay-0',
+  'v-0',
+  'v-1-2',
 ];
-const AUTHORED = ['command', 'nav-faults', 'panel_1', 'main-nav', 'checkout'];
+
+const AUTHORED = [
+  'command',
+  'nav-faults',
+  'panel_1',
+  'main-nav',
+  'checkout',
+  'reach-out',
+  'mui-theme',
+  'radix-colors',
+  'section:intro',
+  'form:email',
+  'cell_r_1_c_2',
+  'facade01',
+  'tooltip-12',
+  'step-2',
+  'headlessui-tabs',
+  'chakra-theme',
+  'react-aria-label',
+  'floating-ui-panel',
+  'downshift-menu',
+  'mat-input-label',
+  'cdk-overlay-pane',
+  'v-next',
+  'prefix:r1:suffix',
+  'prefix«r2»suffix',
+  'prefix_r_3_suffix',
+  'mui-42-custom',
+  'radix-12-custom',
+  'v-1-2-custom',
+];
 
 /** The smallest DOM `__spPathOf` walks: tag, attributes, parent, children. */
 function element(tag, attributes = {}, children = []) {
@@ -36,7 +84,10 @@ function pathOfDiv(attributes) {
   globalThis.window = {};
   globalThis.document = { documentElement: html, body };
   try {
-    injectPathOf();
+    runInNewContext(`(${injectPathOf.toString()})(${JSON.stringify(GENERATED_ID_SOURCES)})`, {
+      window: globalThis.window,
+      document: globalThis.document,
+    });
     return globalThis.window.__spPathOf(div);
   } finally {
     delete globalThis.window;

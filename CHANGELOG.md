@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Share tighter generated-ID rules between inventory and capture, preserving authored IDs; maps
+  captured before this fix may show affected elements as moved once (#1154).
 - Count folded size/position rows and keep their values in report property details;
   crops with folded geometry now render collapsed, and surfaces differing only by
   folded geometry no longer group as identical (#1140).
