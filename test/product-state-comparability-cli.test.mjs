@@ -287,7 +287,7 @@ test('diff CLI certifies matching explicit identity and emits bounded comparison
   rmTmp(capture.root);
 });
 
-test('diff CLI keeps undeclared legacy pairs compatible unless state identity is required', () => {
+test('diff CLI keeps pairs with no product-state declared compatible unless state identity is required', () => {
   const capture = fixture({});
   const legacy = runDiff(capture);
   assert.equal(legacy.status, 0, legacy.stderr || legacy.stdout);
@@ -340,14 +340,14 @@ function armUndeclaredLedger(capture) {
   fs.writeFileSync(path.join(capture.root, 'styleproof.product-state.json'), '{}\n');
 }
 
-test('unbound diff CLI lists the changed properties of an undeclared legacy pair under the non-certifying banner', () => {
+test('unbound diff CLI lists the changed properties of a pair with no product-state declared under the non-certifying banner', () => {
   const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
   armUndeclaredLedger(capture);
   try {
     const json = path.join(capture.root, 'diagnostic.json');
     const result = runDiffRaw(capture, ['--json', json]);
     assert.equal(result.status, 1, result.stderr || result.stdout);
-    assert.match(result.stdout, /undeclared legacy pair: home@1280/);
+    assert.match(result.stdout, /pair with no product-state declared: home@1280/);
     assert.match(result.stdout, /color: rgb\(214, 228, 232\) → rgb\(200, 228, 232\)/);
     const receipt = JSON.parse(fs.readFileSync(json, 'utf8'));
     assert.equal(receipt.certifiesFully, false);
@@ -358,7 +358,7 @@ test('unbound diff CLI lists the changed properties of an undeclared legacy pair
   }
 });
 
-test('unbound report lists an undeclared legacy pair advisory-only, never as reviewable evidence', () => {
+test('unbound report lists a pair with no product-state declared advisory-only, never as reviewable evidence', () => {
   const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
   armUndeclaredLedger(capture);
   try {
@@ -370,7 +370,8 @@ test('unbound report lists an undeclared legacy pair advisory-only, never as rev
     );
     assert.equal(result.status, 1, result.stderr || result.stdout);
     const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
-    assert.match(markdown, /Product-state identity unproven\*\* \(undeclared legacy pair\)/);
+    assert.doesNotMatch(markdown, /legacy/i);
+    assert.match(markdown, /Product-state identity unproven\*\* \(pair with no product-state declared\)/);
     assert.match(markdown, /\| `color` \| `#d6e4e8` \| `#c8e4e8` \|/);
     const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
     assert.equal(reportJson.comparison.blocksCertification, true);
@@ -381,7 +382,7 @@ test('unbound report lists an undeclared legacy pair advisory-only, never as rev
   }
 });
 
-test('--require-state-identity keeps an unbound undeclared legacy pair non-certifying with exit 1', () => {
+test('--require-state-identity keeps an unbound pair with no product-state declared non-certifying with exit 1', () => {
   const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
   armUndeclaredLedger(capture);
   try {
@@ -407,7 +408,7 @@ test('--require-state-identity keeps an unbound undeclared legacy pair non-certi
   }
 });
 
-test('unbound diff and report keep an undeclared legacy pair hidden when it is a failing critical obligation', () => {
+test('unbound diff and report keep a pair with no product-state declared hidden when it is a failing critical obligation', () => {
   const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
   armUndeclaredLedger(capture);
   fs.writeFileSync(
@@ -431,7 +432,7 @@ test('unbound diff and report keep an undeclared legacy pair hidden when it is a
   }
 });
 
-test('source-bound diff and report keep an undeclared legacy pair fail-closed and unlisted', () => {
+test('source-bound diff and report keep a pair with no product-state declared fail-closed and unlisted', () => {
   const capture = fixture({ beforeColor: 'rgb(214, 228, 232)', afterColor: 'rgb(200, 228, 232)' });
   armUndeclaredLedger(capture);
   try {

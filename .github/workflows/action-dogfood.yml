@@ -229,12 +229,12 @@ jobs:
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
-      - name: Assert declared legacy pairs stay advisory and do not certify
+      - name: Assert acknowledged pairs with no product-state declared stay advisory and do not certify
         run: |
           test '${{ steps.legacy-declared.outputs.changed }}' = 'false'
           test '${{ steps.legacy-declared.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
           test -z '${{ steps.legacy-declared.outputs.report-url }}'
-          grep -E 'declared legacy pair' styleproof-report/report.md
+          grep -E 'acknowledged pair with no product-state declared' styleproof-report/report.md
           grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
           grep -F '"declared": [' styleproof-report/report.json
           grep -F 'home@320' styleproof-report/report.json
@@ -251,11 +251,11 @@ jobs:
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
-      - name: Assert undeclared legacy pairs fail closed (visual-only, not certified)
+      - name: Assert pairs with no product-state declared fail closed (visual-only, not certified)
         run: |
           test '${{ steps.legacy-undeclared.outcome }}' = 'failure'
           test '${{ steps.legacy-undeclared.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
-          grep -E 'undeclared legacy pair' styleproof-report/report.md
+          grep -E 'pair with no product-state declared' styleproof-report/report.md
           grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
 
       - id: certfail

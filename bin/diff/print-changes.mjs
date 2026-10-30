@@ -37,17 +37,17 @@ function comparabilityHeadline({ comparison, legacyPairAudit, declaredLegacyPair
     return 'ℹ product-state comparison not required — no paired capture obligation';
   if (!comparison.blocksCertification) {
     return declaredLegacyPairs
-      ? `⚠ product-state identity unproven on ${legacyPairAudit.declared.length} declared legacy pair(s) — ` +
+      ? `⚠ product-state identity unproven on ${legacyPairAudit.declared.length} acknowledged paired capture(s) with no product-state declared — ` +
           'on the record, advisory, not certified. Stamp productState {id, revision} to certify.'
-      : `⚠ product-state identity unproven on ${c.unproven} legacy paired capture(s) — ` +
-          'legacy compatibility mode keeps the existing verdict, but this is not proof of same product state. ' +
+      : `⚠ product-state identity unproven on ${c.unproven} paired capture(s) — no product-state is declared — ` +
+          'the existing verdict is preserved, but this is not proof of same product state. ' +
           'Pass --require-state-identity to make it non-certifying, or declare known pairs in styleproof.product-state.json.';
   }
   const reasons = [
     [c.incomparable, 'explicit mismatch(es)'],
     [c.requiredUnproven, 'required-unproven pair(s)'],
-    [c.globalRequiredUnproven, 'globally-required legacy pair(s)'],
-    [legacyPairAudit.armed ? legacyPairAudit.undeclared.length : 0, 'undeclared legacy pair(s)'],
+    [c.globalRequiredUnproven, 'globally-required pair(s) with no product-state declared'],
+    [legacyPairAudit.armed ? legacyPairAudit.undeclared.length : 0, 'paired capture(s) with no product-state declared'],
   ]
     .filter(([n]) => n)
     .map(([n, what]) => `${n} ${what}`);
@@ -59,10 +59,10 @@ function obligationLines({ legacyPairAudit, criticalAudit, criticalObligations }
   if (legacyPairAudit.armed) {
     for (const key of legacyPairAudit.undeclared)
       lines.push(
-        `undeclared legacy pair: ${key} — stamp productState {id, revision}, or record it in styleproof.product-state.json {"<surface>":"<why>"}.`,
+        `pair with no product-state declared: ${key} — stamp productState {id, revision}, or record it in styleproof.product-state.json {"<surface>":"<why>"}.`,
       );
     for (const key of legacyPairAudit.staleAcknowledgements)
-      lines.push(`stale legacy-pair declaration: ${key} — prune it from styleproof.product-state.json`);
+      lines.push(`stale product-state acknowledgement: ${key} — prune it from styleproof.product-state.json`);
   }
   if (criticalAudit.armed) {
     const meta = (key) => {

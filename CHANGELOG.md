@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Describe captures without product-state identity as having no product-state declared (#1151).
 - Count folded size/position rows and keep their values in report property details;
   crops with folded geometry now render collapsed, and surfaces differing only by
   folded geometry no longer group as identical (#1140).

@@ -7,7 +7,7 @@
 
 _styleproof: live/age text drifted after a freeze was declared — captured text is not pinned. Fixture timestamps so ages use the frozen clock, or declare liveText without freeze so age-only drift stays advisory. Drift: `open 102.1d` → `open 103.1d` on dashboard@1280._
 
-⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
+⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared. The existing visual-review path is preserved, but this is not proof that both captures reached the same product state.
 
 ✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared. Fail closed (`CERTIFICATION_FAILED`); not a style review.
 

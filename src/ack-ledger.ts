@@ -34,10 +34,10 @@ export const DATA_RESIDUE_LEDGER: LedgerSpec = {
   lenient: true,
 };
 export const LEGACY_PAIRS_LEDGER = spec(
-  'legacy product-state declare',
+  'product-state acknowledgement',
   'styleproof.product-state.json',
   'STYLEPROOF_PRODUCT_STATE',
-  'legacy product-state pair',
+  'pair with no product-state declared',
 );
 export const CRITICAL_STATES_LEDGER = spec(
   'critical-states obligation',

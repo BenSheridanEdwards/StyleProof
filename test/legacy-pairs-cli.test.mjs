@@ -85,7 +85,7 @@ function runDiff(capture, extra = [], env = {}) {
   };
 }
 
-test('undeclared legacy pairs fail closed when the declare file is armed', () => {
+test('pairs with no product-state declared fail closed when the declare file is armed', () => {
   const capture = fixture();
   fs.writeFileSync(path.join(capture.root, 'styleproof.product-state.json'), '{}\n');
   const result = runDiff(capture);
@@ -93,7 +93,7 @@ test('undeclared legacy pairs fail closed when the declare file is armed', () =>
   assert.equal(result.json.comparison.blocksCertification, true);
   assert.equal(result.json.certifiesFully, false);
   assert.deepEqual(result.json.legacyPairs.undeclared, ['home@1280']);
-  assert.match(result.stdout, /undeclared legacy pair: home@1280/);
+  assert.match(result.stdout, /pair with no product-state declared: home@1280/);
   const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
   assert.equal(
     audit.trustDecision.finalState,
@@ -103,7 +103,7 @@ test('undeclared legacy pairs fail closed when the declare file is armed', () =>
   rmTmp(capture.root);
 });
 
-test('declared legacy pairs stay advisory and never soft-green certify', () => {
+test('acknowledged pairs with no product-state declared stay advisory and never soft-green certify', () => {
   const capture = fixture();
   fs.writeFileSync(
     path.join(capture.root, 'styleproof.product-state.json'),
@@ -112,10 +112,10 @@ test('declared legacy pairs stay advisory and never soft-green certify', () => {
   const result = runDiff(capture);
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(result.json.comparison.blocksCertification, false);
-  assert.equal(result.json.certifiesFully, false, 'declared legacy pairs must not certify');
+  assert.equal(result.json.certifiesFully, false, 'acknowledged pairs with no product-state declared must not certify');
   assert.deepEqual(result.json.legacyPairs.declared, ['home@1280']);
   assert.deepEqual(result.json.legacyPairs.undeclared, []);
-  assert.match(result.stdout, /declared legacy pair/);
+  assert.match(result.stdout, /acknowledged paired capture\(s\) with no product-state declared/);
   assert.doesNotMatch(result.stdout, /✓ 0 reviewable computed-style changes/);
   rmTmp(capture.root);
 });
@@ -134,8 +134,12 @@ test('overlapping base and exact declarations stay advisory in either key order 
       assert.equal(result.status, 0, `${order}: ${result.stderr || result.stdout}`);
       assert.deepEqual(result.json.legacyPairs.declared, ['home@1280'], order);
       assert.deepEqual(result.json.legacyPairs.staleAcknowledgements, [], order);
-      assert.equal(result.json.certifiesFully, false, 'declared legacy pairs must not certify');
-      assert.doesNotMatch(result.stdout, /stale legacy-pair declaration/, order);
+      assert.equal(
+        result.json.certifiesFully,
+        false,
+        'acknowledged pairs with no product-state declared must not certify',
+      );
+      assert.doesNotMatch(result.stdout, /stale product-state acknowledgement/, order);
       const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
       assert.notEqual(audit.trustDecision.finalState, 'CERTIFICATION_FAILED', order);
     } finally {
@@ -270,7 +274,7 @@ test('synthetic action-dogfood clean fixtures certify when $STYLEPROOF_PRODUCT_S
     assert.equal(receipt.legacyPairs.armed, true);
     assert.deepEqual(receipt.legacyPairs.staleAcknowledgements, []);
     assert.equal(receipt.certifiesFully, true);
-    assert.doesNotMatch(isolated.stdout, /undeclared or stale legacy product-state pair/);
+    assert.doesNotMatch(isolated.stdout, /pair\(s\) with no product-state declared or stale acknowledgement/);
   } finally {
     rmTmp(root);
   }
@@ -301,7 +305,7 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     );
     assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
     const blockedMd = fs.readFileSync(path.join(undeclaredOut, 'report.md'), 'utf8');
-    assert.match(blockedMd, /undeclared legacy pair/);
+    assert.match(blockedMd, /pair with no product-state declared/);
     assert.match(blockedMd, /not a certified same-state compare|cannot certify|cannot be approved/);
 
     fs.writeFileSync(
@@ -328,7 +332,7 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     );
     assert.equal(advisory.status, 0, advisory.stderr || advisory.stdout);
     const declaredMd = fs.readFileSync(path.join(declaredOut, 'report.md'), 'utf8');
-    assert.match(declaredMd, /declared legacy pair/);
+    assert.match(declaredMd, /acknowledged pair with no product-state declared/);
     assert.match(declaredMd, /not a certified same-state compare|visual-only|advisory, not certification/);
     const declaredJson = JSON.parse(fs.readFileSync(path.join(declaredOut, 'report.json'), 'utf8'));
     assert.deepEqual(declaredJson.legacyPairs.declared, ['home@1280']);
