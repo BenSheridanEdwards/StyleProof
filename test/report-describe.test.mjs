@@ -790,7 +790,7 @@ test('end-to-end: a stable-path forced-state change stays annotated', () => {
   rmTmp(root);
 });
 
-test('end-to-end: unchanged forced-state movement is suppressed as path churn', () => {
+test('end-to-end: unchanged moved forced state pairs without a state delta', () => {
   const element = { tag: 'button', cls: 'same', rect: [20, 20, 100, 30], style: {} };
   const before = makeMap({
     elements: { body: { tag: 'body', rect: [0, 0, 640, 400], style: {} }, 'body > button:nth-child(1)': element },
@@ -813,18 +813,8 @@ test('end-to-end: unchanged forced-state movement is suppressed as path churn', 
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.ok(report.surfaces[0].regions.length > 0, 'structural findings remain reportable');
-  assert.ok(
-    report.surfaces[0].regions.every((region) => !region.images.annotated),
-    'path churn has no annotation',
-  );
-  // Presentation counts reserve style/state for matched-path restyles; one-sided
-  // inventories stay in raw/reviewable audit tallies.
-  assert.equal(report.counts.state, 0, 'path-churn state inventory is not a matched-path state-delta');
-  assert.ok(
-    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
-    'state findings remain in the audit data',
-  );
+  assert.equal(report.surfaces.length, 0, 'paired unchanged movement has no reportable changes');
+  assert.equal(report.counts.state, 0, 'paired unchanged hover has no state delta');
   rmTmp(root);
 });
 
@@ -849,6 +839,9 @@ test('end-to-end: moved forced-state changes stay annotated', () => {
     afterPng: solidPng(640, 400),
   });
 
+  fs.writeFileSync(path.join(beforeDir, 'state-movement-change@640.hover.png'), solidPng(640, 400));
+  fs.writeFileSync(path.join(afterDir, 'state-movement-change@640.hover.png'), solidPng(640, 400));
+
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
@@ -861,15 +854,11 @@ test('end-to-end: moved forced-state changes stay annotated', () => {
     });
   assert.ok(highlights.before > 0, 'the changed before state remains visible in proof');
   assert.ok(highlights.after > 0, 'the changed after state remains visible in proof');
-  assert.equal(report.counts.state, 0, 'one-sided path inventories are not matched-path state-deltas');
-  assert.ok(
-    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
-    'state findings remain in the audit data',
-  );
+  assert.ok(report.counts.state > 0, 'paired moved hover change is counted');
   rmTmp(root);
 });
 
-test('end-to-end: owner pseudo-element state movement is suppressed as path churn', () => {
+test('end-to-end: unchanged moved owner pseudo state pairs without a state delta', () => {
   const element = {
     tag: 'button',
     cls: 'same',
@@ -906,16 +895,8 @@ test('end-to-end: owner pseudo-element state movement is suppressed as path chur
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.ok(report.surfaces[0].regions.length > 0, 'structural findings remain reportable');
-  assert.ok(
-    report.surfaces[0].regions.every((region) => !region.images.annotated),
-    'owner pseudo-element path churn has no annotation',
-  );
-  assert.equal(report.counts.state, 0, 'path-churn pseudo state inventory is not a matched-path state-delta');
-  assert.ok(
-    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
-    'pseudo-element state findings remain in the audit data',
-  );
+  assert.equal(report.surfaces.length, 0, 'paired unchanged movement has no reportable changes');
+  assert.equal(report.counts.state, 0, 'paired unchanged pseudo hover has no state delta');
   rmTmp(root);
 });
 
@@ -954,6 +935,9 @@ test('end-to-end: moved owner pseudo-element state changes stay annotated', () =
     afterPng: solidPng(640, 400),
   });
 
+  fs.writeFileSync(path.join(beforeDir, 'pseudo-state-movement-change@640.hover.png'), solidPng(640, 400));
+  fs.writeFileSync(path.join(afterDir, 'pseudo-state-movement-change@640.hover.png'), solidPng(640, 400));
+
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
@@ -966,11 +950,7 @@ test('end-to-end: moved owner pseudo-element state changes stay annotated', () =
     });
   assert.ok(highlights.before > 0, 'the changed before pseudo-state remains visible in proof');
   assert.ok(highlights.after > 0, 'the changed after pseudo-state remains visible in proof');
-  assert.equal(report.counts.state, 0, 'one-sided path inventories are not matched-path state-deltas');
-  assert.ok(
-    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
-    'pseudo-element state findings remain in the audit data',
-  );
+  assert.ok(report.counts.state > 0, 'paired moved pseudo hover change is counted');
   rmTmp(root);
 });
 

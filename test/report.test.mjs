@@ -5,6 +5,7 @@ import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
   generateStructuralStyleMapReportForTesting as generateStyleMapReport,
+  assessReportConsistency,
   summarizeProps,
   prettyLabel,
 } from '../dist/report.js';
@@ -1109,6 +1110,28 @@ test('correspondence: ambiguous duplicates stay unpaired; raw/reviewable gate co
   assert.equal(typeof json.reviewableCounts.dom, 'number');
   assert.equal(json.reportConsistency.ok, true);
   rmTmp(root);
+});
+
+test('report consistency rejects collapsed presentation with raw reviewable evidence', () => {
+  const comparison = assessComparisonTruth([
+    {
+      surface: 'home@400',
+      findings: [
+        {
+          kind: 'style',
+          path: 'body > button',
+          cls: 'action',
+          props: [{ prop: 'color', before: 'red', after: 'blue' }],
+        },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(assessReportConsistency(comparison, false), {
+    ok: false,
+    reason: 'presentation_collapsed_while_raw_reviewable',
+  });
+  assert.deepEqual(assessReportConsistency(comparison, true), { ok: true, reason: 'aligned' });
 });
 
 test('correspondence: sibling reorder never reports identical while raw reviewable evidence remains', () => {
