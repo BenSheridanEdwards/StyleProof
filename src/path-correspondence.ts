@@ -165,20 +165,14 @@ function applyPathMoves(before: StyleMap, beforeToAfter: Map<string, string>): S
 }
 
 /** Re-key identifiable base elements onto their head paths: own-text identity, plus the nth-child shift for the rest. */
-export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap, preserveOneSided = false): StyleMap {
+export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
   const identified = ownTextIdentityMoves(before, after);
   const inPlace = new Set(
     ownTextAnchors(before, after).flatMap(([beforePath, afterPath]) => (beforePath === afterPath ? [beforePath] : [])),
   );
   const shifted = correspondingPathsByContentSignature(before, after, identified, inPlace);
 
-  // Presentation keeps wholly one-sided inventories and their forced-state crops.
-  // Overlapping paths must shift together or they compare against the wrong siblings.
-  const retainedShifts = preserveOneSided
-    ? [...shifted].filter(([from, to]) => from in after.elements || to in before.elements)
-    : [...shifted];
-
-  return applyPathMoves(before, new Map([...retainedShifts, ...identified]));
+  return applyPathMoves(before, new Map([...shifted, ...identified]));
 }
 
 // ─── pass 2: geometry ──────────────────────────────────────────────────────────
@@ -381,9 +375,9 @@ function ownTextIdentityMoves(before: StyleMap, after: StyleMap): Map<string, st
   );
 }
 
-/** Presentation shares overlapping content shifts, retaining one-sided inventories and broader geometry pairing. */
+/** Presentation shares every certifier content shift, then applies broader geometry pairing. */
 export function presentationBeforeMap(before: StyleMap, after: StyleMap): StyleMap {
-  const shifted = correspondContentShiftedPaths(before, after, true);
+  const shifted = correspondContentShiftedPaths(before, after);
 
   return remapBeforeStyleMap(shifted, correspondElementPaths(shifted, after));
 }

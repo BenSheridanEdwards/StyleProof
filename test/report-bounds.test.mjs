@@ -462,7 +462,7 @@ test('end-to-end: uniform-shell list insertion leaves unchanged displaced items 
   rmTmp(root);
 });
 
-test('end-to-end: a removal and an identical addition in different containers both stay annotated', () => {
+test('end-to-end: a removal and a distinct addition in different containers both stay annotated', () => {
   const card = (y) => ({ tag: 'div', cls: 'card', rect: [20, y, 200, 80], style: { color: 'rgb(0, 0, 0)' } });
   const before = makeMap({
     elements: {
@@ -477,7 +477,7 @@ test('end-to-end: a removal and an identical addition in different containers bo
       body: { tag: 'body', rect: [0, 0, 600, 500], style: {} },
       'body > section:nth-child(1)': { tag: 'section', rect: [0, 0, 600, 200], style: {} },
       'body > section:nth-child(2)': { tag: 'section', rect: [0, 200, 600, 200], style: {} },
-      'body > section:nth-child(2) > div:nth-child(1)': card(220),
+      'body > section:nth-child(2) > div:nth-child(1)': { ...card(220), cls: 'new-card' },
     },
   });
   const { beforeDir, afterDir, outDir, root } = pairFixture({
