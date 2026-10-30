@@ -40,7 +40,7 @@ wobble in the label (a live count badge, a re-word) never fakes a removed+added:
   or `aria-controls`); otherwise `<role>:<slug(name)>` from the label (so a tab
   labelled "MODEL CONFIG" still keys as `nav-button:model-config`).
 
-Framework-generated ids (React `useId` `:r0:`, Headless UI `headlessui-…`, Radix,
+Framework-generated ids (React `useId` `:r0:`, Headless UI `headlessui-<name>-<n>` (or ids carrying a React token), Radix,
 hashes) are rejected — keying on them would _add_ churn — so those fall back to the
 label slug. The fallback's failure mode is safe by construction: a label wobble
 becomes a **surfaced** removed+added (a red a reviewer sees and acknowledges),

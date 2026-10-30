@@ -12,7 +12,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Share tighter generated-ID rules between inventory and capture, preserving authored IDs; maps
   captured before this fix may show affected elements as moved once (#1154). The ten-character
   hex threshold preserves IDs such as `facade01`, but random hex IDs of 8–9 characters now key
-  the path.
+  the path. Legacy Radix, MUI and React Aria counter ids with derived suffixes (`radix-12-trigger-account`) are rejected too.
+  Standalone React tokens with unseparated prefixes (`:appr0:`, `«appr1»`) are rejected;
+  embedded ambiguous forms such as `a:bar2:b` stay authored, as do underscore coordinates
+  such as `cell_r_1_c_2`.
 - Keep interpolated setup URLs/values and live state-recipe labels out of errors (#1144).
 - Explain shared chrome as a change on every surface base that renders the element; name landmarks only for landmark paths (#1150).
 - Count folded size/position rows and keep their values in report property details;

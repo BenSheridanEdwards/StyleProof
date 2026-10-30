@@ -9,6 +9,17 @@ import { isStableId } from '../dist/inventory.js';
 // generator, so they must never name an element: React useId (18/19.0 `:r0:`, 19.1 `«r0»`,
 // 19.2 `_r_0_`, server `_R_0H1_`), Radix and Headless UI scoped ids, MUI fallbacks, hashes.
 const GENERATED = [
+  'radix-12-custom',
+  'mui-42-custom',
+  'radix-12-trigger-account',
+  'radix-12-content-account',
+  'mui-42-listbox',
+  'mui-42-option-0',
+  'mui-42-label',
+  'react-aria123-4-tab-account',
+  'react-aria8345678901-4-tab-account',
+  ':appr0:',
+  '«appr1»',
   'prefix:r1:suffix',
   'prefix«r2»suffix',
   'prefix_r_3_suffix',
@@ -92,8 +103,6 @@ const AUTHORED = [
   'mat-input-label',
   'cdk-overlay-pane',
   'v-next',
-  'mui-42-custom',
-  'radix-12-custom',
   'v-1-2-custom',
 ];
 
