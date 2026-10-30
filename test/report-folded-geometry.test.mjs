@@ -191,3 +191,70 @@ test('base and hover folded rows stay under their respective headings', () => {
     rmTmp(fixture.root);
   }
 });
+
+test('ancestor reflow uses one outside heading without consuming the crop budget', () => {
+  const ancestors = ['html', 'body', 'main', 'section', 'div', 'div'];
+  const paths = ancestors.map((_, i) => ancestors.slice(0, i + 1).join(' > '));
+
+  const map = (changed) =>
+    makeMap({
+      elements: {
+        ...Object.fromEntries(
+          paths.map((path, i) => [
+            path,
+            {
+              tag: ancestors[i],
+              rect: [0, 0, 1280, 800],
+              style: { height: `${800 + i + (changed ? 20 : 0)}px` },
+            },
+          ]),
+        ),
+        [`${paths.at(-1)} > button`]: {
+          tag: 'button',
+          rect: [20, 20, 200, 40],
+          style: { 'padding-top': changed ? '20px' : '10px' },
+        },
+      },
+    });
+
+  const fixture = pairFixture({ surface: 's@1280', before: map(false), after: map(true) });
+
+  try {
+    const result = generateStyleMapReport({ ...fixture, maxCrops: 1 });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    const sections = md.split(/^### /m).slice(1);
+
+    assert.equal(sections.length, 2, 'one crop section and one outside section');
+    assert.match(sections[1], /^Folded size\/position rows outside the crops/);
+    assert.match(sections[1], /\+6 size\/position rows folded/);
+    const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+    assert.equal(json.surfaces[0].regions.length, 1, 'maxCrops remains one');
+  } finally {
+    rmTmp(fixture.root);
+  }
+});
+
+test('a hover geometry-only surface remains beside a visible colour surface', () => {
+  const map = (width) => ({
+    ...sidebar('240px', 'black'),
+    states: {
+      'body > aside:nth-child(1)': { hover: { 'body > aside:nth-child(1)': { width } } },
+    },
+  });
+
+  const before = sidebar('240px', 'black');
+  const fixture = pairFixture({ surface: 's@1280', before, after: sidebar('240px', 'red') });
+
+  try {
+    writeCapture(fixture.beforeDir, 'geometry@1280', map('240px'));
+    writeCapture(fixture.afterDir, 'geometry@1280', map('280px'));
+    const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
+
+    assert.match(md.split(/^### /m)[0], /geometry[\s\S]*\+1 size\/position row folded/);
+    assert.match(md.split(/^### /m).slice(1).join('\n'), /geometry[\s\S]*\+1 size\/position row folded/);
+    assert.match(md, /`:hover` \| `width` \| `240px` → `280px`/);
+    assert.match(md, /color/);
+  } finally {
+    rmTmp(fixture.root);
+  }
+});

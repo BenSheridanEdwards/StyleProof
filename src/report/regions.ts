@@ -358,16 +358,12 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own, changes });
   });
   const regions = rendered.map((r) => r.regionJson);
-  // Folded ancestors and siblings outside the crops keep their own element/state heading.
+  // Keep reflow ancestors in one capped table outside the crop budget.
   const outside = folded.filter((f) => !groups.some((g) => g.paths.some((root) => isSameOrDescendant(f.path, root))));
 
-  const outsideMd = outside.flatMap((f) => [
-    '',
-    `### ${regionHeading([f.path], [f])}${f.kind === 'state' ? ` \`:${f.state}\`` : ''}`,
-    '',
-    surfaceList,
-    ...changes([f]),
-  ]);
+  const outsideMd = outside.length
+    ? ['', '### Folded size/position rows outside the crops', '', surfaceList, ...changes(outside)]
+    : [];
 
   // A changed run no crop region shows is still named, once, under the group.
   const unclaimed = spacing.filter((change) => !claimed.has(change));

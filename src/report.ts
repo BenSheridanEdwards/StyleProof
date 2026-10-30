@@ -287,7 +287,7 @@ function prepareReportSurfaces(
 
       return { sd, findings, folded: foldedGeometryFindings(raw, findings) };
     })
-    .filter((s) => s.sd.missing || s.findings.length > 0);
+    .filter((s) => s.sd.missing || s.findings.length > 0 || (s.folded?.length ?? 0) > 0);
 }
 
 /** With layout noise included, raw-only is not a consistency failure; otherwise keep the fail-closed truth. */
