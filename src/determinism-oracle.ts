@@ -82,9 +82,16 @@ function canonicalJson(value: unknown, active = new Set<object>()): string {
   }
 }
 
-/** Hash a strict JSON computed map after recursively sorting object keys. */
+/** Hash a strict JSON computed map, excluding the settle request-count diagnostic. */
 export function hashDeterminismMap(map: unknown): string {
-  return sha256(canonicalJson(map));
+  // Validate before copying so getters and other non-JSON inputs still fail closed.
+  const normalized: unknown = JSON.parse(canonicalJson(map));
+
+  if (isPlainRecord(normalized) && isPlainRecord(normalized.metadata)) {
+    delete normalized.metadata.settleTimedOutWithRequestsInFlight;
+  }
+
+  return sha256(canonicalJson(normalized));
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
