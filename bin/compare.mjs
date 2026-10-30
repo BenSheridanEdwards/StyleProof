@@ -191,10 +191,7 @@ function captureMissing(cwd, outDir, spec, side) {
   }
 }
 
-/**
- * Ignore SIGINT/SIGTERM in compare while a base child runs, so a process-group Ctrl-C
- * reaches only the child; its interrupted result then exits 130/143 after cleanup.
- */
+/** Follow the base child through process-group interrupts, then clean up. */
 function withBaseSignals(run) {
   const ignore = () => {};
 
@@ -213,8 +210,10 @@ function installBase(cwd) {
   const plan = detectPackageManagerPlan(cwd);
   const result = spawnSync(plan.install[0], plan.install.slice(1), { cwd, stdio: ['ignore', 2, 2] });
 
-  if (result.signal === 'SIGINT' || result.signal === 'SIGTERM') {
-    throw new ExitError(`install interrupted by ${result.signal}`, result.signal === 'SIGINT' ? 130 : 143);
+  const signal = result.signal ?? { 130: 'SIGINT', 143: 'SIGTERM' }[result.status];
+
+  if (signal === 'SIGINT' || signal === 'SIGTERM') {
+    throw new ExitError(`install interrupted by ${signal}`, signal === 'SIGINT' ? 130 : 143);
   }
 
   if (result.status !== 0) {

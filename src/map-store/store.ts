@@ -348,6 +348,36 @@ function projectRelativeSpec(command: string, cwd: string, spec: string): string
   throw new MapStoreError(`${command}: --spec ${spec} is outside the project at ${cwd}`);
 }
 
+function baseOwnerAlive(dir: string): boolean {
+  try {
+    const owner = fs.readFileSync(path.join(dir, 'owner.pid'), 'utf8');
+
+    if (!/^[1-9]\d*$/.test(owner) || !Number.isSafeInteger(Number(owner))) return true;
+    process.kill(Number(owner), 0);
+
+    return true;
+  } catch (error) {
+    return !(error instanceof Error && 'code' in error && ['ENOENT', 'ESRCH'].includes(String(error.code)));
+  }
+}
+
+/** Reap only abandoned compare scratch directories, preserving live owners. */
+function sweepBaseWorktrees(repoRoot: string, parent: string): void {
+  for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith('styleproof-base-')) continue;
+    const dir = path.join(parent, entry.name);
+
+    if (baseOwnerAlive(dir)) continue;
+
+    for (const child of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (child.isDirectory()) git(repoRoot, ['worktree', 'remove', '--force', path.join(dir, child.name)]);
+    }
+
+    git(repoRoot, ['worktree', 'prune']);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** Restore the base and head bundles for a cached compare into a fresh temp root. The base
  *  key is computed from a detached base worktree so its spec/lockfile match what was published. */
 export function resolveCachedCaptureDirs(
@@ -422,7 +452,9 @@ export function resolveCachedCaptureDirs(
         createdParent = parent;
       }
 
+      sweepBaseWorktrees(repoRoot, parent);
       scratchParent = fs.mkdtempSync(path.join(parent, 'styleproof-base-'));
+      fs.writeFileSync(path.join(scratchParent, 'owner.pid'), String(process.pid));
     }
 
     worktrees = new CiWorktreeSession(repoRoot, scratchParent);
