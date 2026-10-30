@@ -5,11 +5,24 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { writeMapManifest, publishMapBundle } from '../dist/map-store.js';
+
 const cli = path.resolve('bin/styleproof-diff.mjs');
 
-for (const mode of ['manual', 'install-failure', 'config-only', 'capture-failure', 'SIGINT', 'SIGTERM', 'success']) {
+for (const mode of [
+  'manual',
+  'install-failure',
+  'config-only',
+  'capture-failure',
+  'install-SIGINT',
+  'install-SIGTERM',
+  'SIGINT',
+  'SIGTERM',
+  'stored-head',
+  'success',
+]) {
   const captureBase = !['manual', 'config-only'].includes(mode);
-  test(`missing base with ${mode} preserves checkout and cleans worktrees`, () => {
+  test(`missing base with ${mode} preserves checkout and cleans worktrees`, async () => {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-compare-'));
 
     const git = (...args) => {
@@ -62,6 +75,7 @@ const side = process.env.STYLEMAP_DIR;
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ command: '${command}', cwd, side,
 sha: cp.execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
 worktrees: fs.existsSync('.worktrees') ? fs.readdirSync('.worktrees') : [], dirty: fs.existsSync('dirty') }) + '\\n');
+if ('${command}' === 'npm' && ${mode.startsWith('install-SIG')}) process.kill(process.pid, '${mode.replace('install-', '')}');
 if ('${command}' === 'npm') { console.error('fixture install diagnostic'); process.exit(${mode.endsWith('install-failure') ? 1 : 0}); }
 if (${mode === 'capture-failure'} && side === 'base') process.exit(1);
 if (${mode.startsWith('SIG')} && side === 'base') { process.kill(process.ppid, '${mode}'); process.exit(0); }
@@ -75,6 +89,24 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
           fs.chmodSync(path.join(executables, command), 0o755);
         }
 
+        if (mode === 'stored-head') {
+          const remote = path.join(executables, 'remote.git');
+          git('init', '--bare', remote);
+          git('remote', 'add', 'origin', remote);
+          const dir = path.join(executables, 'stored');
+          fs.mkdirSync(dir);
+          fs.writeFileSync(
+            path.join(dir, 'home@1280.json'),
+            JSON.stringify({
+              defaults: {},
+              states: {},
+              elements: { body: { tag: 'body', cls: '', style: { color: 'green' } } },
+            }),
+          );
+          writeMapManifest({ cwd: repo, dir, spec: 'e2e/styleproof.spec.ts', screenshots: false, dirty: false });
+          await publishMapBundle({ cwd: repo, dir });
+        }
+
         const before = git('status', '--porcelain');
         const head = git('rev-parse', 'HEAD');
 
@@ -86,41 +118,57 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
 
         assert.equal(
           result.status,
-          mode === 'SIGINT' ? 130 : mode === 'SIGTERM' ? 143 : mode === 'success' ? 1 : 2,
+          mode.endsWith('SIGINT')
+            ? 130
+            : mode.endsWith('SIGTERM')
+              ? 143
+              : ['success', 'stored-head'].includes(mode)
+                ? 1
+                : 2,
           result.stderr,
         );
 
         if (captureBase) {
-          assert.match(result.stderr, /base restore failed:.*git remote origin was not found.*capturing/s);
+          assert.match(result.stderr, /base restore failed:.*capturing/s);
 
           if (mode === 'install-failure') {
             assert.match(result.stderr, /fixture install diagnostic/);
             assert.match(result.stderr, /npm ci.*exit 1/);
           }
 
-          if (mode.startsWith('SIG')) {
-            assert.match(result.stderr, /capture interrupted by SIG/);
+          assert.doesNotMatch(result.stderr, /Or rerun with --capture-base/);
+
+          if (mode.includes('SIG')) {
+            assert.match(result.stderr, /(?:capture|install) interrupted by SIG/);
             assert.equal(fs.readFileSync(log, 'utf8').includes('"side":"head"'), false);
-          } else if (mode !== 'success')
+          } else if (!['success', 'stored-head'].includes(mode))
             assert.match(
               result.stderr,
               new RegExp(`base ${mode.endsWith('install-failure') ? 'install' : 'capture'} failed.*\\.worktrees/`, 's'),
             );
           else {
             assert.match(result.stdout, /red/);
-            assert.match(result.stdout, /blue/);
+            assert.match(result.stdout, mode === 'stored-head' ? /green/ : /blue/);
             const calls = fs.readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse);
             const base = calls.find((call) => call.command === 'playwright' && call.side === 'base');
             assert.ok(base.cwd.startsWith(path.join(fs.realpathSync(repo), '.worktrees') + path.sep));
             assert.equal(base.sha, baseSha);
             assert.equal(calls.find((call) => call.command === 'npm').cwd, base.cwd);
             assert.equal(base.dirty, false);
-            assert.equal(calls.find((call) => call.side === 'head').cwd, fs.realpathSync(repo));
-            assert.equal(calls.find((call) => call.side === 'head').dirty, true);
-            assert.deepEqual(calls.find((call) => call.side === 'head').worktrees, []);
+
+            if (mode === 'stored-head') {
+              assert.equal(
+                calls.some((call) => call.side === 'head'),
+                false,
+              );
+            } else {
+              assert.equal(calls.find((call) => call.side === 'head').cwd, fs.realpathSync(repo));
+              assert.equal(calls.find((call) => call.side === 'head').dirty, true);
+              assert.deepEqual(calls.find((call) => call.side === 'head').worktrees, []);
+            }
           }
 
-          assert.deepEqual(fs.readdirSync(path.join(repo, '.worktrees')), []);
+          assert.equal(fs.existsSync(path.join(repo, '.worktrees')), false);
         } else {
           assert.match(result.stderr, /cached maps are not available/);
           assert.equal(fs.existsSync(log), false);
@@ -139,5 +187,18 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
     }
+  });
+}
+
+for (const command of ['diff', 'report']) {
+  test(`${command} rejects --capture-base with explicit directories`, () => {
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve(`bin/styleproof-${command}.mjs`), '.', '.', '--capture-base'],
+      { encoding: 'utf8' },
+    );
+
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /--capture-base.*(?:baseRef|cached)/);
   });
 }

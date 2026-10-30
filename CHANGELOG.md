@@ -10,6 +10,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).
+  Install/capture child interrupts exit 130/143 and clean up; the flag rejects two explicit directories.
 
 ### Fixed
 

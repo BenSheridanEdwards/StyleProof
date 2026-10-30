@@ -93,6 +93,8 @@ function captureSource(name, opts) {
 
 /** The capture dirs (restored or explicit), trusted SHAs, and armed ledgers a compare needs. Exits 2 on usage problems. */
 export function resolveCompareInputs(name, { opts, args, purpose, usage }) {
+  if (opts['capture-base'] && args.length > 1)
+    fail(name, '--capture-base requires cached mode with at most one baseRef');
   let config;
   let configDir;
   try {
@@ -161,23 +163,19 @@ function cachedDirs(name, opts, args, purpose, usage) {
       return process.exit(error.exitCode);
     }
 
-    console.error(cachedMapsUnavailableMessage(name, purpose, error, localCompareHint(args[0])));
+    console.error(
+      cachedMapsUnavailableMessage(name, purpose, error, {
+        ...localCompareHint(args[0]),
+        captureBase: opts['capture-base'],
+      }),
+    );
     return process.exit(2);
   }
 }
 
 /** Capture through the same spec path as the manual `styleproof capture` command. */
 function captureMissing(cwd, outDir, spec, side) {
-  if (side === 'base') {
-    const plan = detectPackageManagerPlan(cwd);
-    const result = spawnSync(plan.install[0], plan.install.slice(1), { cwd, stdio: ['ignore', 2, 2] });
-
-    if (result.status !== 0) {
-      throw new Error(
-        `base install failed in worktree ${cwd}: ${plan.install.join(' ')} (exit ${result.status}${result.signal ? `, signal ${result.signal}` : ''})${result.error ? `: ${result.error.message}` : ''}`,
-      );
-    }
-  }
+  if (side === 'base') installBase(cwd);
 
   const status = captureMap(
     'compare',
@@ -188,6 +186,21 @@ function captureMissing(cwd, outDir, spec, side) {
   if (status !== 0) {
     throw new Error(
       `${side} capture failed in ${side === 'base' ? 'worktree ' : ''}${cwd}: styleproof-map --spec ${spec} --base-dir ${path.dirname(outDir)} --dir ${path.basename(outDir)} (exit ${status})`,
+    );
+  }
+}
+
+function installBase(cwd) {
+  const plan = detectPackageManagerPlan(cwd);
+  const result = spawnSync(plan.install[0], plan.install.slice(1), { cwd, stdio: ['ignore', 2, 2] });
+
+  if (result.signal === 'SIGINT' || result.signal === 'SIGTERM') {
+    throw new ExitError(`install interrupted by ${result.signal}`, result.signal === 'SIGINT' ? 130 : 143);
+  }
+
+  if (result.status !== 0) {
+    throw new Error(
+      `base install failed in worktree ${cwd}: ${plan.install.join(' ')} (exit ${result.status}${result.signal ? `, signal ${result.signal}` : ''})${result.error ? `: ${result.error.message}` : ''}`,
     );
   }
 }

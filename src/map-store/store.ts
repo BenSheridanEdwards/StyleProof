@@ -395,22 +395,17 @@ export function resolveCachedCaptureDirs(
 
   let worktrees: CiWorktreeSession | undefined;
 
+  let createdParent: string | undefined;
+
   const cleanup = () => {
     worktrees?.dispose();
 
+    if (createdParent && fs.existsSync(createdParent) && fs.readdirSync(createdParent).length === 0) {
+      fs.rmdirSync(createdParent);
+    }
+
     if (options.captureMissing) git(cwd, ['worktree', 'prune']);
   };
-
-  const interrupted = (signal: NodeJS.Signals) => {
-    cleanup();
-    removeTempWorkspace(tmpRoot);
-    process.exit(signal === 'SIGINT' ? 130 : 143);
-  };
-
-  if (options.captureMissing) {
-    process.once('SIGINT', interrupted);
-    process.once('SIGTERM', interrupted);
-  }
 
   process.once('exit', cleanup);
 
@@ -421,7 +416,12 @@ export function resolveCachedCaptureDirs(
 
     if (options.captureMissing) {
       const parent = path.join(repoRoot, '.worktrees');
-      fs.mkdirSync(parent, { recursive: true });
+
+      if (!fs.existsSync(parent)) {
+        fs.mkdirSync(parent);
+        createdParent = parent;
+      }
+
       scratchParent = fs.mkdtempSync(path.join(parent, 'styleproof-base-'));
     }
 
@@ -445,11 +445,6 @@ export function resolveCachedCaptureDirs(
     throw error;
   } finally {
     process.removeListener('exit', cleanup);
-
-    if (options.captureMissing) {
-      process.removeListener('SIGINT', interrupted);
-      process.removeListener('SIGTERM', interrupted);
-    }
 
     cleanup();
   }

@@ -18,7 +18,11 @@ export function cachedMapsUnavailableMessage(
   command: string,
   purpose: string,
   error: unknown,
-  { baseRef = '<base-ref>', install = 'npm ci' }: { baseRef?: string; install?: string } = {},
+  {
+    baseRef = '<base-ref>',
+    install = 'npm ci',
+    captureBase = false,
+  }: { baseRef?: string; install?: string; captureBase?: boolean } = {},
 ): string {
   return [
     `${command}: cached maps are not available for this ${purpose} — nothing was compared`,
@@ -32,7 +36,7 @@ export function cachedMapsUnavailableMessage(
     `  npx ${command} .styleproof/maps/base .styleproof/maps/head`,
     "Stop any server already running on the app's port first: outside CI Playwright reuses it, so both",
     'captures would see the same build.',
-    'Or rerun with --capture-base to capture the base in a temporary worktree',
+    ...(captureBase ? [] : ['Or rerun with --capture-base to capture the base in a temporary worktree']),
     `Any two capture directories work: ${command} <beforeDir> <afterDir>.`,
   ].join('\n');
 }
