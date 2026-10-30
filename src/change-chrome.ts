@@ -95,3 +95,8 @@ export function classifyChrome<G extends { surfaces: string[]; findings: Finding
   }
   return { chrome, rest, chromePaths: paths };
 }
+
+/** Whether a captured element path includes a nav, header or footer tag. */
+export function isChromeLandmarkPath(path: string): boolean {
+  return path.split(' > ').some((segment) => /^(nav|header|footer)(?=[:.#[]|$)/.test(segment));
+}

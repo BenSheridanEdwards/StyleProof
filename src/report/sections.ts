@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { PNG } from 'pngjs';
+import { isChromeLandmarkPath } from '../change-chrome.js';
 import { captureKeysIn } from '../capture.js';
 import type { DiffCounts } from '../diff.js';
 import type { BaselineProvenance, SurfaceCaptureFailure } from '../map-store.js';
@@ -144,15 +145,15 @@ function renderOneSided(
 }
 
 /** The shared-chrome banner (#193), emitted once above the promoted groups. */
-function chromeCalloutLines(nChrome: number, chromeBases: number, totalBases: number): string[] {
+function chromeCalloutLines(nChrome: number, chromeBases: number, totalBases: number, landmark: boolean): string[] {
   return [
     '',
     '---',
     '',
     `## 🧱 Global chrome ${nChrome === 1 ? 'change' : 'changes'} — across ${chromeSpanLabel(chromeBases, totalBases)} captured surface base(s)`,
     '',
-    `_${nChrome} change(s) rode the shared frame (a persistent nav, header, or footer): ` +
-      `the affected element changed on every surface base that renders it, so it reads as ONE global change, not a ` +
+    `_${nChrome} change(s): the affected element changed on every surface base that renders it` +
+      `${landmark ? ' (inside a nav, header or footer)' : ''}, so it reads as ONE global change, not a ` +
       `per-view one. The detail is folded beneath — review it once._`,
   ];
 }
@@ -316,7 +317,14 @@ export function renderChangedSections(
   if (ordered.length > 0) out.md.append(['', '## Changes']);
   // The chrome banner rides on the first promoted group only.
   let banner =
-    groups.chrome.length > 0 ? chromeCalloutLines(groups.chrome.length, chromeSurfaceBases, totalSurfaceBases) : [];
+    groups.chrome.length > 0
+      ? chromeCalloutLines(
+          groups.chrome.length,
+          chromeSurfaceBases,
+          totalSurfaceBases,
+          groups.chrome.every((group) => group.findings.every((finding) => isChromeLandmarkPath(finding.path))),
+        )
+      : [];
   let totalFindings = 0;
   for (const group of ordered) {
     const rendered = renderChangeGroup(ctx, group, out.seq);
