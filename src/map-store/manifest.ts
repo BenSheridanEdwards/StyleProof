@@ -201,18 +201,19 @@ function collectOverlayHarnessEntries(
 /** Hash checkout bytes of the recursive colocated harness, excluding ignored outputs.
  * Always include the cwd config, including when the spec lives at the project root. */
 function harnessHash(cwd: string, spec: string, harnessFiles: readonly string[] = []): string {
+  const realCwd = fs.realpathSync(cwd);
   const directory = path.dirname(spec);
   const recursive = directory !== '.' && !spec.split(path.sep).includes('..');
-  const harnessDirectory = recursive ? realPath(path.resolve(cwd, directory)) : cwd;
-  const files = new Map([[(recursive ? path.basename(spec) : spec).replace(/\\/g, '/'), path.resolve(cwd, spec)]]);
+  const harnessDirectory = recursive ? realPath(path.resolve(realCwd, directory)) : realCwd;
+  const files = new Map([[(recursive ? path.basename(spec) : spec).replace(/\\/g, '/'), path.resolve(realCwd, spec)]]);
 
   if (recursive) {
     collectGitHarnessEntries(harnessDirectory, files);
-    collectOverlayHarnessEntries(cwd, harnessDirectory, files, harnessFiles);
+    collectOverlayHarnessEntries(realCwd, harnessDirectory, files, harnessFiles);
   }
 
-  const config = path.resolve(cwd, 'playwright.styleproof.config.ts');
-  files.set(path.relative(harnessDirectory, config).replace(/\\/g, '/'), config);
+  const config = path.resolve(realCwd, 'playwright.styleproof.config.ts');
+  files.set('<cwd>/playwright.styleproof.config.ts', config);
 
   return sha256(
     JSON.stringify(

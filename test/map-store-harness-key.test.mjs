@@ -88,3 +88,38 @@ test('ignored capture output stays stable; explicit overlays affect restore iden
 });
 
 test('unreadable gitlink uses a stable errno marker', (t) => checkScenario(t, 'gitlink'));
+
+test('checkout symlinks preserve config and explicit overlay restore identity', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-harness-link-'));
+  const cwd = path.join(root, 'repo');
+  const linked = path.join(root, 'linked');
+
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(cwd, 'e2e'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, 'e2e/styleproof.spec.ts'), 'export {};');
+  fs.writeFileSync(path.join(cwd, 'playwright.styleproof.config.ts'), 'export {};');
+  fs.writeFileSync(path.join(cwd, '.gitignore'), '*.ignored\n');
+  execFileSync('git', ['init', '--quiet', cwd]);
+  fs.symlinkSync(cwd, linked, 'dir');
+
+  const stamp = (checkout) =>
+    writeMapManifest({
+      cwd: checkout,
+      dir: path.join(root, 'manifest'),
+      spec: 'e2e/styleproof.spec.ts',
+      sha: 'a'.repeat(40),
+      dirty: false,
+      screenshots: false,
+      dirtyAllow: ['e2e/helper.ignored'],
+    });
+
+  const before = stamp(linked);
+
+  assert.equal(stamp(cwd).harnessHash, before.harnessHash);
+  fs.writeFileSync(path.join(cwd, 'e2e/helper.ignored'), 'export const overlay = true;');
+  const after = stamp(linked);
+
+  assert.equal(stamp(cwd).harnessHash, after.harnessHash);
+  assert.notEqual(before.harnessHash, after.harnessHash);
+  assert.equal(before.compatibilityKey, after.compatibilityKey);
+});
