@@ -759,6 +759,7 @@ Rules for this slice:
   targets still fail the capture with a privacy-safe `StateRecipeError` naming the action
   and stable recipe key, without the live target label. Author-written declared labels
   may appear in validation errors.
+  State recipe labels and stateKeys matching side-effect verbs (for example, `saved`, `submitted`, `cancel-dialog`, or `Confirm modal`) throw `StateRecipeError`. Rename these identities to describe the fixture state without a side-effect verb.
 - Stable keys come from declared `stateKey` / label / selector. Live accessible
   labels still feed the destructive-action guard (so a benign declared label
   cannot authorize a control whose live label is `Delete` / `Remove` / …).
@@ -1076,6 +1077,8 @@ styleproof-capture https://example.com --crawl \
 Empty exclusion reasons are rejected. Acknowledged exclusions keep status `incomplete-auth` and `certifiesFully: false` so a visual PASS is never confused with complete surface access. Programmatic consumers read `CrawlReport.confidence` from `crawlAndCapture`.
 
 ### Incomplete UI: blocked continuations fail closed
+
+The form-submit check is the main protection; it does not look inside shadow roots or detect click handlers that submit a form or send a request from script. The side-effect word list is a best-effort backstop and will always be incomplete. Form submits and Save/Cancel/Send/Confirm controls record `unsafe-control` skips. They can cause `styleproof-capture --crawl` to exit 6 unless the surface is acknowledged with a reason in `incompleteUiExclude`.
 
 A visually clean capture can still be incomplete when the page contains a form whose submitted state was never reached, an empty required field, a disabled/inert/`aria-disabled` control, a button blocked by `pointer-events: none`, a closed `details`/`aria-expanded="false"` disclosure, or a destructive-looking control the crawl refused to click (`destructive-label`). The crawl records these as privacy-safe structural reasons only. It never stores field values, labels, text content, names, cookies, tokens, or query strings. Hidden leftovers (`display: none`, `visibility: hidden`, or no layout box) are ignored. A skipped destructive-looking control also sets crawl confidence to `incomplete-unknown` (`certifiesFully: false`) when no auth boundary exists, even when the surface is acknowledged.
 

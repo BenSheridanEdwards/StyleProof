@@ -14,6 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **BREAKING (#1143):** discovery refuses submits and side-effect verbs. Recipe labels/stateKeys such as `saved`, `submitted`, `cancel-dialog`, and `Confirm modal` throw `StateRecipeError`; rename them to describe fixture state. Crawl records `unsafe-control` skips for submits and Save/Cancel/Send/Confirm; acknowledge exit 6 with a reasoned `incompleteUiExclude`. Popup capture refuses side-effect labels; re-capture the base to align renumbered `popup-XX` IDs.
 - Share tighter generated-ID rules between inventory and capture, preserving authored IDs; maps
   captured before this fix may show affected elements as moved once (#1154). The ten-character
   hex threshold preserves IDs such as `facade01`, but random hex IDs of 8–9 characters now key

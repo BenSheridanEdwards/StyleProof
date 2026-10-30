@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { detectOverlayCandidates } from '../dist/capture/browser.js';
+import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
 import { popupDomSnapshot } from '../dist/runner/browser.js';
 
 function fixture(copy, forbidText = false) {
@@ -48,9 +49,9 @@ function fixture(copy, forbidText = false) {
 }
 
 function snapshot(fn, args, copy = 'Private dialog copy', forbidText = false) {
-  return JSON.parse(
-    JSON.stringify(runInNewContext(`(${fn.toString()})(${JSON.stringify(args)})`, fixture(copy, forbidText))),
-  );
+  const input = JSON.stringify({ submitsFormSource: SUBMITS_FORM_SOURCE, ...args });
+
+  return JSON.parse(JSON.stringify(runInNewContext(`(${fn.toString()})(${input})`, fixture(copy, forbidText))));
 }
 
 test('overlay capture omits the text property without reading copy when disabled', () => {
@@ -172,3 +173,11 @@ test('popup default and explicit text mode preserve copy-based keys and labels',
   assert.equal(first.candidates[0].label, 'Private dialog copy');
   assert.notDeepEqual(first.keys, snapshot(popupDomSnapshot, args, 'Replacement copy').keys);
 });
+
+for (const label of ['Send', 'Delete', 'Pay']) {
+  test(`popup enumeration rejects ${label} even with private identities`, () => {
+    const result = snapshot(popupDomSnapshot, { ...privacyArgs, dangerSource: DANGER_SOURCE }, label);
+
+    assert.equal(result.candidates.length, 0);
+  });
+}
