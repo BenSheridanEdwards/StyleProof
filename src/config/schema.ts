@@ -89,6 +89,8 @@ export type StyleProofConfig = {
   dirtyAllow?: string[];
   /** Map store branch (default styleproof-maps). */
   cacheBranch?: string;
+  /** Capture missing compare maps locally; the base uses a temporary detached worktree. */
+  captureBase?: boolean;
   /** Git remote for the map store (default origin). */
   remote?: string;
   /** Subdirs with their own surfaces. */
@@ -182,6 +184,7 @@ const SCHEMA: Fields = {
   spec: string,
   dirtyAllow: stringArray,
   cacheBranch: string,
+  captureBase: boolean,
   remote: string,
   roots: stringArray,
   affected: block(

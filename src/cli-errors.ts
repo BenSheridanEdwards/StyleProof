@@ -32,6 +32,7 @@ export function cachedMapsUnavailableMessage(
     `  npx ${command} .styleproof/maps/base .styleproof/maps/head`,
     "Stop any server already running on the app's port first: outside CI Playwright reuses it, so both",
     'captures would see the same build.',
+    'or rerun with --capture-base to capture the base in a temporary worktree',
     `Any two capture directories work: ${command} <beforeDir> <afterDir>.`,
   ].join('\n');
 }

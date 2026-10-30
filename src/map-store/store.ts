@@ -357,6 +357,7 @@ export function resolveCachedCaptureDirs(
     spec: string;
     baseUrl?: string;
     usage: string;
+    captureMissing?: (cwd: string, outDir: string, spec: string, side: string) => void;
   },
 ): CachedCaptureDirs {
   const cwd = options.cwd ?? process.cwd();
@@ -373,22 +374,57 @@ export function resolveCachedCaptureDirs(
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const dirs = { beforeDir: path.join(tmpRoot, 'base'), afterDir: path.join(tmpRoot, 'head') };
 
-  const restore = (sha: string, outDir: string, key: string, probeCwd: string) =>
-    restoreMapBundle({
-      sha,
-      outDir,
-      branch: options.branch,
-      remote: options.remote,
-      gitTimeoutMs: options.gitTimeoutMs,
-      cwd,
-      compatibilityKey: key,
-      harnessHash: expectedHarnessHash({ cwd: probeCwd, spec }),
-    });
+  const restore = (sha: string, outDir: string, key: string, probeCwd: string, side: string) => {
+    try {
+      restoreMapBundle({
+        sha,
+        outDir,
+        branch: options.branch,
+        remote: options.remote,
+        gitTimeoutMs: options.gitTimeoutMs,
+        cwd,
+        compatibilityKey: key,
+        harnessHash: expectedHarnessHash({ cwd: probeCwd, spec }),
+      });
+    } catch (error) {
+      if (!options.captureMissing) throw error;
+      options.captureMissing(probeCwd, outDir, spec, side);
+    }
+  };
+
   let worktrees: CiWorktreeSession | undefined;
+
+  const cleanup = () => {
+    worktrees?.dispose();
+
+    if (options.captureMissing) git(cwd, ['worktree', 'prune']);
+  };
+
+  const interrupted = () => {
+    cleanup();
+    removeTempWorkspace(tmpRoot);
+    process.exit(2);
+  };
+
+  if (options.captureMissing) {
+    process.once('SIGINT', interrupted);
+    process.once('SIGTERM', interrupted);
+  }
+
+  process.once('exit', cleanup);
+
   try {
     const repoRoot = gitRepoRoot(cwd);
     const consumerRel = consumerRelativeFromRepoRoot(repoRoot, cwd);
-    worktrees = new CiWorktreeSession(repoRoot);
+    let scratchParent: string | undefined;
+
+    if (options.captureMissing) {
+      const parent = path.join(repoRoot, '.worktrees');
+      fs.mkdirSync(parent, { recursive: true });
+      scratchParent = fs.mkdtempSync(path.join(parent, 'styleproof-base-'));
+    }
+
+    worktrees = new CiWorktreeSession(repoRoot, scratchParent);
     const baseWorktree = worktrees.addDetached(baseSha, 'cache-base');
     const baseCwd = worktreeRunCwd(baseWorktree, consumerRel);
     restore(
@@ -396,14 +432,23 @@ export function resolveCachedCaptureDirs(
       dirs.beforeDir,
       expectedCompatibilityKey({ cwd: baseCwd, spec, baseUrl: options.baseUrl }),
       baseCwd,
+      'base',
     );
-    restore(headSha, dirs.afterDir, compatibilityKey, cwd);
+    restore(headSha, dirs.afterDir, compatibilityKey, cwd, 'head');
+
     return { ...dirs, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };
   } catch (error) {
     removeTempWorkspace(tmpRoot);
     throw error;
   } finally {
-    worktrees?.dispose();
+    process.removeListener('exit', cleanup);
+
+    if (options.captureMissing) {
+      process.removeListener('SIGINT', interrupted);
+      process.removeListener('SIGTERM', interrupted);
+    }
+
+    cleanup();
   }
 }
 

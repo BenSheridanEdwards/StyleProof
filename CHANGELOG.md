@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).
+
 ### Fixed
 
 - Count folded size/position rows and keep their values in report property details;

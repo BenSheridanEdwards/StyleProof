@@ -457,6 +457,11 @@ evidence cannot certify. Maps travel as **workflow artifacts** by default —
 never committed to the PR branch — or via the opt-in `styleproof-maps` store
 branch. Nothing under `.styleproof/` belongs in a commit.
 
+`compare --capture-base` opts into capturing missing maps locally. It installs dependencies
+and captures the base in a temporary detached worktree under `<repo>/.worktrees/`,
+then removes it; head is captured in the current checkout, preserving uncommitted edits.
+Stop any app server first so both captures use their own builds. The flag is off by default; `captureBase: true` in StyleProof config also enables it.
+
 `compare` restores the base map from the map store, so on a local checkout without
 one it stops and prints the local steps. Capture this checkout as head, then the
 base from a clean worktree, so uncommitted changes never leak into the base
