@@ -37,7 +37,7 @@ export const LEGACY_PAIRS_LEDGER = spec(
   'product-state acknowledgement',
   'styleproof.product-state.json',
   'STYLEPROOF_PRODUCT_STATE',
-  'pair with no product-state declared',
+  'product-state pair',
 );
 export const CRITICAL_STATES_LEDGER = spec(
   'critical-states obligation',

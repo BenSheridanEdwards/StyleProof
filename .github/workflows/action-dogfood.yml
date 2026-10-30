@@ -255,7 +255,7 @@ jobs:
         run: |
           test '${{ steps.legacy-undeclared.outcome }}' = 'failure'
           test '${{ steps.legacy-undeclared.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
-          grep -E 'pair with no product-state declared' styleproof-report/report.md
+          grep -E '⛔ .*[(]pair with no product-state declared[)]' styleproof-report/report.md
           grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
 
       - id: certfail

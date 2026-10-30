@@ -1,6 +1,6 @@
 ## 🗺️ StyleProof report
 
-⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared. The existing visual-review path is preserved, but this is not proof that both captures reached the same product state.
+⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
 ✓ No reviewable computed-style changes among semantically matched elements. See 1 advisory content/structure change(s) below.
 

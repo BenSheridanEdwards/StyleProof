@@ -305,7 +305,7 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     );
     assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
     const blockedMd = fs.readFileSync(path.join(undeclaredOut, 'report.md'), 'utf8');
-    assert.match(blockedMd, /pair with no product-state declared/);
+    assert.match(blockedMd, /⛔ .*\(pair with no product-state declared\)/);
     assert.match(blockedMd, /not a certified same-state compare|cannot certify|cannot be approved/);
 
     fs.writeFileSync(
