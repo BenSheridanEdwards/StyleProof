@@ -1,4 +1,5 @@
 import { formatSurfaceList, safeKey } from '../change-groups.js';
+import { derivedLonghandCount } from '../findings-clean.js';
 import { codeValue } from '../code-span.js';
 import { describeElement, tokenIndex } from '../describe.js';
 import type { OneSidedStatus } from './headline.js';
@@ -18,6 +19,7 @@ export type DigestRow = {
   elements: DigestElement[];
   /** Changed elements not listed in `elements`. */
   more: number;
+  foldedRows?: number;
 };
 
 const MAX_ROWS = 10;
@@ -50,7 +52,8 @@ function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow
       phrase: phrase.length > MAX_PHRASE ? 'restyled (too long to summarise here)' : phrase,
     };
   });
-  return {
+
+  const row: DigestRow = {
     surface: sd.surface,
     status: 'changed',
     ...(cg.surfaces.length > 1 ? { otherSurfaces: cg.surfaces.length - 1 } : {}),
@@ -58,6 +61,12 @@ function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow
     elements,
     more: els.length - elements.length,
   };
+
+  const foldedRows = derivedLonghandCount(cg.rep.folded ?? []);
+
+  if (foldedRows) row.foldedRows = foldedRows;
+
+  return row;
 }
 
 /** One-sided surfaces first (review first), then shared-chrome groups, then the rest. */
@@ -83,6 +92,9 @@ function rowLine(row: DigestRow): string {
       : surface;
   const parts = row.elements.map((e) => `**${codeValue(e.name)}** ${e.phrase}`);
   if (row.more > 0) parts.push(`+${row.more} more element(s)`);
+
+  if (row.foldedRows) parts.push(`+${row.foldedRows} size/position row${row.foldedRows === 1 ? '' : 's'} folded`);
+
   return `- ${where} — ${parts.join(' · ')}`;
 }
 

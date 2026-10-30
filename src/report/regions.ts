@@ -109,9 +109,13 @@ export function groupBySignature(ctx: RenderCtx, prepared: PreparedSurface[]): C
     if (!s) scores.set(p.sd.surface, (s = representativeScore(ctx, p)));
     return s;
   };
-  return groupByWidth(prepared.map((p) => ({ surface: p.sd.surface, findings: p.findings }))).map((g) => {
+
+  const signatures = prepared.map((p) => ({ surface: p.sd.surface, findings: p.findings, folded: p.folded }));
+
+  return groupByWidth(signatures).map((g) => {
     const members = g.surfaces.map((s) => bySurface.get(s)!);
     const rep = members.reduce((best, p) => (isBetterRepresentative(score(p), score(best)) ? p : best));
+
     return { surfaces: g.surfaces, rep, findings: g.findings };
   });
 }
@@ -144,6 +148,7 @@ type RegionArgs = {
   seq: { crop: number };
   /** Sibling spacing changes whose run this region shows (#755). */
   spacing: SiblingSpacingChange[];
+  changes: (findings: Finding[]) => string[];
 };
 
 type CropPack = {
@@ -198,7 +203,8 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     const sf = regionFindings.filter((f) => f.kind === 'state' && f.state === state);
     if (!sf.length) continue;
     const headingFindings = firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
-    md.push('', `### ${regionHeading(a.g.paths, headingFindings)} \`:${state}\``, '', a.surfaceList);
+    const heading = headingFindings.filter((f) => a.cg.rep.findings.includes(f));
+    md.push('', `### ${regionHeading(a.g.paths, heading)} \`:${state}\``, '', a.surfaceList);
     md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
     const glance = propertyGlanceLine(sf);
     if (glance) md.push('', glance);
@@ -210,7 +216,8 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     } else {
       md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
     }
-    md.push(...renderCropChanges(sf, a.ctx.foldDetailsAt, a.describeCtx));
+
+    md.push(...a.changes(sf));
   }
   return { md, stateImages };
 }
@@ -225,35 +232,50 @@ type RestingSection = { md: string[]; pack: CropPack; trailing: string[] };
  */
 function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean): RestingSection {
   if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
-  const md = ['', `### ${regionHeading(a.g.paths, cropFindings)}`, '', a.surfaceList];
+  const heading = cropFindings.filter((f) => a.cg.rep.findings.includes(f));
+  const md = ['', `### ${regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
   const glance = propertyGlanceLine(cropFindings);
   if (glance) md.push('', glance);
   md.push(...spacingLines(a.spacing));
   const pack = regionCrop(a, cropFindings, a.pngs);
-  md.push(...pack.md, ...renderCropChanges(cropFindings, a.ctx.foldDetailsAt, a.describeCtx));
+  md.push(...pack.md, ...a.changes(cropFindings));
   return { md, pack, trailing: [] };
+}
+
+function regionVisibility(cg: ChangeGroup, regionFindings: Finding[]) {
+  const shown = new Set(cg.rep.findings);
+  const rest = regionFindings.filter((f) => f.kind !== 'state');
+  const shownRest = rest.filter((f) => shown.has(f));
+  const hasDom = regionFindings.some((f) => f.kind === 'dom');
+  const stateOnly = !hasDom && shownRest.length === 0 && regionFindings.some((f) => f.kind === 'state');
+
+  return { rest, shownRest, hasDom, stateOnly };
 }
 
 /** One crop region: heading, resting crop, then each forced-state crop. */
 function renderRegion(a: RegionArgs) {
-  const { g, cg, ctx, describeCtx, surfaceList, region, pngs } = a;
-  const regionFindings = cg.rep.findings.filter((f) => g.paths.some((root) => isSameOrDescendant(f.path, root)));
-  const rest = regionFindings.filter((f) => f.kind !== 'state');
-  const hasDom = regionFindings.some((f) => f.kind === 'dom');
-  const stateOnly = !hasDom && rest.length === 0 && regionFindings.some((f) => f.kind === 'state');
+  const { g, cg, surfaceList, region, pngs } = a;
+
+  const regionFindings = [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
+    g.paths.some((root) => isSameOrDescendant(f.path, root)),
+  );
+
+  const { rest, shownRest, hasDom, stateOnly } = regionVisibility(cg, regionFindings);
   const md: string[] = [];
   const cropFindings = hasDom ? regionFindings : rest;
-  const section = restingSection(a, cropFindings, !stateOnly && cropFindings.length > 0);
+  const section = restingSection(a, cropFindings, !stateOnly && shownRest.length > 0);
   const resting = section.pack;
   md.push(...section.md);
   const states = hasDom ? { md: [], stateImages: {} } : stateSections(a, regionFindings, stateOnly);
   md.push(...states.md);
+
+  if (stateOnly && rest.length) md.push(...a.changes(rest));
   const images = stateOnly && !resting.images.composite ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
   if (!md.length) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
     const note = cropNote(region, ...pngs);
     if (note) md.push('', note);
-    md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
+    md.push(...a.changes(regionFindings));
   }
   md.push(...section.trailing);
   const { visualEvidence, reason } = resting;
@@ -284,6 +306,18 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   // Same correspondence rewrite as prepareReportSurfaces, so crops resolve corresponded head paths.
   const [mapA, mapB] = presentationMaps(ctx, sd.surface);
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
+  const folded = cg.rep.folded ?? [];
+
+  const shownSet = new Set(findings);
+  const foldedSet = new Set(folded);
+
+  const changes = (shown: Finding[]): string[] =>
+    renderCropChanges(
+      shown.filter((f) => shownSet.has(f)),
+      ctx.foldDetailsAt,
+      describeCtx,
+      shown.filter((f) => foldedSet.has(f)),
+    );
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);
   const findingCount = findings.length;
@@ -294,6 +328,13 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
   const pngs = screenshotPair(ctx, sd.surface);
+
+  if (!findings.length && folded.length) {
+    const label = regionHeading([...new Set(folded.map((f) => f.path))], folded, true);
+    const md = ['', `### ${label}`, '', surfaceList, ...changes(folded)];
+
+    return { md, json, findingCount };
+  }
   if (
     !hasExposedChangedEntry(mapA, mapB, changedPaths, pngs) &&
     !STATE_LAYER_NAMES.some((state) => {
@@ -316,7 +357,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
         `_${reason}_`,
         ...spacingLines(spacing),
         '',
-        ...renderCropChanges(findings, ctx.foldDetailsAt, describeCtx),
+        ...changes([...findings, ...folded]),
       ],
       json: {
         ...json,
@@ -336,13 +377,21 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const rendered = groups.map((g) => {
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(spacing, g.paths, claimed);
-    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own });
+
+    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own, changes });
   });
   const regions = rendered.map((r) => r.regionJson);
+  // Keep reflow ancestors in one capped table outside the crop budget.
+  const outside = folded.filter((f) => !groups.some((g) => g.paths.some((root) => isSameOrDescendant(f.path, root))));
+
+  const outsideMd = outside.length
+    ? ['', '### Folded size/position rows outside the crops', '', surfaceList, ...changes(outside)]
+    : [];
+
   // A changed run no crop region shows is still named, once, under the group.
   const unclaimed = spacing.filter((change) => !claimed.has(change));
   return {
-    md: [...rendered.flatMap((r) => r.md), ...spacingLines(unclaimed)],
+    md: [...rendered.flatMap((r) => r.md), ...outsideMd, ...spacingLines(unclaimed)],
     json: { ...json, regions, ...spacingJson(unclaimed), classification: sd.classification },
     findingCount,
   };

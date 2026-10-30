@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { foldedGeometryFindings } from './report/markdown.js';
 import { createCropBudget } from './report/crop-budget.js';
 import type { ChangeReachLevel } from './config.js';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
@@ -281,9 +282,12 @@ function prepareReportSurfaces(
       const [before, after] = [ctx.load(ctx.beforeDir, sd.surface), ctx.load(ctx.afterDir, sd.surface)];
       const corresponded = presentationDiffStyleMaps(before, after, { includeStructure });
       const focused = ctx.includeNoise ? corresponded : cleanFindingsForDisplay(corresponded);
-      return { sd, findings: dropDeclaredLiveTextGeometry(focused, ctx.liveText, sd.surface) };
+      const findings = dropDeclaredLiveTextGeometry(focused, ctx.liveText, sd.surface);
+      const raw = dropDeclaredLiveTextGeometry(corresponded, ctx.liveText, sd.surface);
+
+      return { sd, findings, folded: foldedGeometryFindings(raw, findings) };
     })
-    .filter((s) => s.sd.missing || s.findings.length > 0);
+    .filter((s) => s.sd.missing || s.findings.length > 0 || (s.folded?.length ?? 0) > 0);
 }
 
 /** With layout noise included, raw-only is not a consistency failure; otherwise keep the fail-closed truth. */
@@ -383,7 +387,7 @@ function presentSurfaces(
   const paired = prepared.filter((s) => !s.sd.missing);
   const certifyingReceipts = new Map(gates.comparability.map((entry) => [entry.surface, entry]));
   const certifyingShown = paired.filter(
-    (s) => !nonCertifying(certifyingReceipts.get(s.sd.surface), ctx.requireStateIdentity),
+    (s) => s.findings.length > 0 && !nonCertifying(certifyingReceipts.get(s.sd.surface), ctx.requireStateIdentity),
   ).length;
   const changeGroups = groupBySignature(ctx, paired);
   const chrome = classifyChrome(changeGroups, surfacePaths, surfaceKeyOf);

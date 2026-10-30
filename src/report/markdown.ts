@@ -1,4 +1,5 @@
 import type { Finding, PropChange } from '../diff.js';
+import { derivedLonghandCount } from '../findings-clean.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import { describeChange, toHex, type DescribeCtx, type ElementChange } from '../describe.js';
 import {
@@ -172,15 +173,18 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
 }
 
 /** Each changed element once, identical siblings collapsed into one `×N` block. */
-function renderElements(findings: Finding[], maxElements = 40): string[] {
-  const bySig = new Map<string, { head: string; body: string[]; count: number }>();
+function renderElements(findings: Finding[], maxElements = 40, folded = false): string[] {
+  const bySig = new Map<string, { head: string; body: string[]; count: number; rows: number }>();
   for (const group of groupByPath(findings)) {
     const el = renderOneElement(group);
     if (!el) continue;
     const sig = `${el.head}\n${el.body.join('\n')}`;
     const seen = bySig.get(sig);
-    if (seen) seen.count++;
-    else bySig.set(sig, { ...el, count: 1 });
+
+    if (seen) {
+      seen.count++;
+      seen.rows += derivedLonghandCount(group);
+    } else bySig.set(sig, { ...el, count: 1, rows: derivedLonghandCount(group) });
   }
   const blocks = [...bySig.values()];
   const out: string[] = [];
@@ -188,7 +192,9 @@ function renderElements(findings: Finding[], maxElements = 40): string[] {
     if (i >= maxElements) {
       out.push(
         '',
-        `_…and ${blocks.length - i} more element(s) — see report.json (subject to its findings cap), or the original diff input._`,
+        folded
+          ? `_…and ${blocks.slice(i).reduce((n, b) => n + b.rows, 0)} more size/position rows folded._`
+          : `_…and ${blocks.length - i} more element(s) — see report.json (subject to its findings cap), or the original diff input._`,
       );
       break;
     }
@@ -233,20 +239,59 @@ export function buildElementChanges(findings: Finding[]): ElementChange[] {
   });
 }
 
+/** Rows folded by presentation cleanup, using the CLI's summarised longhand counting. */
+export function foldedGeometryFindings(raw: Finding[], shown: Finding[]): Finding[] {
+  const identity = (f: Finding) =>
+    JSON.stringify([f.path, f.kind, f.kind === 'state' ? [f.state, f.sub] : f.kind === 'style' ? f.pseudo : '']);
+
+  const visible = new Map(
+    shown.flatMap((f): [string, Set<string>][] =>
+      f.kind === 'dom' ? [] : [[identity(f), new Set(summarizeProps(f.props).map((p) => p.prop))]],
+    ),
+  );
+
+  return raw.flatMap((f): Finding[] => {
+    if (f.kind === 'dom') return [];
+
+    const props = summarizeProps(f.props).filter(
+      (p) => !visible.get(identity(f))?.has(p.prop) && derivedLonghandCount([{ ...f, props: [p] }]) > 0,
+    );
+
+    return props.length ? [{ ...f, props }] : [];
+  });
+}
+
 /** A crop's changes: property tables, folded under plain-English bullets once they
- *  reach `foldAt` rows (≤ 0 folds always, Infinity never). */
-export function renderCropChanges(findings: Finding[], foldAt: number, ctx: DescribeCtx): string[] {
+ *  reach `foldAt` rows (≤ 0 folds always, Infinity never), or contain folded geometry. */
+export function renderCropChanges(
+  findings: Finding[],
+  foldAt: number,
+  ctx: DescribeCtx,
+  folded: Finding[] = [],
+): string[] {
   const tables = renderElements(findings);
-  if (!tables.length) return [];
+
+  if (!tables.length && !folded.length) return [];
   const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
-  if (rows < foldAt) return tables;
+  const foldedCount = derivedLonghandCount(folded);
+
+  if (rows < foldAt && !foldedCount) return tables;
+  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded, 40, true)] : [];
   const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
-  return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`, ...tables, '', '</details>'];
+
+  if (foldedCount) {
+    summary[summary.length - 1] += ` (+${foldedCount} size/position row${foldedCount === 1 ? '' : 's'} folded)`;
+  }
+
+  return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`].concat(tables, foldedTables, [
+    '',
+    '</details>',
+  ]);
 }
 
 /** A crop's heading: human label, selector, then what happened inside it. */
-export function regionHeading(regionPaths: string[], findings: Finding[]): string {
+export function regionHeading(regionPaths: string[], findings: Finding[], foldedOnly = !findings.length): string {
   const anchors = [...regionPaths].sort((a, b) => a.split(' > ').length - b.split(' > ').length);
   const cls = findings.find((f) => f.path === anchors[0])?.cls ?? '';
   const selector = prettyLabel(anchors[0] ?? '', cls);
@@ -256,5 +301,6 @@ export function regionHeading(regionPaths: string[], findings: Finding[]): strin
       ? `**${escapeInlineMarkdown(human)}** ${codeValue(selector)}`
       : codeValue(selector);
   const label = anchors.length > 1 ? `${named} + ${anchors.length - 1} more` : named;
-  return `${label} · ${groupTitle(findings)}`;
+
+  return `${label} · ${foldedOnly ? 'size/position rows folded' : groupTitle(findings)}`;
 }

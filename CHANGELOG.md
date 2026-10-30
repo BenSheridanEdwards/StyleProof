@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Count folded size/position rows and keep their values in report property details;
+  crops with folded geometry now render collapsed, and surfaces differing only by
+  folded geometry no longer group as identical (#1140).
 - Omit overlay text and popup copy from maps and popup identities when `captureText: false` (#1142).
 - Show restyles on content-shifted elements using the certifier's pairing in reports (#1141).
 - Record and warn when settling times out with requests in flight (#1139).
