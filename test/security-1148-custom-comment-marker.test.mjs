@@ -80,6 +80,8 @@ for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'exampl
       };
       github.paginate = async (method, parameters) => (await method(parameters)).data;
       const previous = { ...process.env };
+      process.env.STYLEPROOF_RUN_ATTEMPT = '1';
+      process.env.STYLEPROOF_TRIGGERING_ACTOR = 'reviewer';
       process.env.STYLEPROOF_STATUS_CONTEXT = 'StyleProof';
       process.env.STYLEPROOF_COMMENT_MARKER = marker;
       try {
@@ -88,7 +90,12 @@ for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'exampl
           payload: { issue: { number: 7 }, comment, sender: { login: 'reviewer' } },
         });
       } finally {
-        for (const key of ['STYLEPROOF_STATUS_CONTEXT', 'STYLEPROOF_COMMENT_MARKER']) {
+        for (const key of [
+          'STYLEPROOF_STATUS_CONTEXT',
+          'STYLEPROOF_COMMENT_MARKER',
+          'STYLEPROOF_RUN_ATTEMPT',
+          'STYLEPROOF_TRIGGERING_ACTOR',
+        ]) {
           if (previous[key] === undefined) delete process.env[key];
           else process.env[key] = previous[key];
         }
