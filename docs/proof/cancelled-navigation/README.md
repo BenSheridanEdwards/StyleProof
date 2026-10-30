@@ -36,8 +36,7 @@ self-checked` is controlled fixture ledger metadata, not a claim that a consumer
 capture was self-checked. No expected surface registry, inventory or product-state
 identity is asserted.
 
-All warnings are retained in the report and screenshot: legacy product-state
-identity is unproven, coverage/confidence are unasserted, inventory is not checked,
+All warnings are retained in the report and screenshot: pair with no product-state declared, coverage/confidence are unasserted, inventory is not checked,
 and content/structure is not evaluated. The no-style-change line describes only
 the supplied empty computed-style maps; it does not negate the failed API line
 or certify the fixture. `after-report.png` shows the generated report with Evidence

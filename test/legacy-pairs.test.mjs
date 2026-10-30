@@ -102,7 +102,7 @@ test('readLegacyPairsAckFile: missing explicit file fails closed; present file d
   try {
     assert.throws(
       () => readLegacyPairsAckFile(path.join(dir, 'missing.json')),
-      /legacy product-state declare file is required/,
+      /product-state acknowledgement file is required/,
     );
     const file = path.join(dir, LEGACY_PAIRS_ACK_FILE);
     fs.writeFileSync(file, JSON.stringify({ home: 'known demo shell' }));
