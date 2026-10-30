@@ -38,7 +38,13 @@ import {
   storeTarget,
   workflowTokenCredentialArguments,
 } from './git-transport.js';
-import { type MapManifest, currentGitSha, expectedCompatibilityKey, readMapManifest } from './manifest.js';
+import {
+  type MapManifest,
+  currentGitSha,
+  expectedCompatibilityKey,
+  expectedHarnessHash,
+  readMapManifest,
+} from './manifest.js';
 
 /** The commit subject `map-store-prune` parses bundle dates from. */
 export const mapPublishCommitMessage = (sha: string, compatibilityKey: string): string =>
@@ -213,7 +219,7 @@ type RestoreAttempt =
   | { status: 'miss'; message: string; coldReason: MissColdReason }
   | { status: 'infra'; message: string };
 
-type RestoreRequest = StoreTarget & { sha: string; compatibilityKey?: string; outDir: string };
+type RestoreRequest = StoreTarget & { sha: string; compatibilityKey?: string; harnessHash?: string; outDir: string };
 
 const miss = (message: string, coldReason: MissColdReason = 'no_bundle'): RestoreAttempt => ({
   status: 'miss',
@@ -221,7 +227,10 @@ const miss = (message: string, coldReason: MissColdReason = 'no_bundle'): Restor
   coldReason,
 });
 
-function copyRestoredBundle(tmp: string, { sha, branch, compatibilityKey, outDir }: RestoreRequest): RestoreAttempt {
+function copyRestoredBundle(
+  tmp: string,
+  { sha, branch, compatibilityKey, harnessHash, outDir }: RestoreRequest,
+): RestoreAttempt {
   const shaDir = path.join(tmp, sha);
   if (!fs.existsSync(shaDir)) return miss(`no cached map for ${sha} on ${branch}`, 'no_bundle');
   const candidates = fs
@@ -240,6 +249,10 @@ function copyRestoredBundle(tmp: string, { sha, branch, compatibilityKey, outDir
   const bundleDir = path.join(shaDir, candidates[0]);
   const manifest = readMapManifest(bundleDir);
   if (!manifest) return miss(`cached map for ${sha} is missing ${MAP_MANIFEST}`, 'no_bundle');
+
+  if (harnessHash !== undefined && manifest.harnessHash !== harnessHash) {
+    return miss(`cached map for ${sha} has a different harness`, 'compat_mismatch');
+  }
   // cpSync refuses a symlinked destination, so clear and copy the folder it names on disk (#1065).
   const resolvedOutDir = path.resolve(outDir);
   const dest = fs.existsSync(resolvedOutDir) ? fs.realpathSync.native(resolvedOutDir) : resolvedOutDir;
@@ -270,6 +283,7 @@ export function restoreMapBundle(
     sha: string;
     outDir: string;
     compatibilityKey?: string;
+    harnessHash?: string;
   },
 ): MapManifest {
   const target = storeTarget(options);
@@ -283,6 +297,7 @@ export function restoreMapBundle(
       sha,
       compatibilityKey: compatibilityKey || undefined,
       outDir: options.outDir,
+      harnessHash: options.harnessHash,
     });
     if (result.status === 'hit') return { value: result.manifest };
     // A genuine miss is terminal — the cold path recaptures. Only infra faults retry.
@@ -357,7 +372,8 @@ export function resolveCachedCaptureDirs(
   const compatibilityKey = expectedCompatibilityKey({ cwd, spec, baseUrl: options.baseUrl });
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const dirs = { beforeDir: path.join(tmpRoot, 'base'), afterDir: path.join(tmpRoot, 'head') };
-  const restore = (sha: string, outDir: string, key: string) =>
+
+  const restore = (sha: string, outDir: string, key: string, probeCwd: string) =>
     restoreMapBundle({
       sha,
       outDir,
@@ -366,6 +382,7 @@ export function resolveCachedCaptureDirs(
       gitTimeoutMs: options.gitTimeoutMs,
       cwd,
       compatibilityKey: key,
+      harnessHash: expectedHarnessHash({ cwd: probeCwd, spec }),
     });
   let worktrees: CiWorktreeSession | undefined;
   try {
@@ -374,8 +391,13 @@ export function resolveCachedCaptureDirs(
     worktrees = new CiWorktreeSession(repoRoot);
     const baseWorktree = worktrees.addDetached(baseSha, 'cache-base');
     const baseCwd = worktreeRunCwd(baseWorktree, consumerRel);
-    restore(baseSha, dirs.beforeDir, expectedCompatibilityKey({ cwd: baseCwd, spec, baseUrl: options.baseUrl }));
-    restore(headSha, dirs.afterDir, compatibilityKey);
+    restore(
+      baseSha,
+      dirs.beforeDir,
+      expectedCompatibilityKey({ cwd: baseCwd, spec, baseUrl: options.baseUrl }),
+      baseCwd,
+    );
+    restore(headSha, dirs.afterDir, compatibilityKey, cwd);
     return { ...dirs, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };
   } catch (error) {
     removeTempWorkspace(tmpRoot);
