@@ -33,8 +33,8 @@ Receipts contain only the capture key, status, required bit, and a bounded reaso
 - Comparable findings may become reviewable evidence.
 - Incomparable findings remain raw diagnostic evidence but are not approvable.
 - If either side declares identity, missing identity on the other side is required-unproven and non-certifying.
-- `--require-state-identity` makes undeclared legacy pairs globally required-unproven.
-- `styleproof.product-state.json` (`{"<surface>": "<why>"}`) is the inventory/residue twin for **known-legacy** pairs. When that file is present — or passed as `--legacy-pairs` / `$STYLEPROOF_PRODUCT_STATE` / `productState.legacyPairs` — undeclared unproven pairs fail closed. Declared pairs stay advisory and **never certify**. In an unbound two-directory run (no `--expected-*-sha`), `styleproof-diff` and `styleproof-report` still list an undeclared pair's changes under the non-certifying banner, as they do for a declared pair; the verdict, exit code and certification receipts are unchanged, and `--require-state-identity` or a failing critical obligation still hides them. A stale declaration fails like an inventory acknowledgement. Matching `productState {id, revision}` remains the only certifying declare path.
+- `--require-state-identity` makes pairs with no product-state declared globally required-unproven.
+- `styleproof.product-state.json` (`{"<surface>": "<why>"}`) is the inventory/residue twin for **pairs with no product-state declared**. When that file is present — or passed as `--legacy-pairs` / `$STYLEPROOF_PRODUCT_STATE` / `productState.legacyPairs` — undeclared unproven pairs fail closed. Declared pairs stay advisory and **never certify**. In an unbound two-directory run (no `--expected-*-sha`), `styleproof-diff` and `styleproof-report` still list an undeclared pair's changes under the non-certifying banner, as they do for a declared pair; the verdict, exit code and certification receipts are unchanged, and `--require-state-identity` or a failing critical obligation still hides them. A stale declaration fails like an inventory acknowledgement. Matching `productState {id, revision}` remains the only certifying declare path.
 - New or removed surfaces remain `not-required` for pairwise comparison, while existing new/removal gates still apply.
 - `styleproof.critical-states.json` (`{"<surface>": {"owner": "...", "reason": "..."}}`) is the inverse declare file for **critical** obligations (#442). When armed — present by default, or passed as `--critical-states` / `$STYLEPROOF_CRITICAL_STATES` / `productState.critical` — a declared ID must produce certifying evidence: unproven or incomparable pairs fail closed, IDs with no paired evidence (lost capture, removed surface, or unknown ID) fail closed, and IDs that are also coverage-excluded are contradictory policy and fail closed. Obligations only tighten; they never downgrade integrity, comparability, or evidence failures, and they manufacture no score or denominator.
 - CLI, JSON, report, composite Action, commit status, and exit code must use the same comparison truth.
@@ -66,7 +66,7 @@ upward config discovery cannot inherit a future stale live-ledger declaration
 against identity-stamped contract maps. It still proves undeclared →
 `CERTIFICATION_FAILED` and declared → advisory.
 
-To inventory known-legacy pairs **without** claiming identity yet (the large-undeclared-pair case):
+To inventory pairs with no product-state declared **without** claiming identity yet (the large-undeclared-pair case):
 
 1. Add `styleproof.product-state.json` at the repo root:
 

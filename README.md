@@ -561,8 +561,8 @@ report leads with their verdicts:
   Opt down with `dataResidue: 'warn'`. See
   [Failed data request](docs/REFERENCE.md#failed-data-request-a-failed-api-call-is-named-not-swallowed).
 - **Product-state identity** — a pair with matching `productState {id, revision}`
-  is comparable and can certify (the only certifying path). Undeclared legacy
-  pairs stay on the visual-review path until you arm the declare gate: add
+  is comparable and can certify (the only certifying path). Pairs with no declared product state
+  stay on the visual-review path until you arm the declare gate: add
   `styleproof.product-state.json` (`{"<surface>": "<why>"}`), pass
   `--legacy-pairs`, or set `productState.requireIdentity: true` /
   `--require-state-identity`. StyleProof's own live dogfood stamps `home@*`
