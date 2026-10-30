@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
+import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import { captureStyleMap } from '../dist/capture.js';
 import {
   capturePage,
@@ -1043,7 +1044,7 @@ test('forced-state snapshots reject adopted-sheet replacement while frozen', () 
 
 test('forced-state snapshots reject adopted-sheet replacement during a read', () => {
   const { document, run } = capturePageHarness();
-  run(injectPathOf);
+  run(injectPathOf, GENERATED_ID_SOURCES);
   run(freezeMotion, '*,*::before,*::after{animation:none!important;transition:none!important}');
   document.body.querySelectorAll = () => [];
   document.querySelector = () => {
