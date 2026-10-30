@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Show restyles on content-shifted elements using the certifier's pairing in reports (#1141).
 - Record and warn when settling times out with requests in flight (#1139).
 - Scope each HAR to one capture (load, self-check, screenshots, popups) or detection; drain late responses for up to 2 s (#1138).
 - Drain timed-out surface work before reusing its page in crawl and auto-width sweeps; stop the sweep if it stays active, while own-page timeouts remain tolerable (#1137).

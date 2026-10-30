@@ -171,6 +171,7 @@ export function correspondContentShiftedPaths(before: StyleMap, after: StyleMap)
     ownTextAnchors(before, after).flatMap(([beforePath, afterPath]) => (beforePath === afterPath ? [beforePath] : [])),
   );
   const shifted = correspondingPathsByContentSignature(before, after, identified, inPlace);
+
   return applyPathMoves(before, new Map([...shifted, ...identified]));
 }
 
@@ -374,10 +375,11 @@ function ownTextIdentityMoves(before: StyleMap, after: StyleMap): Map<string, st
   );
 }
 
-/** Presentation: own-text identity, then geometry; a shifted sibling without either still shows as one-sided. */
+/** Presentation shares every certifier content shift, then applies broader geometry pairing. */
 export function presentationBeforeMap(before: StyleMap, after: StyleMap): StyleMap {
-  const identified = applyPathMoves(before, ownTextIdentityMoves(before, after));
-  return remapBeforeStyleMap(identified, correspondElementPaths(identified, after));
+  const shifted = correspondContentShiftedPaths(before, after);
+
+  return remapBeforeStyleMap(shifted, correspondElementPaths(shifted, after));
 }
 
 /** Certification: own-text identity and content shift first, then geometry among whatever is still one-sided. */
