@@ -9,6 +9,7 @@ export type PopupDomSnapshot = { keys: string[]; candidates: PopupCandidate[]; f
 export type PopupSnapshotArgs = {
   popupSelector: string;
   captureText?: boolean;
+  dangerSource?: string;
   triggerSelector?: string;
   attr?: string;
   max?: number;
@@ -21,6 +22,7 @@ export type PopupSnapshotArgs = {
 export function popupDomSnapshot({
   popupSelector,
   captureText = true,
+  dangerSource,
   triggerSelector,
   attr,
   max = 0,
@@ -66,13 +68,19 @@ export function popupDomSnapshot({
     return (hash >>> 0).toString(16).padStart(8, '0');
   };
   // Accessible name (aria-label, name, text, title) — same precedence as the crawlers.
-  const labelOf = (el: Element): string => {
+
+  const rawLabelOf = (el: Element): string => {
     const sources = [el.getAttribute('aria-label'), el.getAttribute('name'), el.textContent, el.getAttribute('title')];
     const own = clean(sources.find(Boolean) ?? null).slice(0, 80);
     const label = own || el.tagName.toLowerCase();
 
-    return captureText ? label : privateText(label);
+    return label;
   };
+
+  const labelOf = (el: Element): string => (captureText ? rawLabelOf(el) : privateText(rawLabelOf(el)));
+
+  const dangerous = (el: Element): boolean =>
+    Boolean(dangerSource && new RegExp(dangerSource, 'i').test(rawLabelOf(el)));
   const KEY_ATTRS = [
     'role',
     'aria-modal',
@@ -110,7 +118,7 @@ export function popupDomSnapshot({
 
   if (relocatePath) {
     const target = qsa(triggerSelector).find(
-      (el) => !submitsForm(el) && pathOf(el) === relocatePath && labelOf(el) === relocateLabel,
+      (el) => !submitsForm(el) && !dangerous(el) && pathOf(el) === relocatePath && labelOf(el) === relocateLabel,
     );
 
     if (target) target.setAttribute(attr, 'target');
@@ -122,7 +130,7 @@ export function popupDomSnapshot({
     const tag = el.tagName.toLowerCase();
     if (el.matches(':disabled, [aria-disabled="true"]')) return false;
 
-    if (submitsForm(el)) return false;
+    if (submitsForm(el) || dangerous(el)) return false;
 
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return false;
     if (tag === 'a') return (el as HTMLAnchorElement).getAttribute('href')?.startsWith('#') ?? false;

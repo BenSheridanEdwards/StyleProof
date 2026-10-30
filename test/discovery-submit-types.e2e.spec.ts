@@ -73,3 +73,14 @@ for (const ownership of ['none', 'ancestor', 'attribute']) {
     }
   });
 }
+
+test('crawl rejects labels associated with form submit buttons', async ({ page }) => {
+  await page.setContent(`<style>label { cursor: pointer }</style><form>
+    <label id="external" for="go">Continue</label><button id="go">Continue</button>
+    <label id="wrapping">Continue<button>Continue</button></label></form>`);
+  const candidates = await page.evaluate(collectClickable, DANGER_SOURCE);
+
+  for (const id of ['external', 'wrapping']) {
+    expect(candidates.find((candidate) => candidate.selector === `#${id}`)?.unsafe).toBe(true);
+  }
+});

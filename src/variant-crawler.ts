@@ -242,6 +242,8 @@ async function perform(page: Page, candidate: Candidate): Promise<void> {
         if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) control.value = '';
         if (control instanceof HTMLSelectElement) control.selectedIndex = -1;
       }
+
+      if (form.checkValidity()) return;
       form.requestSubmit();
     });
   } else {

@@ -1,10 +1,25 @@
 import { test, expect } from '@playwright/test';
 import http from 'node:http';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { captureSurface } from '../dist/runner/surface-capture.js';
 import { DANGER_SOURCE } from '../dist/danger.js';
-import { resolvePopupCaptureOptions } from '../dist/runner/settings.js';
+import { resolveSettings, resolvePopupCaptureOptions } from '../dist/runner/settings.js';
 import { harvestStyleVariants } from '../dist/variant-crawler.js';
 
-const SIDE_EFFECT_VERBS = ['Send', 'Submit', 'Save', 'Confirm', 'Approve', 'Invite', 'Transfer', 'Cancel'];
+const SIDE_EFFECT_VERBS = [
+  'Send',
+  'Submit',
+  'Save',
+  'Confirm',
+  'Approve',
+  'Invite',
+  'Transfer',
+  'Cancel',
+  'Delete',
+  'Pay',
+];
 
 function page(): string {
   const verbs = SIDE_EFFECT_VERBS.map(
@@ -18,6 +33,12 @@ function page(): string {
       <input name="note" aria-label="Note" value="hello">
       <button>Continue</button>
     </form>
+    ${['type="checkbox" checked', 'type="hidden"', 'readonly', 'disabled']
+      .map(
+        (attrs, i) =>
+          `<form method="post" action="/side-effect/terms-${i}"><input name="terms" required ${attrs}><input name="email"><button type="button">x</button></form>`,
+      )
+      .join('')}
     <nav>${verbs}</nav>
     <script>
       for (const button of document.querySelectorAll('.verb')) {
@@ -90,4 +111,30 @@ test('variant discovery sends no POST through untyped form buttons or side-effec
       await ctx.close();
     }
   });
+});
+
+test('popup discovery sends no POST through side-effect verbs', async ({ page }) => {
+  const baseDir = mkdtempSync(join(tmpdir(), 'styleproof-discovery-'));
+
+  try {
+    await withServer(async (baseUrl, posts) => {
+      await captureSurface(
+        page,
+        {
+          key: 'home',
+          popups: true,
+          go: async () => {
+            await page.goto(baseUrl);
+          },
+        },
+        900,
+        resolveSettings({ baseDir, dir: 'capture', screenshots: false, selfCheck: false }),
+        { index: 1, total: 1 },
+      );
+      await page.waitForTimeout(250);
+      expect(posts).toEqual([]);
+    });
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
 });

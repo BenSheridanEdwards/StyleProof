@@ -111,7 +111,7 @@ export function collectClickable(dangerSource: string): RawCandidate[] {
     const selector = claim(el);
     if (!selector) continue;
     const label = labelFor(el);
-    const control = el.closest('button,input');
+    const control = el instanceof HTMLLabelElement ? el.control : el.closest('button,input');
 
     const submit =
       (control instanceof HTMLButtonElement && control.form !== null && control.type === 'submit') ||

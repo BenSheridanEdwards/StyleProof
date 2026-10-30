@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- State recipes whose label or stateKey matches side-effect verbs now throw
+  `StateRecipeError`, including `saved`, `submitted`, `cancel-dialog`, and `Confirm modal`.
+  Rename these identities to describe the fixture state without a side-effect verb.
+- `styleproof-capture --crawl` records `unsafe-control` skips for form submits
+  and Save/Cancel/Send/Confirm controls. These can cause exit 6 unless the surface
+  is acknowledged with a reason in `incompleteUiExclude`.
+
 ### Fixed
 
 - Never click submit controls or common side-effect verbs during discovery (#1143).
