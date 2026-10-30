@@ -1163,6 +1163,16 @@ test('correspondence: sibling reorder never reports identical while raw reviewab
   assert.match(md, /Report consistency failure/);
   assert.match(md, /path correspondence collapsed every presentation finding/);
   assert.doesNotMatch(md, /✓ All surfaces identical/);
+
+  for (const [dir, width] of [
+    [beforeDir, '80px'],
+    [afterDir, '90px'],
+  ])
+    writeCapture(dir, 'geometry@400', {
+      ...before,
+      states: { 'body > div:nth-child(1)': { hover: { 'body > div:nth-child(1)': { width } } } },
+    });
+  assert.deepEqual(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportConsistency, json.reportConsistency);
   rmTmp(root);
 });
 

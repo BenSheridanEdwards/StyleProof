@@ -173,15 +173,18 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
 }
 
 /** Each changed element once, identical siblings collapsed into one `×N` block. */
-function renderElements(findings: Finding[], maxElements = 40): string[] {
-  const bySig = new Map<string, { head: string; body: string[]; count: number }>();
+function renderElements(findings: Finding[], maxElements = 40, folded = false): string[] {
+  const bySig = new Map<string, { head: string; body: string[]; count: number; rows: number }>();
   for (const group of groupByPath(findings)) {
     const el = renderOneElement(group);
     if (!el) continue;
     const sig = `${el.head}\n${el.body.join('\n')}`;
     const seen = bySig.get(sig);
-    if (seen) seen.count++;
-    else bySig.set(sig, { ...el, count: 1 });
+
+    if (seen) {
+      seen.count++;
+      seen.rows += derivedLonghandCount(group);
+    } else bySig.set(sig, { ...el, count: 1, rows: derivedLonghandCount(group) });
   }
   const blocks = [...bySig.values()];
   const out: string[] = [];
@@ -189,7 +192,9 @@ function renderElements(findings: Finding[], maxElements = 40): string[] {
     if (i >= maxElements) {
       out.push(
         '',
-        `_…and ${blocks.length - i} more element(s) — see report.json (subject to its findings cap), or the original diff input._`,
+        folded
+          ? `_…and ${blocks.slice(i).reduce((n, b) => n + b.rows, 0)} more size/position rows folded._`
+          : `_…and ${blocks.length - i} more element(s) — see report.json (subject to its findings cap), or the original diff input._`,
       );
       break;
     }
@@ -271,7 +276,7 @@ export function renderCropChanges(
   const foldedCount = derivedLonghandCount(folded);
 
   if (rows < foldAt && !foldedCount) return tables;
-  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded)] : [];
+  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded, 40, true)] : [];
   const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
 
@@ -279,17 +284,10 @@ export function renderCropChanges(
     summary[summary.length - 1] += ` (+${foldedCount} size/position row${foldedCount === 1 ? '' : 's'} folded)`;
   }
 
-  return [
-    '',
-    ...summary,
-    '',
-    '<details>',
-    `<summary>${foldSummary(findings)}</summary>`,
-    ...tables,
-    ...foldedTables,
+  return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`].concat(tables, foldedTables, [
     '',
     '</details>',
-  ];
+  ]);
 }
 
 /** A crop's heading: human label, selector, then what happened inside it. */

@@ -110,14 +110,14 @@ export function groupBySignature(ctx: RenderCtx, prepared: PreparedSurface[]): C
     return s;
   };
 
-  return groupByWidth(prepared.map((p) => ({ surface: p.sd.surface, findings: p.findings, folded: p.folded }))).map(
-    (g) => {
-      const members = g.surfaces.map((s) => bySurface.get(s)!);
-      const rep = members.reduce((best, p) => (isBetterRepresentative(score(p), score(best)) ? p : best));
+  const signatures = prepared.map((p) => ({ surface: p.sd.surface, findings: p.findings, folded: p.folded }));
 
-      return { surfaces: g.surfaces, rep, findings: g.findings };
-    },
-  );
+  return groupByWidth(signatures).map((g) => {
+    const members = g.surfaces.map((s) => bySurface.get(s)!);
+    const rep = members.reduce((best, p) => (isBetterRepresentative(score(p), score(best)) ? p : best));
+
+    return { surfaces: g.surfaces, rep, findings: g.findings };
+  });
 }
 
 /** Counts for the GROUPED view. Props on one-sided added/removed paths are inventories
@@ -203,7 +203,8 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     const sf = regionFindings.filter((f) => f.kind === 'state' && f.state === state);
     if (!sf.length) continue;
     const headingFindings = firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
-    md.push('', `### ${regionHeading(a.g.paths, headingFindings)} \`:${state}\``, '', a.surfaceList);
+    const heading = headingFindings.filter((f) => a.cg.rep.findings.includes(f));
+    md.push('', `### ${regionHeading(a.g.paths, heading)} \`:${state}\``, '', a.surfaceList);
     md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
     const glance = propertyGlanceLine(sf);
     if (glance) md.push('', glance);
@@ -231,13 +232,24 @@ type RestingSection = { md: string[]; pack: CropPack; trailing: string[] };
  */
 function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean): RestingSection {
   if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
-  const md = ['', `### ${regionHeading(a.g.paths, cropFindings)}`, '', a.surfaceList];
+  const heading = cropFindings.filter((f) => a.cg.rep.findings.includes(f));
+  const md = ['', `### ${regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
   const glance = propertyGlanceLine(cropFindings);
   if (glance) md.push('', glance);
   md.push(...spacingLines(a.spacing));
   const pack = regionCrop(a, cropFindings, a.pngs);
   md.push(...pack.md, ...a.changes(cropFindings));
   return { md, pack, trailing: [] };
+}
+
+function regionVisibility(cg: ChangeGroup, regionFindings: Finding[]) {
+  const shown = new Set(cg.rep.findings);
+  const rest = regionFindings.filter((f) => f.kind !== 'state');
+  const shownRest = rest.filter((f) => shown.has(f));
+  const hasDom = regionFindings.some((f) => f.kind === 'dom');
+  const stateOnly = !hasDom && shownRest.length === 0 && regionFindings.some((f) => f.kind === 'state');
+
+  return { rest, shownRest, hasDom, stateOnly };
 }
 
 /** One crop region: heading, resting crop, then each forced-state crop. */
@@ -247,16 +259,17 @@ function renderRegion(a: RegionArgs) {
   const regionFindings = [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
     g.paths.some((root) => isSameOrDescendant(f.path, root)),
   );
-  const rest = regionFindings.filter((f) => f.kind !== 'state');
-  const hasDom = regionFindings.some((f) => f.kind === 'dom');
-  const stateOnly = !hasDom && rest.length === 0 && regionFindings.some((f) => f.kind === 'state');
+
+  const { rest, shownRest, hasDom, stateOnly } = regionVisibility(cg, regionFindings);
   const md: string[] = [];
   const cropFindings = hasDom ? regionFindings : rest;
-  const section = restingSection(a, cropFindings, !stateOnly && cropFindings.length > 0);
+  const section = restingSection(a, cropFindings, !stateOnly && shownRest.length > 0);
   const resting = section.pack;
   md.push(...section.md);
   const states = hasDom ? { md: [], stateImages: {} } : stateSections(a, regionFindings, stateOnly);
   md.push(...states.md);
+
+  if (stateOnly && rest.length) md.push(...a.changes(rest));
   const images = stateOnly && !resting.images.composite ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
   if (!md.length) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
@@ -295,12 +308,15 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
   const folded = cg.rep.folded ?? [];
 
+  const shownSet = new Set(findings);
+  const foldedSet = new Set(folded);
+
   const changes = (shown: Finding[]): string[] =>
     renderCropChanges(
-      shown.filter((f) => findings.includes(f)),
+      shown.filter((f) => shownSet.has(f)),
       ctx.foldDetailsAt,
       describeCtx,
-      shown.filter((f) => folded.includes(f)),
+      shown.filter((f) => foldedSet.has(f)),
     );
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);
@@ -312,6 +328,13 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
   const pngs = screenshotPair(ctx, sd.surface);
+
+  if (!findings.length && folded.length) {
+    const label = regionHeading([...new Set(folded.map((f) => f.path))], folded).split(' · ')[0];
+    const md = ['', `### ${label} · size/position rows folded`, '', surfaceList, ...changes(folded)];
+
+    return { md, json, findingCount };
+  }
   if (
     !hasExposedChangedEntry(mapA, mapB, changedPaths, pngs) &&
     !STATE_LAYER_NAMES.some((state) => {

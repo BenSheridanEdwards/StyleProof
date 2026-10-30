@@ -384,7 +384,7 @@ function presentSurfaces(
   const paired = prepared.filter((s) => !s.sd.missing);
   const certifyingReceipts = new Map(gates.comparability.map((entry) => [entry.surface, entry]));
   const certifyingShown = paired.filter(
-    (s) => !nonCertifying(certifyingReceipts.get(s.sd.surface), ctx.requireStateIdentity),
+    (s) => s.findings.length > 0 && !nonCertifying(certifyingReceipts.get(s.sd.surface), ctx.requireStateIdentity),
   ).length;
   const changeGroups = groupBySignature(ctx, paired);
   const chrome = classifyChrome(changeGroups, surfacePaths, surfaceKeyOf);
