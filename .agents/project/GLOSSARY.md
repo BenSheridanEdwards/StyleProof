@@ -30,9 +30,10 @@ Domain terms as StyleProof uses them. Definitions are drawn from the README and
   into surface diffs and change groups for the report.
 - **New surface** — a surface that exists only on the PR head; reviewable and, in
   review-gate mode, held red until approved (`🆕 new surface` in the report).
-- **Global chrome change** — a change on shared frame elements (nav, header,
-  footer) that moved on every surface hosting them, promoted to one report
-  callout instead of repeating per surface.
+- **Global chrome change** — a group spanning multiple surface bases whose affected
+  paths changed on every surface base that renders them, promoted to one report
+  callout instead of repeating per surface. Nav, header or footer wording is
+  qualified by evidence of those tags in every affected path.
 - **Review-gate mode** — the Action posts a status that stays red until
   intentional changes are approved. **Certification mode** fails CI on any diff.
 - **Dogfood** — running StyleProof (or the Action) against the repo's own
