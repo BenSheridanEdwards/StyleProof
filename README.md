@@ -610,6 +610,10 @@ framework-ignored elements, including the hover sink. Full-page capture preserve
 on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
 Render-code reach (J2/J3) is not measured yet.
 
+If settling times out with requests in flight, capture continues with a warning and records the request
+count in `metadata.settleTimedOutWithRequestsInFlight`. Settle the page in `go()` or raise
+`stabilize.timeout` if the capture shows a loading state.
+
 ## Reference
 
 Every flag, config key, Action input, workflow file, hook behavior, exit code,
