@@ -71,6 +71,8 @@ jobs:
           # Passed through env, never spliced into the script source.
           STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
           STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+          STYLEPROOF_RUN_ATTEMPT: ${{ github.run_attempt }}
+          STYLEPROOF_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           STYLEPROOF_ALLOW_SELF_APPROVAL: ${{ inputs.allow-self-approval }}
         with:
           github-token: ${{ secrets.token }}
@@ -208,6 +210,14 @@ jobs:
             // edited event is the editor; combined with the bot-authored + non-bot
             // guards in `if:`, that's the person who ticked.)
             const actor = context.payload.sender.login;
+            // Re-runs replay the original sender; only that ticker may repeat approval.
+            const approvalRunAttempt = process.env.STYLEPROOF_RUN_ATTEMPT;
+            const triggeringActor = process.env.STYLEPROOF_TRIGGERING_ACTOR;
+            if (!approvalRunAttempt || !triggeringActor || (approvalRunAttempt !== '1' && triggeringActor !== actor)) {
+              await renderBox(false, ' — _approval attempt refused; tick again_');
+              await replyOnce('rerun', `@${actor} — this approval attempt was refused. Please tick the box again to approve.`);
+              return;
+            }
             let perm = 'none';
             try {
               perm = (await github.rest.repos.getCollaboratorPermissionLevel({ ...context.repo, username: actor })).data.permission;
