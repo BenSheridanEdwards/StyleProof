@@ -188,7 +188,7 @@ test('a global chrome row keeps the every-surface-that-renders-it qualifier', ()
 
   assert.match(
     slice,
-    /· 🧱 global chrome, changed identically on every surface base that renders it — \*\*`a\.link`\*\* text black/,
+    /· 🧱 global chrome, changed on every surface base that renders it — \*\*`a\.link`\*\* text black/,
   );
   assert.doesNotMatch(slice.slice(slice.indexOf('**What changed**')), /all \d+ surface/);
   assert.equal(json.digest[0].chrome, true);

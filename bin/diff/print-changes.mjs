@@ -156,7 +156,7 @@ function printGroup(cg, max) {
 /**
  * The changed surfaces, grouped the way the report does, so an identical change across N
  * surfaces prints once (with the count). Raw findings ride along to report the fold.
- * A change that rode the shared frame gets one Global chrome banner and prints first.
+ * A promoted shared-chrome group gets one Global chrome banner and prints first.
  */
 export function printChangeGroups({
   surfaces,
@@ -178,7 +178,7 @@ export function printChangeGroups({
     const bases = countCapturedSurfaceBases([...surfacePaths.keys()], surfaceKeyOf);
     const span = chromeSpanLabel(countChangedSurfaceScope(chrome, surfaceKeyOf).bases, bases);
     printSection(
-      `🧱 Global chrome change(s) — across ${span} captured surface base(s): ${chrome.length} change(s): the affected element changed identically on every surface base that renders it${chrome.every((group) => group.findings.every((finding) => isChromeLandmarkPath(finding.path))) ? ' (inside a nav, header or footer)' : ''}.`,
+      `🧱 Global chrome change(s) — across ${span} captured surface base(s): ${chrome.length} change(s): the affected element changed on every surface base that renders it${chrome.every((group) => group.findings.every((finding) => isChromeLandmarkPath(finding.path))) ? ' (inside a nav, header or footer)' : ''}.`,
     );
   }
   for (const cg of [...chrome, ...rest]) printGroup(cg, max);

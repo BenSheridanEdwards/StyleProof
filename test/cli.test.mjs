@@ -2526,7 +2526,7 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
     assert.match(r.stdout, /🧱 Global chrome change\(s\) — across 2 of 3 captured surface base\(s\)/, r.stdout);
     assert.match(
       r.stdout,
-      /1 change\(s\): the affected element changed identically on every surface base that renders it \(inside a nav, header or footer\)/,
+      /1 change\(s\): the affected element changed on every surface base that renders it \(inside a nav, header or footer\)/,
       r.stdout,
     );
     // home entangled the nav change with its OWN h1 restyle, so it renders in place

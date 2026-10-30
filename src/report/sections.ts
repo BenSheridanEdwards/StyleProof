@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import { isChromeLandmarkPath } from '../change-chrome.js';
 import path from 'node:path';
 import type { PNG } from 'pngjs';
+import { isChromeLandmarkPath } from '../change-chrome.js';
 import { captureKeysIn } from '../capture.js';
 import type { DiffCounts } from '../diff.js';
 import type { BaselineProvenance, SurfaceCaptureFailure } from '../map-store.js';
@@ -152,7 +152,7 @@ function chromeCalloutLines(nChrome: number, chromeBases: number, totalBases: nu
     '',
     `## 🧱 Global chrome ${nChrome === 1 ? 'change' : 'changes'} — across ${chromeSpanLabel(chromeBases, totalBases)} captured surface base(s)`,
     '',
-    `_${nChrome} change(s): the affected element changed identically on every surface base that renders it` +
+    `_${nChrome} change(s): the affected element changed on every surface base that renders it` +
       `${landmark ? ' (inside a nav, header or footer)' : ''}, so it reads as ONE global change, not a ` +
       `per-view one. The detail is folded beneath — review it once._`,
   ];
@@ -315,9 +315,7 @@ export function renderChangedSections(
 ): { totalFindings: number } {
   const ordered = [...groups.chrome, ...groups.rest];
   if (ordered.length > 0) out.md.append(['', '## Changes']);
-
   // The chrome banner rides on the first promoted group only.
-
   let banner =
     groups.chrome.length > 0
       ? chromeCalloutLines(
