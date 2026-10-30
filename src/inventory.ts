@@ -4,6 +4,9 @@
 // across a run: a key on base but not head is a removal that gates unless acknowledged.
 
 import { INVENTORY_LEDGER, readLedger } from './ack-ledger.js';
+import { GENERATED_ID_SOURCES } from './generated-id.js';
+
+const generatedIdPatterns = GENERATED_ID_SOURCES.map((source) => new RegExp(source, 'i'));
 
 /** One user-reachable navigation affordance, keyed stably across base/head. */
 export type NavigableItem = {
@@ -112,11 +115,8 @@ export function isStableId(id: string | null | undefined): id is string {
   if (!id) return false;
   const v = id.trim();
   if (!v || v.length > 80) return false;
-  // React useId (`:r0:` to 19.0, `«r0»` in 19.1, `_r_0_` from 19.2) and the Radix ids scoped on it.
-  // capture/browser.ts `__spPathOf` keeps the same rules in its self-contained copy.
-  if (/[:«»]|_[rR]_[0-9A-Za-z]*_/.test(v)) return false;
-  if (/^(headlessui|radix|mui|chakra|reach|react-aria|floating-ui|downshift)-/i.test(v)) return false;
-  if (/^[0-9a-f]{8,}$/i.test(v)) return false; // hash-like
+
+  if (generatedIdPatterns.some((pattern) => pattern.test(v))) return false;
   return true;
 }
 

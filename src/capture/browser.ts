@@ -49,19 +49,16 @@ export function unfreezeMotion(validate = false): void {
 }
 
 /** Define the structural-path helper on `window` once so every serialized function shares it. */
-export function injectPathOf(): void {
+export function injectPathOf(generatedIdSources: string[]): void {
+  const generatedIdPatterns = generatedIdSources.map((source) => new RegExp(source, 'i'));
   const createPathOf = (): ((el: Element) => string) => {
     const paths = new Map<Element, string>();
     const siblingIdentities = new Map<Element, Map<string, number>>();
-    // A framework-generated id renumbers when an unrelated component starts or stops calling the
-    // generator, so it never names an element. Same rules as inventory.ts `isStableId`, copied
-    // because this function is serialized into the page.
+    // The caller supplies the same rule table inventory uses; no module closure in the page.
     const stableId = (id: string | null): string | null => {
       const v = id?.trim();
-      if (!v || v.length > 80) return null;
-      if (/[:«»]|_[rR]_[0-9A-Za-z]*_/.test(v)) return null;
-      if (/^(headlessui|radix|mui|chakra|reach|react-aria|floating-ui|downshift)-/i.test(v)) return null;
-      if (/^[0-9a-f]{8,}$/i.test(v)) return null;
+
+      if (!v || v.length > 80 || generatedIdPatterns.some((pattern) => pattern.test(v))) return null;
       return id;
     };
     const identityCandidates = (element: Element): string[] => {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
+import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import { capturePage, injectPathOf } from '../dist/capture/browser.js';
 
 function repeatedTree(size) {
@@ -55,7 +56,7 @@ function repeatedTree(size) {
     HTMLTextAreaElement: class {},
   });
 
-  runInContext(`(${injectPathOf.toString()})()`, context);
+  runInContext(`(${injectPathOf.toString()})(${JSON.stringify(GENERATED_ID_SOURCES)})`, context);
 
   const capture = () => {
     attributeReads = 0;
