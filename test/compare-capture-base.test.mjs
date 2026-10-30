@@ -9,7 +9,7 @@ import { writeMapManifest, publishMapBundle } from '../dist/map-store.js';
 
 const cli = path.resolve('bin/styleproof-diff.mjs');
 
-for (const mode of 'manual install-failure install-status-SIGINT install-status-SIGTERM leftovers config-only capture-failure install-SIGINT install-SIGTERM SIGINT SIGTERM group-install-SIGINT group-install-SIGTERM group-capture-SIGINT group-capture-SIGTERM stored-head success'.split(
+for (const mode of 'manual install-failure install-status-SIGINT install-status-SIGTERM capture-status-SIGINT capture-status-SIGTERM leftovers config-only capture-failure install-SIGINT install-SIGTERM SIGINT SIGTERM group-install-SIGINT group-install-SIGTERM group-capture-SIGINT group-capture-SIGTERM stored-head success'.split(
   ' ',
 )) {
   const captureBase = !['manual', 'config-only'].includes(mode);
@@ -28,10 +28,7 @@ for (const mode of 'manual install-failure install-status-SIGINT install-status-
       git('config', 'user.name', 'Test');
       git('config', 'user.email', 'test@example.com');
       fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { preinstall: 'exit 1' } }));
-      fs.writeFileSync(
-        path.join(repo, 'package-lock.json'),
-        JSON.stringify({ lockfileVersion: 3, packages: { '': {} } }),
-      );
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3,"packages":{"":{}}}');
       fs.mkdirSync(path.join(repo, 'e2e'));
       fs.writeFileSync(path.join(repo, 'e2e/styleproof.spec.ts'), '// fixture');
       fs.writeFileSync(path.join(repo, '.gitignore'), 'styleproof-audit.json\n');
@@ -67,6 +64,7 @@ if (${mode.startsWith('group-')} && ('${command}' === 'npm' ? ${mode.startsWith(
 if ('${command}' === 'npm' && ${mode.startsWith('install-SIG')}) process.kill(process.pid, '${mode.replace('install-', '')}');
 if ('${command}' === 'npm' && ${mode.startsWith('install-status-')}) process.exit(${mode.endsWith('SIGINT') ? 130 : 143});
 if ('${command}' === 'npm') { console.error('fixture install diagnostic'); process.exit(${mode.endsWith('install-failure') ? 1 : 0}); }
+if (${mode.startsWith('capture-status-')} && side === 'base') process.exit(${mode.endsWith('SIGINT') ? 130 : 143});
 if (${mode === 'capture-failure'} && side === 'base') process.exit(1);
 if (${mode.startsWith('SIG')} && side === 'base') { process.kill(process.ppid, '${mode}'); process.exit(0); }
 const out = path.join(process.env.STYLEPROOF_BASEDIR, side);
@@ -96,14 +94,23 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
         const parent = path.join(repo, '.worktrees');
 
         if (mode === 'leftovers') {
-          for (const name of ['dead', 'live', 'ownerless']) {
+          for (const name of ['dead00', 'live00', 'noownr', 'recent', 'badpid']) {
             const dir = path.join(parent, `styleproof-base-${name}`);
             fs.mkdirSync(dir, { recursive: true });
             git('worktree', 'add', '--detach', path.join(dir, `cache-base-${baseSha.slice(0, 12)}`), baseSha);
 
-            if (name !== 'ownerless')
-              fs.writeFileSync(path.join(dir, 'owner.pid'), String(name === 'live' ? process.pid : 2147483647));
+            if (name !== 'noownr')
+              fs.writeFileSync(
+                path.join(dir, 'owner.pid'),
+                String(name === 'live00' ? process.pid : name === 'badpid' ? 'invalid' : 2147483647),
+              );
+
+            if (name !== 'recent') fs.utimesSync(dir, 1, 1);
           }
+
+          const manual = path.join(parent, 'styleproof-base-task');
+          git('worktree', 'add', '--detach', manual, baseSha);
+          fs.writeFileSync(path.join(manual, 'dirty'), 'keep my work');
 
           fs.mkdirSync(path.join(parent, 'unrelated'));
           fs.writeFileSync(path.join(repo, '.git/info/exclude'), '.worktrees/\n');
@@ -166,7 +173,11 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
               assert.equal(calls.find((call) => call.side === 'head').dirty, true);
               assert.deepEqual(
                 calls.find((call) => call.side === 'head').worktrees.sort(),
-                mode === 'leftovers' ? ['styleproof-base-live', 'unrelated'] : [],
+                mode === 'leftovers'
+                  ? ['badpid', 'live00', 'noownr', 'recent', 'task']
+                      .map((name) => `styleproof-base-${name}`)
+                      .concat('unrelated')
+                  : [],
               );
             }
           }
@@ -180,10 +191,12 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
           assert.match(result.stderr, /Or rerun with --capture-base to capture the base in a temporary worktree/);
         }
 
+        if (mode === 'leftovers')
+          assert.equal(fs.readFileSync(path.join(parent, 'styleproof-base-task/dirty'), 'utf8'), 'keep my work');
         assert.equal(git('status', '--porcelain'), before);
         assert.equal(git('rev-parse', 'HEAD'), head);
         assert.equal(git('branch', '--show-current').trim(), 'feature');
-        assert.equal(git('worktree', 'list', '--porcelain').match(/^worktree /gm).length, mode === 'leftovers' ? 2 : 1);
+        assert.equal(git('worktree', 'list', '--porcelain').match(/^worktree /gm).length, mode === 'leftovers' ? 6 : 1);
       } finally {
         fs.rmSync(executables, { recursive: true, force: true });
       }

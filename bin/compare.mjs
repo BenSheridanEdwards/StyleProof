@@ -173,7 +173,6 @@ function cachedDirs(name, opts, args, purpose, usage) {
   }
 }
 
-/** Capture through the same spec path as the manual `styleproof capture` command. */
 function captureMissing(cwd, outDir, spec, side) {
   if (side === 'base') withBaseSignals(() => installBase(cwd));
 
@@ -184,6 +183,9 @@ function captureMissing(cwd, outDir, spec, side) {
 
   const status = side === 'base' ? withBaseSignals(capture) : capture();
 
+  if (side === 'base' && (status === 130 || status === 143))
+    throw new ExitError(`capture interrupted by ${status === 130 ? 'SIGINT' : 'SIGTERM'}`, status);
+
   if (status !== 0) {
     throw new Error(
       `${side} capture failed in ${side === 'base' ? 'worktree ' : ''}${cwd}: styleproof-map --spec ${spec} --base-dir ${path.dirname(outDir)} --dir ${path.basename(outDir)} (exit ${status})`,
@@ -191,7 +193,6 @@ function captureMissing(cwd, outDir, spec, side) {
   }
 }
 
-/** Follow the base child through process-group interrupts, then clean up. */
 function withBaseSignals(run) {
   const ignore = () => {};
 

@@ -457,13 +457,8 @@ evidence cannot certify. Maps travel as **workflow artifacts** by default —
 never committed to the PR branch — or via the opt-in `styleproof-maps` store
 branch. Nothing under `.styleproof/` belongs in a commit.
 
-`compare --capture-base` opts into capturing missing maps locally. It installs dependencies
-and captures the base in a temporary detached worktree under `<repo>/.worktrees/`,
-then removes it before processing the head. When no stored head bundle exists for HEAD,
-head is captured in the current checkout, preserving uncommitted edits; otherwise the stored bundle wins.
-Stop any app server first so both captures use their own builds. The flag is off by default
-and cannot be enabled through StyleProof config or used with two explicit directories.
-During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. SIGTERM sent only to compare is ignored: container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or a crash can leave `<repo>/.worktrees/styleproof-base-*` behind; the next `--capture-base` run removes leftovers with dead or missing owners, preserving live owners. The base checkout is nested under the repository: Node module resolution, postcss/browserslist config and pnpm workspace detection can pick up head root files when the base lacks its own.
+`compare --capture-base` opts into capturing missing maps locally, installing dependencies in a temporary detached base worktree under `<repo>/.worktrees/` and removing it before processing the head. Without a stored head bundle for HEAD, head is captured in the current checkout, preserving uncommitted edits; otherwise the stored bundle wins. Stop any app server first so both captures use their own builds. The flag is off by default and cannot be enabled through config or used with two explicit directories.
+During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. SIGTERM sent only to compare is ignored: container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or a crash can leave `<repo>/.worktrees/styleproof-base-*` behind; the next `--capture-base` run removes only hour-old, current-user scratch dirs with confirmed dead owners. The base checkout is nested under the repository: Node module resolution, postcss/browserslist config and pnpm workspace detection can pick up head root files when the base lacks its own.
 
 `compare` restores the base map from the map store, so on a local checkout without
 one it stops and prints the local steps. Capture this checkout as head, then the
