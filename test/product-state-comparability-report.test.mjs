@@ -92,7 +92,7 @@ test('report keeps undeclared legacy deltas reviewable without strict mode while
   assert.equal(result.comparison.status, 'unproven');
   assert.equal(result.comparison.blocksCertification, false);
   assert.equal(result.comparison.reviewableCounts.style, 1);
-  assert.match(md, /legacy compatibility|not proof|visual-only/i);
+  assert.match(md, /no product-state declared|not proof|visual-only/i);
   assert.match(md, /## Changes/);
   rmTmp(dirs.root);
 });

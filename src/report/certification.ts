@@ -270,19 +270,19 @@ export function productStateWarningLines(comparison: ComparabilitySummary, legac
   if (comparison.status === 'comparable' || comparison.status === 'not-required') return [];
   if (legacyPairs?.armed && legacyPairs.undeclared.length > 0) {
     return [
-      '⛔ **Product-state identity unproven** (undeclared legacy pair). Treat as visual-only, not a certified same-state compare. Declare `productState {id, revision}` or record it in `styleproof.product-state.json`.',
+      '⛔ **Product-state identity unproven** (pair with no product-state declared). Treat as visual-only, not a certified same-state compare. Declare `productState {id, revision}` or record it in `styleproof.product-state.json`.',
       '',
     ];
   }
   if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification) {
     return [
-      '⚠️ **Product-state identity unproven** (declared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
+      '⚠️ **Product-state identity unproven** (acknowledged pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
       '',
     ];
   }
   if (!comparison.blocksCertification) {
     return [
-      '⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
+      '⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
       '',
     ];
   }
@@ -308,11 +308,11 @@ export function comparabilityLine(comparison: ComparabilitySummary, legacyPairs?
     return '**Product-state comparison** — not required; there are no paired capture obligations.';
   // Failures/warnings already shown above the fold via productStateWarningLines — keep a short Evidence echo.
   if (legacyPairs?.armed && legacyPairs.undeclared.length > 0)
-    return `⛔ **Product-state comparison** — ${legacyPairs.undeclared.length} undeclared legacy pair(s).`;
+    return `⛔ **Product-state comparison** — ${legacyPairs.undeclared.length} paired capture(s) with no product-state declared.`;
   if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification)
-    return `⚠️ **Product-state comparison** — ${legacyPairs.declared.length} declared legacy pair(s) on the record.`;
+    return `⚠️ **Product-state comparison** — ${legacyPairs.declared.length} acknowledged paired capture(s) with no product-state declared on the record.`;
   if (!comparison.blocksCertification)
-    return `⚠️ **Product-state comparison** — unproven on ${counts.unproven} undeclared legacy pair(s).`;
+    return `⚠️ **Product-state comparison** — unproven on ${counts.unproven} paired capture(s) with no product-state declared.`;
   const reasons = [
     counts.incomparable ? `${counts.incomparable} incomparable` : '',
     counts.requiredUnproven ? `${counts.requiredUnproven} required-unproven` : '',
