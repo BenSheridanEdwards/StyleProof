@@ -1,8 +1,11 @@
 // Sources, rather than RegExp objects, survive Playwright's page argument serialization.
 export const GENERATED_ID_SOURCES = [
   // React useId tokens can occur inside library-derived ids, including before suffixes.
+  // Require a separator after an identifierPrefix: arbitrary prefixes cannot distinguish
+  // React's ba + r2 from authored a:bar2:b. Counters use base 32, with server H suffixes.
   // Underscore coordinate segments (cell_r_1_c_2) remain authored when embedded in a word.
-  /(?::[rR][0-9A-Za-z]+:|«[rR][0-9A-Za-z]+»|(?:^|[^A-Za-z0-9])_[rR]_[0-9A-Za-z]+_|_[rR]_[0-9A-Za-z]+_(?![A-Za-z0-9]+_))/
+  // This also keeps the React-looking foo_r_1_bar_ stable, a known gap in the heuristic.
+  /(?::(?:[A-Za-z0-9_-]*[-_])?[rR][0-9a-v]+(?:H[0-9a-v]+)?:|«(?:[A-Za-z0-9_-]*[-_])?[rR][0-9a-v]+(?:H[0-9a-v]+)?»|(?:^|[^A-Za-z0-9])_(?:[A-Za-z0-9_-]*[-_])?[rR]_[0-9a-v]+(?:H[0-9a-v]+)?_|_(?:[A-Za-z0-9_-]*[-_])?[rR]_[0-9a-v]+(?:H[0-9a-v]+)?_(?![A-Za-z0-9]+_))/
     .source,
   // Chakra v1 useIds counters, including derived modal header ids.
   /^chakra-(?:[a-z]+-+)+[0-9]+$/.source,
