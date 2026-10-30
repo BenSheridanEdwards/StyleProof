@@ -1,12 +1,8 @@
 // Sources, rather than RegExp objects, survive Playwright's page argument serialization.
 export const GENERATED_ID_SOURCES = [
-  // React useId tokens can occur inside library-derived ids, including before suffixes.
-  // Embedded identifier prefixes require a separator to preserve authored a:bar2:b.
-  // Standalone colon/guillemet tokens accept any prefix. Case-insensitive consumers
-  // match base-32 counters (A–V too); h is already included, covering server suffixes.
-  // Underscore coordinate segments (cell_r_1_c_2) remain authored when embedded in a word.
-  // This also keeps the React-looking foo_r_1_bar_ stable, a known gap in the heuristic.
-  /(?:^:[A-Za-z0-9_-]*[rR][0-9a-v]+:$|^«[A-Za-z0-9_-]*[rR][0-9a-v]+»$|:(?:[A-Za-z0-9_-]*[-_])?[rR][0-9a-v]+:|«(?:[A-Za-z0-9_-]*[-_])?[rR][0-9a-v]+»|(?:^|[^A-Za-z0-9])_(?:[A-Za-z0-9_-]*[-_])?[rR]_[0-9a-v]+_|_(?:[A-Za-z0-9_-]*[-_])?[rR]_[0-9a-v]+_(?![A-Za-z0-9]+_))/
+  // React tokens accept any prefix at the start or after -/_; separator-ending prefixes also embed.
+  // Keep ambiguous a:bar2:b and cell_r_1_c_2 authored. Consumers match A–V too.
+  /(?:^|[-_])[:«][A-Za-z0-9_-]*[rR][0-9a-v]+[:»]|[:«](?:[A-Za-z0-9_-]*[-_])?[rR][0-9a-v]+[:»]|(?:^|[-_])_[A-Za-z0-9_-]*[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_|_[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_(?![A-Za-z0-9]+_)/
     .source,
   // Chakra v1 useIds counters, including derived modal header ids.
   /^chakra-(?:[a-z]+-+)+[0-9]+$/.source,
