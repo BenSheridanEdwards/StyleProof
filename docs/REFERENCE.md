@@ -1078,7 +1078,7 @@ Empty exclusion reasons are rejected. Acknowledged exclusions keep status `incom
 
 ### Incomplete UI: blocked continuations fail closed
 
-The form-submit check is the main protection. The side-effect word list is a best-effort backstop and will always be incomplete.
+The form-submit check is the main protection; it does not look inside shadow roots. The side-effect word list is a best-effort backstop and will always be incomplete.
 
 Form submits and Save/Cancel/Send/Confirm controls record `unsafe-control` skips. They can cause `styleproof-capture --crawl` to exit 6 unless the surface is acknowledged with a reason in `incompleteUiExclude`.
 

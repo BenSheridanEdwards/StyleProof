@@ -15,9 +15,7 @@ for (const valid of [true, false]) {
     const form = {
       querySelectorAll: () => [],
       checkValidity: () => valid,
-      requestSubmit: () => {
-        submissions++;
-      },
+      requestSubmit: () => submissions++,
     };
 
     const page = { locator: () => ({ first: () => ({ evaluate: (fn) => fn(form) }) }) };
@@ -26,19 +24,19 @@ for (const valid of [true, false]) {
   });
 }
 
-for (const relation of ['ancestor', 'label', 'wrapper']) {
+for (const relation of ['ancestor', 'label', 'wrapper', 'contained-label']) {
   test(`submit guard rejects ${relation}`, () => {
     const guard = runInNewContext(`(${SUBMITS_FORM_SOURCE})`);
     const submit = { tagName: 'BUTTON', type: 'submit', form: {} };
 
     const el = {
       closest: (selector) => (selector === 'label' ? { control: submit } : null),
-      querySelectorAll: () => (relation === 'wrapper' ? [submit] : []),
+      querySelectorAll: () => [relation === 'wrapper' ? submit : { tagName: 'LABEL', control: submit }],
     };
 
-    if (relation === 'self' || relation === 'ancestor') el.closest = () => submit;
+    if (relation === 'ancestor') el.closest = () => submit;
 
-    if (relation === 'wrapper') el.closest = () => null;
+    if (relation === 'wrapper' || relation === 'contained-label') el.closest = () => null;
     assert.equal(guard(el), true);
     submit.form = null;
     assert.equal(guard(el), false);

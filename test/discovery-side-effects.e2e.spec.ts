@@ -31,6 +31,7 @@ function page(): string {
       '<label for="go-3"><span role="button">Continue</span></label><button id="go-3">Go</button>',
       '<label for="go-4"><span style="cursor:pointer">Continue</span></label><button id="go-4">Go</button>',
       '<div role="button" aria-haspopup="menu" style="width:100px"><button style="width:100px;height:50px">Go</button></div>',
+      '<div role="button" aria-haspopup="menu"><label for="go-6">Continue</label></div><button id="go-6">Go</button>',
     ]
       .map((controls, i) => `<form method="post" action="/side-effect/label-${i}">${controls}</form>`)
       .join('')}
