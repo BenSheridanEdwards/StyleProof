@@ -364,7 +364,9 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
   // Full-page geometry for report crops and visible-structure gating.
   const screenshotHeight = await alignRectsToFullPageGeometry(page, base.elements);
-  const overlays = (await page.evaluate(detectOverlayCandidates, { skipSel })).filter((o) => base.elements[o.path]);
+  const overlays = (
+    await page.evaluate(detectOverlayCandidates, { skipSel, captureText: options.captureText ?? true })
+  ).filter((o) => base.elements[o.path]);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, read.motion);
   const { states, statesSkipped, stateComputedValueStyle } = await captureStateLayer(

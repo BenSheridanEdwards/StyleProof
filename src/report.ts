@@ -304,7 +304,10 @@ function comparisonForReport(
 }
 
 /** The presentation may simplify raw evidence but never erase every reviewable finding and claim "identical". */
-function assessReportConsistency(comparison: ComparisonTruth, hasPresentationEvidence: boolean): ReportConsistency {
+export function assessReportConsistency(
+  comparison: ComparisonTruth,
+  hasPresentationEvidence: boolean,
+): ReportConsistency {
   if (comparison.rawOnlyNoReviewable) return { ok: false, reason: 'raw_only_no_reviewable' };
   if (comparison.hasReviewableEvidence && !hasPresentationEvidence) {
     return { ok: false, reason: 'presentation_collapsed_while_raw_reviewable' };
