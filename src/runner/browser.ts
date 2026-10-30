@@ -95,9 +95,17 @@ export function popupDomSnapshot({
   for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
 
   const submitsForm = (el: Element): boolean => {
-    const control = el.closest('button,input');
+    let control: Element | null = el;
 
-    return control instanceof HTMLButtonElement && control.form !== null && control.type === 'submit';
+    while (control && control.tagName !== 'BUTTON' && control.tagName !== 'INPUT') {
+      control = control.parentElement;
+    }
+
+    return (
+      control?.tagName === 'BUTTON' &&
+      (control as HTMLButtonElement).form !== null &&
+      (control as HTMLButtonElement).type === 'submit'
+    );
   };
 
   if (relocatePath) {
