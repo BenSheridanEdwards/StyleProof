@@ -1,7 +1,7 @@
-import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
+import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import { injectPathOf } from '../dist/capture/browser.js';
 import { isStableId } from '../dist/inventory.js';
 
@@ -17,6 +17,12 @@ const GENERATED = [
   'dialog:v-1-2:content',
   'menu:cl-0:trigger',
   ':my.appr0:',
+  '_app:r_0_',
+  ':app$r0:',
+  '«mf/shell-r0»',
+  ':app@r1:',
+  '«app#r2»',
+  '_mf/shell-r_3_',
   'radix-12-custom',
   'mui-42-custom',
   'radix-12-trigger-account',
@@ -112,6 +118,8 @@ const AUTHORED = [
   'a:bar2:b',
   'nav:primary:item',
   'cell_r_1_c_2',
+  'input:appr2:',
+  'foo_r_1_bar_',
   'facade01',
   'tooltip-12',
   'step-2',

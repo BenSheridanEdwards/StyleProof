@@ -1,7 +1,7 @@
-import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
+import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import { captureStyleMap } from '../dist/capture.js';
 import {
   capturePage,

@@ -1,7 +1,7 @@
-import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
+import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import { capturePage, injectPathOf } from '../dist/capture/browser.js';
 
 function repeatedTree(size) {

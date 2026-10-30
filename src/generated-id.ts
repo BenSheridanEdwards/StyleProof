@@ -2,7 +2,7 @@
 export const GENERATED_ID_SOURCES = [
   // React tokens accept any prefix at the start or after -/_/:; separator-ending prefixes also embed.
   // Keep ambiguous a:bar2:b and cell_r_1_c_2 authored. Consumers match A–V too.
-  /(?:^|[-_:])[:«][A-Za-z0-9_.-]*[rR][0-9a-v]+[:»]|[:«](?:[A-Za-z0-9_.-]*[-_])?[rR][0-9a-v]+[:»]|(?:^|[-_:])_[A-Za-z0-9_.-]*[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_|_[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_(?![A-Za-z0-9]+_)/
+  /(?:^|[-_:])[:«][^\s:«»]*[rR][0-9a-v]+[:»]|[:«](?:[^\s:«»]*[-_])?[rR][0-9a-v]+[:»]|(?:^|[-_:])_[^\s_«»]*[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_|_[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_(?![A-Za-z0-9]+_)/
     .source,
   // Chakra v1 useIds counters, including derived modal header ids.
   /^chakra-(?:[a-z]+-+)+[0-9]+$/.source,
