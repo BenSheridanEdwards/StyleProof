@@ -1,8 +1,5 @@
 import { test, expect } from '@playwright/test';
 import http from 'node:http';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { captureSurface } from '../dist/runner/surface-capture.js';
 import { collectClickable } from '../dist/crawl/browser.js';
 import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
@@ -37,6 +34,7 @@ function page(): string {
       .join('')}
     <form method="post" action="/side-effect/custom"><form-button role="button" aria-haspopup="menu" style="cursor:pointer">Continue</form-button></form>
     <script>customElements.define('form-button', class extends HTMLElement { static formAssociated = true; internals = this.attachInternals(); connectedCallback() { this.addEventListener('click', () => this.internals.form.requestSubmit()); } });</script>
+    <form method="post"><div style="cursor:pointer" onclick="this.closest('form').requestSubmit()">Continue</div></form>
     ${verbs}
     <script>for (const b of document.querySelectorAll('.verb')) b.addEventListener('click', () => fetch('/side-effect/' + b.dataset.verb, { method: 'POST', body: 'x' }));</script>
   </body></html>`;
@@ -47,8 +45,16 @@ async function withServer(run: (baseUrl: string, posts: string[]) => Promise<voi
 
   const server = http.createServer((req, res) => {
     if (req.method === 'POST') posts.push(new URL(req.url ?? '/', 'http://127.0.0.1').pathname);
+
+    if (req.url === '/csp') res.setHeader('Content-Security-Policy', "script-src 'self'");
     res.writeHead(200, { 'content-type': 'text/html' });
-    res.end(req.method === 'POST' ? '<!doctype html><p>posted</p>' : page());
+    res.end(
+      req.method === 'POST'
+        ? '<!doctype html><p>posted</p>'
+        : req.url === '/csp'
+          ? '<button type="button">Open</button><form method="post"><button>Continue</button></form>'
+          : page(),
+    );
   });
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -62,45 +68,56 @@ async function withServer(run: (baseUrl: string, posts: string[]) => Promise<voi
   }
 }
 
-for (const mode of ['crawl', 'variant', 'popup']) {
-  test(`${mode} discovery sends no POST through submit labels, children, wrappers or verbs`, async ({ page }) => {
-    const baseDir = mkdtempSync(join(tmpdir(), 'styleproof-discovery-'));
+for (const mode of ['crawl', 'variant', 'popup'])
+  test(`${mode} discovery sends no POST through submits, labels, pointers or verbs`, async ({ page }, testInfo) => {
+    await withServer(async (baseUrl, posts) => {
+      if (mode === 'variant') {
+        await harvestStyleVariants(page, {
+          baseUrl,
+          routes: [{ key: 'home', url: '/' }],
+          maxActionsPerRoute: 100,
+          maxStateActionsPerRoute: 0,
+        });
+      } else if (mode === 'popup') {
+        await captureSurface(
+          page,
+          { key: 'home', popups: true, go: async () => void (await page.goto(baseUrl)) },
+          900,
+          resolveSettings({ baseDir: testInfo.outputDir, dir: 'capture', screenshots: false, selfCheck: false }),
+          { index: 1, total: 1 },
+        );
+      } else {
+        await page.goto(baseUrl);
 
-    try {
-      await withServer(async (baseUrl, posts) => {
-        if (mode === 'variant') {
-          await harvestStyleVariants(page, {
-            baseUrl,
-            routes: [{ key: 'home', url: '/' }],
-            maxActionsPerRoute: 100,
-            maxStateActionsPerRoute: 0,
-          });
-        } else if (mode === 'popup') {
-          await captureSurface(
-            page,
-            { key: 'home', popups: true, go: async () => void (await page.goto(baseUrl)) },
-            900,
-            resolveSettings({ baseDir, dir: 'capture', screenshots: false, selfCheck: false }),
-            { index: 1, total: 1 },
-          );
-        } else {
-          await page.goto(baseUrl);
+        const candidates = await page.evaluate(collectClickable, {
+          dangerSource: DANGER_SOURCE,
+          submitsFormSource: SUBMITS_FORM_SOURCE,
+        });
 
-          const candidates = await page.evaluate(collectClickable, {
-            dangerSource: DANGER_SOURCE,
-            submitsFormSource: SUBMITS_FORM_SOURCE,
-          });
-
-          for (const candidate of candidates.filter((item) => item.action === 'click' && !item.unsafe)) {
-            await page.locator(candidate.selector).evaluate((el: HTMLElement) => el.click());
-          }
+        for (const candidate of candidates.filter((item) => item.action === 'click' && !item.unsafe)) {
+          await page.locator(candidate.selector).evaluate((el: HTMLElement) => el.click());
         }
+      }
 
-        await page.waitForTimeout(250);
-        expect(posts).toEqual([]);
-      });
-    } finally {
-      rmSync(baseDir, { recursive: true, force: true });
-    }
+      await page.waitForTimeout(250);
+      expect(posts).toEqual([]);
+    });
   });
-}
+
+test('crawl discovery under CSP finds safe controls and rejects submits without POST', async ({ page }) => {
+  await withServer(async (baseUrl, posts) => {
+    await page.goto(`${baseUrl}/csp`);
+
+    const candidates = await page.evaluate(collectClickable, {
+      dangerSource: DANGER_SOURCE,
+      submitsFormSource: SUBMITS_FORM_SOURCE,
+    });
+
+    expect(candidates.find((c) => c.label === 'Continue')?.unsafe).toBe(true);
+    const safe = candidates.find((c) => c.label === 'Open');
+    expect(safe?.unsafe).toBe(false);
+    await page.locator(safe!.selector).click();
+    await page.waitForTimeout(250);
+    expect(posts).toEqual([]);
+  });
+});

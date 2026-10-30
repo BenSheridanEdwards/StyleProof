@@ -704,13 +704,11 @@ test('isUnsafeStateLabel: matches the shared destructive vocabulary', () => {
 
   for (const label of 'Send Submit Save Confirm Approve Invite Transfer Cancel Sends Submitted Saved Confirmed Approved Invited Transferred Cancelled'.split(
     ' ',
-  )) {
+  ))
     assert.equal(isUnsafeStateLabel(label), true, label);
-  }
 
-  for (const label of ['Sender', 'Submission', 'Savings', 'Confirmation', 'Approval', 'Invitation', 'Cancellation']) {
+  for (const label of ['Sender', 'Submission', 'Savings', 'Confirmation', 'Approval', 'Invitation', 'Cancellation'])
     assert.equal(isUnsafeStateLabel(label), false, label);
-  }
   // Two-word and noun forms of checkout, payment and order placement (#973).
 
   for (const label of ['Check out', 'Submit payment', 'Confirm payment', 'Payments', 'Purchases', 'Place order']) {

@@ -6,24 +6,20 @@ import { runInNewContext } from 'node:vm';
 
 const source = readFileSync(new URL('../dist/variant-crawler.js', import.meta.url), 'utf8');
 
-const perform = runInNewContext(
-  `(${source.match(/async function perform\([\s\S]*?(?=function liveStatesFrom)/)[0].trim()})`,
-);
+const perform = runInNewContext(`(${source.match(/async function perform[\s\S]*?(?=function liveStatesFrom)/)[0]})`);
 
 for (const valid of [true, false]) {
   test(`empty submission only invokes validation for an invalid form: valid=${valid}`, async () => {
     let submissions = 0;
-
     const form = { querySelectorAll: () => [], checkValidity: () => valid, requestSubmit: () => submissions++ };
-
     const page = { locator: () => ({ first: () => ({ evaluate: (fn) => fn(form) }) }) };
     await perform(page, { action: 'submit-empty', selector: 'form' });
     assert.equal(submissions, valid ? 0 : 1);
   });
 }
 
-for (const custom of [false, true]) {
-  for (const relation of ['self', 'ancestor', 'label', 'wrapper', 'contained-label', 'attribute']) {
+for (const custom of [false, true])
+  for (const relation of ['self', 'ancestor', 'label', 'wrapper', 'contained-label', 'attribute'])
     test(`submit guard: custom=${custom}, relation=${relation}`, () => {
       const form = { localName: 'form' };
 
@@ -31,7 +27,8 @@ for (const custom of [false, true]) {
         localName: custom ? 'form-button' : 'button',
         type: 'submit',
         form,
-        getAttribute: (name) => (name === 'form' && relation === 'attribute' ? 'owner' : null),
+        getAttribute: (name) =>
+          name === 'type' ? submit.type : name === 'form' && relation === 'attribute' ? 'owner' : null,
         closest: () => (relation === 'attribute' ? null : submit.form),
       };
 
@@ -49,17 +46,11 @@ for (const custom of [false, true]) {
         'contained-label': { querySelectorAll: () => [{ localName: 'label', control: submit }] },
       };
 
-      const candidate = candidates[relation];
-      assert.equal(guard(candidate), true);
-      submit.form = null;
-      assert.equal(guard(candidate), false);
-      submit.form = form;
-
-      for (const type of ['button', 'reset']) {
+      for (const state of ['submit', 'ownerless', 'button', 'reset']) {
+        const owner = state === 'ownerless' ? null : form;
+        const type = state === 'ownerless' ? 'submit' : state;
+        submit.form = owner;
         submit.type = type;
-        submit.getAttribute = (name) => (name === 'type' ? type : null);
-        assert.equal(guard(candidate), false);
+        assert.equal(guard(candidates[relation]), Boolean(owner && type === 'submit'));
       }
     });
-  }
-}

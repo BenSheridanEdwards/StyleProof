@@ -15,7 +15,7 @@ export function collectClickable({
   submitsFormSource: string;
 }): RawCandidate[] {
   const SEMANTIC =
-    'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,input[type="submit"],input[type="image"]';
+    'form,button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,input[type="submit"],input[type="image"]';
   // Neutral text inputs get a deterministic value; credential fields are NEVER auto-filled (--setup territory).
   const FILLABLE =
     'input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],textarea';

@@ -7,15 +7,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Changed
-
-- **BREAKING (#1143):** state recipe labels/stateKeys with side-effect verbs (`saved`, `submitted`, `cancel-dialog`, `Confirm modal`) throw `StateRecipeError`; rename them to describe the fixture state.
-- **BREAKING (#1143):** `styleproof-capture --crawl` records `unsafe-control` skips for form submits and side-effect controls (Save, Cancel, Send, Confirm); avoid exit 6 with a reasoned `incompleteUiExclude`.
-- **BREAKING (#1143):** popup capture no longer opens triggers with side-effect labels. Re-capture the base so later, renumbered `popup-XX` IDs line up.
-
 ### Fixed
 
-- Never click submit controls or common side-effect verbs during discovery (#1143).
+- **BREAKING (#1143):** discovery refuses submits and side-effect verbs. Recipe labels/stateKeys such as `saved`, `submitted`, `cancel-dialog`, and `Confirm modal` throw `StateRecipeError`; rename them to describe fixture state. Crawl records `unsafe-control` skips for submits and Save/Cancel/Send/Confirm; acknowledge exit 6 with a reasoned `incompleteUiExclude`. Popup capture refuses side-effect labels; re-capture the base to align renumbered `popup-XX` IDs.
 - Share tighter generated-ID rules between inventory and capture, preserving authored IDs; maps
   captured before this fix may show affected elements as moved once (#1154). The ten-character
   hex threshold preserves IDs such as `facade01`, but random hex IDs of 8–9 characters now key
