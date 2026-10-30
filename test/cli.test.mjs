@@ -2083,7 +2083,7 @@ test('report CLI blocks uncertified structural-only path churn when content comp
   rmTmp(root);
 });
 
-test('report CLI names a collapsed style presentation as a consistency failure, not zero element changes', () => {
+test('report CLI keeps swapped content-shift restyles aligned with certification', () => {
   const root = mkTmp();
   try {
     const A = path.join(root, 'a');
@@ -2103,7 +2103,7 @@ test('report CLI names a collapsed style presentation as a consistency failure, 
       style: { color: 'rgb(255, 255, 255)' },
     };
     // The two elements swap places, but colors and boxes stay fixed at each position.
-    // Certification retains the nth-child-shift restyles while presentation finds no path restyle.
+    // Presentation now shares the certifier's nth-child-shift restyles.
     for (const [dir, first, second, sha] of [
       [A, action, label, 'base-sha'],
       [
@@ -2131,8 +2131,8 @@ test('report CLI names a collapsed style presentation as a consistency failure, 
     const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
     assert.equal(r.status, 1, r.stderr);
     assert.deepEqual(json.reviewableCounts, { dom: 0, style: 2, state: 0 });
-    assert.deepEqual(json.reportConsistency, { ok: false, reason: 'presentation_collapsed_while_raw_reviewable' });
-    assert.match(r.stdout, /⚠ no presentation changes — report consistency failure written/);
+    assert.deepEqual(json.reportConsistency, { ok: true, reason: 'aligned' });
+    assert.doesNotMatch(r.stdout, /report consistency failure/);
     assert.doesNotMatch(r.stdout, /0 reviewable element addition\(s\)\/removal\(s\)/);
   } finally {
     rmTmp(root);
