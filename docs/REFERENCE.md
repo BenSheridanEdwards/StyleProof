@@ -756,7 +756,9 @@ Rules for this slice:
   cannot dispatch a sticky `mouseenter` from prior hover discovery. Duplicate
   derived keys are rejected; order is sorted by stable key. Declared invalid/unsafe
   recipes fail closed at expansion (before browser tests register); unsafe live
-  targets still fail the capture with a privacy-safe `StateRecipeError`.
+  targets still fail the capture with a privacy-safe `StateRecipeError` naming the action
+  and stable recipe key, without the live target label. Author-written declared labels
+  may appear in validation errors.
 - Stable keys come from declared `stateKey` / label / selector. Live accessible
   labels still feed the destructive-action guard (so a benign declared label
   cannot authorize a control whose live label is `Delete` / `Remove` / …).

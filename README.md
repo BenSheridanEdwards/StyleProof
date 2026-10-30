@@ -627,6 +627,9 @@ contracts: [what it catches](docs/what-it-catches.md) ·
 [forced-state limits](docs/forced-state-capture.md) ·
 [consumer pin bump](docs/consumer-pin-bump.md).
 
+Failed capture setup steps report their one-based step number, action, and author-written
+selector (except for `goto`). Driver URLs, field values, and original causes are omitted.
+
 ## Contributing
 
 Repository CI runs the full browser suite in four file-level shards alongside the
