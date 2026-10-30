@@ -143,7 +143,7 @@ async function assertRequiredVisibleState(page: Page, required: CaptureOptions['
 
 type Elements = Record<string, ElementEntry>;
 
-type SettleResult = { volatile: string[]; settled?: PageCapture };
+type SettleResult = { volatile: string[]; settled?: PageCapture; inFlightAtTimeout?: number };
 
 function waitUntilQuietEdge(remaining: number, snapMs: number, interval: number): number {
   if (remaining <= 0) return 0;
@@ -185,6 +185,7 @@ async function stabilizePage(
   let quiet = false;
   let volatile: string[] = [];
   let settled: PageCapture | undefined;
+  let inFlightAtTimeout: number | undefined;
   try {
     await install();
     // realNow: under STYLEPROOF_FREEZE_SPEC_CLOCK a frozen Date would never advance these windows.
@@ -223,6 +224,10 @@ async function stabilizePage(
     // `quietFor`). Content that loaded late (in any number of steps) and then settled is compared,
     // and so is a path that changed only once, even while a request is still in flight.
     if (!quiet) {
+      const inFlight = pending();
+
+      if (inFlight > 0) inFlightAtTimeout = inFlight;
+
       const end = realNow();
 
       const lastPoll = Math.max(...lastChangedAt.values());
@@ -251,7 +256,7 @@ async function stabilizePage(
           .catch(() => undefined);
   }
 
-  return { volatile, settled };
+  return { volatile, settled, inFlightAtTimeout };
 }
 
 /** Settle the page and return live-region paths and, when quiet, the final capture. */
@@ -270,6 +275,13 @@ async function detectVolatile(
   try {
     const budget = { interval: opt.interval || 150, quietFor: opt.quietFor || 600, timeout: opt.timeout || 5000 };
     const result = await stabilizePage(page, args, budget, pending);
+
+    if (result.inFlightAtTimeout) {
+      warn(
+        `styleproof: settle timed out with ${result.inFlightAtTimeout} request(s) in flight; ` +
+          'this capture may show a loading state. Settle the page in go() or raise stabilize.timeout.',
+      );
+    }
     const { volatile } = result;
     if (volatile.length) {
       warn(
@@ -426,7 +438,14 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   await page.evaluate(freezeMotion, FREEZE_CSS);
 
   options.onPhase?.('settle');
-  const { volatile, settled } = await detectVolatile(page, args, options.stabilize ?? true, options.pendingRequests);
+
+  const { volatile, settled, inFlightAtTimeout } = await detectVolatile(
+    page,
+    args,
+    options.stabilize ?? true,
+    options.pendingRequests,
+  );
+
   options.onPhase?.('capture');
   await assertRequiredVisibleState(page, options.requiredVisibleState);
   // Live-region candidates are diagnostics only: stable status/alert UI is still captured.
@@ -464,6 +483,10 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
       liveCandidates,
       motion,
     });
+
+    if (inFlightAtTimeout) {
+      map.metadata = { ...map.metadata, settleTimedOutWithRequestsInFlight: inFlightAtTimeout };
+    }
     // Matches outside the compared elements do not count as reached (#993).
     const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements)) } : map;
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
