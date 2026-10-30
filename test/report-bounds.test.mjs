@@ -269,7 +269,7 @@ test('report promotes a frame-wide change to a chrome callout, leaves a one-view
   assert.match(md, /## 🧱 Global chrome change/, md.slice(0, 1200));
   // The promoted group spans settings and reports; home renders in place (#752).
   assert.match(md, /across 2 of 3 captured surface base\(s\)/);
-  assert.match(md, /rode the shared frame/);
+  assert.match(md, /changed on every surface base that renders it \(inside a nav, header or footer\)/);
   // The home h1 restyle is still shown — never hidden under the banner.
   assert.match(md, /title/);
   // Counts and exit-relevant results are unchanged by the presentational tier.
