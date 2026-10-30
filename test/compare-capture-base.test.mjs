@@ -7,8 +7,8 @@ import { spawnSync } from 'node:child_process';
 
 const cli = path.resolve('bin/styleproof-diff.mjs');
 
-for (const mode of ['manual', 'install-failure', 'config-install-failure', 'capture-failure', 'success']) {
-  const captureBase = mode !== 'manual';
+for (const mode of ['manual', 'install-failure', 'config-only', 'capture-failure', 'SIGINT', 'SIGTERM', 'success']) {
+  const captureBase = !['manual', 'config-only'].includes(mode);
   test(`missing base with ${mode} preserves checkout and cleans worktrees`, () => {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-compare-'));
 
@@ -30,9 +30,9 @@ for (const mode of ['manual', 'install-failure', 'config-install-failure', 'capt
       );
       fs.mkdirSync(path.join(repo, 'e2e'));
       fs.writeFileSync(path.join(repo, 'e2e/styleproof.spec.ts'), '// fixture');
-      fs.writeFileSync(path.join(repo, '.gitignore'), '.worktrees/\nstyleproof-audit.json\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'styleproof-audit.json\n');
 
-      if (mode === 'config-install-failure')
+      if (mode === 'config-only')
         fs.writeFileSync(path.join(repo, 'styleproof.config.json'), JSON.stringify({ captureBase: true }));
 
       git('add', '.');
@@ -61,9 +61,10 @@ const cwd = process.cwd();
 const side = process.env.STYLEMAP_DIR;
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ command: '${command}', cwd, side,
 sha: cp.execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-dirty: fs.existsSync('dirty') }) + '\\n');
-if ('${command}' === 'npm') process.exit(${mode.endsWith('install-failure') ? 1 : 0});
+worktrees: fs.existsSync('.worktrees') ? fs.readdirSync('.worktrees') : [], dirty: fs.existsSync('dirty') }) + '\\n');
+if ('${command}' === 'npm') { console.error('fixture install diagnostic'); process.exit(${mode.endsWith('install-failure') ? 1 : 0}); }
 if (${mode === 'capture-failure'} && side === 'base') process.exit(1);
+if (${mode.startsWith('SIG')} && side === 'base') { process.kill(process.ppid, '${mode}'); process.exit(0); }
 const out = path.join(process.env.STYLEPROOF_BASEDIR, side);
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'home@1280.json'), JSON.stringify({ defaults: {}, states: {},
@@ -77,20 +78,30 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
         const before = git('status', '--porcelain');
         const head = git('rev-parse', 'HEAD');
 
-        const result = spawnSync(
-          process.execPath,
-          [cli, 'main', ...(captureBase && mode !== 'config-install-failure' ? ['--capture-base'] : [])],
-          {
-            cwd: repo,
-            encoding: 'utf8',
-            env: { ...process.env, PATH: `${executables}${path.delimiter}${process.env.PATH}` },
-          },
+        const result = spawnSync(process.execPath, [cli, 'main', ...(captureBase ? ['--capture-base'] : [])], {
+          cwd: repo,
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${executables}${path.delimiter}${process.env.PATH}` },
+        });
+
+        assert.equal(
+          result.status,
+          mode === 'SIGINT' ? 130 : mode === 'SIGTERM' ? 143 : mode === 'success' ? 1 : 2,
+          result.stderr,
         );
 
-        assert.equal(result.status, mode === 'success' ? 1 : 2, result.stderr);
-
         if (captureBase) {
-          if (mode !== 'success')
+          assert.match(result.stderr, /base restore failed:.*git remote origin was not found.*capturing/s);
+
+          if (mode === 'install-failure') {
+            assert.match(result.stderr, /fixture install diagnostic/);
+            assert.match(result.stderr, /npm ci.*exit 1/);
+          }
+
+          if (mode.startsWith('SIG')) {
+            assert.match(result.stderr, /capture interrupted by SIG/);
+            assert.equal(fs.readFileSync(log, 'utf8').includes('"side":"head"'), false);
+          } else if (mode !== 'success')
             assert.match(
               result.stderr,
               new RegExp(`base ${mode.endsWith('install-failure') ? 'install' : 'capture'} failed.*\\.worktrees/`, 's'),
@@ -106,12 +117,16 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
             assert.equal(base.dirty, false);
             assert.equal(calls.find((call) => call.side === 'head').cwd, fs.realpathSync(repo));
             assert.equal(calls.find((call) => call.side === 'head').dirty, true);
+            assert.deepEqual(calls.find((call) => call.side === 'head').worktrees, []);
           }
 
           assert.deepEqual(fs.readdirSync(path.join(repo, '.worktrees')), []);
         } else {
           assert.match(result.stderr, /cached maps are not available/);
-          assert.match(result.stderr, /or rerun with --capture-base to capture the base in a temporary worktree/);
+          assert.equal(fs.existsSync(log), false);
+
+          if (mode === 'config-only') assert.match(result.stderr, /unknown key\(s\) ignored: captureBase/);
+          assert.match(result.stderr, /Or rerun with --capture-base to capture the base in a temporary worktree/);
         }
 
         assert.equal(git('status', '--porcelain'), before);

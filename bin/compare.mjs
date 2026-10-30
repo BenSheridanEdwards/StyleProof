@@ -3,7 +3,7 @@
 // flags, trusted source SHAs, and the read-while-the-dirs-exist bracket.
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { captureMap } from './ci-shared.mjs';
+import { captureMap, ExitError } from './ci-shared.mjs';
 import path from 'node:path';
 import { withStyleMapReadScope } from '../dist/capture/map-io.js';
 import { cachedMapsUnavailableMessage, missingManualCaptureMessage, projectConfigOrExit } from '../dist/cli-errors.js';
@@ -87,7 +87,7 @@ function captureSource(name, opts) {
       opts['cache-branch'] ?? process.env.STYLEPROOF_CACHE_BRANCH ?? config.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH,
     remote: opts.remote ?? process.env.STYLEPROOF_REMOTE ?? config.remote ?? DEFAULT_REMOTE,
     gitTimeoutMs: config.mapStore?.gitTimeoutMs,
-    captureMissing: opts['capture-base'] || config.captureBase === true ? captureMissing : undefined,
+    captureMissing: opts['capture-base'] ? captureMissing : undefined,
   };
 }
 
@@ -155,6 +155,12 @@ function cachedDirs(name, opts, args, purpose, usage) {
     });
     return { beforeDir: cacheCapture.beforeDir, afterDir: cacheCapture.afterDir, cacheCapture };
   } catch (error) {
+    if (error instanceof ExitError) {
+      console.error(error.message);
+
+      return process.exit(error.exitCode);
+    }
+
     console.error(cachedMapsUnavailableMessage(name, purpose, error, localCompareHint(args[0])));
     return process.exit(2);
   }
@@ -163,26 +169,26 @@ function cachedDirs(name, opts, args, purpose, usage) {
 /** Capture through the same spec path as the manual `styleproof capture` command. */
 function captureMissing(cwd, outDir, spec, side) {
   if (side === 'base') {
-    try {
-      const plan = detectPackageManagerPlan(cwd);
-      const result = spawnSync(plan.install[0], plan.install.slice(1), { cwd, stdio: 'ignore' });
+    const plan = detectPackageManagerPlan(cwd);
+    const result = spawnSync(plan.install[0], plan.install.slice(1), { cwd, stdio: ['ignore', 2, 2] });
 
-      if (result.status !== 0) throw new Error('install failed');
-    } catch {
-      throw new Error(`base install failed in worktree ${cwd}`);
+    if (result.status !== 0) {
+      throw new Error(
+        `base install failed in worktree ${cwd}: ${plan.install.join(' ')} (exit ${result.status}${result.signal ? `, signal ${result.signal}` : ''})${result.error ? `: ${result.error.message}` : ''}`,
+      );
     }
   }
 
-  try {
-    const status = captureMap(
-      'compare',
-      ['--spec', spec, '--base-dir', path.dirname(outDir), '--dir', path.basename(outDir)],
-      { cwd },
-    );
+  const status = captureMap(
+    'compare',
+    ['--spec', spec, '--base-dir', path.dirname(outDir), '--dir', path.basename(outDir)],
+    { cwd },
+  );
 
-    if (status !== 0) throw new Error('capture failed');
-  } catch {
-    throw new Error(`${side} capture failed in ${side === 'base' ? 'worktree ' : ''}${cwd}`);
+  if (status !== 0) {
+    throw new Error(
+      `${side} capture failed in ${side === 'base' ? 'worktree ' : ''}${cwd}: styleproof-map --spec ${spec} --base-dir ${path.dirname(outDir)} --dir ${path.basename(outDir)} (exit ${status})`,
+    );
   }
 }
 

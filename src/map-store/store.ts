@@ -388,6 +388,7 @@ export function resolveCachedCaptureDirs(
       });
     } catch (error) {
       if (!options.captureMissing) throw error;
+      process.stderr.write(`${side} restore failed: ${errorMessage(error)}; capturing locally\n`);
       options.captureMissing(probeCwd, outDir, spec, side);
     }
   };
@@ -400,10 +401,10 @@ export function resolveCachedCaptureDirs(
     if (options.captureMissing) git(cwd, ['worktree', 'prune']);
   };
 
-  const interrupted = () => {
+  const interrupted = (signal: NodeJS.Signals) => {
     cleanup();
     removeTempWorkspace(tmpRoot);
-    process.exit(2);
+    process.exit(signal === 'SIGINT' ? 130 : 143);
   };
 
   if (options.captureMissing) {
@@ -434,6 +435,8 @@ export function resolveCachedCaptureDirs(
       baseCwd,
       'base',
     );
+    worktrees.remove('cache-base');
+    cleanup();
     restore(headSha, dirs.afterDir, compatibilityKey, cwd, 'head');
 
     return { ...dirs, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };

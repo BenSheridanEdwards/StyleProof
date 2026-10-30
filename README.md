@@ -459,8 +459,10 @@ branch. Nothing under `.styleproof/` belongs in a commit.
 
 `compare --capture-base` opts into capturing missing maps locally. It installs dependencies
 and captures the base in a temporary detached worktree under `<repo>/.worktrees/`,
-then removes it; head is captured in the current checkout, preserving uncommitted edits.
-Stop any app server first so both captures use their own builds. The flag is off by default; `captureBase: true` in StyleProof config also enables it.
+then removes it before processing the head. When no stored head bundle exists for HEAD,
+head is captured in the current checkout, preserving uncommitted edits; otherwise the stored bundle wins.
+Stop any app server first so both captures use their own builds. The flag is off by default
+and cannot be enabled through StyleProof config.
 
 `compare` restores the base map from the map store, so on a local checkout without
 one it stops and prints the local steps. Capture this checkout as head, then the
