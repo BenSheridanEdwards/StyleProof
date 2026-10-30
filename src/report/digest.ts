@@ -14,7 +14,7 @@ export type DigestRow = {
   status: OneSidedStatus | 'changed';
   /** Other surfaces carrying the same change (changed rows only, when non-zero). */
   otherSurfaces?: number;
-  /** The change rode the shared frame: every surface base that renders the element. */
+  /** The element changed on every surface base that renders the element. */
   chrome?: true;
   elements: DigestElement[];
   /** Changed elements not listed in `elements`. */
@@ -86,7 +86,7 @@ function rowLine(row: DigestRow): string {
   const surface = codeValue(formatSurfaceList([safeKey(row.surface)]));
   if (row.status !== 'changed') return `- ${surface} — ${ONE_SIDED_TEXT[row.status]}`;
   const where = row.chrome
-    ? `${surface} · 🧱 global chrome, on every surface base that renders it`
+    ? `${surface} · 🧱 global chrome, changed on every surface base that renders it`
     : row.otherSurfaces
       ? `${surface} +${row.otherSurfaces} more surface(s)`
       : surface;
