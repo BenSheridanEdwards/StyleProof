@@ -4,6 +4,7 @@
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { GENERATED_ID_SOURCES } from './generated-id.js';
 import { realNow } from './spec-clock.js';
 import { PSEUDO_REFERENCES } from './pseudo-references.js';
 import {
@@ -434,7 +435,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   }
 
-  await page.evaluate(injectPathOf);
+  await page.evaluate(injectPathOf, GENERATED_ID_SOURCES);
   // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(freezeMotion, FREEZE_CSS);

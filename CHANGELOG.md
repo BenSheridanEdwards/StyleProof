@@ -14,6 +14,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Share tighter generated-ID rules between inventory and capture, preserving authored IDs; maps
+  captured before this fix may show affected elements as moved once (#1154). The ten-character
+  hex threshold preserves IDs such as `facade01`, but random hex IDs of 8–9 characters now key
+  the path. Legacy Radix, MUI and React Aria counter ids with derived suffixes (`radix-12-trigger-account`) are rejected too.
+  React colon, guillemet and underscore tokens at the start or after a `-`/`_`/`:` (Zag) separator
+  accept any identifier prefix and are rejected, including server H suffixes (`_appR_0H1_`).
+  Bare tokens and colon/guillemet tokens with separator-ending prefixes are also rejected
+  when embedded; `section:main-ref:x` is rejected, as on main. Ambiguous embedded forms
+  `a:bar2:b` and `cell_r_1_c_2` stay authored. Vue/Solid counters in colon-delimited
+  segments are rejected; Vue derived IDs such as `v-1-2-custom` stay authored as on main.
 - Describe captures without product-state identity as having no product-state declared (#1151).
 - Keep interpolated setup URLs/values and live state-recipe labels out of errors (#1144).
 - Explain shared chrome as a change on every surface base that renders the element; name landmarks only for landmark paths (#1150).
