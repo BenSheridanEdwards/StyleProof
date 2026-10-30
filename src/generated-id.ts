@@ -1,8 +1,11 @@
 // Sources, rather than RegExp objects, survive Playwright's page argument serialization.
 export const GENERATED_ID_SOURCES = [
-  // React useId (18–19.2), optionally following an identifier prefix; also covers Radix's
-  // `radix-${useId()}` and modern Headless UI/Chakra ids. Never match an interior token.
-  /^(?:[A-Za-z_][A-Za-z0-9_-]*)?(?::[rR][0-9A-Za-z]+:|«[rR][0-9A-Za-z]+»|_[rR]_[0-9A-Za-z]+_)$/.source,
+  // React useId tokens can occur inside library-derived ids, including before suffixes.
+  // Underscore coordinate segments (cell_r_1_c_2) remain authored when embedded in a word.
+  /(?::[rR][0-9A-Za-z]+:|«[rR][0-9A-Za-z]+»|(?:^|[^A-Za-z0-9])_[rR]_[0-9A-Za-z]+_|_[rR]_[0-9A-Za-z]+_(?![A-Za-z0-9]+_))/
+    .source,
+  // Chakra v1 useIds counters, including derived modal header ids.
+  /^chakra-(?:[a-z]+-+)+[0-9]+$/.source,
   // Radix's pre-React-18 counter fallback and MUI's useGlobalId fallback.
   /^(?:radix|mui)-[0-9]+$/.source,
   // Headless UI's component names followed by its legacy useId counter.
@@ -15,8 +18,8 @@ export const GENERATED_ID_SOURCES = [
   /^downshift-[0-9]+(?:-(?:input|label|menu|toggle-button|item-[0-9]+))?$/.source,
   // Reach's legacy component ids (use a numeric auto-id, sometimes nested).
   /^reach-(?:[a-z]+-)+[0-9]+(?:-[0-9]+)*$/.source,
-  // Angular Material/CDK component counters, e.g. mat-input-0 and cdk-overlay-0.
-  /^(?:mat|cdk)-[a-z]+-[0-9]+$/.source,
+  // Angular Material/MDC and CDK counters, including numeric and named suffixes.
+  /^(?:mat|cdk)-(?:[a-z]+-)+[0-9]+(?:-(?:[a-z]+|[0-9]+))*$/.source,
   // Vue 3.5 useId: v-<counter>, with numeric async boundary segments.
   /^v-[0-9]+(?:-[0-9]+)*$/.source,
   // Ten hex characters avoids short dictionary-like ids such as facade01.

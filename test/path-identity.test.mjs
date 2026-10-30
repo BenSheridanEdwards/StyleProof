@@ -9,6 +9,9 @@ import { isStableId } from '../dist/inventory.js';
 // generator, so they must never name an element: React useId (18/19.0 `:r0:`, 19.1 `«r0»`,
 // 19.2 `_r_0_`, server `_R_0H1_`), Radix and Headless UI scoped ids, MUI fallbacks, hashes.
 const GENERATED = [
+  'prefix:r1:suffix',
+  'prefix«r2»suffix',
+  'prefix_r_3_suffix',
   ':r0:',
   ':R1:',
   '«r2»',
@@ -32,6 +35,25 @@ const GENERATED = [
   'downshift-1-toggle-button',
   'downshift-1-item-2',
   'reach-menu-button-3',
+  'radix-:r1:-trigger-account',
+  'radix-:r1:-content-account',
+  'downshift-:r1:-menu',
+  'downshift-:r1:-item-0',
+  ':r1:-listbox',
+  ':r1:-option-0',
+  'field-:r1:-label',
+  'tabs-:r1:--tab-0',
+  '«r1»-listbox',
+  'radix-_r_6_-trigger-x',
+  'tabs::r1::trigger:a',
+  'chakra-modal-3',
+  'chakra-modal--header-3',
+  'mat-mdc-form-field-label-0',
+  'mat-mdc-checkbox-1-input',
+  'mat-select-value-1',
+  'mat-tab-label-0-1',
+  'cdk-describedby-message-0',
+  'cdk-accordion-child-3',
   'mat-input-0',
   'cdk-overlay-0',
   'v-0',
@@ -61,9 +83,6 @@ const AUTHORED = [
   'mat-input-label',
   'cdk-overlay-pane',
   'v-next',
-  'prefix:r1:suffix',
-  'prefix«r2»suffix',
-  'prefix_r_3_suffix',
   'mui-42-custom',
   'radix-12-custom',
   'v-1-2-custom',
@@ -72,7 +91,9 @@ const AUTHORED = [
 /** The smallest DOM `__spPathOf` walks: tag, attributes, parent, children. */
 function element(tag, attributes = {}, children = []) {
   const node = { tagName: tag.toUpperCase(), getAttribute: (name) => attributes[name] ?? null, children };
+
   for (const child of children) child.parentElement = node;
+
   return node;
 }
 
@@ -83,11 +104,13 @@ function pathOfDiv(attributes) {
   const html = element('html', {}, [body]);
   globalThis.window = {};
   globalThis.document = { documentElement: html, body };
+
   try {
     runInNewContext(`(${injectPathOf.toString()})(${JSON.stringify(GENERATED_ID_SOURCES)})`, {
       window: globalThis.window,
       document: globalThis.document,
     });
+
     return globalThis.window.__spPathOf(div);
   } finally {
     delete globalThis.window;
@@ -97,6 +120,7 @@ function pathOfDiv(attributes) {
 
 test('a framework-generated id never becomes part of an element path', () => {
   const positional = pathOfDiv({});
+
   for (const id of GENERATED) assert.equal(pathOfDiv({ id }), positional, `${id} must not key the path`);
 });
 
@@ -106,5 +130,21 @@ test('an authored id still keys the element path', () => {
 
 test('inventory keying and capture paths agree on which ids are stable', () => {
   for (const id of GENERATED) assert.ok(!isStableId(id), `${id} should be rejected as generated`);
+
   for (const id of AUTHORED) assert.ok(isStableId(id), `${id} should be a stable id`);
 });
+
+for (const [name, ids] of [
+  ['React suffixed tokens', GENERATED.filter((id) => id.includes('r1') || id.includes('_r_6_'))],
+  ['Chakra v1 counters', GENERATED.filter((id) => id.startsWith('chakra-'))],
+  ['Angular multi-segment counters', GENERATED.filter((id) => /^(?:mat|cdk)-/.test(id))],
+]) {
+  test(`${name} never key inventory or serialized capture paths`, () => {
+    const positional = pathOfDiv({});
+
+    for (const id of ids) {
+      assert.equal(isStableId(id), false, id);
+      assert.equal(pathOfDiv({ id }), positional, id);
+    }
+  });
+}

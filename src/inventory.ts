@@ -3,9 +3,8 @@
 // harvests each surface's user-reachable affordances, keyed stably, and diffs the UNION
 // across a run: a key on base but not head is a removal that gates unless acknowledged.
 
-import { GENERATED_ID_SOURCES } from './generated-id.js';
-
 import { INVENTORY_LEDGER, readLedger } from './ack-ledger.js';
+import { GENERATED_ID_SOURCES } from './generated-id.js';
 
 const generatedIdPatterns = GENERATED_ID_SOURCES.map((source) => new RegExp(source, 'i'));
 
