@@ -33,6 +33,7 @@ import {
 } from '../dist/ci-worktree.js';
 import {
   expectedCompatibilityKey,
+  expectedHarnessHash,
   listMapStoreBundleShas,
   readMapManifest,
   restoreMapBundle,
@@ -328,8 +329,8 @@ async function withOverlay(cwd, cwdSpec, phase, fn) {
 /** Probe the map store for `sha` under the same overlay the cold path publishes with. */
 async function restore(sha, dir, cwd) {
   const probeSpec = await specFor(cwd);
-  return withOverlay(cwd, probeSpec, '', () =>
-    restoreMap(['--sha', sha, '--dir', dir, '--base-dir', root, '--spec', probeSpec], {
+  return withOverlay(cwd, probeSpec, '', (overlayArgs) =>
+    restoreMap(['--sha', sha, '--dir', dir, '--base-dir', root, '--spec', probeSpec, ...overlayArgs], {
       cwd,
       env,
       dir,
@@ -537,6 +538,7 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
       gitTimeoutMs,
       cwd: baseProbeCwd,
       compatibilityKey: expectedCompatibilityKey({ cwd: baseProbeCwd, spec: probeSpec, baseUrl: env.BASE_URL }),
+      harnessHash: expectedHarnessHash({ cwd: baseProbeCwd, spec: probeSpec }),
     });
     recordBaselineProvenance({
       baseline: 'ancestor-reuse',

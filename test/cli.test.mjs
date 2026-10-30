@@ -7,7 +7,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { saveStyleMap } from '../dist/capture.js';
-import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey, isMapFile } from '../dist/map-store.js';
+import {
+  DEFAULT_MAP_STORE_BRANCH,
+  MAP_MANIFEST,
+  expectedCompatibilityKey,
+  expectedHarnessHash,
+  isMapFile,
+} from '../dist/map-store.js';
 import {
   fixtureCommitSha,
   fixtureCompatibilityKey,
@@ -1083,7 +1089,7 @@ function addBareOrigin(repo) {
   return remote;
 }
 
-function writeManifest(dir, sha, compatibilityKey, lockfileProvenance) {
+function writeManifest(dir, sha, compatibilityKey, lockfileProvenance, harnessHash) {
   fs.writeFileSync(
     path.join(dir, MAP_MANIFEST),
     JSON.stringify(
@@ -1094,6 +1100,7 @@ function writeManifest(dir, sha, compatibilityKey, lockfileProvenance) {
         dirty: false,
         spec: 'e2e/styleproof.spec.ts',
         specHash: '1'.repeat(64),
+        harnessHash,
         ...(lockfileProvenance
           ? { lockfile: lockfileProvenance.lockfile, lockfileHash: lockfileProvenance.lockfileHash }
           : {}),
@@ -1193,8 +1200,9 @@ function setupCachedComparison({
   const headLockfileProvenance = headLockfileHash
     ? { lockfile: 'package-lock.json', lockfileHash: headLockfileHash }
     : undefined;
-  writeManifest(baseDir, baseRefSha, baseCompatibilityKey, baseLockfileProvenance);
-  writeManifest(headDir, headSha, headCompatibilityKey, headLockfileProvenance);
+
+  writeManifest(baseDir, baseRefSha, baseCompatibilityKey, baseLockfileProvenance, expectedHarnessHash({ cwd: repo }));
+  writeManifest(headDir, headSha, headCompatibilityKey, headLockfileProvenance, expectedHarnessHash({ cwd: repo }));
   seedBase(baseDir);
   seedHead(headDir);
   seedMapStore(repo, [
@@ -1464,7 +1472,7 @@ test('cached diff preserves a retargeted spec directory symlink for every checko
         { ...mapWith(color), metadata: { productState: { id: 'home', revision: 'fixture-v1' } } },
         null,
       );
-      writeManifest(dir, sha, compatibilityKey);
+      writeManifest(dir, sha, compatibilityKey, undefined, expectedHarnessHash({ cwd: repo, spec }));
       return { sha, compatibilityKey, dir };
     });
     seedMapStore(repo, bundles);
