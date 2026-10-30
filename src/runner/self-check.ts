@@ -6,6 +6,7 @@ import { warn } from '../capture/shared.js';
 import type { LiveRegionCandidate, StyleMap } from '../capture/types.js';
 import { diffStyleMaps, type Finding } from '../diff.js';
 import { clearSurfaceCaptureFailure, markFatalCaptureFailure, recordSurfaceCaptureFailure } from '../map-store.js';
+import { UndrainedSurfaceTimeoutError } from '../surface-progress.js';
 import { captureOptionsFor } from './settings.js';
 import type { ExpandedSurface, Settings } from './types.js';
 
@@ -51,6 +52,12 @@ export async function withSurfaceFailureTolerance(
     await run();
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
+
+    if (e instanceof UndrainedSurfaceTimeoutError) {
+      markFatalCaptureFailure(settings.outDir, reason);
+      throw e;
+    }
+
     if (isSelfCheckCaptureFailure(reason)) {
       markFatalCaptureFailure(settings.outDir, reason);
     } else if (ledgerNonFatalSurfaceFailure(settings, captureKey, reason, aggregate)) {

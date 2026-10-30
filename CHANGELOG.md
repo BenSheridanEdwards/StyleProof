@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Scope each HAR to one capture (load, self-check, screenshots, popups) or detection; drain late responses for up to 2 s (#1138).
+- Drain timed-out surface work before reusing its page in crawl and auto-width sweeps; stop the sweep if it stays active, while own-page timeouts remain tolerable (#1137).
 - Keep workflow_run default-branch captures under the checkout SHA instead of the PR head (#1136).
 - Keep CSS-only hover and focus states through state-recipe capture and self-check (#1134).
 - Miss stored-base restores when the colocated harness changes, without changing base/head comparability; existing stored bases miss once (#1135).
