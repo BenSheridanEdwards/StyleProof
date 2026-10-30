@@ -16,6 +16,7 @@ import {
   assertSafeRecipeStateKey,
   stateRecipeGo,
   StateRecipeError,
+  applyStateRecipe,
 } from '../dist/state-recipes.js';
 
 // ---------------------------------------------------------------------------
@@ -973,4 +974,28 @@ test('linear scanners: stress shapes complete boundedly (semantic loop + generou
   }
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 15_000, `stress probe exceeded generous budget: ${elapsed}ms`);
+});
+
+test('live unsafe labels stay out of recipe errors; declared labels remain diagnostic', async () => {
+  const page = {
+    locator: () => ({ first: () => ({ evaluate: async () => 'Delete account for person@example.test' }) }),
+  };
+
+  await assert.rejects(
+    applyStateRecipe(page, { action: 'hover', selector: '#danger', stateKey: 'danger' }),
+    (error) => {
+      assert.equal(
+        error.message,
+        'refusing unsafe state recipe target (hover key=danger): label matched the built-in destructive-action guard',
+      );
+      assert.equal(error.cause, undefined);
+
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    applyStateRecipe(page, { action: 'hover', selector: '#danger', label: 'Delete account' }),
+    /refusing unsafe state recipe \(Delete account\)/,
+  );
 });
