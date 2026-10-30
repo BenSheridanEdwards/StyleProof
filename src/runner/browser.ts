@@ -55,12 +55,23 @@ export function popupDomSnapshot({
     return parts.join(' > ');
   };
   const clean = (value: string | null): string => (value ?? '').replace(/\s+/g, ' ').trim();
+
+  const privateText = (text: string): string => {
+    let hash = 0x811c9dc5;
+
+    for (let i = 0; i < text.length; i++) {
+      hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193);
+    }
+
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  };
   // Accessible name (aria-label, name, text, title) — same precedence as the crawlers.
   const labelOf = (el: Element): string => {
-    if (!captureText) return pathOf(el);
     const sources = [el.getAttribute('aria-label'), el.getAttribute('name'), el.textContent, el.getAttribute('title')];
     const own = clean(sources.find(Boolean) ?? null).slice(0, 80);
-    return own || el.tagName.toLowerCase();
+    const label = own || el.tagName.toLowerCase();
+
+    return captureText ? label : privateText(label);
   };
   const KEY_ATTRS = [
     'role',
@@ -75,7 +86,7 @@ export function popupDomSnapshot({
     [
       pathOf(el),
       ...KEY_ATTRS.map((name) => el.getAttribute(name) ?? ''),
-      captureText ? clean(el.textContent).slice(0, 120) : '',
+      captureText ? clean(el.textContent).slice(0, 120) : privateText(clean(el.textContent).slice(0, 120)),
     ].join('|');
   const popups = qsa(popupSelector).filter(visible);
   const keys = popups.map(popupKey);

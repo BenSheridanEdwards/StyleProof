@@ -160,7 +160,6 @@ async function capturePopupCandidate(run: PopupRun, candidate: PopupCandidate): 
   const skip = (reason: string): void => {
     warn(`styleproof: skipped ${surface.key}-${popupId}@${run.viewport.width} — ${reason}`);
   };
-
   const opened = await openPopupCandidate(
     page,
     surface,

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { detectOverlayCandidates } from '../dist/capture/browser.js';
 import { popupDomSnapshot } from '../dist/runner/browser.js';
@@ -66,29 +67,101 @@ test('overlay capture keeps text by default and when explicitly enabled', () => 
   }
 });
 
-test('popup privacy identities and labels use structure and remain stable when copy changes', () => {
-  const args = {
-    popupSelector: '.overlay',
-    triggerSelector: '.trigger',
-    attr: 'data-trigger',
-    max: 1,
-    captureText: false,
+const privacyArgs = {
+  popupSelector: '.overlay',
+  triggerSelector: '.trigger',
+  attr: 'data-trigger',
+  max: 1,
+  captureText: false,
+};
+
+test('popup privacy identities hash copy and change when copy changes', () => {
+  const first = snapshot(popupDomSnapshot, privacyArgs, 'First copy');
+  const second = snapshot(popupDomSnapshot, privacyArgs, 'Replacement copy');
+  assert.notDeepEqual(first.keys, second.keys);
+  assert.notEqual(first.candidates[0].label, second.candidates[0].label);
+  assert.match(first.candidates[0].label, /^[0-9a-f]{8}$/);
+  assert.match(first.keys[0], /\|[0-9a-f]{8}$/);
+  assert.ok(!JSON.stringify(first).includes('First copy'));
+});
+
+// Exercise the runner's actual guards without a browser or capture side effects.
+const popupSource = readFileSync(new URL('../dist/runner/popups.js', import.meta.url), 'utf8');
+
+const openSource = popupSource.slice(
+  popupSource.indexOf('async function openPopupCandidate('),
+  popupSource.indexOf('const leakedOverlaysDesc'),
+);
+
+async function openWithCopy(resetCopy, openedCopy) {
+  const first = snapshot(popupDomSnapshot, privacyArgs, 'First copy');
+  let copy = resetCopy;
+
+  const page = {
+    setViewportSize: async () => {},
+    keyboard: { press: async () => {} },
+    evaluate: async (fn, args) => snapshot(fn, args, copy),
+    locator: () => ({
+      first: () => ({
+        click: async () => {
+          copy = openedCopy;
+        },
+      }),
+    }),
+    waitForTimeout: async () => {},
   };
 
-  const first = snapshot(popupDomSnapshot, args, 'First copy', true);
-  const second = snapshot(popupDomSnapshot, args, 'Replacement copy', true);
-  assert.deepEqual(first, second);
-  assert.equal(first.candidates[0].label, 'dialog[role="dialog"]');
-  assert.ok(!JSON.stringify(first).includes('First copy'));
+  const open = runInNewContext(`(${openSource.trim()})`, {
+    snapshot: (target, args) => target.evaluate(popupDomSnapshot, args),
+    POPUP_TRIGGER_ATTR: 'data-trigger',
+    realNow: () => 0,
+  });
 
+  return open(
+    page,
+    { go: async () => {} },
+    {},
+    { timeoutMs: 0, overlays: '.overlay', triggers: '.trigger' },
+    first.candidates[0],
+    new Set(first.keys),
+    false,
+  );
+}
+
+test('privacy mode skips a shifted same-tag sibling with different text as missing', async () => {
+  // No baseline overlay: isolate the trigger identity guard from the leak guard.
+  const first = snapshot(popupDomSnapshot, { ...privacyArgs, popupSelector: '.absent' }, 'First copy');
   const rebound = snapshot(
     popupDomSnapshot,
-    { ...args, relocatePath: first.candidates[0].path, relocateLabel: first.candidates[0].label },
+    {
+      ...privacyArgs,
+      popupSelector: '.absent',
+      relocatePath: first.candidates[0].path,
+      relocateLabel: first.candidates[0].label,
+    },
     'Replacement copy',
-    true,
   );
 
-  assert.equal(rebound.found, true);
+  assert.equal(rebound.found, false, 'the runner must take its missing branch');
+});
+
+test('privacy mode counts an overlay text-only change as opened', async () => {
+  assert.equal((await openWithCopy('First copy', 'Replacement copy')).status, 'opened');
+});
+
+test('privacy mode reports text-only leftovers as leaked without logging raw copy', async () => {
+  const result = await openWithCopy('Replacement copy', 'Replacement copy');
+  assert.equal(result.status, 'leaked');
+
+  const descSource = popupSource.slice(
+    popupSource.indexOf('const leakedOverlaysDesc'),
+    popupSource.indexOf('function popupMetadata'),
+  );
+
+  const reason = runInNewContext(`${descSource}; SKIP_REASONS.leaked`, {})(result.leaked);
+  assert.match(reason, /could not clear/);
+  assert.ok(!reason.includes('Replacement copy'));
+  assert.match(reason, /\|[0-9a-f]{8}/);
 });
 
 test('popup default and explicit text mode preserve copy-based keys and labels', () => {
