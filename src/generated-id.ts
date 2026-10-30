@@ -1,8 +1,8 @@
 // Sources, rather than RegExp objects, survive Playwright's page argument serialization.
 export const GENERATED_ID_SOURCES = [
-  // React tokens accept any prefix at the start or after -/_; separator-ending prefixes also embed.
+  // React tokens accept any prefix at the start or after -/_/:; separator-ending prefixes also embed.
   // Keep ambiguous a:bar2:b and cell_r_1_c_2 authored. Consumers match A–V too.
-  /(?:^|[-_])[:«][A-Za-z0-9_-]*[rR][0-9a-v]+[:»]|[:«](?:[A-Za-z0-9_-]*[-_])?[rR][0-9a-v]+[:»]|(?:^|[-_])_[A-Za-z0-9_-]*[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_|_[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_(?![A-Za-z0-9]+_)/
+  /(?:^|[-_:])[:«][A-Za-z0-9_.-]*[rR][0-9a-v]+[:»]|[:«](?:[A-Za-z0-9_.-]*[-_])?[rR][0-9a-v]+[:»]|(?:^|[-_:])_[A-Za-z0-9_.-]*[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_|_[rR]_[0-9a-v]+(?:[hH][0-9a-v]+)?_(?![A-Za-z0-9]+_)/
     .source,
   // Chakra v1 useIds counters, including derived modal header ids.
   /^chakra-(?:[a-z]+-+)+[0-9]+$/.source,
@@ -20,8 +20,8 @@ export const GENERATED_ID_SOURCES = [
   /^reach-(?:[a-z]+-)+[0-9]+(?:-[0-9]+)*$/.source,
   // Angular Material/MDC and CDK counters, including numeric and named suffixes.
   /^(?:mat|cdk)-(?:[a-z]+-)+[0-9]+(?:-(?:[a-z]+|[0-9]+))*$/.source,
-  // Vue 3.5 useId: v-<counter>, with numeric async boundary segments.
-  /^v-[0-9]+(?:-[0-9]+)*$/.source,
+  // Vue/Solid counters, including Zag colon segments; Vue derived ids stay authored as on main.
+  /(?:^|:)(?:v-[0-9]+(?:-[0-9]+)*|cl-[0-9]+)(?::|$)/.source,
   // Ten hex characters avoids short dictionary-like ids such as facade01.
   /^[0-9a-f]{10,}$/i.source,
 ];

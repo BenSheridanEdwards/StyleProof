@@ -9,6 +9,14 @@ import { isStableId } from '../dist/inventory.js';
 // generator, so they must never name an element: React useId (18/19.0 `:r0:`, 19.1 `«r0»`,
 // 19.2 `_r_0_`, server `_R_0H1_`), Radix and Headless UI scoped ids, MUI fallbacks, hashes.
 const GENERATED = [
+  'menu::appr1::trigger',
+  'menu:«appr1»:trigger',
+  'menu:_appr_1_:trigger',
+  'menu::r1::trigger',
+  'dialog:v-0:content',
+  'dialog:v-1-2:content',
+  'menu:cl-0:trigger',
+  ':my.appr0:',
   'radix-12-custom',
   'mui-42-custom',
   'radix-12-trigger-account',
