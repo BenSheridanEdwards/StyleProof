@@ -185,7 +185,11 @@ test('a global chrome row keeps the every-surface-that-renders-it qualifier', ()
     writeCapture(dirs.afterDir, `${base}@900`, makeMap({ elements: nav('rgb(255, 0, 0)') }));
   }
   const { slice, json } = report(dirs);
-  assert.match(slice, /· 🧱 global chrome, on every surface base that renders it — \*\*`a\.link`\*\* text black/);
+
+  assert.match(
+    slice,
+    /· 🧱 global chrome, changed on every surface base that renders it — \*\*`a\.link`\*\* text black/,
+  );
   assert.doesNotMatch(slice.slice(slice.indexOf('**What changed**')), /all \d+ surface/);
   assert.equal(json.digest[0].chrome, true);
 });

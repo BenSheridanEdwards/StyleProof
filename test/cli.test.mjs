@@ -2524,7 +2524,11 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
     // the pure-nav surfaces group under the callout. That group spans settings and
     // reports only (home renders in place), so the banner says so (#752).
     assert.match(r.stdout, /🧱 Global chrome change\(s\) — across 2 of 3 captured surface base\(s\)/, r.stdout);
-    assert.match(r.stdout, /1 change\(s\) rode the shared frame/, r.stdout);
+    assert.match(
+      r.stdout,
+      /1 change\(s\): the affected element changed on every surface base that renders it \(inside a nav, header or footer\)/,
+      r.stdout,
+    );
     // home entangled the nav change with its OWN h1 restyle, so it renders in place
     // (never hidden under the chrome banner) — the view-specific change stays visible.
     assert.match(r.stdout, /home@1280: 2 elements restyled/, 'the view-specific change stays visible');

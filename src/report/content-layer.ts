@@ -4,7 +4,7 @@ import { diffContentMaps, type ContentChange } from '../diff.js';
 import { isAgeOnlyDrift, isLiveTextChange } from '../live-text.js';
 import { correspondContentShiftedPaths } from '../path-correspondence.js';
 import { countCapturedSurfaceBases, formatSurfaceList, prettyLabel, safeKey, surfaceWidth } from '../change-groups.js';
-import { chromeHosted } from '../change-chrome.js';
+import { chromeHosted, isChromeLandmarkPath } from '../change-chrome.js';
 import { containerOf, paddedRect, screenshotRectOf, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
 import { codeValue } from '../code-span.js';
@@ -263,7 +263,7 @@ export function contentHostingSurfacePaths(
 /**
  * Split out one-sided element changes that are shared chrome (#754): the same element
  * added (or removed) at the same path on every *content-comparable* surface base that
- * renders its container, a persistent nav, header, or footer. Each is listed ONCE under
+ * renders its container. Each is listed ONCE under
  * Global chrome instead of once per surface; everything else stays in the advisory list.
  * Callers must pass a hosting universe limited to paired surfaces (`contentHostingSurfacePaths`);
  * unpaired co-hosts must not expand the must-hit set (#767).
@@ -337,8 +337,8 @@ export function renderChromeStructureSection(
     `## 🧱 Global chrome — ${n} element ${n === 1 ? 'change' : 'changes'} on every surface base that renders its container`,
     '',
     `_Each element below was added or removed identically on every captured surface base that renders its ` +
-      `container (a persistent nav, header, or footer), so it is listed once here instead of once per surface. ` +
-      `It is a visible change to the frame every view draws — review it once. ${verdictBlurb}_`,
+      `container${chrome.every(({ change }) => isChromeLandmarkPath(change.path)) ? ' (inside a nav, header or footer)' : ''}, ` +
+      `so it is listed once here instead of once per surface — review it once. ${verdictBlurb}_`,
     ...chrome.flatMap((entry, seq) => chromeStructureLines(ctx, entry, seq)),
   ];
 }
