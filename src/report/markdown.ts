@@ -265,17 +265,19 @@ export function renderCropChanges(
   folded: Finding[] = [],
 ): string[] {
   const tables = renderElements(findings);
-  if (!tables.length) return [];
+
+  if (!tables.length && !folded.length) return [];
   const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
   const foldedCount = derivedLonghandCount(folded);
 
   if (rows < foldAt && !foldedCount) return tables;
-  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded, Infinity)] : [];
+  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded)] : [];
   const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
 
-  if (foldedCount)
+  if (foldedCount) {
     summary[summary.length - 1] += ` (+${foldedCount} size/position row${foldedCount === 1 ? '' : 's'} folded)`;
+  }
 
   return [
     '',

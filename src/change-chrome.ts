@@ -5,7 +5,7 @@ import { productSurfaceBase, surfaceWidth } from './surface-keys.js';
 /** Shared-chrome tier: group surfaces that changed identically and promote frame elements that moved on every hosting view. */
 
 /** A surface's diff distilled to its key and the findings kept after noise-cleaning. */
-export type SurfaceFindings = { surface: string; findings: Finding[] };
+export type SurfaceFindings = { surface: string; findings: Finding[]; folded?: Finding[] };
 
 /** Surfaces that changed the SAME way, collapsed to one group + a representative. */
 export type SignatureGroup = { surfaces: string[]; rep: SurfaceFindings; findings: Finding[] };
@@ -14,7 +14,7 @@ export type SignatureGroup = { surfaces: string[]; rep: SurfaceFindings; finding
 export function groupBySignature(prepared: SurfaceFindings[]): SignatureGroup[] {
   const bySig = new Map<string, SignatureGroup>();
   for (const p of prepared) {
-    const sig = signatureOf(p.findings);
+    const sig = JSON.stringify([signatureOf(p.findings), signatureOf(p.folded ?? [])]);
     const existing = bySig.get(sig);
     if (!existing) {
       bySig.set(sig, { surfaces: [p.surface], rep: p, findings: p.findings });

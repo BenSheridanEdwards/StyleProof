@@ -109,11 +109,15 @@ export function groupBySignature(ctx: RenderCtx, prepared: PreparedSurface[]): C
     if (!s) scores.set(p.sd.surface, (s = representativeScore(ctx, p)));
     return s;
   };
-  return groupByWidth(prepared.map((p) => ({ surface: p.sd.surface, findings: p.findings }))).map((g) => {
-    const members = g.surfaces.map((s) => bySurface.get(s)!);
-    const rep = members.reduce((best, p) => (isBetterRepresentative(score(p), score(best)) ? p : best));
-    return { surfaces: g.surfaces, rep, findings: g.findings };
-  });
+
+  return groupByWidth(prepared.map((p) => ({ surface: p.sd.surface, findings: p.findings, folded: p.folded }))).map(
+    (g) => {
+      const members = g.surfaces.map((s) => bySurface.get(s)!);
+      const rep = members.reduce((best, p) => (isBetterRepresentative(score(p), score(best)) ? p : best));
+
+      return { surfaces: g.surfaces, rep, findings: g.findings };
+    },
+  );
 }
 
 /** Counts for the GROUPED view. Props on one-sided added/removed paths are inventories
@@ -239,7 +243,10 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
 /** One crop region: heading, resting crop, then each forced-state crop. */
 function renderRegion(a: RegionArgs) {
   const { g, cg, surfaceList, region, pngs } = a;
-  const regionFindings = cg.rep.findings.filter((f) => g.paths.some((root) => isSameOrDescendant(f.path, root)));
+
+  const regionFindings = [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
+    g.paths.some((root) => isSameOrDescendant(f.path, root)),
+  );
   const rest = regionFindings.filter((f) => f.kind !== 'state');
   const hasDom = regionFindings.some((f) => f.kind === 'dom');
   const stateOnly = !hasDom && rest.length === 0 && regionFindings.some((f) => f.kind === 'state');
@@ -286,14 +293,15 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   // Same correspondence rewrite as prepareReportSurfaces, so crops resolve corresponded head paths.
   const [mapA, mapB] = presentationMaps(ctx, sd.surface);
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
-  let folded = cg.rep.folded ?? [];
+  const folded = cg.rep.folded ?? [];
 
-  const changes = (shown: Finding[]): string[] => {
-    const lines = renderCropChanges(shown, ctx.foldDetailsAt, describeCtx, folded);
-    folded = [];
-
-    return lines;
-  };
+  const changes = (shown: Finding[]): string[] =>
+    renderCropChanges(
+      shown.filter((f) => findings.includes(f)),
+      ctx.foldDetailsAt,
+      describeCtx,
+      shown.filter((f) => folded.includes(f)),
+    );
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);
   const findingCount = findings.length;
@@ -326,7 +334,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
         `_${reason}_`,
         ...spacingLines(spacing),
         '',
-        ...changes(findings),
+        ...changes([...findings, ...folded]),
       ],
       json: {
         ...json,
@@ -350,10 +358,21 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own, changes });
   });
   const regions = rendered.map((r) => r.regionJson);
+  // Folded ancestors and siblings outside the crops keep their own element/state heading.
+  const outside = folded.filter((f) => !groups.some((g) => g.paths.some((root) => isSameOrDescendant(f.path, root))));
+
+  const outsideMd = outside.flatMap((f) => [
+    '',
+    `### ${regionHeading([f.path], [f])}${f.kind === 'state' ? ` \`:${f.state}\`` : ''}`,
+    '',
+    surfaceList,
+    ...changes([f]),
+  ]);
+
   // A changed run no crop region shows is still named, once, under the group.
   const unclaimed = spacing.filter((change) => !claimed.has(change));
   return {
-    md: [...rendered.flatMap((r) => r.md), ...spacingLines(unclaimed)],
+    md: [...rendered.flatMap((r) => r.md), ...outsideMd, ...spacingLines(unclaimed)],
     json: { ...json, regions, ...spacingJson(unclaimed), classification: sd.classification },
     findingCount,
   };

@@ -1,6 +1,6 @@
-import { foldedGeometryFindings } from './report/markdown.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { foldedGeometryFindings } from './report/markdown.js';
 import { createCropBudget } from './report/crop-budget.js';
 import type { ChangeReachLevel } from './config.js';
 import { captureKeysIn, mergeSurfaceKeyLookup, surfaceElementPaths } from './capture.js';
