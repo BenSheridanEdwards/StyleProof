@@ -330,8 +330,8 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const pngs = screenshotPair(ctx, sd.surface);
 
   if (!findings.length && folded.length) {
-    const label = regionHeading([...new Set(folded.map((f) => f.path))], folded).split(' · ')[0];
-    const md = ['', `### ${label} · size/position rows folded`, '', surfaceList, ...changes(folded)];
+    const label = regionHeading([...new Set(folded.map((f) => f.path))], folded, true);
+    const md = ['', `### ${label}`, '', surfaceList, ...changes(folded)];
 
     return { md, json, findingCount };
   }

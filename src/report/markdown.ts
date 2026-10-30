@@ -291,7 +291,7 @@ export function renderCropChanges(
 }
 
 /** A crop's heading: human label, selector, then what happened inside it. */
-export function regionHeading(regionPaths: string[], findings: Finding[]): string {
+export function regionHeading(regionPaths: string[], findings: Finding[], foldedOnly = !findings.length): string {
   const anchors = [...regionPaths].sort((a, b) => a.split(' > ').length - b.split(' > ').length);
   const cls = findings.find((f) => f.path === anchors[0])?.cls ?? '';
   const selector = prettyLabel(anchors[0] ?? '', cls);
@@ -301,5 +301,6 @@ export function regionHeading(regionPaths: string[], findings: Finding[]): strin
       ? `**${escapeInlineMarkdown(human)}** ${codeValue(selector)}`
       : codeValue(selector);
   const label = anchors.length > 1 ? `${named} + ${anchors.length - 1} more` : named;
-  return `${label} · ${groupTitle(findings)}`;
+
+  return `${label} · ${foldedOnly ? 'size/position rows folded' : groupTitle(findings)}`;
 }

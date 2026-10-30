@@ -1,4 +1,3 @@
-// Issue #1140: report.md must not silently fold authored size/position rows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -132,8 +131,7 @@ test('folded-only details retain the full count while capping element tables', (
 });
 
 test('base and hover folded rows stay under their respective headings', (t) => {
-  const map = (changed) => hoverMap(changed, changed ? 'red' : 'black');
-  const fixture = fixtureFor(t, map(false), map(true));
+  const fixture = fixtureFor(t, hoverMap(false, 'black'), hoverMap(true, 'red'));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   const sections = md.split(/^### /m).slice(1);
   assert.equal(sections.length, 2);
@@ -141,6 +139,8 @@ test('base and hover folded rows stay under their respective headings', (t) => {
   assert.match(sections[0], /`width` \| `240px` \| `280px`/);
   assert.doesNotMatch(sections[0], /`90px`/);
   assert.match(sections[1].split('\n')[0], /:hover/);
+  assert.doesNotMatch(sections[1].split('\n')[0], /0 elements changed/);
+  assert.match(sections[1].split('\n')[0], /· size\/position rows folded/);
   assert.match(sections[1], /`height` \| `80px` → `90px`/);
   assert.doesNotMatch(sections[1], /`280px`/);
 });
