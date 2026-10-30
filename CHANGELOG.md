@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Keep interpolated setup URLs/values and live state-recipe labels out of errors (#1144).
 - Explain shared chrome as a change on every surface base that renders the element; name landmarks only for landmark paths (#1150).
 - Count folded size/position rows and keep their values in report property details;
   crops with folded geometry now render collapsed, and surfaces differing only by

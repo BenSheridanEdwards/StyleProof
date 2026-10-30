@@ -1,3 +1,5 @@
+import { runSetup } from '../dist/crawl/page.js';
+import { inspect } from 'node:util';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -203,4 +205,33 @@ test('loadIncompleteUiExclude accepts reasoned surfaces and rejects empty reason
 test('--incomplete-ui-exclude parses', () => {
   const o = parseCaptureUrlArgs(['https://x', '--crawl', '--incomplete-ui-exclude', 'exclusions.json']);
   assert.equal(o.incompleteUiExcludeFile, 'exclusions.json');
+});
+
+test('setup failures retain step/action diagnostics without driver URLs, values or causes', async () => {
+  const secret = 'fixture-private-value';
+
+  for (const action of ['goto', 'fill', 'click', 'waitFor']) {
+    const fail = async () => {
+      throw new TypeError(`driver failed: https://app.test/?token=${secret} ${secret}`);
+    };
+
+    const target = { fill: fail, waitFor: fail };
+    const page = { goto: fail, locator: () => ({ first: () => target }) };
+
+    await assert.rejects(
+      runSetup(page, [
+        { action: 'goto', url: 'https://app.test/', optional: true },
+        { action, url: `https://app.test/?token=${secret}`, value: secret, selector: '#field' },
+      ]),
+      (error) => {
+        assert.match(error.message, new RegExp(`setup step 2 failed.*${action}`));
+        assert.equal(error.message.includes('#field'), action !== 'goto');
+        assert.equal(inspect(error, { depth: 5 }).includes(secret), false);
+        assert.match(error.message, /TypeError$/);
+        assert.equal(error.cause, undefined);
+
+        return true;
+      },
+    );
+  }
 });
