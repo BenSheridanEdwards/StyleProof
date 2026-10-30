@@ -149,7 +149,7 @@ const criticalAudit = auditCriticalObligations(
   inputs.criticalStatesArmed,
 );
 comparability = applyCriticalObligationReceipts(comparability, criticalAudit);
-// Unbound diagnostic compares list undeclared legacy pairs as advisory, like declared ones; gates keep `comparability`.
+// Unbound diagnostic compares list pairs with no product-state declared as advisory, like declared ones; gates keep `comparability`.
 const displayComparability =
   sourceBinding.status === 'bound'
     ? comparability
@@ -265,9 +265,9 @@ const certificationEvidence = assessCertificationEvidence({ ...evidence, critica
 // Every gate in one table: `blocks` drives the exit code and the clean line, `note`
 // the summary suffix. Adding a gate means adding one row.
 function legacyNote() {
-  if (legacyPairFails) return ` + ${legacyPairFails} undeclared or stale legacy product-state pair(s)`;
+  if (legacyPairFails) return ` + ${legacyPairFails} pair(s) with no product-state declared or stale acknowledgements`;
   return declaredLegacyPairs
-    ? ` + ${legacyPairAudit.declared.length} declared legacy pair(s) (advisory, not certified)`
+    ? ` + ${legacyPairAudit.declared.length} acknowledged paired capture(s) with no product-state declared (advisory, not certified)`
     : '';
 }
 function criticalNote() {
@@ -470,7 +470,7 @@ function summaryLine() {
   }
   if (newSurfaces > 0) return `ℹ ${diagnostic}${repairDebtOnly ? ' (see callout above)' : ''}`;
   return declaredLegacyPairs
-    ? `⚠ declared legacy product-state pair(s) — ${diagnostic}; advisory, not certified`
+    ? `⚠ pair(s) with no product-state declared (acknowledged) — ${diagnostic}; advisory, not certified`
     : `✓ ${diagnostic}`;
 }
 printSection(summaryLine());

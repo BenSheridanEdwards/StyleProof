@@ -51,7 +51,7 @@ export function compareFlags() {
     },
     'legacy-pairs': {
       value: 'file',
-      help: 'declare known-legacy product-state pairs ({"<surface>":"<why>"}); undeclared unproven pairs fail closed, declared pairs stay advisory. Flag and $STYLEPROOF_PRODUCT_STATE override config; an empty env value drops the config path, but a default file in cwd still arms the gate',
+      help: 'declare pairs with no product-state declared ({"<surface>":"<why>"}); undeclared unproven pairs fail closed, declared pairs stay advisory. Flag and $STYLEPROOF_PRODUCT_STATE override config; an empty env value drops the config path, but a default file in cwd still arms the gate',
     },
     'critical-states': {
       value: 'file',

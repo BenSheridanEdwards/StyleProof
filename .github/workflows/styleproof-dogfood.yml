@@ -315,7 +315,7 @@ jobs:
 
             const notice = [
               '> [!NOTE]',
-              '> **Live StyleProof-on-StyleProof (advisory).** This report is captured from the surfaces declared in `styleproof.config.ts` (`example/demo`). `home@*` carries matching `productState {id, revision}` (comparable / certifying path); the legacy ledger file stays armed but empty so undeclared new pairs fail closed. `fail-on-diff` is false; the check is not part of hosted required CI. The synthetic Action contract suite remains `action-dogfood.yml`.',
+              '> **Live StyleProof-on-StyleProof (advisory).** This report is captured from the surfaces declared in `styleproof.config.ts` (`example/demo`). `home@*` carries matching `productState {id, revision}` (comparable / certifying path); the product-state acknowledgement file stays armed but empty so undeclared new pairs fail closed. `fail-on-diff` is false; the check is not part of hosted required CI. The synthetic Action contract suite remains `action-dogfood.yml`.',
             ].join('\n');
             const body = comment.body ?? '';
             await github.rest.issues.updateComment({

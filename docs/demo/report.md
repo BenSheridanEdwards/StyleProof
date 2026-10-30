@@ -1,6 +1,6 @@
 ## 🗺️ StyleProof report
 
-⚠️ **Product-state identity unproven** (undeclared legacy pair). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
+⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
 
 **2 changes need review**
 
@@ -197,6 +197,6 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 <details>
 <summary>Evidence (warnings & failures)</summary>
 
-⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s).
+⚠️ **Product-state comparison** — unproven on 3 paired capture(s) with no product-state declared.
 
 </details>
