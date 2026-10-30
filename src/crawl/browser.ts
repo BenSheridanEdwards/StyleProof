@@ -113,8 +113,10 @@ export function collectClickable(dangerSource: string): RawCandidate[] {
     const control = el.closest('button,input');
 
     const submit =
-      (control instanceof HTMLButtonElement && control.type === 'submit') ||
-      (control instanceof HTMLInputElement && (control.type === 'submit' || control.type === 'image'));
+      (control instanceof HTMLButtonElement && control.form !== null && control.type === 'submit') ||
+      (control instanceof HTMLInputElement &&
+        control.form !== null &&
+        (control.type === 'submit' || control.type === 'image'));
 
     const common = { selector, identity: identityFor(el), label, unsafe: submit || DANGER.test(label) };
 

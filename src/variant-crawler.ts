@@ -193,8 +193,10 @@ function collectDiscovery({ dangerSource, maxStates }: { dangerSource: string; m
     const control = el.closest('button,input');
 
     const submit =
-      (control instanceof HTMLButtonElement && control.type === 'submit') ||
-      (control instanceof HTMLInputElement && (control.type === 'submit' || control.type === 'image'));
+      (control instanceof HTMLButtonElement && control.form !== null && control.type === 'submit') ||
+      (control instanceof HTMLInputElement &&
+        control.form !== null &&
+        (control.type === 'submit' || control.type === 'image'));
 
     if (submit || dangerous.test(label)) {
       candidates.push({ action: 'click', selector, reason: 'unsafe-label', label });

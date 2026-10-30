@@ -94,15 +94,28 @@ export function popupDomSnapshot({
 
   for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
 
+  const submitsForm = (el: Element): boolean => {
+    const control = el.closest('button,input');
+
+    return control instanceof HTMLButtonElement && control.form !== null && control.type === 'submit';
+  };
+
   if (relocatePath) {
-    const target = qsa(triggerSelector).find((el) => pathOf(el) === relocatePath && labelOf(el) === relocateLabel);
+    const target = qsa(triggerSelector).find(
+      (el) => !submitsForm(el) && pathOf(el) === relocatePath && labelOf(el) === relocateLabel,
+    );
+
     if (target) target.setAttribute(attr, 'target');
+
     return { keys, candidates: [], found: Boolean(target) };
   }
 
   const safeTrigger = (el: Element): boolean => {
     const tag = el.tagName.toLowerCase();
     if (el.matches(':disabled, [aria-disabled="true"]')) return false;
+
+    if (submitsForm(el)) return false;
+
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return false;
     if (tag === 'a') return (el as HTMLAnchorElement).getAttribute('href')?.startsWith('#') ?? false;
     return true;
