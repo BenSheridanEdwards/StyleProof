@@ -6,17 +6,15 @@ import { runInNewContext } from 'node:vm';
 
 const source = readFileSync(new URL('../dist/variant-crawler.js', import.meta.url), 'utf8');
 
-const performSource = source.match(/async function perform\([\s\S]*?(?=function liveStatesFrom)/)[0];
-const perform = runInNewContext(`(${performSource.trim()})`);
+const perform = runInNewContext(
+  `(${source.match(/async function perform\([\s\S]*?(?=function liveStatesFrom)/)[0].trim()})`,
+);
+
 for (const valid of [true, false]) {
   test(`empty submission only invokes validation for an invalid form: valid=${valid}`, async () => {
     let submissions = 0;
 
-    const form = {
-      querySelectorAll: () => [],
-      checkValidity: () => valid,
-      requestSubmit: () => submissions++,
-    };
+    const form = { querySelectorAll: () => [], checkValidity: () => valid, requestSubmit: () => submissions++ };
 
     const page = { locator: () => ({ first: () => ({ evaluate: (fn) => fn(form) }) }) };
     await perform(page, { action: 'submit-empty', selector: 'form' });
@@ -24,21 +22,44 @@ for (const valid of [true, false]) {
   });
 }
 
-for (const relation of ['ancestor', 'label', 'wrapper', 'contained-label']) {
-  test(`submit guard rejects ${relation}`, () => {
-    const guard = runInNewContext(`(${SUBMITS_FORM_SOURCE})`);
-    const submit = { tagName: 'BUTTON', type: 'submit', form: {} };
+for (const custom of [false, true]) {
+  for (const relation of ['self', 'ancestor', 'label', 'wrapper', 'contained-label', 'attribute']) {
+    test(`submit guard: custom=${custom}, relation=${relation}`, () => {
+      const form = { localName: 'form' };
 
-    const el = {
-      closest: (selector) => (selector === 'label' ? { control: submit } : null),
-      querySelectorAll: () => [relation === 'wrapper' ? submit : { tagName: 'LABEL', control: submit }],
-    };
+      const submit = {
+        localName: custom ? 'form-button' : 'button',
+        type: 'submit',
+        form,
+        getAttribute: (name) => (name === 'form' && relation === 'attribute' ? 'owner' : null),
+        closest: () => (relation === 'attribute' ? null : submit.form),
+      };
 
-    if (relation === 'ancestor') el.closest = () => submit;
+      const guard = runInNewContext(`(${SUBMITS_FORM_SOURCE})`, {
+        customElements: { get: (name) => (name === 'form-button' ? { formAssociated: true } : undefined) },
+        document: { getElementById: () => submit.form },
+      });
 
-    if (relation === 'wrapper' || relation === 'contained-label') el.closest = () => null;
-    assert.equal(guard(el), true);
-    submit.form = null;
-    assert.equal(guard(el), false);
-  });
+      const candidates = {
+        self: submit,
+        attribute: submit,
+        ancestor: { parentElement: submit },
+        label: { closest: () => ({ control: submit }) },
+        wrapper: { querySelectorAll: () => [submit] },
+        'contained-label': { querySelectorAll: () => [{ localName: 'label', control: submit }] },
+      };
+
+      const candidate = candidates[relation];
+      assert.equal(guard(candidate), true);
+      submit.form = null;
+      assert.equal(guard(candidate), false);
+      submit.form = form;
+
+      for (const type of ['button', 'reset']) {
+        submit.type = type;
+        submit.getAttribute = (name) => (name === 'type' ? type : null);
+        assert.equal(guard(candidate), false);
+      }
+    });
+  }
 }

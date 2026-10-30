@@ -9,12 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- **BREAKING: state recipes named with side-effect verbs now throw (#1143).** A label or
-  stateKey such as `saved`, `submitted`, `cancel-dialog` or `Confirm modal` raises
-  `StateRecipeError`; rename it to describe the fixture state without the verb.
-- **BREAKING: `styleproof-capture --crawl` skips form submits and side-effect controls (#1143).**
-  It records `unsafe-control` for them (Save, Cancel, Send, Confirm and similar), so a crawl
-  can exit 6 unless the surface is acknowledged with a reason in `incompleteUiExclude`.
+- **BREAKING (#1143):** state recipe labels/stateKeys with side-effect verbs (`saved`, `submitted`, `cancel-dialog`, `Confirm modal`) throw `StateRecipeError`; rename them to describe the fixture state.
+- **BREAKING (#1143):** `styleproof-capture --crawl` records `unsafe-control` skips for form submits and side-effect controls (Save, Cancel, Send, Confirm); avoid exit 6 with a reasoned `incompleteUiExclude`.
+- **BREAKING (#1143):** popup capture no longer opens triggers with side-effect labels. Re-capture the base so later, renumbered `popup-XX` IDs line up.
 
 ### Fixed
 

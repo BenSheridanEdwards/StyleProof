@@ -1078,9 +1078,7 @@ Empty exclusion reasons are rejected. Acknowledged exclusions keep status `incom
 
 ### Incomplete UI: blocked continuations fail closed
 
-The form-submit check is the main protection; it does not look inside shadow roots. The side-effect word list is a best-effort backstop and will always be incomplete.
-
-Form submits and Save/Cancel/Send/Confirm controls record `unsafe-control` skips. They can cause `styleproof-capture --crawl` to exit 6 unless the surface is acknowledged with a reason in `incompleteUiExclude`.
+The form-submit check is the main protection; it does not look inside shadow roots. The side-effect word list is a best-effort backstop and will always be incomplete. Form submits and Save/Cancel/Send/Confirm controls record `unsafe-control` skips. They can cause `styleproof-capture --crawl` to exit 6 unless the surface is acknowledged with a reason in `incompleteUiExclude`.
 
 A visually clean capture can still be incomplete when the page contains a form whose submitted state was never reached, an empty required field, a disabled/inert/`aria-disabled` control, a button blocked by `pointer-events: none`, a closed `details`/`aria-expanded="false"` disclosure, or a destructive-looking control the crawl refused to click (`destructive-label`). The crawl records these as privacy-safe structural reasons only. It never stores field values, labels, text content, names, cookies, tokens, or query strings. Hidden leftovers (`display: none`, `visibility: hidden`, or no layout box) are ignored. A skipped destructive-looking control also sets crawl confidence to `incomplete-unknown` (`certifiesFully: false`) when no auth boundary exists, even when the surface is acknowledged.
 

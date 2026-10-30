@@ -49,14 +49,9 @@ function fixture(copy, forbidText = false) {
 }
 
 function snapshot(fn, args, copy = 'Private dialog copy', forbidText = false) {
-  return JSON.parse(
-    JSON.stringify(
-      runInNewContext(
-        `(${fn.toString()})(${JSON.stringify({ submitsFormSource: SUBMITS_FORM_SOURCE, ...args })})`,
-        fixture(copy, forbidText),
-      ),
-    ),
-  );
+  const input = JSON.stringify({ submitsFormSource: SUBMITS_FORM_SOURCE, ...args });
+
+  return JSON.parse(JSON.stringify(runInNewContext(`(${fn.toString()})(${input})`, fixture(copy, forbidText))));
 }
 
 test('overlay capture omits the text property without reading copy when disabled', () => {

@@ -702,24 +702,9 @@ test('isUnsafeStateLabel: matches the shared destructive vocabulary', () => {
   assert.equal(isUnsafeStateLabel('Open menu'), false);
   assert.equal(isUnsafeStateLabel('Save draft'), true);
 
-  for (const label of [
-    'Send',
-    'Submit',
-    'Save',
-    'Confirm',
-    'Approve',
-    'Invite',
-    'Transfer',
-    'Cancel',
-    'Sends',
-    'Submitted',
-    'Saved',
-    'Confirmed',
-    'Approved',
-    'Invited',
-    'Transferred',
-    'Cancelled',
-  ]) {
+  for (const label of 'Send Submit Save Confirm Approve Invite Transfer Cancel Sends Submitted Saved Confirmed Approved Invited Transferred Cancelled'.split(
+    ' ',
+  )) {
     assert.equal(isUnsafeStateLabel(label), true, label);
   }
 

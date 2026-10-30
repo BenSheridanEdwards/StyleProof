@@ -35,6 +35,8 @@ function page(): string {
     ]
       .map((controls, i) => `<form method="post" action="/side-effect/label-${i}">${controls}</form>`)
       .join('')}
+    <form method="post" action="/side-effect/custom"><form-button role="button" aria-haspopup="menu" style="cursor:pointer">Continue</form-button></form>
+    <script>customElements.define('form-button', class extends HTMLElement { static formAssociated = true; internals = this.attachInternals(); connectedCallback() { this.addEventListener('click', () => this.internals.form.requestSubmit()); } });</script>
     ${verbs}
     <script>for (const b of document.querySelectorAll('.verb')) b.addEventListener('click', () => fetch('/side-effect/' + b.dataset.verb, { method: 'POST', body: 'x' }));</script>
   </body></html>`;
@@ -63,6 +65,7 @@ async function withServer(run: (baseUrl: string, posts: string[]) => Promise<voi
 for (const mode of ['crawl', 'variant', 'popup']) {
   test(`${mode} discovery sends no POST through submit labels, children, wrappers or verbs`, async ({ page }) => {
     const baseDir = mkdtempSync(join(tmpdir(), 'styleproof-discovery-'));
+
     try {
       await withServer(async (baseUrl, posts) => {
         if (mode === 'variant') {
@@ -75,13 +78,7 @@ for (const mode of ['crawl', 'variant', 'popup']) {
         } else if (mode === 'popup') {
           await captureSurface(
             page,
-            {
-              key: 'home',
-              popups: true,
-              go: async () => {
-                await page.goto(baseUrl);
-              },
-            },
+            { key: 'home', popups: true, go: async () => void (await page.goto(baseUrl)) },
             900,
             resolveSettings({ baseDir, dir: 'capture', screenshots: false, selfCheck: false }),
             { index: 1, total: 1 },

@@ -8,20 +8,32 @@ export const DANGER_SOURCE =
 
 export const SUBMITS_FORM_SOURCE = String((el: Element): boolean => {
   const submits = (control: Element | null | undefined): boolean => {
-    // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
+    // SAFETY: native controls expose form/type; custom controls use attributes below.
     const c = control as HTMLButtonElement | HTMLInputElement | null | undefined;
 
+    if (!c) return false;
+
+    if (c.localName === 'button' || c.localName === 'input')
+      return Boolean(c.form && (c.type === 'submit' || c.type === 'image'));
+    const definition = typeof customElements === 'undefined' ? undefined : customElements.get(c.localName);
+
+    if (!definition || !('formAssociated' in definition) || definition.formAssociated !== true) return false;
+    const owner = c.getAttribute('form');
+
     return Boolean(
-      c?.form && (c.tagName === 'BUTTON' || c.tagName === 'INPUT') && (c.type === 'submit' || c.type === 'image'),
+      !['button', 'reset'].includes((c.getAttribute('type') ?? '').toLowerCase()) &&
+      (owner ? (c.ownerDocument ?? document).getElementById(owner)?.localName === 'form' : c.closest('form')),
     );
   };
 
-  // SAFETY: selectors restrict descendants to controls or labels with a DOM control property.
+  for (let c: Element | null = el; c; c = c.parentElement) if (submits(c)) return true;
+
+  // SAFETY: label selectors/localName identify elements with a control property.
   return (
     submits(el.closest?.('button,input')) ||
     submits((el.closest?.('label') as HTMLLabelElement | null)?.control) ||
-    [...(el.querySelectorAll?.('button,input,label') ?? [])].some((c) =>
-      submits(c.tagName === 'LABEL' ? (c as HTMLLabelElement).control : c),
+    [...(el.querySelectorAll?.('*') ?? [])].some((c) =>
+      submits(c.localName === 'label' ? (c as HTMLLabelElement).control : c),
     )
   );
 });
