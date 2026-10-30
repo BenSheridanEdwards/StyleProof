@@ -114,7 +114,7 @@ const captureOptions = (options: VariantHarvestOptions): CaptureOptions => ({
 // fallow-ignore-next-line complexity
 function collectDiscovery({ dangerSource, maxStates }: { dangerSource: string; maxStates: number }): Discovery {
   const CONTROLS =
-    '[aria-expanded],[aria-haspopup],button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form';
+    '[aria-expanded],[aria-haspopup],button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form,input[type="submit"],input[type="image"]';
   const STATE_CONTROLS =
     'button,input,select,textarea,summary,a[href],[tabindex],[role="button"],[role="tab"],[role="menuitem"],[role="combobox"]';
   const REASONS: [string, string][] = [
@@ -190,7 +190,13 @@ function collectDiscovery({ dangerSource, maxStates }: { dangerSource: string; m
     if (seen.has(selector)) continue;
     seen.add(selector);
     const label = labelFor(el);
-    if (dangerous.test(label)) {
+    const control = el.closest('button,input');
+
+    const submit =
+      (control instanceof HTMLButtonElement && control.type === 'submit') ||
+      (control instanceof HTMLInputElement && (control.type === 'submit' || control.type === 'image'));
+
+    if (submit || dangerous.test(label)) {
       candidates.push({ action: 'click', selector, reason: 'unsafe-label', label });
     } else if (el instanceof HTMLFormElement) {
       if (el.noValidate || !el.querySelector('input[required],textarea[required],select[required]')) continue;

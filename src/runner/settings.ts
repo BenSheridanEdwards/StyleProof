@@ -15,13 +15,16 @@ import type {
 } from './types.js';
 
 const DEFAULT_POPUP_TRIGGERS = [
-  'button:not([disabled]):not([type="submit"]):not([type="reset"])',
+  'button[type="button" i]:not([disabled])',
   '[role="button"]:not([aria-disabled="true"])',
   '[aria-haspopup]',
   '[popovertarget]',
   'summary',
   'a[href^="#"]',
-].join(', ');
+]
+  .map((selector) => `${selector}:not(button:not([type="button" i])):not(input[type="submit" i],input[type="image" i])`)
+  .join(', ');
+
 const DEFAULT_POPUP_OVERLAYS = [
   'dialog[open]',
   '[popover]',

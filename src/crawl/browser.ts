@@ -8,7 +8,8 @@ import type { RawCandidate } from './types.js';
  *  destructive-label pattern, passed as a string because a Node RegExp cannot be serialized. */
 /* c8 ignore start */ // fallow-ignore-next-line complexity
 export function collectClickable(dangerSource: string): RawCandidate[] {
-  const SEMANTIC = 'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form';
+  const SEMANTIC =
+    'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form,input[type="submit"],input[type="image"]';
   // Neutral text inputs get a deterministic value; credential fields are NEVER auto-filled (--setup territory).
   const FILLABLE =
     'input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],textarea';
@@ -109,7 +110,14 @@ export function collectClickable(dangerSource: string): RawCandidate[] {
     const selector = claim(el);
     if (!selector) continue;
     const label = labelFor(el);
-    const common = { selector, identity: identityFor(el), label, unsafe: DANGER.test(label) };
+    const control = el.closest('button,input');
+
+    const submit =
+      (control instanceof HTMLButtonElement && control.type === 'submit') ||
+      (control instanceof HTMLInputElement && (control.type === 'submit' || control.type === 'image'));
+
+    const common = { selector, identity: identityFor(el), label, unsafe: submit || DANGER.test(label) };
+
     if (el instanceof HTMLSelectElement) {
       const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);
       if (next) out.push({ action: 'select-option', ...common, reason: 'select-option', value: next.value });
