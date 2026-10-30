@@ -94,15 +94,23 @@ const SETUP_RUNNERS: Record<SetupStep['action'], (page: Page, s: SetupStep) => P
   waitFor: (page, s) => first(page, s).waitFor({ state: 'visible', timeout: 10000 }),
 };
 
+function setupFailure(error: Error | undefined, step: SetupStep, index: number): Error {
+  // Driver messages and causes can contain interpolated URLs or field values.
+  const errorClass = error instanceof TypeError ? 'TypeError' : error instanceof Error ? 'Error' : 'unknown error';
+  const target = step.action !== 'goto' && step.selector ? ` ${step.selector}` : '';
+
+  return new Error(`setup step ${index + 1} failed (${step.action}${target}): ${errorClass}`);
+}
+
 /** Run the caller's deterministic setup steps. A non-optional step that fails throws loudly —
  *  a half-established gate must never silently crawl the ungated page instead. */
 export async function runSetup(page: Page, steps: SetupStep[]): Promise<void> {
-  for (const s of steps) {
+  for (const [index, s] of steps.entries()) {
     try {
       await SETUP_RUNNERS[s.action](page, s);
     } catch (e) {
       if (s.optional) continue;
-      throw new Error(`setup step failed (${s.action} ${s.selector ?? s.url ?? ''})`, { cause: e });
+      throw setupFailure(e instanceof Error ? e : undefined, s, index);
     }
   }
 }
