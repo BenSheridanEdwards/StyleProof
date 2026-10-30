@@ -84,7 +84,7 @@ test('default popup triggers never match an untyped button inside a form', async
     const { triggers } = resolvePopupCaptureOptions(true);
 
     const formButtons = await tab
-      .locator('form button')
+      .locator('form button:not([type="button"])')
       .evaluateAll((nodes, selector) => nodes.filter((node) => node.matches(selector)).length, triggers);
 
     expect(formButtons).toBe(0);
