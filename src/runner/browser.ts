@@ -10,6 +10,7 @@ export type PopupSnapshotArgs = {
   popupSelector: string;
   captureText?: boolean;
   dangerSource?: string;
+  submitsFormSource: string;
   triggerSelector?: string;
   attr?: string;
   max?: number;
@@ -23,6 +24,7 @@ export function popupDomSnapshot({
   popupSelector,
   captureText = true,
   dangerSource,
+  submitsFormSource,
   triggerSelector,
   attr,
   max = 0,
@@ -102,19 +104,8 @@ export function popupDomSnapshot({
 
   for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
 
-  const submitsForm = (el: Element): boolean => {
-    let control: Element | null = el;
-
-    while (control && control.tagName !== 'BUTTON' && control.tagName !== 'INPUT') {
-      control = control.parentElement;
-    }
-
-    return (
-      control?.tagName === 'BUTTON' &&
-      (control as HTMLButtonElement).form !== null &&
-      (control as HTMLButtonElement).type === 'submit'
-    );
-  };
+  // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
+  const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
 
   if (relocatePath) {
     const target = qsa(triggerSelector).find(

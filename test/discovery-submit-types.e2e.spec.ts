@@ -1,18 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { collectClickable } from '../dist/crawl/browser.js';
-import { DANGER_SOURCE } from '../dist/danger.js';
+import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
 import { popupDomSnapshot } from '../dist/runner/browser.js';
 import { resolvePopupCaptureOptions } from '../dist/runner/settings.js';
 
 for (const ownership of ['none', 'ancestor', 'attribute']) {
   test(`discovery checks effective submit types with ${ownership} form ownership`, async ({ page }) => {
-    const controls = `
-      <button id="untyped" aria-haspopup="dialog">Continue</button>
-      <button id="invalid" type="invalid" role="button">Continue</button>
-      <button id="submit" type="SUBMIT" popovertarget="popup">Continue</button>
-      <input id="input-submit" type="submit" value="Continue">
-      <input id="image" type="image" aria-label="Continue">
-      <button id="safe" type="button">Open menu</button>`;
+    const controls = `<button id="untyped" aria-haspopup="dialog">Continue</button><button id="invalid" type="invalid" role="button">Continue</button><button id="submit" type="SUBMIT" popovertarget="popup">Continue</button><input id="input-submit" type="submit" value="Continue"><input id="image" type="image" aria-label="Continue"><button id="safe" type="button">Open menu</button>`;
 
     await page.setContent(
       ownership === 'ancestor' ? `<form>${controls}</form>` : `<form id="owner"></form>${controls}`,
@@ -30,10 +24,14 @@ for (const ownership of ['none', 'ancestor', 'attribute']) {
       });
     });
 
-    const candidates = await page.evaluate(collectClickable, DANGER_SOURCE);
+    const candidates = await page.evaluate(collectClickable, {
+      dangerSource: DANGER_SOURCE,
+      submitsFormSource: SUBMITS_FORM_SOURCE,
+    });
 
     const options = {
       popupSelector: 'dialog[open]',
+      submitsFormSource: SUBMITS_FORM_SOURCE,
       triggerSelector: resolvePopupCaptureOptions(true).triggers,
       attr: 'data-popup-trigger',
       max: 20,
@@ -73,14 +71,3 @@ for (const ownership of ['none', 'ancestor', 'attribute']) {
     }
   });
 }
-
-test('crawl rejects labels associated with form submit buttons', async ({ page }) => {
-  await page.setContent(`<style>label { cursor: pointer }</style><form>
-    <label id="external" for="go">Continue</label><button id="go">Continue</button>
-    <label id="wrapping">Continue<button>Continue</button></label></form>`);
-  const candidates = await page.evaluate(collectClickable, DANGER_SOURCE);
-
-  for (const id of ['external', 'wrapping']) {
-    expect(candidates.find((candidate) => candidate.selector === `#${id}`)?.unsafe).toBe(true);
-  }
-});

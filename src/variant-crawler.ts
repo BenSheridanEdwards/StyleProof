@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { captureStyleMap, type CaptureOptions, type LiveRegionCandidate, type StyleMap } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
-import { DANGER_SOURCE } from './danger.js';
+import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from './danger.js';
 import { sha256 } from './node-util.js';
 import { slug as slugOf } from './util.js';
 import { pathAndSearch } from './crawl/page.js';
@@ -112,7 +112,17 @@ const captureOptions = (options: VariantHarvestOptions): CaptureOptions => ({
 // text, label, role, or attribute value; labels exist only transiently for the destructive check.
 // `dangerSource` is the shared destructive-label pattern, a string because a RegExp cannot be serialized.
 // fallow-ignore-next-line complexity
-function collectDiscovery({ dangerSource, maxStates }: { dangerSource: string; maxStates: number }): Discovery {
+function collectDiscovery({
+  dangerSource,
+  submitsFormSource,
+  maxStates,
+}: {
+  dangerSource: string;
+  submitsFormSource: string;
+  maxStates: number;
+}): Discovery {
+  // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
+  const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
   const CONTROLS =
     '[aria-expanded],[aria-haspopup],button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form,input[type="submit"],input[type="image"]';
   const STATE_CONTROLS =
@@ -190,15 +200,8 @@ function collectDiscovery({ dangerSource, maxStates }: { dangerSource: string; m
     if (seen.has(selector)) continue;
     seen.add(selector);
     const label = labelFor(el);
-    const control = el.closest('button,input');
 
-    const submit =
-      (control instanceof HTMLButtonElement && control.form !== null && control.type === 'submit') ||
-      (control instanceof HTMLInputElement &&
-        control.form !== null &&
-        (control.type === 'submit' || control.type === 'image'));
-
-    if (submit || dangerous.test(label)) {
+    if ((!(el instanceof HTMLFormElement) && submitsForm(el)) || dangerous.test(label)) {
       candidates.push({ action: 'click', selector, reason: 'unsafe-label', label });
     } else if (el instanceof HTMLFormElement) {
       if (el.noValidate || !el.querySelector('input[required],textarea[required],select[required]')) continue;
@@ -399,7 +402,12 @@ async function harvestRoute(
   await page.goto(url, { waitUntil: 'load' });
   await page.mouse.move(-1, -1);
   const before = await captureStyleMap(page, captureOptions(options));
-  const discovery = await page.evaluate(collectDiscovery, { dangerSource: DANGER_SOURCE, maxStates });
+
+  const discovery = await page.evaluate(collectDiscovery, {
+    dangerSource: DANGER_SOURCE,
+    submitsFormSource: SUBMITS_FORM_SOURCE,
+    maxStates,
+  });
   const forcedStateMap = await captureStyleMap(page, { ...captureOptions(options), captureStates: true });
   const { variants, skipped } = await harvestVariants(
     page,
