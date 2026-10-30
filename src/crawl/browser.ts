@@ -9,7 +9,7 @@ import type { RawCandidate } from './types.js';
 /* c8 ignore start */ // fallow-ignore-next-line complexity
 export function collectClickable(dangerSource: string): RawCandidate[] {
   const SEMANTIC =
-    'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form,input[type="submit"],input[type="image"]';
+    'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,input[type="submit"],input[type="image"]';
   // Neutral text inputs get a deterministic value; credential fields are NEVER auto-filled (--setup territory).
   const FILLABLE =
     'input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],textarea';
@@ -105,6 +105,7 @@ export function collectClickable(dangerSource: string): RawCandidate[] {
     });
   }
   for (const el of pool) {
+    if (el instanceof HTMLFormElement) continue;
     // Links navigate — the link crawl owns them.
     if ((el instanceof HTMLAnchorElement && el.href) || disabled(el) || !visible(el)) continue;
     const selector = claim(el);
