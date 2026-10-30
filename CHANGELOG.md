@@ -14,6 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Drain timed-out surface work before reusing its page in crawl and auto-width sweeps; stop the sweep if it stays active, while own-page timeouts remain tolerable (#1137).
 - Keep workflow_run default-branch captures under the checkout SHA instead of the PR head (#1136).
 - Keep CSS-only hover and focus states through state-recipe capture and self-check (#1134).
+- Miss stored-base restores when the colocated harness changes, without changing base/head comparability; existing stored bases miss once (#1135).
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
 - Review runs set the status pending before processing, so a failing re-run cannot keep an
   earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).
