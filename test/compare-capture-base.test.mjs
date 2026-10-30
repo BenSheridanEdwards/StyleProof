@@ -18,6 +18,10 @@ for (const mode of [
   'install-SIGTERM',
   'SIGINT',
   'SIGTERM',
+  'group-install-SIGINT',
+  'group-install-SIGTERM',
+  'group-capture-SIGINT',
+  'group-capture-SIGTERM',
   'stored-head',
   'success',
 ]) {
@@ -75,6 +79,7 @@ const side = process.env.STYLEMAP_DIR;
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ command: '${command}', cwd, side,
 sha: cp.execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
 worktrees: fs.existsSync('.worktrees') ? fs.readdirSync('.worktrees') : [], dirty: fs.existsSync('dirty') }) + '\\n');
+if (${mode.startsWith('group-')} && ('${command}' === 'npm' ? ${mode.startsWith('group-install-')} : side === 'base')) process.kill(0, '${mode.split('-').at(-1)}');
 if ('${command}' === 'npm' && ${mode.startsWith('install-SIG')}) process.kill(process.pid, '${mode.replace('install-', '')}');
 if ('${command}' === 'npm') { console.error('fixture install diagnostic'); process.exit(${mode.endsWith('install-failure') ? 1 : 0}); }
 if (${mode === 'capture-failure'} && side === 'base') process.exit(1);
@@ -112,6 +117,7 @@ elements: { body: { tag: 'body', cls: '', style: { color: side === 'base' ? 'red
 
         const result = spawnSync(process.execPath, [cli, 'main', ...(captureBase ? ['--capture-base'] : [])], {
           cwd: repo,
+          detached: true,
           encoding: 'utf8',
           env: { ...process.env, PATH: `${executables}${path.delimiter}${process.env.PATH}` },
         });

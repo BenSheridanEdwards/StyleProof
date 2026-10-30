@@ -463,9 +463,11 @@ then removes it before processing the head. When no stored head bundle exists fo
 head is captured in the current checkout, preserving uncommitted edits; otherwise the stored bundle wins.
 Stop any app server first so both captures use their own builds. The flag is off by default
 and cannot be enabled through StyleProof config or used with two explicit directories.
-If the base install or a capture child reports SIGINT/SIGTERM, compare exits 130/143
-and removes the temporary worktree. A signal sent only to compare can stop it before
-cleanup; the next run prunes stale worktree registrations.
+Ctrl-C (process-group SIGINT) or SIGTERM during the base install or capture exits
+130/143 and removes the temporary worktree. A signal sent only to compare while a
+base child runs is ignored. Only SIGKILL or a crash can leave
+`<repo>/.worktrees/styleproof-base-*` behind; remove a leftover checkout with
+`git worktree remove --force <path>`.
 
 `compare` restores the base map from the map store, so on a local checkout without
 one it stops and prints the local steps. Capture this checkout as head, then the

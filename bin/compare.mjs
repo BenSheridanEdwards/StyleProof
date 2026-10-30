@@ -175,18 +175,37 @@ function cachedDirs(name, opts, args, purpose, usage) {
 
 /** Capture through the same spec path as the manual `styleproof capture` command. */
 function captureMissing(cwd, outDir, spec, side) {
-  if (side === 'base') installBase(cwd);
+  if (side === 'base') withBaseSignals(() => installBase(cwd));
 
-  const status = captureMap(
-    'compare',
-    ['--spec', spec, '--base-dir', path.dirname(outDir), '--dir', path.basename(outDir)],
-    { cwd },
-  );
+  const capture = () =>
+    captureMap('compare', ['--spec', spec, '--base-dir', path.dirname(outDir), '--dir', path.basename(outDir)], {
+      cwd,
+    });
+
+  const status = side === 'base' ? withBaseSignals(capture) : capture();
 
   if (status !== 0) {
     throw new Error(
       `${side} capture failed in ${side === 'base' ? 'worktree ' : ''}${cwd}: styleproof-map --spec ${spec} --base-dir ${path.dirname(outDir)} --dir ${path.basename(outDir)} (exit ${status})`,
     );
+  }
+}
+
+/**
+ * Ignore SIGINT/SIGTERM in compare while a base child runs, so a process-group Ctrl-C
+ * reaches only the child; its interrupted result then exits 130/143 after cleanup.
+ */
+function withBaseSignals(run) {
+  const ignore = () => {};
+
+  process.on('SIGINT', ignore);
+  process.on('SIGTERM', ignore);
+
+  try {
+    return run();
+  } finally {
+    process.removeListener('SIGINT', ignore);
+    process.removeListener('SIGTERM', ignore);
   }
 }
 
