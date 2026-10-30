@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "packageVersion": "9.0.0",
+  "sha": "ff1f93513e4c916997772260feda1ed69b7cc033",
+  "dirty": false,
+  "dirtyAllow": [
+    "docs/**",
+    ".github/**",
+    ".agents/**",
+    ".claude/**",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "spec": "example/styleproof.spec.ts",
+  "specHash": "bc8ddc1fce08137d86daa6c99a865024e28dc72dcd354b2565e49d57572af957",
+  "harnessHash": "1c43397ad37c973b0f8f39784da66a3ffaf3aa519b127047fc3ff319e4779c09",
+  "lockfile": "pnpm-lock.yaml",
+  "lockfileHash": "33a52269b2f173e40ab20d4e8bcf8979205d669304963fd41a5c6a1f33288f43",
+  "playwrightVersion": "1.61.1",
+  "browserVersion": "149.0.7827.55",
+  "platform": "linux",
+  "arch": "x64",
+  "nodeMajor": "22",
+  "screenshots": true,
+  "har": false,
+  "compatibilityKey": "7f8555e5d9c8bb9c",
+  "createdAt": "2026-10-30T09:34:47.829Z"
+}
