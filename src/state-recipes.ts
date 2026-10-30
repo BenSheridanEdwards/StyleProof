@@ -409,7 +409,7 @@ async function driveInteraction(page: Page, recipe: InteractionStateRecipe): Pro
   const liveLabel = await readElementLabel(page, recipe.selector);
   if (liveLabel && isUnsafeStateLabel(liveLabel)) {
     throw new StateRecipeError(
-      `refusing unsafe state recipe target (${liveLabel}): label matched the built-in destructive-action guard`,
+      `refusing unsafe state recipe target (${recipe.action} key=${deriveValidatedStateRecipeKey(recipe)}): label matched the built-in destructive-action guard`,
     );
   }
   await INTERACTIONS[recipe.action](page.locator(recipe.selector).first(), page, recipe);
@@ -420,8 +420,9 @@ async function driveInteraction(page: Page, recipe: InteractionStateRecipe): Pro
 
 /**
  * Apply a recipe on a live page: shape errors, a declared or live label matching the
- * destructive guard, and driver failures all throw `StateRecipeError` naming only the
- * action and stable key (never the selector).
+ * destructive guard, and driver failures all throw `StateRecipeError`. Live target
+ * refusals and driver failures name only the action and stable key; validation may
+ * include the author-written declared label (never live page text).
  */
 export async function applyStateRecipe(page: Page, raw: unknown): Promise<AppliedStateRecipe> {
   const classified = classifyStateRecipe(raw);
