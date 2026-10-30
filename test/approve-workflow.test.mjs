@@ -44,12 +44,7 @@ function programSource(yml, file) {
 
 /** Compile the workflow's real github-script program — never a copy of it. */
 function approveScript() {
-  const source = programSource(approveYml, 'example/styleproof-approve.yml');
-  assert.doesNotMatch(source, /\$\{\{/, 'the approve program must not interpolate workflow expressions');
-
-  const program = new AsyncFunction('github', 'context', 'core', 'require', source);
-
-  return (github, context) => program(github, context, { setOutput() {} }, () => ({ writeFileSync() {} }));
+  return reusableApproveScript({ workflowYml: approveYml });
 }
 
 /**
@@ -57,8 +52,12 @@ function approveScript() {
  * inputs arrive through env, as the workflow passes them: status-context here,
  * allow-self-approval from runApprove's allowSelfApproval.
  */
-function reusableApproveScript({ runAttempt = '1', triggeringActor = REVIEWER } = {}) {
-  const source = programSource(reusableApproveYml, '.github/workflows/styleproof-approve-reusable.yml');
+function reusableApproveScript({
+  runAttempt = '1',
+  triggeringActor = REVIEWER,
+  workflowYml = reusableApproveYml,
+} = {}) {
+  const source = programSource(workflowYml, 'approve workflow');
   assert.doesNotMatch(source, /\$\{\{/, 'the reusable approve program must not interpolate workflow expressions');
   const program = new AsyncFunction('github', 'context', 'core', 'require', source);
 
@@ -264,6 +263,7 @@ async function runApprove({
     if (previous === undefined) delete process.env.STYLEPROOF_ALLOW_SELF_APPROVAL;
     else process.env.STYLEPROOF_ALLOW_SELF_APPROVAL = previous;
   }
+
   return { statuses, created, updated, outputs: context.approvalOutputs };
 }
 
@@ -874,48 +874,53 @@ test('approved runs upload a receipt bound to the PR and SHA', () => {
   }
 });
 
-for (const [name, attempt] of [
-  ['PR author rerun', { runAttempt: '2', triggeringActor: AUTHOR }],
-  ['different maintainer rerun', { runAttempt: '2', triggeringActor: 'other-maintainer' }],
-  ['missing triggering actor', { runAttempt: '1', triggeringActor: null }],
-  ['missing run attempt', { runAttempt: null, triggeringActor: REVIEWER }],
+for (const [file, workflowYml] of [
+  ['reusable', reusableApproveYml],
+  ['example', approveYml],
 ]) {
-  test(`approve refuses ${name} (#1204)`, async () => {
-    const result = await runApprove({ actor: REVIEWER, program: reusableApproveScript(attempt) });
-    assert.deepEqual(result.statuses, [], 'refused attempts must write no status');
-    assert.deepEqual(result.outputs, {}, 'refused attempts must not report approval');
-    assert.ok(result.updated.every(({ body }) => !body.includes('_approved by @')));
-    assert.match(result.updated[0].body, /\[ \].*tick again/);
-    assert.equal(result.created.length, 1);
+  for (const [name, attempt] of [
+    ['PR author rerun', { runAttempt: '2', triggeringActor: AUTHOR }],
+    ['different maintainer rerun', { runAttempt: '2', triggeringActor: 'other-maintainer' }],
+    ['missing triggering actor', { runAttempt: '1', triggeringActor: null }],
+    ['missing run attempt', { runAttempt: null, triggeringActor: REVIEWER }],
+  ]) {
+    test(`${file}: approve refuses ${name} (#1204)`, async () => {
+      const result = await runApprove({ actor: REVIEWER, program: reusableApproveScript({ ...attempt, workflowYml }) });
+      assert.deepEqual(result.statuses, [], 'refused attempts must write no status');
+      assert.deepEqual(result.outputs, {}, 'refused attempts must not report approval');
+      assert.ok(result.updated.every(({ body }) => !body.includes('_approved by @')));
+      assert.match(result.updated[0].body, /\[ \].*tick again/);
+      assert.equal(result.created.length, 1);
 
-    const repeated = await runApprove({
-      actor: REVIEWER,
-      program: reusableApproveScript(attempt),
-      existingComments: result.created,
+      const repeated = await runApprove({
+        actor: REVIEWER,
+        program: reusableApproveScript({ ...attempt, workflowYml }),
+        existingComments: result.created,
+      });
+
+      assert.equal(repeated.created.length, 0, 'refusals must not spam the thread');
     });
+  }
 
-    assert.equal(repeated.created.length, 0, 'refusals must not spam the thread');
+  for (const runAttempt of ['1', '2']) {
+    test(`${file}: original ticker approves on attempt ${runAttempt} (#1204)`, async () => {
+      const result = await runApprove({
+        actor: REVIEWER,
+        program: reusableApproveScript({ runAttempt, triggeringActor: REVIEWER, workflowYml }),
+      });
+
+      assert.deepEqual(
+        result.statuses.map(({ state, description }) => [state, description]),
+        [['success', `Approved by @${REVIEWER} (run 123)`]],
+      );
+      assert.match(result.updated[0].body, /\[x\].*_approved by @a-reviewer_/);
+      assert.equal(result.created.length, 0);
+    });
+  }
+
+  test(`${file}: approval attempt metadata arrives through env (#1204)`, () => {
+    const step = yaml.load(workflowYml).jobs.approve.steps.find((step) => step.with?.script);
+    assert.equal(step.env.STYLEPROOF_RUN_ATTEMPT, '${{ github.run_attempt }}');
+    assert.equal(step.env.STYLEPROOF_TRIGGERING_ACTOR, '${{ github.triggering_actor }}');
   });
 }
-
-for (const runAttempt of ['1', '2']) {
-  test(`original ticker approves on attempt ${runAttempt} (#1204)`, async () => {
-    const result = await runApprove({
-      actor: REVIEWER,
-      program: reusableApproveScript({ runAttempt, triggeringActor: REVIEWER }),
-    });
-
-    assert.deepEqual(
-      result.statuses.map(({ state, description }) => [state, description]),
-      [['success', `Approved by @${REVIEWER} (run 123)`]],
-    );
-    assert.match(result.updated[0].body, /\[x\].*_approved by @a-reviewer_/);
-    assert.equal(result.created.length, 0);
-  });
-}
-
-test('approval attempt metadata arrives through env (#1204)', () => {
-  const step = yaml.load(reusableApproveYml).jobs.approve.steps.find((step) => step.with?.script);
-  assert.equal(step.env.STYLEPROOF_RUN_ATTEMPT, '${{ github.run_attempt }}');
-  assert.equal(step.env.STYLEPROOF_TRIGGERING_ACTOR, '${{ github.triggering_actor }}');
-});

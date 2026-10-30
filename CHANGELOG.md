@@ -41,8 +41,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
-- Refuse approval re-runs started by anyone other than the original ticker (#1204).
-
+- Refuse approval re-runs started by anyone other than the original ticker in both
+  the reusable and example approval workflows (#1204).
 - Bind carried approvals to successful approver runs and PR/SHA artifacts; require `actions: read` (#1145).
   Re-tick legacy approvals; unticks, failures, artifact expiry, and changed rerun actors revoke carry-over.
 - Remove map-store tokens from generated capture steps; private branch storage recaptures base (#1145).

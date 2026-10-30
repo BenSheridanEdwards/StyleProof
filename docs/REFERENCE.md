@@ -1667,7 +1667,7 @@ For advisory-only (the status goes red but the job stays green — useful when a
 { "blocking": false }
 ```
 
-A re-run of an approve run by anyone other than the original ticker is refused; tick the approval box again.
+In both the reusable and example approval workflows, a re-run of an approve run by anyone other than the original ticker is refused; tick the approval box again.
 
 It's **asynchronous by design**: approval is a checkbox tick handled by a separate workflow, so to clear the red you tick **Approve all changes**, then **re-run the StyleProof job** — the re-run sees the sign-off on the commit status and passes. (A new push that changes styles re-opens it.)
 
