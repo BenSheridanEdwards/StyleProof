@@ -39,7 +39,7 @@ function fixture(): string {
       </select>
     </label>
     <p class="plan-preview">Plan preview</p>
-    <form aria-label="Signup form">
+    <form aria-label="Account form">
       <input required aria-label="Email">
       <button type="submit">Join</button>
     </form>

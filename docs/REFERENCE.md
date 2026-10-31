@@ -759,7 +759,7 @@ Rules for this slice:
   targets still fail the capture with a privacy-safe `StateRecipeError` naming the action
   and stable recipe key, without the live target label. Author-written declared labels
   may appear in validation errors.
-  State recipe labels and stateKeys matching side-effect verbs (for example, `saved`, `submitted`, `cancel-dialog`, or `Confirm modal`) throw `StateRecipeError`. Rename these identities to describe the fixture state without a side-effect verb.
+  State recipe labels and stateKeys matching side-effect verbs (for example, `saved`, `submitted`, `cancel-dialog`, `Confirm modal`, `merged`, or `Sign-in`) throw `StateRecipeError`. Rename these identities to describe the fixture state without a side-effect verb.
 - Stable keys come from declared `stateKey` / label / selector. Live accessible
   labels still feed the destructive-action guard (so a benign declared label
   cannot authorize a control whose live label is `Delete` / `Remove` / …).
@@ -1030,7 +1030,7 @@ What makes exhaustive affordable is that the sweep works **in place**: standing 
 
 **And it proves nothing was missed.** After the crawl, StyleProof compares every class the page's own stylesheets define (read from the parsed CSSOM) against the classes actually rendered across the captured surfaces, and prints what — if anything — was never seen. `--require-full-coverage` turns any residue into exit code 4, so "the design is fully covered" is a CI-checkable property, not a judgement call. What's left is either dead CSS (delete it) or a state the crawl couldn't reach (drive it with a spec, or file the gap). When coverage is the goal rather than the map, `--until-covered` stops the crawl early the moment every class has rendered — the fast check, vs the exhaustive default.
 
-**Destructive-looking controls (delete, deploy, pay, revoke…) are never clicked** — mapping must not mutate; states gated behind one of those need a spec. Each skipped control is named as incomplete UI and fails the crawl closed (exit 6) unless the surface is excluded with a non-empty reason using `--incomplete-ui-exclude`. Capture the blocked state with a spec fixture. Prefer the spec-driven `defineStyleMapCapture` when you want stable, named keys and the coverage guard; reach for `--crawl` to map a design (or a third-party page) you don't have a spec for.
+**Destructive-looking controls (delete, deploy, pay, revoke, merge, tick, sign in, log in, restore…) are never clicked** — mapping must not mutate; states gated behind one of those need a spec. Each skipped control is named as incomplete UI and fails the crawl closed (exit 6) unless the surface is excluded with a non-empty reason using `--incomplete-ui-exclude`. Capture the blocked state with a spec fixture. Prefer the spec-driven `defineStyleMapCapture` when you want stable, named keys and the coverage guard; reach for `--crawl` to map a design (or a third-party page) you don't have a spec for.
 
 ### Data states, out of the box
 
@@ -1078,7 +1078,7 @@ Empty exclusion reasons are rejected. Acknowledged exclusions keep status `incom
 
 ### Incomplete UI: blocked continuations fail closed
 
-The form-submit check is the main protection; it does not look inside shadow roots or detect click handlers that submit a form or send a request from script. The side-effect word list is a best-effort backstop and will always be incomplete. Form submits and Save/Cancel/Send/Confirm controls record `unsafe-control` skips. They can cause `styleproof-capture --crawl` to exit 6 unless the surface is acknowledged with a reason in `incompleteUiExclude`.
+The form-submit check is the main protection; it does not look inside shadow roots or detect click handlers that submit a form or send a request from script. The side-effect word list is a best-effort backstop and will always be incomplete. Form submits and controls labelled with a side-effect word (for example Save, Cancel, Send, Confirm, Merge, Tick, Sign in or Restore; Refresh stays clickable) record `unsafe-control` skips. A login wall's Sign in or Log in button is one of these, so a blind crawl of a login page exits 6 rather than 5 unless the surface is acknowledged. They can cause `styleproof-capture --crawl` to exit 6 unless the surface is acknowledged with a reason in `incompleteUiExclude`.
 
 A visually clean capture can still be incomplete when the page contains a form whose submitted state was never reached, an empty required field, a disabled/inert/`aria-disabled` control, a button blocked by `pointer-events: none`, a closed `details`/`aria-expanded="false"` disclosure, or a destructive-looking control the crawl refused to click (`destructive-label`). The crawl records these as privacy-safe structural reasons only. It never stores field values, labels, text content, names, cookies, tokens, or query strings. Hidden leftovers (`display: none`, `visibility: hidden`, or no layout box) are ignored. A skipped destructive-looking control also sets crawl confidence to `incomplete-unknown` (`certifiesFully: false`) when no auth boundary exists, even when the surface is acknowledged.
 

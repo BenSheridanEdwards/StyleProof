@@ -717,6 +717,70 @@ test('isUnsafeStateLabel: matches the shared destructive vocabulary', () => {
   for (const label of ['Checkout', 'Pay now', 'Purchase', 'Log out', 'Sign out']) {
     assert.equal(isUnsafeStateLabel(label), true, label);
   }
+
+  for (const label of [
+    'Tick',
+    'Ticks',
+    'Ticked',
+    'Ticking',
+    'Merge',
+    'Merges',
+    'Merged',
+    'Merging',
+    'Sign in',
+    'Sign up',
+    'Sign-in',
+    'Sign-up',
+    'Sign-out',
+    'Signin',
+    'Signup',
+    'Signout',
+    'Log in',
+    'Log-out',
+    'Login',
+    'Logout',
+    'Authorize',
+    'Authorise',
+    'Authorized',
+    'Authorised',
+    'Authorizes',
+    'Authorises',
+    'Authorizing',
+    'Authorising',
+    'Restart',
+    'Restarts',
+    'Restarted',
+    'Restarting',
+    'Reboot',
+    'Reboots',
+    'Rebooted',
+    'Rebooting',
+    'Recover',
+    'Recovers',
+    'Recovered',
+    'Recovering',
+    'Restore',
+    'Restores',
+    'Restored',
+    'Restoring',
+  ]) {
+    assert.equal(isUnsafeStateLabel(label), true, label);
+  }
+
+  for (const label of [
+    'Refresh',
+    'Tickets',
+    'Ticker',
+    'Emerge',
+    'Merger',
+    'Designing',
+    'Signing key',
+    'Recovery codes',
+    'Restoration log',
+    'Authorization',
+  ]) {
+    assert.equal(isUnsafeStateLabel(label), false, label);
+  }
   // Words that only contain the letters stay clickable.
   for (const label of ['Display settings', 'Replay intro', 'Payload preview']) {
     assert.equal(isUnsafeStateLabel(label), false, label);

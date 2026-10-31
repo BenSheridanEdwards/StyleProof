@@ -338,7 +338,7 @@ test('styleproof-capture reads crawl setup + authBoundaryExclude from styleproof
   </style></head><body>
     <main class="gate" id="gate"><form action="/login" method="post">
       <input id="pw" type="password" autocomplete="current-password" name="pw">
-      <button type="button" id="unlock">Sign in</button>
+      <button type="button" id="unlock">Unlock</button>
     </form></main>
     <div class="vault" id="v">vault content</div>
     <script>
