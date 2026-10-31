@@ -12,6 +12,11 @@ import { harvestStyleVariants } from '../dist/variant-crawler.js';
 // A destructive word that sits outside the accessible name the crawl used to read: visible text under a
 // neutral aria-label, a title or value behind other text, an aria-labelledby target, hidden or icon text.
 const DANGEROUS = [
+  '<label for="d-label-for">Delete account</label><button id="d-label-for">→</button>',
+  `<button id="d-many-desc" aria-label="Open"><svg>${'<path></path>'.repeat(30)}</svg><img alt="Delete"></button>`,
+  `<button id="d-long-text" aria-label="Next"><span hidden>${'neutral filler words '.repeat(100)}</span>Delete</button>`,
+  `<button id="d-desc-cap" aria-label="Open">${'<span title="neutral"></span>'.repeat(101)}</button>`,
+  `<button id="d-source-cap" aria-label="Next"><span hidden>${'neutral '.repeat(2600)}</span></button>`,
   '<button id="d-aria-text" aria-label="Account">Sign in</button>',
   '<div id="d-role-text" role="button" tabindex="0" aria-label="Profile">Log out</div>',
   '<button id="d-title" title="Delete">\u22ef</button>',
@@ -27,6 +32,7 @@ const DANGEROUS = [
 ];
 // Look-alikes and status text across the same label sources: these stay clickable.
 const SAFE = [
+  '<label for="s-label-for">Profile</label><button id="s-label-for">→</button>',
   '<button id="s-aria-text" aria-label="Account">Profile</button>',
   '<button id="s-title" title="Refresh">\u21bb</button>',
   '<button id="s-status" aria-label="Signed in as alice">A</button>',
