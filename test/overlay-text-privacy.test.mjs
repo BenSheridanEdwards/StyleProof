@@ -30,18 +30,22 @@ function fixture(copy, forbidText = false) {
     getBoundingClientRect: () => ({ width: 100, height: 100 }),
     matches: () => false,
     contains: () => false,
+    getRootNode: () => document,
+    querySelectorAll: () => [],
   };
 
   const body = { hidden: true };
   root.children = [overlay];
 
+  const document = {
+    documentElement: root,
+    body,
+    querySelectorAll: (selector) =>
+      selector === 'body *' || selector === '.overlay' || selector === '.trigger' ? [overlay] : [],
+  };
+
   return {
-    document: {
-      documentElement: root,
-      body,
-      querySelectorAll: (selector) =>
-        selector === 'body *' || selector === '.overlay' || selector === '.trigger' ? [overlay] : [],
-    },
+    document,
     window: { __spPathOf: () => 'body > dialog' },
     HTMLDialogElement: class {},
     getComputedStyle: () => ({ display: 'block', visibility: 'visible' }),
