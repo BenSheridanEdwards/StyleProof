@@ -33,7 +33,7 @@ const SAFE = [
   '<span id="s-lbl">Recovery codes</span><button id="s-labelledby" aria-labelledby="s-lbl">\u2192</button>',
   '<input id="s-image-alt" type="image" alt="Tickets" width="8" height="8" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">',
   '<button id="s-sr" aria-label="Menu"><span hidden>Logged in as ben</span>\u2630</button>',
-  '<button id="s-img-alt"><img alt="Merged list" width="8" height="8" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></button>',
+  '<button id="s-img-alt"><img alt="Signal strength" width="8" height="8" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></button>',
 ];
 // The control is the last element with an id in each snippet (an aria-labelledby target comes first).
 const ids = (markup: string[]) => markup.map((m) => [...m.matchAll(/id="([^"]+)"/g)].at(-1)![1]);
