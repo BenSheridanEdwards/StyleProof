@@ -1085,6 +1085,9 @@ test('isUnsafeStateLabel: Unicode separators and log on / untick / unmerge (#120
     'Sign\u200bin',
     'Sign_in',
     'Sign - in',
+    'Sign -- in',
+    'Sign\u200ein',
+    'Log\u2066in',
     'Check\u00a0out',
     'Place\u2011order',
     'Log on',
@@ -1115,6 +1118,12 @@ test('isUnsafeStateLabel: Unicode separators and log on / untick / unmerge (#120
     'Merger',
     'Restaurant',
     'Unticketed',
+    // Past-tense status text and fixture-state names stay safe (review of #1208).
+    'Signed in as alice',
+    'Logged in as ben',
+    'logged-in',
+    'signed_in',
+    'signed-out',
   ])
     assert.equal(isUnsafeStateLabel(label), false, JSON.stringify(label));
 });

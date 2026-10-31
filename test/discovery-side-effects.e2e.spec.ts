@@ -190,6 +190,8 @@ test('crawl discovery marks #1208 separator variants unsafe and keeps look-alike
     'Ticker',
     'Merger',
     'Restaurant',
+    'Signed in as alice',
+    'Logged in as ben',
   ];
 
   await page.setContent(
