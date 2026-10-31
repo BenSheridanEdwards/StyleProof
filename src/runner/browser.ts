@@ -10,6 +10,7 @@ export type PopupSnapshotArgs = {
   popupSelector: string;
   captureText?: boolean;
   dangerSource?: string;
+  dangerTextSource?: string;
   submitsFormSource: string;
   triggerSelector?: string;
   attr?: string;
@@ -24,6 +25,7 @@ export function popupDomSnapshot({
   popupSelector,
   captureText = true,
   dangerSource,
+  dangerTextSource,
   submitsFormSource,
   triggerSelector,
   attr,
@@ -82,7 +84,13 @@ export function popupDomSnapshot({
   const labelOf = (el: Element): string => (captureText ? rawLabelOf(el) : privateText(rawLabelOf(el)));
 
   const dangerous = (el: Element): boolean =>
-    Boolean(dangerSource && new RegExp(dangerSource, 'i').test(rawLabelOf(el)));
+    !dangerTexts ||
+    Boolean(
+      dangerSource &&
+      (['form', 'select'].includes(el.localName)
+        ? new RegExp(dangerSource, 'i').test(rawLabelOf(el))
+        : dangerTexts(el).some((source) => new RegExp(dangerSource, 'i').test(source))),
+    );
   const KEY_ATTRS = [
     'role',
     'aria-modal',
@@ -104,6 +112,10 @@ export function popupDomSnapshot({
 
   for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
 
+  // SAFETY: the caller supplies the shared serialized label gatherer.
+  const dangerTexts = dangerTextSource
+    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[])
+    : undefined;
   // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
   const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
 

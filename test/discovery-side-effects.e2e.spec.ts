@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import http from 'node:http';
 import { captureSurface } from '../dist/runner/surface-capture.js';
 import { collectClickable } from '../dist/crawl/browser.js';
-import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
 import { resolveSettings } from '../dist/runner/settings.js';
 import { harvestStyleVariants } from '../dist/variant-crawler.js';
 
@@ -127,6 +127,7 @@ for (const mode of ['crawl', 'variant', 'popup'])
 
         const candidates = await page.evaluate(collectClickable, {
           dangerSource: DANGER_SOURCE,
+          dangerTextSource: DANGER_TEXT_SOURCE,
           submitsFormSource: SUBMITS_FORM_SOURCE,
         });
 
@@ -146,6 +147,7 @@ test('crawl discovery under CSP finds safe controls and rejects submits without 
 
     const candidates = await page.evaluate(collectClickable, {
       dangerSource: DANGER_SOURCE,
+      dangerTextSource: DANGER_TEXT_SOURCE,
       submitsFormSource: SUBMITS_FORM_SOURCE,
     });
 
@@ -166,6 +168,7 @@ test('crawl discovery marks #1206 action words unsafe and keeps look-alikes clic
   );
   const candidates = await page.evaluate(collectClickable, {
     dangerSource: DANGER_SOURCE,
+    dangerTextSource: DANGER_TEXT_SOURCE,
     submitsFormSource: SUBMITS_FORM_SOURCE,
   });
   const unsafe = Object.fromEntries(candidates.map((c) => [c.label, c.unsafe]));
@@ -199,6 +202,7 @@ test('crawl discovery marks #1208 separator variants unsafe and keeps look-alike
   );
   const candidates = await page.evaluate(collectClickable, {
     dangerSource: DANGER_SOURCE,
+    dangerTextSource: DANGER_TEXT_SOURCE,
     submitsFormSource: SUBMITS_FORM_SOURCE,
   });
   const unsafe = Object.fromEntries(candidates.map((c) => [c.selector, c.unsafe]));

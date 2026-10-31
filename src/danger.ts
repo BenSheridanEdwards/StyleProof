@@ -9,6 +9,43 @@ const SEP =
 
 export const DANGER_SOURCE = `\\b(delete|remove|destroy|log(?:ging)?${SEP}(?:in|out|on)|sign(?:ing)?${SEP}(?:in|up|out)|publish|deploy|pay(?:ments?)?|purchases?|buy|check${SEP}out|place${SEP}order|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew|send(?:s|ing)?|submit(?:s|ted|ting)?|sav(?:e[sd]?|ing)|confirm(?:s|ed|ing)?|approv(?:e[sd]?|ing)|invit(?:e[sd]?|ing)|transfer(?:s|red|ring)?|cancel(?:s|led|ed|ling|ing)?|(?:un)?tick(?:s|ed|ing)?|(?:un)?merg(?:e[sd]?|ing)|authori[sz](?:e[sd]?|ing)|re${SEP}start(?:s|ed|ing)?|reboot(?:s|ed|ing)?|recover(?:s|ed|ing)?|re${SEP}stor(?:e[sd]?|ing))\\b`;
 
+/** Independent, bounded label sources for safety only; never use these for reported labels. */
+export const DANGER_TEXT_SOURCE = String((el: Element): string[] => {
+  const sources: string[] = [];
+
+  const add = (value: string | null): void => {
+    if (value) sources.push(value.replace(/\s+/g, ' ').trim().slice(0, 1000));
+  };
+
+  add(el.getAttribute('aria-label'));
+
+  for (const id of (el.getAttribute('aria-labelledby') ?? '').split(/\s+/).filter(Boolean)) {
+    const target = el.ownerDocument.getElementById(id);
+
+    if (target) {
+      add(target.textContent);
+      add(target.getAttribute('aria-label'));
+    }
+  }
+
+  add(el.textContent);
+  add(el.getAttribute('title'));
+
+  if (el.localName === 'input' || el.localName === 'button') {
+    // SAFETY: native input and button elements expose their current value.
+    add((el as HTMLInputElement | HTMLButtonElement).value);
+  }
+
+  if (el.localName === 'input' && el.getAttribute('type')?.toLowerCase() === 'image') add(el.getAttribute('alt'));
+  add(el.getAttribute('name'));
+
+  for (const child of [...(el.querySelectorAll?.('*') ?? [])].slice(0, 20)) {
+    for (const attr of ['aria-label', 'title', 'alt']) add(child.getAttribute(attr));
+  }
+
+  return sources;
+});
+
 export const SUBMITS_FORM_SOURCE = String((el: Element): boolean => {
   const submits = (control: Element | null | undefined): boolean => {
     // SAFETY: native controls expose form/type; custom controls use attributes below.

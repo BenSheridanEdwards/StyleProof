@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { detectViewportWidths } from '../breakpoints.js';
-import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE, SUBMITS_FORM_SOURCE } from '../danger.js';
 import { unsafeControlDiagnostic } from '../incomplete-ui.js';
 import { classifyAuthBoundary, type AuthBoundaryMetadata } from '../auth-boundary.js';
 import { resolveCrawlConfidence, redactedRoutePath, shouldRetainAuthRedirects } from '../crawl-confidence.js';
@@ -255,7 +255,11 @@ async function sweepCandidatesHere(
   const { opts, st } = ctx;
 
   const all = await page
-    .evaluate(collectClickable, { dangerSource: DANGER_SOURCE, submitsFormSource: SUBMITS_FORM_SOURCE })
+    .evaluate(collectClickable, {
+      dangerSource: DANGER_SOURCE,
+      dangerTextSource: DANGER_TEXT_SOURCE,
+      submitsFormSource: SUBMITS_FORM_SOURCE,
+    })
     .catch((): RawCandidate[] => []);
   const work = sweepWorkList(entry, all, ctx, excludeIds);
   const counts: Counts = { tried: 0, skipped: 0 };
