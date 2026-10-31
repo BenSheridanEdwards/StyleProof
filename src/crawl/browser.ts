@@ -31,7 +31,7 @@ export function collectClickable({
 
   // SAFETY: the caller supplies the shared serialized label gatherer.
   const dangerTexts = dangerTextSource
-    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[])
+    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[] | null)
     : undefined;
   // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
   const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
@@ -134,7 +134,9 @@ export function collectClickable({
       unsafe:
         submitsForm(el) ||
         !dangerTexts ||
-        (el.localName === 'select' ? DANGER.test(label) : dangerTexts(el).some((source) => DANGER.test(source))),
+        (el.localName === 'select'
+          ? DANGER.test(label)
+          : (dangerTexts(el)?.some((source) => DANGER.test(source)) ?? true)),
     };
 
     if (el instanceof HTMLSelectElement) {

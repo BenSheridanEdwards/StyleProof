@@ -415,7 +415,7 @@ async function driveInteraction(page: Page, recipe: InteractionStateRecipe): Pro
       (el, dangerTextSource) => {
         if (['form', 'select'].includes(el.localName)) return [];
         // SAFETY: the serialized gatherer comes from the shared danger module.
-        const gather = new Function(`return (${dangerTextSource})`)() as (el: Element) => string[];
+        const gather = new Function(`return (${dangerTextSource})`)() as (el: Element) => string[] | null;
 
         return gather(el);
       },
@@ -423,7 +423,7 @@ async function driveInteraction(page: Page, recipe: InteractionStateRecipe): Pro
       { timeout: ACTION_TIMEOUT_MS },
     );
 
-  if (isUnsafeStateLabel(liveLabel) || sources.some(isUnsafeStateLabel)) {
+  if (isUnsafeStateLabel(liveLabel) || sources === null || sources.some(isUnsafeStateLabel)) {
     throw new StateRecipeError(
       `refusing unsafe state recipe target (${recipe.action} key=${deriveValidatedStateRecipeKey(recipe)}): label matched the built-in destructive-action guard`,
     );

@@ -125,7 +125,7 @@ function collectDiscovery({
 }): Discovery {
   // SAFETY: the caller supplies the shared serialized label gatherer.
   const dangerTexts = dangerTextSource
-    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[])
+    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[] | null)
     : undefined;
   // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
   const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
@@ -191,7 +191,7 @@ function collectDiscovery({
     !dangerTexts ||
     (['form', 'select'].includes(element.localName)
       ? dangerous.test(labelFor(element))
-      : dangerTexts(element).some((source) => dangerous.test(source)));
+      : (dangerTexts(element)?.some((source) => dangerous.test(source)) ?? true));
 
   const seen = new Set<string>();
   const candidates: Candidate[] = [];

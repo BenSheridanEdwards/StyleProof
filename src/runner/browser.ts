@@ -83,14 +83,19 @@ export function popupDomSnapshot({
 
   const labelOf = (el: Element): string => (captureText ? rawLabelOf(el) : privateText(rawLabelOf(el)));
 
-  const dangerous = (el: Element): boolean =>
-    !dangerTexts ||
-    Boolean(
-      dangerSource &&
-      (['form', 'select'].includes(el.localName)
-        ? new RegExp(dangerSource, 'i').test(rawLabelOf(el))
-        : dangerTexts(el).some((source) => new RegExp(dangerSource, 'i').test(source))),
+  const dangerous = (el: Element): boolean => {
+    if (!dangerTexts) return true;
+
+    if (['form', 'select'].includes(el.localName))
+      return Boolean(dangerSource && new RegExp(dangerSource, 'i').test(rawLabelOf(el)));
+
+    const sources = dangerTexts(el);
+
+    return (
+      sources === null || Boolean(dangerSource && sources.some((source) => new RegExp(dangerSource, 'i').test(source)))
     );
+  };
+
   const KEY_ATTRS = [
     'role',
     'aria-modal',
@@ -114,7 +119,7 @@ export function popupDomSnapshot({
 
   // SAFETY: the caller supplies the shared serialized label gatherer.
   const dangerTexts = dangerTextSource
-    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[])
+    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[] | null)
     : undefined;
   // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
   const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
