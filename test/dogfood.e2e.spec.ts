@@ -83,7 +83,7 @@ function popupSurface(tone: 'base' | 'head') {
             <p id="popup-copy">Stable popup content.</p>
           </section>
           <nav id="menu" role="menu" hidden>
-            <button role="menuitem" type="button">Merge now</button>
+            <button role="menuitem" type="button">View queue</button>
           </nav>
           <ul id="listbox" role="listbox" hidden>
             <li role="option" aria-selected="true">Reviewer queue</li>

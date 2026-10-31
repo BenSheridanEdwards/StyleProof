@@ -4,7 +4,7 @@
  * classifiers run inside `page.evaluate` and recompile it in the browser.
  */
 export const DANGER_SOURCE =
-  '\\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay(?:ments?)?|purchases?|buy|check ?out|place ?order|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew|send(?:s|ing)?|submit(?:s|ted|ting)?|sav(?:e[sd]?|ing)|confirm(?:s|ed|ing)?|approv(?:e[sd]?|ing)|invit(?:e[sd]?|ing)|transfer(?:s|red|ring)?|cancel(?:s|led|ed|ling|ing)?)\\b';
+  '\\b(delete|remove|destroy|log[ -]?(?:in|out)|sign[ -]?(?:in|up|out)|publish|deploy|pay(?:ments?)?|purchases?|buy|check ?out|place ?order|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew|send(?:s|ing)?|submit(?:s|ted|ting)?|sav(?:e[sd]?|ing)|confirm(?:s|ed|ing)?|approv(?:e[sd]?|ing)|invit(?:e[sd]?|ing)|transfer(?:s|red|ring)?|cancel(?:s|led|ed|ling|ing)?|tick(?:s|ed|ing)?|merg(?:e[sd]?|ing)|authori[sz](?:e[sd]?|ing)|restart(?:s|ed|ing)?|reboot(?:s|ed|ing)?|recover(?:s|ed|ing)?|restor(?:e[sd]?|ing))\\b';
 
 export const SUBMITS_FORM_SOURCE = String((el: Element): boolean => {
   const submits = (control: Element | null | undefined): boolean => {

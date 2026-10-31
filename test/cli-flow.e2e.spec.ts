@@ -710,8 +710,8 @@ for (const { title, entry, landed, settings } of [
   });
 }
 
-// A sub-state key can equal a linked page's route key: the entry page's "Sign in"
-// modal and a /sign-in page (state found first), or the /pricing "Plans" panel and
+// A sub-state key can equal a linked page's route key: the entry page's "Account"
+// modal and a /account page (state found first), or the /pricing "Plans" panel and
 // a /pricing/plans page (page queued first). Each surface needs its own map, or the
 // later capture overwrites the earlier one and the lost state is never diffed (#944).
 test('styleproof-capture --crawl never lets a sub-state and a linked page share a map', async () => {
@@ -722,8 +722,8 @@ test('styleproof-capture --crawl never lets a sub-state and a linked page share 
   const opens = (cls: string, label: string) =>
     `<button onclick="document.body.insertAdjacentHTML('beforeend','<section class=${cls}>${cls}</section>');this.remove()">${label}</button>`;
   const pages: Record<string, string> = {
-    '/': `<nav><a href="/sign-in">Sign in page</a> <a href="/pricing">Pricing</a> <a href="/pricing/plans">All plans</a></nav>${opens('modal', 'Sign in')}`,
-    '/sign-in': '<main class="card">sign-in page</main>',
+    '/': `<nav><a href="/account">Account page</a> <a href="/pricing">Pricing</a> <a href="/pricing/plans">All plans</a></nav>${opens('modal', 'Account')}`,
+    '/account': '<main class="card">account page</main>',
     '/pricing': opens('panel', 'Plans'),
     '/pricing/plans': '<main class="grid">plan grid</main>',
   };
@@ -747,12 +747,12 @@ test('styleproof-capture --crawl never lets a sub-state and a linked page share 
   const classesIn = (key: string) =>
     Object.values(loadStyleMap(path.join(app, 'base', `${key}@1280.json.gz`)).elements).map((e) => e.cls);
   try {
-    const keys = ['base', 'sign-in', 'sign-in-2', 'pricing', 'pricing-plans', 'pricing-plans-2'];
+    const keys = ['base', 'account', 'account-2', 'pricing', 'pricing-plans', 'pricing-plans-2'];
     expect(await crawl('base')).toContain('✓ 6/6 surface(s) across 4 page(s)');
     const maps = fs.readdirSync(path.join(app, 'base')).filter((f) => f.endsWith('.json.gz'));
     expect(maps.sort(), 'one map per reported surface').toEqual(keys.map((k) => `${k}@1280.json.gz`).sort());
-    expect(classesIn('sign-in'), 'the entry modal keeps its bare key').toContain('modal');
-    expect(classesIn('sign-in-2'), 'the /sign-in page is suffixed').toContain('card');
+    expect(classesIn('account'), 'the entry modal keeps its bare key').toContain('modal');
+    expect(classesIn('account-2'), 'the /account page is suffixed').toContain('card');
     expect(classesIn('pricing-plans'), 'the /pricing/plans page keeps its reserved key').toContain('grid');
     expect(classesIn('pricing-plans-2'), 'the /pricing panel is suffixed').toContain('panel');
     const ledger = JSON.parse(fs.readFileSync(path.join(app, 'base', 'styleproof-confidence.json'), 'utf8'));

@@ -148,7 +148,7 @@ test('unauthenticated protected page → incomplete-auth blocked; env setup clea
 });
 
 test('late-mounted password form during crawl → incomplete-auth blocked', async ({ page }) => {
-  // Entry has no auth wall; clicking "Sign in" creates and inserts a password form.
+  // Entry has no auth wall; clicking "Account" creates and inserts a password form.
   // Must truly insert after click — revealing a pre-existing DOM password is not
   // mid-crawl detection proof (collector already sees type=password in initial DOM).
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -159,7 +159,7 @@ test('late-mounted password form during crawl → incomplete-auth blocked', asyn
   </style></head><body>
     <main class="home" id="home">
       <h1>Welcome</h1>
-      <button id="open-auth" type="button">Sign in</button>
+      <button id="open-auth" type="button">Account</button>
     </main>
     <div id="auth-host"></div>
     <script>
