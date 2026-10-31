@@ -1072,3 +1072,49 @@ test('live unsafe labels stay out of recipe errors; declared labels remain diagn
     /refusing unsafe state recipe \(Delete account\)/,
   );
 });
+
+test('isUnsafeStateLabel: Unicode separators and log on / untick / unmerge (#1208)', () => {
+  for (const label of [
+    'Sign\u2011in',
+    'Log\u2013in',
+    'Sign\u2010out',
+    'Sign\u2014up',
+    'Log\u2212out',
+    'Sign\u00a0in',
+    'Log\u202fout',
+    'Sign\u200bin',
+    'Sign_in',
+    'Sign - in',
+    'Check\u00a0out',
+    'Place\u2011order',
+    'Log on',
+    'Logon',
+    'Log-on',
+    'Signing in',
+    'Logging in',
+    'Untick',
+    'Unticked',
+    'Unmerge',
+    'Unmerging',
+    'Re-start',
+    'Re\u2011store',
+  ])
+    assert.equal(isUnsafeStateLabel(label), true, JSON.stringify(label));
+
+  for (const label of [
+    'Refresh',
+    'Tickets',
+    'Emerge',
+    'Recovery codes',
+    'Restoration log',
+    'Signing key',
+    'Logo',
+    'Log input',
+    'Catalog only',
+    'Ticker',
+    'Merger',
+    'Restaurant',
+    'Unticketed',
+  ])
+    assert.equal(isUnsafeStateLabel(label), false, JSON.stringify(label));
+});

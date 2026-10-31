@@ -24,9 +24,28 @@ const ACTION_WORDS = [
   'Recover',
   'Restore',
 ];
+// Unicode separators and further forms that still slipped through (#1208).
+const SEPARATOR_WORDS = [
+  'Sign\u2011in',
+  'Log\u2013in',
+  'Sign\u2010out',
+  'Sign\u00a0up',
+  'Sign\u200bin',
+  'Sign_in',
+  'Sign - in',
+  'Log on',
+  'Logon',
+  'Log-on',
+  'Signing in',
+  'Logging in',
+  'Untick',
+  'Unmerge',
+  'Re-start',
+  'Re-store',
+];
 
 function page(): string {
-  const verbs = [...SIDE_EFFECT_VERBS, ...ACTION_WORDS]
+  const verbs = [...SIDE_EFFECT_VERBS, ...ACTION_WORDS, ...SEPARATOR_WORDS]
     .map((verb) => `<button type="button" class="verb" data-verb="${verb}">${verb}</button>`)
     .join('\n');
 
@@ -64,7 +83,7 @@ async function withServer(run: (baseUrl: string, posts: string[]) => Promise<voi
     if (req.method === 'POST') posts.push(new URL(req.url ?? '/', 'http://127.0.0.1').pathname);
 
     if (req.url === '/csp') res.setHeader('Content-Security-Policy', "script-src 'self'");
-    res.writeHead(200, { 'content-type': 'text/html' });
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     res.end(
       req.method === 'POST'
         ? '<!doctype html><p>posted</p>'
@@ -153,6 +172,38 @@ test('crawl discovery marks #1206 action words unsafe and keeps look-alikes clic
 
   expect(unsafe).toEqual({
     ...Object.fromEntries(ACTION_WORDS.map((label) => [label, true])),
+    ...Object.fromEntries(safe.map((label) => [label, false])),
+  });
+});
+
+test('crawl discovery marks #1208 separator variants unsafe and keeps look-alikes clickable', async ({ page }) => {
+  const safe = [
+    'Refresh',
+    'Tickets',
+    'Emerge',
+    'Designing',
+    'Recovery codes',
+    'Restoration log',
+    'Signing key',
+    'Logo',
+    'Log input',
+    'Ticker',
+    'Merger',
+    'Restaurant',
+  ];
+
+  await page.setContent(
+    [...SEPARATOR_WORDS, ...safe].map((label, i) => `<button type="button" id="b${i}">${label}</button>`).join('\n'),
+  );
+  const candidates = await page.evaluate(collectClickable, {
+    dangerSource: DANGER_SOURCE,
+    submitsFormSource: SUBMITS_FORM_SOURCE,
+  });
+  const unsafe = Object.fromEntries(candidates.map((c) => [c.selector, c.unsafe]));
+  const labels = [...SEPARATOR_WORDS, ...safe];
+
+  expect(Object.fromEntries(labels.map((label, i) => [label, unsafe[`#b${i}`]]))).toEqual({
+    ...Object.fromEntries(SEPARATOR_WORDS.map((label) => [label, true])),
     ...Object.fromEntries(safe.map((label) => [label, false])),
   });
 });

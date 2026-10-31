@@ -154,6 +154,46 @@ test('styleproof-capture --crawl: exit 5 password wall; exit 0 plain; exit 0 rea
   }
 });
 
+test('styleproof-capture --crawl: blind login wall with a Sign in button exits 6, not 5 (#1208)', async () => {
+  // Incomplete UI (6) outranks incomplete auth (5): the refused Sign in control decides the exit.
+  const wall = `<!doctype html><html><head><meta charset="utf-8"><style>.gate{padding:8px}</style></head>
+<body><main class="gate"><form action="/login" method="post">
+<input id="pw" type="password" autocomplete="current-password" name="pw">
+<button type="button" id="sign-in">Sign in</button>
+</form></main></body></html>`;
+  const server = http.createServer((_req, res) => {
+    res.statusCode = 200;
+    res.setHeader('content-type', 'text/html; charset=utf-8');
+    res.end(wall);
+  });
+  const port = await listen(server);
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-auth-cli-signin-'));
+
+  try {
+    const res = await runCaptureAsync([
+      `http://127.0.0.1:${port}/`,
+      '--crawl',
+      '--no-follow-links',
+      '--no-data-states',
+      '--workers',
+      '1',
+      '--max-depth',
+      '1',
+      '--no-screenshots',
+      '--widths',
+      '800',
+      '--out',
+      out,
+    ]);
+
+    expect(res.status, res.stderr + res.stdout).toBe(6);
+    expect(res.stdout + res.stderr).toMatch(/destructive-label|unsafe-control/);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
 test('styleproof-capture --crawl ignores stale maps when reusing an output directory', async () => {
   const html = '<!doctype html><main>fresh</main>';
   const server = http.createServer((_req, res) => {
