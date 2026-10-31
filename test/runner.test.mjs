@@ -19,6 +19,7 @@ import {
 import { coverageGaps } from '../dist/coverage.js';
 import { ProductStateIdentityError } from '../dist/capture.js';
 import { StateRecipeError } from '../dist/state-recipes.js';
+import { DANGER_TEXT_SOURCE } from '../dist/danger.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -460,8 +461,8 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
             async click() {
               calls.push('click');
             },
-            async evaluate() {
-              return 'Plan card';
+            async evaluate(_callback, source) {
+              return source === DANGER_TEXT_SOURCE ? ['Plan card'] : 'Plan card';
             },
           };
         },

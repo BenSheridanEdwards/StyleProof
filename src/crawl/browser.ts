@@ -9,8 +9,10 @@ import type { RawCandidate } from './types.js';
 /* c8 ignore start */ // fallow-ignore-next-line complexity
 export function collectClickable({
   dangerSource,
+  dangerTextSource,
   submitsFormSource,
 }: {
+  dangerTextSource?: string;
   dangerSource: string;
   submitsFormSource: string;
 }): RawCandidate[] {
@@ -27,6 +29,10 @@ export function collectClickable({
     number: '1',
   };
 
+  // SAFETY: the caller supplies the shared serialized label gatherer.
+  const dangerTexts = dangerTextSource
+    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[])
+    : undefined;
   // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
   const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
   const DANGER = new RegExp(dangerSource, 'i');
@@ -120,7 +126,16 @@ export function collectClickable({
     const selector = claim(el);
     if (!selector) continue;
     const label = labelFor(el);
-    const common = { selector, identity: identityFor(el), label, unsafe: submitsForm(el) || DANGER.test(label) };
+
+    const common = {
+      selector,
+      identity: identityFor(el),
+      label,
+      unsafe:
+        submitsForm(el) ||
+        !dangerTexts ||
+        (el.localName === 'select' ? DANGER.test(label) : dangerTexts(el).some((source) => DANGER.test(source))),
+    };
 
     if (el instanceof HTMLSelectElement) {
       const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);

@@ -4,7 +4,7 @@
  * A recipe collection is a set of INDEPENDENT state variants, never an action sequence.
  */
 import type { Locator, Page } from '@playwright/test';
-import { DANGER_SOURCE } from './danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE } from './danger.js';
 import { realNow } from './spec-clock.js';
 import {
   assertSafeRecipeLabel,
@@ -407,7 +407,23 @@ const INTERACTIONS: Record<
 /** Drive a validated interaction recipe; the live target label is checked against the destructive guard. */
 async function driveInteraction(page: Page, recipe: InteractionStateRecipe): Promise<string> {
   const liveLabel = await readElementLabel(page, recipe.selector);
-  if (liveLabel && isUnsafeStateLabel(liveLabel)) {
+
+  const sources = await page
+    .locator(recipe.selector)
+    .first()
+    .evaluate(
+      (el, dangerTextSource) => {
+        if (['form', 'select'].includes(el.localName)) return [];
+        // SAFETY: the serialized gatherer comes from the shared danger module.
+        const gather = new Function(`return (${dangerTextSource})`)() as (el: Element) => string[];
+
+        return gather(el);
+      },
+      DANGER_TEXT_SOURCE,
+      { timeout: ACTION_TIMEOUT_MS },
+    );
+
+  if (isUnsafeStateLabel(liveLabel) || sources.some(isUnsafeStateLabel)) {
     throw new StateRecipeError(
       `refusing unsafe state recipe target (${recipe.action} key=${deriveValidatedStateRecipeKey(recipe)}): label matched the built-in destructive-action guard`,
     );
