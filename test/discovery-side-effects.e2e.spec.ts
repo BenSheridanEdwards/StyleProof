@@ -7,11 +7,28 @@ import { resolveSettings } from '../dist/runner/settings.js';
 import { harvestStyleVariants } from '../dist/variant-crawler.js';
 
 const SIDE_EFFECT_VERBS = 'Send Submit Save Confirm Approve Invite Transfer Cancel Delete Pay'.split(' ');
+// Action words a real app wires to a side effect that discovery still clicked (#1206).
+const ACTION_WORDS = [
+  'Tick',
+  'Merge',
+  'Sign in',
+  'Start sign-in',
+  'Sign up',
+  'Log in',
+  'Login',
+  'Sign-out',
+  'Log-out',
+  'Authorize',
+  'Restart',
+  'Reboot',
+  'Recover',
+  'Restore',
+];
 
 function page(): string {
-  const verbs = SIDE_EFFECT_VERBS.map(
-    (verb) => `<button type="button" class="verb" data-verb="${verb}">${verb}</button>`,
-  ).join('\n');
+  const verbs = [...SIDE_EFFECT_VERBS, ...ACTION_WORDS]
+    .map((verb) => `<button type="button" class="verb" data-verb="${verb}">${verb}</button>`)
+    .join('\n');
 
   return `<!doctype html><html><head><style>button:hover { outline: 3px solid blue; }</style></head><body>
     <form method="post" action="/form-post"><input name="note" aria-label="Note" value="hello"><button>Continue</button></form>
@@ -119,5 +136,23 @@ test('crawl discovery under CSP finds safe controls and rejects submits without 
     await page.locator(safe!.selector).click();
     await page.waitForTimeout(250);
     expect(posts).toEqual([]);
+  });
+});
+
+test('crawl discovery marks #1206 action words unsafe and keeps look-alikes clickable', async ({ page }) => {
+  const safe = ['Refresh', 'Tickets', 'Emerge', 'Designing', 'Recovery codes', 'Restoration log', 'Signing key'];
+
+  await page.setContent(
+    [...ACTION_WORDS, ...safe].map((label) => `<button type="button">${label}</button>`).join('\n'),
+  );
+  const candidates = await page.evaluate(collectClickable, {
+    dangerSource: DANGER_SOURCE,
+    submitsFormSource: SUBMITS_FORM_SOURCE,
+  });
+  const unsafe = Object.fromEntries(candidates.map((c) => [c.label, c.unsafe]));
+
+  expect(unsafe).toEqual({
+    ...Object.fromEntries(ACTION_WORDS.map((label) => [label, true])),
+    ...Object.fromEntries(safe.map((label) => [label, false])),
   });
 });
