@@ -12,6 +12,13 @@ import { harvestStyleVariants } from '../dist/variant-crawler.js';
 // A destructive word that sits outside the accessible name the crawl used to read: visible text under a
 // neutral aria-label, a title or value behind other text, an aria-labelledby target, hidden or icon text.
 const DANGEROUS = [
+  '<button id="d-adjacent"><span>Delete</span><span>3</span></button>',
+  '<button id="d-adjacent-sr"><span>Remove</span><span class="sr-only">item</span></button>',
+  '<span id="dl-target" hidden>Reset</span><button id="d-desc-labelledby"><span aria-labelledby="dl-target"></span>→</button>',
+  '<button id="d-split-word">De<b>lete</b></button>',
+  '<label for="d-label-adjacent"><span>Delete</span><span>3</span></label><button id="d-label-adjacent">→</button>',
+  '<span id="d-lbl-adjacent"><span>Remove</span><span>item</span></span><button id="d-labelledby-adjacent" aria-labelledby="d-lbl-adjacent">→</button>',
+  `<button id="d-joined-cap">${`<span>${'a'.repeat(10000)}</span>`.repeat(2)}</button>`,
   '<label for="d-label-for">Delete account</label><button id="d-label-for">→</button>',
   `<button id="d-many-desc" aria-label="Open"><svg>${'<path></path>'.repeat(30)}</svg><img alt="Delete"></button>`,
   `<button id="d-long-text" aria-label="Next"><span hidden>${'neutral filler words '.repeat(100)}</span>Delete</button>`,
@@ -32,6 +39,7 @@ const DANGEROUS = [
 ];
 // Look-alikes and status text across the same label sources: these stay clickable.
 const SAFE = [
+  '<button id="s-adjacent"><span>Profile</span><span>3</span></button>',
   '<label for="s-label-for">Profile</label><button id="s-label-for">→</button>',
   '<button id="s-aria-text" aria-label="Account">Profile</button>',
   '<button id="s-title" title="Refresh">\u21bb</button>',
@@ -47,7 +55,7 @@ const DANGEROUS_IDS = ids(DANGEROUS);
 const SAFE_IDS = ids(SAFE);
 
 function html(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>button:hover { outline: 3px solid blue; }</style></head><body><main>
+  return `<!doctype html><html><head><meta charset="utf-8"><style>button:hover { outline: 3px solid blue; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style></head><body><main>
     ${[...DANGEROUS, ...SAFE].join('\n    ')}
     <script>for (const el of document.querySelectorAll('[id^="d-"]:not(span),[id^="s-"]:not(span)')) el.addEventListener('click', (e) => { e.preventDefault(); fetch((el.id.startsWith('d-') ? '/side-effect/' : '/safe/') + el.id, { method: 'POST', body: 'x' }); });</script>
   </main></body></html>`;
