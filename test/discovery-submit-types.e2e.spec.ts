@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { collectClickable } from '../dist/crawl/browser.js';
-import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
 import { popupDomSnapshot } from '../dist/runner/browser.js';
 import { resolvePopupCaptureOptions } from '../dist/runner/settings.js';
 
@@ -21,6 +21,7 @@ for (const ownership of ['none', 'ancestor', 'attribute']) {
     const options = {
       dangerSource: DANGER_SOURCE,
       popupSelector: 'dialog[open]',
+      dangerTextSource: DANGER_TEXT_SOURCE,
       submitsFormSource: SUBMITS_FORM_SOURCE,
       triggerSelector: resolvePopupCaptureOptions(true).triggers,
       attr: 'data-popup-trigger',

@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { captureStyleMap, type CaptureOptions, type LiveRegionCandidate, type StyleMap } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
-import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from './danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE, SUBMITS_FORM_SOURCE } from './danger.js';
 import { sha256 } from './node-util.js';
 import { slug as slugOf } from './util.js';
 import { pathAndSearch } from './crawl/page.js';
@@ -114,13 +114,19 @@ const captureOptions = (options: VariantHarvestOptions): CaptureOptions => ({
 // fallow-ignore-next-line complexity
 function collectDiscovery({
   dangerSource,
+  dangerTextSource,
   submitsFormSource,
   maxStates,
 }: {
+  dangerTextSource?: string;
   dangerSource: string;
   submitsFormSource: string;
   maxStates: number;
 }): Discovery {
+  // SAFETY: the caller supplies the shared serialized label gatherer.
+  const dangerTexts = dangerTextSource
+    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[] | null)
+    : undefined;
   // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
   const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;
   const CONTROLS =
@@ -180,17 +186,12 @@ function collectDiscovery({
     }
     return segments.join(' > ');
   };
-  const safetyLabel = (element: Element): string =>
-    [
-      element.getAttribute('aria-label'),
-      element.getAttribute('title'),
-      element.getAttribute('name'),
-      element.textContent,
-    ]
-      .filter((value): value is string => Boolean(value))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .slice(0, 240);
+
+  const unsafeLabel = (element: Element): boolean =>
+    !dangerTexts ||
+    (['form', 'select'].includes(element.localName)
+      ? dangerous.test(labelFor(element))
+      : (dangerTexts(element)?.some((source) => dangerous.test(source)) ?? true));
 
   const seen = new Set<string>();
   const candidates: Candidate[] = [];
@@ -201,7 +202,7 @@ function collectDiscovery({
     seen.add(selector);
     const label = labelFor(el);
 
-    if ((!(el instanceof HTMLFormElement) && submitsForm(el)) || dangerous.test(label)) {
+    if ((!(el instanceof HTMLFormElement) && submitsForm(el)) || unsafeLabel(el)) {
       candidates.push({ action: 'click', selector, reason: 'unsafe-label', label });
     } else if (el instanceof HTMLFormElement) {
       if (el.noValidate || !el.querySelector('input[required],textarea[required],select[required]')) continue;
@@ -221,7 +222,7 @@ function collectDiscovery({
     if (!usable(element)) continue;
     const selector = structuralPath(element);
     const mapPath = capturePath?.(element) ?? selector;
-    const unsafe = dangerous.test(safetyLabel(element));
+    const unsafe = unsafeLabel(element);
     if (states.length < maxStates) states.push({ action: 'hover', selector, mapPath, unsafe });
     if (states.length < maxStates && element instanceof HTMLElement && element.tabIndex >= 0) {
       states.push({ action: 'focus', selector, mapPath, unsafe });
@@ -405,6 +406,7 @@ async function harvestRoute(
 
   const discovery = await page.evaluate(collectDiscovery, {
     dangerSource: DANGER_SOURCE,
+    dangerTextSource: DANGER_TEXT_SOURCE,
     submitsFormSource: SUBMITS_FORM_SOURCE,
     maxStates,
   });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { detectOverlayCandidates } from '../dist/capture/browser.js';
-import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE, SUBMITS_FORM_SOURCE } from '../dist/danger.js';
 import { popupDomSnapshot } from '../dist/runner/browser.js';
 
 function fixture(copy, forbidText = false) {
@@ -30,18 +30,22 @@ function fixture(copy, forbidText = false) {
     getBoundingClientRect: () => ({ width: 100, height: 100 }),
     matches: () => false,
     contains: () => false,
+    getRootNode: () => document,
+    querySelectorAll: () => [],
   };
 
   const body = { hidden: true };
   root.children = [overlay];
 
+  const document = {
+    documentElement: root,
+    body,
+    querySelectorAll: (selector) =>
+      selector === 'body *' || selector === '.overlay' || selector === '.trigger' ? [overlay] : [],
+  };
+
   return {
-    document: {
-      documentElement: root,
-      body,
-      querySelectorAll: (selector) =>
-        selector === 'body *' || selector === '.overlay' || selector === '.trigger' ? [overlay] : [],
-    },
+    document,
     window: { __spPathOf: () => 'body > dialog' },
     HTMLDialogElement: class {},
     getComputedStyle: () => ({ display: 'block', visibility: 'visible' }),
@@ -49,7 +53,11 @@ function fixture(copy, forbidText = false) {
 }
 
 function snapshot(fn, args, copy = 'Private dialog copy', forbidText = false) {
-  const input = JSON.stringify({ submitsFormSource: SUBMITS_FORM_SOURCE, ...args });
+  const input = JSON.stringify({
+    dangerTextSource: DANGER_TEXT_SOURCE,
+    submitsFormSource: SUBMITS_FORM_SOURCE,
+    ...args,
+  });
 
   return JSON.parse(JSON.stringify(runInNewContext(`(${fn.toString()})(${input})`, fixture(copy, forbidText))));
 }

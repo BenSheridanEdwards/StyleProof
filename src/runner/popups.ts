@@ -10,7 +10,7 @@ import {
 import { warn } from '../capture/shared.js';
 import type { CaptureMetadata, StyleMap } from '../capture/types.js';
 import { diffStyleMaps } from '../diff.js';
-import { DANGER_SOURCE, SUBMITS_FORM_SOURCE } from '../danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE, SUBMITS_FORM_SOURCE } from '../danger.js';
 import { realNow } from '../spec-clock.js';
 import { captureArtifactStem } from '../surface-keys.js';
 import { popupDomSnapshot, type PopupCandidate, type PopupSnapshotArgs } from './browser.js';
@@ -21,7 +21,12 @@ import type { ExpandedSurface, ResolvedPopupCaptureOptions, Settings } from './t
 const POPUP_TRIGGER_ATTR = 'data-styleproof-popup-trigger';
 
 const snapshot = (page: Page, args: Omit<PopupSnapshotArgs, 'submitsFormSource'>) =>
-  page.evaluate(popupDomSnapshot, { ...args, dangerSource: DANGER_SOURCE, submitsFormSource: SUBMITS_FORM_SOURCE });
+  page.evaluate(popupDomSnapshot, {
+    ...args,
+    dangerSource: DANGER_SOURCE,
+    dangerTextSource: DANGER_TEXT_SOURCE,
+    submitsFormSource: SUBMITS_FORM_SOURCE,
+  });
 
 /** `none`: no overlay appeared (silently ignored); `missing`: the trigger lost its identity after the reset;
  *  `leaked`: overlays absent from the pristine state are still visible, so the reset did not reset. */

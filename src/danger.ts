@@ -9,6 +9,109 @@ const SEP =
 
 export const DANGER_SOURCE = `\\b(delete|remove|destroy|log(?:ging)?${SEP}(?:in|out|on)|sign(?:ing)?${SEP}(?:in|up|out)|publish|deploy|pay(?:ments?)?|purchases?|buy|check${SEP}out|place${SEP}order|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew|send(?:s|ing)?|submit(?:s|ted|ting)?|sav(?:e[sd]?|ing)|confirm(?:s|ed|ing)?|approv(?:e[sd]?|ing)|invit(?:e[sd]?|ing)|transfer(?:s|red|ring)?|cancel(?:s|led|ed|ling|ing)?|(?:un)?tick(?:s|ed|ing)?|(?:un)?merg(?:e[sd]?|ing)|authori[sz](?:e[sd]?|ing)|re${SEP}start(?:s|ed|ing)?|reboot(?:s|ed|ing)?|recover(?:s|ed|ing)?|re${SEP}stor(?:e[sd]?|ing))\\b`;
 
+/** Independent, bounded label sources for safety only; never use these for reported labels. */
+export const DANGER_TEXT_SOURCE = String((el: Element): string[] | null => {
+  const sources: string[] = [];
+  const descendants = new Set<Element>();
+  let overflow = false;
+
+  const add = (value: string | null): void => {
+    if (!value) return;
+
+    if (value.length > 20000) {
+      overflow = true;
+
+      return;
+    }
+
+    sources.push(value.replace(/\s+/g, ' ').trim());
+  };
+
+  const addText = (target: Element): void => {
+    add(target.textContent);
+    const doc = target.ownerDocument;
+
+    if (!doc?.createTreeWalker) return;
+    const walker = doc.createTreeWalker(target, 4); // NodeFilter.SHOW_TEXT, also across browser realms.
+    const parts: string[] = [];
+    let length = 0;
+
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent ?? '';
+
+      length += text.length + (parts.length ? 1 : 0);
+
+      if (length > 20000) {
+        overflow = true;
+
+        return;
+      }
+
+      parts.push(text);
+    }
+
+    add(parts.join(' '));
+  };
+
+  const addDescendants = (target: Element, includeReferences = false): void => {
+    for (const child of target.querySelectorAll('[aria-label],[title],[alt],[aria-labelledby]')) {
+      descendants.add(child);
+
+      if (descendants.size > 100) {
+        overflow = true;
+
+        return;
+      }
+
+      for (const attr of ['aria-label', 'title', 'alt']) add(child.getAttribute(attr));
+
+      if (includeReferences) addReferences(child);
+    }
+  };
+
+  const addLabel = (target: Element): void => {
+    addText(target);
+    add(target.getAttribute('aria-label'));
+    addDescendants(target);
+  };
+
+  add(el.getAttribute('aria-label'));
+  const root = el.getRootNode();
+  // SAFETY: Document and ShadowRoot are the DOM roots exposing getElementById.
+  const labelRoot = 'getElementById' in root ? (root as Document | ShadowRoot) : el.ownerDocument;
+
+  const addReferences = (target: Element): void => {
+    for (const id of (target.getAttribute('aria-labelledby') ?? '').split(/\s+/).filter(Boolean)) {
+      const label = labelRoot.getElementById(id);
+
+      if (label) addLabel(label);
+    }
+  };
+
+  addReferences(el);
+  addText(el);
+  add(el.getAttribute('title'));
+
+  if (el.localName === 'input' || el.localName === 'button') {
+    // SAFETY: native input and button elements expose their current value.
+    add((el as HTMLInputElement | HTMLButtonElement).value);
+  }
+
+  if (el.localName === 'input' && el.getAttribute('type')?.toLowerCase() === 'image') add(el.getAttribute('alt'));
+  add(el.getAttribute('name'));
+
+  if (['button', 'input', 'meter', 'output', 'progress', 'select', 'textarea'].includes(el.localName)) {
+    // SAFETY: these native labelable elements expose associated labels.
+    const labels = (el as HTMLButtonElement).labels;
+
+    for (const label of labels ?? []) addLabel(label);
+  }
+
+  addDescendants(el, true);
+
+  return overflow ? null : sources;
+});
+
 export const SUBMITS_FORM_SOURCE = String((el: Element): boolean => {
   const submits = (control: Element | null | undefined): boolean => {
     // SAFETY: native controls expose form/type; custom controls use attributes below.
