@@ -278,8 +278,6 @@ test('unsupported escaped and substituted dependencies fail with unknown reach',
   for (const declaration of [
     String.raw`font-family: Brand\ Sans`,
     String.raw`font-family: "Brand\22 Sans"`,
-    'font: 16px var(--family)',
-    'font-family: var(--family)',
     'font-family: env(x)',
     'font-family: attr(x)',
     'font-family: inherit(--x)',
@@ -288,7 +286,6 @@ test('unsupported escaped and substituted dependencies fail with unknown reach',
     'animation: --spin() 1s',
     'animation-name: --spin(1)',
     'font-family: ident("Brand" "Sans")',
-    'font: clamp(1px, var(--s), 2px) A',
     'animation: pulse calc(1s * env(x))',
     'animation: var(--motion)',
     'animation-name: "pulse"',
@@ -308,6 +305,10 @@ async function trackedLedger(sheets, opts = {}) {
         for (const sheet of sheets) {
           added({ header: { origin: 'regular', isInline: true, sourceURL: '', frameId: 'main', ...sheet } });
         }
+      }
+      if (command === 'CSS.getMatchedStylesForNode') {
+        if (opts.registrationFails) throw new Error('registrations unavailable');
+        return { cssPropertyRegistrations: opts.registrations ?? [] };
       }
       if (command === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' } } };
       if (command === 'DOM.getDocument') {
@@ -843,4 +844,68 @@ test('relaxed global probes skip permanently ignored candidates but retain eligi
   assert.deepEqual(Array.from(snapshot().matched), [true, true]);
   candidates = [...candidates, outside];
   assert.deepEqual(Array.from(snapshot().matched), [false, false]);
+});
+
+test('font variables union aliases, fallbacks, registrations and cycles', () => {
+  const rules = servedRulesOf(
+    `
+    :root { --brand: "Brand Sans", serif; --alias: var(--brand); --a: var(--b); --b: var(--a), "Cycle Face"; }
+    .t { font-family: var(--alias); }
+    .h { font: 700 15px var(--missing, "Fallback Face"); }
+    @property --reg { syntax: '*'; inherits: true; initial-value: "Init Face"; }
+    .r { font-family: var(--reg); }
+    .c { font-family: var(--a); }
+    .missing { font-family: var(--undeclared); }
+  `,
+    [],
+  );
+  for (const [key, name] of [
+    ['.t', 'Brand Sans'],
+    ['.h', 'Fallback Face'],
+    ['.r', 'Init Face'],
+    ['.c', 'Cycle Face'],
+  ]) {
+    assert.ok(rules.find((r) => r.key === key).refs.includes(name));
+  }
+  assert.ok(!rules.find((r) => r.key === '.missing').refs?.includes('Brand Sans'));
+});
+
+test('font variables resolve across sheets in either discovery order as a pure union', async () => {
+  const sheets = [
+    {
+      styleSheetId: 'one',
+      text: ':root { --brand: "Brand Sans"; --alias: var(--brand); } .other { --brand: "Other Face"; }',
+    },
+    { styleSheetId: 'two', text: '.t { font-family: var(--alias); }', used: true },
+  ];
+  const first = await trackedLedger(sheets);
+  assert.deepEqual(first, await trackedLedger([...sheets].reverse()));
+  const refs = first.rules.find((r) => r.key === '.t').refs;
+  assert.ok(refs.includes('Brand Sans'));
+  assert.ok(refs.includes('Other Face'));
+});
+
+test('font variables include JS registration initial values', async () => {
+  const ledger = await trackedLedger([{ styleSheetId: 'one', text: '.j { font-family: var(--reg2); }' }], {
+    document: { children: [{ nodeName: 'HTML', nodeId: 2 }] },
+    registrations: [{ propertyName: '--reg2', initialValue: { text: '"JS Face"' } }],
+  });
+  assert.ok(ledger.rules[0].refs.includes('JS Face'));
+});
+
+test('font variable sources that cannot be enumerated fail closed', async () => {
+  const sheets = [{ styleSheetId: 'one', text: ':root { --alias: var(--brand); } .t { font-family: var(--alias); }' }];
+  for (const opts of [
+    { document: { children: [{ attributes: ['style', '--brand: Other'] }] } },
+    { document: { shadowRoots: [{ children: [{ attributes: ['style', '--brand: Other'] }] }] } },
+    { registrationFails: true },
+  ])
+    await assert.rejects(trackedLedger(sheets, opts), /served CSS reach is unknown/);
+  await assert.rejects(trackedLedger(sheets.map((s) => ({ ...s, frameId: 'child' }))), /served CSS reach is unknown/);
+  for (const value of ['env(x)', 'attr(x)', 'inherit(--x)', 'ident("X")', '--name()', String.raw`Brand\ Sans`]) {
+    assert.throws(
+      () => servedRulesOf(`:root { --x: ${value}; } .t { font-family: var(--x); }`, []),
+      /served CSS reach is unknown/,
+    );
+  }
 });

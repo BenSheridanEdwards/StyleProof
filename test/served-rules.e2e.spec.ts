@@ -231,3 +231,21 @@ test('captureReach stays off unless asked for', async ({ page }) => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('linked custom-property fonts resolve candidate families', async ({ page }) => {
+  await page.route('**/font-vars.css', (route) =>
+    route.fulfill({
+      contentType: 'text/css',
+      body: ':root{--brand:"Brand Sans",serif}body{font-family:var(--brand)}.b{font:700 15px var(--brand)}@font-face{font-family:"Brand Sans";src:local(Arial)}',
+    }),
+  );
+  await page.route('**/font-vars.html', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<link rel="stylesheet" href="/font-vars.css"><p class="b">text</p>',
+    }),
+  );
+  const servedRules = await open(page, new URL('/font-vars.html', site.url).href);
+  const map = await captureStyleMap(page, { captureReach: true, servedRules });
+  for (const key of ['body', '.b']) expect(rule(map, key).refs).toContain('Brand Sans');
+});
