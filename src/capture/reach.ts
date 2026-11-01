@@ -579,84 +579,88 @@ function fontVarRefs(entries: ServedEntry[], registrations: [string, string][] =
   return closure;
 }
 
-/** CSS Syntax escaped code points; strict mode preserves inline token boundaries. */
-export function decodeInlineEscapes(text: string, strict = false): string {
-  if (!text.includes('\\')) return text;
-  let quote = '';
-  let result = '';
-  for (let i = 0; i < text.length;) {
-    if (!quote && text.startsWith('/*', i)) {
-      const end = opaqueEnd(text, i);
-      result += text.slice(i, end);
-      i = end;
-      continue;
-    }
-    const character = text[i++];
-    if (character !== '\\') {
-      quote = inlineQuote(quote, character);
-      result += character;
-      continue;
-    }
-    const escaped = inlineEscape(text, i, Boolean(quote), strict);
-    i = escaped.end;
-    result += escaped.decoded;
-  }
-  return result;
-}
-
-function inlineQuote(quote: string, character: string): string {
-  if (quote && /[\r\n\f]/.test(character)) unknown('newline in string');
-  if (character === quote) return '';
-  if (!quote && /["']/.test(character)) return character;
-  return quote;
-}
-
-function inlineEscape(text: string, i: number, quoted: boolean, strict: boolean): { end: number; decoded: string } {
-  const match = /^(?:([\da-f]{1,6})(?:\r\n|[ \t\r\n\f])?|(\r\n|[\r\n\f])|([^\r\n\f]))/i.exec(text.slice(i));
-  if (!match || (match[2] && !quoted)) unknown('undecodable inline style escape');
-
-  const decoded = match[1] ? escapedCodePoint(parseInt(match[1], 16)) : (match[3] ?? '');
-  if (strict && structuralEscape(decoded, quoted)) unknown('structural inline style escape');
-  return { end: i + match[0].length, decoded };
-}
-
-function escapedCodePoint(code: number): string {
-  if (!code || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return '\ufffd';
-  return String.fromCodePoint(code);
-}
-
-function structuralEscape(character: string, quoted: boolean): boolean {
-  if (!character) return false;
-  if (/['";:{}()\\]/.test(character)) return true;
-  return !quoted && /[\s/*]/.test(character);
-}
-
 /** Unquoted URL tokens do not share the parser's string/comment boundaries. */
 function guardAmbiguousURLs(text: string): void {
-  if (/url\(\s*(?!['"])[^)]*(\/\*|['"\\])/i.test(text)) unknown('ambiguous unquoted URL dependency');
+  if (/url\((?![\s]*['"])[^)]*(\/\*|['"\\(])/i.test(text)) unknown('ambiguous unquoted URL dependency');
 }
 
-function inlineDeclares(node: DocumentNode, names: ReadonlySet<string>): boolean {
-  const attributes = node.attributes ?? [];
-  for (let i = 0; i < attributes.length; i += 2) {
-    if (attributes[i].toLowerCase() !== 'style') continue;
-    guardAmbiguousURLs(attributes[i + 1]);
-    const style = decodeInlineEscapes(attributes[i + 1]);
-    guardAmbiguousURLs(style);
-    if ([...names].some((name) => style.includes(name))) return true;
-    if (!/var\(/i.test(style)) continue;
-    if (
-      declarations(decodeInlineEscapes(attributes[i + 1], true)).some(
-        ([property, value]) => /^(font(?:-family)?|animation(?:-name)?)$/i.test(property) && varReads(value).length,
-      )
-    )
-      return true;
+type InlineRoot = { backendNodeId: number; count: number };
+type InlineSummary = { names: string[]; reader: boolean; count: number };
+
+/** Partition the pierced snapshot by document/shadow root; UA trees are excluded. */
+function inlineRoots(root: DocumentNode): InlineRoot[] {
+  const roots: InlineRoot[] = [];
+  const collect = (scope: DocumentNode): void => {
+    let count = 0;
+    const visit = (node: DocumentNode): void => {
+      if (node.attributes?.some((name, index) => index % 2 === 0 && name.toLowerCase() === 'style')) count++;
+      node.children?.forEach(visit);
+      node.shadowRoots?.filter((shadow) => shadow.shadowRootType !== 'user-agent').forEach(collect);
+      if (node.contentDocument) collect(node.contentDocument);
+    };
+    visit(scope);
+    if (!count) return;
+    if (scope.backendNodeId === undefined) unknown('inline root identity unavailable');
+    roots.push({ backendNodeId: scope.backendNodeId, count });
+  };
+  // Cross-process frames absent from the pierced snapshot remain outside coverage;
+  // custom properties and inheritance cannot cross document boundaries.
+  collect(root);
+  return roots;
+}
+
+/** Serialized into Chromium: ask only about parsed names and possible readers. */
+function parsedInlineStyles(this: Document | ShadowRoot): InlineSummary {
+  const elements = [...this.querySelectorAll('[style]')];
+  const names = new Set<string>();
+  let reader = false;
+  for (const element of elements) {
+    const style = (element as HTMLElement | SVGElement | MathMLElement).style;
+    if (!style) continue;
+    const declared = new Set(Array.from(style));
+    [...declared].filter((name) => name.startsWith('--')).forEach((name) => names.add(name));
+    const longhandReader = ['font-family', 'animation-name'].some((property) => {
+      const value = style.getPropertyValue(property);
+      return declared.has(property) && (value === '' || /[(\\]/.test(value));
+    });
+    const shorthandReader = ['font', 'animation'].some((property) => style.getPropertyValue(property).includes('('));
+    reader ||= longhandReader || shorthandReader;
   }
-  return Boolean(
-    node.children?.some((child) => inlineDeclares(child, names)) ||
-    node.shadowRoots?.some((child) => inlineDeclares(child, names)) ||
-    (node.contentDocument && inlineDeclares(node.contentDocument, names)),
-  );
+  return { names: [...names], reader, count: elements.length };
+}
+
+function inlineSummary(value: unknown, count: number): InlineSummary {
+  if (!value || typeof value !== 'object') unknown('inline styles not returned by value');
+  const summary = value as Partial<InlineSummary>;
+  if (summary.count !== count) unknown('inline styles changed while reading');
+  if (
+    !Array.isArray(summary.names) ||
+    !summary.names.every((name) => typeof name === 'string') ||
+    typeof summary.reader !== 'boolean'
+  )
+    unknown('invalid inline styles result');
+  return summary as InlineSummary;
+}
+
+async function inlineStyles(client: CDPSession, root: DocumentNode): Promise<InlineSummary[]> {
+  const summaries: InlineSummary[] = [];
+  for (const scope of inlineRoots(root)) {
+    try {
+      const { object } = await client.send('DOM.resolveNode', { backendNodeId: scope.backendNodeId });
+      if (!object.objectId) unknown('inline root object unavailable');
+      const response = await client.send('Runtime.callFunctionOn', {
+        objectId: object.objectId,
+        functionDeclaration: parsedInlineStyles.toString(),
+        returnByValue: true,
+      });
+      if (response.exceptionDetails || response.result.objectId) unknown('inline styles evaluation failed');
+      summaries.push(inlineSummary(response.result.value, scope.count));
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('inline styles changed while reading')) throw error;
+      unknown('inline styles unavailable or changed while reading');
+    }
+  }
+  return summaries;
 }
 
 /** Selector for the originating elements, or undefined when their scope cannot be attributed. */
@@ -912,7 +916,8 @@ async function resolveFontVars(
   mainFrame: string,
 ): Promise<void> {
   const allEntries = entries.flat();
-  if (inlineDeclares(root, new Set())) unknown('inline font or animation variable reference');
+  const inline = await inlineStyles(client, root);
+  if (inline.some((summary) => summary.reader)) unknown('inline font or animation variable reference');
   if (allEntries.some((entry) => entry.fontVars.length)) {
     read.forEach((sheet) => guardAmbiguousURLs(sheet.text));
     if (
@@ -938,7 +943,8 @@ async function resolveFontVars(
       ),
     ];
     const closure = fontVarRefs(allEntries, values);
-    if (inlineDeclares(root, closure)) unknown('font family set through an inline custom property');
+    if (inline.some((summary) => summary.names.some((name) => closure.has(name))))
+      unknown('font family set through an inline custom property');
   }
 }
 
