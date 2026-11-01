@@ -14,30 +14,38 @@ export function normalizeDangerText(value: string): string {
   return value
     .replace(/[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu, '')
     .normalize('NFKC')
-    .replace(/[\u00B7\u2027\u30FB\u2219\u22C5]/g, '-');
+    .replace(/[\u00B7\u2022\u2027\u2E31\u30FB\u2219\u22C5]/g, '-');
 }
 
-/** Read only CSS string tokens; functions and keywords are not labels. */
-export function cssContentText(content: string): string | null {
-  const strings = content.match(/"(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*'/g);
+/** Decode one CSS string token, including escaped newlines and replacement code points. */
+function cssStringText(part: string): string {
+  return part.slice(1, -1).replace(/\\([0-9a-fA-F]{1,6}[ \t\r\n\f]?|\r\n|[\s\S])/g, (_, escape: string) => {
+    if (/^[0-9a-fA-F]/.test(escape)) {
+      const code = parseInt(escape.trim(), 16);
 
-  if (!strings || content.replace(/"(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*'/g, '').trim()) return null;
+      return String.fromCodePoint(code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? 0xfffd : code);
+    }
 
-  return strings
-    .map((part) =>
-      part.slice(1, -1).replace(/\\([0-9a-fA-F]{1,6}[ \t\r\n\f]?|\r\n|[\s\S])/g, (_, escape: string) => {
-        if (/^[0-9a-fA-F]/.test(escape)) {
-          const code = parseInt(escape.trim(), 16);
+    return /^[\r\n\f]/.test(escape) ? '' : escape;
+  });
+}
 
-          return String.fromCodePoint(
-            code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? 0xfffd : code,
-          );
-        }
+/** Keep string and attribute text, including alt text; other functions and keywords are non-text. */
+export function cssContentText(content: string, el?: Element): string | null {
+  const tokens = /("(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*')|attr\(\s*([-\w]+)\s*\)|[-\w]+|[()]/gi;
+  const parts: string[] = [];
+  let depth = 0;
 
-        return /^[\r\n\f]/.test(escape) ? '' : escape;
-      }),
-    )
-    .join('');
+  for (const token of content.matchAll(tokens)) {
+    if (token[0] === '(') depth++;
+    else if (token[0] === ')') depth = Math.max(0, depth - 1);
+    else if (depth === 0) {
+      if (token[1]) parts.push(cssStringText(token[1]));
+      else if (token[2]) parts.push(el?.getAttribute(token[2]) ?? '');
+    }
+  }
+
+  return parts.length ? parts.join('') : null;
 }
 
 /** Collect native and form-associated custom control labels in the current root. */
@@ -118,7 +126,7 @@ const dangerTextSource = String((el: Element | null, label?: string): string[] |
     for (const pseudo of ['::before', '::after']) {
       const content = getComputedStyle(target, pseudo).content ?? '';
 
-      add(cssContentText(content));
+      add(cssContentText(content, target));
     }
   };
 
@@ -201,7 +209,7 @@ const dangerTextSource = String((el: Element | null, label?: string): string[] |
   return overflow ? null : sources;
 });
 
-export const DANGER_TEXT_SOURCE = `((normalizeDangerText, cssContentText, addAssociatedLabels) => (${dangerTextSource}))(${String(normalizeDangerText)}, ${String(cssContentText)}, ${String(addAssociatedLabels)})`;
+export const DANGER_TEXT_SOURCE = `((normalizeDangerText, cssStringText, addAssociatedLabels) => { const cssContentText = ${String(cssContentText)}; return (${dangerTextSource}); })(${String(normalizeDangerText)}, ${String(cssStringText)}, ${String(addAssociatedLabels)})`;
 
 export const SUBMITS_FORM_SOURCE = String((el: Element): boolean => {
   const submits = (control: Element | null | undefined): boolean => {
