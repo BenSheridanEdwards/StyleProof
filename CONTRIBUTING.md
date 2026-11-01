@@ -6,6 +6,14 @@ way (one job, done well, no native deps) are the easiest to merge.
 
 ## Getting set up
 
+Push stacks bottom-up, one branch per `git push`. For stacks of more than 3,
+push the next branch only once the previous run's jobs have started.
+
+Inspect CI queue and execution seconds with `node scripts/ci-stat.mjs --live`.
+Use `--fixture FILE --json` for offline `{runs, attempts, jobs}` data, with attempt
+metadata and job arrays keyed by `runId#attempt`. Reruns require attempt metadata.
+The critical path is inferred from timestamps, not YAML dependencies.
+
 ```sh
 git clone https://github.com/BenSheridanEdwards/StyleProof
 cd styleproof
