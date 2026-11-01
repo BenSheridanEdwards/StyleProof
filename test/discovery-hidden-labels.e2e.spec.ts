@@ -12,6 +12,13 @@ import { harvestStyleVariants } from '../dist/variant-crawler.js';
 // A destructive word that sits outside the accessible name the crawl used to read: visible text under a
 // neutral aria-label, a title or value behind other text, an aria-labelledby target, hidden or icon text.
 const DANGEROUS = [
+  '<button class="danger-mixed" id="d-mixed"></button>',
+  '<button class="danger-alt" id="d-alt"></button>',
+  '<button class="danger-url-alt" id="d-url-alt"></button>',
+  '<button data-label="Delete" id="d-attr"></button>',
+  '<x-reference-shadow role="button" tabindex="0" id="d-shadow-reference"></x-reference-shadow>',
+  `<button id="d-empty-cap">${'<span></span>'.repeat(201)}</button>`,
+  '<label>Delete<x-form-control role="button" tabindex="0" id="d-fa-ancestor">→</x-form-control></label>',
   '<span id="label-reference">Delete</span><label for="d-label-labelledby"><span aria-labelledby="label-reference"></span>Account</label><button id="d-label-labelledby">→</button>',
   '<x-danger-shadow role="button" tabindex="0" id="d-shadow"></x-danger-shadow>',
   '<button id="d-shadow-desc"><x-remove-shadow></x-remove-shadow></button>',
@@ -47,6 +54,7 @@ const DANGEROUS = [
 
 // Look-alikes and status text across the same label sources: these stay clickable.
 const SAFE = [
+  '<label for="s-fa-label">Profile</label><x-form-control role="button" tabindex="0" id="s-fa-label">→</x-form-control>',
   '<x-safe-shadow role="button" tabindex="0" id="s-shadow"></x-safe-shadow>',
   '<button class="safe-before" id="s-before"></button>',
 
@@ -66,7 +74,7 @@ const DANGEROUS_IDS = ids(DANGEROUS);
 const SAFE_IDS = ids(SAFE);
 
 function html(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>.danger-before::before { content: "Delete"; } .danger-after::after { content: "Send"; } .safe-before::before { content: "→"; } button:hover { outline: 3px solid blue; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style></head><body><main>
+  return `<!doctype html><html><head><meta charset="utf-8"><style>.danger-mixed::before { content: "Delete " counter(n); } .danger-alt::before { content: "\\f1f8" / "Delete"; } .danger-url-alt::before { content: url(x.svg) / "Delete"; } [data-label]::before { content: attr(data-label); } .danger-before::before { content: "Delete"; } .danger-after::after { content: "Send"; } .safe-before::before { content: "→"; } button:hover { outline: 3px solid blue; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style></head><body><main>
     ${[...DANGEROUS, ...SAFE].join('\n    ')}
     <script>
     for (const [name, text] of [['x-danger-shadow', 'Delete'], ['x-remove-shadow', 'Remove'], ['x-safe-shadow', 'Profile']]) {
@@ -75,6 +83,9 @@ function html(): string {
       });
     }
     customElements.define('x-form-control', class extends HTMLElement { static formAssociated = true; });
+    customElements.define('x-reference-shadow', class extends HTMLElement {
+      constructor() { super(); this.attachShadow({ mode: 'open' }).innerHTML = '<span hidden id="danger-label">Delete</span><span aria-labelledby="danger-label">→</span>'; }
+    });
     for (const el of document.querySelectorAll('[id^="d-"]:not(span),[id^="s-"]:not(span)')) el.addEventListener('click', (e) => { e.preventDefault(); fetch((el.id.startsWith('d-') ? '/side-effect/' : '/safe/') + el.id, { method: 'POST', body: 'x' }); });</script>
   </main></body></html>`;
 }

@@ -19,26 +19,11 @@ import {
   applyStateRecipe,
 } from '../dist/state-recipes.js';
 
-import { cssContentText, DANGER_TEXT_SOURCE } from '../dist/danger.js';
-
-test('cssContentText: joins and unescapes CSS string tokens', () => {
-  assert.equal(cssContentText('"Delete"'), 'Delete');
-  assert.equal(cssContentText('"De" "lete"'), 'Delete');
-  assert.equal(cssContentText('"\\44 elete"'), 'Delete');
-});
-
-test('cssContentText: rejects keywords, functions and mixed content', () => {
-  for (const content of ['none', 'normal', 'url(x)', 'counter(c)', '"a" counter(c)']) {
-    assert.equal(cssContentText(content), null);
-  }
-});
-
-test('danger text source: evaluates without imported helpers', () => {
-  const gather = new Function(`return ${DANGER_TEXT_SOURCE}`)();
-
-  assert.deepEqual(gather(null, 'Delete'), ['Delete', 'Delete']);
-  assert.equal(gather(null), null);
-});
+for (const separator of ['\u2022', '\u2e31']) {
+  test(`isUnsafeStateLabel: Sign${separator}in is unsafe`, () => {
+    assert.equal(isUnsafeStateLabel(`Sign${separator}in`), true);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Pure schema validation
