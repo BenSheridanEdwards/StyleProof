@@ -861,3 +861,20 @@ test('never-rendered takes precedence over unmeasured bodies regardless of map o
     });
   }
 });
+
+test('font face referenced through a custom property needs a matched reader', () => {
+  for (const matched of [true, false]) {
+    const make = (source) =>
+      cssMap(
+        sheet(
+          '/app.css',
+          `@font-face { font-family: "Brand Sans"; src: local(${source}); } :root { --brand: "Brand Sans"; } .t { font-family: var(--brand); }`,
+          ...(matched ? ['.t {'] : []),
+        ),
+      );
+    assert.equal(
+      statusOf(classifyRuleReach([make('Arial')], [make('serif')]), '@font-face').status,
+      matched ? 'blind-channel' : 'never-rendered',
+    );
+  }
+});

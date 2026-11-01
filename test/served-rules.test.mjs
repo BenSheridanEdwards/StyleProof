@@ -278,8 +278,6 @@ test('unsupported escaped and substituted dependencies fail with unknown reach',
   for (const declaration of [
     String.raw`font-family: Brand\ Sans`,
     String.raw`font-family: "Brand\22 Sans"`,
-    'font: 16px var(--family)',
-    'font-family: var(--family)',
     'font-family: env(x)',
     'font-family: attr(x)',
     'font-family: inherit(--x)',
@@ -288,7 +286,6 @@ test('unsupported escaped and substituted dependencies fail with unknown reach',
     'animation: --spin() 1s',
     'animation-name: --spin(1)',
     'font-family: ident("Brand" "Sans")',
-    'font: clamp(1px, var(--s), 2px) A',
     'animation: pulse calc(1s * env(x))',
     'animation: var(--motion)',
     'animation-name: "pulse"',
@@ -309,9 +306,23 @@ async function trackedLedger(sheets, opts = {}) {
           added({ header: { origin: 'regular', isInline: true, sourceURL: '', frameId: 'main', ...sheet } });
         }
       }
+      if (command === 'CSS.getMatchedStylesForNode') {
+        if (opts.registrationFails) throw new Error('registrations unavailable');
+        return { cssPropertyRegistrations: opts.registrations ?? [], cssPropertyRules: opts.propertyRules ?? [] };
+      }
       if (command === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' } } };
       if (command === 'DOM.getDocument') {
         return { root: opts.document ?? { children: opts.shadow ? [{ shadowRoots: [{}] }] : [] } };
+      }
+      if (command === 'DOM.resolveNode' && opts.inlineRoots?.includes(params.backendNodeId)) {
+        opts.onInlineResolve?.(params.backendNodeId);
+        if (opts.inlineResolveFails) throw new Error('inline root unavailable');
+        return { object: opts.inlineMissingObject ? {} : { objectId: `inline-${params.backendNodeId}` } };
+      }
+      if (command === 'Runtime.callFunctionOn' && params.objectId.startsWith('inline-')) {
+        opts.onInlineCall?.(params);
+        if (opts.inlineCallFails) throw new Error('inline root detached');
+        return opts.inlineResponse ?? { result: { value: { names: [], reader: false, count: 1 } } };
       }
       if (command === 'DOM.resolveNode') {
         const sheet = sheets.find((s) => s.ownerNode === params.backendNodeId);
@@ -843,4 +854,265 @@ test('relaxed global probes skip permanently ignored candidates but retain eligi
   assert.deepEqual(Array.from(snapshot().matched), [true, true]);
   candidates = [...candidates, outside];
   assert.deepEqual(Array.from(snapshot().matched), [false, false]);
+});
+
+test('font variables union aliases, fallbacks, registrations and cycles', () => {
+  const rules = servedRulesOf(
+    `
+    :root { --brand: "Brand Sans", serif; --alias: var(--brand); --a: var(--b); --b: var(--a), "Cycle Face"; }
+    .t { font-family: var(--alias); }
+    .h { font: 700 15px var(--missing, "Fallback Face"); }
+    @property --reg { syntax: '*'; inherits: true; initial-value: "Init Face"; }
+    .r { font-family: var(--reg); }
+    .c { font-family: var(--a); }
+    .missing { font-family: var(--undeclared); }
+  `,
+    [],
+  );
+  for (const [key, name] of [
+    ['.t', 'Brand Sans'],
+    ['.h', 'Fallback Face'],
+    ['.r', 'Init Face'],
+    ['.c', 'Cycle Face'],
+  ]) {
+    assert.ok(rules.find((r) => r.key === key).refs.includes(name));
+  }
+  assert.ok(!rules.find((r) => r.key === '.missing').refs?.includes('Brand Sans'));
+});
+
+test('font variables resolve across sheets in either discovery order as a pure union', async () => {
+  const sheets = [
+    {
+      styleSheetId: 'one',
+      text: ':root { --brand: "Brand Sans"; --alias: var(--brand); } .other { --brand: "Other Face"; }',
+    },
+    { styleSheetId: 'two', text: '.t { font-family: var(--alias); }', used: true },
+  ];
+  const first = await trackedLedger(sheets);
+  assert.deepEqual(first, await trackedLedger([...sheets].reverse()));
+  const refs = first.rules.find((r) => r.key === '.t').refs;
+  assert.ok(refs.includes('Brand Sans'));
+  assert.ok(refs.includes('Other Face'));
+});
+
+test('font variables include JS registration initial values', async () => {
+  const ledger = await trackedLedger([{ styleSheetId: 'one', text: '.j { font-family: var(--reg2); }' }], {
+    document: { children: [{ nodeName: 'HTML', nodeId: 2 }] },
+    registrations: [{ propertyName: '--reg2', initialValue: { text: '"JS Face"' } }],
+  });
+  assert.ok(ledger.rules[0].refs.includes('JS Face'));
+});
+
+test('font variable sources that cannot be enumerated fail closed', async () => {
+  const sheets = [{ styleSheetId: 'one', text: ':root { --alias: var(--brand); } .t { font-family: var(--alias); }' }];
+  for (const opts of [{ registrationFails: true }])
+    await assert.rejects(trackedLedger(sheets, opts), /served CSS reach is unknown/);
+  await assert.rejects(trackedLedger(sheets.map((s) => ({ ...s, frameId: 'child' }))), /served CSS reach is unknown/);
+  for (const value of ['env(x)', 'attr(x)', 'inherit(--x)', 'ident("X")', '--name()', String.raw`Brand\ Sans`]) {
+    assert.throws(
+      () => servedRulesOf(`:root { --x: ${value}; } .t { font-family: var(--x); }`, []),
+      /served CSS reach is unknown/,
+    );
+  }
+});
+
+for (const value of [
+  'Brand var(--suffix)',
+  'var(--a) Sans',
+  'var(--a)var(--b)',
+  '"Brand" var(--x)',
+  'Brand var(--e) Sans',
+  'var(--a, var(--b) Sans)',
+  'italic var(--x)',
+  '15px/var(--lh) Inter',
+  'Brand/**/var(--x)',
+  '700 var(--size) var(--fam)',
+]) {
+  test(`font substitution adjacency fails closed: ${value}`, () => {
+    assert.throws(
+      () => servedRulesOf(`:root { --e:; } .t { font-family: ${value}; }`, []),
+      /served CSS reach is unknown/,
+    );
+  });
+}
+test('font substitution adjacency in closure values fails closed', () => {
+  assert.throws(
+    () => servedRulesOf(':root { --f: Brand var(--s); } .t { font: var(--f); }', []),
+    /served CSS reach is unknown/,
+  );
+});
+for (const value of [
+  '700 15px var(--fam)',
+  'var(--a), Serif',
+  'var(--a, Brand)',
+  'var(--a, var(--b))',
+  'calc(var(--w)) 15px Brand',
+  'var(--f)',
+]) {
+  test(`separated font substitutions resolve: ${value}`, () => {
+    const refs = servedRulesOf(
+      `:root { --a: Brand Sans, Mono; --fam: Brand; --f: 700 15px Brand; } .t { font: ${value}; }`,
+      [],
+    ).find((r) => r.key === '.t').refs;
+    for (const name of value.includes('--a')
+      ? ['Brand Sans', ...(value.includes('Serif') ? ['Serif'] : []), ...(value.includes(', Brand') ? ['Brand'] : [])]
+      : ['Brand'])
+      assert.ok(refs.includes(name), name);
+  });
+}
+test('property initial font values accept uppercase at-rules and reject escaped names', () => {
+  const rules = servedRulesOf(
+    '@PROPERTY --f { syntax:"*"; inherits:true; initial-value: Brand } p { font-family: var(--f) }',
+    [],
+  );
+  assert.ok(rules.find((r) => r.key === 'p').refs.includes('Brand'));
+});
+test('escaped property registration names fail closed', () => {
+  assert.throws(
+    () =>
+      servedRulesOf(
+        String.raw`@property --\66 { syntax:"*"; inherits:true; initial-value: Brand } p { font-family: var(--f) }`,
+        [],
+      ),
+    /reach is unknown/,
+  );
+});
+test('nested and keyframe custom values join the font union', () => {
+  const rules = servedRulesOf(
+    '@layer theme { @media all { :root { --f: Layer; } } } @keyframes pulse { to { --f: Frame; } } p { font-family: var(--f); }',
+    [],
+  );
+  const refs = rules.find((r) => r.key === 'p').refs;
+  assert.ok(refs.includes('Layer'));
+  assert.ok(refs.includes('Frame'));
+});
+test('CDP property rules also supply initial font values', async () => {
+  const ledger = await trackedLedger([{ styleSheetId: 'app', text: 'p { font-family: var(--f); }' }], {
+    propertyRules: [
+      { propertyName: { text: '--f' }, style: { cssProperties: [{ name: 'initial-value', value: 'Brand' }] } },
+    ],
+  });
+  assert.ok(ledger.rules[0].refs.includes('Brand'));
+});
+
+for (const [value, declarations, names] of [
+  ['15px/var(--lh) Inter', '--lh:1.5', ['Inter']],
+  ['15px/var(--lh) Inter', '--lh:normal', ['Inter']],
+  ['15px/var(--lh) Inter', '--lh:var(--b);--b:1.4', ['Inter']],
+  ['italic var(--x)', '--x:15px Brand', ['Brand']],
+  ['italic var(--x)', '--x:Sans', ['Sans']],
+  ['var(--w) 15px Brand Sans', '--w:bold', ['Brand Sans']],
+  ['var(--w) 15px Brand Sans', '--w:600', ['Brand Sans']],
+  ['Brand var(--x)', '--x:15px Sans', ['Sans']],
+  ['var(--a) var(--b)', '--a:italic;--b:15px Brand', ['Brand']],
+  ['var(--a) var(--b)', '--a:15px;--b:Brand', ['Brand']],
+  ['700 var(--fs) Inter', '--fs:15px', ['Inter']],
+  ['600 var(--fs) var(--ff)', '--fs:15px;--ff:Inter', ['Inter']],
+  ['var(--fs)/var(--lh) var(--ff)', '--fs:15px;--lh:normal;--ff:Inter', ['Inter']],
+])
+  test(`shorthand slots resolve ${value} with ${declarations}`, () => {
+    const refs = servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []).find((r) => r.key === '.t').refs;
+    for (const name of names) assert.ok(refs.includes(name), name);
+  });
+for (const [value, declarations] of [
+  ['15px/var(--lh) Inter', '--lh:1 Brand'],
+  ['15px/var(--lh) Inter', '--lh:var(--a);--a:1 Brand'],
+  ['italic var(--x) Sans', '--x:15px Brand'],
+  ['italic var(--x) Sans', '--x:bold;--x:15px Brand'],
+  ['15px/var(--lh) Brand var(--x)', '--lh:normal;--x:Sans'],
+  ['15px Brand var(--x)', '--x:Sans'],
+  ['var(--a) var(--b)', '--a:15px Foo;--b:Bar'],
+  ['15px Brand var(--e) Sans', '--e:'],
+  ['700 Brand var(--x)', '--x:Sans'],
+  ['15px/var(--lh) Inter', '--lh:if(x)'],
+  ['var(--font)', '--font:italic var(--x) Sans'],
+])
+  test(`shorthand family joins remain unknown ${value} with ${declarations}`, () => {
+    assert.throws(() => servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []), /reach is unknown/);
+  });
+test('shorthand exemptions inspect JS registrations', async () => {
+  await assert.rejects(
+    trackedLedger([{ styleSheetId: 'app', text: '.t{font:italic var(--x) Sans}' }], {
+      registrations: [{ propertyName: '--x', initialValue: { text: '15px Brand' } }],
+    }),
+    /reach is unknown/,
+  );
+});
+
+const ambiguousFontURL = '.a{background:url(/*)}:root{--f:Other}.z{c:*/)}';
+test('ambiguous sheet URLs fail closed when font variables resolve', async () => {
+  const text = ambiguousFontURL + ' .t{font-family:var(--f)}';
+  assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
+  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+});
+test('ambiguous sheet URLs without font variable readers retain existing parsing', async () => {
+  assert.deepEqual(
+    servedRulesOf(ambiguousFontURL, []).map((r) => r.key),
+    ['.a'],
+  );
+  await trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]);
+});
+
+test('quoted stylesheet URL after whitespace resolves beside a font variable reader', () => {
+  const rules = servedRulesOf(':root{--f:Brand} .t{font-family:var(--f);background:url( "x.png")}', []);
+  assert.ok(rules.find((r) => r.key === '.t').refs.includes('Brand'));
+});
+
+const inlineDocument = {
+  backendNodeId: 100,
+  nodeName: '#document',
+  children: [{ attributes: ['style', ''], backendNodeId: 101 }],
+};
+const inlineSheet = [{ styleSheetId: 'app', text: ':root{--brand:Brand}.t{font-family:var(--brand)}' }];
+for (const [names, reader, rejects] of [
+  [[], true, true],
+  [['--brand'], false, true],
+  [['--brand-extra'], false, false],
+]) {
+  test(`parsed inline dependency names=${names} reader=${reader}`, async () => {
+    const result = trackedLedger(inlineSheet, {
+      document: inlineDocument,
+      inlineRoots: [100],
+      inlineResponse: { result: { value: { names, reader, count: 1 } } },
+    });
+    if (rejects) await assert.rejects(result, /reach is unknown/);
+    else await result;
+  });
+}
+for (const opts of [
+  { inlineResolveFails: true },
+  { inlineCallFails: true },
+  { inlineMissingObject: true },
+  {
+    inlineResponse: { exceptionDetails: { text: 'failed' }, result: { value: { names: [], reader: false, count: 1 } } },
+  },
+  { inlineResponse: { result: { objectId: 'not-by-value' } } },
+  { inlineResponse: { result: { value: { names: [], reader: false, count: 2 } } } },
+])
+  test(`parsed inline CDP failures fail closed ${JSON.stringify(opts)}`, async () => {
+    await assert.rejects(
+      trackedLedger(inlineSheet, { document: inlineDocument, inlineRoots: [100], ...opts }),
+      /reach is unknown/,
+    );
+  });
+test('parsed inline styles read closed shadow and iframe roots separately', async () => {
+  const calls = [];
+  const document = {
+    backendNodeId: 100,
+    children: [
+      { shadowRoots: [{ backendNodeId: 200, shadowRootType: 'closed', children: [{ attributes: ['style', ''] }] }] },
+      { contentDocument: { backendNodeId: 300, children: [{ attributes: ['style', ''] }] } },
+    ],
+  };
+  await trackedLedger(inlineSheet, { document, inlineRoots: [200, 300], onInlineResolve: (id) => calls.push(id) });
+  assert.deepEqual(calls, [200, 300]);
+});
+test('no styled nodes require no inline CDP calls', async () => {
+  const calls = [];
+  await trackedLedger(inlineSheet, {
+    document: { backendNodeId: 100, children: [] },
+    inlineRoots: [100],
+    onInlineResolve: (id) => calls.push(id),
+  });
+  assert.deepEqual(calls, []);
 });
