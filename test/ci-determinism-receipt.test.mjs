@@ -13,7 +13,7 @@ test('CI transfers the determinism receipt between jobs for verification without
   const e2eIndex = workflow.indexOf('name: Browser shard');
   const printIndex = workflow.indexOf('name: Verify complete browser evidence and print determinism oracle receipt');
   const uploadIndex = workflow.indexOf('name: Upload browser shard evidence');
-  const downloadIndex = workflow.indexOf('uses: actions/download-artifact@');
+  const downloadIndex = workflow.indexOf('uses: actions/download-artifact@', uploadIndex);
 
   assert.ok(e2eIndex >= 0, 'CI must run the browser fixture');
   assert.ok(printIndex > e2eIndex, 'CI must print the receipt after the browser fixture');
