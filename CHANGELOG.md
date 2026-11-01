@@ -14,6 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Change Reach fails closed on ambiguous unquoted stylesheet URLs and escaped `url()` names in every read stylesheet, preventing hidden font references (#1230). Benign escaped URL arguments retain their existing keys and hashes; the ledger remains version 2; escaped selectors and strings elsewhere are unaffected.
 - Change Reach resolves font families set through custom properties by unioning all candidate values, with conservative guards for substitutions that can join family names (#1224).
 - Change Reach reads `@font-face` and `@keyframes` names from literal `font` shorthands and from `font`/`animation` values with functions or comments; `var()` in `animation` values, `env()`, `attr()`, `ident()`, `--name()` custom functions and escapes still fail closed (#1224).
 - Match Change Reach `@font-face` family references ASCII case-insensitively, so a changed face used by a rendered rule with a differently cased family is reported `blind-channel`, not `never-rendered` (#1225).

@@ -15,6 +15,202 @@ import {
 import { loadStyleMap } from '../dist/capture.js';
 import { captureSurface } from '../dist/runner/surface-capture.js';
 import { resolveSettings } from '../dist/runner/settings.js';
+import { servedRulesOf } from '../dist/capture/reach.js';
+
+test('Chromium oracle agrees with accepted reader declaration boundaries', async ({ page }) => {
+  expect(
+    await page.evaluate(() => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync('.t{background:\u00a0\\75rl(x.png)}');
+      return (sheet.cssRules[0] as CSSStyleRule).style.background;
+    }),
+  ).toBe('');
+  // Expose the existing reader only in this test module; production exports stay unchanged.
+  const source = fs
+    .readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8')
+    .replace(
+      "'../pseudo-references.js'",
+      JSON.stringify(new URL('../dist/pseudo-references.js', import.meta.url).href),
+    );
+  const reader = await import(
+    `data:text/javascript;base64,${Buffer.from(source + '\nexport { leafRules, declarations };').toString('base64')}`
+  );
+  let accepted = 0;
+  for (const css of [
+    '.t{--x:";{}";font-family:"Other";animation-name:k}',
+    '.t{/* ;{} */--x:rgb(1,2,3);font-family:Other}',
+    String.raw`.t{--x:a\;b;background:url(a\));font-family:Other}`,
+    String.raw`.t{background:url(a\));font-family:Other}`,
+    String.raw`.t{background:url(a\ b.png);font-family:Other}`,
+    '.t{background:url("a;{}.png");font-family:Other}',
+    '.t{background:url(a.png)}.u{animation-name:k;--y:"x"}',
+    String.raw`.t{background:url(a\28 b);font-family:Other}`,
+    String.raw`.t{background:url(a\/*b);font-family:Other}`,
+    String.raw`.t{background:url(a b\)c);font-family:Other}`,
+    '@media all{.t{font-family:Other;--x:";{}"}}',
+    '.t{background:\u00a0\\75rl(x.png);font-family:Other}',
+  ]) {
+    try {
+      servedRulesOf(css, []);
+    } catch (error) {
+      expect(String(error)).toMatch(/reach is unknown/);
+      continue;
+    }
+    accepted++;
+    const extracted: [string, string][][] = reader
+      .leafRules(css)
+      .map((leaf: { body: string }) => reader.declarations(leaf.body));
+    const result = await page.evaluate(
+      ({ css, extracted }) => {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(css);
+        const flatten = (rules: CSSRule[]): CSSStyleRule[] =>
+          rules.flatMap((rule) =>
+            rule instanceof CSSStyleRule
+              ? [rule]
+              : 'cssRules' in rule
+                ? flatten(Array.from((rule as CSSGroupingRule).cssRules))
+                : [],
+          );
+        const selected = (style: CSSStyleDeclaration) =>
+          Array.from(style)
+            .filter((name) => name.startsWith('--') || name === 'font-family' || name === 'animation-name')
+            .sort()
+            .map((name) => [name, style.getPropertyValue(name)]);
+        return {
+          actual: flatten(Array.from(sheet.cssRules)).map((rule) => selected(rule.style)),
+          expected: extracted.map((values) => {
+            const style = document.createElement('span').style;
+            for (const [name, value] of values) style.setProperty(name, value);
+            return selected(style);
+          }),
+        };
+      },
+      { css, extracted },
+    );
+    expect(result.actual, css).toEqual(result.expected);
+  }
+  expect(accepted).toBe(11);
+});
+
+for (const ambiguous of [false, true]) {
+  test(`same-process iframe stylesheet, ambiguous=${ambiguous}`, async ({ page }) => {
+    const servedRules = await trackServedRules(page);
+    await page.setContent('<iframe></iframe>');
+    const frame = page.frames().find((candidate) => candidate !== page.mainFrame())!;
+    await frame.setContent(
+      `<style>@font-face{font-family:Other;src:url(x.woff2)}.t{font-family:Other;background:${ambiguous ? 'url(a(b);c:x)' : 'url(x.png)'}}</style><p class="t">x</p>`,
+    );
+    const capture = captureStyleMap(page, { captureReach: true, servedRules });
+    if (ambiguous) await expect(capture).rejects.toThrow(/reach is unknown/);
+    else expect((await capture).reach?.rules.some((entry) => entry.refs?.includes('Other'))).toBe(true);
+  });
+}
+
+for (const ambiguous of [false, true]) {
+  test(`cross-origin URL sheet without CORS, ambiguous=${ambiguous}`, async ({ page }) => {
+    const server = http.createServer((_request, response) => {
+      response.setHeader('Content-Type', 'text/css');
+      response.end(
+        '@font-face{font-family:Other;src:url(x.woff2)}' +
+          (ambiguous
+            ? '.t{background:url(a(b);font-family:Other;c:x)}'
+            : '.t{font-family:Other;background:url(a.png)}'),
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const servedRules = await trackServedRules(page);
+      await page.setContent(
+        `<link rel="stylesheet" href="http://127.0.0.1:${(server.address() as AddressInfo).port}/app.css"><p class="t">x</p>`,
+      );
+      await page.waitForFunction(() => document.styleSheets.length > 0);
+      expect(
+        await page.evaluate(() => {
+          try {
+            return document.styleSheets[0].cssRules.length < 0;
+          } catch {
+            return true;
+          }
+        }),
+      ).toBe(true);
+      const capture = captureStyleMap(page, { captureReach: true, servedRules });
+      if (ambiguous) await expect(capture).rejects.toThrow(/reach is unknown/);
+      else expect((await capture).reach?.rules.some((entry) => entry.refs?.includes('Other'))).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    }
+  });
+}
+
+for (const css of [
+  '.t{background:url(a(b);font-family:Other;c:x)}',
+  '.t{background:url(/*);font-family:Other;c:*/)}',
+  '.t{--f:Other;background:url(a(b);font-family:var(--f);c:x)}',
+]) {
+  test(`ambiguous URL cannot hide a rendered font: ${css}`, async ({ page }) => {
+    const servedRules = await trackServedRules(page);
+    await page.setContent(`<style>@font-face{font-family:Other;src:url(x.woff2)}${css}</style><p class="t">x</p>`);
+    expect(await page.locator('.t').evaluate((node) => getComputedStyle(node).fontFamily)).toContain('Other');
+    await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+  });
+}
+
+for (const css of [
+  '.a{background:url(/*)}.t{font-family:Other;c:*/)}',
+  String.raw`.t{background:u\72l(a(b);font-family:Other;c:x)}`,
+  ...['@media all', '@layer test', '@supports (display:block)', '@container (width > 0px)'].map(
+    (group) => `${group}{.t{background:url(a(b);font-family:Other;c:x)}}`,
+  ),
+  '@keyframes k{from{background:url(a(b);font-family:Other;c:x)}}',
+  '.t{background:url(a(b);&{font-family:Other}c:x)}',
+  '@font-face{src:url(a(b);font-family:X;c:x)}',
+]) {
+  test(`ambiguous URL rejects throughout a stylesheet: ${css}`, async ({ page }) => {
+    const servedRules = await trackServedRules(page);
+    await page.setContent(`<style>@font-face{font-family:Other;src:url(x.woff2)}${css}</style><p class="t">x</p>`);
+    await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+  });
+}
+
+for (const scope of ['document', 'shadow-constructed', 'shadow-open', 'shadow-closed']) {
+  for (const ambiguous of [false, true]) {
+    test(`URL guard covers ${scope}, ambiguous=${ambiguous}`, async ({ page }) => {
+      const servedRules = await trackServedRules(page);
+      await page.setContent('<div id="host"></div>');
+      await page.evaluate(
+        ({ scope, ambiguous }) => {
+          const css =
+            '@font-face{font-family:Other;src:url(x.woff2)}' +
+            (ambiguous
+              ? '.t{background:url(a(b);font-family:Other;c:x)}'
+              : '.t{font-family:Other;background:url(x.png)}');
+          const root =
+            scope === 'document'
+              ? document
+              : document.querySelector('#host')!.attachShadow({ mode: scope === 'shadow-closed' ? 'closed' : 'open' });
+          if (scope === 'document' || scope === 'shadow-constructed') {
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(css);
+            root.adoptedStyleSheets = [sheet];
+          } else {
+            const style = document.createElement('style');
+            style.textContent = css;
+            root.appendChild(style);
+          }
+          const element = document.createElement('p');
+          element.className = 't';
+          element.textContent = 'x';
+          (root === document ? document.body : root).appendChild(element);
+        },
+        { scope, ambiguous },
+      );
+      const capture = captureStyleMap(page, { captureReach: true, servedRules });
+      if (ambiguous) await expect(capture).rejects.toThrow(/reach is unknown/);
+      else expect((await capture).reach?.rules.some((entry) => entry.refs?.includes('Other'))).toBe(true);
+    });
+  }
+}
 
 // Change Reach ledger (#991): with `captureReach`, a capture records every served CSS
 // rule and whether it matched an element while the map was read, through Chromium's
