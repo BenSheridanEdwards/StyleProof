@@ -1127,3 +1127,32 @@ test('isUnsafeStateLabel: Unicode separators and log on / untick / unmerge (#120
   ])
     assert.equal(isUnsafeStateLabel(label), false, JSON.stringify(label));
 });
+
+test('isUnsafeStateLabel: normalizes invisible text, compatibility letters and digit suffixes', () => {
+  for (const label of [
+    'Re\u2061start',
+    'Sign\u2062in',
+    'Log\u2063out',
+    'Check\u2064out',
+    'Sign\u061Cin',
+    'Sign\u00B7in',
+    'Sign\u2027in',
+    'Sign\u30FBin',
+    'Log\u2219out',
+    'Log\u22C5out',
+    'Sign\uFF3Fin',
+    'Sign' + '\u200B'.repeat(5) + 'in',
+    'De\u00ADlete',
+    'Re\u00ADmove',
+    'Del\u200Bete',
+    'Remove3',
+    'Delete2',
+    '\uFF24\uFF45\uFF4C\uFF45\uFF54\uFF45',
+  ]) {
+    assert.equal(isUnsafeStateLabel(label), true, JSON.stringify(label));
+  }
+
+  for (const label of ["We're starting", 'We\u2019re starting']) {
+    assert.equal(isUnsafeStateLabel(label), false, JSON.stringify(label));
+  }
+});
