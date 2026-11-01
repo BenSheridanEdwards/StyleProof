@@ -15,6 +15,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - **BREAKING (#1215):** the destructive-action guard also checks a normalized copy of every label source (format and default-ignorable characters stripped, NFKC, middle dots as separators), and digits or underscores now delimit action words, so labels such as Sign + U+2062 + in, De + soft hyphen + lete, fullwidth Ｄｅｌｅｔｅ, `Remove3`, `3Remove` and `_Delete` are unsafe. `We’re starting` stays clickable. Previously clicked controls may now produce unsafe skips; acknowledge them with a reasoned `incompleteUiExclude`.
+- Seed CI dependency and Playwright browser caches only on default-branch pushes; pull requests restore without saving (#1211).
 
 - **BREAKING (#1212):** discovery and live interaction recipes check every label source independently, including hidden text, associated label elements, referenced labels, values and image descriptions, plus space-joined text nodes and descendant label references. Safety checks fail closed above 100 attribute-bearing descendants or 20000 characters in any source. Previously clicked controls may now produce unsafe skips or recipe refusals. Forms and selects retain their single-label check. Re-capture bases if popup numbering changes; acknowledge crawl skips with a reasoned `incompleteUiExclude`.
 
