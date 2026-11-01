@@ -78,9 +78,11 @@ Run a single unit test file with `pnpm run test:unit <file>`, not a plain
 without it a CLI child that a test spawns can hang at exit on Node 26 (#711, #799).
 
 `test:coverage` uses Node's `--experimental-test-coverage` with
-`--test-coverage-include=dist/** (excluding node_modules)` and a **line floor of 40%** (measured main
-baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
-it in the unsharded `coverage (node 22)` job using `pnpm run test:coverage`. Develop with Node 22.13+ so the floor flags exist;
+`--test-coverage-include=dist/** (excluding node_modules)` and a local unsharded **line floor of 40%**.
+CI runs three shards and enforces an **80% merged line-hit floor** in `coverage (node 22)`.
+Node's unsharded V8 range merge under-counts lines: hosted main measured 47.96%, while
+the shard union measured 86.78%. The separate floors leave comparable headroom (~8 and ~7 points).
+Develop with Node 22.13+ so the floor flags exist;
 older Node exits non-zero with a clear message instead of silently skipping.
 
 `pre-push` builds, then runs only the unit test files that reach the pushed

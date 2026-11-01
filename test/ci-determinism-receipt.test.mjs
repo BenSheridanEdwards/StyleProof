@@ -13,7 +13,7 @@ test('CI transfers the determinism receipt between jobs for verification without
   const e2eIndex = workflow.indexOf('name: Browser shard');
   const printIndex = workflow.indexOf('name: Verify complete browser evidence and print determinism oracle receipt');
   const uploadIndex = workflow.indexOf('name: Upload browser shard evidence');
-  const downloadIndex = workflow.indexOf('uses: actions/download-artifact@');
+  const downloadIndex = workflow.indexOf('uses: actions/download-artifact@', uploadIndex);
 
   assert.ok(e2eIndex >= 0, 'CI must run the browser fixture');
   assert.ok(printIndex > e2eIndex, 'CI must print the receipt after the browser fixture');
@@ -28,7 +28,10 @@ test('CI transfers the determinism receipt between jobs for verification without
   );
   assert.match(workflow, /include-hidden-files: true/);
   assert.match(workflow, /node scripts\/verify-e2e-shards.mjs/);
-  assert.match(workflow, /needs:\s+\[changes, build, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(
+    workflow,
+    /needs:\s+\[changes, build, coverage, coverage-shards, e2e, e2e-evidence, cli-smoke, detection-corpus\]/,
+  );
   assert.match(workflow, /if-no-files-found: error/);
   assert.match(workflow, /retention-days: 1\s*$/m);
 });
