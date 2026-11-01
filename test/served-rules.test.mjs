@@ -364,6 +364,27 @@ test('browser-owned details sheets are excluded in either discovery order', asyn
   );
 });
 
+test('author light-DOM sheets on a user-agent shadow host remain in the ledger', async () => {
+  const ledger = await trackedLedger(
+    [
+      { styleSheetId: 'author', text: '.author { color: red; }', ownerNode: 9 },
+      { styleSheetId: 'ua', text: ':host summary { display: list-item; }', ownerNode: 7 },
+    ],
+    {
+      document: {
+        backendNodeId: 1,
+        children: [{ backendNodeId: 9 }],
+        shadowRoots: [{ shadowRootType: 'user-agent', children: [{ backendNodeId: 7 }] }],
+      },
+    },
+  );
+  assert.deepEqual(ledger.sheets, ['inline']);
+  assert.deepEqual(
+    ledger.rules.map((r) => r.key),
+    ['.author'],
+  );
+});
+
 test('author shadow sheets duplicating document sheets remain ambiguous', async () => {
   await assert.rejects(
     trackedLedger(
