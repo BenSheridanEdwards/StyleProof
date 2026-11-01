@@ -213,7 +213,7 @@ const liveTextFreezeViolated = Boolean(liveTextAudit?.freeze && liveTextAudit.vi
 printLiveText(liveTextAudit, liveTextFreezeViolated);
 if (reachBlocking > 0) {
   printSection(
-    `✗ Change Reach gate: ${reach.counts['never-rendered']} never rendered, ${reach.counts['blind-channel']} blind-channel, ${reach.counts.unmeasured} unmeasured, ${reach.gaps.filter((gap) => gap.kind === 'ledger').length} evidence gap(s) — certify fails; review-gate needs approval (changeReach: 'gate')`,
+    `✗ Change Reach gate: ${reach.counts['never-rendered']} never matched, ${reach.counts['blind-channel']} blind-channel, ${reach.counts.unmeasured} unmeasured, ${reach.gaps.filter((gap) => gap.kind === 'ledger').length} evidence gap(s) — certify fails; review-gate needs approval (changeReach: 'gate')`,
   );
 }
 

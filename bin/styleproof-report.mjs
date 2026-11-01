@@ -171,7 +171,7 @@ function summaryLine() {
     return `⚠ review required — ${baseOnlyVolatile.length} subtree(s) volatile on the base only were excluded from the comparison`;
   }
   if ((result.reach?.blocking ?? 0) > 0) {
-    return `✗ reach gate — ${result.reach.blocking} changed CSS rule(s) or reach evidence gap(s) never rendered (changeReach: 'gate') — report written for review`;
+    return `✗ reach gate — ${result.reach.blocking} changed CSS rule(s) or reach evidence gap(s) never matched (changeReach: 'gate') — report written for review`;
   }
   const prefix = sourceBindingFailed ? '⚠ UNVERIFIED DIAGNOSTIC:' : '✓';
   if (!includeContent) return `${prefix} no reviewable computed-style changes — content/structure not evaluated`;
