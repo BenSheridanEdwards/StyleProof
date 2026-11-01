@@ -175,7 +175,10 @@ function dependencyOf(variant: Variant): Dependency | undefined {
   if (keyframes) {
     return { names: [keyframes[1].trim().replace(/^(["'])(.*)\1$/, '$2')], carries: (rule) => rule.refs ?? [] };
   }
-  if (/^@font-face$/i.test(prelude)) return { names: variant.refs ?? [], carries: (rule) => rule.refs ?? [] };
+  if (/^@font-face$/i.test(prelude)) {
+    const fold = (name: string) => name.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+    return { names: (variant.refs ?? []).map(fold), carries: (rule) => (rule.refs ?? []).map(fold) };
+  }
   if (/^@property\b/i.test(prelude)) {
     const name = /^@property\s+(--[\w-]+)$/.exec(prelude)?.[1];
     // An unparsable name has no referrer, so it stays never-rendered.

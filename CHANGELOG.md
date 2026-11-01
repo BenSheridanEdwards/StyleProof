@@ -14,11 +14,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Change Reach resolves font families set through custom properties by unioning all candidate values, with conservative guards for substitutions that can join family names (#1224).
+- Change Reach reads `@font-face` and `@keyframes` names from literal `font` shorthands and from `font`/`animation` values with functions or comments; `var()` in `animation` values, `env()`, `attr()`, `ident()`, `--name()` custom functions and escapes still fail closed (#1224).
+- Match Change Reach `@font-face` family references ASCII case-insensitively, so a changed face used by a rendered rule with a differently cased family is reported `blind-channel`, not `never-rendered` (#1225).
+
+- **BREAKING (#1223):** Change Reach leaves browser-owned stylesheets (user-agent shadow `<style>`, for example inside `<details>`) out of the served-rule ledger, so pages with two or more `<details>` elements now capture. Pages with a `<details>` element no longer list that browser sheet in `reach.sheets` or its `:host` rules in `reach.rules`; recapture their bases after upgrading.
+
 - **BREAKING (#1215):** the destructive-action guard also checks a normalized copy of every label source (format and default-ignorable characters stripped, NFKC, middle dots as separators), and digits or underscores now delimit action words, so labels such as Sign + U+2062 + in, De + soft hyphen + lete, fullwidth Ｄｅｌｅｔｅ, `Remove3`, `3Remove` and `_Delete` are unsafe. The new boundaries apply to every source, including `name` attributes, so snake_case names such as `send_email` are unsafe too. `We’re starting` stays clickable. Previously clicked controls may now produce unsafe skips; acknowledge them with a reasoned `incompleteUiExclude`.
 
 - **BREAKING (#1217):** the destructive-action guard also reads open shadow roots, CSS `::before`/`::after` generated text (including mixed content with preserved word boundaries, independent alt text and strings, `attr()` values or fallbacks, `counters()`/`symbols()` strings and custom quotes), `aria-labelledby` targets inside labels and labels of form-associated custom elements. A control whose subtree, label targets and open shadow trees together exceed 200 elements fails closed. Closed shadow roots remain unreadable.
 
 - Seed CI dependency and Playwright browser caches only on default-branch pushes; pull requests restore without saving (#1211).
+- Shard unit coverage across three runners with an 80% merged line-hit floor; retain the local unsharded 40% floor. Separate thresholds preserve comparable headroom because Node's unsharded range merge under-counts covered lines (#1210).
 
 - **BREAKING (#1212):** discovery and live interaction recipes check every label source independently, including hidden text, associated label elements, referenced labels, values and image descriptions, plus space-joined text nodes and descendant label references. Safety checks fail closed above 100 attribute-bearing descendants or 20000 characters in any source. Previously clicked controls may now produce unsafe skips or recipe refusals. Forms and selects retain their single-label check. Re-capture bases if popup numbering changes; acknowledge crawl skips with a reasoned `incompleteUiExclude`.
 
