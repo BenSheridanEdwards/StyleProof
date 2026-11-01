@@ -260,7 +260,13 @@ function identifierSuffixes(run: string[]): string[] {
   return run.map((_, start) => run.slice(start).join(' '));
 }
 
-function candidateNames(value: string): string[] {
+function unsupportedFunction(name: string, call: boolean, allowVars: boolean): boolean {
+  if (!call) return false;
+  return /^(?:(?:env|attr|inherit|ident)$|--)/i.test(name) || (!allowVars && /^var$/i.test(name));
+}
+
+function candidateNames(value: string, allowVars = false): string[] {
+  if (value.includes('\\')) unknown('unsupported font or animation dependency');
   const names: string[] = [];
   let run: string[] = [];
   for (let i = 0; i < value.length;) {
@@ -279,8 +285,7 @@ function candidateNames(value: string): string[] {
     }
     const token = candidateToken(value.slice(i));
     const functionName = token.identifier && value[i + token.text.length] === '(';
-    if (functionName && /^(?:(?:var|env|attr|inherit|ident)$|--)/i.test(token.text))
-      unknown('unsupported font or animation dependency');
+    if (unsupportedFunction(token.text, functionName, allowVars)) unknown('unsupported font or animation dependency');
     if (token.identifier && !functionName) {
       run.push(token.text);
       names.push(...identifierSuffixes(run));
@@ -292,12 +297,73 @@ function candidateNames(value: string): string[] {
   return names;
 }
 
+/** Reject substitutions that can assemble a family across token boundaries. */
+function adjacencyLiteral(
+  value: string,
+  i: number,
+  opaque: number,
+  token: string,
+): { text: string; variable: boolean; numeric: boolean } {
+  return {
+    text: value.slice(i, opaque > i ? opaque : i + token.length),
+    variable: false,
+    numeric: opaque === i && /^[+.-]?\d/.test(token),
+  };
+}
+
+function adjacencyTokens(value: string): { text: string; variable: boolean; numeric: boolean }[] {
+  const tokens: { text: string; variable: boolean; numeric: boolean }[] = [];
+  for (let i = 0; i < value.length;) {
+    const significant = skipTrivia(value, i, value.length);
+    if (significant > i) {
+      i = significant;
+      continue;
+    }
+    const opaque = referenceEnd(value, i);
+    const token = candidateToken(value.slice(i));
+    const call = value[i + token.text.length] === '(';
+    const variable = call && /^var$/i.test(token.text);
+    const url = call && /^url$/i.test(token.text);
+    if (variable || url) {
+      const start = i + token.text.length + 1;
+      const close = delimiter(value, start, ')');
+      if (variable) guardVarAdjacency(value.slice(start, close));
+      tokens.push({ text: value.slice(i, close + 1), variable, numeric: false });
+      i = close + 1;
+    } else {
+      tokens.push(adjacencyLiteral(value, i, opaque, token.text));
+      i = opaque > i ? opaque : i + token.text.length;
+    }
+  }
+  return tokens;
+}
+
+function guardVarAdjacency(value: string): void {
+  const tokens = adjacencyTokens(value);
+  tokens.forEach((token, index) => {
+    if (!token.variable) return;
+    const left = tokens[index - 1];
+    const right = tokens[index + 1];
+    if (
+      (left && !left.numeric && ![',', '/', '('].includes(left.text)) ||
+      (right && !right.numeric && ![',', '/', ')'].includes(right.text))
+    )
+      unknown('font substitution can join a family name');
+  });
+}
+
 /** Identifiers in `animation`/`font` declarations: candidate @keyframes and @font-face names. */
-function referencedNames(values: [string, string][]): string[] {
+function referencedNames(values: [string, string][]): { names: string[]; vars: string[] } {
+  const vars: string[] = [];
   const names = values.flatMap(([property, value]) => {
     if (!/^(animation(?:-name)?|font(?:-family)?)$/i.test(property)) return [];
     if (/\\/.test(value)) unknown('unsupported font or animation dependency');
-    const candidates = candidateNames(value);
+    const font = /^font/i.test(property);
+    if (font) {
+      guardVarAdjacency(value);
+      vars.push(...varReads(value));
+    }
+    const candidates = candidateNames(value, font);
     if (/^font-family$/i.test(property) && !/\/\*|\(/.test(value)) return commaValues(value).map(fontFamily);
     if (/^font/i.test(property)) return candidates;
     if (candidates.some((name) => !/^[-\w ]+$/.test(name)) || /["']/.test(value.replace(/\/\*[\s\S]*?\*\//g, '')))
@@ -305,7 +371,7 @@ function referencedNames(values: [string, string][]): string[] {
     if (/\/\*|\(/.test(value)) return candidates;
     return value.split(/[\s,]+/).filter((t) => /^(?:--|-?[_a-zA-Z])[\w-]*$/.test(t));
   });
-  return [...new Set(names)];
+  return { names: [...new Set(names)], vars: [...new Set(vars)] };
 }
 
 /**
@@ -314,10 +380,18 @@ function referencedNames(values: [string, string][]): string[] {
  * rule usage only covers style rules, so their reach resolves through `refs`.
  */
 export function servedRulesOf(text: string, used: readonly UsedRange[]): Omit<ServedRule, 'sheet'>[] {
-  return servedEntries(text, used).map((entry) => entry.rule);
+  const entries = servedEntries(text, used);
+  fontVarRefs(entries);
+  return entries.map((entry) => entry.rule);
 }
 
-type ServedEntry = { rule: Omit<ServedRule, 'sheet'>; chain: string[]; prelude: string };
+type ServedEntry = {
+  rule: Omit<ServedRule, 'sheet'>;
+  chain: string[];
+  prelude: string;
+  fontVars: string[];
+  customValues: [string, string][];
+};
 
 function servedEntries(text: string, used: readonly UsedRange[]): ServedEntry[] {
   return leafRules(text).map((rule) => {
@@ -325,12 +399,20 @@ function servedEntries(text: string, used: readonly UsedRange[]): ServedEntry[] 
     const values = keyframes
       ? leafRules(rule.body).flatMap((frame) => declarations(frame.body))
       : declarations(rule.body);
-    const refs = referencedNames(values);
+    const { names: refs, vars: fontVars } = referencedNames(values);
     if (/^@font-face$/i.test(rule.prelude) && values.some(([property]) => /^font$/i.test(property)))
       unknown('unsupported font or animation dependency');
     return {
       chain: rule.chain,
       prelude: rule.prelude,
+      fontVars,
+      customValues: values.flatMap(([name, value]) =>
+        name.startsWith('--')
+          ? [[name, value] as [string, string]]
+          : /^@property --[\w-]+$/.test(rule.prelude) && name.toLowerCase() === 'initial-value'
+            ? [[rule.prelude.slice(10), value] as [string, string]]
+            : [],
+      ),
       rule: {
         key: [...rule.chain, rule.prelude].join(' > '),
         hash: digest(rule.body),
@@ -340,6 +422,51 @@ function servedEntries(text: string, used: readonly UsedRange[]): ServedEntry[] 
       },
     };
   });
+}
+
+/** Union every possible declaration and registration, never a cascade winner. */
+function fontVarRefs(entries: ServedEntry[], registrations: [string, string][] = []): Set<string> {
+  const values = [...entries.flatMap((entry) => entry.customValues), ...registrations];
+  const closure = new Set<string>();
+  for (const entry of entries) {
+    const visited = new Set<string>();
+    const pending = [...entry.fontVars];
+    const names = new Set(entry.rule.refs ?? []);
+    while (pending.length) {
+      const name = pending.pop()!;
+      if (visited.has(name)) continue;
+      visited.add(name);
+      closure.add(name);
+      // Undeclared variables are guaranteed-invalid: inherited/initial families
+      // are covered by the other rules' refs, so no invented family is needed.
+      for (const [, value] of values.filter(([property]) => property === name)) {
+        guardVarAdjacency(value);
+        candidateNames(value, true).forEach((candidate) => names.add(candidate));
+        pending.push(...varReads(value));
+      }
+    }
+    if (names.size) entry.rule.refs = [...names].sort();
+  }
+  return closure;
+}
+
+function inlineDeclares(node: DocumentNode, names: ReadonlySet<string>): boolean {
+  const attributes = node.attributes ?? [];
+  for (let i = 0; i < attributes.length; i += 2) {
+    if (attributes[i].toLowerCase() !== 'style') continue;
+    if ([...names].some((name) => attributes[i + 1].includes(name))) return true;
+    if (
+      declarations(attributes[i + 1]).some(
+        ([property, value]) => /^(font(?:-family)?|animation(?:-name)?)$/i.test(property) && varReads(value).length,
+      )
+    )
+      return true;
+  }
+  return Boolean(
+    node.children?.some((child) => inlineDeclares(child, names)) ||
+    node.shadowRoots?.some((child) => inlineDeclares(child, names)) ||
+    (node.contentDocument && inlineDeclares(node.contentDocument, names)),
+  );
 }
 
 /** Selector for the originating elements, or undefined when their scope cannot be attributed. */
@@ -532,6 +659,9 @@ async function readSheets(
 }
 
 type DocumentNode = {
+  nodeId?: number;
+  nodeName?: string;
+  attributes?: string[];
   backendNodeId?: number;
   children?: DocumentNode[];
   shadowRoots?: DocumentNode[];
@@ -584,6 +714,36 @@ async function documentSheet(
   }
 }
 
+async function resolveFontVars(
+  client: CDPSession,
+  root: DocumentNode,
+  read: ReadSheet[],
+  entries: ServedEntry[][],
+  mainFrame: string,
+): Promise<void> {
+  const allEntries = entries.flat();
+  if (inlineDeclares(root, new Set())) unknown('inline font or animation variable reference');
+  if (allEntries.some((entry) => entry.fontVars.length)) {
+    if (
+      read.some(
+        (sheet, index) => sheet.header.frameId !== mainFrame && entries[index].some((entry) => entry.fontVars.length),
+      )
+    )
+      unknown('font variable in another frame');
+    const element = root.children?.find((node) => node.nodeName === 'HTML');
+    const registrations = await client
+      .send('CSS.getMatchedStylesForNode', { nodeId: element?.nodeId ?? root.nodeId ?? 0 })
+      .catch(() => unknown('font property registrations unavailable'));
+    const values: [string, string][] = (registrations.cssPropertyRegistrations ?? []).flatMap((registration) =>
+      registration.initialValue
+        ? [[registration.propertyName, registration.initialValue.text] as [string, string]]
+        : [],
+    );
+    const closure = fontVarRefs(allEntries, values);
+    if (inlineDeclares(root, closure)) unknown('font family set through an inline custom property');
+  }
+}
+
 /**
  * Track the stylesheets a page serves. Arm it BEFORE navigating, like
  * `trackInflightRequests`: Chromium keeps a linked stylesheet's text, and reports its
@@ -617,10 +777,16 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
     const rules: ServedRule[] = [];
     const probes: (string | null)[] = [];
     const exclusive: boolean[] = [];
+    const entries = read.map((sheet) =>
+      servedEntries(
+        sheet.text,
+        ruleUsage.filter((r) => r.used && r.styleSheetId === sheet.header.styleSheetId),
+      ),
+    );
+    await resolveFontVars(client, root, read, entries, frameTree.frame.id);
     for (const [index, sheet] of read.entries()) {
       const inDocument = await documentSheet(client, sheet.header, frameTree.frame.id, shadow);
-      const used = ruleUsage.filter((r) => r.used && r.styleSheetId === sheet.header.styleSheetId);
-      for (const { rule, chain, prelude } of servedEntries(sheet.text, used)) {
+      for (const { rule, chain, prelude } of entries[index]) {
         const probe = rule.used && inDocument ? selectorProbe(prelude, chain) : undefined;
         // Removing a state inside :not(), for example, need not preserve the original candidates.
         probes.push(probe && !probe.nested ? probe.selector : null);
