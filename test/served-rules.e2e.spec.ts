@@ -22,6 +22,17 @@ import { resolveSettings } from '../dist/runner/settings.js';
 // Like trackInflightRequests, the tracker is armed before navigation to record linked
 // stylesheets as they load, without relying on Chromium's inspector re-fetches.
 
+test('browser-owned details sheets do not make reach ambiguous', async ({ page }) => {
+  const servedRules = await trackServedRules(page);
+  await page.setContent(
+    '<style>.a{color:rgb(1,2,3)}</style><p class="a">x</p><details><summary>s</summary>y</details><details open><summary>t</summary>z</details>',
+  );
+  const map = await captureStyleMap(page, { captureReach: true, servedRules });
+  expect(map.reach?.sheets).toEqual(['inline']);
+  expect(map.reach?.rules.some((r) => r.key.startsWith(':host'))).toBe(false);
+  expect(rule(map, '.a').used).toBe(true);
+});
+
 const PAGE = `<!doctype html><html><head>
   <link rel="stylesheet" href="/assets/app.css?v=3">
   <style>

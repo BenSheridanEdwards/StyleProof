@@ -459,11 +459,13 @@ async function readSheets(
   client: CDPSession,
   headers: Iterable<SheetHeader>,
   ownCss: readonly string[],
+  browserOwned: ReadonlySet<number>,
 ): Promise<{ read: ReadSheet[]; unreadable: number }> {
   const read: ReadSheet[] = [];
   let unreadable = 0;
   for (const header of headers) {
     if (header.origin !== 'regular') continue;
+    if (header.ownerNode !== undefined && browserOwned.has(header.ownerNode)) continue;
     const text = await client
       .send('CSS.getStyleSheetText', { styleSheetId: header.styleSheetId })
       .then((r) => r.text)
@@ -481,11 +483,25 @@ async function readSheets(
 }
 
 type DocumentNode = {
+  backendNodeId?: number;
   children?: DocumentNode[];
   shadowRoots?: DocumentNode[];
   shadowRootType?: string;
   contentDocument?: DocumentNode;
 };
+
+function userAgentOwned(root: DocumentNode): Set<number> {
+  const owned = new Set<number>();
+  const visit = (node: DocumentNode, inside: boolean): void => {
+    const browser = inside || node.shadowRootType === 'user-agent';
+    if (browser && node.backendNodeId !== undefined) owned.add(node.backendNodeId);
+    node.children?.forEach((child) => visit(child, browser));
+    node.shadowRoots?.forEach((child) => visit(child, browser));
+    if (node.contentDocument) visit(node.contentDocument, browser);
+  };
+  visit(root, false);
+  return owned;
+}
 
 function hasShadowRoot(node: DocumentNode): boolean {
   return Boolean(
@@ -545,9 +561,9 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
   };
   const stop = async (ownCss: readonly string[], compared: readonly string[]): Promise<ServedRules> => {
     const { ruleUsage } = await client.send('CSS.stopRuleUsageTracking');
-    const { read, unreadable } = await readSheets(client, sheets.values(), ownCss);
-    const { frameTree } = await client.send('Page.getFrameTree');
     const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
+    const { read, unreadable } = await readSheets(client, [...sheets.values()], ownCss, userAgentOwned(root));
+    const { frameTree } = await client.send('Page.getFrameTree');
     const shadow = hasShadowRoot(root);
     const rules: ServedRule[] = [];
     const probes: (string | null)[] = [];
