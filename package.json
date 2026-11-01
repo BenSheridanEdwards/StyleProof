@@ -93,6 +93,7 @@
     "verify": "pnpm run check:context && pnpm run check:suppressions && pnpm run typecheck && pnpm run lint && pnpm run lint:slop && pnpm run format:check && pnpm run privacy:check && pnpm test",
     "test": "pnpm run build && node scripts/run-node-test.mjs",
     "test:unit": "node scripts/run-node-test.mjs",
+    "test:node-compat": "node scripts/run-node-test.mjs test/package-smoke.test.mjs test/config.test.mjs test/config-discovery.test.mjs test/run-node-test.test.mjs test/consumer-install.test.mjs",
     "test:coverage": "node scripts/check-coverage.mjs",
     "test:watch": "node scripts/run-node-test.mjs --watch",
     "test:e2e": "pnpm run build && playwright test",
