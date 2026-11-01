@@ -40,9 +40,9 @@ function report(dirs, options = {}) {
 }
 
 const strip =
-  '**Reach incomplete** — 2 changed CSS rule(s) never rendered. Fix: add a surface or state that renders each rule under **Changed but never rendered**. Render-code reach is not measured yet.';
+  '**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that renders each rule under **Changed but never matched**. Render-code reach is not measured yet.';
 const intro =
-  '_Changed CSS rules no captured state rendered, so the diff above cannot show them. Add a surface or state that renders each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
+  '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
 const table = ['| Rule | Change | Gated by | Source | Why |', '| --- | --- | --- | --- | --- |'];
 const darkRule = '@media (prefers-color-scheme: dark) > .panel';
 
@@ -53,7 +53,7 @@ test('unrendered changed CSS rules are listed with their condition and source wi
   const reached = report(fixture(t, [base], [head]));
   const plain = report(fixture(t, [withoutReach(base)], [withoutReach(head)]));
   const section = [
-    '## Changed but never rendered',
+    '## Changed but never matched',
     '',
     intro,
     '',
@@ -74,7 +74,7 @@ test('unrendered changed CSS rules are listed with their condition and source wi
   assert.deepEqual(reached.result.comparison, plain.result.comparison);
   assert.deepEqual(reached.result.reportConsistency, plain.result.reportConsistency);
   assert.ok(plain.md.startsWith(reached.md.split('\n\n**Reach incomplete**')[0]), 'headline stays unchanged');
-  assert.match(reached.html, /<h2[^>]*>Changed but never rendered<\/h2>/);
+  assert.match(reached.html, /<h2[^>]*>Changed but never matched<\/h2>/);
   assert.match(reached.html, /<td><code>\.panel--fault<\/code><\/td>/);
 });
 
@@ -120,7 +120,7 @@ test('outside-only changes stay unmeasured in reports and block only the opt-in 
         ),
       );
       assert.match(output.html, /<td><code>\.ignored<\/code><\/td>/);
-      assert.doesNotMatch(output.md, /every changed served CSS rule rendered|Reach complete/);
+      assert.doesNotMatch(output.md, /every changed served CSS rule matched a captured element|Reach complete/);
       if (changeReach === 'gate') {
         assert.match(output.md, /✗ \*\*Reach gate\*\*/);
         assert.doesNotMatch(output.md, /✓ No reviewable/);
@@ -151,7 +151,10 @@ test('unscoped ledgers retain side-specific gaps and cannot certify legacy match
     );
     for (const side of sides) assert.ok(output.md.includes(`missing ${side} ledger`));
     assert.ok(output.md.includes('recapture with `captureReach`'));
-    assert.doesNotMatch(output.md, /every changed served CSS rule rendered|Reach complete|✓ No reviewable/);
+    assert.doesNotMatch(
+      output.md,
+      /every changed served CSS rule matched a captured element|Reach complete|✓ No reviewable/,
+    );
   }
 });
 
@@ -171,7 +174,7 @@ test('gate holds missing ledgers even when neither side records reach evidence',
   assert.doesNotMatch(output.md, /✓ No reviewable/);
 });
 
-test('gate keeps unbuilt joins advisory when all changed served rules rendered', (t) => {
+test('gate keeps unbuilt joins advisory when all changed served rules matched captured elements', (t) => {
   const side = (hash) => map(rule('.ok', hash, { used: true }));
   const output = report(fixture(t, [side('h1')], [side('h2')]), { changeReach: 'gate' });
   assert.equal(output.json.reach.blocking, 0);
@@ -217,10 +220,10 @@ test('directory reach assessment agrees with the report and does not depend on c
 
 test('fully reached changed served rules add no section but still disclose the three unbuilt joins', (t) => {
   const output = report(fixture(t, [map(rule('.ok', 'h1', { used: true }))], [map(rule('.ok', 'h2', { used: true }))]));
-  assert.doesNotMatch(output.md, /## Changed but never rendered|Reach evidence gaps|Reach complete|\d+%/);
+  assert.doesNotMatch(output.md, /## Changed but never matched|Reach evidence gaps|Reach complete|\d+%/);
   assert.match(
     output.md,
-    /\*\*Reach incomplete\*\* — every changed served CSS rule rendered \(1\); render-code reach and the changed-stylesheet join are not measured yet\./,
+    /\*\*Reach incomplete\*\* — every changed served CSS rule matched a captured element \(1\); render-code reach and the changed-stylesheet join are not measured yet\./,
   );
   assert.equal(output.json.reach.complete, false);
   assert.deepEqual(output.json.reach.counts, { reached: 1, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 });
@@ -252,8 +255,8 @@ test('fully reached changed served rules add no section but still disclose the t
 
 test('an empty changed-rule list cannot claim reach is complete', (t) => {
   const output = report(fixture(t));
-  assert.match(output.md, /every changed served CSS rule rendered \(0\)/);
-  assert.doesNotMatch(output.md, /Reach complete|## Changed but never rendered/);
+  assert.match(output.md, /every changed served CSS rule matched a captured element \(0\)/);
+  assert.doesNotMatch(output.md, /Reach complete|## Changed but never matched/);
   assert.equal(output.json.reach.complete, false);
   assert.deepEqual(output.json.reach.rules, []);
 });
@@ -428,7 +431,7 @@ test('a bounded report summarizes unrendered rules without losing the full JSON 
   });
   assert.ok(
     output.md.includes(
-      '- Changed but never rendered: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); full list in report.json under `reach`',
+      '- Changed but never matched: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); full list in report.json under `reach`',
     ),
   );
   assert.match(output.md, /summarized to keep this report renderable/);
@@ -446,7 +449,7 @@ test('a bounded report retains the unmeasured count and full JSON evidence', (t)
   assert.equal(output.json.reach.counts.unmeasured, 100);
   assert.equal(output.json.reach.rules.length, 100);
   assert.ok(output.json.reach.rules.every((rule) => rule.status === 'unmeasured'));
-  assert.doesNotMatch(output.md, /every changed served CSS rule rendered|Reach complete/);
+  assert.doesNotMatch(output.md, /every changed served CSS rule matched a captured element|Reach complete/);
 });
 
 test('a byte budget too small to show reach status refuses to write a misleading report', (t) => {
@@ -466,7 +469,7 @@ test('a restyle beside an unrendered rule cannot also say Nothing else', (t) => 
   const head = map(rule('.fault', 'h2'));
   head.elements.body.style.color = 'rgb(255, 0, 0)';
   const output = report(fixture(t, [map(rule('.fault', 'h1'))], [head]));
-  assert.ok(output.md.includes('## Changed but never rendered'));
+  assert.ok(output.md.includes('## Changed but never matched'));
   assert.doesNotMatch(output.md, /Nothing else/);
 });
 
