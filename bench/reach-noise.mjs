@@ -8,7 +8,7 @@ import { parseArgs, isDeepStrictEqual } from 'node:util';
 import { classifyRuleReach } from '../dist/rule-reach.js';
 import { diffStyleMaps } from '../dist/diff.js';
 import { classVocabulary, classReach, jsReach, lineExecution, diffHunks, coverageProjection } from './reach-joins.mjs';
-import { flagOf, autoLabel, aggregate, privateOutOk, selectPairs } from './reach-noise-lib.mjs';
+import { flagOf, autoLabel, aggregate, privateOutOk, selectPairs, rawOnlyDriftCount } from './reach-noise-lib.mjs';
 
 const { values: a } = parseArgs({
   options: Object.fromEntries(
@@ -188,16 +188,11 @@ try {
   const firstProjection = coverageProjection(first);
   const twiceProjection = coverageProjection(twice);
   const coverageSurfaces = [...new Set([...Object.keys(firstProjection), ...Object.keys(twiceProjection)])];
-  const rawBySurface = (data, surface) => data.coverage.filter((c) => c.surface === surface);
   const projectionDrift = coverageSurfaces.filter(
     (s) => !isDeepStrictEqual(firstProjection[s], twiceProjection[s]),
   ).length;
-  const thirdPartyOnly = coverageSurfaces.filter(
-    (s) =>
-      !isDeepStrictEqual(rawBySurface(first, s), rawBySurface(twice, s)) &&
-      isDeepStrictEqual(firstProjection[s], twiceProjection[s]),
-  ).length;
-  const determinism = { projectionDrift, thirdPartyOnly, surfaces: coverageSurfaces.length };
+  const rawOnlyDriftOutsideAppProjection = rawOnlyDriftCount(first, twice, firstProjection, twiceProjection);
+  const determinism = { projectionDrift, rawOnlyDriftOutsideAppProjection, surfaces: coverageSurfaces.length };
   const stable = Object.keys(first.maps).every(
     (s) =>
       twice.maps[s] &&

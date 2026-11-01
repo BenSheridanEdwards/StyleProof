@@ -17,7 +17,7 @@ checking build, overlay and revision inputs. The last replay took 21m 17s.
 All nine unmeasured attempts are accounted for:
 
 - Surface-set mismatch: 3.
-- Historical app version needs build dependencies not available offline: 6.
+- Historical app version's dependencies unavailable offline: 6.
 
 No capture-engine failure was used to explain these exclusions. Surface sets
 were not narrowed to their intersection to obtain a comparison.
@@ -49,12 +49,18 @@ The real-change threshold is an existence check, not a recall or precision claim
 ## Determinism and labelling
 
 Determinism: PASSED — 0 style drift, 0 ledger drift and 0 app-source coverage
-drift. Ten of 17 coverage records had third-party-only raw coverage drift.
+drift. Ten of 17 coverage records had raw-only drift outside the app projection.
 The records include 14 actual surfaces plus three registration/metadata checks.
 The gate compares mapped app-line execution evidence and source-mapped URL
-sets. Vendored event-dispatch timing is excluded because no join reads those
-sources. Product code does not consume JS coverage; J2/J3 remain bench prototypes.
+sets. This informational count can include vendor timing, scripts without source
+maps (including app chunks), and other raw differences outside the projection;
+it does not establish that all ten records differ only in third-party code.
+Product code does not consume JS coverage; J2/J3 remain bench prototypes.
 The first-base inputs were unchanged, so the passed double-capture was reused.
+
+The per-join split, per-PR median/max and drift fields were assembled from private
+evidence by a private finalize step, so the receipt cannot be rebuilt from committed
+code alone.
 
 Fail-closed captures: 0; reasons: none. In particular,
 `inline styles unavailable or changed while reading`: 0, including the

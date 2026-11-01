@@ -1,6 +1,23 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { coverageProjection } from './reach-joins.mjs';
+
+/** Raw coverage differences that cannot change the app-line projection. */
+export function rawOnlyDriftCount(
+  first,
+  twice,
+  firstProjection = coverageProjection(first),
+  twiceProjection = coverageProjection(twice),
+) {
+  const records = [...new Set([...Object.keys(firstProjection), ...Object.keys(twiceProjection)])];
+  const raw = (data, surface) => data.coverage.filter((c) => c.surface === surface);
+  return records.filter(
+    (s) =>
+      !isDeepStrictEqual(raw(first, s), raw(twice, s)) && isDeepStrictEqual(firstProjection[s], twiceProjection[s]),
+  ).length;
+}
 
 export function flagOf({ j1, j2, j3 }) {
   return (
@@ -62,7 +79,7 @@ export function assertAggregateOnly(receipt) {
 }
 
 const LABEL_KEYS = ['total', 'real', 'joinMiss', 'noVisual', 'unclassified'];
-const UNMEASURED_KEYS = ['surface-set-mismatch', 'historical-build-dependencies-unavailable-offline'];
+const UNMEASURED_KEYS = ['surface-set-mismatch', 'historical-dependencies-unavailable-offline'];
 const NOT_MEASURABLE = [
   'main process, preload and IPC',
   'renderer states the fixtures never open',
@@ -97,7 +114,7 @@ function assertFullReceipt(r) {
         styleDrift: (n) => n === 0,
         ledgerDrift: (n) => n === 0,
         appCoverageDrift: (n) => n === 0,
-        thirdPartyOnlyDrift: count,
+        rawOnlyDriftOutsideAppProjection: count,
         records: count,
       }),
     failClosedCaptures: (n) => n === 0,
@@ -121,7 +138,7 @@ function consistentReceipt(r) {
     r.prs.attempted <= 15 &&
     Object.values(r.unmeasuredReasons).reduce((a, b) => a + b, 0) === r.prs.unmeasured &&
     r.perPr.median <= r.perPr.max &&
-    r.determinism.thirdPartyOnlyDrift <= r.determinism.records
+    r.determinism.rawOnlyDriftOutsideAppProjection <= r.determinism.records
   );
 }
 

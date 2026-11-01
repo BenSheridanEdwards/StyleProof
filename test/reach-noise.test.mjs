@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
-import { isDeepStrictEqual } from 'node:util';
+import path from 'node:path';
 import * as joins from '../bench/reach-joins.mjs';
 import {
   flagOf,
@@ -11,6 +11,7 @@ import {
   assertAggregateOnly,
   privateOutOk,
   selectPairs,
+  rawOnlyDriftCount,
 } from '../bench/reach-noise-lib.mjs';
 
 test('flags follow the three joins, excluding unknown and blind evidence', () => {
@@ -63,7 +64,7 @@ function fullReceipt() {
     styleproofSha: 'cff649eeb9e8eabcb6029699741e3bda03465f85',
     selectionRule: 'first-parent-renderer-suffixes-v1',
     prs: { target: 12, attempted: 1, replayed: 1, unmeasured: 0 },
-    unmeasuredReasons: { 'surface-set-mismatch': 0, 'historical-build-dependencies-unavailable-offline': 0 },
+    unmeasuredReasons: { 'surface-set-mismatch': 0, 'historical-dependencies-unavailable-offline': 0 },
     flags: aggregate(['real']),
     byJoin: { J1: aggregate(['real']), J2: aggregate([]), J3: aggregate([]) },
     perPr: { median: 1, max: 1 },
@@ -72,7 +73,7 @@ function fullReceipt() {
       styleDrift: 0,
       ledgerDrift: 0,
       appCoverageDrift: 0,
-      thirdPartyOnlyDrift: 0,
+      rawOnlyDriftOutsideAppProjection: 0,
       records: 1,
     },
     failClosedCaptures: 0,
@@ -152,6 +153,10 @@ test('private output rejects worktrees and descendants', () => {
   assert.equal(privateOutOk(`${process.cwd()}/new/private`, process.cwd()), false);
 });
 
+test('private output accepts a path outside every repository', () => {
+  assert.equal(privateOutOk(path.parse(process.cwd()).root, process.cwd()), true);
+});
+
 test('selection excludes reverts, oversized, dependency and test-only changes', () => {
   const row = { base: 'a', head: 'b', title: 'change', files: ['ui/button.tsx'] };
   const rows = [
@@ -195,16 +200,22 @@ function coverageFixture(app = 1, vendor = 1, scriptId = '1') {
   };
 }
 
-test('vendor-only coverage drift passes with a third-party-only surface count', () => {
+test('vendor-only coverage drift passes with a raw-only record count', () => {
   const first = coverageFixture();
   const twice = coverageFixture(1, 0);
   assert.deepEqual(joins.coverageProjection(first), joins.coverageProjection(twice));
-  const thirdPartyOnly = first.coverage.filter(
-    (c, i) =>
-      !isDeepStrictEqual(c, twice.coverage[i]) &&
-      isDeepStrictEqual(joins.coverageProjection(first)[c.surface], joins.coverageProjection(twice)[c.surface]),
-  ).length;
-  assert.equal(thirdPartyOnly, 1);
+  assert.equal(rawOnlyDriftCount(first, twice), 1);
+  assert.equal(rawOnlyDriftCount(first, first), 0);
+  assert.equal(rawOnlyDriftCount(first, coverageFixture(0)), 0);
+});
+
+test('raw-only drift includes scripts without source maps', () => {
+  const first = coverageFixture();
+  const twice = coverageFixture();
+  first.coverage[0].entries.push({ ...coverageFixture().coverage[0].entries[0], url: 'unmapped.js' });
+  twice.coverage[0].entries.push({ ...coverageFixture(0).coverage[0].entries[0], url: 'unmapped.js' });
+  assert.deepEqual(joins.coverageProjection(first), joins.coverageProjection(twice));
+  assert.equal(rawOnlyDriftCount(first, twice), 1);
 });
 
 test('app coverage drift aborts projection equality', () => {

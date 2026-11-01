@@ -5,7 +5,7 @@
   "prs": { "target": 12, "attempted": 15, "replayed": 6, "unmeasured": 9 },
   "unmeasuredReasons": {
     "surface-set-mismatch": 3,
-    "historical-build-dependencies-unavailable-offline": 6
+    "historical-dependencies-unavailable-offline": 6
   },
   "flags": { "total": 208, "real": 183, "joinMiss": 17, "noVisual": 8, "unclassified": 0 },
   "byJoin": {
@@ -19,7 +19,7 @@
     "styleDrift": 0,
     "ledgerDrift": 0,
     "appCoverageDrift": 0,
-    "thirdPartyOnlyDrift": 10,
+    "rawOnlyDriftOutsideAppProjection": 10,
     "records": 17
   },
   "failClosedCaptures": 0,
