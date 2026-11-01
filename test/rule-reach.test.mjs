@@ -602,6 +602,17 @@ test('a matched font shorthand makes a changed font face a blind channel', () =>
   );
 });
 
+test('a mixed-case font family still references its @font-face', () => {
+  for (const [key, names, refs, status] of [
+    ['@font-face', ['Brand Sans'], ['brand sans'], 'blind-channel'],
+    ['@keyframes Pulse', [], ['pulse'], 'never-rendered'],
+    ['@font-face', ['Ä'], ['ä'], 'never-rendered'],
+  ]) {
+    const ledger = (hash) => map(rule(key, hash, { refs: names }), rule('.t', 't', { used: true, refs }));
+    assert.equal(statusOf(classifyRuleReach([ledger('a')], [ledger('b')]), key).status, status);
+  }
+});
+
 test('a changed @font-face is a blind channel only when a rendered rule uses its family', () => {
   const faces = (brandHash) => [
     rule('@font-face', brandHash, { refs: ['Brand Sans'] }),
