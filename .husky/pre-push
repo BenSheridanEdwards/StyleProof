@@ -11,10 +11,11 @@ else
   echo "  ⚠ this Node cannot strip types; skipping anti-slop lint (CI runs it on Node 22)."
 fi
 
-echo "› unit tests"
+echo "› unit tests (affected only; CI runs the full suite)"
 # Git hook env leaks into the temp repos used by CLI tests.
 unset $(git rev-parse --local-env-vars)
-pnpm test
+pnpm run build
+node scripts/affected-unit-tests.mjs
 
 echo "› browser e2e (shared path policy)"
 # Share CI's tree-proof decision for staged and pushed content. Only proven

@@ -80,7 +80,9 @@ baseline ~41.5% minus a small slack — not an aspirational target). CI enforces
 it in the unsharded `coverage (node 22)` job using `pnpm run test:coverage`. Develop with Node 22.13+ so the floor flags exist;
 older Node exits non-zero with a clear message instead of silently skipping.
 
-`pre-push` always runs `pnpm test`. It shares `browserLanesRequired` in
+`pre-push` builds, then runs only the unit test files that reach the pushed
+changes (`scripts/affected-unit-tests.mjs`; shared inputs such as `package.json`,
+`tsconfig.json` or test helpers run the whole suite). CI runs the full suite. It shares `browserLanesRequired` in
 `scripts/browser-lanes.mjs` with CI and runs `pnpm run test:e2e --workers=4`
 unless every pushed range has equal root trees or deletes a ref, and the staged
 index is proven equal to `HEAD`. The index proof uses `write-tree` plus a

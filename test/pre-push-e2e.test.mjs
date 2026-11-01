@@ -73,10 +73,11 @@ test('collector retains both staged and pushed tree proofs', (t) => {
   assert.equal(browserLanesRequired(firstPush), true);
 });
 
-test('pre-push runs unit tests then the staged e2e gate', () => {
+test('pre-push builds, runs the affected unit tests, then the staged e2e gate', () => {
   const syntax = spawnSync('sh', ['-n', '.husky/pre-push'], { encoding: 'utf8' });
   assert.equal(syntax.status, 0, syntax.stderr);
-  assert.match(hook, /pnpm test/);
+  assert.match(hook, /pnpm run build\nnode scripts\/affected-unit-tests\.mjs/);
+  assert.doesNotMatch(hook, /pnpm test/);
   assert.match(hook, /scripts\/pre-push-e2e\.mjs/);
 });
 
@@ -95,7 +96,7 @@ test('pre-push still fails closed when unit tests fail before e2e', () => {
       encoding: 'utf8',
     });
 
-    assert.match(result.stdout, /fake pnpm test/);
+    assert.match(result.stdout, /fake pnpm run build/);
     assert.equal(result.status, 17, `${result.stdout}\n${result.stderr}`);
     assert.doesNotMatch(result.stdout + result.stderr, /pre-push-e2e/);
   } finally {
@@ -719,7 +720,11 @@ test('M17: the full shell hook propagates e2e exit 37 after unit success', (t) =
   f.write('.husky/pre-push', hook);
   f.write(
     'fake-bin/pnpm',
-    '#!/bin/sh\nprintf "%s\\n" "$*" >> pnpm-args\nif [ "$1" = test ] || [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 37\n',
+    '#!/bin/sh\nprintf "%s\\n" "$*" >> pnpm-args\nif [ "$*" = "run build" ] || [ "$*" = "run lint:slop" ]; then exit 0; fi\nexit 37\n',
+  );
+  f.write(
+    'scripts/affected-unit-tests.mjs',
+    "import fs from 'node:fs';\nfs.appendFileSync('pnpm-args', 'affected units\\n');\n",
   );
   chmodSync(join(f.root, 'fake-bin/pnpm'), 0o755);
   symlinkSync(process.execPath, join(f.root, 'fake-bin/node'));
@@ -734,7 +739,7 @@ test('M17: the full shell hook propagates e2e exit 37 after unit success', (t) =
 
   assert.equal(result.status, 37, result.stdout + result.stderr);
   const lintArgs = process.features.typescript ? 'run lint:slop\n' : '';
-  assert.equal(f.pnpmArgs(), `${lintArgs}test\nrun test:e2e --workers=4\n`);
+  assert.equal(f.pnpmArgs(), `${lintArgs}run build\naffected units\nrun test:e2e --workers=4\n`);
 });
 
 test('M7: distinct commits with an identical root tree may skip with a clean index', (t) => {
