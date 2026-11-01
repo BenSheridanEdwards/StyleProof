@@ -213,3 +213,44 @@ test('crawl discovery marks #1208 separator variants unsafe and keeps look-alike
     ...Object.fromEntries(safe.map((label) => [label, false])),
   });
 });
+
+test('crawl discovery blocks normalized danger labels and clicks safe look-alikes', async ({ page }) => {
+  const dangerous = [
+    'Sign\u2062in',
+    'Sign\u061Cin',
+    'Sign\u00B7in',
+    'Sign\uFF3Fin',
+    'Sign' + '\u200B'.repeat(5) + 'in',
+    'De\u00ADlete',
+    'Remove3',
+    'Ｄｅｌｅｔｅ',
+  ];
+
+  const safe = ["We're starting", 'Profile3', 'Tickets'];
+  const labels = [...dangerous, ...safe];
+
+  await page.setContent(
+    labels
+      .map((label, i) => `<button type="button" id="n${i}" onclick="this.dataset.clicked = 'yes'">${label}</button>`)
+      .join('\n') +
+      '<select id="normalized-select" aria-label="Ｄｅｌｅｔｅ"><option value="first">First</option><option value="second">Second</option></select>',
+  );
+
+  const candidates = await page.evaluate(collectClickable, {
+    dangerSource: DANGER_SOURCE,
+    dangerTextSource: DANGER_TEXT_SOURCE,
+    submitsFormSource: SUBMITS_FORM_SOURCE,
+  });
+
+  expect(candidates.find((candidate) => candidate.selector === '#normalized-select')?.unsafe).toBe(true);
+  await expect(page.locator('#normalized-select')).toHaveValue('first');
+
+  for (const [i] of labels.entries()) {
+    const candidate = candidates.find((c) => c.selector === `#n${i}`);
+
+    expect(candidate?.unsafe).toBe(i < dangerous.length);
+
+    if (candidate && !candidate.unsafe) await page.locator(candidate.selector).click();
+    expect(await page.locator(`#n${i}`).getAttribute('data-clicked')).toBe(i < dangerous.length ? null : 'yes');
+  }
+});

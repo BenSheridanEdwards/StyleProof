@@ -87,7 +87,11 @@ export function popupDomSnapshot({
     if (!dangerTexts) return true;
 
     if (['form', 'select'].includes(el.localName))
-      return Boolean(dangerSource && new RegExp(dangerSource, 'i').test(rawLabelOf(el)));
+      return (
+        dangerTexts(null, rawLabelOf(el))?.some((source) =>
+          Boolean(dangerSource && new RegExp(dangerSource, 'i').test(source)),
+        ) ?? true
+      );
 
     const sources = dangerTexts(el);
 
@@ -119,7 +123,7 @@ export function popupDomSnapshot({
 
   // SAFETY: the caller supplies the shared serialized label gatherer.
   const dangerTexts = dangerTextSource
-    ? (new Function(`return (${dangerTextSource})`)() as (el: Element) => string[] | null)
+    ? (new Function(`return (${dangerTextSource})`)() as (el: Element | null, label?: string) => string[] | null)
     : undefined;
   // SAFETY: discovery supplies the serialized predicate; DOM selectors restrict control types.
   const submitsForm = new Function(`return (${submitsFormSource})`)() as (el: Element) => boolean;

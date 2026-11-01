@@ -14,6 +14,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **BREAKING (#1215):** the destructive-action guard also checks a normalized copy of every label source (format and default-ignorable characters stripped, NFKC, middle dots as separators), and digits or underscores now delimit action words, so labels such as Sign + U+2062 + in, De + soft hyphen + lete, fullwidth Ｄｅｌｅｔｅ, `Remove3`, `3Remove` and `_Delete` are unsafe. `We’re starting` stays clickable. Previously clicked controls may now produce unsafe skips; acknowledge them with a reasoned `incompleteUiExclude`.
+
 - **BREAKING (#1212):** discovery and live interaction recipes check every label source independently, including hidden text, associated label elements, referenced labels, values and image descriptions, plus space-joined text nodes and descendant label references. Safety checks fail closed above 100 attribute-bearing descendants or 20000 characters in any source. Previously clicked controls may now produce unsafe skips or recipe refusals. Forms and selects retain their single-label check. Re-capture bases if popup numbering changes; acknowledge crawl skips with a reasoned `incompleteUiExclude`.
 
 - **BREAKING (#1143):** discovery refuses submits and side-effect verbs. Recipe labels/stateKeys such as `saved`, `submitted`, `cancel-dialog`, and `Confirm modal` throw `StateRecipeError`; rename them to describe fixture state. Crawl records `unsafe-control` skips for submits and Save/Cancel/Send/Confirm; acknowledge exit 6 with a reasoned `incompleteUiExclude`. Popup capture refuses side-effect labels; re-capture the base to align renumbered `popup-XX` IDs.

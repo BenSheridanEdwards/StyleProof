@@ -4,7 +4,7 @@
  * A recipe collection is a set of INDEPENDENT state variants, never an action sequence.
  */
 import type { Locator, Page } from '@playwright/test';
-import { DANGER_SOURCE, DANGER_TEXT_SOURCE } from './danger.js';
+import { DANGER_SOURCE, DANGER_TEXT_SOURCE, normalizeDangerText } from './danger.js';
 import { realNow } from './spec-clock.js';
 import {
   assertSafeRecipeLabel,
@@ -121,7 +121,7 @@ export type StateRecipeSkip = {
 
 /** True when a control label matches the shared destructive-action guard. */
 export function isUnsafeStateLabel(label: string): boolean {
-  return new RegExp(DANGER_SOURCE, 'i').test(label);
+  return new RegExp(DANGER_SOURCE, 'i').test(label) || new RegExp(DANGER_SOURCE, 'i').test(normalizeDangerText(label));
 }
 
 /** True when `key` is in the conservative press vocabulary (exact match). */
