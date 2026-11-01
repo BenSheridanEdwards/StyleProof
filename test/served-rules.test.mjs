@@ -909,3 +909,50 @@ test('font variable sources that cannot be enumerated fail closed', async () => 
     );
   }
 });
+
+for (const value of [
+  'Brand var(--suffix)',
+  'var(--a) Sans',
+  'var(--a)var(--b)',
+  '"Brand" var(--x)',
+  'Brand var(--e) Sans',
+  'var(--a, var(--b) Sans)',
+  'italic var(--x)',
+  '15px/var(--lh) Inter',
+  'Brand/**/var(--x)',
+  '700 var(--size) var(--fam)',
+]) {
+  test(`font substitution adjacency fails closed: ${value}`, () => {
+    assert.throws(() => servedRulesOf(`:root { --e:; } .t { font: ${value}; }`, []), /served CSS reach is unknown/);
+  });
+}
+test('font substitution adjacency in closure values fails closed', () => {
+  assert.throws(
+    () => servedRulesOf(':root { --f: Brand var(--s); } .t { font: var(--f); }', []),
+    /served CSS reach is unknown/,
+  );
+});
+for (const value of [
+  '700 15px var(--fam)',
+  'var(--a), Serif',
+  'var(--a, Brand)',
+  'var(--a, var(--b))',
+  'calc(var(--w)) 15px Brand',
+  'var(--f)',
+]) {
+  test(`separated font substitutions resolve: ${value}`, () => {
+    assert.doesNotThrow(() =>
+      servedRulesOf(`:root { --a: Brand Sans, Mono; --fam: Brand; --f: 700 15px Brand; } .t { font: ${value}; }`, []),
+    );
+  });
+}
+test('inline font and animation variable readers fail closed without stylesheet readers', async () => {
+  for (const property of ['font', 'font-family', 'animation', 'animation-name']) {
+    await assert.rejects(
+      trackedLedger([{ styleSheetId: 'app', text: '.t { color: red; }' }], {
+        document: { children: [{ attributes: ['style', `${property}: Brand var(--suffix)`] }] },
+      }),
+      /served CSS reach is unknown/,
+    );
+  }
+});
