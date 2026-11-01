@@ -221,7 +221,7 @@ the evidence adds to a capture on a GitHub runner:
    | Status | `'warn'` (default) | `'gate'`, J1 unit | `'gate'`, J2/J3 unit | Counts toward reach-complete |
    | --- | --- | --- | --- | --- |
    | `reached` | no finding | no finding | no finding | yes |
-   | `never-rendered` | named finding "Changed but never rendered" | certify: `CERTIFICATION_FAILED`; review-gate: needs review | named finding | no |
+   | `never-rendered` | named finding "Changed but never matched" | certify: `CERTIFICATION_FAILED`; review-gate: needs review | named finding | no |
    | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
    | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
    | `unknown` | named finding with the reason (legacy or partial ledger, value without rendering proof, class-token occurrence without a delta tied to it) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
@@ -251,7 +251,7 @@ the evidence adds to a capture on a GitHub runner:
   CSS, unbalanced or unsupported escapes, identical ambiguous sheets) fails the
   capture with "served CSS reach is unknown" rather than recording partial
   evidence, and the self-check fails when two captures' ledgers differ (#1045).
-- The report gains a "Changed but never rendered" section, and the confidence
+- The report gains a "Changed but never matched" section, and the confidence
   strip may say "Reach complete" only for a reach-complete run (item 1); otherwise
   it shows "Reach incomplete". Neither label is a percentage or score (see
   Alternatives rejected). Without source maps, markup reach reads as

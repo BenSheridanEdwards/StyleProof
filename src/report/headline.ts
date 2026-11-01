@@ -223,7 +223,7 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   }
   if (input.reachBlocking > 0) {
     return [
-      `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never rendered in a captured state (see **Changed but never rendered**). Not a clean no-change: certify mode fails (\`CERTIFICATION_FAILED\`); review-gate mode needs approval.`,
+      `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails (\`CERTIFICATION_FAILED\`); review-gate mode needs approval.`,
     ];
   }
   const elevated = elevatedStructureSummary(input);

@@ -4,7 +4,8 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'node:test';
 import { generateStyleMapReport } from '../dist/report.js';
-import { makeMap, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
+import { stampCertifyingFixture } from './certifying-fixture.mjs';
+import { fixtureCommitSha, makeMap, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
 
 const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
 const map = (...rules) => ({
@@ -540,6 +541,9 @@ test('reach gate headline and CLI lines name matched rules and the current secti
       '✗ **Reach gate** — 1 changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails (`CERTIFICATION_FAILED`); review-gate mode needs approval.',
     ),
   );
+  stampCertifyingFixture(dirs.beforeDir, fixtureCommitSha('base'));
+  stampCertifyingFixture(dirs.afterDir, fixtureCommitSha('head'));
+  fs.writeFileSync(path.join(dirs.root, 'styleproof.config.json'), JSON.stringify({ changeReach: 'gate' }));
   for (const [cli, expected] of [
     [
       'diff',
@@ -556,10 +560,7 @@ test('reach gate headline and CLI lines name matched rules and the current secti
         path.resolve(`bin/styleproof-${cli}.mjs`),
         dirs.beforeDir,
         dirs.afterDir,
-        '--change-reach',
-        'gate',
-        '--out',
-        path.join(dirs.root, 'cli-report'),
+        ...(cli === 'report' ? ['--out', path.join(dirs.root, 'cli-report')] : []),
       ],
       { encoding: 'utf8', cwd: dirs.root },
     );

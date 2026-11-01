@@ -611,6 +611,7 @@ surface that exercises it; see
 and [what the crawler can and cannot reach](docs/REFERENCE.md#what-the-crawler-can-and-cannot-reach--honestly).
 With `captureReach` and `changeReach: 'gate'`, a changed CSS rule no captured
 state matched fails certify mode and needs approval in review-gate mode.
+A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached.
 Rules matched only outside compared elements stay `unmeasured` and also hold
 the opt-in gate. Global state and pseudo-element probes exclude the head subtree and
 framework-ignored elements, including the hover sink. Full-page capture preserves inline style attributes, including
@@ -679,5 +680,3 @@ build the index with `npx gitnexus analyze --skip-agents-md`.
 ## License
 
 MIT © Ben Sheridan-Edwards
-
-A matched rule whose declarations lost the cascade in every captured state still reads reached.
