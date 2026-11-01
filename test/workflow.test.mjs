@@ -111,13 +111,33 @@ test('coverage merges three shards and remains required', () => {
   );
   assert.ok(jobs.required.needs.includes('coverage'));
   assert.ok(coverage.steps.some((step) => step.uses === 'actions/checkout@v7'));
-  assert.ok(coverage.steps.some((step) => step.uses === 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413'));
+  assert.ok(!coverage.steps.some((step) => /pnpm|cache/.test(step.uses ?? step.run ?? '')));
   assert.ok(coverage.steps.some((step) => step.with?.['node-version'] === '22'));
   assert.equal(coverage.needs, 'coverage-shards');
   assert.deepEqual(jobs['coverage-shards'].strategy.matrix.shard, [1, 2, 3]);
-  assert.ok(coverage.steps.some((step) => step.run === 'pnpm install --frozen-lockfile'));
+  const shard = jobs['coverage-shards'];
+  assert.ok(
+    shard.steps.some(
+      (step) =>
+        step.run === 'pnpm run test:coverage --shard ${{ matrix.shard }}/3 --lcov coverage-${{ matrix.shard }}.info',
+    ),
+  );
+  const upload = shard.steps.find((step) => step.uses === 'actions/upload-artifact@v6').with;
+  const download = coverage.steps.find((step) => step.uses === 'actions/download-artifact@v6').with;
+  assert.equal(upload.name, 'unit-coverage-${{ matrix.shard }}');
+  assert.equal(upload.path, 'coverage-${{ matrix.shard }}.info');
+  assert.equal(upload.overwrite, true);
+  assert.equal(download.pattern, upload.name.replace('${{ matrix.shard }}', '*'));
+  assert.equal(download.path, 'coverage');
+  assert.equal(download['merge-multiple'], true);
 
   const gate = coverage.steps.find((step) => step.run?.startsWith('node scripts/merge-coverage.mjs'));
+  assert.equal(gate.run, 'node scripts/merge-coverage.mjs --expect 3 coverage/coverage-{1,2,3}.info');
+  const paths = shard.strategy.matrix.shard;
+  assert.equal(Number(gate.run.match(/--expect (\d+)/)[1]), paths.length);
+  assert.ok(
+    gate.run.endsWith(`${download.path}/${upload.path.replace('${{ matrix.shard }}', `{${paths.join(',')}}`)}`),
+  );
   assert.equal(gate.if, undefined);
   assert.equal(gate['continue-on-error'], undefined);
   assert.equal(gate.env, undefined);
@@ -245,7 +265,10 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
 
   assert.match(required, /name: required/);
   assert.match(required, /if: always\(\)/);
-  assert.match(required, /needs:\s+\[changes, build, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus\]/);
+  assert.match(
+    required,
+    /needs:\s+\[changes, build, coverage, coverage-shards, e2e, e2e-evidence, cli-smoke, detection-corpus\]/,
+  );
   assert.match(required, /CHANGES_RESULT: \$\{\{ needs\.changes\.result \}\}/);
   assert.match(required, /BUILD_RESULT: \$\{\{ needs\.build\.result \}\}/);
   assert.match(required, /E2E_RESULT: \$\{\{ needs\.e2e\.result \}\}/);
