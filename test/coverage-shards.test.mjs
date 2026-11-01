@@ -21,7 +21,7 @@ test('merged floor preserves comparable headroom while the local floor stays unc
 });
 
 test('merge CLI fails closed and enforces the merged floor at the boundary', () => {
-  const floor = coverage.MERGED_COVERAGE_LINE_FLOOR ?? 80;
+  const floor = coverage.MERGED_COVERAGE_LINE_FLOOR;
   const dir = mkdtempSync(join(tmpdir(), 'coverage-1210-'));
   const file = join(dir, 'input.info');
   const script = fileURLToPath(new URL('../scripts/merge-coverage.mjs', import.meta.url));

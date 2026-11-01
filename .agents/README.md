@@ -95,7 +95,7 @@ holds until a check exists.
 | `CLAUDE.md` defers to `AGENTS.md`, which points here; ADR numbers are unique and match their titles; no agent doc repeats a section. | `pnpm run check:context` in CI |
 | The PR body keeps the eight template sections in order and carries inline proof. | `PR body` workflow (`scripts/validate-pr-body.mjs`) |
 | The committed demo report matches the renderer. | `pnpm run demo:check` in CI |
-| Unit coverage stays at or above the floor. | `pnpm run test:coverage` in CI (Node 22) |
+| Merged unit coverage from three shards stays at or above 80%; local unsharded coverage stays at or above 40%. | `node scripts/merge-coverage.mjs` in the `coverage (node 22)` CI job; local `pnpm run test:coverage` |
 | Done means the hosted `required` check is green on the latest commit. | `required` job in `ci.yml` |
 | Every behaviour change ships a test; every bug fix ships the test that fails without it. | **Not enforced yet** (review) |
 | Breaking changes ship only in a major release, with migration notes in the CHANGELOG. | **Not enforced yet** (review) |
