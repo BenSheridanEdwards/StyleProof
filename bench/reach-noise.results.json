@@ -1,0 +1,36 @@
+{
+  "browser": "chromium 149.0.7827.55",
+  "styleproofSha": "cff649eeb9e8eabcb6029699741e3bda03465f85",
+  "selectionRule": "first-parent-renderer-suffixes-v1",
+  "prs": { "target": 12, "attempted": 15, "replayed": 6, "unmeasured": 9 },
+  "unmeasuredReasons": {
+    "surface-set-mismatch": 3,
+    "historical-dependencies-unavailable-offline": 6
+  },
+  "flags": { "total": 208, "real": 183, "joinMiss": 17, "noVisual": 8, "unclassified": 0 },
+  "byJoin": {
+    "J1": { "total": 4, "real": 2, "joinMiss": 2, "noVisual": 0, "unclassified": 0 },
+    "J2": { "total": 184, "real": 179, "joinMiss": 2, "noVisual": 3, "unclassified": 0 },
+    "J3": { "total": 20, "real": 2, "joinMiss": 13, "noVisual": 5, "unclassified": 0 }
+  },
+  "perPr": { "median": 31, "max": 69 },
+  "determinism": {
+    "status": "PASSED",
+    "styleDrift": 0,
+    "ledgerDrift": 0,
+    "appCoverageDrift": 0,
+    "rawOnlyDriftOutsideAppProjection": 10,
+    "records": 17
+  },
+  "failClosedCaptures": 0,
+  "failClosedReasons": [],
+  "notMeasurable": [
+    "main process, preload and IPC",
+    "renderer states the fixtures never open",
+    "code-split chunks without source maps",
+    "CSS-in-JS not served as a stylesheet",
+    "J1 partial or unmeasured units including shadow DOM, iframes and ignored regions",
+    "non-JSX changes are outside J3",
+    "changes inside vendored dependencies are outside J2"
+  ]
+}
