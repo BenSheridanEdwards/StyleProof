@@ -179,7 +179,9 @@ function splitTop(key: string, separator: string): string[] {
 const keyParts = (key: string): string[] => splitTop(key, ' > ');
 
 function selectorsOf(key: string): string[] | undefined {
-  const prelude = (keyParts(key).at(-1) ?? '').replace(/ #\d+$/, '');
+  // Only the leading at-rule chain is metadata; selector child combinators stay intact.
+  const condition = conditionOf(key);
+  const prelude = (condition ? key.slice(condition.length + 3) : key).replace(/ #\d+$/, '');
   return prelude.startsWith('@') || prelude.includes('/*')
     ? undefined
     : splitTop(prelude, ',').map((selector) => selector.trim());
