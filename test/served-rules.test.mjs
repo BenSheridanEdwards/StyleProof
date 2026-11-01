@@ -923,7 +923,10 @@ for (const value of [
   '700 var(--size) var(--fam)',
 ]) {
   test(`font substitution adjacency fails closed: ${value}`, () => {
-    assert.throws(() => servedRulesOf(`:root { --e:; } .t { font: ${value}; }`, []), /served CSS reach is unknown/);
+    assert.throws(
+      () => servedRulesOf(`:root { --e:; } .t { font-family: ${value}; }`, []),
+      /served CSS reach is unknown/,
+    );
   });
 }
 test('font substitution adjacency in closure values fails closed', () => {
@@ -1002,4 +1005,48 @@ test('CDP property rules also supply initial font values', async () => {
     ],
   });
   assert.ok(ledger.rules[0].refs.includes('Brand'));
+});
+
+for (const [value, declarations, names] of [
+  ['15px/var(--lh) Inter', '--lh:1.5', ['Inter']],
+  ['15px/var(--lh) Inter', '--lh:normal', ['Inter']],
+  ['15px/var(--lh) Inter', '--lh:var(--b);--b:1.4', ['Inter']],
+  ['italic var(--x)', '--x:15px Brand', ['Brand']],
+  ['italic var(--x)', '--x:Sans', ['Sans']],
+  ['var(--w) 15px Brand Sans', '--w:bold', ['Brand Sans']],
+  ['var(--w) 15px Brand Sans', '--w:600', ['Brand Sans']],
+  ['Brand var(--x)', '--x:15px Sans', ['Sans']],
+  ['var(--a) var(--b)', '--a:italic;--b:15px Brand', ['Brand']],
+  ['var(--a) var(--b)', '--a:15px;--b:Brand', ['Brand']],
+  ['700 var(--fs) Inter', '--fs:15px', ['Inter']],
+  ['600 var(--fs) var(--ff)', '--fs:15px;--ff:Inter', ['Inter']],
+  ['var(--fs)/var(--lh) var(--ff)', '--fs:15px;--lh:normal;--ff:Inter', ['Inter']],
+])
+  test(`shorthand slots resolve ${value} with ${declarations}`, () => {
+    const refs = servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []).find((r) => r.key === '.t').refs;
+    for (const name of names) assert.ok(refs.includes(name), name);
+  });
+for (const [value, declarations] of [
+  ['15px/var(--lh) Inter', '--lh:1 Brand'],
+  ['15px/var(--lh) Inter', '--lh:var(--a);--a:1 Brand'],
+  ['italic var(--x) Sans', '--x:15px Brand'],
+  ['italic var(--x) Sans', '--x:bold;--x:15px Brand'],
+  ['15px/var(--lh) Brand var(--x)', '--lh:normal;--x:Sans'],
+  ['15px Brand var(--x)', '--x:Sans'],
+  ['var(--a) var(--b)', '--a:15px Foo;--b:Bar'],
+  ['15px Brand var(--e) Sans', '--e:'],
+  ['700 Brand var(--x)', '--x:Sans'],
+  ['15px/var(--lh) Inter', '--lh:if(x)'],
+  ['var(--font)', '--font:italic var(--x) Sans'],
+])
+  test(`shorthand family joins remain unknown ${value} with ${declarations}`, () => {
+    assert.throws(() => servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []), /reach is unknown/);
+  });
+test('shorthand exemptions inspect JS registrations', async () => {
+  await assert.rejects(
+    trackedLedger([{ styleSheetId: 'app', text: '.t{font:italic var(--x) Sans}' }], {
+      registrations: [{ propertyName: '--x', initialValue: { text: '15px Brand' } }],
+    }),
+    /reach is unknown/,
+  );
 });
