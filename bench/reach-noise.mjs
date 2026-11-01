@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { parseArgs, isDeepStrictEqual } from 'node:util';
 import { classifyRuleReach } from '../dist/rule-reach.js';
 import { diffStyleMaps } from '../dist/diff.js';
-import { classVocabulary, classReach, jsReach, lineExecution, diffHunks } from './reach-joins.mjs';
+import { classVocabulary, classReach, jsReach, lineExecution, diffHunks, coverageProjection } from './reach-joins.mjs';
 import { flagOf, autoLabel, aggregate, privateOutOk, selectPairs } from './reach-noise-lib.mjs';
 
 const { values: a } = parseArgs({
@@ -185,6 +185,19 @@ try {
   write('step0.json', { status: 'GO' });
   command(a.gate, out, 'load.log');
   const twice = capture(pairs[0].base, '-determinism');
+  const firstProjection = coverageProjection(first);
+  const twiceProjection = coverageProjection(twice);
+  const coverageSurfaces = [...new Set([...Object.keys(firstProjection), ...Object.keys(twiceProjection)])];
+  const rawBySurface = (data, surface) => data.coverage.filter((c) => c.surface === surface);
+  const projectionDrift = coverageSurfaces.filter(
+    (s) => !isDeepStrictEqual(firstProjection[s], twiceProjection[s]),
+  ).length;
+  const thirdPartyOnly = coverageSurfaces.filter(
+    (s) =>
+      !isDeepStrictEqual(rawBySurface(first, s), rawBySurface(twice, s)) &&
+      isDeepStrictEqual(firstProjection[s], twiceProjection[s]),
+  ).length;
+  const determinism = { projectionDrift, thirdPartyOnly, surfaces: coverageSurfaces.length };
   const stable = Object.keys(first.maps).every(
     (s) =>
       twice.maps[s] &&
@@ -193,14 +206,14 @@ try {
   );
   if (
     !stable ||
-    !isDeepStrictEqual(first.coverage, twice.coverage) ||
+    !isDeepStrictEqual(firstProjection, twiceProjection) ||
     !isDeepStrictEqual(Object.keys(first.maps), Object.keys(twice.maps))
   ) {
-    write('determinism.json', { status: 'FAILED' });
+    write('determinism.json', { status: 'FAILED', ...determinism });
     summary('unmeasured: harness non-deterministic');
     process.exit(1);
   }
-  write('determinism.json', { status: 'PASSED' });
+  write('determinism.json', { status: 'PASSED', ...determinism });
   command(a.gate, out, 'load.log');
   for (const pair of pairs) {
     if (counts.replayed >= 12 || Date.now() >= deadline) break;
