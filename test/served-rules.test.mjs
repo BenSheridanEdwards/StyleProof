@@ -259,6 +259,8 @@ test('font shorthands and function values resolve candidate names', () => {
     ['font: 16px --weird', '--weird'],
     ['font-family: /*a*/ --weird', '--weird'],
     ['animation: --x 1s steps(2)', '--x'],
+    ['animation: --x 1s', '--x'],
+    ['animation-name: --x', '--x'],
     ['font: 700 16px/normal Brand Sans', 'Brand Sans'],
     ['font: bold Brand Sans', 'Brand Sans'],
     ['font: italic 700 16px/1.5 "Brand Sans", serif', 'Brand Sans'],
