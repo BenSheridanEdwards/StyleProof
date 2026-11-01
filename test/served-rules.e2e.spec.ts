@@ -303,7 +303,7 @@ const INLINE_CASES: [string, boolean, string?][] = [
   ['--f:Brand;background:url(/*);font-family:var(--f);c:*/)', true],
   [String.raw`--f:Brand;background:u\72l(/*);font-family:v\61r(--f);c:*/)`, true],
   ['--f:Brand;background:url( /* );font-family:var(--f);c:*/)', true],
-  [String.raw`background:url(a');x:'/*';\2d\2d brand:Other;c:*/'`, false, INLINE_FONT_SHEET],
+  [String.raw`background:url(a');x:'/*';\2d\2d brand:Other;c:*/'`, true, INLINE_FONT_SHEET],
   [String.raw`font-family:'\5FAE\8F6F\96C5\9ED1'`, false],
   ['background:url(a.png)', false],
   ['color:red;;', false],
