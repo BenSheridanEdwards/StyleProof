@@ -70,7 +70,7 @@ const TYPE_STRIPPING_UNAVAILABLE = (() => {
 
 /** Isolated git repo so upward walk stops at this root, not the StyleProof checkout. */
 function mkRepoTree(symlinked = false) {
-  const temp = fs.realpathSync(mkTmp('styleproof-config-discover-'));
+  const temp = mkTmp('styleproof-config-discover-');
   let root = temp;
   if (symlinked) {
     const real = path.join(temp, 'real');
@@ -559,8 +559,8 @@ test('styleproof-map: missing config from a nested cwd fails closed and lists se
     assert.match(map.stderr, /searched/i);
     assert.match(map.stderr, /styleproof\.config\.ts/);
     assert.match(map.stderr, /styleproof\.config\.json/);
-    assert.ok(map.stderr.includes(path.join(nested, 'styleproof.config.ts')));
-    assert.ok(map.stderr.includes(path.join(root, 'styleproof.config.json')));
+    assert.ok(map.stderr.includes(path.join(fs.realpathSync(nested), 'styleproof.config.ts')));
+    assert.ok(map.stderr.includes(path.join(fs.realpathSync(root), 'styleproof.config.json')));
   } finally {
     rmTmp(root);
   }
@@ -737,8 +737,8 @@ test('styleproof-map: unresolved styleproof from a nested cwd lists searched pac
     assert.equal(map.status, 2, map.stderr + map.stdout);
     assert.match(map.stderr, /styleproof\.config\.ts/);
     assert.match(map.stderr, /searched package roots/i);
-    assert.ok(map.stderr.includes(nested), map.stderr);
-    assert.ok(map.stderr.includes(root), map.stderr);
+    assert.ok(map.stderr.includes(fs.realpathSync(nested)), map.stderr);
+    assert.ok(map.stderr.includes(fs.realpathSync(root)), map.stderr);
     assert.doesNotMatch(map.stderr, /no StyleProof spec at e2e\/styleproof\.spec\.ts/);
   } finally {
     rmTmp(root);
@@ -756,8 +756,7 @@ test('loadStyleProofConfig: unresolved styleproof fails closed and lists searche
         assert.match(error.message, /styleproof\.config\.ts/);
         assert.match(error.message, /could not be evaluated|Cannot find package/);
         assert.match(error.message, /searched package roots/i);
-        assert.ok(error.message.includes(fs.realpathSync(nested)), error.message);
-        assert.ok(error.message.includes(fs.realpathSync(root)), error.message);
+        assertSearchedRoots(error.message, [nested, root]);
         assertNoSoftDefaultSpec(error);
         return true;
       },
@@ -766,6 +765,18 @@ test('loadStyleProofConfig: unresolved styleproof fails closed and lists searche
     rmTmp(root);
   }
 });
+
+function assertSearchedRoots(message, expected) {
+  const section = message.split('  searched package roots:\n')[1];
+  assert.ok(section, message);
+  const roots = section
+    .split('\n')
+    .filter((line) => line.startsWith('    '))
+    .map((line) => line.trim());
+  assert.equal(roots.length, new Set(roots).size, message);
+  for (const root of roots) assert.equal(root, fs.realpathSync(root), message);
+  for (const root of expected) assert.ok(roots.includes(fs.realpathSync(root)), message);
+}
 
 function commitHostApp(root) {
   execFileSync('git', ['config', 'user.email', 'styleproof@example.test'], { cwd: root, stdio: 'pipe' });
@@ -874,16 +885,15 @@ test('loadStyleProofConfig: probe worktree without a host styleproof install fai
     commitHostApp(root);
     probe = addDetachedProbeWorktree(root);
     fs.symlinkSync(path.dirname(probe), path.join(temp, 'probe-link'), 'dir');
-    probe = path.join(temp, 'probe-link', 'worktree');
-    const probeConfig = path.join(probe, 'hud', 'styleproof.config.ts');
+    const linkedProbe = path.join(temp, 'probe-link', 'worktree');
+    const probeConfig = path.join(linkedProbe, 'hud', 'styleproof.config.ts');
     assert.equal(fs.existsSync(path.join(probe, 'node_modules')), false);
     assert.throws(
-      () => loadStyleProofConfig(path.join(probe, 'hud')),
+      () => loadStyleProofConfig(path.join(linkedProbe, 'hud')),
       (error) => {
         assert.match(error.message, /could not be evaluated/);
         assert.match(error.message, /searched package roots/i);
-        assert.ok(error.message.includes(fs.realpathSync(path.dirname(probeConfig))), error.message);
-        assert.ok(error.message.includes(fs.realpathSync(root)), error.message);
+        assertSearchedRoots(error.message, [path.dirname(probeConfig), probe, root]);
         assertNoSoftDefaultSpec(error);
         return true;
       },
@@ -905,14 +915,13 @@ test('unloadableStyleProofConfigMessage: probe worktree names the host package r
     commitHostApp(root);
     probe = addDetachedProbeWorktree(root);
     fs.symlinkSync(path.dirname(probe), path.join(temp, 'probe-link'), 'dir');
-    probe = path.join(temp, 'probe-link', 'worktree');
+    const linkedProbe = path.join(temp, 'probe-link', 'worktree');
     const error = new Error("Cannot find package 'styleproof' imported from styleproof.config.ts");
     error.code = 'ERR_MODULE_NOT_FOUND';
-    const message = unloadableStyleProofConfigMessage(path.join(probe, 'hud', 'styleproof.config.ts'), error);
+    const message = unloadableStyleProofConfigMessage(path.join(linkedProbe, 'hud', 'styleproof.config.ts'), error);
     assert.match(message, /could not be evaluated/);
     assert.match(message, /searched package roots/i);
-    assert.ok(message.includes(fs.realpathSync(path.join(probe, 'hud'))), message);
-    assert.ok(message.includes(fs.realpathSync(root)), message);
+    assertSearchedRoots(message, [path.join(linkedProbe, 'hud'), probe, root]);
     assertNoSoftDefaultSpec(message);
   } finally {
     if (probe) removeProbeWorktree(root, probe);
@@ -930,8 +939,7 @@ test('unloadableStyleProofConfigMessage: names searched package roots for an unr
     const message = unloadableStyleProofConfigMessage(filePath, error);
     assert.match(message, /could not be evaluated/);
     assert.match(message, /searched package roots/i);
-    assert.ok(message.includes(fs.realpathSync(nested)), message);
-    assert.ok(message.includes(fs.realpathSync(root)), message);
+    assertSearchedRoots(message, [nested, root]);
     assertNoSoftDefaultSpec(message);
   } finally {
     rmTmp(root);
