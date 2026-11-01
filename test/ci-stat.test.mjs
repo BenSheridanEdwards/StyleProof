@@ -13,6 +13,77 @@ const job = (created, start, end, extra = {}) => ({
 const run = { id: 1, created_at: time(0), run_started_at: time(0), status: 'completed', conclusion: 'success' };
 const stats = (jobs, extra = {}) => attemptStats({ ...run, ...extra }, jobs);
 
+test('attempt one includes the wait before run_started_at', () => {
+  const row = stats([job(35, 35, 45)], { run_started_at: time(30) });
+  assert.equal(row.run_queue, 35);
+  assert.equal(row.wall, 45);
+  assert.equal(row.queue_time, 35);
+});
+test('live attempts exclude carried jobs by attempt identity', () => {
+  const output = [];
+  const exec = (_, args) => {
+    const endpoint = args[1];
+    if (endpoint.includes('/workflows/')) return JSON.stringify({ workflow_runs: [{ ...run, run_attempt: 2 }] });
+    const second = endpoint.includes('/attempts/2');
+    if (!endpoint.includes('/jobs')) return JSON.stringify({ ...run, run_started_at: time(second ? 100 : 0) });
+    const carried = job(0, 1, 10, { run_attempt: 1 });
+    // Its clock overlaps attempt two, but its explicit identity still belongs to attempt one.
+    const overlapping = job(100, 102, 120, { run_attempt: 1 });
+    return JSON.stringify({
+      jobs: second ? [carried, overlapping, job(100, 101, 110, { run_attempt: 2 })] : [carried],
+    });
+  };
+  main(['--live', '--json'], { exec, write: (value) => output.push(value) });
+  assert.equal(JSON.parse(output[0]).rows.find((row) => row.id === '1#2').run_time, 9);
+});
+test('fixture reruns require attempt metadata', () => {
+  assert.throws(
+    () =>
+      main(['--fixture', 'fixture.json'], {
+        read: () => JSON.stringify({ runs: [{ ...run, run_attempt: 2 }], jobs: {} }),
+        write: () => {},
+      }),
+    /Missing attempt metadata/,
+  );
+});
+test('live pagination includes jobs after the first hundred', () => {
+  const calls = [];
+  const output = [];
+  const exec = (_, args) => {
+    const endpoint = args[1];
+    calls.push(endpoint);
+    if (endpoint.includes('/workflows/')) return JSON.stringify({ workflow_runs: [run] });
+    if (!endpoint.includes('/jobs')) return JSON.stringify(run);
+    return JSON.stringify({
+      jobs: endpoint.includes('&page=2') ? [job(10, 11, 30)] : Array.from({ length: 100 }, () => job(0, 1, 10)),
+    });
+  };
+  main(['--live', '--json'], { exec, write: (value) => output.push(value) });
+  assert.ok(calls.some((endpoint) => endpoint.endsWith('&page=2')));
+  assert.equal(JSON.parse(output[0]).rows[0].wall, 30);
+  assert.equal(JSON.parse(output[0]).rows[0].run_time, 28);
+});
+test('bare live and json are rejected before reading data', () => {
+  for (const args of [
+    ['live', '--json'],
+    ['--fixture', 'fixture.json', 'json'],
+  ]) {
+    assert.equal(
+      main(args, {
+        exec: () => JSON.stringify({ workflow_runs: [] }),
+        read: () => JSON.stringify({ runs: [], jobs: {} }),
+        write: () => {},
+      }),
+      2,
+    );
+  }
+});
+test('skewed jobs cannot move the chain cursor forwards into overlapping work', () => {
+  const row = stats([job(0, 50, 100), job(0, 90, 40), job(0, 20, 30), job(0, 35, 39)]);
+  assert.equal(row.run_time, 64);
+  assert.equal(row.queue_time, 36);
+});
+
 test('linear chain partitions wall into queue and execution seconds', () => {
   const row = stats([job(2, 5, 15), job(15, 20, 40), job(40, 42, 43)]);
   assert.equal(row.run_time, 31);
