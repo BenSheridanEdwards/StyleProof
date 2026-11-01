@@ -249,13 +249,59 @@ function fontFamily(family: string): string {
   return family;
 }
 
+/** Literal names and every identifier sub-run, including inside function arguments. */
+function candidateToken(value: string): { text: string; identifier: boolean } {
+  const number = /^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?(?:[\w-]+|%)?/.exec(value);
+  const identifier = /^-?[_a-zA-Z\u0080-\uffff][\w\u0080-\uffff-]*/.exec(value);
+  return { text: number?.[0] ?? identifier?.[0] ?? value[0], identifier: !number && !!identifier };
+}
+
+function identifierSuffixes(run: string[]): string[] {
+  return run.map((_, start) => run.slice(start).join(' '));
+}
+
+function candidateNames(value: string): string[] {
+  const names: string[] = [];
+  let run: string[] = [];
+  for (let i = 0; i < value.length;) {
+    const end = referenceEnd(value, i);
+    if (/["']/.test(value[i])) {
+      names.push(value.slice(i + 1, end - 1));
+      run = [];
+    }
+    if (end > i) {
+      i = end;
+      continue;
+    }
+    if (/\s/.test(value[i])) {
+      i++;
+      continue;
+    }
+    const token = candidateToken(value.slice(i));
+    const functionName = token.identifier && value[i + token.text.length] === '(';
+    if (functionName && /^(var|env|attr)$/i.test(token.text)) unknown('unsupported font or animation dependency');
+    if (token.identifier && !functionName) {
+      run.push(token.text);
+      names.push(...identifierSuffixes(run));
+    } else {
+      run = [];
+    }
+    i += token.text.length;
+  }
+  return names;
+}
+
 /** Identifiers in `animation`/`font` declarations: candidate @keyframes and @font-face names. */
 function referencedNames(values: [string, string][]): string[] {
   const names = values.flatMap(([property, value]) => {
     if (!/^(animation(?:-name)?|font(?:-family)?)$/i.test(property)) return [];
-    if (/^font$/i.test(property) || /\\|\/\*|\(/.test(value)) unknown('unsupported font or animation dependency');
-    if (/^font-family$/i.test(property)) return commaValues(value).map(fontFamily);
-    if (/["']/.test(value)) unknown('unsupported animation dependency');
+    if (/\\/.test(value)) unknown('unsupported font or animation dependency');
+    const candidates = candidateNames(value);
+    if (/^font-family$/i.test(property) && !/\/\*|\(/.test(value)) return commaValues(value).map(fontFamily);
+    if (/^font/i.test(property)) return candidates;
+    if (candidates.some((name) => !/^[-\w ]+$/.test(name)) || /["']/.test(value.replace(/\/\*[\s\S]*?\*\//g, '')))
+      unknown('unsupported animation dependency');
+    if (/\/\*|\(/.test(value)) return candidates;
     return value.split(/[\s,]+/).filter((t) => /^-?[_a-zA-Z][\w-]*$/.test(t));
   });
   return [...new Set(names)];
@@ -279,6 +325,8 @@ function servedEntries(text: string, used: readonly UsedRange[]): ServedEntry[] 
       ? leafRules(rule.body).flatMap((frame) => declarations(frame.body))
       : declarations(rule.body);
     const refs = referencedNames(values);
+    if (/^@font-face$/i.test(rule.prelude) && values.some(([property]) => /^font$/i.test(property)))
+      unknown('unsupported font or animation dependency');
     return {
       chain: rule.chain,
       prelude: rule.prelude,
