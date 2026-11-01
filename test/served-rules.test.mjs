@@ -1225,11 +1225,11 @@ test('non-ASCII escaped URL names preserve identifier boundaries', () => {
     assert.throws(() => servedRulesOf(css, []), /reach is unknown: ambiguous unquoted URL dependency$/);
   }
   for (const value of [
-    String.raw`é\75rl(`,
-    String.raw`\e9 \75rl(`,
-    String.raw`\75rl\e9(`,
-    String.raw`\ff55\ff52\ff4c(`,
-    '\u00a0\\75rl(',
+    String.raw`é\75rl(x.png)`,
+    String.raw`\e9 \75rl(x.png)`,
+    String.raw`\75rl\e9(x.png)`,
+    String.raw`\ff55\ff52\ff4c(x.png)`,
+    '\u00a0\\75rl(x.png)',
   ]) {
     assert.doesNotThrow(() => urlGuard(`.t{list-style:${value}}`));
   }

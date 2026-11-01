@@ -562,11 +562,11 @@ test('Chromium oracle agrees with non-ASCII escaped URL name boundaries', async 
   for (const value of [
     String.raw`é \75rl(x.png)`,
     String.raw`\e9  \75rl(x.png)`,
-    String.raw`é\75rl(`,
-    String.raw`\e9 \75rl(`,
-    String.raw`\75rl\e9(`,
-    String.raw`\ff55\ff52\ff4c(`,
-    '\u00a0\\75rl(',
+    String.raw`é\75rl(x.png)`,
+    String.raw`\e9 \75rl(x.png)`,
+    String.raw`\75rl\e9(x.png)`,
+    String.raw`\ff55\ff52\ff4c(x.png)`,
+    '\u00a0\\75rl(x.png)',
   ]) {
     let guardRejects = false;
     try {

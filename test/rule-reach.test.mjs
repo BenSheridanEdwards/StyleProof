@@ -940,8 +940,36 @@ for (const scenario of [
     const heads = [head, scenario.split ? map(...bodies) : head];
     const result = classifyRuleReach(bases, heads);
     assert.deepEqual(result, classifyRuleReach([...bases].reverse(), [...heads].reverse()));
+    if (scenario.name === 'new unmatched selector') assert.equal(statusOf(result, '.a').status, 'reached');
     const verdict = statusOf(result, merged);
     assert.equal(verdict.status, scenario.why ? 'never-rendered' : 'reached');
     if (scenario.why) assert.match(verdict.why, new RegExp(`consumer ${scenario.why.replace('.', '\\.')} `));
   });
 }
+
+for (const absentRoute of [false, true]) {
+  test(`declaration move with inherited reader, absent base route=${absentRoute}`, () => {
+    const reader = rule('.a .w', 'reader', { uses: ['--o'] });
+    const base = map(
+      rule('.a', 'a', { used: true, vars: { '--o': 'h1' } }),
+      rule('.b', 'b', { used: true, vars: { '--o': 'h1' } }),
+      reader,
+    );
+    const head = map(rule('.a,.b', 'merged', { used: true, vars: { '--o': 'h1' } }), reader);
+    const bases = [base, absentRoute ? map(rule('.z', 'z', { used: true }), reader) : base];
+    const result = classifyRuleReach(bases, [head, head]);
+    for (const key of ['.a', '.b', '.a,.b']) {
+      assert.equal(statusOf(result, key).status, absentRoute ? 'never-rendered' : 'reached');
+      if (absentRoute) assert.match(statusOf(result, key).why, /consumer \.a \.w never matched/);
+    }
+    assert.deepEqual(result, classifyRuleReach([...bases].reverse(), [head, head]));
+  });
+}
+
+test('selector comments cannot supply a declaration for another selector', () => {
+  const reader = rule('.a .w', 'reader', { uses: ['--o'] });
+  const commented = rule('.x/*,.a,*/', 'comment', { used: true, vars: { '--o': 'h1' } });
+  const base = map(rule('.a', 'old', { used: true, vars: { '--o': 'h1' } }), commented, reader);
+  const head = map(rule('.a', 'new', { used: true }), commented, reader);
+  assert.equal(statusOf(classifyRuleReach([base], [head]), '.a').status, 'never-rendered');
+});
