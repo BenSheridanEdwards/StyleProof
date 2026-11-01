@@ -2,6 +2,11 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+// Fixtures: { runs: [...], attempts: { 'runId#attempt': metadata },
+// jobs: { 'runId#attempt': [...] } }; reruns require attempt metadata.
+// The greedy temporal chain makes queue_time an upper bound on waiting time.
+// Attempts with any unstarted job are excluded from summary aggregates.
+
 export function percentile(values, p) {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted.length ? sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)] : null;
@@ -23,7 +28,13 @@ export function attemptStats(run, jobs, now = Date.now()) {
     return Math.max(0, value);
   };
   const measured = jobs
-    .filter((job) => job.conclusion !== 'skipped' && (!job.started_at || Date.parse(job.started_at) >= origin))
+    .filter(
+      (job) =>
+        job.conclusion !== 'skipped' &&
+        (job.run_attempt != null
+          ? job.run_attempt === attempt
+          : !job.started_at || Date.parse(job.started_at) >= origin),
+    )
     .map((job) => {
       if (!job.created_at) row.missing_created++;
       const created = job.created_at ? Date.parse(job.created_at) : origin;
@@ -44,7 +55,7 @@ export function attemptStats(run, jobs, now = Date.now()) {
   for (const job of [...started].sort((a, b) => b.end - a.end)) {
     if (job.end <= cursor) {
       execution += job.duration;
-      cursor = job.start;
+      cursor = Math.min(cursor, job.start);
     }
   }
   const wall = started.length ? (Math.max(...started.map((job) => job.end)) - origin) / 1000 : null;
@@ -113,6 +124,7 @@ function liveData(options, exec) {
 function parseArgs(args) {
   const options = { repo: 'BenSheridanEdwards/StyleProof', workflow: 'ci.yml', limit: '40' };
   for (let i = 0; i < args.length; i++) {
+    if (!args[i].startsWith('--')) throw new Error(`Expected -- option: ${args[i]}`);
     const key = args[i].replace(/^--/, '');
     if (['live', 'json'].includes(key)) options[key] = true;
     else if (['fixture', 'repo', 'workflow', 'limit'].includes(key) && args[i + 1] && !args[i + 1].startsWith('--'))
