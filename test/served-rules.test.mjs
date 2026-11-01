@@ -1118,3 +1118,36 @@ for (const style of [
     );
   });
 }
+
+for (const [style, text] of [
+  [String.raw`background:url(/*);\2d\2d brand:Other;c:*/)`, ':root{--brand:Brand} .t{font-family:var(--brand)}'],
+  [String.raw`--f:Brand;background:url(/*);font-family:v\61r(--f);c:*/)`, '.t{color:red}'],
+  ['--f:Brand;background:url(/*);font-family:var(--f);c:*/)', '.t{color:red}'],
+  [String.raw`--f:Brand;background:u\72l(/*);font-family:v\61r(--f);c:*/)`, '.t{color:red}'],
+  ['--f:Brand;background:url( /* );font-family:var(--f);c:*/)', '.t{color:red}'],
+  [String.raw`background:url(a');x:'/*';\2d\2d brand:Other;c:*/'`, ':root{--brand:Brand} .t{font-family:var(--brand)}'],
+])
+  test(`unsafe escaped inline dependency stays unknown with URL: ${JSON.stringify(style)}`, async () => {
+    await assert.rejects(
+      trackedLedger([{ styleSheetId: 'app', text }], { document: { children: [{ attributes: ['style', style] }] } }),
+      /reach is unknown/,
+    );
+  });
+test('ordinary inline URL captures', async () => {
+  await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
+    document: { children: [{ attributes: ['style', 'background:url(a.png)'] }] },
+  });
+});
+const ambiguousFontURL = '.a{background:url(/*)}:root{--f:Other}.z{c:*/)}';
+test('ambiguous sheet URLs fail closed when font variables resolve', async () => {
+  const text = ambiguousFontURL + ' .t{font-family:var(--f)}';
+  assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
+  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+});
+test('ambiguous sheet URLs without font variable readers retain existing parsing', async () => {
+  assert.deepEqual(
+    servedRulesOf(ambiguousFontURL, []).map((r) => r.key),
+    ['.a'],
+  );
+  await trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]);
+});
