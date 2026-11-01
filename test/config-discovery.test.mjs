@@ -70,7 +70,7 @@ const TYPE_STRIPPING_UNAVAILABLE = (() => {
 
 /** Isolated git repo so upward walk stops at this root, not the StyleProof checkout. */
 function mkRepoTree(symlinked = false) {
-  const temp = mkTmp('styleproof-config-discover-');
+  const temp = fs.realpathSync(mkTmp('styleproof-config-discover-'));
   let root = temp;
   if (symlinked) {
     const real = path.join(temp, 'real');
@@ -756,8 +756,8 @@ test('loadStyleProofConfig: unresolved styleproof fails closed and lists searche
         assert.match(error.message, /styleproof\.config\.ts/);
         assert.match(error.message, /could not be evaluated|Cannot find package/);
         assert.match(error.message, /searched package roots/i);
-        assert.ok(error.message.includes(nested), error.message);
-        assert.ok(error.message.includes(root), error.message);
+        assert.ok(error.message.includes(fs.realpathSync(nested)), error.message);
+        assert.ok(error.message.includes(fs.realpathSync(root)), error.message);
         assertNoSoftDefaultSpec(error);
         return true;
       },
@@ -930,8 +930,8 @@ test('unloadableStyleProofConfigMessage: names searched package roots for an unr
     const message = unloadableStyleProofConfigMessage(filePath, error);
     assert.match(message, /could not be evaluated/);
     assert.match(message, /searched package roots/i);
-    assert.ok(message.includes(nested), message);
-    assert.ok(message.includes(root), message);
+    assert.ok(message.includes(fs.realpathSync(nested)), message);
+    assert.ok(message.includes(fs.realpathSync(root)), message);
     assertNoSoftDefaultSpec(message);
   } finally {
     rmTmp(root);
