@@ -587,7 +587,7 @@ function guardAmbiguousURLs(text: string): void {
     const prefix = text.slice(Math.max(0, open - 32), open);
     if (!prefix.includes('\\')) continue;
     const ident = /(?:[\w\u0080-\uffff-]|\\(?:[\da-f]{1,6}(?:\r\n|[ \t\r\n\f])?|[^\r\n\f\da-f]))+$/i.exec(prefix)?.[0];
-    if (!ident) continue;
+    if (!ident?.includes('\\')) continue;
     const decoded = ident.replace(
       /\\(?:([\da-f]{1,6})(?:\r\n|[ \t\r\n\f])?|([^\r\n\f\da-f]))/gi,
       (_escape, hex: string | undefined, literal: string) => {

@@ -18,6 +18,13 @@ import { resolveSettings } from '../dist/runner/settings.js';
 import { servedRulesOf } from '../dist/capture/reach.js';
 
 test('Chromium oracle agrees with accepted reader declaration boundaries', async ({ page }) => {
+  expect(
+    await page.evaluate(() => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync('.t{background:\u00a0\\75rl(x.png)}');
+      return (sheet.cssRules[0] as CSSStyleRule).style.background;
+    }),
+  ).toBe('');
   // Expose the existing reader only in this test module; production exports stay unchanged.
   const source = fs
     .readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8')
@@ -37,6 +44,11 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
     String.raw`.t{background:url(a\ b.png);font-family:Other}`,
     '.t{background:url("a;{}.png");font-family:Other}',
     '.t{background:url(a.png)}.u{animation-name:k;--y:"x"}',
+    String.raw`.t{background:url(a\28 b);font-family:Other}`,
+    String.raw`.t{background:url(a\/*b);font-family:Other}`,
+    String.raw`.t{background:url(a b\)c);font-family:Other}`,
+    '@media all{.t{font-family:Other;--x:";{}"}}',
+    '.t{background:\u00a0\\75rl(x.png);font-family:Other}',
   ]) {
     try {
       servedRulesOf(css, []);
@@ -78,8 +90,22 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
     );
     expect(result.actual, css).toEqual(result.expected);
   }
-  expect(accepted).toBe(6);
+  expect(accepted).toBe(11);
 });
+
+for (const ambiguous of [false, true]) {
+  test(`same-process iframe stylesheet, ambiguous=${ambiguous}`, async ({ page }) => {
+    const servedRules = await trackServedRules(page);
+    await page.setContent('<iframe></iframe>');
+    const frame = page.frames().find((candidate) => candidate !== page.mainFrame())!;
+    await frame.setContent(
+      `<style>@font-face{font-family:Other;src:url(x.woff2)}.t{font-family:Other;background:${ambiguous ? 'url(a(b);c:x)' : 'url(x.png)'}}</style><p class="t">x</p>`,
+    );
+    const capture = captureStyleMap(page, { captureReach: true, servedRules });
+    if (ambiguous) await expect(capture).rejects.toThrow(/reach is unknown/);
+    else expect((await capture).reach?.rules.some((entry) => entry.refs?.includes('Other'))).toBe(true);
+  });
+}
 
 for (const ambiguous of [false, true]) {
   test(`cross-origin URL sheet without CORS, ambiguous=${ambiguous}`, async ({ page }) => {
