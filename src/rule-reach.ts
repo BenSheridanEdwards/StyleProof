@@ -9,6 +9,9 @@
  * is judged only on head if the old body matched on base, or both bodies were served
  * in every map of their respective side with equal map counts. Other route pairings
  * are ambiguous.
+ * Declaration moves are stable only when every served value agrees and each selector
+ * declares the property on both sides in every map serving that selector. Self-declaring
+ * readers are shielded only for that agreed value and no other closure alias.
  * Pure: no browser, no I/O.
  *
  * Statuses:
@@ -60,6 +63,7 @@ export type RuleReachResult = {
 
 type Variant = ServedRule & { sheetLabel: string; id: string };
 type Side = {
+  selectorVars: Map<string, Set<string>>;
   mapCount: number;
   /** Every distinct key + body the side served, by `variantId`. */
   variants: Map<string, Variant>;
@@ -94,8 +98,26 @@ function recordRule(side: Side, rule: ServedRule, label: string): void {
   if (rule.outside) side.outside.add(id);
 }
 
+/** Intersect declarations across maps that serve each selector. */
+function recordSelectorVars(side: Side, rules: readonly ServedRule[]): void {
+  const declared = new Map<string, Set<string>>();
+  for (const rule of rules) {
+    for (const selector of selectorsOf(rule.key) ?? []) {
+      const key = `${conditionOf(rule.key) ?? ''}\u0000${selector}`;
+      const props = declared.get(key) ?? new Set<string>();
+      for (const prop of Object.keys(rule.vars ?? {})) props.add(prop);
+      declared.set(key, props);
+    }
+  }
+  for (const [key, props] of declared) {
+    const previous = side.selectorVars.get(key);
+    side.selectorVars.set(key, previous ? new Set([...previous].filter((prop) => props.has(prop))) : props);
+  }
+}
+
 function sideOf(maps: readonly StyleMap[]): Side {
   const side: Side = {
+    selectorVars: new Map(),
     mapCount: maps.length,
     variants: new Map(),
     used: new Set(),
@@ -118,6 +140,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
       side.complete = false;
       continue;
     }
+    recordSelectorVars(side, map.reach.rules);
     const served = new Set(map.reach.rules.map(variantId));
     side.common = new Set([...side.common].filter((id) => served.has(id)));
     for (const rule of map.reach.rules) {
@@ -129,8 +152,8 @@ function sideOf(maps: readonly StyleMap[]): Side {
   return side;
 }
 
-/** Split a key on its top-level ` > ` joins, never inside brackets, parentheses or strings. */
-function keyParts(key: string): string[] {
+/** Split on a top-level separator, never inside brackets, parentheses or strings. */
+function splitTop(key: string, separator: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let quote = '';
@@ -142,13 +165,47 @@ function keyParts(key: string): string[] {
     else if (ch === '"' || ch === "'") quote = ch;
     else if ('([{'.includes(ch)) depth++;
     else if (')]}'.includes(ch)) depth--;
-    else if (depth === 0 && key.startsWith(' > ', i)) {
+    else if (depth === 0 && key.startsWith(separator, i)) {
       parts.push(key.slice(start, i));
-      start = i + 3;
-      i += 2;
+      start = i + separator.length;
+      i += separator.length - 1;
     }
   }
   return [...parts, key.slice(start)];
+}
+
+const keyParts = (key: string): string[] => splitTop(key, ' > ');
+
+function selectorsOf(key: string): string[] | undefined {
+  const prelude = (keyParts(key).at(-1) ?? '').replace(/ #\d+$/, '');
+  return prelude.startsWith('@') ? undefined : splitTop(prelude, ',').map((selector) => selector.trim());
+}
+
+type Context = { agreed: (prop: string) => string | undefined; stable: (key: string, prop: string) => boolean };
+
+function contextOf(base: Side, head: Side): Context {
+  const hashes = new Map<string, Set<string>>();
+  for (const rule of [...base.sorted, ...head.sorted]) {
+    for (const [prop, hash] of Object.entries(rule.vars ?? {})) {
+      const values = hashes.get(prop) ?? new Set<string>();
+      values.add(hash);
+      hashes.set(prop, values);
+    }
+  }
+  const agreed = (prop: string): string | undefined => {
+    const values = hashes.get(prop);
+    return values?.size === 1 ? [...values][0] : undefined;
+  };
+  return {
+    agreed,
+    stable: (key, prop) =>
+      agreed(prop) !== undefined &&
+      (selectorsOf(key)?.every((selector) => {
+        const id = `${conditionOf(key) ?? ''}\u0000${selector}`;
+        return base.selectorVars.get(id)?.has(prop) && head.selectorVars.get(id)?.has(prop);
+      }) ??
+        false),
+  };
 }
 
 /** The leading at-rule segments of a key (`@media (width > 600px) > @supports (…)`), if any. */
@@ -188,13 +245,13 @@ function dependencyOf(variant: Variant): Dependency | undefined {
 }
 
 /** Custom properties this body changes: a new value, or one it no longer declares. */
-function changedVars(v: Variant, before: readonly Variant[]): string[] {
+function changedVars(v: Variant, before: readonly Variant[], ctx: Context): string[] {
   // Without a unique counterpart, every other-side body must agree to prove no change.
   const own = Object.entries(v.vars ?? {})
     .filter(([prop, value]) => !before.length || !before.every((b) => b.vars?.[prop] === value))
     .map(([prop]) => prop);
   const dropped = before.flatMap((b) => Object.keys(b.vars ?? {})).filter((prop) => !Object.hasOwn(v.vars ?? {}, prop));
-  return [...new Set([...own, ...dropped])].sort();
+  return [...new Set([...own, ...dropped])].filter((prop) => !ctx.stable(v.key, prop)).sort();
 }
 
 function tokenClosure(side: Side, seed: string): Set<string> {
@@ -216,11 +273,21 @@ function tokenShortfall(
   v: Variant,
   side: Side,
   before: readonly Variant[],
+  ctx: Context,
 ): Pick<RuleReach, 'status' | 'why'> | undefined {
   let unmeasured: Pick<RuleReach, 'status' | 'why'> | undefined;
-  for (const prop of changedVars(v, before)) {
+  for (const prop of changedVars(v, before, ctx)) {
     const closure = tokenClosure(side, prop);
-    const idle = side.sorted.filter((r) => r.uses?.some((used) => closure.has(used)) && !side.used.has(r.id));
+    const idle = side.sorted.filter(
+      (r) =>
+        r.uses?.some((used) => closure.has(used)) &&
+        !side.used.has(r.id) &&
+        !(
+          ctx.agreed(prop) !== undefined &&
+          r.vars?.[prop] === ctx.agreed(prop) &&
+          (r.uses ?? []).every((used) => !closure.has(used) || used === prop)
+        ),
+    );
     const consumer = idle.find((r) => !side.outside.has(r.id)) ?? idle[0];
     if (consumer) {
       const via = consumer.uses?.includes(prop) ? prop : consumer.uses?.filter((used) => closure.has(used)).sort()[0];
@@ -247,9 +314,14 @@ function tokenShortfall(
 }
 
 /** An unmatched body stays unmeasured unless it or a required consumer never matched. */
-function unmatchedShortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<RuleReach, 'key' | 'change'> {
+function unmatchedShortfall(
+  v: Variant,
+  side: Side,
+  before: readonly Variant[],
+  ctx: Context,
+): Omit<RuleReach, 'key' | 'change'> {
   if (side.outside.has(v.id)) {
-    const token = tokenShortfall(v, side, before);
+    const token = tokenShortfall(v, side, before, ctx);
     if (token?.status === 'never-rendered') return token;
     return {
       status: 'unmeasured',
@@ -262,7 +334,12 @@ function unmatchedShortfall(v: Variant, side: Side, before: readonly Variant[]):
 }
 
 /** Why one changed body is not `reached` on the side that judges it, or undefined when it is. */
-function shortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<RuleReach, 'key' | 'change'> | undefined {
+function shortfall(
+  v: Variant,
+  side: Side,
+  before: readonly Variant[],
+  ctx: Context,
+): Omit<RuleReach, 'key' | 'change'> | undefined {
   const sheet = v.sheetLabel ? { sheet: v.sheetLabel } : {};
   const dependency = dependencyOf(v);
   if (dependency) {
@@ -282,13 +359,13 @@ function shortfall(v: Variant, side: Side, before: readonly Variant[]): Omit<Rul
         }
       : { status: 'never-rendered', why: 'no rendered rule references it', ...sheet };
   }
-  if (!side.used.has(v.id)) return { ...unmatchedShortfall(v, side, before), ...sheet };
-  const token = tokenShortfall(v, side, before);
+  if (!side.used.has(v.id)) return { ...unmatchedShortfall(v, side, before, ctx), ...sheet };
+  const token = tokenShortfall(v, side, before, ctx);
   return token ? { ...token, ...sheet } : undefined;
 }
 
 /** One status per changed key: never-rendered, then unmeasured, then blind, then reached. */
-function classifyKey(key: string, base: Side, head: Side): RuleReach | undefined {
+function classifyKey(key: string, base: Side, head: Side, ctx: Context): RuleReach | undefined {
   const was = base.byKey.get(key) ?? [];
   const now = head.byKey.get(key) ?? [];
   const added = now.filter((v) => !base.variants.has(v.id));
@@ -302,8 +379,8 @@ function classifyKey(key: string, base: Side, head: Side): RuleReach | undefined
     (base.used.has(removed[0].id) ||
       (base.mapCount === head.mapCount && base.common.has(removed[0].id) && head.common.has(added[0].id)));
   const results = [
-    ...added.map((v) => shortfall(v, head, was)),
-    ...(inPlace ? [] : removed.map((v) => shortfall(v, base, now))),
+    ...added.map((v) => shortfall(v, head, was, ctx)),
+    ...(inPlace ? [] : removed.map((v) => shortfall(v, base, now, ctx))),
   ];
   const verdict =
     results.find((r) => r?.status === 'never-rendered') ??
@@ -323,10 +400,11 @@ export function classifyRuleReach(baseMaps: readonly StyleMap[], headMaps: reado
   const head = sideOf(headMaps);
   const unreadableSheets = base.unreadable + head.unreadable;
   if (!base.complete || !head.complete) return { ledger: 'missing', rules: [], unreadableSheets };
+  const ctx = contextOf(base, head);
   const keys = [...new Set([...base.byKey.keys(), ...head.byKey.keys()])].sort();
   return {
     ledger: unreadableSheets ? 'partial' : 'complete',
-    rules: keys.flatMap((key) => classifyKey(key, base, head) ?? []),
+    rules: keys.flatMap((key) => classifyKey(key, base, head, ctx) ?? []),
     unreadableSheets,
   };
 }
