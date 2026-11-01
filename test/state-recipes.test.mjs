@@ -19,6 +19,12 @@ import {
   applyStateRecipe,
 } from '../dist/state-recipes.js';
 
+for (const separator of ['\u2022', '\u2e31']) {
+  test(`isUnsafeStateLabel: Sign${separator}in is unsafe`, () => {
+    assert.equal(isUnsafeStateLabel(`Sign${separator}in`), true);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Pure schema validation
 // ---------------------------------------------------------------------------

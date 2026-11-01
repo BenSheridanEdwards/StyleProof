@@ -14,7 +14,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **BREAKING (#1215):** the destructive-action guard also checks a normalized copy of every label source (format and default-ignorable characters stripped, NFKC, middle dots as separators), and digits or underscores now delimit action words, so labels such as Sign + U+2062 + in, De + soft hyphen + lete, fullwidth Ｄｅｌｅｔｅ, `Remove3`, `3Remove` and `_Delete` are unsafe. `We’re starting` stays clickable. Previously clicked controls may now produce unsafe skips; acknowledge them with a reasoned `incompleteUiExclude`.
+- **BREAKING (#1215):** the destructive-action guard also checks a normalized copy of every label source (format and default-ignorable characters stripped, NFKC, middle dots as separators), and digits or underscores now delimit action words, so labels such as Sign + U+2062 + in, De + soft hyphen + lete, fullwidth Ｄｅｌｅｔｅ, `Remove3`, `3Remove` and `_Delete` are unsafe. The new boundaries apply to every source, including `name` attributes, so snake_case names such as `send_email` are unsafe too. `We’re starting` stays clickable. Previously clicked controls may now produce unsafe skips; acknowledge them with a reasoned `incompleteUiExclude`.
+
+- **BREAKING (#1217):** the destructive-action guard also reads open shadow roots, CSS `::before`/`::after` generated text (including mixed content with preserved word boundaries, independent alt text and strings, `attr()` values or fallbacks, `counters()`/`symbols()` strings and custom quotes), `aria-labelledby` targets inside labels and labels of form-associated custom elements. A control whose subtree, label targets and open shadow trees together exceed 200 elements fails closed. Closed shadow roots remain unreadable.
+
 - Seed CI dependency and Playwright browser caches only on default-branch pushes; pull requests restore without saving (#1211).
 - Shard unit coverage across three runners with an 80% merged line-hit floor; retain the local unsharded 40% floor. Separate thresholds preserve comparable headroom because Node's unsharded range merge under-counts covered lines (#1210).
 

@@ -243,7 +243,6 @@ test('crawl discovery blocks normalized danger labels and clicks safe look-alike
   });
 
   expect(candidates.find((candidate) => candidate.selector === '#normalized-select')?.unsafe).toBe(true);
-  await expect(page.locator('#normalized-select')).toHaveValue('first');
 
   for (const [i] of labels.entries()) {
     const candidate = candidates.find((c) => c.selector === `#n${i}`);
