@@ -28,15 +28,23 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
   const reader = await import(
     `data:text/javascript;base64,${Buffer.from(source + '\nexport { leafRules, declarations };').toString('base64')}`
   );
+  let accepted = 0;
   for (const css of [
     '.t{--x:";{}";font-family:"Other";animation-name:k}',
     '.t{/* ;{} */--x:rgb(1,2,3);font-family:Other}',
     String.raw`.t{--x:a\;b;background:url(a\));font-family:Other}`,
+    String.raw`.t{background:url(a\));font-family:Other}`,
     String.raw`.t{background:url(a\ b.png);font-family:Other}`,
     '.t{background:url("a;{}.png");font-family:Other}',
     '.t{background:url(a.png)}.u{animation-name:k;--y:"x"}',
   ]) {
-    servedRulesOf(css, []);
+    try {
+      servedRulesOf(css, []);
+    } catch (error) {
+      expect(String(error)).toMatch(/reach is unknown/);
+      continue;
+    }
+    accepted++;
     const extracted: [string, string][][] = reader
       .leafRules(css)
       .map((leaf: { body: string }) => reader.declarations(leaf.body));
@@ -70,6 +78,7 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
     );
     expect(result.actual, css).toEqual(result.expected);
   }
+  expect(accepted).toBe(6);
 });
 
 for (const ambiguous of [false, true]) {

@@ -503,8 +503,8 @@ function referencedNames(values: [string, string][]): {
  * rule usage only covers style rules, so their reach resolves through `refs`.
  */
 export function servedRulesOf(text: string, used: readonly UsedRange[]): Omit<ServedRule, 'sheet'>[] {
+  guardAmbiguousURLs(text);
   const entries = servedEntries(text, used);
-  if (entries.some((entry) => entry.fontVars.length)) guardAmbiguousURLs(text);
   fontVarRefs(entries);
   return entries.map((entry) => entry.rule);
 }
@@ -579,9 +579,27 @@ function fontVarRefs(entries: ServedEntry[], registrations: [string, string][] =
   return closure;
 }
 
-/** Unquoted URL tokens do not share the parser's string/comment boundaries. */
+/** Guard every read stylesheet: unquoted URLs do not share the reader's boundaries. */
 function guardAmbiguousURLs(text: string): void {
-  if (/url\((?![\s]*['"])[^)]*(\/\*|['"\\(])/i.test(text)) unknown('ambiguous unquoted URL dependency');
+  if (/url\((?![ \t\n\r\f]*['"])(?:\\[\s\S]|[^)\\])*?(?:\/\*|['"(])/i.test(text))
+    unknown('ambiguous unquoted URL dependency');
+  for (let open = text.indexOf('('); open !== -1; open = text.indexOf('(', open + 1)) {
+    const prefix = text.slice(Math.max(0, open - 32), open);
+    if (!prefix.includes('\\')) continue;
+    const ident = /(?:[\w\u0080-\uffff-]|\\(?:[\da-f]{1,6}(?:\r\n|[ \t\r\n\f])?|[^\r\n\f\da-f]))+$/i.exec(prefix)?.[0];
+    if (!ident) continue;
+    const decoded = ident.replace(
+      /\\(?:([\da-f]{1,6})(?:\r\n|[ \t\r\n\f])?|([^\r\n\f\da-f]))/gi,
+      (_escape, hex: string | undefined, literal: string) => {
+        if (!hex) return literal;
+        const point = Number.parseInt(hex, 16);
+        return String.fromCodePoint(
+          !point || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff) ? 0xfffd : point,
+        );
+      },
+    );
+    if (decoded.toLowerCase() === 'url') unknown('ambiguous unquoted URL dependency');
+  }
 }
 
 type InlineRoot = { backendNodeId: number; count: number };
@@ -919,7 +937,6 @@ async function resolveFontVars(
   const inline = await inlineStyles(client, root);
   if (inline.some((summary) => summary.reader)) unknown('inline font or animation variable reference');
   if (allEntries.some((entry) => entry.fontVars.length)) {
-    read.forEach((sheet) => guardAmbiguousURLs(sheet.text));
     if (
       read.some(
         (sheet, index) => sheet.header.frameId !== mainFrame && entries[index].some((entry) => entry.fontVars.length),
@@ -976,6 +993,7 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
     const { ruleUsage } = await client.send('CSS.stopRuleUsageTracking');
     const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
     const { read, unreadable } = await readSheets(client, [...sheets.values()], ownCss, userAgentOwned(root));
+    read.forEach((sheet) => guardAmbiguousURLs(sheet.text));
     const { frameTree } = await client.send('Page.getFrameTree');
     const shadow = hasShadowRoot(root);
     const rules: ServedRule[] = [];
