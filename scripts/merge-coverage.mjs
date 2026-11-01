@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { matchesGlob } from 'node:path';
-import { COVERAGE_LINE_FLOOR, COVERAGE_INCLUDE, COVERAGE_EXCLUDE } from './check-coverage.mjs';
+import { MERGED_COVERAGE_LINE_FLOOR, COVERAGE_INCLUDE, COVERAGE_EXCLUDE } from './check-coverage.mjs';
 
 /** Union executable lines by source path; a hit in any shard covers the line. */
 export function mergeCoverage(inputs, expected) {
@@ -87,8 +87,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         Number(count),
       ).toFixed(2),
     );
-    console.log(`Merged dist line coverage: ${percent.toFixed(2)}% (floor ${COVERAGE_LINE_FLOOR}%)`);
-    process.exitCode = percent < COVERAGE_LINE_FLOOR ? 1 : 0;
+    console.log(`Merged dist line coverage: ${percent.toFixed(2)}% (floor ${MERGED_COVERAGE_LINE_FLOOR}%)`);
+    process.exitCode = percent < MERGED_COVERAGE_LINE_FLOOR ? 1 : 0;
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
