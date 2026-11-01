@@ -14,6 +14,8 @@ import { harvestStyleVariants } from '../dist/variant-crawler.js';
 const DANGEROUS = [
   '<button class="danger-mixed" id="d-mixed"></button>',
   '<button class="danger-alt" id="d-alt"></button>',
+  '<button class="danger-alt-boundary" id="d-alt-boundary"></button>',
+  '<button class="danger-quotes" id="d-quotes"></button>',
   '<button class="danger-url-alt" id="d-url-alt"></button>',
   '<button data-label="Delete" id="d-attr"></button>',
   '<x-reference-shadow role="button" tabindex="0" id="d-shadow-reference"></x-reference-shadow>',
@@ -74,7 +76,7 @@ const DANGEROUS_IDS = ids(DANGEROUS);
 const SAFE_IDS = ids(SAFE);
 
 function html(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>.danger-mixed::before { content: "Delete " counter(n); } .danger-alt::before { content: "\\f1f8" / "Delete"; } .danger-url-alt::before { content: url(x.svg) / "Delete"; } [data-label]::before { content: attr(data-label); } .danger-before::before { content: "Delete"; } .danger-after::after { content: "Send"; } .safe-before::before { content: "→"; } button:hover { outline: 3px solid blue; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style></head><body><main>
+  return `<!doctype html><html><head><meta charset="utf-8"><style>.danger-alt-boundary::before { content: "Trash" / "Delete"; } .danger-quotes::before { quotes: "Delete" "Delete"; content: open-quote; } .danger-mixed::before { content: "Delete " counter(n); } .danger-alt::before { content: "\\f1f8" / "Delete"; } .danger-url-alt::before { content: url(x.svg) / "Delete"; } [data-label]::before { content: attr(data-label); } .danger-before::before { content: "Delete"; } .danger-after::after { content: "Send"; } .safe-before::before { content: "→"; } button:hover { outline: 3px solid blue; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style></head><body><main>
     ${[...DANGEROUS, ...SAFE].join('\n    ')}
     <script>
     for (const [name, text] of [['x-danger-shadow', 'Delete'], ['x-remove-shadow', 'Remove'], ['x-safe-shadow', 'Profile']]) {

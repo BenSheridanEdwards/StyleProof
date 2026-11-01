@@ -1,13 +1,16 @@
-import { SUBMITS_FORM_SOURCE, cssContentText, DANGER_TEXT_SOURCE } from '../dist/danger.js';
+import { SUBMITS_FORM_SOURCE, cssContentText, DANGER_SOURCE, DANGER_TEXT_SOURCE } from '../dist/danger.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
+const cssSources = (...args) => [cssContentText(...args)].flat().filter((value) => typeof value === 'string');
+const generatedUnsafe = (...args) => cssSources(...args).some((value) => new RegExp(DANGER_SOURCE, 'i').test(value));
+
 test('cssContentText: joins and unescapes CSS string tokens', () => {
-  assert.equal(cssContentText('"Delete"'), 'Delete');
-  assert.equal(cssContentText('"De" "lete"'), 'Delete');
-  assert.equal(cssContentText('"\\44 elete"'), 'Delete');
+  assert.ok(cssSources('"Delete"').includes('Delete'));
+  assert.ok(cssSources('"De" "lete"').includes('Delete'));
+  assert.ok(cssSources('"\\44 elete"').includes('Delete'));
 });
 
 for (const content of [
@@ -20,23 +23,22 @@ for (const content of [
   'no-open-quote',
   'no-close-quote',
   'counter(n, "Delete")',
-  'counters(n, "Delete")',
   'url("Delete.svg")',
   'image("Delete.svg")',
 ]) {
   test(`cssContentText: non-text ${content}`, () => {
-    assert.equal(cssContentText(content), null);
+    assert.deepEqual(cssSources(content), []);
   });
 }
 
 for (const [content, expected] of [
   ['"a" counter(c)', 'a'],
-  ['"Delete " counter(n)', 'Delete '],
+  ['"Delete " counter(n)', 'Delete'],
   ['"\\f1f8" / "Delete"', 'Delete'],
   ['url(x.svg) / "Delete"', 'Delete'],
 ]) {
   test(`cssContentText: retains text in ${content}`, () => {
-    assert.ok(cssContentText(content)?.includes(expected));
+    assert.ok(cssSources(content).some((value) => value.includes(expected)));
   });
 }
 
@@ -46,7 +48,61 @@ test('cssContentText: resolves attr(data-label) on its originating element', () 
       ? { getAttribute: (name) => (name === 'data-label' ? 'Delete' : null) }
       : globalThis.document.createElement('button');
   el.setAttribute?.('data-label', 'Delete');
-  assert.equal(cssContentText('attr(data-label)', el), 'Delete');
+  assert.ok(cssSources('attr(data-label)', el).includes('Delete'));
+});
+
+for (const content of [
+  '"Trash" / "Delete"',
+  '"Item" counter(n) "Delete"',
+  'url(x.svg) "X" / "Remove"',
+  '"X" "Delete" "Y"',
+  'counters(n, "Delete")',
+  'counter(n, symbols("Delete" "Remove"))',
+  'symbols(cyclic "Delete" "Remove")',
+]) {
+  test(`generated guard: ${content} is unsafe`, () => {
+    assert.equal(generatedUnsafe(content), true);
+  });
+}
+
+for (const token of [
+  'counter(n)',
+  'counters(n, ".")',
+  'url(x.svg)',
+  'image("x.svg")',
+  'open-quote',
+  'close-quote',
+  'no-open-quote',
+  'no-close-quote',
+  'attr(data-missing)',
+]) {
+  test(`cssContentText: ${token} preserves a word boundary`, () => {
+    assert.ok(cssSources(`"Item" ${token} "Delete"`).includes('Item Delete'));
+    assert.equal(generatedUnsafe(`"Item" ${token} "Delete"`), true);
+  });
+}
+
+test('cssContentText: content and alt text are independent sources', () => {
+  const sources = cssSources('"Trash" / "Delete"');
+  assert.ok(sources.includes('Trash'));
+  assert.ok(sources.includes('Delete'));
+  assert.ok(!sources.includes('TrashDelete'));
+});
+
+for (const content of ['attr(data-x string)', 'attr(data-x type(<string>))', 'attr(ns|data-x string)']) {
+  test(`generated guard: resolves ${content}`, () => {
+    const el = { getAttribute: (name) => (['data-x', 'ns|data-x'].includes(name) ? 'Delete' : null) };
+    assert.equal(generatedUnsafe(content, el), true);
+  });
+}
+
+test('generated guard: attr(data-x, "Delete") uses a missing attribute fallback', () => {
+  assert.equal(generatedUnsafe('attr(data-x, "Delete")', { getAttribute: () => null }), true);
+});
+
+test('cssContentText: attr() prefers the attribute and ignores missing values without fallback', () => {
+  assert.equal(generatedUnsafe('attr(data-x, "Delete")', { getAttribute: () => 'Profile' }), false);
+  assert.deepEqual(cssSources('attr(data-x string)', { getAttribute: () => null }), []);
 });
 
 test('danger text source: evaluates without imported helpers', () => {
