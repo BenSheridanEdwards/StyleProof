@@ -256,6 +256,11 @@ test('font references preserve complete quoted and unquoted family names', () =>
 test('font shorthands and function values resolve candidate names', () => {
   for (const [declaration, name] of [
     ['font: inherit', 'inherit'],
+    ['font: 16px --weird', '--weird'],
+    ['font-family: /*a*/ --weird', '--weird'],
+    ['animation: --x 1s steps(2)', '--x'],
+    ['font: 700 16px/normal Brand Sans', 'Brand Sans'],
+    ['font: bold Brand Sans', 'Brand Sans'],
     ['font: italic 700 16px/1.5 "Brand Sans", serif', 'Brand Sans'],
     ['font: 16px Brand Sans, serif', 'Brand Sans'],
     ['font: 700 clamp(28px, 4vw, 46px)/1 "Brand Sans"', 'Brand Sans'],
@@ -275,6 +280,9 @@ test('unsupported escaped and substituted dependencies fail with unknown reach',
     'font-family: var(--family)',
     'font-family: env(x)',
     'font-family: attr(x)',
+    'font-family: inherit(--x)',
+    'font: clamp(1px, var(--s), 2px) A',
+    'animation: pulse calc(1s * env(x))',
     'animation: var(--motion)',
     'animation-name: "pulse"',
   ]) {
