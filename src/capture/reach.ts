@@ -399,6 +399,8 @@ function servedEntries(text: string, used: readonly UsedRange[]): ServedEntry[] 
     const values = keyframes
       ? leafRules(rule.body).flatMap((frame) => declarations(frame.body))
       : declarations(rule.body);
+    const propertyName = /^@property\s+(--[\w-]+)$/i.exec(rule.prelude)?.[1];
+    if (/^@property\b/i.test(rule.prelude) && !propertyName) unknown('unsupported property registration name');
     const { names: refs, vars: fontVars } = referencedNames(values);
     if (/^@font-face$/i.test(rule.prelude) && values.some(([property]) => /^font$/i.test(property)))
       unknown('unsupported font or animation dependency');
@@ -409,8 +411,8 @@ function servedEntries(text: string, used: readonly UsedRange[]): ServedEntry[] 
       customValues: values.flatMap(([name, value]) =>
         name.startsWith('--')
           ? [[name, value] as [string, string]]
-          : /^@property --[\w-]+$/.test(rule.prelude) && name.toLowerCase() === 'initial-value'
-            ? [[rule.prelude.slice(10), value] as [string, string]]
+          : propertyName && name.toLowerCase() === 'initial-value'
+            ? [[propertyName, value] as [string, string]]
             : [],
       ),
       rule: {
@@ -455,6 +457,8 @@ function inlineDeclares(node: DocumentNode, names: ReadonlySet<string>): boolean
   for (let i = 0; i < attributes.length; i += 2) {
     if (attributes[i].toLowerCase() !== 'style') continue;
     if ([...names].some((name) => attributes[i + 1].includes(name))) return true;
+    if (!/var\(|\\/i.test(attributes[i + 1])) continue;
+    if (attributes[i + 1].includes('\\')) unknown('escaped inline style dependency');
     if (
       declarations(attributes[i + 1]).some(
         ([property, value]) => /^(font(?:-family)?|animation(?:-name)?)$/i.test(property) && varReads(value).length,
@@ -734,11 +738,18 @@ async function resolveFontVars(
     const registrations = await client
       .send('CSS.getMatchedStylesForNode', { nodeId: element?.nodeId ?? root.nodeId ?? 0 })
       .catch(() => unknown('font property registrations unavailable'));
-    const values: [string, string][] = (registrations.cssPropertyRegistrations ?? []).flatMap((registration) =>
-      registration.initialValue
-        ? [[registration.propertyName, registration.initialValue.text] as [string, string]]
-        : [],
-    );
+    const values: [string, string][] = [
+      ...(registrations.cssPropertyRegistrations ?? []).flatMap((registration) =>
+        registration.initialValue
+          ? [[registration.propertyName, registration.initialValue.text] as [string, string]]
+          : [],
+      ),
+      ...(registrations.cssPropertyRules ?? []).flatMap((registration) =>
+        registration.style.cssProperties
+          .filter((property) => property.name.toLowerCase() === 'initial-value')
+          .map((property) => [registration.propertyName.text, property.value] as [string, string]),
+      ),
+    ];
     const closure = fontVarRefs(allEntries, values);
     if (inlineDeclares(root, closure)) unknown('font family set through an inline custom property');
   }

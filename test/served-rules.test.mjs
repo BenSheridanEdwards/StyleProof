@@ -997,7 +997,9 @@ test('nested and keyframe custom values join the font union', () => {
 });
 test('CDP property rules also supply initial font values', async () => {
   const ledger = await trackedLedger([{ styleSheetId: 'app', text: 'p { font-family: var(--f); }' }], {
-    propertyRules: [{ propertyName: { text: '--f' }, initialValue: { text: 'Brand' } }],
+    propertyRules: [
+      { propertyName: { text: '--f' }, style: { cssProperties: [{ name: 'initial-value', value: 'Brand' }] } },
+    ],
   });
   assert.ok(ledger.rules[0].refs.includes('Brand'));
 });
