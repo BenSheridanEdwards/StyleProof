@@ -28,7 +28,8 @@ export function flagOf({ j1, j2, j3 }) {
 export function autoLabel(unit, findings, hunk) {
   const tokens = unit.tokens ?? [];
   if (
-    tokens.some((t) => (unit.headClasses ?? []).includes(t)) ||
+    (!['never-ran', 'partly-ran'].includes(unit.j2) &&
+      tokens.some((t) => (unit.headClasses ?? []).includes(t))) ||
     findings.some(
       (f) => (unit.paths ?? []).includes(f.path) || tokens.some((t) => (f.cls ?? '').split(/\s+/).includes(t)),
     )

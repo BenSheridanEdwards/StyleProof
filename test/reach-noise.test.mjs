@@ -36,6 +36,17 @@ test('automatic labels require runtime or nonvisual evidence', () => {
   assert.equal(autoLabel({}, [], '+type X = {\n+color: string\n+};'), null);
 });
 
+test('shared head classes respect execution gaps while findings still prove reach', () => {
+  const unit = { paths: ['button'], tokens: ['selected'], headClasses: ['selected'] };
+  for (const j2 of ['never-ran', 'partly-ran']) {
+    assert.equal(autoLabel({ ...unit, j2 }, [], '+return <button />;'), null);
+    assert.equal(autoLabel({ ...unit, j2 }, [{ path: 'button' }], '+return <button />;'), 'noise:join-miss');
+    assert.equal(autoLabel({ ...unit, j2 }, [{ cls: 'selected' }], '+return <button />;'), 'noise:join-miss');
+  }
+  for (const j2 of ['ran', 'unmeasured', 'n/a'])
+    assert.equal(autoLabel({ ...unit, j2 }, [], '+return <button />;'), 'noise:join-miss');
+});
+
 test('aggregate has exact counts and rejects unknown labels', () => {
   assert.deepEqual(aggregate(['real', 'noise:join-miss', 'noise:no-visual', 'unclassified']), {
     total: 4,
