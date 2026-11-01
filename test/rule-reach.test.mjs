@@ -973,3 +973,29 @@ test('selector comments cannot supply a declaration for another selector', () =>
   const head = map(rule('.a', 'new', { used: true }), commented, reader);
   assert.equal(statusOf(classifyRuleReach([base], [head]), '.a').status, 'never-rendered');
 });
+
+for (const selector of ['.p > .a', '.z, .p > .a', '[data-label=" > .a"]', ':has(> .x)']) {
+  test(`selector identity survives key construction: ${selector}`, () => {
+    const reader = '.a .w{color:var(--o)}';
+    const unchanged = `${selector}{--o:1}`;
+    const base = cssMap(sheet('/app.css', `.a{--o:1}${unchanged}${reader}`, '.a{--o:1}', unchanged));
+    const head = cssMap(sheet('/app.css', `.a{color:red}${unchanged}${reader}`, '.a{color:red}', unchanged));
+    assert.equal(statusOf(classifyRuleReach([base], [head]), '.a').status, 'never-rendered');
+  });
+}
+
+for (const [open, close, chain] of [
+  ['@media (width > 1px){', '}', '@media (width > 1px)'],
+  ['@media (width > 1px){@supports (display: grid){', '}}', '@media (width > 1px) > @supports (display: grid)'],
+]) {
+  test(`merged move preserves selector identity under ${chain}`, () => {
+    const reader = '.a .w{color:var(--o)}';
+    const baseCSS = `${open}.a{--o:1}.b{--o:1}${reader}${close}`;
+    const headCSS = `${open}.a,.b{--o:1}${reader}${close}`;
+    const base = cssMap(sheet('/app.css', baseCSS, '.a{--o:1}', '.b{--o:1}'));
+    const head = cssMap(sheet('/app.css', headCSS, '.a,.b{--o:1}'));
+    const result = classifyRuleReach([base], [head]);
+    for (const selector of ['.a', '.b', '.a,.b'])
+      assert.equal(statusOf(result, `${chain} > ${selector}`).status, 'reached');
+  });
+}
