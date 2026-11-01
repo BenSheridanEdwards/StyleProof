@@ -3,13 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { NODE_TEST_TIMEOUT_MS, nodeTestArgs, nodeTestEnv } from './run-node-test.mjs';
 
 /**
- * Unit coverage floor for the package dist/ tree (Node built-in
- * `--experimental-test-coverage`). Measured on tip `6155b54` / main with
- * Node 22.20: 41.49% lines under a dist-only include. Floor = baseline minus
- * ~1.5pt slack. Thresholds + include globs need Node 22.8+ (CI gates on the
- * Node 22 matrix leg).
+ * Local unsharded coverage keeps its legacy 40% floor: Node merges V8 ranges
+ * before projecting lines. CI unions LCOV line hits instead; its 80% floor
+ * leaves ~7 points below the hosted 86.78% baseline, comparable to the old
+ * ~8 points below main's unsharded 47.96%. Coverage flags need Node 22.8+.
  */
 export const COVERAGE_LINE_FLOOR = 40;
+export const MERGED_COVERAGE_LINE_FLOOR = 80;
 /** Only the package build output — not node_modules dist trees. */
 export const COVERAGE_INCLUDE = 'dist/**';
 export const COVERAGE_EXCLUDE = '**/node_modules/**';
@@ -33,19 +33,36 @@ export function coverageArgs({
   floor = COVERAGE_LINE_FLOOR,
   include = COVERAGE_INCLUDE,
   exclude = COVERAGE_EXCLUDE,
+  shard,
+  lcov,
 } = {}) {
   if (!coverageToolSupported(nodeMajor, nodeMinor)) return null;
+  if ((shard || lcov) && (!/^[1-3]\/3$/.test(shard ?? '') || !lcov)) {
+    throw new Error('check-coverage: use --shard i/3 --lcov <file>');
+  }
   return [
     '--experimental-test-coverage',
     `--test-coverage-include=${include}`,
     `--test-coverage-exclude=${exclude}`,
-    `--test-coverage-lines=${floor}`,
+    ...(shard
+      ? [
+          `--test-shard=${shard}`,
+          '--test-reporter=spec',
+          '--test-reporter-destination=stdout',
+          '--test-reporter=lcov',
+          `--test-reporter-destination=${lcov}`,
+        ]
+      : [`--test-coverage-lines=${floor}`]),
   ];
 }
 
 function main() {
   const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
-  const cov = coverageArgs({ nodeMajor, nodeMinor });
+  const argv = process.argv.slice(2);
+  if (argv.length && (argv.length !== 4 || argv[0] !== '--shard' || argv[2] !== '--lcov')) {
+    throw new Error('check-coverage: use --shard i/3 --lcov <file>');
+  }
+  const cov = coverageArgs({ nodeMajor, nodeMinor, shard: argv[1], lcov: argv[3] });
   if (!cov) {
     console.error(
       `check-coverage: needs Node ${COVERAGE_MIN_NODE.major}.${COVERAGE_MIN_NODE.minor}+ ` +
