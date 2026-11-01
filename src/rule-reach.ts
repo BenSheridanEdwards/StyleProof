@@ -10,7 +10,7 @@
  * in every map of their respective side with equal map counts. Other route pairings
  * are ambiguous.
  * Declaration moves are stable only when every served value agrees and each selector
- * declares the property on both sides in every map serving that selector. Self-declaring
+ * declares the property on both sides in every map on the side. Self-declaring
  * readers are shielded only for that agreed value and no other closure alias.
  * Pure: no browser, no I/O.
  *
@@ -98,8 +98,8 @@ function recordRule(side: Side, rule: ServedRule, label: string): void {
   if (rule.outside) side.outside.add(id);
 }
 
-/** Intersect declarations across maps that serve each selector. */
-function recordSelectorVars(side: Side, rules: readonly ServedRule[]): void {
+/** Intersect declarations across every map; missing selectors declare nothing. */
+function recordSelectorVars(side: Side, rules: readonly ServedRule[], first: boolean): void {
   const declared = new Map<string, Set<string>>();
   for (const rule of rules) {
     for (const selector of selectorsOf(rule.key) ?? []) {
@@ -109,9 +109,11 @@ function recordSelectorVars(side: Side, rules: readonly ServedRule[]): void {
       declared.set(key, props);
     }
   }
-  for (const [key, props] of declared) {
-    const previous = side.selectorVars.get(key);
-    side.selectorVars.set(key, previous ? new Set([...previous].filter((prop) => props.has(prop))) : props);
+  if (first) side.selectorVars = declared;
+  else {
+    for (const [key, props] of side.selectorVars) {
+      side.selectorVars.set(key, new Set([...props].filter((prop) => declared.get(key)?.has(prop))));
+    }
   }
 }
 
@@ -129,7 +131,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
     complete: maps.length > 0,
     unreadable: 0,
   };
-  for (const map of maps) {
+  for (const [index, map] of maps.entries()) {
     if (!map.reach || map.reach.scope !== 'compared') {
       side.complete = false;
       continue;
@@ -140,7 +142,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
       side.complete = false;
       continue;
     }
-    recordSelectorVars(side, map.reach.rules);
+    recordSelectorVars(side, map.reach.rules, index === 0);
     const served = new Set(map.reach.rules.map(variantId));
     side.common = new Set([...side.common].filter((id) => served.has(id)));
     for (const rule of map.reach.rules) {
@@ -178,7 +180,9 @@ const keyParts = (key: string): string[] => splitTop(key, ' > ');
 
 function selectorsOf(key: string): string[] | undefined {
   const prelude = (keyParts(key).at(-1) ?? '').replace(/ #\d+$/, '');
-  return prelude.startsWith('@') ? undefined : splitTop(prelude, ',').map((selector) => selector.trim());
+  return prelude.startsWith('@') || prelude.includes('/*')
+    ? undefined
+    : splitTop(prelude, ',').map((selector) => selector.trim());
 }
 
 type Context = { agreed: (prop: string) => string | undefined; stable: (key: string, prop: string) => boolean };
