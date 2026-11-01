@@ -1077,12 +1077,42 @@ for (const style of [
   'color:red\\',
   'color:red\\\n',
   String.raw`color:red\3b --brand:Other`,
-  String.raw`color:red\2f *hidden*/`,
+  String.raw`color:red\2f *hidden*/;font-family:var(--f)`,
 ]) {
   test(`unsafe escaped inline dependency stays unknown: ${JSON.stringify(style)}`, async () => {
     await assert.rejects(
       trackedLedger([{ styleSheetId: 'app', text: ':root{--brand:Brand} .t{font-family:var(--brand)}' }], {
         document: { children: [{ attributes: ['style', style] }] },
+      }),
+      /reach is unknown/,
+    );
+  });
+}
+
+for (const [style, text] of [
+  ["a:'x\n;b:'/*';" + String.raw`\2d\2d brand:Other;c:*/`, ':root{--brand:Brand} .t{font-family:var(--brand)}'],
+  ["--f:Brand;a:'x\n;b:'/*';font-family:" + String.raw`v\61r(--f);c:*/`, '.t{color:red}'],
+])
+  test(`raw inline string newline cannot hide escapes: ${JSON.stringify(style)}`, async () => {
+    await assert.rejects(
+      trackedLedger([{ styleSheetId: 'app', text }], { document: { children: [{ attributes: ['style', style] }] } }),
+      /reach is unknown/,
+    );
+  });
+for (const style of [
+  String.raw`font-family:'O\'Reilly'`,
+  String.raw`font-family:Microsoft\ YaHei`,
+  String.raw`width:10px\9`,
+]) {
+  test(`decodable inline escape without readers captures: ${style}`, async () => {
+    await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
+      document: { children: [{ attributes: ['style', style] }] },
+    });
+  });
+  test(`structural inline escape with readers remains unknown: ${style}`, async () => {
+    await assert.rejects(
+      trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
+        document: { children: [{ attributes: ['style', style + ';font-family:var(--f)'] }] },
       }),
       /reach is unknown/,
     );
