@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
+import { readFileSync } from 'node:fs';
 import * as reach from '../dist/capture/reach.js';
 import { servedRulesOf, trackServedRules } from '../dist/capture/reach.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
@@ -1040,18 +1041,91 @@ test('shorthand exemptions inspect JS registrations', async () => {
 });
 
 const ambiguousFontURL = '.a{background:url(/*)}:root{--f:Other}.z{c:*/)}';
+const urlGuardSource = readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8').match(
+  /function guardAmbiguousURLs\(text\) \{[\s\S]*?\n\}/,
+)[0];
+const urlGuard = runInNewContext(`(${urlGuardSource})`, {
+  unknown: (message) => {
+    throw new Error(message);
+  },
+});
+for (const [name, text] of [
+  [
+    '5 MB mixed sheet',
+    Array.from(
+      { length: 50000 },
+      (_, i) => `.t${i}{background:url(a.png);mask:url(data:image/png;base64,${'a'.repeat(50)})}`,
+    ).join(''),
+  ],
+  ['unterminated million-character URL', 'url(' + 'a'.repeat(1000000)],
+  ['million-character ident', 'a'.repeat(1000000)],
+]) {
+  test(`URL guard stays linear: ${name}`, () => {
+    urlGuard(text);
+    const start = performance.now();
+    urlGuard(text);
+    assert.ok(performance.now() - start < 50, `${name} exceeded 50 ms`);
+  });
+}
+
+for (const [value, hash] of [
+  ['url(a.png)', '8247683fb51f31cc'],
+  ['URL(a.png)', 'f6d888e9e660e567'],
+  ['url( "x.png")', '4130dd3bfb66a3ec'],
+  ["url(\n'x.png')", 'dca1cbc0818f0653'],
+  [String.raw`url(a\ b.png)`, '27003efe70f0906b'],
+  [String.raw`url(a\(b.png)`, '3d6be189f5e9ed8e'],
+  [String.raw`url(a\'b)`, '4d41ac1db06c6276'],
+  ['url("data:image/svg+xml,<svg fill=\'rgb(0,0,0)\'/>")', '063d409fc8458cbb'],
+  ['url(data:image/png;base64,YQ==)', 'a2e2129ea7616411'],
+]) {
+  test(`benign URL preserves key and hash: ${value}`, async () => {
+    const text = `.t{background:${value};font-family:Other}`;
+    const expected = servedRulesOf(text, []);
+    assert.equal(expected[0].key, '.t');
+    assert.equal(expected[0].hash, hash);
+    const ledger = await trackedLedger([{ styleSheetId: 'app', text }]);
+    assert.equal(ledger.rules[0].hash, expected[0].hash);
+    assert.equal(ledger.rules[0].key, expected[0].key);
+  });
+}
+test('quoted URL comments and imports capture', () => {
+  assert.equal(servedRulesOf('/* url(\'x.png\') */ @import url("{;}.css"); .t{color:red}', [])[0].key, '.t');
+});
 test('ambiguous sheet URLs fail closed when font variables resolve', async () => {
   const text = ambiguousFontURL + ' .t{font-family:var(--f)}';
   assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
   await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
 });
-test('ambiguous sheet URLs without font variable readers retain existing parsing', async () => {
-  assert.deepEqual(
-    servedRulesOf(ambiguousFontURL, []).map((r) => r.key),
-    ['.a'],
-  );
-  await trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]);
+test('ambiguous sheet URLs without font variable readers fail closed', async () => {
+  assert.throws(() => servedRulesOf(ambiguousFontURL, []), /reach is unknown/);
+  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]), /reach is unknown/);
 });
+
+for (const text of [
+  '.t{background:url(a(b);font-family:Other;c:x)}',
+  '.t{background:url(/*);font-family:Other;c:*/)}',
+  '.t{--f:Other;background:url(a(b);font-family:var(--f);c:x)}',
+  ...[
+    String.raw`u\72l(a.png)`,
+    String.raw`\75rl(x)`,
+    String.raw`U\52L(x)`,
+    String.raw`ur\l(x)`,
+    String.raw`\55 rl(x)`,
+    "url(a'b)",
+    'url(a"b)',
+    'url(a b(c);x)',
+    String.raw`url(a\)(b)`,
+    "url(\u00a0'x')",
+    'url(\v"x")',
+  ].map((url) => `.t{background:${url}}`),
+  "/* url(it's) */ .t{color:red}",
+]) {
+  test(`ambiguous stylesheet URL fails closed: ${JSON.stringify(text)}`, async () => {
+    assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
+    await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+  });
+}
 
 test('quoted stylesheet URL after whitespace resolves beside a font variable reader', () => {
   const rules = servedRulesOf(':root{--f:Brand} .t{font-family:var(--f);background:url( "x.png")}', []);
