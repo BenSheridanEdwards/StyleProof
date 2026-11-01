@@ -587,13 +587,29 @@ test('a one-for-one swap across routes still judges the removed body on base', (
   }
 });
 
+test('a matched font shorthand makes a changed font face a blind channel', () => {
+  const snapshot = (source) =>
+    cssMap(
+      sheet(
+        '/app.css',
+        `@font-face { font-family: "Brand Sans"; src: local(${source}); } .t { font: 16px "Brand Sans"; }`,
+        '.t',
+      ),
+    );
+  assert.equal(
+    statusOf(classifyRuleReach([snapshot('Arial')], [snapshot('serif')]), '@font-face').status,
+    'blind-channel',
+  );
+});
+
 test('a mixed-case font family still references its @font-face', () => {
-  for (const [key, names, refs, status] of [
+  for (const [key, names, refs, status, extra = { used: true }] of [
     ['@font-face', ['Brand Sans'], ['brand sans'], 'blind-channel'],
+    ['@font-face', ['Brand Sans'], ['brand sans'], 'unmeasured', { outside: true }],
     ['@keyframes Pulse', [], ['pulse'], 'never-rendered'],
     ['@font-face', ['Ä'], ['ä'], 'never-rendered'],
   ]) {
-    const ledger = (hash) => map(rule(key, hash, { refs: names }), rule('.t', 't', { used: true, refs }));
+    const ledger = (hash) => map(rule(key, hash, { refs: names }), rule('.t', 't', { ...extra, refs }));
     assert.equal(statusOf(classifyRuleReach([ledger('a')], [ledger('b')]), key).status, status);
   }
 });
