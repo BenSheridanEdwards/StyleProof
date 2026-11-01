@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 // Fixtures: { runs: [...], attempts: { 'runId#attempt': metadata },
 // jobs: { 'runId#attempt': [...] } }; reruns require attempt metadata.
 // The greedy temporal chain makes queue_time an upper bound on waiting time.
-// Attempts with any unstarted job are excluded from summary aggregates.
+// Cancelled, incomplete or empty attempts are excluded from summary aggregates.
 
 export function percentile(values, p) {
   const sorted = [...values].sort((a, b) => a - b);

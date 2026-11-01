@@ -34,7 +34,10 @@ test('live attempts exclude carried jobs by attempt identity', () => {
     });
   };
   main(['--live', '--json'], { exec, write: (value) => output.push(value) });
-  assert.equal(JSON.parse(output[0]).rows.find((row) => row.id === '1#2').run_time, 9);
+  const row = JSON.parse(output[0]).rows.find((row) => row.id === '1#2');
+  assert.equal(row.run_time, 9);
+  assert.equal(row.wall, 10);
+  assert.equal(row.queue_time, 1);
 });
 test('fixture reruns require attempt metadata', () => {
   assert.throws(
@@ -78,7 +81,7 @@ test('bare live and json are rejected before reading data', () => {
     );
   }
 });
-test('skewed jobs cannot move the chain cursor forwards into overlapping work', () => {
+test('skewed job durations are clamped in the execution and queue totals', () => {
   const row = stats([job(0, 50, 100), job(0, 90, 40), job(0, 20, 30), job(0, 35, 39)]);
   assert.equal(row.run_time, 64);
   assert.equal(row.queue_time, 36);
