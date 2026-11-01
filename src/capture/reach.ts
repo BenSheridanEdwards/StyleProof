@@ -303,7 +303,7 @@ function referencedNames(values: [string, string][]): string[] {
     if (candidates.some((name) => !/^[-\w ]+$/.test(name)) || /["']/.test(value.replace(/\/\*[\s\S]*?\*\//g, '')))
       unknown('unsupported animation dependency');
     if (/\/\*|\(/.test(value)) return candidates;
-    return value.split(/[\s,]+/).filter((t) => /^-?[_a-zA-Z][\w-]*$/.test(t));
+    return value.split(/[\s,]+/).filter((t) => /^(?:--|-?[_a-zA-Z])[\w-]*$/.test(t));
   });
   return [...new Set(names)];
 }
