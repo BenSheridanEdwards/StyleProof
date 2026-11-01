@@ -592,8 +592,7 @@ export function decodeInlineEscapes(text: string, strict = false): string {
     }
     const character = text[i++];
     if (character !== '\\') {
-      if (character === quote) quote = '';
-      else if (!quote && /["']/.test(character)) quote = character;
+      quote = inlineQuote(quote, character);
       result += character;
       continue;
     }
@@ -602,6 +601,13 @@ export function decodeInlineEscapes(text: string, strict = false): string {
     result += escaped.decoded;
   }
   return result;
+}
+
+function inlineQuote(quote: string, character: string): string {
+  if (quote && /[\r\n\f]/.test(character)) unknown('newline in string');
+  if (character === quote) return '';
+  if (!quote && /["']/.test(character)) return character;
+  return quote;
 }
 
 function inlineEscape(text: string, i: number, quoted: boolean, strict: boolean): { end: number; decoded: string } {
@@ -628,11 +634,11 @@ function inlineDeclares(node: DocumentNode, names: ReadonlySet<string>): boolean
   const attributes = node.attributes ?? [];
   for (let i = 0; i < attributes.length; i += 2) {
     if (attributes[i].toLowerCase() !== 'style') continue;
-    const style = decodeInlineEscapes(attributes[i + 1], true);
+    const style = decodeInlineEscapes(attributes[i + 1]);
     if ([...names].some((name) => style.includes(name))) return true;
     if (!/var\(/i.test(style)) continue;
     if (
-      declarations(style).some(
+      declarations(decodeInlineEscapes(attributes[i + 1], true)).some(
         ([property, value]) => /^(font(?:-family)?|animation(?:-name)?)$/i.test(property) && varReads(value).length,
       )
     )
