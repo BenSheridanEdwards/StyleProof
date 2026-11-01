@@ -311,7 +311,23 @@ function adjacencyLiteral(
   };
 }
 
-function adjacencyTokens(value: string): { text: string; variable: boolean; numeric: boolean }[] {
+function adjacencyCall(
+  value: string,
+  end: number,
+  name: string,
+  components: boolean,
+): { variable: boolean; atomic: boolean; inspect: boolean } {
+  const call = value[end] === '(';
+  const variable = call && /^var$/i.test(name);
+  const url = call && /^url$/i.test(name);
+  return {
+    variable,
+    atomic: variable || url || (components && call),
+    inspect: variable || (components && call && !url),
+  };
+}
+
+function adjacencyTokens(value: string, components = false): { text: string; variable: boolean; numeric: boolean }[] {
   const tokens: { text: string; variable: boolean; numeric: boolean }[] = [];
   for (let i = 0; i < value.length;) {
     const significant = skipTrivia(value, i, value.length);
@@ -321,13 +337,11 @@ function adjacencyTokens(value: string): { text: string; variable: boolean; nume
     }
     const opaque = referenceEnd(value, i);
     const token = candidateToken(value.slice(i));
-    const call = value[i + token.text.length] === '(';
-    const variable = call && /^var$/i.test(token.text);
-    const url = call && /^url$/i.test(token.text);
-    if (variable || url) {
+    const { variable, atomic, inspect } = adjacencyCall(value, i + token.text.length, token.text, components);
+    if (atomic) {
       const start = i + token.text.length + 1;
       const close = delimiter(value, start, ')');
-      if (variable) guardVarAdjacency(value.slice(start, close));
+      if (inspect) guardVarAdjacency(value.slice(start, close));
       tokens.push({ text: value.slice(i, close + 1), variable, numeric: false });
       i = close + 1;
     } else {
@@ -352,15 +366,124 @@ function guardVarAdjacency(value: string): void {
   });
 }
 
+type FontComponent = ReturnType<typeof adjacencyTokens>[number];
+type FontAdjacency = { components: FontComponent[]; pairs: number[] };
+const PRESIZE = /^(normal|italic|oblique|small-caps|bold|bolder|lighter|(ultra-|extra-|semi-)?(condensed|expanded))$/i;
+const MATH = /^(calc|min|max|clamp|round|mod|rem|abs|sign)\(/i;
+
+function rejectedPair(left: FontComponent, right: FontComponent): boolean {
+  const badRight = left.variable && !right.numeric && ![',', '/', ')'].includes(right.text);
+  const badLeft = right.variable && !left.numeric && ![',', '/', '('].includes(left.text);
+  return badRight || badLeft;
+}
+
+function fontAdjacency(value: string): FontAdjacency {
+  const components = adjacencyTokens(value, true);
+  const pairs = components.flatMap((component, index) =>
+    components[index + 1] && rejectedPair(component, components[index + 1]) ? [index] : [],
+  );
+  return { components, pairs };
+}
+
+type FontPredicate = 'presize' | 'single' | 'left' | 'right';
+function substitutions(component: FontComponent, values: [string, string][]): { name: string; values: string[] } {
+  const start = component.text.indexOf('(') + 1;
+  const body = component.text.slice(start, -1);
+  const comma = delimiter(body, 0, ',');
+  const name = varReads(component.text)[0];
+  const candidates = values.filter(([property]) => property === name).map(([, value]) => value);
+  if (comma < body.length) candidates.push(body.slice(comma + 1));
+  return { name, values: candidates };
+}
+
+function allSubstitutions(
+  component: FontComponent,
+  predicate: FontPredicate,
+  values: [string, string][],
+  visited: ReadonlySet<string>,
+): boolean {
+  const subs = substitutions(component, values);
+  if (visited.has(subs.name)) return false;
+  const next = new Set([...visited, subs.name]);
+  return subs.values.every((value) => fontPredicate(adjacencyTokens(value, true), predicate, values, next));
+}
+
+function componentPredicate(
+  component: FontComponent,
+  predicate: FontPredicate,
+  values: [string, string][],
+  visited: ReadonlySet<string>,
+): boolean {
+  if (component.variable) return allSubstitutions(component, predicate, values, visited);
+  if (predicate === 'presize') return PRESIZE.test(component.text);
+  const ident = /^(?:--|-?[_a-zA-Z\u0080-\uffff])[\w\u0080-\uffff-]*$/.test(component.text);
+  if (predicate === 'single') return component.numeric || ident || MATH.test(component.text);
+  return (
+    component.numeric ||
+    /^["']/.test(component.text) ||
+    [',', '/'].includes(component.text) ||
+    MATH.test(component.text)
+  );
+}
+
+function fontPredicate(
+  components: FontComponent[],
+  predicate: FontPredicate,
+  values: [string, string][],
+  visited: ReadonlySet<string>,
+): boolean {
+  if (predicate === 'presize')
+    return components.every((component) => componentPredicate(component, predicate, values, visited));
+  if (predicate === 'single')
+    return (
+      !components.length || (components.length === 1 && componentPredicate(components[0], predicate, values, visited))
+    );
+  if (!components.length) return false;
+  return componentPredicate(
+    predicate === 'left' ? components[0] : components[components.length - 1],
+    predicate,
+    values,
+    visited,
+  );
+}
+
+function safeFontPair(
+  components: FontComponent[],
+  index: number,
+  boundary: number,
+  values: [string, string][],
+): boolean {
+  const left = components[index];
+  const right = components[index + 1];
+  if (index < boundary || (index === boundary && !left.variable)) return true;
+  if (left.variable && components[index - 1]?.text === '/' && allSubstitutions(left, 'single', values, new Set()))
+    return true;
+  return fontPredicate([left], 'right', values, new Set()) || fontPredicate([right], 'left', values, new Set());
+}
+
+function guardFontShorthand(adjacency: FontAdjacency, values: [string, string][]): void {
+  const { components, pairs } = adjacency;
+  const first = components.findIndex((component) => !componentPredicate(component, 'presize', values, new Set()));
+  const boundary = first < 0 ? components.length : first;
+  if (pairs.some((index) => !safeFontPair(components, index, boundary, values)))
+    unknown('font substitution can join a family name');
+}
+
 /** Identifiers in `animation`/`font` declarations: candidate @keyframes and @font-face names. */
-function referencedNames(values: [string, string][]): { names: string[]; vars: string[] } {
+function referencedNames(values: [string, string][]): {
+  names: string[];
+  vars: string[];
+  adjacencies: FontAdjacency[];
+} {
+  const adjacencies: FontAdjacency[] = [];
   const vars: string[] = [];
   const names = values.flatMap(([property, value]) => {
     if (!/^(animation(?:-name)?|font(?:-family)?)$/i.test(property)) return [];
     if (/\\/.test(value)) unknown('unsupported font or animation dependency');
     const font = /^font/i.test(property);
     if (font) {
-      guardVarAdjacency(value);
+      if (/^font$/i.test(property)) adjacencies.push(fontAdjacency(value));
+      else guardVarAdjacency(value);
       vars.push(...varReads(value));
     }
     const candidates = candidateNames(value, font);
@@ -371,7 +494,7 @@ function referencedNames(values: [string, string][]): { names: string[]; vars: s
     if (/\/\*|\(/.test(value)) return candidates;
     return value.split(/[\s,]+/).filter((t) => /^(?:--|-?[_a-zA-Z])[\w-]*$/.test(t));
   });
-  return { names: [...new Set(names)], vars: [...new Set(vars)] };
+  return { names: [...new Set(names)], vars: [...new Set(vars)], adjacencies };
 }
 
 /**
@@ -390,6 +513,7 @@ type ServedEntry = {
   chain: string[];
   prelude: string;
   fontVars: string[];
+  adjacencies: FontAdjacency[];
   customValues: [string, string][];
 };
 
@@ -401,13 +525,14 @@ function servedEntries(text: string, used: readonly UsedRange[]): ServedEntry[] 
       : declarations(rule.body);
     const propertyName = /^@property\s+(--[\w-]+)$/i.exec(rule.prelude)?.[1];
     if (/^@property\b/i.test(rule.prelude) && !propertyName) unknown('unsupported property registration name');
-    const { names: refs, vars: fontVars } = referencedNames(values);
+    const { names: refs, vars: fontVars, adjacencies } = referencedNames(values);
     if (/^@font-face$/i.test(rule.prelude) && values.some(([property]) => /^font$/i.test(property)))
       unknown('unsupported font or animation dependency');
     return {
       chain: rule.chain,
       prelude: rule.prelude,
       fontVars,
+      adjacencies,
       customValues: values.flatMap(([name, value]) =>
         name.startsWith('--')
           ? [[name, value] as [string, string]]
@@ -431,6 +556,7 @@ function fontVarRefs(entries: ServedEntry[], registrations: [string, string][] =
   const values = [...entries.flatMap((entry) => entry.customValues), ...registrations];
   const closure = new Set<string>();
   for (const entry of entries) {
+    entry.adjacencies.forEach((adjacency) => guardFontShorthand(adjacency, values));
     const visited = new Set<string>();
     const pending = [...entry.fontVars];
     const names = new Set(entry.rule.refs ?? []);
