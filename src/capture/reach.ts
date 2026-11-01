@@ -578,15 +578,61 @@ function fontVarRefs(entries: ServedEntry[], registrations: [string, string][] =
   return closure;
 }
 
+/** CSS Syntax escaped code points; strict mode preserves inline token boundaries. */
+export function decodeInlineEscapes(text: string, strict = false): string {
+  if (!text.includes('\\')) return text;
+  let quote = '';
+  let result = '';
+  for (let i = 0; i < text.length;) {
+    if (!quote && text.startsWith('/*', i)) {
+      const end = opaqueEnd(text, i);
+      result += text.slice(i, end);
+      i = end;
+      continue;
+    }
+    const character = text[i++];
+    if (character !== '\\') {
+      if (character === quote) quote = '';
+      else if (!quote && /["']/.test(character)) quote = character;
+      result += character;
+      continue;
+    }
+    const escaped = inlineEscape(text, i, Boolean(quote), strict);
+    i = escaped.end;
+    result += escaped.decoded;
+  }
+  return result;
+}
+
+function inlineEscape(text: string, i: number, quoted: boolean, strict: boolean): { end: number; decoded: string } {
+  const match = /^(?:([\da-f]{1,6})(?:\r\n|[ \t\r\n\f])?|(\r\n|[\r\n\f])|([^\r\n\f]))/i.exec(text.slice(i));
+  if (!match || (match[2] && !quoted)) unknown('undecodable inline style escape');
+
+  const decoded = match[1] ? escapedCodePoint(parseInt(match[1], 16)) : (match[3] ?? '');
+  if (strict && structuralEscape(decoded, quoted)) unknown('structural inline style escape');
+  return { end: i + match[0].length, decoded };
+}
+
+function escapedCodePoint(code: number): string {
+  if (!code || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return '\ufffd';
+  return String.fromCodePoint(code);
+}
+
+function structuralEscape(character: string, quoted: boolean): boolean {
+  if (!character) return false;
+  if (/['";:{}()\\]/.test(character)) return true;
+  return !quoted && /[\s/*]/.test(character);
+}
+
 function inlineDeclares(node: DocumentNode, names: ReadonlySet<string>): boolean {
   const attributes = node.attributes ?? [];
   for (let i = 0; i < attributes.length; i += 2) {
     if (attributes[i].toLowerCase() !== 'style') continue;
-    if ([...names].some((name) => attributes[i + 1].includes(name))) return true;
-    if (!/var\(|\\/i.test(attributes[i + 1])) continue;
-    if (attributes[i + 1].includes('\\')) unknown('escaped inline style dependency');
+    const style = decodeInlineEscapes(attributes[i + 1], true);
+    if ([...names].some((name) => style.includes(name))) return true;
+    if (!/var\(/i.test(style)) continue;
     if (
-      declarations(attributes[i + 1]).some(
+      declarations(style).some(
         ([property, value]) => /^(font(?:-family)?|animation(?:-name)?)$/i.test(property) && varReads(value).length,
       )
     )
