@@ -250,3 +250,38 @@ test('rules matching only ignored, shadow or iframe elements are unmeasured', as
     '.visible': 'reached',
   });
 });
+
+for (const opacity of ['1', '.5']) {
+  test(`merged opacity declaration reach: ${opacity}`, async ({ page }) => {
+    const html =
+      '<html><head><link rel="stylesheet" href="/app.css"></head><body><p class="text-red-500">Red</p><p class="text-blue-500">Blue</p></body></html>';
+    const colors = [
+      ['red', '239 68 68'],
+      ['blue', '59 130 246'],
+      ['green', '34 197 94'],
+    ];
+    const baseCSS = colors
+      .map(([name, rgb]) => `.text-${name}-500{--tw-text-opacity:1;color:rgb(${rgb}/var(--tw-text-opacity))}`)
+      .join('');
+    const headCSS =
+      colors
+        .map(
+          ([name, rgb]) =>
+            `.text-${name}-500{${name === 'green' ? '--tw-text-opacity:1;' : ''}color:rgb(${rgb}/var(--tw-text-opacity))}`,
+        )
+        .join('') + `.text-red-500,.text-blue-500{--tw-text-opacity:${opacity}}`;
+    const base = await capture(page, 'base', false, { html, css: baseCSS });
+    const head = await capture(page, 'head', false, { html, css: headCSS });
+    const result = classifyRuleReach([base], [head]);
+    if (opacity === '1') {
+      expect(diffStyleMaps(base, head)).toEqual([]);
+      expect(result.rules.every((r) => r.status === 'reached')).toBe(true);
+    } else {
+      expect(diffStyleMaps(base, head).length).toBeGreaterThan(0);
+      expect(result.rules.find((r) => r.key === '.text-red-500,.text-blue-500')).toMatchObject({
+        status: 'never-rendered',
+        why: expect.stringContaining('.text-green-500'),
+      });
+    }
+  });
+}

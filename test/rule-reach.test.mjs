@@ -878,3 +878,124 @@ test('font face referenced through a custom property needs a matched reader', ()
     );
   }
 });
+
+for (const value of ['h1', 'h5']) {
+  test(`merged custom-property declaration preserves reach only with agreement: ${value}`, () => {
+    const reader = rule('.u', 'u', { vars: { '--o': 'h1' }, uses: ['--o'] });
+    const base = map(
+      ...['.a', '.b'].map((key) => rule(key, 'old', { used: true, vars: { '--o': 'h1' }, uses: ['--o'] })),
+      reader,
+    );
+    const head = map(
+      ...['.a', '.b'].map((key) => rule(key, 'new', { used: true, uses: ['--o'] })),
+      rule('.a,.b', 'merged', { used: true, vars: { '--o': value } }),
+      reader,
+    );
+    const result = classifyRuleReach([base], [head]);
+    for (const key of ['.a', '.b', '.a,.b'])
+      assert.equal(statusOf(result, key).status, value === 'h1' ? 'reached' : 'never-rendered');
+  });
+}
+
+for (const scenario of [
+  { name: 'new unmatched selector', newly: true, matched: false, why: '.b' },
+  { name: 'new matched selector', newly: true, matched: true },
+  { name: 'inherited reader', newly: true, matched: true, inherited: true, why: '.w' },
+  { name: 'media move', merged: '@media (min-width: 1px) > .a,.b', why: '.w', inherited: true },
+  { name: 'reversed selector list', merged: '.b,.a' },
+  { name: 'functional selector', merged: ':is(.a,.b)', why: '.w', inherited: true },
+  { name: 'escaped comma', merged: String.raw`.a\,b`, why: '.w', inherited: true },
+  { name: 'important value', value: 'important', why: '.u' },
+  { name: 'layer move', merged: '@layer u > .a,.b', why: '.w', inherited: true },
+  { name: 'competing declaration', competing: true, why: '.u' },
+  { name: 'route split', split: true, why: '.w', inherited: true },
+  { name: 'alias reader', alias: true, newly: true, matched: true, why: '.u' },
+  { name: 'duplicate key', duplicate: true },
+]) {
+  test(`merged custom-property soundness: ${scenario.name}`, () => {
+    const a = scenario.duplicate ? '.a #2' : '.a';
+    const reader = rule('.u', 'u', { vars: { '--o': 'h1' }, uses: scenario.alias ? ['--o', '--q'] : ['--o'] });
+    const extras = [reader];
+    if (scenario.inherited) extras.push(rule('.w', 'w', { uses: ['--o'] }));
+    if (scenario.competing) extras.push(rule('.c', 'c', { vars: { '--o': 'h5' } }));
+    if (scenario.alias)
+      extras.push(rule('.q', 'q', { used: true, vars: { '--q': 'q' }, uses: ['--o'], aliases: { '--q': ['--o'] } }));
+    const base = map(
+      rule(a, 'old-a', { used: true, vars: { '--o': 'h1' }, uses: ['--o'] }),
+      rule('.b', 'old-b', {
+        used: !scenario.newly || scenario.matched,
+        ...(!scenario.newly ? { vars: { '--o': 'h1' } } : {}),
+        uses: ['--o'],
+      }),
+      ...extras,
+    );
+    const bodies = [
+      rule(a, 'new-a', { used: true, uses: ['--o'] }),
+      rule('.b', 'new-b', { used: !scenario.newly || scenario.matched, uses: ['--o'] }),
+      ...extras,
+    ];
+    const merged = scenario.merged ?? '.a,.b';
+    const head = map(...bodies, rule(merged, 'merged', { used: true, vars: { '--o': scenario.value ?? 'h1' } }));
+    const bases = [base, base];
+    const heads = [head, scenario.split ? map(...bodies) : head];
+    const result = classifyRuleReach(bases, heads);
+    assert.deepEqual(result, classifyRuleReach([...bases].reverse(), [...heads].reverse()));
+    if (scenario.name === 'new unmatched selector') assert.equal(statusOf(result, '.a').status, 'reached');
+    const verdict = statusOf(result, merged);
+    assert.equal(verdict.status, scenario.why ? 'never-rendered' : 'reached');
+    if (scenario.why) assert.match(verdict.why, new RegExp(`consumer ${scenario.why.replace('.', '\\.')} `));
+  });
+}
+
+for (const absentRoute of [false, true]) {
+  test(`declaration move with inherited reader, absent base route=${absentRoute}`, () => {
+    const reader = rule('.a .w', 'reader', { uses: ['--o'] });
+    const base = map(
+      rule('.a', 'a', { used: true, vars: { '--o': 'h1' } }),
+      rule('.b', 'b', { used: true, vars: { '--o': 'h1' } }),
+      reader,
+    );
+    const head = map(rule('.a,.b', 'merged', { used: true, vars: { '--o': 'h1' } }), reader);
+    const bases = [base, absentRoute ? map(rule('.z', 'z', { used: true }), reader) : base];
+    const result = classifyRuleReach(bases, [head, head]);
+    for (const key of ['.a', '.b', '.a,.b']) {
+      assert.equal(statusOf(result, key).status, absentRoute ? 'never-rendered' : 'reached');
+      if (absentRoute) assert.match(statusOf(result, key).why, /consumer \.a \.w never matched/);
+    }
+    assert.deepEqual(result, classifyRuleReach([...bases].reverse(), [head, head]));
+  });
+}
+
+test('selector comments cannot supply a declaration for another selector', () => {
+  const reader = rule('.a .w', 'reader', { uses: ['--o'] });
+  const commented = rule('.x/*,.a,*/', 'comment', { used: true, vars: { '--o': 'h1' } });
+  const base = map(rule('.a', 'old', { used: true, vars: { '--o': 'h1' } }), commented, reader);
+  const head = map(rule('.a', 'new', { used: true }), commented, reader);
+  assert.equal(statusOf(classifyRuleReach([base], [head]), '.a').status, 'never-rendered');
+});
+
+for (const selector of ['.p > .a', '.z, .p > .a', '[data-label=" > .a"]', ':has(> .x)']) {
+  test(`selector identity survives key construction: ${selector}`, () => {
+    const reader = '.a .w{color:var(--o)}';
+    const unchanged = `${selector}{--o:1}`;
+    const base = cssMap(sheet('/app.css', `.a{--o:1}${unchanged}${reader}`, '.a{--o:1}', unchanged));
+    const head = cssMap(sheet('/app.css', `.a{color:red}${unchanged}${reader}`, '.a{color:red}', unchanged));
+    assert.equal(statusOf(classifyRuleReach([base], [head]), '.a').status, 'never-rendered');
+  });
+}
+
+for (const [open, close, chain] of [
+  ['@media (width > 1px){', '}', '@media (width > 1px)'],
+  ['@media (width > 1px){@supports (display: grid){', '}}', '@media (width > 1px) > @supports (display: grid)'],
+]) {
+  test(`merged move preserves selector identity under ${chain}`, () => {
+    const reader = '.a .w{color:var(--o)}';
+    const baseCSS = `${open}.a{--o:1}.b{--o:1}${reader}${close}`;
+    const headCSS = `${open}.a,.b{--o:1}${reader}${close}`;
+    const base = cssMap(sheet('/app.css', baseCSS, '.a{--o:1}', '.b{--o:1}'));
+    const head = cssMap(sheet('/app.css', headCSS, '.a,.b{--o:1}'));
+    const result = classifyRuleReach([base], [head]);
+    for (const selector of ['.a', '.b', '.a,.b'])
+      assert.equal(statusOf(result, `${chain} > ${selector}`).status, 'reached');
+  });
+}
