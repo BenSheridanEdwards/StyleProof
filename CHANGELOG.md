@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Change Reach report and strip say matched; a matched rule whose declarations lost the cascade in every captured state still reads reached (#1238).
+
 ### Added
 
 - Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).
@@ -19,7 +21,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Change Reach fails closed on ambiguous unquoted stylesheet URLs and escaped `url()` names in every read stylesheet, preventing hidden font references (#1230). Benign escaped URL arguments retain their existing keys and hashes; the ledger remains version 2; escaped selectors and strings elsewhere are unaffected.
 - Change Reach resolves font families set through custom properties by unioning all candidate values, with conservative guards for substitutions that can join family names (#1224).
 - Change Reach reads `@font-face` and `@keyframes` names from literal `font` shorthands and from `font`/`animation` values with functions or comments; `var()` in `animation` values, `env()`, `attr()`, `ident()`, `--name()` custom functions and escapes still fail closed (#1224).
-- Match Change Reach `@font-face` family references ASCII case-insensitively, so a changed face used by a rendered rule with a differently cased family is reported `blind-channel`, not `never-rendered` (#1225).
+- Match Change Reach `@font-face` family references ASCII case-insensitively, so a changed face used by a matched rule with a differently cased family is reported `blind-channel`, not `never-rendered` (#1225).
 
 - **BREAKING (#1223):** Change Reach leaves browser-owned stylesheets (user-agent shadow `<style>`, for example inside `<details>`) out of the served-rule ledger, so pages with two or more `<details>` elements now capture. Pages with a `<details>` element no longer list that browser sheet in `reach.sheets` or its `:host` rules in `reach.rules`; recapture their bases after upgrading.
 
@@ -86,7 +88,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > `@v9` Action, ancestor baseline reuse counts every change unless roots are
 > declared, non-PR reports move to `run-<run_id>/`, and Node 22.13 is the
 > minimum. Opt-in Change Reach records served CSS rules, names changed rules
-> no captured state rendered, and can hold the verdict on those gaps. Capture,
+> no captured state matched, and can hold the verdict on those gaps. Capture,
 > diff and report work is faster through shared snapshot baselines, fewer browser
 > round trips and cached map and screenshot reads. Report artifacts share one
 > `report-max-bytes` budget (default 2,000,000 bytes), with explicit omission
@@ -206,9 +208,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   gains `reach: { level, ledger, counts, blocking }`; report reach gains `level`
   and `blocking`. J2/J3 and the not-yet-built changed-stylesheet join remain
   warn-only and keep the report **Reach incomplete**.
-- **"Changed but never rendered" report section (#996).** When captures carry a
+- **"Changed but never matched" report section (#996).** When captures carry a
   `captureReach` ledger, the report lists each changed CSS rule no captured state
-  rendered: its rule, the at-rules that gate it, and the served stylesheet. It
+  matched: its rule, the at-rules that gate it, and the served stylesheet. It
   also adds a one-line reach status under the headline and `reach` to
   `report.json`. Outside-only changes stay `unmeasured`, with their own count
   and detail table, including in bounded reports and gate CLI summaries.
@@ -226,12 +228,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   compared separately so one route cannot hide another's change. A changed
   custom property must reach every consumer,
   including through aliases. A changed `@keyframes` or `@font-face` is a blind
-  channel when a rendered rule references its animation or font family, because
+  channel when a matched rule references its animation or font family, because
   computed styles do not hold those bodies. A changed `@property` is a blind
-  channel when a rendered rule reads it outside a custom-property alias, or
-  declares it, otherwise never rendered. A changed token that no served rule
+  channel when a matched rule reads it outside a custom-property alias, or
+  declares it, otherwise never matched. A changed token that no served rule
   reads outside a custom property, or that only feeds unread aliases, is never
-  rendered instead of reached. Ledger rules gain `aliases`.
+  matched instead of reached. Ledger rules gain `aliases`.
   Ledgers carry `version: 2`. A map whose ledger lacks it (recorded before
   aliases), or any map without a ledger, classifies nothing (`ledger: 'missing'`).
   Unreadable stylesheets leave the ledger `partial`; readable rules are still
@@ -242,7 +244,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `defineStyleMapCapture` or `captureStyleMap`) records every served CSS rule
   in `StyleMap.reach` and marks the ones that matched an element while the map
   was read, forced states included. This is the evidence Change Reach (#934)
-  uses to name a changed rule that no captured state rendered. Off by default.
+  uses to name a changed rule that no captured state matched. Off by default.
   Enabling `captureReach` alone leaves diffs, verdicts and exit codes unchanged
   with the default `changeReach: 'warn'`. For a direct `captureStyleMap` call,
   arm `trackServedRules(page)` before navigating and pass it as `servedRules`.
@@ -5092,7 +5094,7 @@ captured`, `✗ coverage INCOMPLETE — …`, or `⚠ completeness NOT asserted`
   deeper. Depth-first starved breadth: one append-generator branch drilled past
   depth 20 while sibling tabs sat unvisited, so real surfaces (an OAuth card, a
   skills grid, a markdown editor) went uncaptured — measured live as 48 defined
-  classes never rendered across ~12 surfaces. Dedup is set-based, so order
+  classes never matched across ~12 surfaces. Dedup is set-based, so order
   changes only WHICH surface is found first, never the final set.
 - `maxDepth` default 1000 -> 16: exhaustive for real UI (nothing human-navigable
   is 16 clicks from load) while terminating append-generator chains, whose every

@@ -352,7 +352,12 @@ function shortfall(
     const referrer = side.sorted.find(
       (r) => r.key !== v.key && side.used.has(r.id) && dependency.carries(r).some((n) => dependency.names.includes(n)),
     );
-    if (referrer) return { status: 'blind-channel', why: `referenced by ${referrer.key}, which rendered`, ...sheet };
+    if (referrer)
+      return {
+        status: 'blind-channel',
+        why: `referenced by ${referrer.key}, which matched a captured element`,
+        ...sheet,
+      };
     const outside = side.sorted.find(
       (r) =>
         r.key !== v.key && side.outside.has(r.id) && dependency.carries(r).some((n) => dependency.names.includes(n)),
@@ -363,7 +368,7 @@ function shortfall(
           why: `referenced only by ${outside.key}, which matched only elements StyleProof does not compare`,
           ...sheet,
         }
-      : { status: 'never-rendered', why: 'no rendered rule references it', ...sheet };
+      : { status: 'never-rendered', why: 'no matched rule references it', ...sheet };
   }
   if (!side.used.has(v.id)) return { ...unmatchedShortfall(v, side, before, ctx), ...sheet };
   const token = tokenShortfall(v, side, before, ctx);

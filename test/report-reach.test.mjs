@@ -40,7 +40,7 @@ function report(dirs, options = {}) {
 }
 
 const strip =
-  '**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that renders each rule under **Changed but never matched**. Render-code reach is not measured yet.';
+  '**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that matches each rule under **Changed but never matched**. Render-code reach is not measured yet.';
 const intro =
   '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
 const table = ['| Rule | Change | Gated by | Source | Why |', '| --- | --- | --- | --- | --- |'];
@@ -350,7 +350,9 @@ test('rendered references to changed animation bodies appear in the blind-channe
     ),
   );
   assert.ok(
-    output.md.includes('| `@keyframes pulse` | changed | — | `/app.css` | referenced by .badge, which rendered |'),
+    output.md.includes(
+      '| `@keyframes pulse` | changed | — | `/app.css` | referenced by .badge, which matched a captured element |',
+    ),
   );
   assert.match(output.md, /\*\*Reach incomplete\*\* — 1 changed in a channel computed styles cannot hold/);
   assert.doesNotMatch(output.md, /Fix: \./);
