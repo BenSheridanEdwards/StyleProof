@@ -370,6 +370,60 @@ test('identical sheet labels and text fail as ambiguous in either discovery orde
   }
 });
 
+test('browser-owned details sheets are excluded in either discovery order', async () => {
+  const sheets = [
+    { styleSheetId: 'ua1', text: ':host summary { display: list-item; }', ownerNode: 7 },
+    { styleSheetId: 'ua2', text: ':host summary { display: list-item; }', ownerNode: 8 },
+    { styleSheetId: 'app', text: '.a { color: red; }', used: true },
+  ];
+  const document = {
+    children: [7, 8].map((backendNodeId) => ({
+      shadowRoots: [{ shadowRootType: 'user-agent', children: [{ backendNodeId }] }],
+    })),
+  };
+  const first = await trackedLedger(sheets, { document });
+  assert.deepEqual(first, await trackedLedger([...sheets].reverse(), { document }));
+  assert.deepEqual(first.sheets, ['inline']);
+  assert.equal(
+    first.rules.some((r) => r.key.includes(':host')),
+    false,
+  );
+});
+
+test('author light-DOM sheets on a user-agent shadow host remain in the ledger', async () => {
+  const ledger = await trackedLedger(
+    [
+      { styleSheetId: 'author', text: '.author { color: red; }', ownerNode: 9 },
+      { styleSheetId: 'ua', text: ':host summary { display: list-item; }', ownerNode: 7 },
+    ],
+    {
+      document: {
+        backendNodeId: 1,
+        children: [{ backendNodeId: 9 }],
+        shadowRoots: [{ shadowRootType: 'user-agent', children: [{ backendNodeId: 7 }] }],
+      },
+    },
+  );
+  assert.deepEqual(ledger.sheets, ['inline']);
+  assert.deepEqual(
+    ledger.rules.map((r) => r.key),
+    ['.author'],
+  );
+});
+
+test('author shadow sheets duplicating document sheets remain ambiguous', async () => {
+  await assert.rejects(
+    trackedLedger(
+      [
+        { styleSheetId: 'document', text: '.a { color: red; }' },
+        { styleSheetId: 'shadow', text: '.a { color: red; }', ownerNode: 7 },
+      ],
+      { document: { shadowRoots: [{ shadowRootType: 'open', children: [{ backendNodeId: 7 }] }] } },
+    ),
+    /ambiguous identical stylesheets/,
+  );
+});
+
 test('reach self-check rejects ledger drift and missing evidence with unchanged styles', () => {
   const reach = { sheets: ['inline'], rules: [{ sheet: 0, key: '.a', hash: 'abc', used: true }] };
   const first = { elements: [], reach };
