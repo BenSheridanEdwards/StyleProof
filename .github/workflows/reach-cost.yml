@@ -34,6 +34,7 @@ jobs:
         with:
           node-version: '22'
       - id: pnpm-store
+        shell: bash
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - id: pnpm-cache
         uses: actions/cache/restore@v6

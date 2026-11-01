@@ -66,6 +66,7 @@ jobs:
         with:
           node-version: '22'
       - id: pnpm-store
+        shell: bash
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - id: pnpm-cache
         uses: actions/cache/restore@v6
@@ -85,7 +86,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+          key: pw-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-chromium
 
       - name: Install browsers (cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
