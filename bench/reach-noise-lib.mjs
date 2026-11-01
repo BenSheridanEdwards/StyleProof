@@ -47,6 +47,7 @@ export function verdict({ replayed, real }) {
 }
 
 export function assertAggregateOnly(receipt) {
+  if (receipt && Object.hasOwn(receipt, 'browser')) return assertFullReceipt(receipt);
   const count = (n) => Number.isSafeInteger(n) && n >= 0;
   const counts = (obj, keys) =>
     obj && Object.keys(obj).length === keys.length && keys.every((k) => Object.hasOwn(obj, k) && count(obj[k]));
@@ -58,6 +59,70 @@ export function assertAggregateOnly(receipt) {
   )
     throw new Error('Receipt must contain aggregate counts only');
   return receipt;
+}
+
+const LABEL_KEYS = ['total', 'real', 'joinMiss', 'noVisual', 'unclassified'];
+const UNMEASURED_KEYS = ['surface-set-mismatch', 'historical-build-dependencies-unavailable-offline'];
+const NOT_MEASURABLE = [
+  'main process, preload and IPC',
+  'renderer states the fixtures never open',
+  'code-split chunks without source maps',
+  'CSS-in-JS not served as a stylesheet',
+  'J1 partial or unmeasured units including shadow DOM, iframes and ignored regions',
+  'non-JSX changes are outside J3',
+  'changes inside vendored dependencies are outside J2',
+];
+const count = (n) => Number.isSafeInteger(n) && n >= 0;
+const exact = (obj, schema) =>
+  !!obj &&
+  typeof obj === 'object' &&
+  Object.keys(obj).length === Object.keys(schema).length &&
+  Object.entries(schema).every(([key, check]) => Object.hasOwn(obj, key) && check(obj[key]));
+const countObject = (keys) => (obj) => exact(obj, Object.fromEntries(keys.map((k) => [k, count])));
+const labelCounts = countObject(LABEL_KEYS);
+
+function assertFullReceipt(r) {
+  const schema = {
+    browser: (s) => s === 'chromium 149.0.7827.55',
+    styleproofSha: (s) => s === 'cff649eeb9e8eabcb6029699741e3bda03465f85',
+    selectionRule: (s) => s === 'first-parent-renderer-suffixes-v1',
+    prs: countObject(['target', 'attempted', 'replayed', 'unmeasured']),
+    unmeasuredReasons: countObject(UNMEASURED_KEYS),
+    flags: labelCounts,
+    byJoin: (obj) => exact(obj, { J1: labelCounts, J2: labelCounts, J3: labelCounts }),
+    perPr: (obj) => exact(obj, { median: (n) => count(n * 2), max: count }),
+    determinism: (obj) =>
+      exact(obj, {
+        status: (s) => s === 'PASSED',
+        styleDrift: (n) => n === 0,
+        ledgerDrift: (n) => n === 0,
+        appCoverageDrift: (n) => n === 0,
+        thirdPartyOnlyDrift: count,
+        records: count,
+      }),
+    failClosedCaptures: (n) => n === 0,
+    failClosedReasons: (a) => Array.isArray(a) && a.length === 0,
+    notMeasurable: (a) =>
+      Array.isArray(a) && a.every((s) => NOT_MEASURABLE.includes(s)) && new Set(a).size === a.length,
+  };
+  if (!exact(r, schema) || !consistentReceipt(r))
+    throw new Error('Receipt must contain fixed enums and consistent aggregate counts only');
+  return r;
+}
+
+function consistentReceipt(r) {
+  const joins = Object.values(r.byJoin);
+  const totalMatches = (counts) => counts.total === LABEL_KEYS.slice(1).reduce((n, k) => n + counts[k], 0);
+  return (
+    [r.flags, ...joins].every(totalMatches) &&
+    LABEL_KEYS.every((k) => joins.reduce((n, j) => n + j[k], 0) === r.flags[k]) &&
+    r.prs.attempted === r.prs.replayed + r.prs.unmeasured &&
+    r.prs.replayed <= r.prs.target &&
+    r.prs.attempted <= 15 &&
+    Object.values(r.unmeasuredReasons).reduce((a, b) => a + b, 0) === r.prs.unmeasured &&
+    r.perPr.median <= r.perPr.max &&
+    r.determinism.thirdPartyOnlyDrift <= r.determinism.records
+  );
 }
 
 export function privateOutOk(out, repoRoot) {

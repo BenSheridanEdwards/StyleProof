@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import * as joins from '../bench/reach-joins.mjs';
 import {
@@ -54,6 +55,96 @@ test('receipt admits aggregate counts only', () => {
   assert.throws(() => assertAggregateOnly({ ...receipt, title: 'private' }));
   assert.throws(() => assertAggregateOnly({ ...receipt, flags: { ...receipt.flags, real: 'private' } }));
   assert.throws(() => assertAggregateOnly({ ...receipt, prs: { attempted: -1 } }));
+});
+
+function fullReceipt() {
+  return {
+    browser: 'chromium 149.0.7827.55',
+    styleproofSha: 'cff649eeb9e8eabcb6029699741e3bda03465f85',
+    selectionRule: 'first-parent-renderer-suffixes-v1',
+    prs: { target: 12, attempted: 1, replayed: 1, unmeasured: 0 },
+    unmeasuredReasons: { 'surface-set-mismatch': 0, 'historical-build-dependencies-unavailable-offline': 0 },
+    flags: aggregate(['real']),
+    byJoin: { J1: aggregate(['real']), J2: aggregate([]), J3: aggregate([]) },
+    perPr: { median: 1, max: 1 },
+    determinism: {
+      status: 'PASSED',
+      styleDrift: 0,
+      ledgerDrift: 0,
+      appCoverageDrift: 0,
+      thirdPartyOnlyDrift: 0,
+      records: 1,
+    },
+    failClosedCaptures: 0,
+    failClosedReasons: [],
+    notMeasurable: ['changes inside vendored dependencies are outside J2'],
+  };
+}
+
+test('committed noise receipt passes the aggregate privacy guard', () => {
+  const receipt = JSON.parse(fs.readFileSync(new URL('../bench/reach-noise.results.json', import.meta.url)));
+  assert.doesNotThrow(() => assertAggregateOnly(receipt));
+});
+
+test('full receipt accepts fixed provenance and aggregate fields only', () => {
+  assert.doesNotThrow(() => assertAggregateOnly(fullReceipt()));
+  for (const mutate of [
+    (r) => {
+      r.browser = 'unknown';
+    },
+    (r) => {
+      r.styleproofSha = 'a'.repeat(40);
+    },
+    (r) => {
+      r.selectionRule = 'unknown';
+    },
+    (r) => {
+      r.notMeasurable.push('unknown');
+    },
+    (r) => {
+      r.unmeasuredReasons.unknown = 1;
+    },
+    (r) => {
+      r.determinism.extra = 'unknown';
+    },
+    (r) => {
+      r.failClosedReasons.push('unknown');
+    },
+    (r) => {
+      r.byJoin.J1.title = 'unknown';
+    },
+    (r) => {
+      r.perPr.median = -1;
+    },
+  ]) {
+    const receipt = fullReceipt();
+    mutate(receipt);
+    assert.throws(() => assertAggregateOnly(receipt));
+  }
+});
+
+test('full receipt rejects inconsistent totals and join splits', () => {
+  for (const mutate of [
+    (r) => {
+      r.flags.total++;
+    },
+    (r) => {
+      r.byJoin.J2 = aggregate(['real']);
+    },
+    (r) => {
+      r.prs.attempted++;
+    },
+    (r) => {
+      r.unmeasuredReasons['surface-set-mismatch']++;
+    },
+    (r) => {
+      r.perPr.median = 2;
+    },
+  ]) {
+    const receipt = fullReceipt();
+    mutate(receipt);
+    assert.throws(() => assertAggregateOnly(receipt));
+  }
 });
 
 test('private output rejects worktrees and descendants', () => {
