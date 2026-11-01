@@ -1151,3 +1151,32 @@ test('ambiguous sheet URLs without font variable readers retain existing parsing
   );
   await trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]);
 });
+
+for (const style of [
+  '--f:Brand;background:url(a(b);font-family:var(--f);c:x)',
+  '--f:Brand;background:url(a b(c);font-family:var(--f);c:x)',
+  String.raw`--f:Brand;background:u\72 l(a(b);font-family:var(--f);c:x)`,
+])
+  test(`nested URL parenthesis cannot hide inline reader: ${style}`, async () => {
+    await assert.rejects(
+      trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
+        document: { children: [{ attributes: ['style', style] }] },
+      }),
+      /reach is unknown/,
+    );
+  });
+for (const style of [
+  'background:url( "x.png")',
+  String.raw`background:url(a\ b.png)`,
+  'background:url(a.png);content:"it\'s url(x"',
+]) {
+  test(`unrelated valid inline URL captures: ${style}`, async () => {
+    await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
+      document: { children: [{ attributes: ['style', style] }] },
+    });
+  });
+}
+test('quoted stylesheet URL after whitespace resolves beside a font variable reader', () => {
+  const rules = servedRulesOf(':root{--f:Brand} .t{font-family:var(--f);background:url( "x.png")}', []);
+  assert.ok(rules.find((r) => r.key === '.t').refs.includes('Brand'));
+});
