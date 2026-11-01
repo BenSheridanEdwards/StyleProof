@@ -1050,3 +1050,41 @@ test('shorthand exemptions inspect JS registrations', async () => {
     /reach is unknown/,
   );
 });
+
+test('escaped inline CJK font family captures', async () => {
+  await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
+    document: { children: [{ attributes: ['style', String.raw`font-family:'\5FAE\8F6F\96C5\9ED1'`] }] },
+  });
+});
+test('inline CSS escape decoding agrees with literal font-face names', () => {
+  const family = servedRulesOf('@font-face { font-family: "微软雅黑"; }', [])[0].refs[0];
+  assert.equal(reach.decodeInlineEscapes(String.raw`'\5FAE\8F6F\96C5\9ED1'`).slice(1, -1), family);
+  for (const [input, expected] of [
+    [String.raw`\5FAE 8F6F`, '微8F6F'],
+    [String.raw`\000041`, 'A'],
+    [String.raw`\0`, '\uFFFD'],
+    [String.raw`\D800`, '\uFFFD'],
+    [String.raw`\110000`, '\uFFFD'],
+    [String.raw`\;`, ';'],
+    ['"a\\\r\nb"', '"ab"'],
+    [String.raw`\41` + '\r\n' + 'B', 'AB'],
+  ])
+    assert.equal(reach.decodeInlineEscapes(input), expected);
+});
+for (const style of [
+  String.raw`font-family:v\61r(--f)`,
+  String.raw`\2d\2d brand: Other`,
+  'color:red\\',
+  'color:red\\\n',
+  String.raw`color:red\3b --brand:Other`,
+  String.raw`color:red\2f *hidden*/`,
+]) {
+  test(`unsafe escaped inline dependency stays unknown: ${JSON.stringify(style)}`, async () => {
+    await assert.rejects(
+      trackedLedger([{ styleSheetId: 'app', text: ':root{--brand:Brand} .t{font-family:var(--brand)}' }], {
+        document: { children: [{ attributes: ['style', style] }] },
+      }),
+      /reach is unknown/,
+    );
+  });
+}
