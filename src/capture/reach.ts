@@ -562,7 +562,7 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
   const stop = async (ownCss: readonly string[], compared: readonly string[]): Promise<ServedRules> => {
     const { ruleUsage } = await client.send('CSS.stopRuleUsageTracking');
     const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
-    const { read, unreadable } = await readSheets(client, sheets.values(), ownCss, userAgentOwned(root));
+    const { read, unreadable } = await readSheets(client, [...sheets.values()], ownCss, userAgentOwned(root));
     const { frameTree } = await client.send('Page.getFrameTree');
     const shadow = hasShadowRoot(root);
     const rules: ServedRule[] = [];
