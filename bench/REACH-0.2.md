@@ -28,7 +28,7 @@ J1 ≤ 5% — PASSED (0.1–2.6% median overhead, 7 runs per target across 3 tar
 
 J2 ≤ 15% — PASSED (3.8–6.5% median overhead for combined J1+J2 capture, 7 runs per target across 3 targets, chromium 149.0.7827.55; #1032).
 
-≥1 real unreached change across replayed PRs — PASSED (183 real in 6 PRs).
+≥1 real unreached change across replayed PRs — PASSED (195 real in 6 PRs).
 
 The capture-cost observations come from the existing
 [cost receipt](reach-cost.results.json), not from this replay. The J2 budget
@@ -38,12 +38,12 @@ includes J1 rather than measuring incremental JS coverage cost alone.
 | ----- | ----: | ---: | --------------: | --------------: | -----------: |
 | J1    |     4 |    2 |               2 |               0 |            0 |
 | J2    |   184 |  179 |               2 |               3 |            0 |
-| J3    |    20 |    2 |              13 |               5 |            0 |
-| Total |   208 |  183 |              17 |               8 |            0 |
+| J3    |    20 |   14 |               1 |               5 |            0 |
+| Total |   208 |  195 |               5 |               8 |            0 |
 
 Each flag is attributed once to its review join; the split is not a count of
 every join status a unit carries. Median flags per measured PR: 31; maximum: 69.
-Observed noise/flags is 25/208 = 12.02%. No noise-rate threshold was agreed.
+Observed noise/flags is 13/208 = 6.25%. No noise-rate threshold was agreed.
 The real-change threshold is an existence check, not a recall or precision claim.
 
 ## Determinism and labelling
@@ -67,14 +67,17 @@ Fail-closed captures: 0; reasons: none. In particular,
 determinism double-capture. This does not establish that animating pages can
 never encounter that rejection.
 
-Automatic reach evidence labelled 14 flags as join-miss. Claude reviewed the
-remaining 194; all 208 private keys have exactly one final label. Claude labels
-replace null automatic labels, while automatic labels stand where no reviewer
-label exists. Per-line counting inflates the real-flag count when one unexecuted
+Automatic reach evidence now labels 2 flags as join-miss. Claude reviewed the
+remaining 206, including 12 previously automatic labels; all 208 private keys
+have exactly one final label. Reviewer labels override automatic labels. Per-line counting inflates the real-flag count when one unexecuted
 function spans many changed lines. J3 noise included words in comments/tests
 matching class tokens. Claude labelled its own pipeline's output, which leaves
 labelling bias; each real label required a named unopened state, retained only
 in private evidence. No private state names or examples are published here.
+
+Correction (2026-11-01): an earlier auto-labeller let a shared class token
+override a never-ran line. Claude review relabelled 12 J3 flags as real.
+The receipt retains the original capture provenance and all other observations.
 
 ## Limits
 
