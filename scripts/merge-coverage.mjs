@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { COVERAGE_LINE_FLOOR } from './check-coverage.mjs';
+import { matchesGlob } from 'node:path';
+import { COVERAGE_LINE_FLOOR, COVERAGE_INCLUDE, COVERAGE_EXCLUDE } from './check-coverage.mjs';
 
 /** Union executable lines by source path; a hit in any shard covers the line. */
 export function mergeCoverage(inputs, expected) {
@@ -10,7 +11,9 @@ export function mergeCoverage(inputs, expected) {
   const files = new Map();
   for (const input of inputs) {
     for (const [source, lines] of parseInput(input)) {
-      if (!/^(?:.*\/)?dist\//.test(source) || source.includes('/node_modules/')) continue;
+      if (!matchesGlob(source, COVERAGE_INCLUDE) || matchesGlob(source, COVERAGE_EXCLUDE)) {
+        throw new Error(`merge-coverage: source outside coverage scope: ${source}`);
+      }
       const merged = files.get(source) ?? new Map();
       for (const [line, hit] of lines) merged.set(line, merged.get(line) || hit);
       files.set(source, merged);
@@ -78,9 +81,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const [flag, count, ...paths] = process.argv.slice(2);
     if (flag !== '--expect') throw new Error('merge-coverage: use --expect N <lcov files>');
-    const percent = mergeCoverage(
-      paths.map((file) => readFileSync(file, 'utf8')),
-      Number(count),
+    const percent = Number(
+      mergeCoverage(
+        paths.map((file) => readFileSync(file, 'utf8')),
+        Number(count),
+      ).toFixed(2),
     );
     console.log(`Merged dist line coverage: ${percent.toFixed(2)}% (floor ${COVERAGE_LINE_FLOOR}%)`);
     process.exitCode = percent < COVERAGE_LINE_FLOOR ? 1 : 0;

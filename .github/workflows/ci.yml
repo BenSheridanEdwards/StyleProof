@@ -152,6 +152,7 @@ jobs:
         with:
           name: unit-coverage-${{ matrix.shard }}
           path: coverage-${{ matrix.shard }}.info
+          overwrite: true
           if-no-files-found: error
           retention-days: 1
 
@@ -161,25 +162,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - id: node
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - id: pnpm-store
-        shell: bash
-        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - id: pnpm-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-${{ runner.os }}-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: pnpm install --frozen-lockfile
-      - uses: actions/cache/save@v6
-        if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.pnpm-cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
       - uses: actions/download-artifact@v6
         with:
           pattern: unit-coverage-*
@@ -421,7 +406,7 @@ jobs:
   required:
     name: required
     if: always()
-    needs: [changes, build, coverage, e2e, e2e-evidence, cli-smoke, detection-corpus]
+    needs: [changes, build, coverage, coverage-shards, e2e, e2e-evidence, cli-smoke, detection-corpus]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required CI evidence
@@ -431,6 +416,7 @@ jobs:
           E2E_PROOF: ${{ needs.changes.outputs.e2e_proof }}
           BUILD_RESULT: ${{ needs.build.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
+          COVERAGE_SHARDS_RESULT: ${{ needs.coverage-shards.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
           CLI_SMOKE_RESULT: ${{ needs.cli-smoke.result }}
@@ -439,7 +425,7 @@ jobs:
           set -euo pipefail
           status=0
           reject() { echo "::error::$1"; status=1; }
-          for name in CHANGES_RESULT BUILD_RESULT COVERAGE_RESULT CLI_SMOKE_RESULT; do
+          for name in CHANGES_RESULT BUILD_RESULT COVERAGE_RESULT COVERAGE_SHARDS_RESULT CLI_SMOKE_RESULT; do
             val="${!name:-}"
             [ "$val" = success ] || reject "$name was '$val' (want success)"
           done
