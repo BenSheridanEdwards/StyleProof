@@ -279,7 +279,7 @@ function candidateNames(value: string): string[] {
     }
     const token = candidateToken(value.slice(i));
     const functionName = token.identifier && value[i + token.text.length] === '(';
-    if (functionName && /^(var|env|attr|inherit)$/i.test(token.text))
+    if (functionName && /^(?:(?:var|env|attr|inherit|ident)$|--)/i.test(token.text))
       unknown('unsupported font or animation dependency');
     if (token.identifier && !functionName) {
       run.push(token.text);
