@@ -587,6 +587,21 @@ test('a one-for-one swap across routes still judges the removed body on base', (
   }
 });
 
+test('a matched font shorthand makes a changed font face a blind channel', () => {
+  const snapshot = (source) =>
+    cssMap(
+      sheet(
+        '/app.css',
+        `@font-face { font-family: "Brand Sans"; src: local(${source}); } .t { font: 16px "Brand Sans"; }`,
+        '.t',
+      ),
+    );
+  assert.equal(
+    statusOf(classifyRuleReach([snapshot('Arial')], [snapshot('serif')]), '@font-face').status,
+    'blind-channel',
+  );
+});
+
 test('a changed @font-face is a blind channel only when a rendered rule uses its family', () => {
   const faces = (brandHash) => [
     rule('@font-face', brandHash, { refs: ['Brand Sans'] }),

@@ -253,12 +253,30 @@ test('font references preserve complete quoted and unquoted family names', () =>
   assert.deepEqual(rule.refs, ['Brand  Sans', 'Foo Bar', 'Semi;Comma,Font', 'sans-serif']);
 });
 
-test('unsupported escaped font dependencies and shorthands fail with unknown reach', () => {
+test('font shorthands and function values resolve candidate names', () => {
+  for (const [declaration, name] of [
+    ['font: inherit', 'inherit'],
+    ['font: italic 700 16px/1.5 "Brand Sans", serif', 'Brand Sans'],
+    ['font: 16px Brand Sans, serif', 'Brand Sans'],
+    ['font: 700 clamp(28px, 4vw, 46px)/1 "Brand Sans"', 'Brand Sans'],
+    ['font-family: /* x */ "Brand Sans"', 'Brand Sans'],
+    ['animation: pulse 1s cubic-bezier(.4, 0, .2, 1) infinite', 'pulse'],
+    ['animation: pulse 1s steps(4, jump-end)', 'pulse'],
+  ]) {
+    assert.ok(servedRulesOf(`.t { ${declaration}; }`, [])[0].refs.includes(name), declaration);
+  }
+});
+
+test('unsupported escaped and substituted dependencies fail with unknown reach', () => {
   for (const declaration of [
     String.raw`font-family: Brand\ Sans`,
     String.raw`font-family: "Brand\22 Sans"`,
-    'font: italic 16px "Brand Sans"',
+    'font: 16px var(--family)',
     'font-family: var(--family)',
+    'font-family: env(x)',
+    'font-family: attr(x)',
+    'animation: var(--motion)',
+    'animation-name: "pulse"',
   ]) {
     assert.throws(() => servedRulesOf(`.title { ${declaration}; }`, []), /served CSS reach is unknown/, declaration);
   }
