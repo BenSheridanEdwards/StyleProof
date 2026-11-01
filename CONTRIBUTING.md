@@ -68,7 +68,10 @@ pnpm test              # builds, then node --test over test/*.test.mjs (fast, no
 pnpm run test:unit test/<name>.test.mjs  # one file, same runner and preload (after a build)
 pnpm run test:coverage # same unit suite + Node built-in coverage floor on dist/ (Node 22.8+)
 pnpm run test:e2e      # Playwright smoke: the page.evaluate + CDP capture path
+node scripts/ci-stat.mjs --live # CI queue and execution seconds per attempt
 ```
+
+See the header of `scripts/ci-stat.mjs` for the offline fixture shape.
 
 Run a single unit test file with `pnpm run test:unit <file>`, not a plain
 `node --test <file>`. The runner preloads `test/no-concurrent-jobs.cjs`, and
@@ -167,6 +170,8 @@ section and [approval binding](docs/report-delivery-contract.md#approval-binding
 
 ## Pull request norms
 
+- Push stacks bottom-up, one branch per `git push`. For stacks of more than 3,
+  push the next branch only once the previous run's jobs have started.
 - **One concern per PR.** Keep diffs small and reviewable.
 - **No new runtime dependencies** without discussion — "pure JS, no native build, CI
   anywhere" is a feature. `pngjs` is the only one.

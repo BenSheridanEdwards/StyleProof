@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
+
 - Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).
   During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. Compare-only SIGTERM is ignored, so container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or crashes can leave `<repo>/.worktrees/styleproof-base-*`; the next `--capture-base` removes only hour-old, current-user scratch dirs with confirmed dead owners. The nested base checkout can inherit head root files through Node module resolution, postcss/browserslist config or pnpm workspace detection when the base lacks its own. The flag rejects two explicit directories.
 
