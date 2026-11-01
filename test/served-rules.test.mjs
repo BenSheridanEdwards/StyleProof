@@ -1217,3 +1217,24 @@ test('no styled nodes require no inline CDP calls', async () => {
   });
   assert.deepEqual(calls, []);
 });
+
+test('non-ASCII escaped URL names preserve identifier boundaries', () => {
+  for (const value of [String.raw`é \75rl(x.png)`, String.raw`\e9  \75rl(x.png)`]) {
+    const css = `.t{list-style:${value}}`;
+    assert.throws(() => urlGuard(css), /^Error: ambiguous unquoted URL dependency$/);
+    assert.throws(() => servedRulesOf(css, []), /reach is unknown: ambiguous unquoted URL dependency$/);
+  }
+  for (const value of [
+    String.raw`é\75rl(`,
+    String.raw`\e9 \75rl(`,
+    String.raw`\75rl\e9(`,
+    String.raw`\ff55\ff52\ff4c(`,
+    '\u00a0\\75rl(',
+  ]) {
+    assert.doesNotThrow(() => urlGuard(`.t{list-style:${value}}`));
+  }
+  assert.throws(
+    () => servedRulesOf('.t{list-style:\u00a0\\75rl(x.png)}', []),
+    /reach is unknown: unsupported var\(\) reference$/,
+  );
+});

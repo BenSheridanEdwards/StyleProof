@@ -547,3 +547,63 @@ test('parsed inline closure names in a same-origin iframe fail closed', async ({
   });
   await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
 });
+
+test('Chromium oracle agrees with non-ASCII escaped URL name boundaries', async ({ page }) => {
+  const source = fs
+    .readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8')
+    .replace(
+      "'../pseudo-references.js'",
+      JSON.stringify(new URL('../dist/pseudo-references.js', import.meta.url).href),
+    );
+  const reader = await import(
+    `data:text/javascript;base64,${Buffer.from(source + '\nexport { leafRules, declarations, guardAmbiguousURLs };').toString('base64')}`
+  );
+  let rejected = 0;
+  for (const value of [
+    String.raw`é \75rl(x.png)`,
+    String.raw`\e9  \75rl(x.png)`,
+    String.raw`é\75rl(`,
+    String.raw`\e9 \75rl(`,
+    String.raw`\75rl\e9(`,
+    String.raw`\ff55\ff52\ff4c(`,
+    '\u00a0\\75rl(',
+  ]) {
+    let guardRejects = false;
+    try {
+      reader.guardAmbiguousURLs(`.t{list-style:${value}}`);
+    } catch {
+      guardRejects = true;
+      rejected++;
+    }
+    const chromiumSeesURL = await page.evaluate((value) => {
+      const style = document.createElement('span').style;
+      style.setProperty('list-style', value);
+      return style.listStyleImage.startsWith('url(');
+    }, value);
+    expect(guardRejects, value).toBe(chromiumSeesURL);
+  }
+  expect(rejected).toBe(2);
+  expect(
+    await page.evaluate(() => {
+      const style = document.createElement('span').style;
+      style.setProperty('list-style', 'é url(x.png)');
+      return style.listStyleImage;
+    }),
+  ).toBe('url("x.png")');
+  const css = String.raw`.t{content:"é\75rl(x)";list-style:é url(x.png);font-family:Other}`;
+  expect(() => servedRulesOf(css, [])).not.toThrow();
+  const extracted = reader.declarations(reader.leafRules(css)[0].body);
+  const boundaries = await page.evaluate(
+    ({ css, extracted }) => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(css);
+      const actual = (sheet.cssRules[0] as CSSStyleRule).style;
+      const expected = document.createElement('span').style;
+      for (const [name, value] of extracted) expected.setProperty(name, value);
+      const select = (style: CSSStyleDeclaration) => [style.content, style.listStyleImage, style.fontFamily];
+      return [select(actual), select(expected)];
+    },
+    { css, extracted },
+  );
+  expect(boundaries[0]).toEqual(boundaries[1]);
+});
