@@ -23,8 +23,8 @@ ticket [#988](https://github.com/BenSheridanEdwards/StyleProof/issues/988)).
   - **J1:** a changed served CSS rule must match an element. Changed custom
     properties follow `aliases`, need every consumer to match, and require a
     read outside a custom-property declaration. Unread and alias-only tokens
-    are never rendered. `@keyframes`, `@font-face` and `@property` resolve
-    through rendered references; `@property` also resolves through declarations;
+    are never matched. `@keyframes`, `@font-face` and `@property` resolve
+    through matched references; `@property` also resolves through declarations;
     alias-only reads do not count.
   - **J2:** a changed line of render code must run. This uses V8 block coverage
     resolved through the bundle's source map.
@@ -55,10 +55,10 @@ What each kind of change does in the declared scenario:
 | Change                                                         | Today  | Reach                                         |
 | -------------------------------------------------------------- | ------ | --------------------------------------------- |
 | `:hover` colour                                                | shown  | reached (forced `:hover` matches)             |
-| Fault-overlay rule, removed rule, CSS Module rule, ternary arm | missed | never rendered (J1)                           |
-| Token used only by the fault badge                             | missed | never rendered (J1 consumer closure)          |
-| Dark-mode and 1440px `@media` rules                            | missed | never rendered, with the gating `@media`      |
-| `@keyframes` body                                              | missed | blind channel (a rendered rule references it) |
+| Fault-overlay rule, removed rule, CSS Module rule, ternary arm | missed | never matched (J1)                           |
+| Token used only by the fault badge                             | missed | never matched (J1 consumer closure)          |
+| Dark-mode and 1440px `@media` rules                            | missed | never matched, with the gating `@media`      |
+| `@keyframes` body                                              | missed | blind channel (a matched rule references it) |
 | Class added inside the fault overlay                           | missed | never rendered (J2 never ran)                 |
 | Module-scope class constants (incl. one that collides)         | missed | never rendered (J3; J2 alone says "ran")      |
 | Runtime CSS-in-JS style string                                 | missed | **reached: the pinned residual**              |
