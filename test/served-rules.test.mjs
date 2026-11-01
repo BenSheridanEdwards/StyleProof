@@ -314,6 +314,16 @@ async function trackedLedger(sheets, opts = {}) {
       if (command === 'DOM.getDocument') {
         return { root: opts.document ?? { children: opts.shadow ? [{ shadowRoots: [{}] }] : [] } };
       }
+      if (command === 'DOM.resolveNode' && opts.inlineRoots?.includes(params.backendNodeId)) {
+        opts.onInlineResolve?.(params.backendNodeId);
+        if (opts.inlineResolveFails) throw new Error('inline root unavailable');
+        return { object: opts.inlineMissingObject ? {} : { objectId: `inline-${params.backendNodeId}` } };
+      }
+      if (command === 'Runtime.callFunctionOn' && params.objectId.startsWith('inline-')) {
+        opts.onInlineCall?.(params);
+        if (opts.inlineCallFails) throw new Error('inline root detached');
+        return opts.inlineResponse ?? { result: { value: { names: [], reader: false, count: 1 } } };
+      }
       if (command === 'DOM.resolveNode') {
         const sheet = sheets.find((s) => s.ownerNode === params.backendNodeId);
         if (sheet.resolveFails) throw new Error('owner unavailable');
@@ -895,11 +905,7 @@ test('font variables include JS registration initial values', async () => {
 
 test('font variable sources that cannot be enumerated fail closed', async () => {
   const sheets = [{ styleSheetId: 'one', text: ':root { --alias: var(--brand); } .t { font-family: var(--alias); }' }];
-  for (const opts of [
-    { document: { children: [{ attributes: ['style', '--brand: Other'] }] } },
-    { document: { shadowRoots: [{ children: [{ attributes: ['style', '--brand: Other'] }] }] } },
-    { registrationFails: true },
-  ])
+  for (const opts of [{ registrationFails: true }])
     await assert.rejects(trackedLedger(sheets, opts), /served CSS reach is unknown/);
   await assert.rejects(trackedLedger(sheets.map((s) => ({ ...s, frameId: 'child' }))), /served CSS reach is unknown/);
   for (const value of ['env(x)', 'attr(x)', 'inherit(--x)', 'ident("X")', '--name()', String.raw`Brand\ Sans`]) {
@@ -954,17 +960,6 @@ for (const value of [
       assert.ok(refs.includes(name), name);
   });
 }
-test('inline font and animation variable readers fail closed without stylesheet readers', async () => {
-  for (const property of ['font', 'font-family', 'animation', 'animation-name']) {
-    await assert.rejects(
-      trackedLedger([{ styleSheetId: 'app', text: '.t { color: red; }' }], {
-        document: { children: [{ attributes: ['style', `${property}: Brand var(--suffix)`] }] },
-      }),
-      /served CSS reach is unknown/,
-    );
-  }
-});
-
 test('property initial font values accept uppercase at-rules and reject escaped names', () => {
   const rules = servedRulesOf(
     '@PROPERTY --f { syntax:"*"; inherits:true; initial-value: Brand } p { font-family: var(--f) }',
@@ -982,13 +977,6 @@ test('escaped property registration names fail closed', () => {
     /reach is unknown/,
   );
 });
-for (const style of ['color:red;;', ';color:red']) {
-  test(`irrelevant inline declarations resolve: ${style}`, async () => {
-    await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
-      document: { children: [{ attributes: ['style', style] }] },
-    });
-  });
-}
 test('nested and keyframe custom values join the font union', () => {
   const rules = servedRulesOf(
     '@layer theme { @media all { :root { --f: Layer; } } } @keyframes pulse { to { --f: Frame; } } p { font-family: var(--f); }',
@@ -1051,11 +1039,6 @@ test('shorthand exemptions inspect JS registrations', async () => {
   );
 });
 
-test('escaped inline CJK font family captures', async () => {
-  await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
-    document: { children: [{ attributes: ['style', String.raw`font-family:'\5FAE\8F6F\96C5\9ED1'`] }] },
-  });
-});
 test('inline CSS escape decoding agrees with literal font-face names', () => {
   const family = servedRulesOf('@font-face { font-family: "微软雅黑"; }', [])[0].refs[0];
   assert.equal(reach.decodeInlineEscapes(String.raw`'\5FAE\8F6F\96C5\9ED1'`).slice(1, -1), family);
@@ -1071,73 +1054,6 @@ test('inline CSS escape decoding agrees with literal font-face names', () => {
   ])
     assert.equal(reach.decodeInlineEscapes(input), expected);
 });
-for (const style of [
-  String.raw`font-family:v\61r(--f)`,
-  String.raw`\2d\2d brand: Other`,
-  'color:red\\',
-  'color:red\\\n',
-  String.raw`color:red\3b --brand:Other`,
-  String.raw`color:red\2f *hidden*/;font-family:var(--f)`,
-]) {
-  test(`unsafe escaped inline dependency stays unknown: ${JSON.stringify(style)}`, async () => {
-    await assert.rejects(
-      trackedLedger([{ styleSheetId: 'app', text: ':root{--brand:Brand} .t{font-family:var(--brand)}' }], {
-        document: { children: [{ attributes: ['style', style] }] },
-      }),
-      /reach is unknown/,
-    );
-  });
-}
-
-for (const [style, text] of [
-  ["a:'x\n;b:'/*';" + String.raw`\2d\2d brand:Other;c:*/`, ':root{--brand:Brand} .t{font-family:var(--brand)}'],
-  ["--f:Brand;a:'x\n;b:'/*';font-family:" + String.raw`v\61r(--f);c:*/`, '.t{color:red}'],
-])
-  test(`raw inline string newline cannot hide escapes: ${JSON.stringify(style)}`, async () => {
-    await assert.rejects(
-      trackedLedger([{ styleSheetId: 'app', text }], { document: { children: [{ attributes: ['style', style] }] } }),
-      /reach is unknown/,
-    );
-  });
-for (const style of [
-  String.raw`font-family:'O\'Reilly'`,
-  String.raw`font-family:Microsoft\ YaHei`,
-  String.raw`width:10px\9`,
-]) {
-  test(`decodable inline escape without readers captures: ${style}`, async () => {
-    await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
-      document: { children: [{ attributes: ['style', style] }] },
-    });
-  });
-  test(`structural inline escape with readers remains unknown: ${style}`, async () => {
-    await assert.rejects(
-      trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
-        document: { children: [{ attributes: ['style', style + ';font-family:var(--f)'] }] },
-      }),
-      /reach is unknown/,
-    );
-  });
-}
-
-for (const [style, text] of [
-  [String.raw`background:url(/*);\2d\2d brand:Other;c:*/)`, ':root{--brand:Brand} .t{font-family:var(--brand)}'],
-  [String.raw`--f:Brand;background:url(/*);font-family:v\61r(--f);c:*/)`, '.t{color:red}'],
-  ['--f:Brand;background:url(/*);font-family:var(--f);c:*/)', '.t{color:red}'],
-  [String.raw`--f:Brand;background:u\72l(/*);font-family:v\61r(--f);c:*/)`, '.t{color:red}'],
-  ['--f:Brand;background:url( /* );font-family:var(--f);c:*/)', '.t{color:red}'],
-  [String.raw`background:url(a');x:'/*';\2d\2d brand:Other;c:*/'`, ':root{--brand:Brand} .t{font-family:var(--brand)}'],
-])
-  test(`unsafe escaped inline dependency stays unknown with URL: ${JSON.stringify(style)}`, async () => {
-    await assert.rejects(
-      trackedLedger([{ styleSheetId: 'app', text }], { document: { children: [{ attributes: ['style', style] }] } }),
-      /reach is unknown/,
-    );
-  });
-test('ordinary inline URL captures', async () => {
-  await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
-    document: { children: [{ attributes: ['style', 'background:url(a.png)'] }] },
-  });
-});
 const ambiguousFontURL = '.a{background:url(/*)}:root{--f:Other}.z{c:*/)}';
 test('ambiguous sheet URLs fail closed when font variables resolve', async () => {
   const text = ambiguousFontURL + ' .t{font-family:var(--f)}';
@@ -1152,31 +1068,66 @@ test('ambiguous sheet URLs without font variable readers retain existing parsing
   await trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]);
 });
 
-for (const style of [
-  '--f:Brand;background:url(a(b);font-family:var(--f);c:x)',
-  '--f:Brand;background:url(a b(c);font-family:var(--f);c:x)',
-  String.raw`--f:Brand;background:u\72 l(a(b);font-family:var(--f);c:x)`,
-])
-  test(`nested URL parenthesis cannot hide inline reader: ${style}`, async () => {
-    await assert.rejects(
-      trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
-        document: { children: [{ attributes: ['style', style] }] },
-      }),
-      /reach is unknown/,
-    );
-  });
-for (const style of [
-  'background:url( "x.png")',
-  String.raw`background:url(a\ b.png)`,
-  'background:url(a.png);content:"it\'s url(x"',
-]) {
-  test(`unrelated valid inline URL captures: ${style}`, async () => {
-    await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
-      document: { children: [{ attributes: ['style', style] }] },
-    });
-  });
-}
 test('quoted stylesheet URL after whitespace resolves beside a font variable reader', () => {
   const rules = servedRulesOf(':root{--f:Brand} .t{font-family:var(--f);background:url( "x.png")}', []);
   assert.ok(rules.find((r) => r.key === '.t').refs.includes('Brand'));
+});
+
+const inlineDocument = {
+  backendNodeId: 100,
+  nodeName: '#document',
+  children: [{ attributes: ['style', ''], backendNodeId: 101 }],
+};
+const inlineSheet = [{ styleSheetId: 'app', text: ':root{--brand:Brand}.t{font-family:var(--brand)}' }];
+for (const [names, reader, rejects] of [
+  [[], true, true],
+  [['--brand'], false, true],
+  [['--brand-extra'], false, false],
+]) {
+  test(`parsed inline dependency names=${names} reader=${reader}`, async () => {
+    const result = trackedLedger(inlineSheet, {
+      document: inlineDocument,
+      inlineRoots: [100],
+      inlineResponse: { result: { value: { names, reader, count: 1 } } },
+    });
+    if (rejects) await assert.rejects(result, /reach is unknown/);
+    else await result;
+  });
+}
+for (const opts of [
+  { inlineResolveFails: true },
+  { inlineCallFails: true },
+  { inlineMissingObject: true },
+  {
+    inlineResponse: { exceptionDetails: { text: 'failed' }, result: { value: { names: [], reader: false, count: 1 } } },
+  },
+  { inlineResponse: { result: { objectId: 'not-by-value' } } },
+  { inlineResponse: { result: { value: { names: [], reader: false, count: 2 } } } },
+])
+  test(`parsed inline CDP failures fail closed ${JSON.stringify(opts)}`, async () => {
+    await assert.rejects(
+      trackedLedger(inlineSheet, { document: inlineDocument, inlineRoots: [100], ...opts }),
+      /reach is unknown/,
+    );
+  });
+test('parsed inline styles read closed shadow and iframe roots separately', async () => {
+  const calls = [];
+  const document = {
+    backendNodeId: 100,
+    children: [
+      { shadowRoots: [{ backendNodeId: 200, shadowRootType: 'closed', children: [{ attributes: ['style', ''] }] }] },
+      { contentDocument: { backendNodeId: 300, children: [{ attributes: ['style', ''] }] } },
+    ],
+  };
+  await trackedLedger(inlineSheet, { document, inlineRoots: [200, 300], onInlineResolve: (id) => calls.push(id) });
+  assert.deepEqual(calls, [200, 300]);
+});
+test('no styled nodes require no inline CDP calls', async () => {
+  const calls = [];
+  await trackedLedger(inlineSheet, {
+    document: { backendNodeId: 100, children: [] },
+    inlineRoots: [100],
+    onInlineResolve: (id) => calls.push(id),
+  });
+  assert.deepEqual(calls, []);
 });

@@ -262,3 +262,92 @@ test('CSS and JS registration initial values resolve font families', async ({ pa
   expect(rule(map, 'p').refs).toContain('Brand Sans');
   expect(rule(map, '.j').refs).toContain('JS Face');
 });
+
+test('pin Chromium parsed inline shorthand and decoded custom names', async ({ page }) => {
+  await page.setContent('<p id="p"></p>');
+  const parsed = await page.evaluate(() => {
+    const style = document.querySelector<HTMLElement>('#p')!.style;
+    style.cssText = String.raw`font:700 15px var(--f);\2d\2d brand:Other;--plain:Brand`;
+    return {
+      names: Array.from(style),
+      family: style.getPropertyValue('font-family'),
+      font: style.getPropertyValue('font'),
+    };
+  });
+  expect(parsed.family).toBe('');
+  expect(parsed.font).toContain('var(--f)');
+  expect(parsed.names).toContain('font-family');
+  expect(parsed.names).toContain('--brand');
+  expect(parsed.names).toContain('--plain');
+});
+
+const INLINE_FONT_SHEET = ':root{--brand:Brand}.t{font-family:var(--brand)}';
+const INLINE_CASES: [string, boolean, string?][] = [
+  [String.raw`font-family:v\61r(--f)`, true],
+  [String.raw`\2d\2d brand:Other`, true, INLINE_FONT_SHEET],
+  ['color:red\\', false],
+  ['color:red\\\n', false],
+  [String.raw`color:red\3b --brand:Other`, false, INLINE_FONT_SHEET],
+  [String.raw`color:red\2f *hidden*/`, false],
+  [String.raw`color:red\2f *hidden*/;font-family:var(--f)`, true],
+  ["a:'x\n;b:'/*';" + String.raw`\2d\2d brand:Other;c:*/`, true, INLINE_FONT_SHEET],
+  ["--f:Brand;a:'x\n;b:'/*';font-family:" + String.raw`v\61r(--f);c:*/`, true],
+  [String.raw`font-family:'O\'Reilly'`, false],
+  [String.raw`font-family:Microsoft\ YaHei`, false],
+  [String.raw`width:10px\9`, false],
+  [String.raw`font-family:'O\'Reilly';font-family:var(--f)`, true],
+  [String.raw`font-family:Microsoft\ YaHei;font-family:var(--f)`, true],
+  [String.raw`width:10px\9;font-family:var(--f)`, true],
+  [String.raw`background:url(/*);\2d\2d brand:Other;c:*/)`, true, INLINE_FONT_SHEET],
+  [String.raw`--f:Brand;background:url(/*);font-family:v\61r(--f);c:*/)`, true],
+  ['--f:Brand;background:url(/*);font-family:var(--f);c:*/)', true],
+  [String.raw`--f:Brand;background:u\72l(/*);font-family:v\61r(--f);c:*/)`, true],
+  ['--f:Brand;background:url( /* );font-family:var(--f);c:*/)', true],
+  [String.raw`background:url(a');x:'/*';\2d\2d brand:Other;c:*/'`, false, INLINE_FONT_SHEET],
+  [String.raw`font-family:'\5FAE\8F6F\96C5\9ED1'`, false],
+  ['background:url(a.png)', false],
+  ['color:red;;', false],
+  [';color:red', false],
+  ['--f:Brand;background:url(a(b);font-family:var(--f);c:x)', true],
+  ['--f:Brand;background:url(a b(c);font-family:var(--f);c:x)', true],
+  [String.raw`--f:Brand;background:u\72 l(a(b);font-family:var(--f);c:x)`, true],
+  ['background:url( "x.png")', false],
+  [String.raw`background:url(a\ b.png)`, false],
+  ['background:url(a.png);content:"it\'s url(x"', false],
+  ['font:700 15px var(--f)', true],
+  ['-webkit-animation-name:var(--a)', true],
+];
+for (const [style, rejects, css = '.t{color:red}'] of INLINE_CASES) {
+  test(`Chromium parsed inline ${rejects ? 'rejects reader' : 'captures'} ${JSON.stringify(style)}`, async ({
+    page,
+  }) => {
+    const servedRules = await trackServedRules(page);
+    await page.setContent(`<style>${css}</style><p class="t">text</p>`);
+    await page.locator('p').evaluate((element, value) => element.setAttribute('style', value), style);
+    const capture = captureStyleMap(page, { captureReach: true, servedRules });
+    if (rejects) await expect(capture).rejects.toThrow(/reach is unknown/);
+    else await capture;
+  });
+}
+test('parsed inline reader inside a closed shadow root fails closed', async ({ page }) => {
+  const servedRules = await trackServedRules(page);
+  await page.setContent('<div id="host"></div>');
+  await page.evaluate(() => {
+    document.querySelector('#host')!.attachShadow({ mode: 'closed' }).innerHTML =
+      '<p style="font-family:var(--f)">text</p>';
+  });
+  await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+});
+test('parsed SVG inline reader fails closed', async ({ page }) => {
+  const servedRules = await trackServedRules(page);
+  await page.setContent('<svg><text style="font-family:var(--f)">text</text></svg>');
+  await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+});
+test('parsed inline closure names in a same-origin iframe fail closed', async ({ page }) => {
+  const servedRules = await trackServedRules(page);
+  await page.setContent(`<style>${INLINE_FONT_SHEET}</style><p class="t">text</p><iframe></iframe>`);
+  await page.evaluate(() => {
+    document.querySelector('iframe')!.contentDocument!.body.innerHTML = '<p style="--brand:Other">text</p>';
+  });
+  await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+});
