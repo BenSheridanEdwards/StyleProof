@@ -252,7 +252,7 @@ function fontFamily(family: string): string {
 /** Literal names and every identifier sub-run, including inside function arguments. */
 function candidateToken(value: string): { text: string; identifier: boolean } {
   const number = /^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?(?:[\w-]+|%)?/.exec(value);
-  const identifier = /^-?[_a-zA-Z\u0080-\uffff][\w\u0080-\uffff-]*/.exec(value);
+  const identifier = /^(?:--|-?[_a-zA-Z\u0080-\uffff])[\w\u0080-\uffff-]*/.exec(value);
   return { text: number?.[0] ?? identifier?.[0] ?? value[0], identifier: !number && !!identifier };
 }
 
@@ -279,7 +279,8 @@ function candidateNames(value: string): string[] {
     }
     const token = candidateToken(value.slice(i));
     const functionName = token.identifier && value[i + token.text.length] === '(';
-    if (functionName && /^(var|env|attr)$/i.test(token.text)) unknown('unsupported font or animation dependency');
+    if (functionName && /^(var|env|attr|inherit)$/i.test(token.text))
+      unknown('unsupported font or animation dependency');
     if (token.identifier && !functionName) {
       run.push(token.text);
       names.push(...identifierSuffixes(run));

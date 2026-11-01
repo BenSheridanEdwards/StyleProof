@@ -14,7 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Change Reach accepts literal font shorthands and font/animation functions and comments while keeping substitutions fail-closed (Refs #1224).
+- Change Reach reads `@font-face` and `@keyframes` names from literal `font` shorthands and from `font`/`animation` values with functions or comments; `var()`, `env()`, `attr()` and escapes still fail closed (#1224).
 
 - **BREAKING (#1215):** the destructive-action guard also checks a normalized copy of every label source (format and default-ignorable characters stripped, NFKC, middle dots as separators), and digits or underscores now delimit action words, so labels such as Sign + U+2062 + in, De + soft hyphen + lete, fullwidth Ｄｅｌｅｔｅ, `Remove3`, `3Remove` and `_Delete` are unsafe. The new boundaries apply to every source, including `name` attributes, so snake_case names such as `send_email` are unsafe too. `We’re starting` stays clickable. Previously clicked controls may now produce unsafe skips; acknowledge them with a reasoned `incompleteUiExclude`.
 
