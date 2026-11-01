@@ -30,22 +30,113 @@ function cssStringText(part: string): string {
   });
 }
 
-/** Keep string and attribute text, including alt text; other functions and keywords are non-text. */
-export function cssContentText(content: string, el?: Element): string | null {
-  const tokens = /("(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*')|attr\(\s*([-\w]+)\s*\)|[-\w]+|[()]/gi;
-  const parts: string[] = [];
-  let depth = 0;
+interface CssContentFunction {
+  name: string;
+  attribute?: string;
+  fallback?: string;
+  hasFallback: boolean;
+}
 
-  for (const token of content.matchAll(tokens)) {
-    if (token[0] === '(') depth++;
-    else if (token[0] === ')') depth = Math.max(0, depth - 1);
-    else if (depth === 0) {
-      if (token[1]) parts.push(cssStringText(token[1]));
-      else if (token[2]) parts.push(el?.getAttribute(token[2]) ?? '');
-    }
+/** Collect text arguments without interpreting image URLs or counter style names as labels. */
+function cssFunctionPart(frame: CssContentFunction, token: RegExpMatchArray, sources: string[]): void {
+  if (token[1]) {
+    const text = cssStringText(token[1]);
+
+    if (['counters', 'symbols'].includes(frame.name)) sources.push(text);
+    if (frame.name === 'attr' && frame.hasFallback && frame.fallback === undefined) frame.fallback = text;
+
+    return;
   }
 
-  return parts.length ? parts.join('') : null;
+  if (frame.name !== 'attr') return;
+  if (token[0] === ',') frame.hasFallback = true;
+  else if (!frame.attribute && token[3]) frame.attribute = token[3];
+}
+
+/** Resolve a completed top-level attr(), preserving a boundary when it supplies no text. */
+function cssAttributePart(
+  frame: CssContentFunction | undefined,
+  el: Element | undefined,
+  parts: string[],
+  sources: string[],
+): void {
+  if (frame?.name !== 'attr') return;
+  const value = (frame.attribute ? el?.getAttribute(frame.attribute) : null) ?? frame.fallback;
+
+  parts.push(value ?? ' ');
+  if (value) sources.push(value);
+}
+
+/** Keep adjacent strings together, but separate alt text and every dropped non-text token. */
+function cssTextPart(token: RegExpMatchArray, parts: string[], sources: string[]): boolean {
+  if (token[0] === '/') {
+    sources.push(parts.join('').trim());
+    parts.length = 0;
+
+    return false;
+  }
+
+  if (token[1]) {
+    const text = cssStringText(token[1]);
+
+    parts.push(text);
+    sources.push(text);
+
+    return false;
+  }
+
+  parts.push(' ');
+
+  return ['open-quote', 'close-quote'].includes(token[3]?.toLowerCase() ?? '');
+}
+
+/** Advance function nesting and finish top-level attributes without revisiting any tokens. */
+function cssFunctionBoundary(
+  token: RegExpMatchArray,
+  frames: CssContentFunction[],
+  parts: string[],
+  sources: string[],
+  el?: Element,
+): boolean {
+  if (token[2] || token[0] === '(') {
+    const name = (token[2] ?? '').toLowerCase();
+
+    if (!frames.length && name !== 'attr') parts.push(' ');
+    frames.push({ name, hasFallback: false });
+
+    return true;
+  }
+
+  if (token[0] !== ')') return false;
+  const frame = frames.pop();
+
+  if (!frames.length) cssAttributePart(frame, el, parts, sources);
+
+  return true;
+}
+
+/** Independent generated-text sources, plus concatenated adjacent strings in each side of `/`. */
+export function cssContentText(content: string, el?: Element, quotes = ''): string[] | null {
+  if (content === 'none' || content === 'normal') return null;
+  const tokens = /("(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*')|([-\w]+)\s*\(|([-\w|]+)|[(),/]/gi;
+  const parts: string[] = [];
+  const sources: string[] = [];
+  const frames: CssContentFunction[] = [];
+  let usesQuotes = false;
+
+  for (const token of content.matchAll(tokens)) {
+    if (cssFunctionBoundary(token, frames, parts, sources, el)) continue;
+    const frame = frames.at(-1);
+
+    if (frame) cssFunctionPart(frame, token, sources);
+    else usesQuotes = cssTextPart(token, parts, sources) || usesQuotes;
+  }
+
+  sources.push(parts.join('').trim());
+  const quoteSources = usesQuotes ? (cssContentText(quotes) ?? []) : [];
+  const result = sources.concat(quoteSources).filter(Boolean);
+
+  return result.length ? result : null;
 }
 
 /** Collect native and form-associated custom control labels in the current root. */
@@ -124,9 +215,11 @@ const dangerTextSource = String((el: Element | null, label?: string): string[] |
     if (!('getComputedStyle' in globalThis)) return;
 
     for (const pseudo of ['::before', '::after']) {
-      const content = getComputedStyle(target, pseudo).content ?? '';
+      const style = getComputedStyle(target, pseudo);
+      const content = style.content ?? '';
 
-      add(cssContentText(content, target));
+      if (content === 'none' || content === 'normal') continue;
+      for (const source of cssContentText(content, target, style.quotes) ?? []) add(source);
     }
   };
 
@@ -209,7 +302,7 @@ const dangerTextSource = String((el: Element | null, label?: string): string[] |
   return overflow ? null : sources;
 });
 
-export const DANGER_TEXT_SOURCE = `((normalizeDangerText, cssStringText, addAssociatedLabels) => { const cssContentText = ${String(cssContentText)}; return (${dangerTextSource}); })(${String(normalizeDangerText)}, ${String(cssStringText)}, ${String(addAssociatedLabels)})`;
+export const DANGER_TEXT_SOURCE = `((normalizeDangerText, cssStringText, addAssociatedLabels) => { const cssFunctionPart = ${String(cssFunctionPart)}; const cssAttributePart = ${String(cssAttributePart)}; const cssTextPart = ${String(cssTextPart)}; const cssFunctionBoundary = ${String(cssFunctionBoundary)}; const cssContentText = ${String(cssContentText)}; return (${dangerTextSource}); })(${String(normalizeDangerText)}, ${String(cssStringText)}, ${String(addAssociatedLabels)})`;
 
 export const SUBMITS_FORM_SOURCE = String((el: Element): boolean => {
   const submits = (control: Element | null | undefined): boolean => {
