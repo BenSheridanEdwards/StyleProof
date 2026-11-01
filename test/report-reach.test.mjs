@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'node:test';
 import { generateStyleMapReport } from '../dist/report.js';
@@ -527,5 +528,41 @@ test('the reach strip names completeness without percentages and rejects any evi
       /\*\*Reach incomplete\*\*/,
       'a stale complete flag cannot override missing evidence',
     );
+  }
+});
+
+test('reach gate headline and CLI lines name matched rules and the current section', (t) => {
+  const side = (hash) => map(rule('.panel--fault', hash));
+  const dirs = fixture(t, [side('h1')], [side('h2')]);
+  const output = report(dirs, { changeReach: 'gate' });
+  assert.ok(
+    output.md.includes(
+      '✗ **Reach gate** — 1 changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails (`CERTIFICATION_FAILED`); review-gate mode needs approval.',
+    ),
+  );
+  for (const [cli, expected] of [
+    [
+      'diff',
+      "✗ Change Reach gate: 1 never matched, 0 blind-channel, 0 unmeasured, 0 evidence gap(s) — certify fails; review-gate needs approval (changeReach: 'gate')",
+    ],
+    [
+      'report',
+      "✗ reach gate — 1 changed CSS rule(s) or reach evidence gap(s) never matched (changeReach: 'gate') — report written for review",
+    ],
+  ]) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.resolve(`bin/styleproof-${cli}.mjs`),
+        dirs.beforeDir,
+        dirs.afterDir,
+        '--change-reach',
+        'gate',
+        '--out',
+        path.join(dirs.root, 'cli-report'),
+      ],
+      { encoding: 'utf8', cwd: dirs.root },
+    );
+    assert.ok((result.stdout + result.stderr).includes(expected), result.stdout + result.stderr);
   }
 });
