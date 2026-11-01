@@ -232,7 +232,8 @@ test('crawl discovery blocks normalized danger labels and clicks safe look-alike
   await page.setContent(
     labels
       .map((label, i) => `<button type="button" id="n${i}" onclick="this.dataset.clicked = 'yes'">${label}</button>`)
-      .join('\n'),
+      .join('\n') +
+      '<select id="normalized-select" aria-label="Ｄｅｌｅｔｅ"><option value="first">First</option><option value="second">Second</option></select>',
   );
 
   const candidates = await page.evaluate(collectClickable, {
@@ -240,6 +241,9 @@ test('crawl discovery blocks normalized danger labels and clicks safe look-alike
     dangerTextSource: DANGER_TEXT_SOURCE,
     submitsFormSource: SUBMITS_FORM_SOURCE,
   });
+
+  expect(candidates.find((candidate) => candidate.selector === '#normalized-select')?.unsafe).toBe(true);
+  await expect(page.locator('#normalized-select')).toHaveValue('first');
 
   for (const [i] of labels.entries()) {
     const candidate = candidates.find((c) => c.selector === `#n${i}`);

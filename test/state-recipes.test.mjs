@@ -1147,12 +1147,20 @@ test('isUnsafeStateLabel: normalizes invisible text, compatibility letters and d
     'Del\u200Bete',
     'Remove3',
     'Delete2',
+    "'Restart'",
+    "'Restore'",
+    "Click 'Restore' to roll back",
+    '3Remove',
+    '_Delete',
+    '1Delete',
+    '¹Re\u00ADmove',
+    '²Ｄｅｌｅｔｅ',
     '\uFF24\uFF45\uFF4C\uFF45\uFF54\uFF45',
   ]) {
     assert.equal(isUnsafeStateLabel(label), true, JSON.stringify(label));
   }
 
-  for (const label of ["We're starting", 'We\u2019re starting']) {
+  for (const label of ["We're starting", 'We\u2019re starting', "you're storing", 'Profile3', 'Tickets']) {
     assert.equal(isUnsafeStateLabel(label), false, JSON.stringify(label));
   }
 });
