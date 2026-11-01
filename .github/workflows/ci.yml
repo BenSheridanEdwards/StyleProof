@@ -96,11 +96,13 @@ jobs:
         if: matrix.node == '22'
         run: node scripts/demo-report.mjs --check
 
-      - name: Unit tests
-        # Build already emitted and typechecked this exact checkout above.
-        # Node 22 units run in the coverage job; other legs run plain units.
+      - name: Node quick check
+        # Build already emitted and typechecked this exact checkout on this Node.
+        # The full unit suite runs once, in the Node 22 coverage job. The floor
+        # and 24 legs run a quick check: the packed-CLI smoke, config loading
+        # and the test runner itself, the paths that differ between Node lines.
         if: matrix.node != '22'
-        run: pnpm run test:unit
+        run: pnpm run test:node-compat
 
   coverage:
     name: coverage (node 22)

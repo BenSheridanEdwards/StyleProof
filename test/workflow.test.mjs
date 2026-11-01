@@ -178,7 +178,9 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(buildJob, /matrix:\n[\s\S]*node: \['22\.13\.0', '22', '24'\]/);
   assert.match(buildJob, /pnpm run build/);
   assert.match(buildJob, /if: matrix\.node != '22'/);
-  assert.match(buildJob, /pnpm run test:unit/);
+  // Full units run once, in the Node 22 coverage job; the floor and 24 legs run a quick check.
+  assert.match(buildJob, /run: pnpm run test:node-compat/);
+  assert.doesNotMatch(buildJob, /pnpm run test:unit/);
   assert.match(buildJob, /if: matrix\.node == '22'/);
 
   assert.match(coverageJob, /run: pnpm run test:coverage/);
@@ -277,6 +279,13 @@ test('gitleaks keeps its full-history fail-closed scan without uploading an unre
   assert.match(secretScan, /GITHUB_TOKEN: \$\{\{ secrets.GITHUB_TOKEN \}\}/);
   assert.match(secretScan, /GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"\s*$/m);
   assert.doesNotMatch(secretScan, /continue-on-error:/);
+});
+
+test('the Node quick check runs a few fast Node-sensitive files that exist', () => {
+  const files = packageJson.scripts['test:node-compat'].split(' ').slice(2);
+  assert.match(packageJson.scripts['test:node-compat'], /^node scripts\/run-node-test\.mjs test\//);
+  assert.ok(files.includes('test/package-smoke.test.mjs'), 'the packed CLI is smoke-tested on every Node leg');
+  for (const file of files) assert.ok(fs.existsSync(path.join(here, '..', file)), `${file} is missing`);
 });
 
 test('the build matrix tests the exact Node floor every manifest declares', () => {
