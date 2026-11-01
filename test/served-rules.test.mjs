@@ -308,7 +308,7 @@ async function trackedLedger(sheets, opts = {}) {
       }
       if (command === 'CSS.getMatchedStylesForNode') {
         if (opts.registrationFails) throw new Error('registrations unavailable');
-        return { cssPropertyRegistrations: opts.registrations ?? [] };
+        return { cssPropertyRegistrations: opts.registrations ?? [], cssPropertyRules: opts.propertyRules ?? [] };
       }
       if (command === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' } } };
       if (command === 'DOM.getDocument') {
@@ -941,9 +941,14 @@ for (const value of [
   'var(--f)',
 ]) {
   test(`separated font substitutions resolve: ${value}`, () => {
-    assert.doesNotThrow(() =>
-      servedRulesOf(`:root { --a: Brand Sans, Mono; --fam: Brand; --f: 700 15px Brand; } .t { font: ${value}; }`, []),
-    );
+    const refs = servedRulesOf(
+      `:root { --a: Brand Sans, Mono; --fam: Brand; --f: 700 15px Brand; } .t { font: ${value}; }`,
+      [],
+    ).find((r) => r.key === '.t').refs;
+    for (const name of value.includes('--a')
+      ? ['Brand Sans', ...(value.includes('Serif') ? ['Serif'] : []), ...(value.includes(', Brand') ? ['Brand'] : [])]
+      : ['Brand'])
+      assert.ok(refs.includes(name), name);
   });
 }
 test('inline font and animation variable readers fail closed without stylesheet readers', async () => {
@@ -955,4 +960,44 @@ test('inline font and animation variable readers fail closed without stylesheet 
       /served CSS reach is unknown/,
     );
   }
+});
+
+test('property initial font values accept uppercase at-rules and reject escaped names', () => {
+  const rules = servedRulesOf(
+    '@PROPERTY --f { syntax:"*"; inherits:true; initial-value: Brand } p { font-family: var(--f) }',
+    [],
+  );
+  assert.ok(rules.find((r) => r.key === 'p').refs.includes('Brand'));
+});
+test('escaped property registration names fail closed', () => {
+  assert.throws(
+    () =>
+      servedRulesOf(
+        String.raw`@property --\66 { syntax:"*"; inherits:true; initial-value: Brand } p { font-family: var(--f) }`,
+        [],
+      ),
+    /reach is unknown/,
+  );
+});
+for (const style of ['color:red;;', ';color:red']) {
+  test(`irrelevant inline declarations resolve: ${style}`, async () => {
+    await trackedLedger([{ styleSheetId: 'app', text: '.t{color:red}' }], {
+      document: { children: [{ attributes: ['style', style] }] },
+    });
+  });
+}
+test('nested and keyframe custom values join the font union', () => {
+  const rules = servedRulesOf(
+    '@layer theme { @media all { :root { --f: Layer; } } } @keyframes pulse { to { --f: Frame; } } p { font-family: var(--f); }',
+    [],
+  );
+  const refs = rules.find((r) => r.key === 'p').refs;
+  assert.ok(refs.includes('Layer'));
+  assert.ok(refs.includes('Frame'));
+});
+test('CDP property rules also supply initial font values', async () => {
+  const ledger = await trackedLedger([{ styleSheetId: 'app', text: 'p { font-family: var(--f); }' }], {
+    propertyRules: [{ propertyName: { text: '--f' }, initialValue: { text: 'Brand' } }],
+  });
+  assert.ok(ledger.rules[0].refs.includes('Brand'));
 });

@@ -249,3 +249,16 @@ test('linked custom-property fonts resolve candidate families', async ({ page })
   const map = await captureStyleMap(page, { captureReach: true, servedRules });
   for (const key of ['body', '.b']) expect(rule(map, key).refs).toContain('Brand Sans');
 });
+
+test('CSS and JS registration initial values resolve font families', async ({ page }) => {
+  const servedRules = await trackServedRules(page);
+  await page.setContent(
+    '<style>@PROPERTY --f { syntax:"*"; inherits:true; initial-value:"Brand Sans"; } p { font-family:var(--f); } .j { font-family:var(--js); }</style><p>text</p><p class="j">text</p>',
+  );
+  await page.evaluate(() =>
+    CSS.registerProperty({ name: '--js', syntax: '*', inherits: true, initialValue: '"JS Face"' }),
+  );
+  const map = await captureStyleMap(page, { captureReach: true, servedRules });
+  expect(rule(map, 'p').refs).toContain('Brand Sans');
+  expect(rule(map, '.j').refs).toContain('JS Face');
+});
