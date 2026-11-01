@@ -504,6 +504,7 @@ function referencedNames(values: [string, string][]): {
  */
 export function servedRulesOf(text: string, used: readonly UsedRange[]): Omit<ServedRule, 'sheet'>[] {
   const entries = servedEntries(text, used);
+  if (entries.some((entry) => entry.fontVars.length)) guardAmbiguousURLs(text);
   fontVarRefs(entries);
   return entries.map((entry) => entry.rule);
 }
@@ -630,11 +631,18 @@ function structuralEscape(character: string, quoted: boolean): boolean {
   return !quoted && /[\s/*]/.test(character);
 }
 
+/** Unquoted URL tokens do not share the parser's string/comment boundaries. */
+function guardAmbiguousURLs(text: string): void {
+  if (/url\(\s*(?!['"])[^)]*(\/\*|['"\\])/i.test(text)) unknown('ambiguous unquoted URL dependency');
+}
+
 function inlineDeclares(node: DocumentNode, names: ReadonlySet<string>): boolean {
   const attributes = node.attributes ?? [];
   for (let i = 0; i < attributes.length; i += 2) {
     if (attributes[i].toLowerCase() !== 'style') continue;
+    guardAmbiguousURLs(attributes[i + 1]);
     const style = decodeInlineEscapes(attributes[i + 1]);
+    guardAmbiguousURLs(style);
     if ([...names].some((name) => style.includes(name))) return true;
     if (!/var\(/i.test(style)) continue;
     if (
@@ -906,6 +914,7 @@ async function resolveFontVars(
   const allEntries = entries.flat();
   if (inlineDeclares(root, new Set())) unknown('inline font or animation variable reference');
   if (allEntries.some((entry) => entry.fontVars.length)) {
+    read.forEach((sheet) => guardAmbiguousURLs(sheet.text));
     if (
       read.some(
         (sheet, index) => sheet.header.frameId !== mainFrame && entries[index].some((entry) => entry.fontVars.length),
