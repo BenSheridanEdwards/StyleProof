@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { isDeepStrictEqual } from 'node:util';
+import * as joins from '../bench/reach-joins.mjs';
 import {
   flagOf,
   autoLabel,
@@ -69,4 +71,78 @@ test('selection excludes reverts, oversized, dependency and test-only changes', 
     ...Array.from({ length: 20 }, () => row),
   ];
   assert.equal(selectPairs(rows, { globs: ['**/*.tsx'], cap: 15 }).length, 15);
+});
+
+const coverageMap = {
+  sources: ['src/app/Card.tsx', 'node_modules/lib/dom.js'],
+  mappings: 'AAAA,EAAA,GCAA',
+};
+function coverageFixture(app = 1, vendor = 1, scriptId = '1') {
+  return {
+    coverage: [
+      {
+        surface: 'screen',
+        entries: [
+          {
+            url: 'bundle.js',
+            source: 'abcdefghij',
+            scriptId,
+            functions: [
+              {
+                ranges: [
+                  { startOffset: 0, endOffset: 10, count: 1 },
+                  { startOffset: 2, endOffset: 5, count: app },
+                  { startOffset: 5, endOffset: 10, count: vendor },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    sourceMaps: { 'bundle.js': coverageMap },
+  };
+}
+
+test('vendor-only coverage drift passes with a third-party-only surface count', () => {
+  const first = coverageFixture();
+  const twice = coverageFixture(1, 0);
+  assert.deepEqual(joins.coverageProjection(first), joins.coverageProjection(twice));
+  const thirdPartyOnly = first.coverage.filter(
+    (c, i) =>
+      !isDeepStrictEqual(c, twice.coverage[i]) &&
+      isDeepStrictEqual(joins.coverageProjection(first)[c.surface], joins.coverageProjection(twice)[c.surface]),
+  ).length;
+  assert.equal(thirdPartyOnly, 1);
+});
+
+test('app coverage drift aborts projection equality', () => {
+  assert.notDeepEqual(joins.coverageProjection(coverageFixture()), joins.coverageProjection(coverageFixture(0)));
+});
+
+test('vendor suffix collision cannot reach an app line', () => {
+  assert.equal(joins.isAppSource('node_modules/lib/dom.js'), false);
+  assert.equal(joins.isAppSource('x/node_modules/lib/dom.js'), false);
+  assert.equal(joins.isAppSource('src/app/Card.tsx'), true);
+  assert.equal(joins.lineExecution(coverageFixture().coverage[0].entries[0], coverageMap, 'dom.js').size, 0);
+});
+
+test('losing a source map counts as projection drift', () => {
+  const missing = coverageFixture();
+  missing.sourceMaps = {};
+  assert.notDeepEqual(joins.coverageProjection(coverageFixture()), joins.coverageProjection(missing));
+});
+
+test('script IDs do not affect coverage projection', () => {
+  assert.deepEqual(joins.coverageProjection(coverageFixture()), joins.coverageProjection(coverageFixture(1, 1, '99')));
+});
+
+test('J2 retains ran, partly-ran and never-ran verdicts', () => {
+  const entry = coverageFixture().coverage[0].entries[0];
+  const execution = () => joins.lineExecution(entry, coverageMap, 'Card.tsx');
+  assert.equal(joins.jsReach(1, [execution()]), 'ran');
+  entry.functions[0].ranges[1].count = 0;
+  assert.equal(joins.jsReach(1, [execution()]), 'partly-ran');
+  entry.functions[0].ranges[0].count = 0;
+  assert.equal(joins.jsReach(1, [execution()]), 'never-ran');
 });
