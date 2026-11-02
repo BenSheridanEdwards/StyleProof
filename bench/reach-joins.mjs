@@ -72,12 +72,17 @@ function executedAt(entry) {
   };
 }
 
+/** Vendored dependencies are outside J2, including when a filename suffix collides. */
+export function isAppSource(src) {
+  return !/(^|[\\/])node_modules[\\/]/.test(src);
+}
+
 /** Per original line of `sourceSuffix`: did any / every mapped segment run in this capture? */
 export function lineExecution(entry, sourceMap, sourceSuffix) {
   const ran = executedAt(entry);
   const lines = new Map();
   for (const s of mappedSegments(sourceMap, entry.source)) {
-    if (!s.source.endsWith(sourceSuffix)) continue;
+    if (!isAppSource(s.source) || !s.source.endsWith(sourceSuffix)) continue;
     const st = lines.get(s.line) ?? { any: false, all: true };
     const e = ran(s.offset);
     st.any ||= e;
@@ -85,6 +90,30 @@ export function lineExecution(entry, sourceMap, sourceSuffix) {
     lines.set(s.line, st);
   }
   return lines;
+}
+
+/** App-line evidence read by J2; $mappedUrls also detects lost source maps. */
+export function coverageProjection(data) {
+  const projection = Object.create(null);
+  for (const capture of data.coverage) {
+    const surface = (projection[capture.surface] ??= Object.create(null));
+    const urls = new Set(surface.$mappedUrls);
+    for (const entry of capture.entries) {
+      const map = data.sourceMaps[entry.url];
+      if (!map) continue;
+      urls.add(entry.url);
+      for (const source of map.sources.filter(isAppSource)) {
+        const lines = (surface[source] ??= Object.create(null));
+        for (const [line, state] of lineExecution(entry, map, source)) {
+          const previous = lines[line];
+          // J2 is reached if any entry ran all segments of this source line.
+          lines[line] = { any: state.any || !!previous?.any, all: state.all || !!previous?.all };
+        }
+      }
+    }
+    surface.$mappedUrls = [...urls].sort();
+  }
+  return projection;
 }
 
 /** J2 for one line across captures: some capture ran every segment, or how far it got. */

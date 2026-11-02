@@ -122,7 +122,7 @@ export function reachStripLines(reach: ReportReach): string[] {
     reach.gaps.length === 0 &&
     reach.rules.every((rule) => rule.status === 'reached')
   ) {
-    return ['', '**Reach complete** — every changed rule rendered in a captured state.'];
+    return ['', '**Reach complete** — every changed rule matched a captured element in a captured state.'];
   }
   const never = reach.counts['never-rendered'];
   const unmeasured = reach.counts.unmeasured;
@@ -131,14 +131,14 @@ export function reachStripLines(reach: ReportReach): string[] {
   if (!never && !unmeasured && !blind && ledger.length === 0) {
     return [
       '',
-      `**Reach incomplete** — every changed served CSS rule rendered (${reach.rules.length}); render-code reach and the changed-stylesheet join are not measured yet.`,
+      `**Reach incomplete** — every changed served CSS rule matched a captured element (${reach.rules.length}); render-code reach and the changed-stylesheet join are not measured yet.`,
     ];
   }
   const parts: string[] = [];
   const remedies: string[] = [];
   if (never) {
-    parts.push(`${never} changed CSS rule(s) never rendered`);
-    remedies.push('add a surface or state that renders each rule under **Changed but never rendered**');
+    parts.push(`${never} changed CSS rule(s) never matched`);
+    remedies.push('add a surface or state that matches each rule under **Changed but never matched**');
   }
   if (unmeasured) {
     parts.push(`${unmeasured} changed CSS rule(s) unmeasured`);
@@ -177,9 +177,9 @@ export function reachSectionLines(reach: ReportReach): string[] {
   if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return [];
   return [
     '',
-    '## Changed but never rendered',
+    '## Changed but never matched',
     '',
-    '_Changed CSS rules no captured state rendered, so the diff above cannot show them. Add a surface or state that renders each one. Source is the served stylesheet; the ledger does not record source maps yet. ' +
+    '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. ' +
       (reach.level === 'gate'
         ? "Under `changeReach: 'gate'` these findings hold the verdict: certify mode fails (`CERTIFICATION_FAILED`); review-gate mode needs approval._"
         : 'Reach findings do not change the verdict._'),
@@ -214,5 +214,5 @@ export function reachSectionLines(reach: ReportReach): string[] {
 
 export function reachSummaryLine(reach: ReportReach): string {
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
-  return `- Changed but never rendered: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); full list in report.json under \`reach\``;
+  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); full list in report.json under \`reach\``;
 }

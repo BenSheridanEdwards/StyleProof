@@ -610,12 +610,15 @@ surface that exercises it; see
 [the un-exercised-state gap](docs/REFERENCE.md#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle)
 and [what the crawler can and cannot reach](docs/REFERENCE.md#what-the-crawler-can-and-cannot-reach--honestly).
 With `captureReach` and `changeReach: 'gate'`, a changed CSS rule no captured
-state rendered fails certify mode and needs approval in review-gate mode.
+state matched fails certify mode and needs approval in review-gate mode.
+A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached.
 Rules matched only outside compared elements stay `unmeasured` and also hold
 the opt-in gate. Global state and pseudo-element probes exclude the head subtree and
 framework-ignored elements, including the hover sink. Full-page capture preserves inline style attributes, including
 on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
-Render-code reach (J2/J3) is not measured yet.
+Render-code reach (J2/J3) remains a bench prototype; the
+[Change Reach 0.2 receipt](bench/REACH-0.2.md) records capture cost and a limited
+six-PR noise replay, with its exclusions and labelling limits.
 
 If settling times out with requests in flight, capture continues with a warning and records the request
 count in `metadata.settleTimedOutWithRequestsInFlight`. Settle the page in `go()` or raise

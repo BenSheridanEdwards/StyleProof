@@ -57,7 +57,14 @@ export function unloadableStyleProofConfigMessage(filePath: string, error: unkno
   const reason = errorMessage(error);
   const lines = [`${filePath} could not be evaluated`, `  ${reason}`];
   if (isMissingStyleProofPackage(error) || /cannot find package/i.test(reason)) {
-    lines.push('  searched package roots:', ...findStyleProofConfigPackageRoots(filePath).map((root) => `    ${root}`));
+    const roots = findStyleProofConfigPackageRoots(filePath).map((root) => {
+      try {
+        return fs.realpathSync(root);
+      } catch {
+        return root;
+      }
+    });
+    lines.push('  searched package roots:', ...[...new Set(roots)].map((root) => `    ${root}`));
   }
   lines.push(
     '  Next: run on a Node that can evaluate TypeScript with the styleproof package resolvable, ' +

@@ -107,7 +107,8 @@
     "bench:detection:check": "pnpm run build && node bench/detection-rate.mjs --check",
     "bench:reach": "pnpm run build && node bench/reach-corpus.mjs",
     "bench:reach:check": "pnpm run build && node bench/reach-corpus.mjs --check",
-    "bench:reach-cost": "pnpm run build && node bench/reach-cost.mjs"
+    "bench:reach-cost": "pnpm run build && node bench/reach-cost.mjs",
+    "bench:reach-noise": "pnpm run build && node bench/reach-noise.mjs"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.45"

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
+import { readFileSync } from 'node:fs';
 import * as reach from '../dist/capture/reach.js';
 import { servedRulesOf, trackServedRules } from '../dist/capture/reach.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
@@ -253,12 +254,42 @@ test('font references preserve complete quoted and unquoted family names', () =>
   assert.deepEqual(rule.refs, ['Brand  Sans', 'Foo Bar', 'Semi;Comma,Font', 'sans-serif']);
 });
 
-test('unsupported escaped font dependencies and shorthands fail with unknown reach', () => {
+test('font shorthands and function values resolve candidate names', () => {
+  for (const [declaration, name] of [
+    ['font: inherit', 'inherit'],
+    ['font: 16px --weird', '--weird'],
+    ['font-family: /*a*/ --weird', '--weird'],
+    ['animation: --x 1s steps(2)', '--x'],
+    ['animation: --x 1s', '--x'],
+    ['animation-name: --x', '--x'],
+    ['font: 700 16px/normal Brand Sans', 'Brand Sans'],
+    ['font: bold Brand Sans', 'Brand Sans'],
+    ['font: italic 700 16px/1.5 "Brand Sans", serif', 'Brand Sans'],
+    ['font: 16px Brand Sans, serif', 'Brand Sans'],
+    ['font: 700 clamp(28px, 4vw, 46px)/1 "Brand Sans"', 'Brand Sans'],
+    ['font-family: /* x */ "Brand Sans"', 'Brand Sans'],
+    ['animation: pulse 1s cubic-bezier(.4, 0, .2, 1) infinite', 'pulse'],
+    ['animation: pulse 1s steps(4, jump-end)', 'pulse'],
+  ]) {
+    assert.ok(servedRulesOf(`.t { ${declaration}; }`, [])[0].refs.includes(name), declaration);
+  }
+});
+
+test('unsupported escaped and substituted dependencies fail with unknown reach', () => {
   for (const declaration of [
     String.raw`font-family: Brand\ Sans`,
     String.raw`font-family: "Brand\22 Sans"`,
-    'font: italic 16px "Brand Sans"',
-    'font-family: var(--family)',
+    'font-family: env(x)',
+    'font-family: attr(x)',
+    'font-family: inherit(--x)',
+    'font-family: --brand()',
+    'font: 16px --brand()',
+    'animation: --spin() 1s',
+    'animation-name: --spin(1)',
+    'font-family: ident("Brand" "Sans")',
+    'animation: pulse calc(1s * env(x))',
+    'animation: var(--motion)',
+    'animation-name: "pulse"',
   ]) {
     assert.throws(() => servedRulesOf(`.title { ${declaration}; }`, []), /served CSS reach is unknown/, declaration);
   }
@@ -276,9 +307,23 @@ async function trackedLedger(sheets, opts = {}) {
           added({ header: { origin: 'regular', isInline: true, sourceURL: '', frameId: 'main', ...sheet } });
         }
       }
+      if (command === 'CSS.getMatchedStylesForNode') {
+        if (opts.registrationFails) throw new Error('registrations unavailable');
+        return { cssPropertyRegistrations: opts.registrations ?? [], cssPropertyRules: opts.propertyRules ?? [] };
+      }
       if (command === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' } } };
       if (command === 'DOM.getDocument') {
         return { root: opts.document ?? { children: opts.shadow ? [{ shadowRoots: [{}] }] : [] } };
+      }
+      if (command === 'DOM.resolveNode' && opts.inlineRoots?.includes(params.backendNodeId)) {
+        opts.onInlineResolve?.(params.backendNodeId);
+        if (opts.inlineResolveFails) throw new Error('inline root unavailable');
+        return { object: opts.inlineMissingObject ? {} : { objectId: `inline-${params.backendNodeId}` } };
+      }
+      if (command === 'Runtime.callFunctionOn' && params.objectId.startsWith('inline-')) {
+        opts.onInlineCall?.(params);
+        if (opts.inlineCallFails) throw new Error('inline root detached');
+        return opts.inlineResponse ?? { result: { value: { names: [], reader: false, count: 1 } } };
       }
       if (command === 'DOM.resolveNode') {
         const sheet = sheets.find((s) => s.ownerNode === params.backendNodeId);
@@ -342,6 +387,60 @@ test('identical sheet labels and text fail as ambiguous in either discovery orde
   for (const order of [sheets, [...sheets].reverse()]) {
     await assert.rejects(trackedLedger(order), /served CSS reach is unknown: ambiguous identical stylesheets/);
   }
+});
+
+test('browser-owned details sheets are excluded in either discovery order', async () => {
+  const sheets = [
+    { styleSheetId: 'ua1', text: ':host summary { display: list-item; }', ownerNode: 7 },
+    { styleSheetId: 'ua2', text: ':host summary { display: list-item; }', ownerNode: 8 },
+    { styleSheetId: 'app', text: '.a { color: red; }', used: true },
+  ];
+  const document = {
+    children: [7, 8].map((backendNodeId) => ({
+      shadowRoots: [{ shadowRootType: 'user-agent', children: [{ backendNodeId }] }],
+    })),
+  };
+  const first = await trackedLedger(sheets, { document });
+  assert.deepEqual(first, await trackedLedger([...sheets].reverse(), { document }));
+  assert.deepEqual(first.sheets, ['inline']);
+  assert.equal(
+    first.rules.some((r) => r.key.includes(':host')),
+    false,
+  );
+});
+
+test('author light-DOM sheets on a user-agent shadow host remain in the ledger', async () => {
+  const ledger = await trackedLedger(
+    [
+      { styleSheetId: 'author', text: '.author { color: red; }', ownerNode: 9 },
+      { styleSheetId: 'ua', text: ':host summary { display: list-item; }', ownerNode: 7 },
+    ],
+    {
+      document: {
+        backendNodeId: 1,
+        children: [{ backendNodeId: 9 }],
+        shadowRoots: [{ shadowRootType: 'user-agent', children: [{ backendNodeId: 7 }] }],
+      },
+    },
+  );
+  assert.deepEqual(ledger.sheets, ['inline']);
+  assert.deepEqual(
+    ledger.rules.map((r) => r.key),
+    ['.author'],
+  );
+});
+
+test('author shadow sheets duplicating document sheets remain ambiguous', async () => {
+  await assert.rejects(
+    trackedLedger(
+      [
+        { styleSheetId: 'document', text: '.a { color: red; }' },
+        { styleSheetId: 'shadow', text: '.a { color: red; }', ownerNode: 7 },
+      ],
+      { document: { shadowRoots: [{ shadowRootType: 'open', children: [{ backendNodeId: 7 }] }] } },
+    ),
+    /ambiguous identical stylesheets/,
+  );
 });
 
 test('reach self-check rejects ledger drift and missing evidence with unchanged styles', () => {
@@ -756,4 +855,386 @@ test('relaxed global probes skip permanently ignored candidates but retain eligi
   assert.deepEqual(Array.from(snapshot().matched), [true, true]);
   candidates = [...candidates, outside];
   assert.deepEqual(Array.from(snapshot().matched), [false, false]);
+});
+
+test('font variables union aliases, fallbacks, registrations and cycles', () => {
+  const rules = servedRulesOf(
+    `
+    :root { --brand: "Brand Sans", serif; --alias: var(--brand); --a: var(--b); --b: var(--a), "Cycle Face"; }
+    .t { font-family: var(--alias); }
+    .h { font: 700 15px var(--missing, "Fallback Face"); }
+    @property --reg { syntax: '*'; inherits: true; initial-value: "Init Face"; }
+    .r { font-family: var(--reg); }
+    .c { font-family: var(--a); }
+    .missing { font-family: var(--undeclared); }
+  `,
+    [],
+  );
+  for (const [key, name] of [
+    ['.t', 'Brand Sans'],
+    ['.h', 'Fallback Face'],
+    ['.r', 'Init Face'],
+    ['.c', 'Cycle Face'],
+  ]) {
+    assert.ok(rules.find((r) => r.key === key).refs.includes(name));
+  }
+  assert.ok(!rules.find((r) => r.key === '.missing').refs?.includes('Brand Sans'));
+});
+
+test('font variables resolve across sheets in either discovery order as a pure union', async () => {
+  const sheets = [
+    {
+      styleSheetId: 'one',
+      text: ':root { --brand: "Brand Sans"; --alias: var(--brand); } .other { --brand: "Other Face"; }',
+    },
+    { styleSheetId: 'two', text: '.t { font-family: var(--alias); }', used: true },
+  ];
+  const first = await trackedLedger(sheets);
+  assert.deepEqual(first, await trackedLedger([...sheets].reverse()));
+  const refs = first.rules.find((r) => r.key === '.t').refs;
+  assert.ok(refs.includes('Brand Sans'));
+  assert.ok(refs.includes('Other Face'));
+});
+
+test('font variables include JS registration initial values', async () => {
+  const ledger = await trackedLedger([{ styleSheetId: 'one', text: '.j { font-family: var(--reg2); }' }], {
+    document: { children: [{ nodeName: 'HTML', nodeId: 2 }] },
+    registrations: [{ propertyName: '--reg2', initialValue: { text: '"JS Face"' } }],
+  });
+  assert.ok(ledger.rules[0].refs.includes('JS Face'));
+});
+
+test('font variable sources that cannot be enumerated fail closed', async () => {
+  const sheets = [{ styleSheetId: 'one', text: ':root { --alias: var(--brand); } .t { font-family: var(--alias); }' }];
+  for (const opts of [{ registrationFails: true }])
+    await assert.rejects(trackedLedger(sheets, opts), /served CSS reach is unknown/);
+  await assert.rejects(trackedLedger(sheets.map((s) => ({ ...s, frameId: 'child' }))), /served CSS reach is unknown/);
+  for (const value of ['env(x)', 'attr(x)', 'inherit(--x)', 'ident("X")', '--name()', String.raw`Brand\ Sans`]) {
+    assert.throws(
+      () => servedRulesOf(`:root { --x: ${value}; } .t { font-family: var(--x); }`, []),
+      /served CSS reach is unknown/,
+    );
+  }
+});
+
+for (const value of [
+  'Brand var(--suffix)',
+  'var(--a) Sans',
+  'var(--a)var(--b)',
+  '"Brand" var(--x)',
+  'Brand var(--e) Sans',
+  'var(--a, var(--b) Sans)',
+  'italic var(--x)',
+  '15px/var(--lh) Inter',
+  'Brand/**/var(--x)',
+  '700 var(--size) var(--fam)',
+]) {
+  test(`font substitution adjacency fails closed: ${value}`, () => {
+    assert.throws(
+      () => servedRulesOf(`:root { --e:; } .t { font-family: ${value}; }`, []),
+      /served CSS reach is unknown/,
+    );
+  });
+}
+test('font substitution adjacency in closure values fails closed', () => {
+  assert.throws(
+    () => servedRulesOf(':root { --f: Brand var(--s); } .t { font: var(--f); }', []),
+    /served CSS reach is unknown/,
+  );
+});
+for (const value of [
+  '700 15px var(--fam)',
+  'var(--a), Serif',
+  'var(--a, Brand)',
+  'var(--a, var(--b))',
+  'calc(var(--w)) 15px Brand',
+  'var(--f)',
+]) {
+  test(`separated font substitutions resolve: ${value}`, () => {
+    const refs = servedRulesOf(
+      `:root { --a: Brand Sans, Mono; --fam: Brand; --f: 700 15px Brand; } .t { font: ${value}; }`,
+      [],
+    ).find((r) => r.key === '.t').refs;
+    for (const name of value.includes('--a')
+      ? ['Brand Sans', ...(value.includes('Serif') ? ['Serif'] : []), ...(value.includes(', Brand') ? ['Brand'] : [])]
+      : ['Brand'])
+      assert.ok(refs.includes(name), name);
+  });
+}
+test('property initial font values accept uppercase at-rules and reject escaped names', () => {
+  const rules = servedRulesOf(
+    '@PROPERTY --f { syntax:"*"; inherits:true; initial-value: Brand } p { font-family: var(--f) }',
+    [],
+  );
+  assert.ok(rules.find((r) => r.key === 'p').refs.includes('Brand'));
+});
+test('escaped property registration names fail closed', () => {
+  assert.throws(
+    () =>
+      servedRulesOf(
+        String.raw`@property --\66 { syntax:"*"; inherits:true; initial-value: Brand } p { font-family: var(--f) }`,
+        [],
+      ),
+    /reach is unknown/,
+  );
+});
+test('nested and keyframe custom values join the font union', () => {
+  const rules = servedRulesOf(
+    '@layer theme { @media all { :root { --f: Layer; } } } @keyframes pulse { to { --f: Frame; } } p { font-family: var(--f); }',
+    [],
+  );
+  const refs = rules.find((r) => r.key === 'p').refs;
+  assert.ok(refs.includes('Layer'));
+  assert.ok(refs.includes('Frame'));
+});
+test('CDP property rules also supply initial font values', async () => {
+  const ledger = await trackedLedger([{ styleSheetId: 'app', text: 'p { font-family: var(--f); }' }], {
+    propertyRules: [
+      { propertyName: { text: '--f' }, style: { cssProperties: [{ name: 'initial-value', value: 'Brand' }] } },
+    ],
+  });
+  assert.ok(ledger.rules[0].refs.includes('Brand'));
+});
+
+for (const [value, declarations, names] of [
+  ['15px/var(--lh) Inter', '--lh:1.5', ['Inter']],
+  ['15px/var(--lh) Inter', '--lh:normal', ['Inter']],
+  ['15px/var(--lh) Inter', '--lh:var(--b);--b:1.4', ['Inter']],
+  ['italic var(--x)', '--x:15px Brand', ['Brand']],
+  ['italic var(--x)', '--x:Sans', ['Sans']],
+  ['var(--w) 15px Brand Sans', '--w:bold', ['Brand Sans']],
+  ['var(--w) 15px Brand Sans', '--w:600', ['Brand Sans']],
+  ['Brand var(--x)', '--x:15px Sans', ['Sans']],
+  ['var(--a) var(--b)', '--a:italic;--b:15px Brand', ['Brand']],
+  ['var(--a) var(--b)', '--a:15px;--b:Brand', ['Brand']],
+  ['700 var(--fs) Inter', '--fs:15px', ['Inter']],
+  ['600 var(--fs) var(--ff)', '--fs:15px;--ff:Inter', ['Inter']],
+  ['var(--fs)/var(--lh) var(--ff)', '--fs:15px;--lh:normal;--ff:Inter', ['Inter']],
+])
+  test(`shorthand slots resolve ${value} with ${declarations}`, () => {
+    const refs = servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []).find((r) => r.key === '.t').refs;
+    for (const name of names) assert.ok(refs.includes(name), name);
+  });
+for (const [value, declarations] of [
+  ['15px/var(--lh) Inter', '--lh:1 Brand'],
+  ['15px/var(--lh) Inter', '--lh:var(--a);--a:1 Brand'],
+  ['italic var(--x) Sans', '--x:15px Brand'],
+  ['italic var(--x) Sans', '--x:bold;--x:15px Brand'],
+  ['15px/var(--lh) Brand var(--x)', '--lh:normal;--x:Sans'],
+  ['15px Brand var(--x)', '--x:Sans'],
+  ['var(--a) var(--b)', '--a:15px Foo;--b:Bar'],
+  ['15px Brand var(--e) Sans', '--e:'],
+  ['700 Brand var(--x)', '--x:Sans'],
+  ['15px/var(--lh) Inter', '--lh:if(x)'],
+  ['var(--font)', '--font:italic var(--x) Sans'],
+])
+  test(`shorthand family joins remain unknown ${value} with ${declarations}`, () => {
+    assert.throws(() => servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []), /reach is unknown/);
+  });
+test('shorthand exemptions inspect JS registrations', async () => {
+  await assert.rejects(
+    trackedLedger([{ styleSheetId: 'app', text: '.t{font:italic var(--x) Sans}' }], {
+      registrations: [{ propertyName: '--x', initialValue: { text: '15px Brand' } }],
+    }),
+    /reach is unknown/,
+  );
+});
+
+const ambiguousFontURL = '.a{background:url(/*)}:root{--f:Other}.z{c:*/)}';
+for (const text of [
+  String.raw`.i:before{content:"\e900"}.b{background:url(x.png)}`,
+  String.raw`.md\:bg-hero{background-image:url(/hero.png)}`,
+]) {
+  test(`unrelated stylesheet escapes capture: ${text}`, async () => {
+    assert.ok(servedRulesOf(text, []).length);
+    assert.ok((await trackedLedger([{ styleSheetId: 'app', text }])).rules.length);
+  });
+}
+for (const name of [
+  String.raw`u\72l`,
+  String.raw`\75rl`,
+  String.raw`ur\l`,
+  String.raw`\55 rl`,
+  String.raw`\000075\000072\00006c `,
+]) {
+  test(`escaped URL name remains guarded: ${name}`, async () => {
+    const text = `.b{background:${name}(x.png)}`;
+    assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
+    await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+  });
+}
+test('ambiguous literal URL after an escaped string remains guarded', async () => {
+  const text = String.raw`.i:before{content:"\e900"}.b{background:url(a(b);font-family:Other;c:x)}`;
+  assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
+  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+});
+const urlGuardSource = readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8').match(
+  /function guardAmbiguousURLs\(text\) \{[\s\S]*?\n\}/,
+)[0];
+const urlGuard = runInNewContext(`(${urlGuardSource})`, {
+  unknown: (message) => {
+    throw new Error(message);
+  },
+});
+for (const [name, text] of [
+  [
+    '5 MB mixed sheet',
+    Array.from(
+      { length: 50000 },
+      (_, i) => `.t${i}{background:url(a.png);mask:url(data:image/png;base64,${'a'.repeat(50)})}`,
+    ).join(''),
+  ],
+  ['unterminated million-character URL', 'url(' + 'a'.repeat(1000000)],
+  ['million-character ident', 'a'.repeat(1000000)],
+]) {
+  test(`URL guard stays linear: ${name}`, () => {
+    urlGuard(text);
+    const start = performance.now();
+    urlGuard(text);
+    assert.ok(performance.now() - start < 250, `${name} exceeded 250 ms`);
+  });
+}
+
+for (const [value, hash] of [
+  ['url(a.png)', '8247683fb51f31cc'],
+  ['URL(a.png)', 'f6d888e9e660e567'],
+  ['url( "x.png")', '4130dd3bfb66a3ec'],
+  ["url(\n'x.png')", 'dca1cbc0818f0653'],
+  [String.raw`url(a\ b.png)`, '27003efe70f0906b'],
+  [String.raw`url(a\(b.png)`, '3d6be189f5e9ed8e'],
+  [String.raw`url(a\'b)`, '4d41ac1db06c6276'],
+  ['url("data:image/svg+xml,<svg fill=\'rgb(0,0,0)\'/>")', '063d409fc8458cbb'],
+  ['url(data:image/png;base64,YQ==)', 'a2e2129ea7616411'],
+]) {
+  test(`benign URL preserves key and hash: ${value}`, async () => {
+    const text = `.t{background:${value};font-family:Other}`;
+    const expected = servedRulesOf(text, []);
+    assert.equal(expected[0].key, '.t');
+    assert.equal(expected[0].hash, hash);
+    const ledger = await trackedLedger([{ styleSheetId: 'app', text }]);
+    assert.equal(ledger.rules[0].hash, expected[0].hash);
+    assert.equal(ledger.rules[0].key, expected[0].key);
+  });
+}
+test('quoted URL comments and imports capture', () => {
+  assert.equal(servedRulesOf('/* url(\'x.png\') */ @import url("{;}.css"); .t{color:red}', [])[0].key, '.t');
+});
+test('ambiguous sheet URLs fail closed when font variables resolve', async () => {
+  const text = ambiguousFontURL + ' .t{font-family:var(--f)}';
+  assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
+  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+});
+test('ambiguous sheet URLs without font variable readers fail closed', async () => {
+  assert.throws(() => servedRulesOf(ambiguousFontURL, []), /reach is unknown/);
+  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]), /reach is unknown/);
+});
+
+for (const text of [
+  '.t{background:url(a(b);font-family:Other;c:x)}',
+  '.t{background:url(/*);font-family:Other;c:*/)}',
+  '.t{--f:Other;background:url(a(b);font-family:var(--f);c:x)}',
+  ...[
+    String.raw`u\72l(a.png)`,
+    String.raw`\75rl(x)`,
+    String.raw`U\52L(x)`,
+    String.raw`ur\l(x)`,
+    String.raw`\55 rl(x)`,
+    "url(a'b)",
+    'url(a"b)',
+    'url(a b(c);x)',
+    String.raw`url(a\)(b)`,
+    "url(\u00a0'x')",
+    'url(\v"x")',
+  ].map((url) => `.t{background:${url}}`),
+  "/* url(it's) */ .t{color:red}",
+]) {
+  test(`ambiguous stylesheet URL fails closed: ${JSON.stringify(text)}`, async () => {
+    assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
+    await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+  });
+}
+
+test('quoted stylesheet URL after whitespace resolves beside a font variable reader', () => {
+  const rules = servedRulesOf(':root{--f:Brand} .t{font-family:var(--f);background:url( "x.png")}', []);
+  assert.ok(rules.find((r) => r.key === '.t').refs.includes('Brand'));
+});
+
+const inlineDocument = {
+  backendNodeId: 100,
+  nodeName: '#document',
+  children: [{ attributes: ['style', ''], backendNodeId: 101 }],
+};
+const inlineSheet = [{ styleSheetId: 'app', text: ':root{--brand:Brand}.t{font-family:var(--brand)}' }];
+for (const [names, reader, rejects] of [
+  [[], true, true],
+  [['--brand'], false, true],
+  [['--brand-extra'], false, false],
+]) {
+  test(`parsed inline dependency names=${names} reader=${reader}`, async () => {
+    const result = trackedLedger(inlineSheet, {
+      document: inlineDocument,
+      inlineRoots: [100],
+      inlineResponse: { result: { value: { names, reader, count: 1 } } },
+    });
+    if (rejects) await assert.rejects(result, /reach is unknown/);
+    else await result;
+  });
+}
+for (const opts of [
+  { inlineResolveFails: true },
+  { inlineCallFails: true },
+  { inlineMissingObject: true },
+  {
+    inlineResponse: { exceptionDetails: { text: 'failed' }, result: { value: { names: [], reader: false, count: 1 } } },
+  },
+  { inlineResponse: { result: { objectId: 'not-by-value' } } },
+  { inlineResponse: { result: { value: { names: [], reader: false, count: 2 } } } },
+])
+  test(`parsed inline CDP failures fail closed ${JSON.stringify(opts)}`, async () => {
+    await assert.rejects(
+      trackedLedger(inlineSheet, { document: inlineDocument, inlineRoots: [100], ...opts }),
+      /reach is unknown/,
+    );
+  });
+test('parsed inline styles read closed shadow and iframe roots separately', async () => {
+  const calls = [];
+  const document = {
+    backendNodeId: 100,
+    children: [
+      { shadowRoots: [{ backendNodeId: 200, shadowRootType: 'closed', children: [{ attributes: ['style', ''] }] }] },
+      { contentDocument: { backendNodeId: 300, children: [{ attributes: ['style', ''] }] } },
+    ],
+  };
+  await trackedLedger(inlineSheet, { document, inlineRoots: [200, 300], onInlineResolve: (id) => calls.push(id) });
+  assert.deepEqual(calls, [200, 300]);
+});
+test('no styled nodes require no inline CDP calls', async () => {
+  const calls = [];
+  await trackedLedger(inlineSheet, {
+    document: { backendNodeId: 100, children: [] },
+    inlineRoots: [100],
+    onInlineResolve: (id) => calls.push(id),
+  });
+  assert.deepEqual(calls, []);
+});
+
+test('non-ASCII escaped URL names preserve identifier boundaries', () => {
+  for (const value of [String.raw`é \75rl(x.png)`, String.raw`\e9  \75rl(x.png)`]) {
+    const css = `.t{list-style:${value}}`;
+    assert.throws(() => urlGuard(css), /^Error: ambiguous unquoted URL dependency$/);
+    assert.throws(() => servedRulesOf(css, []), /reach is unknown: ambiguous unquoted URL dependency$/);
+  }
+  for (const value of [
+    String.raw`é\75rl(x.png)`,
+    String.raw`\e9 \75rl(x.png)`,
+    String.raw`\75rl\e9(x.png)`,
+    String.raw`\ff55\ff52\ff4c(x.png)`,
+    '\u00a0\\75rl(x.png)',
+  ]) {
+    assert.doesNotThrow(() => urlGuard(`.t{list-style:${value}}`));
+  }
+  assert.throws(
+    () => servedRulesOf('.t{list-style:\u00a0\\75rl(x.png)}', []),
+    /reach is unknown: unsupported var\(\) reference$/,
+  );
 });

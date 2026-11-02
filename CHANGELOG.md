@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- Change Reach says matched in reports, headlines and CLI gates, and renames the section to "Changed but never matched". The `report.json` why strings now say "which matched a captured element" and "no matched rule references it". A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached. (#1238).
+
 ### Added
 
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
@@ -15,6 +19,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. Compare-only SIGTERM is ignored, so container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or crashes can leave `<repo>/.worktrees/styleproof-base-*`; the next `--capture-base` removes only hour-old, current-user scratch dirs with confirmed dead owners. The nested base checkout can inherit head root files through Node module resolution, postcss/browserslist config or pnpm workspace detection when the base lacks its own. The flag rejects two explicit directories.
 
 ### Fixed
+
+- Config discovery reports searched package roots with consistent real paths and deduplicates symlink aliases (#1236).
+- Change Reach recognises identical custom-property declarations moved into merged rules only when every map on each side declares them for the selectors (#1232).
+- Change Reach fails closed on ambiguous unquoted stylesheet URLs and escaped `url()` names in every read stylesheet, preventing hidden font references (#1230). Benign escaped URL arguments retain their existing keys and hashes; the ledger remains version 2; escaped selectors and strings elsewhere are unaffected.
+- Change Reach resolves font families set through custom properties by unioning all candidate values, with conservative guards for substitutions that can join family names (#1224).
+- Change Reach reads `@font-face` and `@keyframes` names from literal `font` shorthands and from `font`/`animation` values with functions or comments; `var()` in `animation` values, `env()`, `attr()`, `ident()`, `--name()` custom functions and escapes still fail closed (#1224).
+- Match Change Reach `@font-face` family references ASCII case-insensitively, so a changed face used by a rendered rule with a differently cased family is reported `blind-channel`, not `never-rendered` (#1225).
+
+- **BREAKING (#1223):** Change Reach leaves browser-owned stylesheets (user-agent shadow `<style>`, for example inside `<details>`) out of the served-rule ledger, so pages with two or more `<details>` elements now capture. Pages with a `<details>` element no longer list that browser sheet in `reach.sheets` or its `:host` rules in `reach.rules`; recapture their bases after upgrading.
 
 - **BREAKING (#1215):** the destructive-action guard also checks a normalized copy of every label source (format and default-ignorable characters stripped, NFKC, middle dots as separators), and digits or underscores now delimit action words, so labels such as Sign + U+2062 + in, De + soft hyphen + lete, fullwidth Ｄｅｌｅｔｅ, `Remove3`, `3Remove` and `_Delete` are unsafe. The new boundaries apply to every source, including `name` attributes, so snake_case names such as `send_email` are unsafe too. `We’re starting` stays clickable. Previously clicked controls may now produce unsafe skips; acknowledge them with a reasoned `incompleteUiExclude`.
 
