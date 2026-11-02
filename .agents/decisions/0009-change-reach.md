@@ -1,6 +1,7 @@
 # ADR 0009: Diff-bounded completeness (Change Reach)
 
 - **Status:** accepted (2026-10-23)
+- **Amendment (2026-11-02, #1240):** The changed-stylesheet join below is target design, not built. Until it is built (#934), StyleProof cannot list a changed stylesheet no capture served. The report names this as a run-level J1 gap that is not checked, under both levels. It prevents reach-complete but does not hold `gate`, because the report has neither the PR's changed files nor source maps.
 - **Date:** 2026-10-21
 - **Epic:** #934
 - **Depends on:** #988 reach corpus, #989 reach cost receipt, #991 served-rule ledger (merged in #1045)
@@ -110,7 +111,7 @@ the evidence adds to a capture on a GitHub runner:
    changed stylesheets never served during capture; changed rules there cannot
    be listed", with each file and affected style-block line range named in
    sorted path and numeric line order. It
-   behaves like a missing ledger at both levels, and the remedy is a surface
+   will behave like a missing ledger at both levels once the join is built, and the remedy is a surface
    that loads the sheet, with source mappings where needed to attribute it.
    When the diff changes a dependency's resolved version or contents (a
    lockfile, a manifest's dependency ranges, a vendored package), reach must
@@ -225,7 +226,7 @@ the evidence adds to a capture on a GitHub runner:
    | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
    | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
    | `unknown` | named finding with the reason (legacy or partial ledger, value without rendering proof, class-token occurrence without a delta tied to it) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
-   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable, even with no listed units (item 4) | blocks like `never-rendered` | not applicable | no |
+   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable (target design; until #934 the report names this as not checked) | missing or partial ledger blocks like `never-rendered`; unbuilt changed-stylesheet join stays `'warn'` (not held) | not applicable | no |
    | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
    | `unknown`, run-level dependency gap | named finding naming the changed packages, and the unserved or unattributed files when a comparison exists (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
    | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source (item 4) and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
