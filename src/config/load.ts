@@ -115,18 +115,23 @@ function locationAt(dir: string): StyleProofConfigLocation | undefined {
 }
 
 /**
- * Walk from `startDir` toward the git root (or filesystem root); the nearest
+ * Walk from `startDir` toward the git root (or only `startDir` outside git); the nearest
  * directory with any config file wins (ESM over JSON). Never walks past a `.git`
  * boundary, so a parent checkout's config cannot leak in.
  */
 export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofConfigDiscovery {
   const searched: string[] = [];
   let dir = path.resolve(startDir);
+  let boundary = dir;
+  while (!isGitRoot(boundary) && path.dirname(boundary) !== boundary) {
+    boundary = path.dirname(boundary);
+  }
+  if (!isGitRoot(boundary)) boundary = dir;
   for (;;) {
     searched.push(...CONFIG_FILENAMES.map((filename) => path.join(dir, filename)));
     const location = locationAt(dir);
     if (location) return { location, searched };
-    if (isGitRoot(dir)) break;
+    if (dir === boundary) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;

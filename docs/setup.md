@@ -98,3 +98,5 @@ claimed A. Existing source-binding, report-publication and approval guards remai
 unchanged.
 
 GitHub API contract: [Compare two commits](https://docs.github.com/rest/commits/commits#compare-two-commits).
+
+Config discovery checks styleproof.config.ts, .mjs, .js, then .json in each directory, nearest first, from the starting folder through the git root. Outside git, only the starting folder is checked.

@@ -694,3 +694,5 @@ build the index with `npx gitnexus analyze --skip-agents-md`.
 ## License
 
 MIT © Ben Sheridan-Edwards
+
+Config discovery checks styleproof.config.ts, .mjs, .js, then .json in each directory, nearest first, from the starting folder through the git root. Outside git, only the starting folder is checked.
