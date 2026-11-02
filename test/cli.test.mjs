@@ -3267,3 +3267,18 @@ for (const changed of [false, true]) {
     rmTmp(root);
   });
 }
+
+ test('two ad-hoc bundles retain strict compatibility checks', () => {
+  const { root, A, B } = differingPair();
+  for (const dir of [A, B]) {
+    const file = path.join(dir, MAP_MANIFEST);
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    manifest.spec = MAP_MANIFEST;
+    manifest.compatibilityKey = fixtureCompatibilityKey(dir === A ? 'one' : 'two');
+    fs.writeFileSync(file, JSON.stringify(manifest));
+  }
+  const result = run(DIFF, [A, B, '--allow-unasserted']);
+  assert.equal(result.status, 2, result.stderr + result.stdout);
+  assert.match(result.stderr, /different capture compatibility contracts/);
+  rmTmp(root);
+});
