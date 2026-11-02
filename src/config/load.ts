@@ -145,24 +145,28 @@ function endsDiscovery(dir: string, windowsBoundary: string | undefined): boolea
 
 const reportedDiscoveryRefusals = new Set<string>();
 
+function isConfigFile(configPath: string): boolean {
+  try {
+    return fs.statSync(configPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 /** Probe existence only; never read or evaluate a skipped config. */
 function reportDiscoveryRefusal(dir: string, reason: string): void {
   let candidate = dir;
   for (;;) {
     for (const filename of CONFIG_FILENAMES) {
       const configPath = path.join(candidate, filename);
-      try {
-        if (!fs.statSync(configPath).isFile()) continue;
-      } catch {
-        continue;
-      }
+      if (!isConfigFile(configPath)) continue;
       const notice = `styleproof: skipping ${reason}: ${configPath}.\n`;
-      if (!reportedDiscoveryRefusals.has(notice)) {
-        reportedDiscoveryRefusals.add(notice);
-        process.stderr.write(notice);
-      }
+      if (reportedDiscoveryRefusals.has(notice)) return;
+      reportedDiscoveryRefusals.add(notice);
+      process.stderr.write(notice);
       return;
     }
+    if (fs.existsSync(path.join(candidate, '.git'))) return;
     const parent = path.dirname(candidate);
     if (parent === candidate) return;
     candidate = parent;
