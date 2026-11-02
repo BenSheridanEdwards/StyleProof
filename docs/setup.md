@@ -93,3 +93,7 @@ claimed A. Existing source-binding, report-publication and approval guards remai
 unchanged.
 
 GitHub API contract: [Compare two commits](https://docs.github.com/rest/commits/commits#compare-two-commits).
+
+Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
+map filenames (a nonempty key and numeric width). Other JSON files are ignored,
+so diff and audit JSON output may be saved beside the captures.

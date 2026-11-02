@@ -62,7 +62,8 @@ export type SurfaceCaptureFailure = {
 };
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
-export const isMapFile = (name: string): boolean => !RESERVED_BUNDLE_FILES.has(name) && /\.json(\.gz)?$/.test(name);
+export const isMapFile = (name: string): boolean =>
+  !RESERVED_BUNDLE_FILES.has(name) && /^[^/\\]+@\d+\.json(\.gz)?$/.test(name);
 
 const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
 const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;

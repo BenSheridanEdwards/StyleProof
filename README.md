@@ -682,3 +682,7 @@ build the index with `npx gitnexus analyze --skip-agents-md`.
 ## License
 
 MIT © Ben Sheridan-Edwards
+
+Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
+map filenames (a nonempty key and numeric width). Other JSON files are ignored,
+so diff and audit JSON output may be saved beside the captures.
