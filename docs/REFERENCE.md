@@ -88,6 +88,11 @@ it or acknowledge it in policy. The approval box cannot clear it.
 
 ## Map transport and the never-commit guards
 
+Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
+map filenames (a nonempty key and integer width). Other JSON files are ignored.
+Writing diff or audit JSON beside captures changes the directory's evidence digest
+for later diff or report runs; keep outputs outside capture folders when matching evidence receipts.
+
 Maps travel as **workflow artifacts** (the default scaffold) or via the SHA-keyed
 `styleproof-maps` branch (opt in with `--storage branch`) — **never as files
 committed to the PR branch**. Committed maps show up as changed files in every

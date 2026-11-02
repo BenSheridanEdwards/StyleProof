@@ -94,8 +94,8 @@ test('captureStates false persists incomplete evidence through a real directory 
   const beforeDir = path.join(root, 'before');
   const afterDir = path.join(root, 'after');
   try {
-    saveStyleMap(path.join(beforeDir, 'surface.json.gz'), complete);
-    saveStyleMap(path.join(afterDir, 'surface.json.gz'), disabled);
+    saveStyleMap(path.join(beforeDir, 'surface@1280.json.gz'), complete);
+    saveStyleMap(path.join(afterDir, 'surface@1280.json.gz'), disabled);
     expect(diffStyleMapDirs(beforeDir, afterDir).statesUncertified).toBe(1);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

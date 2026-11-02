@@ -52,17 +52,17 @@ refreshes them.
 
 What each kind of change does in the declared scenario:
 
-| Change                                                         | Today  | Reach                                         |
-| -------------------------------------------------------------- | ------ | --------------------------------------------- |
-| `:hover` colour                                                | shown  | reached (forced `:hover` matches)             |
+| Change                                                         | Today  | Reach                                        |
+| -------------------------------------------------------------- | ------ | -------------------------------------------- |
+| `:hover` colour                                                | shown  | reached (forced `:hover` matches)            |
 | Fault-overlay rule, removed rule, CSS Module rule, ternary arm | missed | never matched (J1)                           |
 | Token used only by the fault badge                             | missed | never matched (J1 consumer closure)          |
 | Dark-mode and 1440px `@media` rules                            | missed | never matched, with the gating `@media`      |
 | `@keyframes` body                                              | missed | blind channel (a matched rule references it) |
-| Class added inside the fault overlay                           | missed | never rendered (J2 never ran)                 |
-| Module-scope class constants (incl. one that collides)         | missed | never rendered (J3; J2 alone says "ran")      |
-| Runtime CSS-in-JS style string                                 | missed | **reached: the pinned residual**              |
-| `console.warn` text in an error handler                        | n/a    | never rendered (**noise**)                    |
+| Class added inside the fault overlay                           | missed | never rendered (J2 never ran)                |
+| Module-scope class constants (incl. one that collides)         | missed | never rendered (J3; J2 alone says "ran")     |
+| Runtime CSS-in-JS style string                                 | missed | **reached: the pinned residual**             |
+| `console.warn` text in an error handler                        | n/a    | never rendered (**noise**)                   |
 
 ## What this proves, and what it doesn't
 
