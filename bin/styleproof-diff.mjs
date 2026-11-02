@@ -96,7 +96,7 @@ const read = withCaptureDirs(NAME, inputs, () => {
   const after = readMapManifest(inputs.afterDir);
   if (before && after && (before.spec === MAP_MANIFEST) !== (after.spec === MAP_MANIFEST)) {
     console.error(
-      'Mixed spec/ad-hoc pairs skip spec, StyleProof version, Playwright runtime hash, and base URL checks.',
+      'UNVERIFIED DIAGNOSTIC: mixed spec/ad-hoc pairs skip spec, StyleProof version, Playwright runtime hash, and base URL checks.',
     );
   }
 

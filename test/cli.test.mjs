@@ -3263,7 +3263,7 @@ for (const changed of [false, true]) {
     fs.writeFileSync(file, JSON.stringify(manifest));
     const r = run(DIFF, [A, B, '--allow-unasserted']);
     assert.equal(r.status, changed ? 1 : 0, r.stderr + r.stdout);
-    assert.match(r.stdout, /DIAGNOSTIC/);
+    assert.match(r.stderr, /UNVERIFIED DIAGNOSTIC: mixed spec\/ad-hoc/);
     rmTmp(root);
   });
 }
