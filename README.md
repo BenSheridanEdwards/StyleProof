@@ -423,7 +423,7 @@ working directory.
 
 ### Configuration
 
-Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `styleproof.config.js`, then `styleproof.config.json`, nearest first. On POSIX, folders and configs must be owned by the current user (or root for system folders above home) and neither group- nor world-writable. Discovery stops at the first unsafe folder and reports one skipped ancestor config without evaluating it. It stops at a safe `.git` directory containing `HEAD`, or a safe `.git` file whose gitdir target exists and is safe. Own non-git parent configs remain discoverable. On Windows, uid and mode checks are unavailable; discovery stops at the git root or the user's home folder.
+Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `styleproof.config.js`, then `styleproof.config.json`, nearest first. The start folder and its config are always accepted. On POSIX, ancestors must be owned by the current user or root and must not be world-writable; group-write is allowed. The first unsafe ancestor ends discovery with one notice naming the folder and reason, without evaluating anything there or above it. Any `.git` file or directory in an accepted folder ends discovery. macOS ACLs are not considered. On Windows, discovery within a repository stops at its git root; outside a repository only the start folder is searched.
 
 See the [config key table](docs/REFERENCE.md) for project defaults.
 

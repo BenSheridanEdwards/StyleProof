@@ -9,7 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Stop discovery at unsafe ownership or group/world-writable ancestors, preserving own non-git parent configs (#1246).
+- A config in a parent folder that is world-writable or owned by another user is no longer run; run from the config's folder instead (#1246).
 
 ### Changed
 

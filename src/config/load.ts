@@ -10,7 +10,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { errorMessage } from '../util.js';
 import {
@@ -114,66 +113,54 @@ function locationAt(dir: string): StyleProofConfigLocation | undefined {
   return fs.existsSync(jsonPath) ? { path: jsonPath, dir, filename: CONFIG_JSON } : undefined;
 }
 
-function safeDiscoveryPath(file: string): boolean {
-  if (process.platform === 'win32') return true;
+function unsafeDiscoveryFolder(dir: string): string | undefined {
   try {
-    const stat = fs.statSync(file);
-    const home = os.homedir();
-    const aboveHome = file !== home && home.startsWith(file.endsWith(path.sep) ? file : file + path.sep);
-    return (stat.uid === process.getuid!() || (stat.uid === 0 && aboveHome)) && (stat.mode & 0o022) === 0;
+    const stat = fs.statSync(dir);
+    if (stat.uid !== process.getuid!() && stat.uid !== 0) return 'owned by another user';
+    if (stat.mode & 0o002) return 'world-writable';
+    return undefined;
   } catch {
-    return false;
+    return 'cannot stat folder';
   }
 }
 
-function realGitBoundary(dir: string): boolean {
-  const git = path.join(dir, '.git');
-  if (process.platform === 'win32') return fs.existsSync(git);
-  if (!safeDiscoveryPath(git)) return false;
-  try {
-    if (fs.statSync(git).isDirectory()) {
-      const head = path.join(git, 'HEAD');
-      return safeDiscoveryPath(head) && fs.statSync(head).isFile();
-    }
-    const match = /^gitdir:\s*(.+)\s*$/m.exec(fs.readFileSync(git, 'utf8'));
-    return !!match && safeDiscoveryPath(path.resolve(dir, match[1].trim()));
-  } catch {
-    return false;
-  }
-}
-
-function warnSkippedAncestor(dir: string): void {
-  // Stat candidates only: never import or read a skipped config.
-  let ancestor = dir;
+function findGitBoundary(start: string): string | undefined {
+  let dir = start;
   for (;;) {
-    const skipped = locationAt(ancestor);
-    if (skipped) {
-      process.stderr.write(`styleproof: skipping ${skipped.path}: unsafe ancestor ownership or permissions.\n`);
-      return;
-    }
-    const parent = path.dirname(ancestor);
-    if (parent === ancestor) return;
-    ancestor = parent;
+    if (fs.existsSync(path.join(dir, '.git'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
   }
 }
 
-/** Walk safe parents, stopping at a real repository boundary or the first unsafe folder. */
+function discoveryFolderRejection(dir: string, start: string): string | undefined {
+  if (dir === start || process.platform === 'win32') return undefined;
+  return unsafeDiscoveryFolder(dir);
+}
+
+function endsDiscovery(dir: string, windowsBoundary: string | undefined): boolean {
+  return fs.existsSync(path.join(dir, '.git')) || (process.platform === 'win32' && !windowsBoundary);
+}
+
+/** Accept the start folder; walk trusted ancestors up to the nearest .git marker. */
 export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofConfigDiscovery {
   const searched: string[] = [];
-  let dir = path.resolve(startDir);
+  const start = path.resolve(startDir);
+  let dir = start;
+  // These path-based checks do not prevent subtree renames between stat and import (TOCTOU).
+  // POSIX mode checks do not inspect macOS ACLs.
+  const windowsBoundary = process.platform === 'win32' ? findGitBoundary(start) : undefined;
   for (;;) {
-    if (!safeDiscoveryPath(dir)) {
-      warnSkippedAncestor(dir);
+    const reason = discoveryFolderRejection(dir, start);
+    if (reason) {
+      process.stderr.write(`styleproof: skipping unsafe folder ${dir}: ${reason}.\n`);
       break;
     }
     searched.push(...CONFIG_FILENAMES.map((filename) => path.join(dir, filename)));
     const location = locationAt(dir);
-    if (location) {
-      if (safeDiscoveryPath(location.path)) return { location, searched };
-      process.stderr.write(`styleproof: skipping ${location.path}: unsafe config ownership or permissions.\n`);
-      break;
-    }
-    if (realGitBoundary(dir) || (process.platform === 'win32' && dir === os.homedir())) break;
+    if (location) return { location, searched };
+    if (endsDiscovery(dir, windowsBoundary)) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;

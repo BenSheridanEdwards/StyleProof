@@ -36,7 +36,7 @@ const HELP = `${COMMAND} — capture a page's computed-style map(s) (no Playwrig
 
 usage: ${COMMAND} <url> [options]
 
-Config search: safe owned parents through git root, including non-git parents. Windows stops at git root or home.
+Config search: trusted parents through git root. Windows outside git searches only the start folder.
 Honors optional styleproof.config.ts/.mjs/.js/.json crawl.setup / crawl.authBoundaryExclude /
 crawl.incompleteUiExclude
 (flag > env > config). Secrets stay in env via \${ENV} placeholders in the setup file.

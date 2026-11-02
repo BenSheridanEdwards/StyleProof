@@ -111,7 +111,7 @@ const cli = defineCli({
     'Playwright uses the project @playwright/test CLI when PATH has no runnable executable.',
     'Windows batch shims use the project CLI via Node.',
     '',
-    'Config search: safe owned parents through git root, including non-git parents. Windows stops at git root or home.',
+    'Config search: trusted parents through git root. Windows outside git searches only the start folder.',
     'The nearest styleproof.config.ts (ESM in any package type) or .mjs/.js/.json supplies project defaults — "spec", "dirtyAllow",',
     '"cacheBranch", "remote" — with flags and env overriding it, except "dirtyAllow", which',
     'ACCUMULATES across config, STYLEPROOF_DIRTY_ALLOW, and every --dirty-allow flag.',
