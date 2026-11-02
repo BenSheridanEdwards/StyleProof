@@ -524,6 +524,12 @@ There's also a third, spec-less use — pointing the one-shot capture at a desig
 mockup and diffing your build against it until the number hits zero. See
 [Match a design pixel-for-pixel](docs/REFERENCE.md#match-a-design-pixel-for-pixel).
 
+Ad-hoc design comparisons check runtime identity and are diagnostic, never certification.
+`--allow-unasserted` permits unasserted completeness and unknown determinism: exit 0
+means no reviewable differences, 1 means differences or other evidence blockers,
+and 2 means incompatible runtimes or a capture/usage error. Match surface keys and
+widths on both sides. Zero computed-style differences do not prove pixel identity.
+
 ## What a green certifies
 
 A passing check is more than "no style changed". Four gates qualify it, and the

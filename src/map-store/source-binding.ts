@@ -118,7 +118,7 @@ function runtimeIdentity(manifest: MapManifest, includeBrowser: boolean): string
     arch: manifest.arch,
     nodeMajor: manifest.nodeMajor,
     playwrightVersion: manifest.playwrightVersion ?? '',
-    baseUrl: manifest.baseUrl ?? null,
+
     ...(includeBrowser ? { browserVersion: manifest.browserVersion } : {}),
   });
 }
@@ -127,7 +127,8 @@ const SAME_ENVIRONMENT_NEXT =
   '\nNext: rebuild one side with styleproof-map in the same environment, or let CI recapture both maps.';
 
 function assertCompatibleManifests(before: MapManifest, after: MapManifest): void {
-  if (before.compatibilityKey !== after.compatibilityKey) {
+  const diagnostic = before.spec === MAP_MANIFEST || after.spec === MAP_MANIFEST;
+  if (!diagnostic && (before.compatibilityKey !== after.compatibilityKey || before.baseUrl !== after.baseUrl)) {
     throw new MapStoreError(
       `maps were captured with different capture compatibility contracts${SAME_ENVIRONMENT_NEXT}`,
     );
@@ -151,6 +152,9 @@ export function assertCompatibleMapDirs(
   const after = comparableManifest(afterDir);
   assertBoundManifest(before, expected.beforeSha, 'before');
   assertBoundManifest(after, expected.afterSha, 'after');
+  if ((before?.spec === MAP_MANIFEST || after?.spec === MAP_MANIFEST) && expected.beforeSha !== undefined) {
+    throw new MapStoreError('ad-hoc captures are diagnostic only; trusted source certification is unavailable');
+  }
   const receipt = sourceBindingReceipt(before, after, expected);
   if (before && after) assertCompatibleManifests(before, after);
   return receipt;
