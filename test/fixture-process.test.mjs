@@ -25,15 +25,24 @@ for (const [name, source, options] of [
   ['buffer input', 'process.stdin.pipe(process.stdout)', { input: Buffer.from([0, 255, 128]) }],
   ['large binary input', 'process.stdin.pipe(process.stdout)', { input: Buffer.alloc(1048576, 255) }],
   ['typed input', 'process.stdin.pipe(process.stdout)', { input: new Uint8Array([255, 0, 128]) }],
+  [
+    'wide typed input',
+    'process.stdin.pipe(process.stdout)',
+    { input: new Uint16Array([0, 0x1234, 0xffff, 0]).subarray(1, 3) },
+  ],
+  [
+    'data view input',
+    'process.stdin.pipe(process.stdout)',
+    { input: new DataView(new Uint8Array([9, 0, 255, 128, 9]).buffer, 1, 3) },
+  ],
   ['ignored input', 'process.exit(0)', { input: Buffer.alloc(2097152) }],
 ]) {
   test(`fixture matches spawnSync: ${name}`, () => {
     const args = ['-e', source];
     const expected = spawnSync(process.execPath, args, { ...options, maxBuffer: 8388608 });
     const actual = fixtureProcess(process.execPath, args, options);
-    for (const key of ['status', 'signal', 'stdout', 'stderr']) {
-      assert.deepEqual(actual[key], expected[key], key);
-    }
+    const fields = ({ status, signal, stdout, stderr }) => ({ status, signal, stdout, stderr });
+    assert.deepEqual(fields(actual), fields(expected));
   });
 }
 test('missing command returns error', () => {
