@@ -16,7 +16,10 @@ export function fixtureProcess(command, args, options = {}) {
     const timer = setTimeout(() => {
       output.timedOut = true;
       try { process.kill(-child.pid, 'SIGKILL'); } catch (error) {
-        if (error.code !== 'ESRCH') throw error;
+        if (error.code !== 'ESRCH') {
+          output.killError = error.message;
+          child.kill('SIGKILL');
+        }
       }
       process.stdout.write(JSON.stringify(output), () => process.exit(0));
     }, timeout);
@@ -46,7 +49,7 @@ export function fixtureProcess(command, args, options = {}) {
   const output = JSON.parse(result.stdout);
   if (output.timedOut) {
     throw new Error(
-      `Fixture command ${command} ${args.join(' ')} exceeded deadline ${timeout} ms after ${Date.now() - started} ms; local git install may have stalled (check git submodule -h)`,
+      `Fixture command ${command} ${args.join(' ')} exceeded deadline ${timeout} ms after ${Date.now() - started} ms; local git install may have stalled (check git submodule -h)${output.killError ? '; process-group kill failed: ' + output.killError : ''}`,
     );
   }
   if (output.error) throw new Error(output.error);
