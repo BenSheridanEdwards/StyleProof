@@ -607,3 +607,32 @@ test('Chromium oracle agrees with non-ASCII escaped URL name boundaries', async 
   );
   expect(boundaries[0]).toEqual(boundaries[1]);
 });
+
+for (const [html, reason] of [
+  [
+    '<style>.card{color:red; & .title{color:blue}}</style><div class="card"><p class="title">x</p></div>',
+    'nested rule or unsupported declaration',
+  ],
+  [
+    '<style>.s{animation: var(--spin, spin 1s linear infinite)}</style><p class="s">x</p>',
+    'unsupported font or animation dependency',
+  ],
+  ['<style>.t{color:red}</style><style>.t{color:red}</style><p class="t">x</p>', 'ambiguous identical stylesheets'],
+  ['<p style="font-family: var(--brand-font)">x</p>', 'inline font or animation variable reference'],
+  [
+    "<style>.i{background:url(data:image/svg+xml,<svg xmlns='x'>)}</style><p class=i>x</p>",
+    'ambiguous unquoted URL dependency',
+  ],
+]) {
+  test(`reader failure preserves capture: ${reason}`, async ({ page }) => {
+    await page.setContent(html);
+    const servedRules = await trackServedRules(page);
+    try {
+      const map = await captureStyleMap(page, { captureReach: true, servedRules });
+      expect(Object.keys(map.elements).length).toBeGreaterThan(0);
+      expect(map.reach).toEqual({ version: 2, scope: 'compared', sheets: [], rules: [], unknown: reason });
+    } finally {
+      await servedRules.dispose();
+    }
+  });
+}
