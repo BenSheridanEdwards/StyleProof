@@ -966,3 +966,20 @@ test('styleproof-map: nested cwd uses the root config spec, not the default e2e 
     rmTmp(root);
   }
 });
+
+for (const type of [undefined, 'commonjs', 'module']) {
+  test(`capture loads TypeScript config in ${type ?? 'default'} package`, () => {
+    const root = mkTmp();
+    try {
+      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ type }));
+      fs.writeFileSync(path.join(root, 'styleproof.config.ts'), "export default { spec: 'missing.spec.ts' };\n");
+      const result = spawnSync(process.execPath, [MAP], { cwd: root, encoding: 'utf8', timeout: 30000 });
+      const text = `${result.stdout}${result.stderr}`;
+      assert.equal(result.status, 2, text);
+      assert.doesNotMatch(text, /could not load|Cannot use import statement/);
+      assert.match(text, /missing.spec.ts/);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
