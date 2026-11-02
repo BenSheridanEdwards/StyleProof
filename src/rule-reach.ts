@@ -132,7 +132,7 @@ function sideOf(maps: readonly StyleMap[]): Side {
     unreadable: 0,
   };
   for (const [index, map] of maps.entries()) {
-    if (!map.reach || map.reach.scope !== 'compared') {
+    if (!map.reach || map.reach.scope !== 'compared' || map.reach.unknown) {
       side.complete = false;
       continue;
     }

@@ -57,8 +57,15 @@ const FINGERPRINTED_PSEUDO_CLASSES = new Set([
   'optional',
   'placeholder-shown',
 ]);
+class ReachUnknownError extends Error {
+  constructor(readonly reason: string) {
+    super(`styleproof: served CSS reach is unknown: ${reason}`);
+    this.name = 'ReachUnknownError';
+  }
+}
+
 function unknown(detail: string): never {
-  throw new Error(`styleproof: served CSS reach is unknown: ${detail}`);
+  throw new ReachUnknownError(detail);
 }
 
 /** A CSS escape includes up to six hex digits and their optional whitespace terminator. */
@@ -991,55 +998,64 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
   };
   const stop = async (ownCss: readonly string[], compared: readonly string[]): Promise<ServedRules> => {
     const { ruleUsage } = await client.send('CSS.stopRuleUsageTracking');
-    const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
-    const { read, unreadable } = await readSheets(client, [...sheets.values()], ownCss, userAgentOwned(root));
-    read.forEach((sheet) => guardAmbiguousURLs(sheet.text));
-    const { frameTree } = await client.send('Page.getFrameTree');
-    const shadow = hasShadowRoot(root);
-    const rules: ServedRule[] = [];
-    const probes: (string | null)[] = [];
-    const exclusive: boolean[] = [];
-    const entries = read.map((sheet) =>
-      servedEntries(
-        sheet.text,
-        ruleUsage.filter((r) => r.used && r.styleSheetId === sheet.header.styleSheetId),
-      ),
-    );
-    await resolveFontVars(client, root, read, entries, frameTree.frame.id);
-    for (const [index, sheet] of read.entries()) {
-      const inDocument = await documentSheet(client, sheet.header, frameTree.frame.id, shadow);
-      for (const { rule, chain, prelude } of entries[index]) {
-        const probe = rule.used && inDocument ? selectorProbe(prelude, chain) : undefined;
-        // Removing a state inside :not(), for example, need not preserve the original candidates.
-        probes.push(probe && !probe.nested ? probe.selector : null);
-        exclusive.push(probe?.relaxed ?? false);
-        rules.push({ ...rule, sheet: index });
+    const readLedger = async (): Promise<ServedRules> => {
+      const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
+      const { read, unreadable } = await readSheets(client, [...sheets.values()], ownCss, userAgentOwned(root));
+      read.forEach((sheet) => guardAmbiguousURLs(sheet.text));
+      const { frameTree } = await client.send('Page.getFrameTree');
+      const shadow = hasShadowRoot(root);
+      const rules: ServedRule[] = [];
+      const probes: (string | null)[] = [];
+      const exclusive: boolean[] = [];
+      const entries = read.map((sheet) =>
+        servedEntries(
+          sheet.text,
+          ruleUsage.filter((r) => r.used && r.styleSheetId === sheet.header.styleSheetId),
+        ),
+      );
+      await resolveFontVars(client, root, read, entries, frameTree.frame.id);
+      for (const [index, sheet] of read.entries()) {
+        const inDocument = await documentSheet(client, sheet.header, frameTree.frame.id, shadow);
+        for (const { rule, chain, prelude } of entries[index]) {
+          const probe = rule.used && inDocument ? selectorProbe(prelude, chain) : undefined;
+          // Removing a state inside :not(), for example, need not preserve the original candidates.
+          probes.push(probe && !probe.nested ? probe.selector : null);
+          exclusive.push(probe?.relaxed ?? false);
+          rules.push({ ...rule, sheet: index });
+        }
       }
-    }
-    const { fingerprint, matched } = await page.evaluate(comparedSnapshot, {
-      probes,
-      exclusive,
-      compared: [...compared],
-    });
-    const same = started !== undefined && digest(fingerprint) === started;
-    started = undefined;
-    const seen = new Map<string, number>();
-    rules.forEach((rule, index) => {
-      const n = (seen.get(rule.key) ?? 0) + 1;
-      seen.set(rule.key, n);
-      if (n > 1) rule.key += ` #${n}`;
-      if (rule.used && (!same || !matched[index])) {
-        delete rule.used;
-        rule.outside = true;
-      }
-    });
-    return {
-      version: 2,
-      sheets: read.map((s) => s.label),
-      rules,
-      scope: 'compared',
-      ...(unreadable ? { unreadable } : {}),
+      const { fingerprint, matched } = await page.evaluate(comparedSnapshot, {
+        probes,
+        exclusive,
+        compared: [...compared],
+      });
+      const same = started !== undefined && digest(fingerprint) === started;
+      started = undefined;
+      const seen = new Map<string, number>();
+      rules.forEach((rule, index) => {
+        const n = (seen.get(rule.key) ?? 0) + 1;
+        seen.set(rule.key, n);
+        if (n > 1) rule.key += ` #${n}`;
+        if (rule.used && (!same || !matched[index])) {
+          delete rule.used;
+          rule.outside = true;
+        }
+      });
+      return {
+        version: 2,
+        sheets: read.map((s) => s.label),
+        rules,
+        scope: 'compared',
+        ...(unreadable ? { unreadable } : {}),
+      };
     };
+    try {
+      return await readLedger();
+    } catch (error) {
+      if (!(error instanceof ReachUnknownError)) throw error;
+      started = undefined;
+      return { version: 2, scope: 'compared', sheets: [], rules: [], unknown: error.reason };
+    }
   };
   return { start, stop, dispose };
 }
