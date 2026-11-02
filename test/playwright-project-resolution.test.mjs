@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 const cli = new URL('../bin/styleproof-map.mjs', import.meta.url);
 for (const installed of [true, false]) {
   test(`capture resolves project Playwright: installed=${installed}`, () => {
@@ -27,7 +28,8 @@ for (const installed of [true, false]) {
         timeout: 15000,
       });
       assert.equal(result.status, installed ? 17 : 2, result.stderr);
-      assert.match(result.stderr, installed ? /consumer Playwright reached/ : /ENOENT.*project/i);
+      assert.match(result.stderr, installed ? /consumer Playwright reached/ : /@playwright\/test is not installed in/);
+      if (!installed) assert.doesNotMatch(result.stderr, /Require stack:|\)\)/);
     } finally {
       fs.rmSync(cwd, { recursive: true, force: true });
     }
@@ -45,7 +47,7 @@ for (const code of [undefined, 'EACCES', 'ENOENT', 'EINVAL']) {
     });
     syncBuiltinESMExports();
     try {
-      const actual = projectPlaywright(['--version']);
+      const actual = projectPlaywright(['--version'], { cwd: repoRoot });
       assert.equal(actual.status, ['ENOENT', 'EINVAL'].includes(code) ? 17 : result.status);
       assert.equal(calls.length, ['ENOENT', 'EINVAL'].includes(code) ? 2 : 1);
       assert.equal(calls[0], 'playwright.cmd');
@@ -78,7 +80,7 @@ test('POSIX PATH executable takes precedence over project CLI', { skip: process.
   }
 });
 
-test('fallback spawn errors retain their original code and CLI path', (t) => {
+test('fallback spawn errors retain their original code and message', (t) => {
   t.mock.method(childProcess, 'spawnSync', (command) => ({
     error: Object.assign(new Error(command === process.execPath ? 'spawn denied cli-path' : 'shim invalid'), {
       code: command === process.execPath ? 'EACCES' : 'ENOENT',
@@ -86,7 +88,7 @@ test('fallback spawn errors retain their original code and CLI path', (t) => {
   }));
   syncBuiltinESMExports();
   try {
-    const result = projectPlaywright([]);
+    const result = projectPlaywright([], { cwd: repoRoot });
     assert.match(result.error.message, /EACCES/);
     assert.match(result.error.message, /cli-path/);
   } finally {
