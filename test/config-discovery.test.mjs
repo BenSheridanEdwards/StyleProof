@@ -1007,3 +1007,29 @@ export default {};`,
     rmTmp(root);
   }
 });
+
+for (const kind of ['file', 'directory']) {
+  test(`loads TypeScript config through a symlinked ${kind}`, async () => {
+    const root = mkTmp();
+    try {
+      const real = path.join(root, 'real');
+      fs.mkdirSync(real);
+      fs.writeFileSync(path.join(real, 'package.json'), '{"type":"commonjs"}');
+      const config = path.join(real, 'styleproof.config.ts');
+      fs.writeFileSync(config, "export default { spec: 'missing.spec.ts' };\n");
+      let cwd = real;
+      if (kind === 'file') {
+        const target = path.join(real, 'shared.ts');
+        fs.renameSync(config, target);
+        fs.symlinkSync(target, config);
+      } else {
+        cwd = path.join(root, 'linked');
+        fs.symlinkSync(real, cwd, 'dir');
+      }
+      const loaded = await loadStyleProofConfigAsync(cwd);
+      assert.equal(loaded.spec, 'missing.spec.ts');
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
