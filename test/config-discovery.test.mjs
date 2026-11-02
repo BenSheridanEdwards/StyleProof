@@ -1075,26 +1075,50 @@ for (const kind of ['file', 'directory']) {
 }
 
 for (const git of [false, true]) {
-  test(`styleproof-map: ancestor config ${git ? 'loads inside git' : 'is ignored outside git'}`, () => {
+  test(`trusted ancestor: own non-git parent and real repo git=${git}`, async () => {
     const root = mkTmp();
     try {
       const nested = path.join(root, 'nested');
       fs.mkdirSync(nested);
-      if (git) fs.mkdirSync(path.join(root, '.git'));
-      fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), "throw new Error('ancestor-config-executed');");
-      const result = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8', timeout: 15000 });
-      assert.equal(result.status, 2, result.stderr);
-      if (git) assert.match(result.stderr, /ancestor-config-executed/);
-      else {
-        assert.doesNotMatch(result.stderr, /ancestor-config-executed/);
-        assert.match(result.stderr, /spec/i);
-        fs.writeFileSync(path.join(nested, 'styleproof.config.mjs'), "throw new Error('local-config-executed');");
-        const local = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8', timeout: 15000 });
-        assert.equal(local.status, 2);
-        assert.match(local.stderr, /local-config-executed/);
-      }
+      if (git) execFileSync('git', ['init', root], { timeout: 10000 });
+      fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'export default { requireApproval: true };');
+      assert.equal((await loadStyleProofConfigAsync(nested)).requireApproval, true);
     } finally {
       rmTmp(root);
     }
   });
+}
+for (const mode of [0o770, 0o777, 0o1777]) {
+  for (const plantedGit of [false, true]) {
+    test(
+      `unsafe ancestor: mode=${mode.toString(8)} plantedGit=${plantedGit}`,
+      { skip: process.platform === 'win32' },
+      async () => {
+        const root = mkTmp();
+        try {
+          const nested = path.join(root, 'nested');
+          const marker = path.join(root, 'executed');
+          fs.mkdirSync(nested);
+          if (plantedGit) fs.mkdirSync(path.join(root, '.git'));
+          fs.writeFileSync(
+            path.join(root, 'styleproof.config.mjs'),
+            `import fs from 'node:fs'; fs.writeFileSync(${JSON.stringify(marker)}, 'bad'); export default {};`,
+          );
+          fs.chmodSync(root, mode);
+          await loadStyleProofConfigAsync(nested);
+          assert.equal(fs.existsSync(marker), false, 'library must not evaluate unsafe ancestor');
+          const capture = spawnSync(
+            process.execPath,
+            [path.join(here, '..', 'bin', 'styleproof-capture.mjs'), 'http://127.0.0.1:9/'],
+            { cwd: nested, encoding: 'utf8', timeout: 15000 },
+          );
+          assert.equal(fs.existsSync(marker), false, 'capture must not evaluate unsafe ancestor');
+          assert.match(capture.stderr, /skipp.*styleproof.config.mjs.*unsafe/i);
+        } finally {
+          fs.chmodSync(root, 0o700);
+          rmTmp(root);
+        }
+      },
+    );
+  }
 }
