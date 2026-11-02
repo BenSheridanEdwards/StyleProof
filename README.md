@@ -448,6 +448,11 @@ backwards-compatible aliases for one major version.
 
 ### Capture, then compare
 
+Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
+map filenames (a nonempty key and integer width). Other JSON files are ignored.
+Writing diff or audit JSON beside captures changes the directory's evidence digest
+for later diff or report runs; keep outputs outside capture folders when matching evidence receipts.
+
 ```bash
 npx styleproof capture    # capture this commit's computed styles
 npx styleproof compare    # compare against the base branch

@@ -205,11 +205,11 @@ test.describe('every PR change class is surfaced in the diff', () => {
     fs.mkdirSync(baseDir);
     fs.mkdirSync(headDir);
     const empty: StyleMap = { defaults: {}, elements: {}, states: {} };
-    fs.writeFileSync(path.join(baseDir, 'home.json'), JSON.stringify(empty));
-    fs.writeFileSync(path.join(headDir, 'home.json'), JSON.stringify(empty));
-    fs.writeFileSync(path.join(headDir, 'pricing.json'), JSON.stringify(empty)); // head adds a surface
+    fs.writeFileSync(path.join(baseDir, 'home@1280.json'), JSON.stringify(empty));
+    fs.writeFileSync(path.join(headDir, 'home@1280.json'), JSON.stringify(empty));
+    fs.writeFileSync(path.join(headDir, 'pricing@1280.json'), JSON.stringify(empty)); // head adds a surface
     const { surfaces } = diffStyleMapDirs(baseDir, headDir);
-    const pricing = surfaces.find((s) => s.surface === 'pricing');
+    const pricing = surfaces.find((s) => s.surface === 'pricing@1280');
     expect(pricing?.missing, 'the head-only surface is reported as a new surface with no baseline').toBe('before');
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -579,7 +579,8 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     fs.writeFileSync(path.join(head, 'styleproof-manifest.json'), MANIFEST);
     return { root, base, head };
   }
-  const writeMap = (dir: string, map: StyleMap) => fs.writeFileSync(path.join(dir, 'home.json'), JSON.stringify(map));
+  const writeMap = (dir: string, map: StyleMap) =>
+    fs.writeFileSync(path.join(dir, 'home@1280.json'), JSON.stringify(map));
 
   test('styleproof-diff exits 1 and styleproof-report NAMES a real style change', async ({ page }) => {
     const { root, base, head } = dirs();
@@ -666,7 +667,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
   const heroPage = (src: string) => `<div class="card"><img class="hero" alt="" src="${src}"></div>`;
   async function capWithShots(dir: string, css: string, body: string): Promise<StyleMap> {
     const map = await cap(page, css, body);
-    await captureSurfaceScreenshots(page, path.join(dir, 'home'));
+    await captureSurfaceScreenshots(page, path.join(dir, 'home@1280'));
     return map;
   }
   // `page` is a fixture, so the helper above closes over it per test via a let.
@@ -712,7 +713,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     const { root, base, head } = dirs();
     writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
     writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(GREEN)));
-    fs.rmSync(path.join(head, 'home.hover.png'));
+    fs.rmSync(path.join(head, 'home@1280.hover.png'));
     const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels'], root);
     expect(gated.status, `an uncompared layer is not certified\n${gated.out}`).toBe(1);
     expect(gated.out).toMatch(/\[hover\]: ✗ screenshot missing on the after side/);

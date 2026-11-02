@@ -32,8 +32,8 @@ test('a balanced margin change on a centred flex item that moves its siblings re
   expect(marginProps(base, head, mid)).toEqual(expect.arrayContaining(['margin-left', 'margin-right']));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-resting-margin-'));
   try {
-    saveStyleMap(path.join(root, 'base', 'row.json.gz'), base);
-    saveStyleMap(path.join(root, 'head', 'row.json.gz'), head);
+    saveStyleMap(path.join(root, 'base', 'row@1280.json.gz'), base);
+    saveStyleMap(path.join(root, 'head', 'row@1280.json.gz'), head);
     expect(diffStyleMapDirs(path.join(root, 'base'), path.join(root, 'head')).counts.style).toBeGreaterThan(0);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
