@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'node:test';
+import { reachSummaryLine } from '../dist/report/reach.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 import { fixtureCommitSha, makeMap, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
@@ -42,7 +43,7 @@ function report(dirs, options = {}) {
 }
 
 const strip =
-  '**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that matches each rule under **Changed but never matched**. Render-code reach is not measured yet.';
+  "**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that matches each rule under **Changed but never matched**. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS), render-code reach and class-list deltas.";
 const intro =
   '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
 const table = ['| Rule | Change | Gated by | Source | Why |', '| --- | --- | --- | --- | --- |'];
@@ -89,7 +90,7 @@ test('gate holds never-rendered changes without claiming a clean computed-style 
     output.md,
     /these findings hold the verdict: certify mode fails \(`CERTIFICATION_FAILED`\); review-gate mode needs approval/,
   );
-  assert.ok(output.md.includes("Held by `changeReach: 'gate'`."));
+  assert.ok(output.md.includes("The findings above are held by `changeReach: 'gate'`; the unchecked items are not."));
   assert.equal(output.json.reach.level, 'gate');
   assert.equal(output.json.reach.blocking, 2);
   assert.deepEqual(output.result.reach, output.json.reach);
@@ -122,7 +123,7 @@ test('outside-only changes stay unmeasured in reports and block only the opt-in 
         ),
       );
       assert.match(output.html, /<td><code>\.ignored<\/code><\/td>/);
-      assert.doesNotMatch(output.md, /every changed served CSS rule matched a captured element|Reach complete/);
+      assert.doesNotMatch(output.md, /every changed served CSS rule|Reach complete/);
       if (changeReach === 'gate') {
         assert.match(output.md, /✗ \*\*Reach gate\*\*/);
         assert.doesNotMatch(output.md, /✓ No reviewable/);
@@ -153,10 +154,7 @@ test('unscoped ledgers retain side-specific gaps and cannot certify legacy match
     );
     for (const side of sides) assert.ok(output.md.includes(`missing ${side} ledger`));
     assert.ok(output.md.includes('recapture with `captureReach`'));
-    assert.doesNotMatch(
-      output.md,
-      /every changed served CSS rule matched a captured element|Reach complete|✓ No reviewable/,
-    );
+    assert.doesNotMatch(output.md, /every changed served CSS rule|Reach complete|✓ No reviewable/);
   }
 });
 
@@ -225,7 +223,7 @@ test('fully reached changed served rules add no section but still disclose the t
   assert.doesNotMatch(output.md, /## Changed but never matched|Reach evidence gaps|Reach complete|\d+%/);
   assert.match(
     output.md,
-    /\*\*Reach incomplete\*\* — every changed served CSS rule matched a captured element \(1\); render-code reach and the changed-stylesheet join are not measured yet\./,
+    /\*\*Reach incomplete\*\* — 1 changed CSS rule\(s\) in served stylesheets matched a captured element\./,
   );
   assert.equal(output.json.reach.complete, false);
   assert.deepEqual(output.json.reach.counts, { reached: 1, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 });
@@ -235,8 +233,8 @@ test('fully reached changed served rules add no section but still disclose the t
       status: 'unknown',
       kind: 'not-built',
       reason:
-        'changed stylesheets in the pull request are not yet joined with the sheets captures served; a changed sheet no capture served cannot be listed',
-      remedy: 'none yet: a later Change Reach phase (#934) adds it',
+        "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+      remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
     },
     {
       join: 'J2',
@@ -257,7 +255,7 @@ test('fully reached changed served rules add no section but still disclose the t
 
 test('an empty changed-rule list cannot claim reach is complete', (t) => {
   const output = report(fixture(t));
-  assert.match(output.md, /every changed served CSS rule matched a captured element \(0\)/);
+  assert.match(output.md, /no changed CSS rule in any served stylesheet/);
   assert.doesNotMatch(output.md, /Reach complete|## Changed but never matched/);
   assert.equal(output.json.reach.complete, false);
   assert.deepEqual(output.json.reach.rules, []);
@@ -435,7 +433,7 @@ test('a bounded report summarizes unrendered rules without losing the full JSON 
   });
   assert.ok(
     output.md.includes(
-      '- Changed but never matched: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); full list in report.json under `reach`',
+      '- Changed but never matched: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under `reach`',
     ),
   );
   assert.match(output.md, /summarized to keep this report renderable/);
@@ -453,7 +451,7 @@ test('a bounded report retains the unmeasured count and full JSON evidence', (t)
   assert.equal(output.json.reach.counts.unmeasured, 100);
   assert.equal(output.json.reach.rules.length, 100);
   assert.ok(output.json.reach.rules.every((rule) => rule.status === 'unmeasured'));
-  assert.doesNotMatch(output.md, /every changed served CSS rule matched a captured element|Reach complete/);
+  assert.doesNotMatch(output.md, /every changed served CSS rule|Reach complete/);
 });
 
 test('a byte budget too small to show reach status refuses to write a misleading report', (t) => {
@@ -568,6 +566,51 @@ test('reach gate headline and CLI lines name matched rules and the current secti
   }
 });
 
+test('issue #1240: a changed stylesheet no capture served is named, not claimed matched, under gate and warn', (t) => {
+  for (const changeReach of ['gate', 'warn']) {
+    const output = report(
+      fixture(t, [map(rule('.ok', 'h1', { used: true }))], [map(rule('.ok', 'h1', { used: true }))]),
+      { changeReach },
+    );
+    assert.deepEqual(output.json.reach.rules, []);
+    assert.equal(output.json.reach.blocking, 0);
+    assert.doesNotMatch(output.md, /every changed served CSS rule/);
+    assert.match(output.md, /no changed CSS rule in any served stylesheet/);
+    assert.match(
+      output.md.split('\n').find((line) => line.startsWith('**Reach incomplete**')),
+      /Not checked: changed stylesheets no capture served/,
+    );
+    if (changeReach === 'gate') assert.ok(output.md.includes("not held by `changeReach: 'gate'`"));
+    const gaps = output.json.reach.gaps.filter((g) => g.kind === 'not-built' && g.join === 'J1');
+    assert.equal(gaps.length, 1);
+    assert.match(gaps[0].reason, /lazy route/);
+  }
+});
+
+test('reach findings separate unchecked items from held findings and ledger gaps', (t) => {
+  for (const changeReach of ['gate', 'warn']) {
+    for (const ledgerGap of [false, true]) {
+      const before = map(rule('.fault', 'h1'));
+      const after = map(rule('.fault', 'h2'));
+      const output = report(fixture(t, [before], [after, ...(ledgerGap ? [withoutReach(map())] : [])]), {
+        changeReach,
+      });
+      const strip = output.md.split('\n').find((line) => line.startsWith('**Reach incomplete**'));
+      const label = changeReach === 'gate' ? "**Not checked** (not held by `changeReach: 'gate'`)" : '**Not checked**';
+      assert.ok(output.md.includes('\n\n' + label + '\n\n'));
+      assert.match(
+        output.md,
+        /- changed stylesheets no capture served: .* — add a surface that loads each changed stylesheet/,
+      );
+      if (changeReach === 'gate') {
+        assert.ok(output.json.reach.blocking > 0);
+        assert.ok(strip.endsWith("The findings above are held by `changeReach: 'gate'`; the unchecked items are not."));
+        assert.doesNotMatch(strip, / Held by/);
+        assert.ok(reachSummaryLine(output.json.reach).includes("are not checked (not held by `changeReach: 'gate'`)"));
+      }
+    }
+  }
+});
 for (const changeReach of ['gate', 'warn']) {
   test(`reader unknown remains a ledger gap under ${changeReach}`, (t) => {
     const reason = 'nested rule or unsupported declaration';
@@ -578,7 +621,9 @@ for (const changeReach of ['gate', 'warn']) {
     assert.ok(reach.gaps.some((gap) => gap.kind === 'ledger' && gap.side === 'head' && gap.reason.includes(reason)));
     if (changeReach === 'gate') {
       assert.ok(reach.blocking >= 1);
-      assert.ok(output.md.includes("Held by `changeReach: 'gate'`"));
+      assert.ok(
+        output.md.includes("The findings above are held by `changeReach: 'gate'`; the unchecked items are not."),
+      );
     } else assert.equal(reach.blocking, 0);
   });
 }
