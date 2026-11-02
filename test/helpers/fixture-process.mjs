@@ -18,6 +18,7 @@ export function fixtureProcess(command, args, options = {}) {
       try { process.kill(-child.pid, 'SIGKILL'); } catch (error) {
         if (error.code !== 'ESRCH') throw error;
       }
+      process.stdout.write(JSON.stringify(output), () => process.exit(0));
     }, timeout);
     child.on('error', error => { output.error = error.message; });
     child.on('close', status => {
