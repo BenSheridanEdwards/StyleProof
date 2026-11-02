@@ -352,7 +352,7 @@ test('styleproof-report and styleproof-diff exit without process.exit() after a 
     git(repo, ['init', '-q']);
     git(repo, ['add', '-A']);
     git(repo, ['-c', 'user.email=styleproof@example.test', '-c', 'user.name=StyleProof Test', 'commit', '-qm', 'page']);
-    const sha = git(repo, ['rev-parse', 'HEAD']).stdout.trim();
+    git(repo, ['rev-parse', 'HEAD']);
     // Captures land outside the repository, so the committed page binds both clean manifests to `sha`.
     const capture = (out: string) => {
       const result = run(repo, 'node', [CAPTURE, 'file://' + page, '--widths', '1280', '--out', path.join(dir, out)]);
@@ -363,11 +363,10 @@ test('styleproof-report and styleproof-diff exit without process.exit() after a 
     fs.writeFileSync(page, demo.replace(bodyColor, 'color: rgb(200, 228, 232);'));
     capture('changed');
 
-    const trusted = ['--expected-before-sha', sha, '--expected-after-sha', sha];
     const cases = [
-      { name: 'clean report', bin: REPORT, args: ['base', 'same', '--out', 'clean-report', ...trusted], status: 2 },
+      { name: 'clean report', bin: REPORT, args: ['base', 'same', '--out', 'clean-report'], status: 1 },
       { name: 'changed report', bin: REPORT, args: ['base', 'changed', '--out', 'changed-report'], status: 1 },
-      { name: 'clean diff', bin: DIFF, args: ['base', 'same', '--allow-unasserted', ...trusted], status: 2 },
+      { name: 'clean diff', bin: DIFF, args: ['base', 'same', '--allow-unasserted'], status: 0 },
       { name: 'changed diff', bin: DIFF, args: ['base', 'changed', '--allow-unasserted'], status: 1 },
     ];
     for (const { name, bin, args, status } of cases) {
@@ -1484,3 +1483,42 @@ function linkNodeModules(dir: string) {
     'dir',
   );
 }
+
+test('documented design-vs-build commands compare identical and changed styles', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-design-build-'));
+  try {
+    writeFixtureApp(app, await freePort());
+    const page = path.join(app, 'design.html');
+    fs.writeFileSync(page, '<!doctype html><html><body><p style="color: red">Hello</p></body></html>');
+    const url = pathToFileURL(page).href;
+    const init = run(app, process.execPath, [INIT, '--external-server', '--base-url', url]);
+    expect(init.status, init.stderr).toBe(0);
+    fs.writeFileSync(
+      path.join(app, 'e2e/styleproof.spec.ts'),
+      `import { defineStyleMapCapture } from 'styleproof';
+defineStyleMapCapture({ surfaces: [{ key: 'index', widths: [1280], go: async page => { await page.goto(${JSON.stringify(url)}); } }], dir: process.env.STYLEMAP_DIR });`,
+    );
+    const capture = run(app, process.execPath, [CLI, 'capture']);
+    expect(capture.status, capture.stderr + capture.stdout).toBe(0);
+    for (const changed of [false, true]) {
+      if (changed) fs.writeFileSync(page, '<!doctype html><html><body><p style="color: blue">Hello</p></body></html>');
+      const design = run(app, process.execPath, [
+        path.join(root, 'bin/styleproof-capture.mjs'),
+        url,
+        '--key',
+        'index',
+        '--widths',
+        '1280',
+        '--out',
+        'design',
+      ]);
+      expect(design.status, design.stderr + design.stdout).toBe(0);
+      const diff = run(app, process.execPath, [DIFF, 'design', '.styleproof/maps/current', '--allow-unasserted']);
+      expect(diff.status, diff.stderr + diff.stdout).toBe(changed ? 1 : 0);
+      expect(diff.stdout).toContain('DIAGNOSTIC');
+      if (changed) expect(diff.stdout).toContain('color:');
+    }
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
