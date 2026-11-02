@@ -381,8 +381,6 @@ When expected surfaces come from an external registry (a sitemap, router config,
 or build-time enumeration), declare them via a JSON manifest in
 `styleproof.config.ts` instead of passing `expected` programmatically:
 
-TypeScript config uses ESM syntax in projects with or without `"type": "module"`.
-
 ```ts
 // styleproof.config.ts
 export default {

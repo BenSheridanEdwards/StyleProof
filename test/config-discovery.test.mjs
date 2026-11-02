@@ -983,3 +983,27 @@ for (const type of [undefined, 'commonjs', 'module']) {
     }
   });
 }
+
+test('imported CommonJS syntax failure runs TypeScript config only once', () => {
+  const root = mkTmp();
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+    fs.mkdirSync(path.join(root, 'sub'));
+    fs.writeFileSync(path.join(root, 'sub/package.json'), '{"type":"commonjs"}');
+    fs.writeFileSync(path.join(root, 'sub/helper.js'), 'export const value = 1;');
+    fs.writeFileSync(
+      path.join(root, 'styleproof.config.ts'),
+      `import { appendFileSync } from 'node:fs';
+appendFileSync(new URL('./marker.txt', import.meta.url), 'ran\\n');
+await import('./sub/helper.js');
+export default {};`,
+    );
+    const result = spawnSync(process.execPath, [MAP], { cwd: root, encoding: 'utf8', timeout: 30000 });
+    assert.equal(result.status, 2);
+    assert.equal(fs.readFileSync(path.join(root, 'marker.txt'), 'utf8'), 'ran\n');
+    assert.match(result.stderr, /Unexpected token/);
+    assert.doesNotMatch(result.stderr, /Next: run on a Node/);
+  } finally {
+    rmTmp(root);
+  }
+});

@@ -26,8 +26,6 @@ styleproof setup --external-server --base-url https://preview.example.test
 
 The URL must be reachable when capture runs. `--server-command` and `--external-server` are mutually exclusive. Pass the same choice when invoking `styleproof-init --check` or `styleproof-init --upgrade` directly so validation and refreshed workflow metadata match the generated setup.
 
-TypeScript config uses ESM syntax in projects with or without `"type": "module"`.
-
 ## Merge-base comparison
 
 The report Action's `comparison-base` input accepts exactly `pull-request-base`

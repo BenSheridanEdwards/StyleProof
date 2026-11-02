@@ -48,7 +48,9 @@ export function isUnloadableTypeScriptConfig(filename: string, error: unknown): 
   if (error instanceof StyleProofConfigError && code === UNLOADABLE_TS) return true;
   return (
     code === 'ERR_UNKNOWN_FILE_EXTENSION' ||
-    /Cannot use import statement outside a module|Unexpected token ['"]export['"]/.test(errorMessage(error)) ||
+    (error instanceof SyntaxError &&
+      /Cannot use import statement outside a module|Unexpected token ['"]export['"]/.test(error.message) &&
+      Boolean(error.stack?.split('\n', 1)[0]?.startsWith(filename + ':'))) ||
     /Unknown file extension|ERR_UNKNOWN_FILE_EXTENSION/.test(errorMessage(error)) ||
     isMissingStyleProofPackage(error)
   );
