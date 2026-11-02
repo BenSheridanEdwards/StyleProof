@@ -1002,3 +1002,21 @@ for (const [open, close, chain] of [
       assert.equal(statusOf(result, `${chain} > ${selector}`).status, 'reached');
   });
 }
+
+test('whole-ledger unknown on either side cannot classify matched rules', () => {
+  const unknown = map();
+  unknown.reach = {
+    version: 2,
+    scope: 'compared',
+    sheets: [],
+    rules: [],
+    unknown: 'nested rule or unsupported declaration',
+  };
+  const matched = map(rule('.a', 'h1', { used: true }));
+  for (const [base, head] of [
+    [unknown, matched],
+    [matched, unknown],
+  ]) {
+    assert.deepEqual(classifyRuleReach([base], [head]), { ledger: 'missing', rules: [], unreadableSheets: 0 });
+  }
+});

@@ -41,6 +41,14 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
       'recapture with `captureReach`',
     );
   }
+  const reasons = [...new Set(maps.flatMap((map) => (map.reach?.unknown ? [map.reach.unknown] : [])))].sort();
+  for (const reason of reasons) {
+    const count = maps.filter((map) => map.reach?.unknown === reason).length;
+    add(
+      `served CSS reach is unknown on ${count} ${side} capture(s): ${reason}`,
+      'simplify or remove the CSS shape named, then recapture',
+    );
+  }
   const unreadable = maps.reduce((sum, m) => sum + (m.reach?.unreadable ?? 0), 0);
   if (unreadable > 0) {
     add(

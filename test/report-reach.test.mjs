@@ -567,3 +567,18 @@ test('reach gate headline and CLI lines name matched rules and the current secti
     assert.ok((result.stdout + result.stderr).includes(expected), result.stdout + result.stderr);
   }
 });
+
+for (const changeReach of ['gate', 'warn']) {
+  test(`reader unknown remains a ledger gap under ${changeReach}`, (t) => {
+    const reason = 'nested rule or unsupported declaration';
+    const head = map();
+    head.reach = { version: 2, scope: 'compared', sheets: [], rules: [], unknown: reason };
+    const output = report(fixture(t, [map()], [head]), { changeReach });
+    const reach = output.json.reach;
+    assert.ok(reach.gaps.some((gap) => gap.kind === 'ledger' && gap.side === 'head' && gap.reason.includes(reason)));
+    if (changeReach === 'gate') {
+      assert.ok(reach.blocking >= 1);
+      assert.ok(output.md.includes("Held by `changeReach: 'gate'`"));
+    } else assert.equal(reach.blocking, 0);
+  });
+}
