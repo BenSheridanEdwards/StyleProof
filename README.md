@@ -613,6 +613,7 @@ With `captureReach` and `changeReach: 'gate'`, a changed CSS rule no captured
 state matched fails certify mode and needs approval in review-gate mode.
 A changed stylesheet no capture loaded, such as a lazy route's or code-split chunk's CSS, is not checked yet: the report labels it **Not checked**, gives capture guidance, and the gate does not hold it.
 A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached.
+Reader failures preserve the capture and record reach unknown with no rule evidence, listed under `changeReach: 'warn'` and held only under opt-in `changeReach: 'gate'`.
 Rules matched only outside compared elements stay `unmeasured` and also hold
 the opt-in gate. Global state and pseudo-element probes exclude the head subtree and
 framework-ignored elements, including the hover sink. Full-page capture preserves inline style attributes, including

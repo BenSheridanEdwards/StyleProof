@@ -21,6 +21,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Change Reach no longer claims every changed served CSS rule matched (0) when no served rule changed. Strip, section and summary name changed stylesheets no capture served as not checked under both levels; `changeReach: 'gate'` does not hold them until the #934 join exists. ADR 0009 corrected (#1240).
+- Change Reach records served-rule reader failures as ledger unknown instead of failing the capture (#1239).
 - Config discovery reports searched package roots with consistent real paths and deduplicates symlink aliases (#1236).
 - Change Reach recognises identical custom-property declarations moved into merged rules only when every map on each side declares them for the selectors (#1232).
 - Change Reach fails closed on ambiguous unquoted stylesheet URLs and escaped `url()` names in every read stylesheet, preventing hidden font references (#1230). Benign escaped URL arguments retain their existing keys and hashes; the ledger remains version 2; escaped selectors and strings elsewhere are unaffected.

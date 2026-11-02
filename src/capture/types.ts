@@ -169,6 +169,8 @@ export type ServedRules = {
   rules: ServedRule[];
   /** Stylesheets whose text could not be read; their rules are missing, so reach over them is unknown. */
   unreadable?: number;
+  /** Whole-ledger reader failure; no rules provide reach evidence. */
+  unknown?: string;
 };
 
 export type CaptureOptions = {

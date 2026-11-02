@@ -611,3 +611,19 @@ test('reach findings separate unchecked items from held findings and ledger gaps
     }
   }
 });
+for (const changeReach of ['gate', 'warn']) {
+  test(`reader unknown remains a ledger gap under ${changeReach}`, (t) => {
+    const reason = 'nested rule or unsupported declaration';
+    const head = map();
+    head.reach = { version: 2, scope: 'compared', sheets: [], rules: [], unknown: reason };
+    const output = report(fixture(t, [map()], [head]), { changeReach });
+    const reach = output.json.reach;
+    assert.ok(reach.gaps.some((gap) => gap.kind === 'ledger' && gap.side === 'head' && gap.reason.includes(reason)));
+    if (changeReach === 'gate') {
+      assert.ok(reach.blocking >= 1);
+      assert.ok(
+        output.md.includes("The findings above are held by `changeReach: 'gate'`; the unchecked items are not."),
+      );
+    } else assert.equal(reach.blocking, 0);
+  });
+}
