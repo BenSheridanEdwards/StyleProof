@@ -118,7 +118,6 @@ function runtimeIdentity(manifest: MapManifest, includeBrowser: boolean): string
     arch: manifest.arch,
     nodeMajor: manifest.nodeMajor,
     playwrightVersion: manifest.playwrightVersion ?? '',
-
     ...(includeBrowser ? { browserVersion: manifest.browserVersion } : {}),
   });
 }
@@ -127,15 +126,18 @@ const SAME_ENVIRONMENT_NEXT =
   '\nNext: rebuild one side with styleproof-map in the same environment, or let CI recapture both maps.';
 
 function assertCompatibleManifests(before: MapManifest, after: MapManifest): void {
-  const diagnostic = before.spec === MAP_MANIFEST || after.spec === MAP_MANIFEST;
-  if (!diagnostic && (before.compatibilityKey !== after.compatibilityKey || before.baseUrl !== after.baseUrl)) {
+  const diagnostic = (before.spec === MAP_MANIFEST) !== (after.spec === MAP_MANIFEST);
+  if (!diagnostic && before.compatibilityKey !== after.compatibilityKey) {
     throw new MapStoreError(
       `maps were captured with different capture compatibility contracts${SAME_ENVIRONMENT_NEXT}`,
     );
   }
   // The browser build is optional for older bundles; compare it only when both sides carry it.
   const includeBrowser = Boolean(before.browserVersion && after.browserVersion);
-  if (runtimeIdentity(before, includeBrowser) !== runtimeIdentity(after, includeBrowser)) {
+  if (
+    (!diagnostic && before.baseUrl !== after.baseUrl) ||
+    runtimeIdentity(before, includeBrowser) !== runtimeIdentity(after, includeBrowser)
+  ) {
     throw new MapStoreError(`maps were captured in different runtime environments${SAME_ENVIRONMENT_NEXT}`);
   }
 }
@@ -152,8 +154,10 @@ export function assertCompatibleMapDirs(
   const after = comparableManifest(afterDir);
   assertBoundManifest(before, expected.beforeSha, 'before');
   assertBoundManifest(after, expected.afterSha, 'after');
-  if ((before?.spec === MAP_MANIFEST || after?.spec === MAP_MANIFEST) && expected.beforeSha !== undefined) {
-    throw new MapStoreError('ad-hoc captures are diagnostic only; trusted source certification is unavailable');
+  if ((before?.spec === MAP_MANIFEST) !== (after?.spec === MAP_MANIFEST) && expected.beforeSha !== undefined) {
+    throw new MapStoreError(
+      'mixed spec/ad-hoc captures are diagnostic only; trusted source certification is unavailable',
+    );
   }
   const receipt = sourceBindingReceipt(before, after, expected);
   if (before && after) assertCompatibleManifests(before, after);

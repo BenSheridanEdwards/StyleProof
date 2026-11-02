@@ -3268,7 +3268,7 @@ for (const changed of [false, true]) {
   });
 }
 
- test('two ad-hoc bundles retain strict compatibility checks', () => {
+test('two ad-hoc bundles retain strict compatibility checks', () => {
   const { root, A, B } = differingPair();
   for (const dir of [A, B]) {
     const file = path.join(dir, MAP_MANIFEST);
