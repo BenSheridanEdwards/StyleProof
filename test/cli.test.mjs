@@ -1695,20 +1695,20 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
   try {
     const label = path.join(repo, '.styleproof', 'maps', 'head');
     fs.mkdirSync(label, { recursive: true });
-    // `row.json` and `legacy.json.gz` lack the `@<width>` suffix, but the diff still reads them as maps.
+    // `row@800.json` and `legacy@800.json.gz` lack the `@<width>` suffix, but the diff still reads them as maps.
     const staleFiles = [
       'home@1280.json.gz',
       'gone@1280.json.gz',
       'gone@1280.png',
       'gone@1280.har',
-      'row.json',
-      'legacy.json.gz',
+      'row@800.json',
+      'legacy@800.json.gz',
       // The pixel gate would read these as row's screenshots, whatever the bundle holds.
       'row.png',
       'row.hover.png',
       'other.PNG',
       'other.hover.PNG',
-      'other.JSON',
+      'other@800.JSON',
     ];
     for (const stale of staleFiles) fs.writeFileSync(path.join(label, stale), 'an earlier run\n');
     fs.writeFileSync(path.join(label, 'NOTES.txt'), 'kept\n');

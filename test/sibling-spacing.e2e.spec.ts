@@ -35,7 +35,7 @@ async function captureFixture(page: Page, dir: string, fixture: string): Promise
   await page.setViewportSize({ width: 800, height: 700 });
   await page.goto('file://' + path.join(FIXTURES, fixture), { waitUntil: 'load' });
   const map: StyleMap = await captureStyleMap(page, { captureStates: false });
-  fs.writeFileSync(path.join(dir, 'home.json'), JSON.stringify(map));
+  fs.writeFileSync(path.join(dir, 'home@1280.json'), JSON.stringify(map));
   await captureSurfaceScreenshots(page, path.join(dir, 'home'));
 }
 

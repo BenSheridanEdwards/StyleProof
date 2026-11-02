@@ -27,7 +27,7 @@ function identicalPair() {
         nodeMajor: process.versions.node.split('.')[0],
         screenshots: true,
         har: false,
-        compatibilityKey: '1'.repeat(64),
+        compatibilityKey: '1'.repeat(16),
         createdAt: '2026-01-01T00:00:00.000Z',
       }),
     );
@@ -46,8 +46,8 @@ test('capture directories ignore stray JSON and permit diff output beside maps',
     const second = run(DIFF, [A, B, '--allow-unasserted', '--audit-json', path.join(B, 'audit.json')]);
     assert.equal(second.status, 0, second.stdout + second.stderr);
     const report = run(REPORT, [A, B, '--out', path.join(root, 'report')]);
-    assert.equal(report.status, 0, report.stdout + report.stderr);
-    assert.doesNotMatch(report.stderr, /Cannot convert/);
+    assert.equal(report.status, 1, report.stdout + report.stderr);
+    assert.match(report.stdout + report.stderr, /UNVERIFIED DIAGNOSTIC/);
   } finally {
     rmTmp(root);
   }

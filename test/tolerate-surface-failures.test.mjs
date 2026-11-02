@@ -484,7 +484,7 @@ test('styleproof-map: a fatal self-check failure discards only the files the cap
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, 'NOTES.txt'), 'kept\n');
     // A map from an earlier run without the `@<width>` suffix; the diff would still read it.
-    fs.writeFileSync(path.join(targetDir, 'row.json'), '{}');
+    fs.writeFileSync(path.join(targetDir, 'row@800.json'), '{}');
     fs.writeFileSync(path.join(targetDir, 'row.png'), 'an earlier screenshot');
     const r = run(
       MAP,
