@@ -62,10 +62,14 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
       expect(error).toMatchObject({ name: 'ReachUnknownError' });
       await page.setContent(`<style>${css}</style><p class="t">x</p>`);
       const servedRules = await trackServedRules(page);
-      await expectUnknown(
-        captureStyleMap(page, { captureReach: true, servedRules }),
-        (error as Error & { reason: string }).reason,
-      );
+      try {
+        await expectUnknown(
+          captureStyleMap(page, { captureReach: true, servedRules }),
+          (error as Error & { reason: string }).reason,
+        );
+      } finally {
+        await servedRules.dispose();
+      }
       continue;
     }
     accepted++;
