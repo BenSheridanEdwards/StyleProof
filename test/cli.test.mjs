@@ -3282,3 +3282,20 @@ test('two ad-hoc bundles retain strict compatibility checks', () => {
   assert.match(result.stderr, /different capture compatibility contracts/);
   rmTmp(root);
 });
+
+test('mixed trusted-SHA comparison refuses certification', () => {
+  const { root, A, B } = differingPair();
+  const sha = 'a'.repeat(40);
+  for (const dir of [A, B]) {
+    const file = path.join(dir, MAP_MANIFEST);
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    manifest.sha = sha;
+    manifest.dirty = false;
+    if (dir === A) manifest.spec = MAP_MANIFEST;
+    fs.writeFileSync(file, JSON.stringify(manifest));
+  }
+  const result = run(DIFF, [A, B, '--expected-before-sha', sha, '--expected-after-sha', sha]);
+  assert.equal(result.status, 2, result.stderr + result.stdout);
+  assert.match(result.stderr, /mixed spec\/ad-hoc captures are diagnostic only/);
+  rmTmp(root);
+});
