@@ -54,8 +54,8 @@ function fixture(baseKeys, headKeys) {
   const b = path.join(root, 'head');
   fs.mkdirSync(a);
   fs.mkdirSync(b);
-  fs.writeFileSync(path.join(a, 'home.json'), mapJson(baseKeys));
-  fs.writeFileSync(path.join(b, 'home.json'), mapJson(headKeys));
+  fs.writeFileSync(path.join(a, 'home@1280.json'), mapJson(baseKeys));
+  fs.writeFileSync(path.join(b, 'home@1280.json'), mapJson(headKeys));
   stampManifest(a, 'base-sha');
   stampManifest(b, 'head-sha');
   return { root, a, b };
@@ -124,8 +124,8 @@ test('styleproof-diff --json inventory is null when no capture carried inventory
   fs.mkdirSync(a);
   fs.mkdirSync(b);
   const noInv = JSON.stringify({ defaults: {}, elements: {}, states: {} });
-  fs.writeFileSync(path.join(a, 'home.json'), noInv);
-  fs.writeFileSync(path.join(b, 'home.json'), noInv);
+  fs.writeFileSync(path.join(a, 'home@1280.json'), noInv);
+  fs.writeFileSync(path.join(b, 'home@1280.json'), noInv);
   stampManifest(a, 'base-sha');
   stampManifest(b, 'head-sha');
   const jsonPath = path.join(root, 'diff.json');
@@ -159,8 +159,8 @@ test('a stale allowRemoved entry BLOCKS (exit 1) until pruned', () => {
 // the addition is reported (it still never gates: exit 0).
 test('styleproof-diff reports an id-less affordance added to a surface even when another surface offers its label', () => {
   const { root, a, b } = fixture(['overview'], ['overview', 'activity']);
-  fs.writeFileSync(path.join(a, 'settings.json'), mapJson(['overview', 'activity']));
-  fs.writeFileSync(path.join(b, 'settings.json'), mapJson(['overview', 'activity']));
+  fs.writeFileSync(path.join(a, 'settings@1280.json'), mapJson(['overview', 'activity']));
+  fs.writeFileSync(path.join(b, 'settings@1280.json'), mapJson(['overview', 'activity']));
   const { code, out } = runDiff(a, b, root);
   assert.equal(code, 0, `an addition never gates, got ${code}\n${out}`);
   assert.doesNotMatch(out, /navigable set unchanged/, out);

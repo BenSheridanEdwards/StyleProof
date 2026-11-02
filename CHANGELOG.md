@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Ignore unrelated JSON files in capture directories when comparing and reporting (#1245).
+  Maps saved with `saveStyleMap` without `<key>@<width>.json[.gz]` names are now ignored.
+
 - Change Reach no longer claims every changed served CSS rule matched (0) when no served rule changed. Strip, section and summary name changed stylesheets no capture served as not checked under both levels; `changeReach: 'gate'` does not hold them until the #934 join exists. ADR 0009 corrected (#1240).
 - Change Reach records served-rule reader failures as ledger unknown instead of failing the capture (#1239).
 - Config discovery reports searched package roots with consistent real paths and deduplicates symlink aliases (#1236).
