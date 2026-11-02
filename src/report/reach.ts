@@ -72,7 +72,7 @@ export function assessReachMaps(base: StyleMap[], head: StyleMap[], level: Chang
       status: 'unknown',
       kind: 'not-built',
       reason:
-        "changed stylesheets no capture served are not checked: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+        "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
       remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
     },
     { join: 'J2', status: 'unmeasured', kind: 'not-built', reason: 'render-code coverage is not recorded yet', remedy },
@@ -157,7 +157,7 @@ export function reachStripLines(reach: ReportReach): string[] {
   remedies.push(...ledger.map((gap) => gap.remedy));
   return [
     '',
-    `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. ${unchecked}${reach.blocking > 0 ? " Held by `changeReach: 'gate'`." : ''}`,
+    `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. ${reach.blocking > 0 ? unchecked.replace(" These are not held by `changeReach: 'gate'`.", " The findings above are held by `changeReach: 'gate'`; the unchecked items are not.") : unchecked}`,
   ];
 }
 
@@ -213,13 +213,15 @@ export function reachSectionLines(reach: ReportReach): string[] {
         ]
       : []),
     '',
+    reach.level === 'gate' ? "**Not checked** (not held by `changeReach: 'gate'`)" : '**Not checked**',
+    '',
     ...reach.gaps
       .filter((gap) => gap.kind === 'not-built' && gap.join === 'J1')
-      .map((gap) => `- Not checked: ${gap.reason}`),
+      .map((gap) => `- ${gap.reason} — ${gap.remedy}`),
   ];
 }
 
 export function reachSummaryLine(reach: ReportReach): string {
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
-  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under \`reach\``;
+  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\``;
 }

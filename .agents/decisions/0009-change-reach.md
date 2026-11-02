@@ -33,10 +33,10 @@ evidence a real browser records during capture:
 The reach corpus (#988, `bench/reach-corpus.review.md`) measured the miss and
 the joins on a fixture whose spec opens only the healthy state:
 
-| Scenario                    | Today's diff shows | Prototype reach joins                           |
-| --------------------------- | ------------------ | ----------------------------------------------- |
-| declared (healthy state)    | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (value, rendering not proved); render-scope value, eagerly built JSX element, same-line class-plus-style and same-token collision scenarios not yet measured, expected as `unknown` once PR #1031 adds them |
-| complete (all five states)  | 12 of 13 changes   | mark every rendered change reached              |
+| Scenario                   | Today's diff shows | Prototype reach joins                                                                                                                                                                                                                                                                                                |
+| -------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| declared (healthy state)   | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (value, rendering not proved); render-scope value, eagerly built JSX element, same-line class-plus-style and same-token collision scenarios not yet measured, expected as `unknown` once PR #1031 adds them |
+| complete (all five states) | 12 of 13 changes   | mark every rendered change reached                                                                                                                                                                                                                                                                                   |
 
 The same corpus pins one noise case: a changed error-handler string that never
 runs during capture and has no visual effect, which J2 flags.
@@ -44,11 +44,11 @@ runs during capture and has no visual effect, which J2 flags.
 The cost receipt (#989, `bench/reach-cost.results.json`) measured what recording
 the evidence adds to a capture on a GitHub runner:
 
-| Target | off (median) | J1 overhead | J1+J2 overhead |
-| --- | --- | --- | --- |
-| detection-fixture (static, CSS-rich) | 1443.6 ms | 1.2% | 6.5% |
-| example-demo (static dogfood surface) | 1149 ms | 2.6% | 3.8% |
-| react-table (React, 300 rows) | 10081.7 ms | 0.1% | 5.3% |
+| Target                                | off (median) | J1 overhead | J1+J2 overhead |
+| ------------------------------------- | ------------ | ----------- | -------------- |
+| detection-fixture (static, CSS-rich)  | 1443.6 ms    | 1.2%        | 6.5%           |
+| example-demo (static dogfood surface) | 1149 ms      | 2.6%        | 3.8%           |
+| react-table (React, 300 rows)         | 10081.7 ms   | 0.1%        | 5.3%           |
 
 7 runs per mode on `linux x64`, 4 CPUs, load average 1.2 at start, chromium 149.0.7827.55, run https://github.com/BenSheridanEdwards/StyleProof/actions/runs/39602282519. Thresholds agreed in #989: J1 ≤ 5%, J1+J2 ≤ 15% (median total vs off). Verdict: J1 within threshold, J1+J2 within threshold.
 
@@ -186,14 +186,14 @@ the evidence adds to a capture on a GitHub runner:
      for example a J1 rule mapped to that template range) corroborates it. A
      unit from another value, line or hunk never does, including another value
      on the same line: in `<Banner className="new-x" style={{ color: fault ?
-     'red' : 'blue' }} />`, a `reached` J3 unit for `new-x` says nothing about
+'red' : 'blue' }} />`, a `reached` J3 unit for `new-x` says nothing about
      the style value, which stays `unknown`. Class tokens follow the same rule:
      a J3 delta corroborates only the occurrence whose source range produced
      it, proved by per-occurrence provenance (for example, source-mapped render
      provenance linking the captured element's class value to that
      occurrence's expression). A token-name match never counts, even when the
      token is unique in the diff, and neither does J2 execution. With `const
-     OK = 'new'` and `const FAULT = 'new'` (both were `'old'`), and `FAULT`
+OK = 'new'` and `const FAULT = 'new'` (both were `'old'`), and `FAULT`
      used only by an unopened overlay, a delta on the healthy element never
      clears `FAULT`, which reads `unknown` ("class token; delta not tied to
      this occurrence"). When reach cannot tie a delta to one occurrence, every
@@ -219,18 +219,18 @@ the evidence adds to a capture on a GitHub runner:
      `CERTIFICATION_FAILED`. In review-gate mode it needs review, and the existing
      Approve checkbox clears it.
 
-   | Status | `'warn'` (default) | `'gate'`, J1 unit | `'gate'`, J2/J3 unit | Counts toward reach-complete |
-   | --- | --- | --- | --- | --- |
-   | `reached` | no finding | no finding | no finding | yes |
-   | `never-rendered` | named finding "Changed but never matched" | certify: `CERTIFICATION_FAILED`; review-gate: needs review | named finding | no |
-   | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
-   | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
-   | `unknown` | named finding with the reason (legacy or partial ledger, value without rendering proof, class-token occurrence without a delta tied to it) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
-   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable (target design; until #934 the report names this as not checked) | missing or partial ledger blocks like `never-rendered`; unbuilt changed-stylesheet join stays `'warn'` (not held) | not applicable | no |
-   | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
-   | `unknown`, run-level dependency gap | named finding naming the changed packages, and the unserved or unattributed files when a comparison exists (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
-   | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source (item 4) and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
-   | `unknown`, run-level non-visual list gap | named finding for a PR change to the list or its location, or an unreadable or invalid base list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
+   | Status                                            | `'warn'` (default)                                                                                                                                                                                                | `'gate'`, J1 unit                                                                                                 | `'gate'`, J2/J3 unit           | Counts toward reach-complete |
+   | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------- |
+   | `reached`                                         | no finding                                                                                                                                                                                                        | no finding                                                                                                        | no finding                     | yes                          |
+   | `never-rendered`                                  | named finding "Changed but never matched"                                                                                                                                                                         | certify: `CERTIFICATION_FAILED`; review-gate: needs review                                                        | named finding                  | no                           |
+   | `blind-channel`                                   | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`)                                                                                                                     | blocks like `never-rendered`                                                                                      | named finding                  | no                           |
+   | `unmeasured`                                      | named finding naming the setting to enable (source maps, `captureReach`)                                                                                                                                          | blocks like `never-rendered`                                                                                      | named finding                  | no                           |
+   | `unknown`                                         | named finding with the reason (legacy or partial ledger, value without rendering proof, class-token occurrence without a delta tied to it)                                                                        | blocks like `never-rendered`; legacy base names "recapture with `captureReach`"                                   | named finding                  | no                           |
+   | `unknown`, run-level J1 evidence gap              | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable (target design; until #934 the report names this as not checked)                       | missing or partial ledger blocks like `never-rendered`; unbuilt changed-stylesheet join stays `'warn'` (not held) | not applicable                 | no                           |
+   | `unmeasured`, run-level J2/J3 evidence gap        | named finding naming the missing coverage, source maps or class-list delta (item 4)                                                                                                                               | not applicable                                                                                                    | named finding                  | no                           |
+   | `unknown`, run-level dependency gap               | named finding naming the changed packages, and the unserved or unattributed files when a comparison exists (item 4)                                                                                               | named finding (stays `'warn'`)                                                                                    | named finding (stays `'warn'`) | no                           |
+   | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source (item 4) and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`)                                                                                    | named finding (stays `'warn'`) | no                           |
+   | `unknown`, run-level non-visual list gap          | named finding for a PR change to the list or its location, or an unreadable or invalid base list (item 4)                                                                                                         | named finding (stays `'warn'`)                                                                                    | named finding (stays `'warn'`) | no                           |
 
    No status other than `reached` is ever silent, and under `'gate'` the Approve
    checkbox clears the verdict, not the status or the evidence-gap finding
@@ -241,6 +241,7 @@ the evidence adds to a capture on a GitHub runner:
      flags non-visual code (event handlers, error paths), as the corpus's noise
      case shows; they are still listed and still prevent reach-complete.
    - Revisit the default for the next major with that noise data.
+
 7. **J2 ships behind source maps.** J1+J2 stayed within its threshold on every target (worst 6.5%), so J2 proceeds to Phase 2. It is opt-in like J1 and needs source maps in the capture build. Without them, markup reach reads `unmeasured`. Cost was measured on a JS-light dogfood page, a static fixture and a 300-row React page. A larger production bundle can cost more, so Phase 2 (#999) re-measures on the receipt's targets plus a consumer app before J2 is enabled by default.
 
 ## Consequences
@@ -314,3 +315,5 @@ the evidence adds to a capture on a GitHub runner:
 - J2 can attribute a value to a rendered element, or a class-list delta can be
   tied to its source occurrence: such lines, at any scope, can move from
   `unknown` to `reached`.
+
+Unchecked stylesheet guidance appears under **Not checked**, separate from held Reach evidence gaps, and includes the capture remedy.

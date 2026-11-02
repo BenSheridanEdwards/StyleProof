@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'node:test';
+import { reachSummaryLine } from '../dist/report/reach.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 import { fixtureCommitSha, makeMap, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
@@ -89,7 +90,7 @@ test('gate holds never-rendered changes without claiming a clean computed-style 
     output.md,
     /these findings hold the verdict: certify mode fails \(`CERTIFICATION_FAILED`\); review-gate mode needs approval/,
   );
-  assert.ok(output.md.includes("Held by `changeReach: 'gate'`."));
+  assert.ok(output.md.includes("The findings above are held by `changeReach: 'gate'`; the unchecked items are not."));
   assert.equal(output.json.reach.level, 'gate');
   assert.equal(output.json.reach.blocking, 2);
   assert.deepEqual(output.result.reach, output.json.reach);
@@ -232,7 +233,7 @@ test('fully reached changed served rules add no section but still disclose the t
       status: 'unknown',
       kind: 'not-built',
       reason:
-        "changed stylesheets no capture served are not checked: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+        "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
       remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
     },
     {
@@ -605,7 +606,7 @@ test('reach findings separate unchecked items from held findings and ledger gaps
         assert.ok(output.json.reach.blocking > 0);
         assert.ok(strip.endsWith("The findings above are held by `changeReach: 'gate'`; the unchecked items are not."));
         assert.doesNotMatch(strip, / Held by/);
-        assert.ok(output.md.includes("are not checked (not held by `changeReach: 'gate'`)"));
+        assert.ok(reachSummaryLine(output.json.reach).includes("are not checked (not held by `changeReach: 'gate'`)"));
       }
     }
   }
