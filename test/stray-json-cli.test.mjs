@@ -39,7 +39,7 @@ test('capture directories ignore stray JSON and permit diff output beside maps',
   const { root, A, B } = identicalPair();
   try {
     for (const name of ['notes.json', 'package.json', 'notes.json.gz', 'page@wide.json', '@800.json']) {
-      fs.writeFileSync(path.join(B, name), 'not a map');
+      fs.writeFileSync(path.join(B, name), JSON.stringify({ name: 'x' }));
     }
     const first = run(DIFF, [A, B, '--allow-unasserted', '--json', path.join(B, 'diff.json')]);
     assert.equal(first.status, 0, first.stdout + first.stderr);

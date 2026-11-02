@@ -1712,11 +1712,13 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
     ];
     for (const stale of staleFiles) fs.writeFileSync(path.join(label, stale), 'an earlier run\n');
     fs.writeFileSync(path.join(label, 'NOTES.txt'), 'kept\n');
+    fs.writeFileSync(path.join(label, 'notes.json'), '{"name":"x"}');
     const r = restoreInto(repo, headSha, ['--dir', 'head']);
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(fs.readdirSync(label).sort(), [
       'NOTES.txt',
       'home@1280.json.gz',
+      'notes.json',
       'styleproof-coverage.json',
       MAP_MANIFEST,
     ]);
@@ -1727,6 +1729,7 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
     );
     assert.notEqual(fs.readFileSync(path.join(label, 'home@1280.json.gz'), 'utf8'), 'an earlier run\n');
     assert.equal(fs.readFileSync(path.join(label, 'NOTES.txt'), 'utf8'), 'kept\n');
+    assert.equal(fs.readFileSync(path.join(label, 'notes.json'), 'utf8'), '{"name":"x"}');
   } finally {
     rmTmp(repo);
   }
