@@ -37,7 +37,10 @@ const cli = defineCli({
       help: 'render the opt-in content layer: an advisory section of elements whose text changed, each with a before/after crop. Needs captures taken with captureText:true; never affects the check',
     },
   },
-  notes: ['exit: 0 no changes, 1 report generated, 2 usage error.'],
+  notes: [
+    'exit: 0 no changes, 1 report generated, 2 usage error.',
+    'Capture dirs read <key>@<width>.json[.gz]; other JSON is ignored.',
+  ],
 });
 
 const { opts, args } = cli.parse();

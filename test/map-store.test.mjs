@@ -90,8 +90,8 @@ test('removeOwnedBundleEntries removes every name the diff reads as a map, keeps
   try {
     for (const name of [
       'home@800.json.gz',
-      'row.json',
-      'legacy.json.gz',
+      'row@800.json',
+      'legacy@800.json.gz',
       'home@800.png',
       // The pixel gate reads `<surface>.png` and `<surface>.<state>.png` for any surface name.
       'row.png',
@@ -110,7 +110,7 @@ test('removeOwnedBundleEntries removes every name the diff reads as a map, keeps
     fs.writeFileSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR, 'x.json'), '{}');
     const outsideFile = path.join(outside, 'target.json');
     fs.writeFileSync(outsideFile, 'outside');
-    fs.symlinkSync(outsideFile, path.join(dir, 'linked.json'));
+    fs.symlinkSync(outsideFile, path.join(dir, 'linked@800.json'));
 
     removeOwnedBundleEntries(dir);
 
@@ -129,8 +129,8 @@ test('removeOwnedBundleEntries matches names in any letter case (#1065)', () => 
     for (const name of [
       'ROW.PNG',
       'Row.Hover.PNG',
-      'legacy.JSON',
-      'Legacy.Json.Gz',
+      'legacy@800.JSON',
+      'Legacy@800.Json.Gz',
       'Home@800.HAR',
       FATAL_CAPTURE_MARKER.toUpperCase(),
       'notes.txt',
@@ -183,13 +183,13 @@ test(
       fs.mkdirSync(repo);
       fs.mkdirSync(path.join(external, 'child'), { recursive: true });
       fs.symlinkSync(path.join(external, 'child'), path.join(repo, 'link'), 'dir');
-      fs.writeFileSync(path.join(repo, 'only-repo.json'), 'repo');
-      fs.writeFileSync(path.join(external, 'only-external.json'), 'external');
+      fs.writeFileSync(path.join(repo, 'only-repo@800.json'), 'repo');
+      fs.writeFileSync(path.join(external, 'only-external@800.json'), 'external');
 
       removeOwnedBundleEntries(`${repo}${path.sep}link${path.sep}..`);
 
-      assert.equal(fs.existsSync(path.join(repo, 'only-repo.json')), false);
-      assert.equal(fs.readFileSync(path.join(external, 'only-external.json'), 'utf8'), 'external');
+      assert.equal(fs.existsSync(path.join(repo, 'only-repo@800.json')), false);
+      assert.equal(fs.readFileSync(path.join(external, 'only-external@800.json'), 'utf8'), 'external');
     } finally {
       rmTmp(workspace);
     }

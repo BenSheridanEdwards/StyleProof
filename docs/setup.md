@@ -28,6 +28,11 @@ The URL must be reachable when capture runs. `--server-command` and `--external-
 
 ## Merge-base comparison
 
+Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
+map filenames (a nonempty key and integer width). Other JSON files are ignored.
+Writing diff or audit JSON beside captures changes the directory's evidence digest
+for later diff or report runs; keep outputs outside capture folders when matching evidence receipts.
+
 The report Action's `comparison-base` input accepts exactly `pull-request-base`
 (default) or `merge-base`. Omitted/default behavior is unchanged: the expected
 baseline is the trusted PR base tip B and no comparison API request is made.

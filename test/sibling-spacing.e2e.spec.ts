@@ -35,8 +35,8 @@ async function captureFixture(page: Page, dir: string, fixture: string): Promise
   await page.setViewportSize({ width: 800, height: 700 });
   await page.goto('file://' + path.join(FIXTURES, fixture), { waitUntil: 'load' });
   const map: StyleMap = await captureStyleMap(page, { captureStates: false });
-  fs.writeFileSync(path.join(dir, 'home.json'), JSON.stringify(map));
-  await captureSurfaceScreenshots(page, path.join(dir, 'home'));
+  fs.writeFileSync(path.join(dir, 'home@800.json'), JSON.stringify(map));
+  await captureSurfaceScreenshots(page, path.join(dir, 'home@800'));
 }
 
 async function report(page: Page, headFixture: string): Promise<{ md: string; json: string }> {
