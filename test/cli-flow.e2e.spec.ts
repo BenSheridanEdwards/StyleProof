@@ -1515,7 +1515,7 @@ defineStyleMapCapture({ surfaces: [{ key: 'index', widths: [1280], go: async pag
       expect(design.status, design.stderr + design.stdout).toBe(0);
       const diff = run(app, process.execPath, [DIFF, 'design', '.styleproof/maps/current', '--allow-unasserted']);
       expect(diff.status, diff.stderr + diff.stdout).toBe(changed ? 1 : 0);
-      expect(diff.stdout).toContain('DIAGNOSTIC');
+      expect(diff.stderr).toContain('UNVERIFIED DIAGNOSTIC: mixed spec/ad-hoc');
       if (changed) expect(diff.stdout).toContain('color:');
     }
   } finally {
