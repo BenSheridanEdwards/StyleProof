@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { fixtureProcess } from './helpers/fixture-process.mjs';
 import {
   chmodSync,
   constants,
@@ -197,7 +198,7 @@ function fixture(t, options = {}) {
   const { write, run, pnpmArgs } = localProcess(root, options);
   write('.gitignore', 'node_modules/\nfake-bin/\npnpm-args\nchrome\n');
   const git = (...args) => {
-    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    const result = fixtureProcess('git', args, { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stdout}\n${result.stderr}`);
     return result.stdout.trim();
   };
@@ -671,7 +672,7 @@ test('M14: a real shallow clone with a missing remote object blocks rather than 
   const shallow = join(f.root, 'shallow');
   f.git('clone', '-q', '--depth=1', pathToFileURL(f.root).href, shallow);
   const p = localProcess(shallow, { pnpmExit: 37 });
-  const missing = spawnSync('git', ['cat-file', '-e', f.base], { cwd: shallow, encoding: 'utf8' });
+  const missing = fixtureProcess('git', ['cat-file', '-e', f.base], { cwd: shallow, encoding: 'utf8' });
   assert.notEqual(missing.status, 0);
   const result = p.run(`HEAD ${head} refs/heads/test ${f.base}\n`);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -681,7 +682,7 @@ test('M14: a real shallow clone with a missing remote object blocks rather than 
 test('M15: an unmerged index cannot supply a same-tree proof', (t) => {
   const f = fixture(t, { pnpmExit: 37 });
   const blob = f.git('rev-parse', 'HEAD:.gitignore');
-  const result = spawnSync('git', ['update-index', '--index-info'], {
+  const result = fixtureProcess('git', ['update-index', '--index-info'], {
     cwd: f.root,
     input: `100644 ${blob} 1\ttheme.css\n100644 ${blob} 2\ttheme.css\n100644 ${blob} 3\ttheme.css\n`,
     encoding: 'utf8',

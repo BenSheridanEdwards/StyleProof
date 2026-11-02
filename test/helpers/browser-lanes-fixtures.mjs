@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { fixtureProcess } from './fixture-process.mjs';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -100,7 +101,7 @@ function initializeRepository(directory, env, format = 'sha1') {
   if (!emptyRepositories.has(format)) {
     const template = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-tree-empty-'));
     process.once('exit', () => fs.rmSync(template, { recursive: true, force: true }));
-    const result = spawnSync('git', ['init', '-q', `--object-format=${format}`], {
+    const result = fixtureProcess('git', ['init', '-q', `--object-format=${format}`], {
       cwd: template,
       env,
       encoding: 'utf8',
@@ -128,7 +129,7 @@ export function createFixture(t, options = {}) {
   // Maintenance settings live in the template config so child repositories keep them too.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
   const git = (args, opts = {}) => {
-    const result = spawnSync('git', args, { cwd: directory, env, encoding: 'utf8', ...opts });
+    const result = fixtureProcess('git', args, { cwd: directory, env, encoding: 'utf8', ...opts });
     assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
     return typeof result.stdout === 'string' ? result.stdout.trim() : result.stdout;
   };
@@ -272,7 +273,7 @@ export function createContentFixture(t, row) {
     const child = path.join(workspace, 'child');
     fs.mkdirSync(child);
     const childGit = (args, input) => {
-      const result = spawnSync('git', args, { cwd: child, env: fixture.env, encoding: 'utf8', input });
+      const result = fixtureProcess('git', args, { cwd: child, env: fixture.env, encoding: 'utf8', input });
       assert.equal(result.status, 0, result.stderr);
       return result.stdout.trim();
     };
@@ -420,7 +421,7 @@ export const legacyPathCases = [
 ];
 
 export function trackedBrowserCases() {
-  const listed = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
+  const listed = fixtureProcess('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
   assert.equal(listed.status, 0, listed.stderr);
   const tracked = listed.stdout.split('\0');
   const specs = tracked.filter((file) => file.endsWith('.e2e.spec.ts'));

@@ -231,3 +231,13 @@ HTML fixture.
 
 By contributing you agree your contributions are licensed under the project's MIT
 license.
+
+### Fixture git deadlines
+
+Fixture git commands have a 60 second deadline and run with
+`GIT_TERMINAL_PROMPT=0`. Set `STYLEPROOF_FIXTURE_TIMEOUT_MS` to a positive number
+of milliseconds to override it. On expiry the fixture kills the subprocess group
+and reports the command, deadline and elapsed time. A stalled local git install
+(such as a broken Xcode Command Line Tools git-submodule) fails these tests with
+`local git install may have stalled`. Check `git submodule -h` to diagnose that
+installation before rerunning the tests.
