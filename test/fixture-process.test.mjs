@@ -60,6 +60,8 @@ test('explicit environment excludes parent Git variables', () => {
     });
     const actual = JSON.parse(result.stdout);
     delete actual.__CF_USER_TEXT_ENCODING;
+    // Node adds this to child processes when coverage is enabled.
+    delete actual.NODE_V8_COVERAGE;
     assert.deepEqual(actual, { PATH: process.env.PATH, GIT_TERMINAL_PROMPT: '0' });
   } finally {
     if (previous === undefined) delete process.env.GIT_DIR;
