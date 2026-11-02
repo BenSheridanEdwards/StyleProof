@@ -3253,10 +3253,13 @@ test('styleproof-map keeps a local capture local unless upload is requested', ()
 for (const changed of [false, true]) {
   test(`design-vs-build diagnostic reports ${changed ? 'real differences' : 'identical styles'}`, () => {
     const { root, A, B } = differingPair();
-    if (!changed) fs.copyFileSync(path.join(A, 'home@1280.json'), path.join(B, 'home@1280.json'));
+    if (!changed) {
+      for (const name of fs.readdirSync(A).filter(isMapFile)) fs.copyFileSync(path.join(A, name), path.join(B, name));
+    }
     const file = path.join(A, MAP_MANIFEST);
     const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
     manifest.spec = MAP_MANIFEST;
+    manifest.compatibilityKey = fixtureCompatibilityKey('adhoc-design');
     fs.writeFileSync(file, JSON.stringify(manifest));
     const r = run(DIFF, [A, B, '--allow-unasserted']);
     assert.equal(r.status, changed ? 1 : 0, r.stderr + r.stdout);
