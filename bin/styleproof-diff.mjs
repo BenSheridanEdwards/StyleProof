@@ -89,7 +89,9 @@ const inputs = resolveCompareInputs(NAME, {
 });
 const { requireStateIdentity, expectedBeforeSha, expectedAfterSha } = inputs;
 if (!expectedBeforeSha && !expectedAfterSha) {
-  console.log('UNVERIFIED DIAGNOSTIC: not certification; differences remain reviewable.');
+  console.log(
+    'UNVERIFIED DIAGNOSTIC: not certification. Mixed spec/ad-hoc pairs skip spec, StyleProof version, Playwright runtime hash, and base URL checks.',
+  );
 }
 
 // ── read everything while the (possibly restored) dirs still exist ─────────────

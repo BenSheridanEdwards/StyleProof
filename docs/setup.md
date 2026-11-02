@@ -26,12 +26,6 @@ styleproof setup --external-server --base-url https://preview.example.test
 
 The URL must be reachable when capture runs. `--server-command` and `--external-server` are mutually exclusive. Pass the same choice when invoking `styleproof-init --check` or `styleproof-init --upgrade` directly so validation and refreshed workflow metadata match the generated setup.
 
-Ad-hoc design comparisons check runtime identity and are diagnostic, never certification.
-`--allow-unasserted` permits unasserted completeness and unknown determinism: exit 0
-means no reviewable differences, 1 means differences or other evidence blockers,
-and 2 means incompatible runtimes or a capture/usage error. Match surface keys and
-widths on both sides. Zero computed-style differences do not prove pixel identity.
-
 ## Merge-base comparison
 
 The report Action's `comparison-base` input accepts exactly `pull-request-base`

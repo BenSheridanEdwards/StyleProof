@@ -1004,14 +1004,16 @@ When you build a design in production, "looks the same" is a judgement call — 
 
 ```bash
 styleproof-capture https://example.com/pricing --key pricing --widths 1440,1024,768 --out design
-styleproof-diff design .styleproof/maps/current --allow-unasserted   # design vs build — zero diff = pixel-identical
+styleproof-diff design .styleproof/maps/current --allow-unasserted   # design vs build — zero diff = no computed-style differences
 ```
 
-Ad-hoc design comparisons check runtime identity and are diagnostic, never certification.
+Mixed spec/ad-hoc design comparisons check runtime identity and are diagnostic, never certification.
 `--allow-unasserted` permits unasserted completeness and unknown determinism: exit 0
 means no reviewable differences, 1 means differences or other evidence blockers,
 and 2 means incompatible runtimes or a capture/usage error. Match surface keys and
-widths on both sides. Zero computed-style differences do not prove pixel identity.
+widths on both sides: inspect `ls .styleproof/maps/current` for the build’s auto-detected
+widths, or pass the same widths to both captures. Mixed pairs refuse trusted-SHA
+certification. Zero computed-style differences do not prove pixel identity.
 
 You watch one number as you implement: the diff starts large and shrinks toward zero, and it hits zero the moment the built page matches the design. It's the objective version of putting the mockup and the app side by side and squinting.
 
