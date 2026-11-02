@@ -50,7 +50,9 @@ export function isUnloadableTypeScriptConfig(filename: string, error: unknown): 
     code === 'ERR_UNKNOWN_FILE_EXTENSION' ||
     (error instanceof SyntaxError &&
       /Cannot use import statement outside a module|Unexpected token ['"]export['"]/.test(error.message) &&
-      Boolean(error.stack?.split('\n', 1)[0]?.startsWith(filename + ':'))) ||
+      [filename, fs.realpathSync(filename)].some((configPath) =>
+        error.stack?.split('\n', 1)[0]?.startsWith(configPath + ':'),
+      )) ||
     /Unknown file extension|ERR_UNKNOWN_FILE_EXTENSION/.test(errorMessage(error)) ||
     isMissingStyleProofPackage(error)
   );
