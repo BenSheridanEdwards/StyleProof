@@ -1088,7 +1088,7 @@ for (const git of [false, true]) {
     }
   });
 }
-for (const mode of [0o770, 0o777, 0o1777]) {
+for (const mode of [0o777, 0o1777]) {
   for (const plantedGit of [false, true]) {
     test(
       `unsafe ancestor: mode=${mode.toString(8)} plantedGit=${plantedGit}`,
@@ -1113,7 +1113,7 @@ for (const mode of [0o770, 0o777, 0o1777]) {
             { cwd: nested, encoding: 'utf8', timeout: 15000 },
           );
           assert.equal(fs.existsSync(marker), false, 'capture must not evaluate unsafe ancestor');
-          assert.match(capture.stderr, /skipp.*styleproof.config.mjs.*unsafe/i);
+          assert.match(capture.stderr, /skipping unsafe folder .*world-writable/i);
         } finally {
           fs.chmodSync(root, 0o700);
           rmTmp(root);
@@ -1122,3 +1122,24 @@ for (const mode of [0o770, 0o777, 0o1777]) {
     );
   }
 }
+
+test('group writable repo and start config load; shared inner repo bounds discovery', async () => {
+  const root = mkTmp();
+  try {
+    execFileSync('git', ['init', root], { timeout: 10000 });
+    fs.chmodSync(root, 0o775);
+    const config = path.join(root, 'styleproof.config.mjs');
+    fs.writeFileSync(config, 'export default { requireApproval: true };');
+    fs.chmodSync(config, 0o664);
+    const nested = path.join(root, 'nested');
+    fs.mkdirSync(nested);
+    assert.equal((await loadStyleProofConfigAsync(root)).requireApproval, true);
+    assert.equal((await loadStyleProofConfigAsync(nested)).requireApproval, true);
+    execFileSync('git', ['init', '--shared=group', nested], { timeout: 10000 });
+    const sub = path.join(nested, 'sub');
+    fs.mkdirSync(sub);
+    assert.deepEqual(await loadStyleProofConfigAsync(sub), {});
+  } finally {
+    rmTmp(root);
+  }
+});
