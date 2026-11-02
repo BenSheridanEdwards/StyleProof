@@ -49,7 +49,9 @@ test('explicit environment excludes parent Git variables', () => {
       env: { PATH: process.env.PATH },
       encoding: 'utf8',
     });
-    assert.deepEqual(JSON.parse(result.stdout), { PATH: process.env.PATH, GIT_TERMINAL_PROMPT: '0' });
+    const actual = JSON.parse(result.stdout);
+    delete actual.__CF_USER_TEXT_ENCODING;
+    assert.deepEqual(actual, { PATH: process.env.PATH, GIT_TERMINAL_PROMPT: '0' });
   } finally {
     if (previous === undefined) delete process.env.GIT_DIR;
     else process.env.GIT_DIR = previous;
