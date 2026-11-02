@@ -107,7 +107,7 @@ const cli = defineCli({
     },
   },
   notes: [
-    'A styleproof.config.json at the repo root supplies project defaults — "spec", "dirtyAllow",',
+    'A styleproof.config.ts (ESM in any package type) or .mjs/.js/.json supplies project defaults — "spec", "dirtyAllow",',
     '"cacheBranch", "remote" — with flags and env overriding it, except "dirtyAllow", which',
     'ACCUMULATES across config, STYLEPROOF_DIRTY_ALLOW, and every --dirty-allow flag.',
     '',
