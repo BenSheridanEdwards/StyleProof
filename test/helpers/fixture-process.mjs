@@ -26,7 +26,7 @@ export function fixtureProcess(command, args, options = {}) {
       output.status = status;
       process.stdout.write(JSON.stringify(output));
     });
-    child.stdin.end(options.input);
+    child.stdin.end(options.input?.type === 'Buffer' ? Buffer.from(options.input.data) : options.input);
   `;
   const result = spawnSync(
     process.execPath,
