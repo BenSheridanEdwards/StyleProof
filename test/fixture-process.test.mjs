@@ -15,3 +15,43 @@ test('fixture subprocess deadline names the command and deadline', () => {
   assert.ok(result.stderr.includes(process.execPath), result.stderr);
   assert.match(result.stderr, /local git install may have stalled/);
 });
+
+const { fixtureProcess } = await import('./helpers/fixture-process.mjs');
+for (const [name, source, options] of [
+  ['success', 'console.log("ok"); console.error("err")', {}],
+  ['nonzero', 'process.exit(7)', { encoding: 'utf8' }],
+  ['signal', 'process.kill(process.pid, "SIGTERM")', {}],
+  ['utf8', 'process.stdout.write("雪🙂".repeat(50000))', { encoding: 'utf8' }],
+  ['buffer input', 'process.stdin.pipe(process.stdout)', { input: Buffer.from([0, 255, 128]) }],
+  ['large binary input', 'process.stdin.pipe(process.stdout)', { input: Buffer.alloc(1048576, 255) }],
+  ['typed input', 'process.stdin.pipe(process.stdout)', { input: new Uint8Array([255, 0, 128]) }],
+  ['ignored input', 'process.exit(0)', { input: Buffer.alloc(2097152) }],
+]) {
+  test(`fixture matches spawnSync: ${name}`, () => {
+    const args = ['-e', source];
+    const expected = spawnSync(process.execPath, args, { ...options, maxBuffer: 8388608 });
+    const actual = fixtureProcess(process.execPath, args, options);
+    for (const key of ['status', 'signal', 'stdout', 'stderr']) {
+      assert.deepEqual(actual[key], expected[key], key);
+    }
+  });
+}
+test('missing command returns error', () => {
+  const result = fixtureProcess('/nonexistent-styleproof-command', []);
+  assert.equal(result.error.code, 'ENOENT');
+  assert.equal(result.status, null);
+});
+test('explicit environment excludes parent Git variables', () => {
+  const previous = process.env.GIT_DIR;
+  process.env.GIT_DIR = '/leaked/outer';
+  try {
+    const result = fixtureProcess(process.execPath, ['-e', 'console.log(JSON.stringify(process.env))'], {
+      env: { PATH: process.env.PATH },
+      encoding: 'utf8',
+    });
+    assert.deepEqual(JSON.parse(result.stdout), { PATH: process.env.PATH, GIT_TERMINAL_PROMPT: '0' });
+  } finally {
+    if (previous === undefined) delete process.env.GIT_DIR;
+    else process.env.GIT_DIR = previous;
+  }
+});
