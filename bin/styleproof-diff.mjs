@@ -89,6 +89,7 @@ const inputs = resolveCompareInputs(NAME, {
   usage: `usage: ${NAME} [baseRef] [--max N] [--json <file>]`,
 });
 const { requireStateIdentity, expectedBeforeSha, expectedAfterSha } = inputs;
+
 // ── read everything while the (possibly restored) dirs still exist ─────────────
 const read = withCaptureDirs(NAME, inputs, () => {
   const evidence = readCompareEvidence(NAME, inputs, { migration, pixels });

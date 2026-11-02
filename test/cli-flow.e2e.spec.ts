@@ -353,6 +353,7 @@ test('styleproof-report and styleproof-diff exit without process.exit() after a 
     git(repo, ['add', '-A']);
     git(repo, ['-c', 'user.email=styleproof@example.test', '-c', 'user.name=StyleProof Test', 'commit', '-qm', 'page']);
     const sha = git(repo, ['rev-parse', 'HEAD']).stdout.trim();
+    // Captures land outside the repository, so the committed page binds both clean manifests to `sha`.
     const capture = (out: string) => {
       const result = run(repo, 'node', [CAPTURE, 'file://' + page, '--widths', '1280', '--out', path.join(dir, out)]);
       expect(result.status, result.stderr).toBe(0);
