@@ -16,7 +16,7 @@ control, keeps whatever opens a structurally-new surface, and recurses:
 
 ```bash
 styleproof-capture https://example.com --crawl --out design
-styleproof-diff design .styleproof/maps/current
+styleproof-diff design .styleproof/maps/current --allow-unasserted
 ```
 
 - **Exhaustive by default** — stops when nothing is left to drive, not at a
