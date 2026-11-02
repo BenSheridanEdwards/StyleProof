@@ -396,8 +396,6 @@ pass the new flag to `--upgrade`, for example
 flag stops before writing anything.
 
 In cache-first CI, ancestor baseline reuse requires no capture-relevant changes.
-Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `styleproof.config.js`, then `styleproof.config.json`, nearest first. On POSIX, folders and configs must be owned by the current user (or root for system folders above home) and neither group- nor world-writable. Discovery stops at the first unsafe folder and reports one skipped ancestor config without evaluating it. It stops at a safe `.git` directory containing `HEAD`, or a safe `.git` file whose gitdir target exists and is safe. Own non-git parent configs remain discoverable. On Windows, uid and mode checks are unavailable; discovery stops at the git root or the user's home folder.
-
 Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
 including package configs; source paths retain Unicode and control characters,
 and renames check both locations. A relevant change forces a fresh base capture.
@@ -422,6 +420,12 @@ product-state policy to capture specs, diff, and report. It takes precedence ove
 sibling JSON; evaluation errors and invalid policy fail closed. A `.js` file
 follows its package's Node module format, and dynamic policy sees the caller's
 working directory.
+
+### Configuration
+
+Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `styleproof.config.js`, then `styleproof.config.json`, nearest first. On POSIX, folders and configs must be owned by the current user (or root for system folders above home) and neither group- nor world-writable. Discovery stops at the first unsafe folder and reports one skipped ancestor config without evaluating it. It stops at a safe `.git` directory containing `HEAD`, or a safe `.git` file whose gitdir target exists and is safe. Own non-git parent configs remain discoverable. On Windows, uid and mode checks are unavailable; discovery stops at the git root or the user's home folder.
+
+See the [config key table](docs/REFERENCE.md) for project defaults.
 
 ### The one CLI
 
