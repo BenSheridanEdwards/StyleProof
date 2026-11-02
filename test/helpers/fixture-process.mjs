@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 
+// Supports piped stdio only.
 export function fixtureProcess(command, args, options = {}) {
   const { timeout = process.env.STYLEPROOF_FIXTURE_TIMEOUT_MS ?? 60000, input, encoding, ...rest } = options;
   const deadline = Number(timeout);
@@ -15,7 +16,10 @@ export function fixtureProcess(command, args, options = {}) {
       const child = spawn(command, args, { ...options, detached: true });
       const stdout = [], stderr = [];
       const output = { status: null, signal: null };
+      let done = false;
       const finish = () => {
+        if (done) return;
+        done = true;
         output.stdout = Buffer.concat(stdout).toString('base64');
         output.stderr = Buffer.concat(stderr).toString('base64');
         process.stdout.write(JSON.stringify(output), () => process.exit(0));
@@ -49,7 +53,12 @@ export function fixtureProcess(command, args, options = {}) {
       { ...rest, env: { ...(options.env ?? process.env), GIT_TERMINAL_PROMPT: '0' } },
       input == null
         ? null
-        : (typeof input === 'string' ? Buffer.from(input, encoding) : Buffer.from(input)).toString('base64'),
+        : (typeof input === 'string'
+            ? Buffer.from(input, encoding)
+            : ArrayBuffer.isView(input)
+              ? Buffer.from(input.buffer, input.byteOffset, input.byteLength)
+              : Buffer.from(input)
+          ).toString('base64'),
       deadline,
     ]),
     encoding: 'utf8',

@@ -102,17 +102,6 @@ the current checkout, not a separate checkout of each pushed ref. Install Chromi
 with `pnpm exec playwright install chromium` before pushing changes.
 `pnpm run demo:check` verifies demo Markdown, HTML and decoded crop pixels.
 
-### Fixture git deadlines
-
-Pre-push fixture git commands have a 60 second deadline per call and run with
-`GIT_TERMINAL_PROMPT=0`. Set `STYLEPROOF_FIXTURE_TIMEOUT_MS` to a positive number
-of milliseconds to override it. On expiry the fixture kills the subprocess group
-and reports the command, deadline and elapsed time. A stalled local git install
-(such as a broken Xcode.app’s git-submodule) fails these tests with
-`local git install may have stalled`. Check `git submodule -h` to diagnose that
-installation before rerunning the tests. A stalled machine fails after roughly
-one minute per submodule test.
-
 Hosted pushes always require browser lanes, including empty-tree pushes. PRs
 may skip only with a verified two-parent merge of the event's base whose root
 tree equals that base. `required` also demands a successful decision job and
@@ -150,6 +139,15 @@ symlinks `node_modules/styleproof` to the repo, and in a CommonJS consumer
 Playwright's transpiler then treats the linked ESM `dist/` as project code —
 `styleproof-map` dies with a misleading `Cannot use 'import.meta' outside a module`
 / "No tests found". Registry and tarball installs are unaffected.
+
+Pre-push fixture git commands have a 60 second deadline per call and run with
+`GIT_TERMINAL_PROMPT=0`. Set `STYLEPROOF_FIXTURE_TIMEOUT_MS` to a positive number
+of milliseconds to override it. On expiry the fixture kills the subprocess group
+and reports the command, deadline and elapsed time. A stalled local git install
+(such as a broken Xcode.app’s git-submodule) fails these tests with
+`local git install may have stalled`. Check `git submodule -h` to diagnose that
+installation before rerunning the tests. A stalled machine fails after roughly
+one minute per submodule test.
 
 ## Approving StyleProof dogfood findings
 
