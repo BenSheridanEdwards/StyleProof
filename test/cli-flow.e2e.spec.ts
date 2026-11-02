@@ -362,15 +362,11 @@ test('styleproof-report and styleproof-diff exit without process.exit() after a 
     fs.writeFileSync(page, demo.replace(bodyColor, 'color: rgb(200, 228, 232);'));
     capture('changed');
 
+    const trusted = ['--expected-before-sha', sha, '--expected-after-sha', sha];
     const cases = [
-      {
-        name: 'clean report',
-        bin: REPORT,
-        args: ['base', 'same', '--out', 'clean-report', '--expected-before-sha', sha, '--expected-after-sha', sha],
-        status: 0,
-      },
+      { name: 'clean report', bin: REPORT, args: ['base', 'same', '--out', 'clean-report', ...trusted], status: 0 },
       { name: 'changed report', bin: REPORT, args: ['base', 'changed', '--out', 'changed-report'], status: 1 },
-      { name: 'clean diff', bin: DIFF, args: ['base', 'same', '--allow-unasserted'], status: 0 },
+      { name: 'clean diff', bin: DIFF, args: ['base', 'same', '--allow-unasserted', ...trusted], status: 0 },
       { name: 'changed diff', bin: DIFF, args: ['base', 'changed', '--allow-unasserted'], status: 1 },
     ];
     for (const { name, bin, args, status } of cases) {

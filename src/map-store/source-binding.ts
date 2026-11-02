@@ -154,7 +154,12 @@ export function assertCompatibleMapDirs(
   const after = comparableManifest(afterDir);
   assertBoundManifest(before, expected.beforeSha, 'before');
   assertBoundManifest(after, expected.afterSha, 'after');
-  if ((before?.spec === MAP_MANIFEST) !== (after?.spec === MAP_MANIFEST) && expected.beforeSha !== undefined) {
+  if (
+    before &&
+    after &&
+    (before.spec === MAP_MANIFEST) !== (after.spec === MAP_MANIFEST) &&
+    expected.beforeSha !== undefined
+  ) {
     throw new MapStoreError(
       'mixed spec/ad-hoc captures are diagnostic only; trusted source certification is unavailable',
     );

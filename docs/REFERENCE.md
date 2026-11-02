@@ -1026,8 +1026,8 @@ A design is mostly _behind clicks_ — modals, drawers, popovers, tabs that don'
 It follows the nav too: every same-origin page the site links to is crawled the same way, keyed by its route (`about`, `pricing`, `blog-post`, …), with class coverage aggregated across the pages that share stylesheets. Links are read from the same settled state the crawl captures (after `--wait`, the settle, `--setup` and the scroll reveal), so a client-rendered or setup-gated nav is followed too; a page whose links cannot be read is reported, never treated as linking nowhere. `--no-follow-links` skips the link read and keeps the sweep to the entry page's interactive surface only.
 
 ```bash
-styleproof-capture https://example.com --crawl --out design    # maps every reachable surface
-styleproof-diff design .styleproof/maps/current --allow-unasserted                # diff the whole surface vs your build
+styleproof-capture https://example.com --crawl --out design                    # maps every reachable surface
+styleproof-diff design .styleproof/maps/current --allow-unasserted # diff the whole surface vs your build
 ```
 
 It's **exhaustive by default**: the crawl stops when there is nothing left to drive — every control tried once, every structurally new surface captured — not at a budget. Dedup bounds the normal case — controls dedup by selector, surfaces by a structural fingerprint, so a finite UI runs out of new surfaces — and the `--max-depth` cap bounds the pathological one: an append-generator (a composer that appends a fresh-identity node per click) never repeats a fingerprint, so dedup can't stop it; the depth cap (16 by default) does. `--max-depth` / `--max-actions` / `--max-states` are otherwise deliberate throttles. It's deterministic (document order; the same surface reached two ways is captured once) and self-settling — it waits for an async app (React/Vue/Babel that boots after `load`) to mount before reading, so a bare crawl of a client-rendered page still captures the mounted UI.
