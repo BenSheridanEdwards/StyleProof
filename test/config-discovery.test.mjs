@@ -1143,3 +1143,33 @@ test('group writable repo and start config load; shared inner repo bounds discov
     rmTmp(root);
   }
 });
+
+test(
+  'refusal notice requires a skipped config and is emitted once per process',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const root = mkTmp();
+    const originalWrite = process.stderr.write;
+    let output = '';
+    try {
+      const nested = path.join(root, 'nested');
+      fs.mkdirSync(nested);
+      fs.chmodSync(root, 0o777);
+      process.stderr.write = (chunk) => {
+        output += chunk;
+        return true;
+      };
+      await loadStyleProofConfigAsync(nested);
+      assert.equal(output, '');
+      fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
+      await loadStyleProofConfigAsync(nested);
+      await loadStyleProofConfigAsync(nested);
+      assert.match(output, /skipping unsafe folder .*world-writable/);
+      assert.equal(output.split('skipping unsafe folder').length - 1, 1);
+    } finally {
+      process.stderr.write = originalWrite;
+      fs.chmodSync(root, 0o700);
+      rmTmp(root);
+    }
+  },
+);
