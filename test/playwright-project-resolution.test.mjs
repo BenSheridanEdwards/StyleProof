@@ -27,12 +27,7 @@ for (const installed of [true, false]) {
         timeout: 15000,
       });
       assert.equal(result.status, installed ? 17 : 2, result.stderr);
-      assert.match(
-        result.stderr,
-        installed
-          ? /consumer Playwright reached/
-          : /Playwright could not be found on PATH or in the project's node_modules/,
-      );
+      assert.match(result.stderr, installed ? /consumer Playwright reached/ : /ENOENT.*project/i);
     } finally {
       fs.rmSync(cwd, { recursive: true, force: true });
     }
@@ -61,3 +56,41 @@ for (const code of [undefined, 'EACCES', 'ENOENT', 'EINVAL']) {
     }
   });
 }
+
+test('POSIX PATH executable takes precedence over project CLI', { skip: process.platform === 'win32' }, () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'playwright-path-'));
+  try {
+    fs.writeFileSync(path.join(cwd, 'spec.ts'), '');
+    fs.writeFileSync(path.join(cwd, 'playwright'), '#!/bin/sh\nexit 23\n', { mode: 0o755 });
+    const peer = path.join(cwd, 'node_modules/@playwright/test');
+    fs.mkdirSync(peer, { recursive: true });
+    fs.writeFileSync(path.join(peer, 'package.json'), JSON.stringify({ exports: { './cli': './cli.cjs' } }));
+    fs.writeFileSync(path.join(peer, 'cli.cjs'), 'process.exit(17)');
+    const result = spawnSync(process.execPath, [fileURLToPath(cli), '--spec', 'spec.ts'], {
+      cwd,
+      env: { ...process.env, PATH: cwd },
+      encoding: 'utf8',
+      timeout: 15000,
+    });
+    assert.equal(result.status, 23, result.stderr);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('fallback spawn errors retain their original code and CLI path', (t) => {
+  t.mock.method(childProcess, 'spawnSync', (command) => ({
+    error: Object.assign(new Error(command === process.execPath ? 'spawn denied cli-path' : 'shim invalid'), {
+      code: command === process.execPath ? 'EACCES' : 'ENOENT',
+    }),
+  }));
+  syncBuiltinESMExports();
+  try {
+    const result = projectPlaywright([]);
+    assert.match(result.error.message, /EACCES/);
+    assert.match(result.error.message, /cli-path/);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});
