@@ -345,19 +345,12 @@ function logMapRestoreDecision(decision) {
 }
 
 function playwrightInstall(cwd, browserNames = ['chromium']) {
-  let playwright;
-  try {
-    playwright = projectPlaywright(cwd);
-  } catch (error) {
-    log(error.message);
-    return false;
-  }
-  const result = spawnSync(process.execPath, [playwright, 'install', '--with-deps', ...browserNames], {
+  const result = projectPlaywright(['install', '--with-deps', ...browserNames], {
     stdio: 'inherit',
     cwd,
     env: { ...env, PATH: binFirstPath(cwd) },
   });
-  if (result.error) log(`could not run ${playwright} install — ${result.error.message}`);
+  if (result.error) log(`could not run playwright install — ${result.error.message}`);
   return !result.error && (result.status ?? 1) === 0;
 }
 

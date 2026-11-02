@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { projectPlaywright } from './project-playwright.mjs';
 // Install, scaffold, and verify StyleProof in one command: detect the package
 // manager, install styleproof + Playwright + Chromium, run styleproof-init, then
 // verify the generated files against this release.
@@ -120,19 +119,8 @@ function run(command, args, label, display = printable(command, args)) {
 let status = 0;
 if (!opts['skip-install'])
   status = run(manager, [installVerb, devFlag, ...packages], `installing dependencies with ${manager}`);
-if (status === 0 && !opts['skip-browser']) {
-  if (dryRun)
-    status = run(browserCommand, [...browserPrefix, 'playwright', 'install', 'chromium'], 'installing Chromium');
-  else {
-    let playwright;
-    try {
-      playwright = projectPlaywright(cwd);
-    } catch (error) {
-      fail(NAME, error.message, 5);
-    }
-    status = run(process.execPath, [playwright, 'install', 'chromium'], 'installing Chromium');
-  }
-}
+if (status === 0 && !opts['skip-browser'])
+  status = run(browserCommand, [...browserPrefix, 'playwright', 'install', 'chromium'], 'installing Chromium');
 if (status === 0)
   status = run(process.execPath, [init, ...initArgs], 'scaffolding project', printable('styleproof-init', initArgs));
 if (status === 0)

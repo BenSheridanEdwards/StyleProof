@@ -9,7 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Resolve project Playwright for capture and CI browser installation without relying on PATH.
+- Fall back to project Playwright for capture and CI browser installation when PATH lacks Playwright.
 
 ### Changed
 
