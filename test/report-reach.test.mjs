@@ -575,7 +575,10 @@ test('issue #1240: a changed stylesheet no capture served is named, not claimed 
     assert.equal(output.json.reach.blocking, 0);
     assert.doesNotMatch(output.md, /every changed served CSS rule/);
     assert.match(output.md, /no changed CSS rule in any served stylesheet/);
-    assert.match(output.md, /Not checked: changed stylesheets no capture served/);
+    assert.match(
+      output.md.split('\n').find((line) => line.startsWith('**Reach incomplete**')),
+      /Not checked: changed stylesheets no capture served/,
+    );
     if (changeReach === 'gate') assert.ok(output.md.includes("not held by `changeReach: 'gate'`"));
     const gaps = output.json.reach.gaps.filter((g) => g.kind === 'not-built' && g.join === 'J1');
     assert.equal(gaps.length, 1);
@@ -583,8 +586,27 @@ test('issue #1240: a changed stylesheet no capture served is named, not claimed 
   }
 });
 
-test('reach findings still name the unchecked stylesheet join', (t) => {
-  const output = report(fixture(t, [map(rule('.fault', 'h1'))], [map(rule('.fault', 'h2'))]));
-  assert.match(output.md, /Not checked: changed stylesheets no capture served/);
-  assert.match(output.md, /- Not checked: changed stylesheets no capture served/);
+test('reach findings separate unchecked items from held findings and ledger gaps', (t) => {
+  for (const changeReach of ['gate', 'warn']) {
+    for (const ledgerGap of [false, true]) {
+      const before = map(rule('.fault', 'h1'));
+      const after = map(rule('.fault', 'h2'));
+      const output = report(fixture(t, [before], [after, ...(ledgerGap ? [withoutReach(map())] : [])]), {
+        changeReach,
+      });
+      const strip = output.md.split('\n').find((line) => line.startsWith('**Reach incomplete**'));
+      const label = changeReach === 'gate' ? "**Not checked** (not held by `changeReach: 'gate'`)" : '**Not checked**';
+      assert.ok(output.md.includes('\n\n' + label + '\n\n'));
+      assert.match(
+        output.md,
+        /- changed stylesheets no capture served: .* — add a surface that loads each changed stylesheet/,
+      );
+      if (changeReach === 'gate') {
+        assert.ok(output.json.reach.blocking > 0);
+        assert.ok(strip.endsWith("The findings above are held by `changeReach: 'gate'`; the unchecked items are not."));
+        assert.doesNotMatch(strip, / Held by/);
+        assert.ok(output.md.includes("are not checked (not held by `changeReach: 'gate'`)"));
+      }
+    }
+  }
 });
