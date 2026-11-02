@@ -1073,3 +1073,28 @@ for (const kind of ['file', 'directory']) {
     }
   });
 }
+
+for (const git of [false, true]) {
+  test(`styleproof-map: ancestor config ${git ? 'loads inside git' : 'is ignored outside git'}`, () => {
+    const root = mkTmp();
+    try {
+      const nested = path.join(root, 'nested');
+      fs.mkdirSync(nested);
+      if (git) fs.mkdirSync(path.join(root, '.git'));
+      fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), "throw new Error('ancestor-config-executed');");
+      const result = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8', timeout: 15000 });
+      assert.equal(result.status, 2, result.stderr);
+      if (git) assert.match(result.stderr, /ancestor-config-executed/);
+      else {
+        assert.doesNotMatch(result.stderr, /ancestor-config-executed/);
+        assert.match(result.stderr, /spec/i);
+        fs.writeFileSync(path.join(nested, 'styleproof.config.mjs'), "throw new Error('local-config-executed');");
+        const local = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8', timeout: 15000 });
+        assert.equal(local.status, 2);
+        assert.match(local.stderr, /local-config-executed/);
+      }
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
