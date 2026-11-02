@@ -1320,15 +1320,7 @@ test('reach self-check compares unknown ledgers strictly', () => {
     () =>
       assertDeterministicReach(
         first,
-        {
-          elements: [],
-          reach: {
-            version: 2,
-            scope: 'compared',
-            sheets: ['inline'],
-            rules: [{ sheet: 0, key: '.a', hash: 'abc', used: true }],
-          },
-        },
+        { elements: [], reach: { sheets: ['inline'], rules: [{ sheet: 0, key: '.a', hash: 'abc', used: true }] } },
         'home',
       ),
     /self-check failed: home is non-deterministic.*reach/,
