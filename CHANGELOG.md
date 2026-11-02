@@ -9,7 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- A config in a parent folder that is world-writable or owned by another user is no longer run; run from the config's folder instead (#1246).
+- **BREAKING (#1246):** Config discovery stops at unsafe POSIX parents and searches only the start folder in Windows non-git projects. Previously loaded configs no longer load in these cases:
+  - Root container jobs with a working-directory below a runner-owned checkout: run from the folder that holds the config, or correct checkout ownership.
+  - Umask-0000 / world-writable checkouts run from a subfolder: run from the folder that holds the config, or remove world-write permission.
+  - Windows non-git projects run from a subfolder: run from the folder that holds the config.
+  - Any parent owned by another non-root user: run from the folder that holds the config, or correct ownership.
 
 ### Changed
 

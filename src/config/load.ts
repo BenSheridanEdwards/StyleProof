@@ -143,6 +143,32 @@ function endsDiscovery(dir: string, windowsBoundary: string | undefined): boolea
   return fs.existsSync(path.join(dir, '.git')) || (process.platform === 'win32' && !windowsBoundary);
 }
 
+const reportedDiscoveryRefusals = new Set<string>();
+
+/** Probe existence only; never read or evaluate a skipped config. */
+function reportDiscoveryRefusal(dir: string, reason: string): void {
+  let candidate = dir;
+  for (;;) {
+    for (const filename of CONFIG_FILENAMES) {
+      const configPath = path.join(candidate, filename);
+      try {
+        if (!fs.statSync(configPath).isFile()) continue;
+      } catch {
+        continue;
+      }
+      const notice = `styleproof: skipping ${reason}: ${configPath}.\n`;
+      if (!reportedDiscoveryRefusals.has(notice)) {
+        reportedDiscoveryRefusals.add(notice);
+        process.stderr.write(notice);
+      }
+      return;
+    }
+    const parent = path.dirname(candidate);
+    if (parent === candidate) return;
+    candidate = parent;
+  }
+}
+
 /** Accept the start folder; walk trusted ancestors up to the nearest .git marker. */
 export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofConfigDiscovery {
   const searched: string[] = [];
@@ -154,13 +180,18 @@ export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofCo
   for (;;) {
     const reason = discoveryFolderRejection(dir, start);
     if (reason) {
-      process.stderr.write(`styleproof: skipping unsafe folder ${dir}: ${reason}.\n`);
+      reportDiscoveryRefusal(dir, `unsafe folder ${dir}: ${reason}`);
       break;
     }
     searched.push(...CONFIG_FILENAMES.map((filename) => path.join(dir, filename)));
     const location = locationAt(dir);
     if (location) return { location, searched };
-    if (endsDiscovery(dir, windowsBoundary)) break;
+    if (endsDiscovery(dir, windowsBoundary)) {
+      if (process.platform === 'win32' && !windowsBoundary && path.dirname(dir) !== dir) {
+        reportDiscoveryRefusal(path.dirname(dir), 'parent config outside a repository on Windows');
+      }
+      break;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
