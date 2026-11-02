@@ -59,12 +59,12 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
     try {
       servedRulesOf(css, []);
     } catch (error) {
-      expect(String(error)).toMatch(/reach is unknown/);
+      expect(error).toMatchObject({ name: 'ReachUnknownError' });
       await page.setContent(`<style>${css}</style><p class="t">x</p>`);
       const servedRules = await trackServedRules(page);
       await expectUnknown(
         captureStyleMap(page, { captureReach: true, servedRules }),
-        'ambiguous unquoted URL dependency',
+        (error as Error & { reason: string }).reason,
       );
       continue;
     }

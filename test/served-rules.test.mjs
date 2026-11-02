@@ -951,8 +951,11 @@ test('font variables include JS registration initial values', async () => {
 test('font variable sources that cannot be enumerated fail closed', async () => {
   const sheets = [{ styleSheetId: 'one', text: ':root { --alias: var(--brand); } .t { font-family: var(--alias); }' }];
   for (const opts of [{ registrationFails: true }])
-    await assert.rejects(trackedLedger(sheets, opts), /served CSS reach is unknown/);
-  await assert.rejects(trackedLedger(sheets.map((s) => ({ ...s, frameId: 'child' }))), /served CSS reach is unknown/);
+    await assertUnknownLedger(trackedLedger(sheets, opts), 'font property registrations unavailable');
+  await assertUnknownLedger(
+    trackedLedger(sheets.map((s) => ({ ...s, frameId: 'child' }))),
+    'font variable in another frame',
+  );
   for (const value of ['env(x)', 'attr(x)', 'inherit(--x)', 'ident("X")', '--name()', String.raw`Brand\ Sans`]) {
     assert.throws(
       () => servedRulesOf(`:root { --x: ${value}; } .t { font-family: var(--x); }`, []),
@@ -1073,14 +1076,17 @@ for (const [value, declarations] of [
   ['var(--font)', '--font:italic var(--x) Sans'],
 ])
   test(`shorthand family joins remain unknown ${value} with ${declarations}`, () => {
-    assert.throws(() => servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []), /reach is unknown/);
+    assert.throws(() => servedRulesOf(`:root{${declarations}} .t{font:${value}}`, []), {
+      name: 'ReachUnknownError',
+      reason: 'font substitution can join a family name',
+    });
   });
 test('shorthand exemptions inspect JS registrations', async () => {
-  await assert.rejects(
+  await assertUnknownLedger(
     trackedLedger([{ styleSheetId: 'app', text: '.t{font:italic var(--x) Sans}' }], {
       registrations: [{ propertyName: '--x', initialValue: { text: '15px Brand' } }],
     }),
-    /reach is unknown/,
+    'font substitution can join a family name',
   );
 });
 
@@ -1103,14 +1109,20 @@ for (const name of [
 ]) {
   test(`escaped URL name remains guarded: ${name}`, async () => {
     const text = `.b{background:${name}(x.png)}`;
-    assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
-    await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+    assert.throws(() => servedRulesOf(text, []), {
+      name: 'ReachUnknownError',
+      reason: 'ambiguous unquoted URL dependency',
+    });
+    await assertUnknownLedger(trackedLedger([{ styleSheetId: 'app', text }]));
   });
 }
 test('ambiguous literal URL after an escaped string remains guarded', async () => {
   const text = String.raw`.i:before{content:"\e900"}.b{background:url(a(b);font-family:Other;c:x)}`;
-  assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
-  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+  assert.throws(() => servedRulesOf(text, []), {
+    name: 'ReachUnknownError',
+    reason: 'ambiguous unquoted URL dependency',
+  });
+  await assertUnknownLedger(trackedLedger([{ styleSheetId: 'app', text }]));
 });
 const urlGuardSource = readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8').match(
   /function guardAmbiguousURLs\(text\) \{[\s\S]*?\n\}/,
@@ -1165,12 +1177,18 @@ test('quoted URL comments and imports capture', () => {
 });
 test('ambiguous sheet URLs fail closed when font variables resolve', async () => {
   const text = ambiguousFontURL + ' .t{font-family:var(--f)}';
-  assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
-  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+  assert.throws(() => servedRulesOf(text, []), {
+    name: 'ReachUnknownError',
+    reason: 'ambiguous unquoted URL dependency',
+  });
+  await assertUnknownLedger(trackedLedger([{ styleSheetId: 'app', text }]));
 });
 test('ambiguous sheet URLs without font variable readers fail closed', async () => {
-  assert.throws(() => servedRulesOf(ambiguousFontURL, []), /reach is unknown/);
-  await assert.rejects(trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]), /reach is unknown/);
+  assert.throws(() => servedRulesOf(ambiguousFontURL, []), {
+    name: 'ReachUnknownError',
+    reason: 'ambiguous unquoted URL dependency',
+  });
+  await assertUnknownLedger(trackedLedger([{ styleSheetId: 'app', text: ambiguousFontURL }]));
 });
 
 for (const text of [
@@ -1193,8 +1211,11 @@ for (const text of [
   "/* url(it's) */ .t{color:red}",
 ]) {
   test(`ambiguous stylesheet URL fails closed: ${JSON.stringify(text)}`, async () => {
-    assert.throws(() => servedRulesOf(text, []), /reach is unknown/);
-    await assert.rejects(trackedLedger([{ styleSheetId: 'app', text }]), /reach is unknown/);
+    assert.throws(() => servedRulesOf(text, []), {
+      name: 'ReachUnknownError',
+      reason: 'ambiguous unquoted URL dependency',
+    });
+    await assertUnknownLedger(trackedLedger([{ styleSheetId: 'app', text }]));
   });
 }
 
@@ -1220,7 +1241,11 @@ for (const [names, reader, rejects] of [
       inlineRoots: [100],
       inlineResponse: { result: { value: { names, reader, count: 1 } } },
     });
-    if (rejects) await assert.rejects(result, /reach is unknown/);
+    if (rejects)
+      await assertUnknownLedger(
+        result,
+        reader ? 'inline font or animation variable reference' : 'font family set through an inline custom property',
+      );
     else await result;
   });
 }
@@ -1235,9 +1260,11 @@ for (const opts of [
   { inlineResponse: { result: { value: { names: [], reader: false, count: 2 } } } },
 ])
   test(`parsed inline CDP failures fail closed ${JSON.stringify(opts)}`, async () => {
-    await assert.rejects(
+    await assertUnknownLedger(
       trackedLedger(inlineSheet, { document: inlineDocument, inlineRoots: [100], ...opts }),
-      /reach is unknown/,
+      opts.inlineResponse?.result?.value?.count === 2
+        ? 'inline styles changed while reading'
+        : 'inline styles unavailable or changed while reading',
     );
   });
 test('parsed inline styles read closed shadow and iframe roots separately', async () => {
@@ -1299,3 +1326,10 @@ test('reach self-check compares unknown ledgers strictly', () => {
     /self-check failed: home is non-deterministic.*reach/,
   );
 });
+
+async function assertUnknownLedger(result, reason = 'ambiguous unquoted URL dependency') {
+  const ledger = await result;
+  assert.deepEqual(ledger.sheets, []);
+  assert.deepEqual(ledger.rules, []);
+  assert.equal(ledger.unknown, reason);
+}
