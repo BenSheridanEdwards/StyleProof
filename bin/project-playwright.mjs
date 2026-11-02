@@ -5,7 +5,10 @@ import { spawnSync } from 'node:child_process';
 export function projectPlaywright(args, options = {}) {
   const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
   const result = spawnSync(command, args, options);
-  if (result.error?.code !== 'ENOENT') return result;
+  // Windows cannot directly spawn batch shims; Node reports EINVAL for them.
+  const missing = result.error?.code === 'ENOENT';
+  const batchShim = process.platform === 'win32' && result.error?.code === 'EINVAL';
+  if (!missing && !batchShim) return result;
   const cwd = options.cwd ?? process.cwd();
   try {
     const cli = createRequire(path.join(cwd, 'package.json')).resolve('@playwright/test/cli');
