@@ -50,7 +50,10 @@ const cli = defineCli({
   flags: {
     ...compareFlags(),
     max: { value: 'n', help: 'max lines printed per surface before truncating', default: 40 },
-    json: { value: 'file', help: 'also write the full structured diff to <file>' },
+    json: {
+      value: 'file',
+      help: 'also write the full structured diff to <file> (non-map JSON inside capture dirs is ignored)',
+    },
     'allow-unasserted': {
       help: 'diagnostic mode: permit unasserted completeness / unknown determinism without exit 1 (JSON marks certifiesFully=false)',
     },
