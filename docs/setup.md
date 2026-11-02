@@ -93,3 +93,8 @@ claimed A. Existing source-binding, report-publication and approval guards remai
 unchanged.
 
 GitHub API contract: [Compare two commits](https://docs.github.com/rest/commits/commits#compare-two-commits).
+
+Playwright capture and CI browser installation resolve `@playwright/test/cli` from the
+consumer project and run it with Node. Install `@playwright/test` in that project;
+`node_modules/.bin` does not need to be on `PATH`. Resolution errors name the
+module and project directory searched.

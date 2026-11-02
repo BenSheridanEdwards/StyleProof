@@ -3,6 +3,7 @@
 // StyleProof spec (or restore a published map by SHA), stamp the manifest, and
 // optionally publish the bundle to the map store branch.
 import fs from 'node:fs';
+import { projectPlaywright } from './project-playwright.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -107,7 +108,7 @@ const cli = defineCli({
     },
   },
   notes: [
-    'A styleproof.config.json at the repo root supplies project defaults — "spec", "dirtyAllow",',
+    'Playwright is resolved from this project (@playwright/test/cli), without requiring PATH. A styleproof.config.json at the repo root supplies project defaults — "spec", "dirtyAllow",',
     '"cacheBranch", "remote" — with flags and env overriding it, except "dirtyAllow", which',
     'ACCUMULATES across config, STYLEPROOF_DIRTY_ALLOW, and every --dirty-allow flag.',
     '',
@@ -381,7 +382,12 @@ const onlySurfaces = reuseFrom
   ? parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES)
   : parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES);
 
-const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
+let playwright;
+try {
+  playwright = projectPlaywright();
+} catch (error) {
+  fail(NAME, error.message);
+}
 const hasConfigArg = playwrightArgs.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 const configArgs =
   fs.existsSync(STYLEPROOF_PLAYWRIGHT_CONFIG) && !hasConfigArg ? ['--config', STYLEPROOF_PLAYWRIGHT_CONFIG] : [];
@@ -422,10 +428,14 @@ const captureEnv = (label) => ({
   ...(onlySurfaces ? { STYLEPROOF_ONLY_SURFACES: [...onlySurfaces].join(',') } : {}),
 });
 const runCapture = (label, extraEnv = {}) =>
-  spawnSync(playwright, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs, ...workerArgs], {
-    stdio: 'inherit',
-    env: { ...captureEnv(label), ...extraEnv },
-  });
+  spawnSync(
+    process.execPath,
+    [playwright, 'test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs, ...workerArgs],
+    {
+      stdio: 'inherit',
+      env: { ...captureEnv(label), ...extraEnv },
+    },
+  );
 
 /** Capture test titles are `<surface> @ <width|auto>`; any other failed or unfinished test is unexplained. */
 function failureLedgered(outcome, failures) {

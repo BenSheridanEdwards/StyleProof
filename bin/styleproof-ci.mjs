@@ -9,6 +9,7 @@
 // Restore probes and the cold base run in detached ephemeral worktrees.
 import fs from 'node:fs';
 import path from 'node:path';
+import { projectPlaywright } from './project-playwright.mjs';
 import { spawnSync } from 'node:child_process';
 import {
   browsersRequiredByCaptureConfig,
@@ -283,7 +284,6 @@ if (specRefProvided) {
 /** PATH with `cwd`'s own node_modules/.bin FIRST, so base-side spawns resolve the
  *  cold-base worktree's own Playwright rather than the head's. */
 const binFirstPath = (cwd) => `${path.join(cwd, 'node_modules', '.bin')}${path.delimiter}${env.PATH}`;
-const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 
 /** Run a command with inherited stdio; throw on failure so finally hooks still run. */
 function runOrDie(command, what, { cwd = consumerCwd, extraEnv = {} } = {}) {
@@ -345,7 +345,14 @@ function logMapRestoreDecision(decision) {
 }
 
 function playwrightInstall(cwd, browserNames = ['chromium']) {
-  const result = spawnSync(playwright, ['install', '--with-deps', ...browserNames], {
+  let playwright;
+  try {
+    playwright = projectPlaywright(cwd);
+  } catch (error) {
+    log(error.message);
+    return false;
+  }
+  const result = spawnSync(process.execPath, [playwright, 'install', '--with-deps', ...browserNames], {
     stdio: 'inherit',
     cwd,
     env: { ...env, PATH: binFirstPath(cwd) },

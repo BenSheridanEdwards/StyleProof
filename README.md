@@ -682,3 +682,8 @@ build the index with `npx gitnexus analyze --skip-agents-md`.
 ## License
 
 MIT © Ben Sheridan-Edwards
+
+Playwright capture and CI browser installation resolve `@playwright/test/cli` from the
+consumer project and run it with Node. Install `@playwright/test` in that project;
+`node_modules/.bin` does not need to be on `PATH`. Resolution errors name the
+module and project directory searched.

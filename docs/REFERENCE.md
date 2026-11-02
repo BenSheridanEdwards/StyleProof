@@ -1954,3 +1954,8 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 
 Unchecked stylesheet guidance appears under **Not checked**, separate from held Reach evidence gaps, and includes the capture remedy.
+
+Playwright capture and CI browser installation resolve `@playwright/test/cli` from the
+consumer project and run it with Node. Install `@playwright/test` in that project;
+`node_modules/.bin` does not need to be on `PATH`. Resolution errors name the
+module and project directory searched.
