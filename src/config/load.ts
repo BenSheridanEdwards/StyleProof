@@ -1,7 +1,7 @@
 /**
  * Discovery and loading of the consumer's `styleproof.config.ts` (or `.mjs` /
  * `.js` / legacy `.json`). Discovery walks upward from the start directory to the
- * git root, so a package-subdirectory cwd still finds the repo-root config;
+ * git root through safe owned folders, including non-git project parents;
  * relative file-path fields resolve from that config file's directory, never from
  * `process.cwd()`. A missing file is `{}`; a file that exists but cannot be read,
  * evaluated, or validated throws — a discovered `.ts` never falls back to sibling
@@ -10,11 +10,11 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { errorMessage } from '../util.js';
 import {
   evaluateTypeScriptConfigSync,
-  isGitRoot,
   isUnloadableTypeScriptConfig,
   unloadableTypeScriptConfigError,
 } from './load-ts.js';
@@ -114,24 +114,66 @@ function locationAt(dir: string): StyleProofConfigLocation | undefined {
   return fs.existsSync(jsonPath) ? { path: jsonPath, dir, filename: CONFIG_JSON } : undefined;
 }
 
-/**
- * Walk from `startDir` toward the git root (or only `startDir` outside git); the nearest
- * directory with any config file wins (ESM over JSON). Never walks past a `.git`
- * boundary, so a parent checkout's config cannot leak in.
- */
+function safeDiscoveryPath(file: string): boolean {
+  if (process.platform === 'win32') return true;
+  try {
+    const stat = fs.statSync(file);
+    const home = os.homedir();
+    const aboveHome = file !== home && home.startsWith(file.endsWith(path.sep) ? file : file + path.sep);
+    return (stat.uid === process.getuid!() || (stat.uid === 0 && aboveHome)) && (stat.mode & 0o022) === 0;
+  } catch {
+    return false;
+  }
+}
+
+function realGitBoundary(dir: string): boolean {
+  const git = path.join(dir, '.git');
+  if (process.platform === 'win32') return fs.existsSync(git);
+  if (!safeDiscoveryPath(git)) return false;
+  try {
+    if (fs.statSync(git).isDirectory()) {
+      const head = path.join(git, 'HEAD');
+      return safeDiscoveryPath(head) && fs.statSync(head).isFile();
+    }
+    const match = /^gitdir:\s*(.+)\s*$/m.exec(fs.readFileSync(git, 'utf8'));
+    return !!match && safeDiscoveryPath(path.resolve(dir, match[1].trim()));
+  } catch {
+    return false;
+  }
+}
+
+function warnSkippedAncestor(dir: string): void {
+  // Stat candidates only: never import or read a skipped config.
+  let ancestor = dir;
+  for (;;) {
+    const skipped = locationAt(ancestor);
+    if (skipped) {
+      process.stderr.write(`styleproof: skipping ${skipped.path}: unsafe ancestor ownership or permissions.\n`);
+      return;
+    }
+    const parent = path.dirname(ancestor);
+    if (parent === ancestor) return;
+    ancestor = parent;
+  }
+}
+
+/** Walk safe parents, stopping at a real repository boundary or the first unsafe folder. */
 export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofConfigDiscovery {
   const searched: string[] = [];
   let dir = path.resolve(startDir);
-  let boundary = dir;
-  while (!isGitRoot(boundary) && path.dirname(boundary) !== boundary) {
-    boundary = path.dirname(boundary);
-  }
-  if (!isGitRoot(boundary)) boundary = dir;
   for (;;) {
+    if (!safeDiscoveryPath(dir)) {
+      warnSkippedAncestor(dir);
+      break;
+    }
     searched.push(...CONFIG_FILENAMES.map((filename) => path.join(dir, filename)));
     const location = locationAt(dir);
-    if (location) return { location, searched };
-    if (dir === boundary) break;
+    if (location) {
+      if (safeDiscoveryPath(location.path)) return { location, searched };
+      process.stderr.write(`styleproof: skipping ${location.path}: unsafe config ownership or permissions.\n`);
+      break;
+    }
+    if (realGitBoundary(dir) || (process.platform === 'win32' && dir === os.homedir())) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
