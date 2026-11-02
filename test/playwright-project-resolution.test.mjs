@@ -25,7 +25,9 @@ for (const installed of [true, false]) {
       assert.equal(result.status, installed ? 17 : 2, result.stderr);
       assert.match(
         result.stderr,
-        installed ? /consumer Playwright reached/ : /could not resolve @playwright\/test\/cli from/,
+        installed
+          ? /consumer Playwright reached/
+          : /Playwright could not be found on PATH or in the project's node_modules/,
       );
     } finally {
       fs.rmSync(cwd, { recursive: true, force: true });
