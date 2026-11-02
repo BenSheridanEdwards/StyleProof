@@ -23,7 +23,7 @@ export function projectPlaywright(args, options = {}) {
   return {
     ...result,
     error: new Error(
-      `PATH Playwright failed (${result.error.code}: ${result.error.message}); project CLI failed in ${cwd} (${failure.code}: ${failure.message})`,
+      `PATH Playwright failed: ${result.error.message?.split('\n')[0] ?? result.error.code}; ${failure.code === 'MODULE_NOT_FOUND' ? `@playwright/test is not installed in ${cwd}` : `project CLI failed in ${cwd}: ${failure.code}: ${failure.message}`}`,
     ),
   };
 }

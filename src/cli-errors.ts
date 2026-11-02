@@ -55,7 +55,7 @@ export function missingSpecMessage(
 
 export function playwrightMissingMessage(message: string): string {
   return [
-    `styleproof-map: could not run Playwright (${message})`,
+    `styleproof-map: could not run Playwright: ${message}`,
     'Next: install @playwright/test, then run npx playwright install chromium.',
   ].join('\n');
 }
