@@ -17,6 +17,12 @@ import { captureSurface } from '../dist/runner/surface-capture.js';
 import { resolveSettings } from '../dist/runner/settings.js';
 import { servedRulesOf } from '../dist/capture/reach.js';
 
+async function expectUnknown(capture: Promise<StyleMap>, reason: string) {
+  const map = await capture;
+  expect(Object.keys(map.elements).length).toBeGreaterThan(0);
+  expect(map.reach).toMatchObject({ unknown: reason, rules: [] });
+}
+
 test('Chromium oracle agrees with accepted reader declaration boundaries', async ({ page }) => {
   expect(
     await page.evaluate(() => {
@@ -54,6 +60,12 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
       servedRulesOf(css, []);
     } catch (error) {
       expect(String(error)).toMatch(/reach is unknown/);
+      await page.setContent(`<style>${css}</style><p class="t">x</p>`);
+      const servedRules = await trackServedRules(page);
+      await expectUnknown(
+        captureStyleMap(page, { captureReach: true, servedRules }),
+        'ambiguous unquoted URL dependency',
+      );
       continue;
     }
     accepted++;
@@ -102,7 +114,7 @@ for (const ambiguous of [false, true]) {
       `<style>@font-face{font-family:Other;src:url(x.woff2)}.t{font-family:Other;background:${ambiguous ? 'url(a(b);c:x)' : 'url(x.png)'}}</style><p class="t">x</p>`,
     );
     const capture = captureStyleMap(page, { captureReach: true, servedRules });
-    if (ambiguous) await expect(capture).rejects.toThrow(/reach is unknown/);
+    if (ambiguous) await expectUnknown(capture, 'ambiguous unquoted URL dependency');
     else expect((await capture).reach?.rules.some((entry) => entry.refs?.includes('Other'))).toBe(true);
   });
 }
@@ -135,7 +147,7 @@ for (const ambiguous of [false, true]) {
         }),
       ).toBe(true);
       const capture = captureStyleMap(page, { captureReach: true, servedRules });
-      if (ambiguous) await expect(capture).rejects.toThrow(/reach is unknown/);
+      if (ambiguous) await expectUnknown(capture, 'ambiguous unquoted URL dependency');
       else expect((await capture).reach?.rules.some((entry) => entry.refs?.includes('Other'))).toBe(true);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
@@ -152,7 +164,10 @@ for (const css of [
     const servedRules = await trackServedRules(page);
     await page.setContent(`<style>@font-face{font-family:Other;src:url(x.woff2)}${css}</style><p class="t">x</p>`);
     expect(await page.locator('.t').evaluate((node) => getComputedStyle(node).fontFamily)).toContain('Other');
-    await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+    await expectUnknown(
+      captureStyleMap(page, { captureReach: true, servedRules }),
+      'ambiguous unquoted URL dependency',
+    );
   });
 }
 
@@ -169,7 +184,10 @@ for (const css of [
   test(`ambiguous URL rejects throughout a stylesheet: ${css}`, async ({ page }) => {
     const servedRules = await trackServedRules(page);
     await page.setContent(`<style>@font-face{font-family:Other;src:url(x.woff2)}${css}</style><p class="t">x</p>`);
-    await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+    await expectUnknown(
+      captureStyleMap(page, { captureReach: true, servedRules }),
+      'ambiguous unquoted URL dependency',
+    );
   });
 }
 
@@ -206,7 +224,7 @@ for (const scope of ['document', 'shadow-constructed', 'shadow-open', 'shadow-cl
         { scope, ambiguous },
       );
       const capture = captureStyleMap(page, { captureReach: true, servedRules });
-      if (ambiguous) await expect(capture).rejects.toThrow(/reach is unknown/);
+      if (ambiguous) await expectUnknown(capture, 'ambiguous unquoted URL dependency');
       else expect((await capture).reach?.rules.some((entry) => entry.refs?.includes('Other'))).toBe(true);
     });
   }
@@ -521,7 +539,13 @@ for (const [style, rejects, css = '.t{color:red}'] of INLINE_CASES) {
     await page.setContent(`<style>${css}</style><p class="t">text</p>`);
     await page.locator('p').evaluate((element, value) => element.setAttribute('style', value), style);
     const capture = captureStyleMap(page, { captureReach: true, servedRules });
-    if (rejects) await expect(capture).rejects.toThrow(/reach is unknown/);
+    if (rejects)
+      await expectUnknown(
+        capture,
+        css === INLINE_FONT_SHEET
+          ? 'font family set through an inline custom property'
+          : 'inline font or animation variable reference',
+      );
     else await capture;
   });
 }
@@ -532,12 +556,18 @@ test('parsed inline reader inside a closed shadow root fails closed', async ({ p
     document.querySelector('#host')!.attachShadow({ mode: 'closed' }).innerHTML =
       '<p style="font-family:var(--f)">text</p>';
   });
-  await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+  await expectUnknown(
+    captureStyleMap(page, { captureReach: true, servedRules }),
+    'inline font or animation variable reference',
+  );
 });
 test('parsed SVG inline reader fails closed', async ({ page }) => {
   const servedRules = await trackServedRules(page);
   await page.setContent('<svg><text style="font-family:var(--f)">text</text></svg>');
-  await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+  await expectUnknown(
+    captureStyleMap(page, { captureReach: true, servedRules }),
+    'inline font or animation variable reference',
+  );
 });
 test('parsed inline closure names in a same-origin iframe fail closed', async ({ page }) => {
   const servedRules = await trackServedRules(page);
@@ -545,7 +575,10 @@ test('parsed inline closure names in a same-origin iframe fail closed', async ({
   await page.evaluate(() => {
     document.querySelector('iframe')!.contentDocument!.body.innerHTML = '<p style="--brand:Other">text</p>';
   });
-  await expect(captureStyleMap(page, { captureReach: true, servedRules })).rejects.toThrow(/reach is unknown/);
+  await expectUnknown(
+    captureStyleMap(page, { captureReach: true, servedRules }),
+    'font family set through an inline custom property',
+  );
 });
 
 test('Chromium oracle agrees with non-ASCII escaped URL name boundaries', async ({ page }) => {

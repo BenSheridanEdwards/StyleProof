@@ -6,6 +6,38 @@ import * as reach from '../dist/capture/reach.js';
 import { servedRulesOf, trackServedRules } from '../dist/capture/reach.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
 
+const readerReasons = {
+  ':root { --tone: var(--w\\61rn); }': 'unsupported var() reference',
+  '.a { color: var(--wärn); }': 'unsupported var() reference',
+  '.a { color: var(); }': 'unsupported var() reference',
+  ':root { --warn: red; }\n    .theme { color: var(--warn); }\n    .hidden { color: v\\61r(--warn); }':
+    'unsupported var() reference',
+  '.a { color: red; } /* never closed': 'unterminated comment',
+  '.a { content: "never closed; }': 'unterminated string',
+  '.a { color: red;': 'unclosed rule block',
+  '@media (x) {': 'unclosed rule block',
+  '.panel { color: red; &.fault { color: blue; } }': 'nested rule or unsupported declaration',
+  '.panel { &:hover { color: blue; } }': 'unsupported declaration name',
+  '.panel { div { color: blue; } }': 'nested rule or unsupported declaration',
+  '.panel { @media (width > 1px) { color: blue; } }': 'nested rule or unsupported declaration',
+  '.a { --x: fn(; }': 'unbalanced delimiter',
+  '[data-label="x" { color: red; }': 'unclosed block or component value',
+  '.a { color: red; }}': 'unsupported rule prelude',
+  'font-family: Brand\\ Sans': 'unsupported font or animation dependency',
+  'font-family: "Brand\\22 Sans"': 'unsupported font or animation dependency',
+  'font-family: env(x)': 'unsupported font or animation dependency',
+  'font-family: attr(x)': 'unsupported font or animation dependency',
+  'font-family: inherit(--x)': 'unsupported font or animation dependency',
+  'font-family: --brand()': 'unsupported font or animation dependency',
+  'font: 16px --brand()': 'unsupported font or animation dependency',
+  'animation: --spin() 1s': 'unsupported font or animation dependency',
+  'animation-name: --spin(1)': 'unsupported font or animation dependency',
+  'font-family: ident("Brand" "Sans")': 'unsupported font or animation dependency',
+  'animation: pulse calc(1s * env(x))': 'unsupported font or animation dependency',
+  'animation: var(--motion)': 'unsupported font or animation dependency',
+  'animation-name: "pulse"': 'unsupported animation dependency',
+};
+
 // The Change Reach ledger (#991) names every leaf rule of a stylesheet's text and
 // marks it used when a matched rule-usage range overlaps it.
 
@@ -107,7 +139,11 @@ test('a var() name servedRulesOf cannot parse fails with unknown reach', () => {
     '.a { color: var(--wärn); }',
     '.a { color: var(); }',
   ]) {
-    assert.throws(() => servedRulesOf(text, []), /served CSS reach is unknown: unsupported var\(\) reference/, text);
+    assert.throws(
+      () => servedRulesOf(text, []),
+      { name: 'ReachUnknownError', reason: 'unsupported var() reference' },
+      text,
+    );
   }
 });
 
@@ -122,7 +158,7 @@ test('escaped function names fail with unknown reach in reads, aliases and fallb
     for (const declaration of [`color: ${reference}`, `--tone: ${reference}`, `color: var(--tone, ${reference})`]) {
       assert.throws(
         () => servedRulesOf(`.a { ${declaration}; }`, []),
-        /served CSS reach is unknown: unsupported var\(\) reference/,
+        { name: 'ReachUnknownError', reason: 'unsupported var() reference' },
         declaration,
       );
     }
@@ -133,14 +169,13 @@ test('an escaped function in an idle consumer fails capture instead of hiding re
   const text = String.raw`:root { --warn: red; }
     .theme { color: var(--warn); }
     .hidden { color: v\61r(--warn); }`;
-  assert.throws(
-    () => servedRulesOf(text, used(text, ':root', '.theme')),
-    /served CSS reach is unknown: unsupported var\(\) reference/,
-  );
-  await assert.rejects(
-    trackedLedger([{ styleSheetId: 'one', text }]),
-    /served CSS reach is unknown: unsupported var\(\) reference/,
-  );
+  assert.throws(() => servedRulesOf(text, used(text, ':root', '.theme')), {
+    name: 'ReachUnknownError',
+    reason: 'unsupported var() reference',
+  });
+  const ledger = await trackedLedger([{ styleSheetId: 'one', text }]);
+  assert.deepEqual(ledger.rules, []);
+  assert.equal(ledger.unknown, 'unsupported var() reference');
 });
 
 test('escaped text outside function names stays opaque to var() reads', () => {
@@ -174,7 +209,7 @@ test('servedRulesOf fails with unknown reach on unterminated comments, strings a
     '.a { color: red;',
     '@media (x) {',
   ]) {
-    assert.throws(() => servedRulesOf(text, []), /served CSS reach is unknown/, text);
+    assert.throws(() => servedRulesOf(text, []), { name: 'ReachUnknownError', reason: readerReasons[text] }, text);
   }
 });
 
@@ -224,13 +259,17 @@ test('nested CSS fails with unknown reach even when the outer rule matched', () 
     '.panel { div { color: blue; } }',
     '.panel { @media (width > 1px) { color: blue; } }',
   ]) {
-    assert.throws(() => servedRulesOf(text, used(text, text)), /served CSS reach is unknown/, text);
+    assert.throws(
+      () => servedRulesOf(text, used(text, text)),
+      { name: 'ReachUnknownError', reason: readerReasons[text] },
+      text,
+    );
   }
 });
 
 test('malformed component values fail instead of producing partial evidence', () => {
   for (const text of ['.a { --x: fn(; }', '[data-label="x" { color: red; }', '.a { color: red; }}']) {
-    assert.throws(() => servedRulesOf(text, []), /served CSS reach is unknown/, text);
+    assert.throws(() => servedRulesOf(text, []), { name: 'ReachUnknownError', reason: readerReasons[text] }, text);
   }
 });
 
@@ -291,7 +330,11 @@ test('unsupported escaped and substituted dependencies fail with unknown reach',
     'animation: var(--motion)',
     'animation-name: "pulse"',
   ]) {
-    assert.throws(() => servedRulesOf(`.title { ${declaration}; }`, []), /served CSS reach is unknown/, declaration);
+    assert.throws(
+      () => servedRulesOf(`.title { ${declaration}; }`, []),
+      { name: 'ReachUnknownError', reason: readerReasons[declaration] },
+      declaration,
+    );
   }
 });
 
@@ -385,7 +428,9 @@ test('identical sheet labels and text fail as ambiguous in either discovery orde
     { styleSheetId: 'two', text: '.a { color: red; }' },
   ];
   for (const order of [sheets, [...sheets].reverse()]) {
-    await assert.rejects(trackedLedger(order), /served CSS reach is unknown: ambiguous identical stylesheets/);
+    const ledger = await trackedLedger(order);
+    assert.deepEqual(ledger.rules, []);
+    assert.equal(ledger.unknown, 'ambiguous identical stylesheets');
   }
 });
 
@@ -431,16 +476,15 @@ test('author light-DOM sheets on a user-agent shadow host remain in the ledger',
 });
 
 test('author shadow sheets duplicating document sheets remain ambiguous', async () => {
-  await assert.rejects(
-    trackedLedger(
-      [
-        { styleSheetId: 'document', text: '.a { color: red; }' },
-        { styleSheetId: 'shadow', text: '.a { color: red; }', ownerNode: 7 },
-      ],
-      { document: { shadowRoots: [{ shadowRootType: 'open', children: [{ backendNodeId: 7 }] }] } },
-    ),
-    /ambiguous identical stylesheets/,
+  const ledger = await trackedLedger(
+    [
+      { styleSheetId: 'document', text: '.a { color: red; }' },
+      { styleSheetId: 'shadow', text: '.a { color: red; }', ownerNode: 7 },
+    ],
+    { document: { shadowRoots: [{ shadowRootType: 'open', children: [{ backendNodeId: 7 }] }] } },
   );
+  assert.deepEqual(ledger.rules, []);
+  assert.equal(ledger.unknown, 'ambiguous identical stylesheets');
 });
 
 test('reach self-check rejects ledger drift and missing evidence with unchanged styles', () => {
@@ -1236,5 +1280,22 @@ test('non-ASCII escaped URL names preserve identifier boundaries', () => {
   assert.throws(
     () => servedRulesOf('.t{list-style:\u00a0\\75rl(x.png)}', []),
     /reach is unknown: unsupported var\(\) reference$/,
+  );
+});
+
+test('reach self-check compares unknown ledgers strictly', () => {
+  const first = {
+    elements: [],
+    reach: { version: 2, scope: 'compared', sheets: [], rules: [], unknown: 'ambiguous identical stylesheets' },
+  };
+  assert.doesNotThrow(() => assertDeterministicReach(first, structuredClone(first), 'home'));
+  assert.throws(
+    () =>
+      assertDeterministicReach(
+        first,
+        { elements: [], reach: { sheets: ['inline'], rules: [{ sheet: 0, key: '.a', hash: 'abc', used: true }] } },
+        'home',
+      ),
+    /self-check failed: home is non-deterministic.*reach/,
   );
 });
