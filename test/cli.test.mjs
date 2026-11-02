@@ -3299,3 +3299,21 @@ test('mixed trusted-SHA comparison refuses certification', () => {
   assert.match(result.stderr, /mixed spec\/ad-hoc captures are diagnostic only/);
   rmTmp(root);
 });
+
+test('empty baseline and ad-hoc head preserve bound first-run results', () => {
+  const { root, B } = differingPair();
+  const sha = 'a'.repeat(40);
+  const empty = path.join(root, 'empty');
+  fs.mkdirSync(empty);
+  const file = path.join(B, MAP_MANIFEST);
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+  Object.assign(manifest, { sha, dirty: false, spec: MAP_MANIFEST });
+  fs.writeFileSync(file, JSON.stringify(manifest));
+  const trusted = ['--expected-before-sha', sha, '--expected-after-sha', sha];
+  const first = run(DIFF, [empty, B, ...trusted]);
+  assert.equal(first.status, 3, first.stderr + first.stdout);
+  const missing = run(DIFF, [B, empty, ...trusted]);
+  assert.equal(missing.status, 2, missing.stderr + missing.stdout);
+  assert.match(missing.stderr, /head map missing/);
+  rmTmp(root);
+});
