@@ -48,6 +48,7 @@ export function isUnloadableTypeScriptConfig(filename: string, error: unknown): 
   if (error instanceof StyleProofConfigError && code === UNLOADABLE_TS) return true;
   return (
     code === 'ERR_UNKNOWN_FILE_EXTENSION' ||
+    /Cannot use import statement outside a module|Unexpected token ['"]export['"]/.test(errorMessage(error)) ||
     /Unknown file extension|ERR_UNKNOWN_FILE_EXTENSION/.test(errorMessage(error)) ||
     isMissingStyleProofPackage(error)
   );
@@ -304,7 +305,7 @@ function spawnConfigModuleEval(
 /** Run `run` against a temp copy of the config with bare specifiers rewritten to file URLs. */
 function withRewrittenConfigCopy<T>(
   filePath: string,
-  ext: '.mjs' | '.ts',
+  ext: '.mjs' | '.mts',
   run: (tmp: string, roots: string[], cwd: string) => T,
 ): T {
   const dir = path.dirname(filePath);
@@ -387,7 +388,7 @@ export function evaluateTypeScriptConfigSync(filePath: string): Record<string, u
     }
     plainError = error;
   }
-  const stripped = withRewrittenConfigCopy(filePath, '.ts', (tmp, roots, cwd) =>
+  const stripped = withRewrittenConfigCopy(filePath, '.mts', (tmp, roots, cwd) =>
     spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots, ['--experimental-strip-types']),
   );
   throwIfInvalidPolicy(stripped);

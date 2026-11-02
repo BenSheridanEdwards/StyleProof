@@ -398,6 +398,8 @@ Every supported `styleproof.config.ts` / `.mjs` / `.js` / `.json` is relevant,
 including package configs; source paths retain Unicode and control characters,
 and renames check both locations. A relevant change forces a fresh base capture.
 
+TypeScript config uses ESM syntax in projects with or without `"type": "module"`.
+
 After a cold base capture, CI can reuse head npm dependencies when the consumer started at head,
 package metadata is unchanged, and npm's hidden lockfile matches (allowing platform-excluded optional packages).
 This does not verify install scripts ran; cached or `--ignore-scripts` installs are used as-is.
