@@ -9,8 +9,8 @@
 // Restore probes and the cold base run in detached ephemeral worktrees.
 import fs from 'node:fs';
 import path from 'node:path';
-import { projectPlaywright } from './project-playwright.mjs';
 import { spawnSync } from 'node:child_process';
+import { projectPlaywright } from './project-playwright.mjs';
 import {
   browsersRequiredByCaptureConfig,
   evaluateBrowserPreflight,

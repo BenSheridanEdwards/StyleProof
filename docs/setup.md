@@ -93,8 +93,3 @@ claimed A. Existing source-binding, report-publication and approval guards remai
 unchanged.
 
 GitHub API contract: [Compare two commits](https://docs.github.com/rest/commits/commits#compare-two-commits).
-
-Playwright capture and CI browser installation try Playwright on PATH first. If
-that executable is missing, they resolve `@playwright/test/cli` from the consumer
-project and run it with Node. Errors name the project directory searched when
-neither location provides Playwright.

@@ -3,10 +3,10 @@
 // StyleProof spec (or restore a published map by SHA), stamp the manifest, and
 // optionally publish the bundle to the map store branch.
 import fs from 'node:fs';
-import { projectPlaywright } from './project-playwright.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { projectPlaywright } from './project-playwright.mjs';
 import { selectCaptureWorkers } from '../dist/capture-workers.js';
 import { missingSpecMessage, nonLinuxUploadWarning, playwrightMissingMessage } from '../dist/cli-errors.js';
 import {
@@ -108,7 +108,10 @@ const cli = defineCli({
     },
   },
   notes: [
-    'Playwright uses PATH first, then the project @playwright/test CLI. A styleproof.config.json at the repo root supplies project defaults — "spec", "dirtyAllow",',
+    'Playwright uses the project @playwright/test CLI when PATH has no runnable executable.',
+    'Windows batch shims use the project CLI via Node.',
+    '',
+    'A styleproof.config.json at the repo root supplies project defaults — "spec", "dirtyAllow",',
     '"cacheBranch", "remote" — with flags and env overriding it, except "dirtyAllow", which',
     'ACCUMULATES across config, STYLEPROOF_DIRTY_ALLOW, and every --dirty-allow flag.',
     '',

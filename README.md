@@ -297,6 +297,11 @@ after upgrading.
 
 ## Quickstart
 
+Capture and CI browser installation use the project's `@playwright/test/cli`
+when PATH has no runnable Playwright executable. On Windows, batch shims cannot
+be spawned directly, so the project CLI runs with Node. Failure diagnostics keep
+the underlying error codes and paths, including the project directory searched.
+
 StyleProof requires Node 22.13 or later, locally and in CI.
 
 ### Upgrading to 8.0.0
@@ -682,8 +687,3 @@ build the index with `npx gitnexus analyze --skip-agents-md`.
 ## License
 
 MIT © Ben Sheridan-Edwards
-
-Playwright capture and CI browser installation try Playwright on PATH first. If
-that executable is missing, they resolve `@playwright/test/cli` from the consumer
-project and run it with Node. Errors name the project directory searched when
-neither location provides Playwright.
