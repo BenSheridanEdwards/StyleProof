@@ -1173,3 +1173,31 @@ test(
     }
   },
 );
+
+test('refusal notice stops at the git boundary', { skip: process.platform === 'win32' }, async () => {
+  const root = mkTmp();
+  const originalWrite = process.stderr.write;
+  let output = '';
+  try {
+    const repo = path.join(root, 'repo');
+    const unsafe = path.join(repo, 'unsafe');
+    const nested = path.join(unsafe, 'nested');
+    fs.mkdirSync(nested, { recursive: true });
+    fs.mkdirSync(path.join(repo, '.git'));
+    fs.chmodSync(unsafe, 0o777);
+    fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
+    process.stderr.write = (chunk) => {
+      output += chunk;
+      return true;
+    };
+    await loadStyleProofConfigAsync(nested);
+    assert.equal(output, '');
+    fs.writeFileSync(path.join(repo, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
+    await loadStyleProofConfigAsync(nested);
+    assert.ok(output.includes(path.join(repo, 'styleproof.config.mjs')));
+  } finally {
+    process.stderr.write = originalWrite;
+    fs.chmodSync(path.join(root, 'repo', 'unsafe'), 0o700);
+    rmTmp(root);
+  }
+});
