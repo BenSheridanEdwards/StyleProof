@@ -7,8 +7,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Ignore unrelated JSON files in capture directories when comparing and reporting.
-
 ### Changed
 
 - Change Reach says matched in reports, headlines and CLI gates, and renames the section to "Changed but never matched". The `report.json` why strings now say "which matched a captured element" and "no matched rule references it". A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached. (#1238).
@@ -21,6 +19,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. Compare-only SIGTERM is ignored, so container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or crashes can leave `<repo>/.worktrees/styleproof-base-*`; the next `--capture-base` removes only hour-old, current-user scratch dirs with confirmed dead owners. The nested base checkout can inherit head root files through Node module resolution, postcss/browserslist config or pnpm workspace detection when the base lacks its own. The flag rejects two explicit directories.
 
 ### Fixed
+
+- Ignore unrelated JSON files in capture directories when comparing and reporting (#1245).
+  Maps saved with `saveStyleMap` without `<key>@<width>.json[.gz]` names are now ignored.
 
 - Change Reach no longer claims every changed served CSS rule matched (0) when no served rule changed. Strip, section and summary name changed stylesheets no capture served as not checked under both levels; `changeReach: 'gate'` does not hold them until the #934 join exists. ADR 0009 corrected (#1240).
 - Change Reach records served-rule reader failures as ledger unknown instead of failing the capture (#1239).

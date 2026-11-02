@@ -99,9 +99,9 @@ export function clearCaptureOutput(dir: string): void {
 const isScreenshotFile = (name: string): boolean => name.endsWith('.png');
 
 /** Remove StyleProof-owned top-level names whatever their type, plus files or symlinks named
- *  `*.json[.gz]`, `*.png` or `*.har`, in any letter case. Keep other files, real folders without
+ *  `<key>@<width>.json[.gz]`, `*.png` or `*.har`, in any letter case. Keep other files, real folders without
  *  StyleProof-owned names, and the folder itself (#1065).
- *  A stale `row.json` left beside a restored manifest would otherwise pair as
+ *  A stale `row@800.json` left beside a restored manifest would otherwise pair as
  *  a surface and hide its removal; a stale `row.png` would stand in for a screenshot the bundle
  *  lacks and turn `missing-after` into "compared, zero changes". */
 export function removeOwnedBundleEntries(dir: string): void {

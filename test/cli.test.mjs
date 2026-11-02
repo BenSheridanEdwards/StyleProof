@@ -1695,7 +1695,7 @@ test('styleproof-map --restore into a label folder replaces stale maps and keeps
   try {
     const label = path.join(repo, '.styleproof', 'maps', 'head');
     fs.mkdirSync(label, { recursive: true });
-    // `row@800.json` and `legacy@800.json.gz` lack the `@<width>` suffix, but the diff still reads them as maps.
+    // Both plain and compressed map names must be replaced during restore.
     const staleFiles = [
       'home@1280.json.gz',
       'gone@1280.json.gz',

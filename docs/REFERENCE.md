@@ -88,6 +88,11 @@ it or acknowledge it in policy. The approval box cannot clear it.
 
 ## Map transport and the never-commit guards
 
+Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
+map filenames (a nonempty key and integer width). Other JSON files are ignored.
+Writing diff or audit JSON beside captures changes the directory's evidence digest
+for later diff or report runs; keep outputs outside capture folders when matching evidence receipts.
+
 Maps travel as **workflow artifacts** (the default scaffold) or via the SHA-keyed
 `styleproof-maps` branch (opt in with `--storage branch`) — **never as files
 committed to the PR branch**. Committed maps show up as changed files in every
@@ -1954,7 +1959,3 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 
 Unchecked stylesheet guidance appears under **Not checked**, separate from held Reach evidence gaps, and includes the capture remedy.
-
-Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
-map filenames (a nonempty key and numeric width). Other JSON files are ignored,
-so diff and audit JSON output may be saved beside the captures.
