@@ -9,7 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Permit runtime-compatible ad-hoc design-vs-build diagnostic comparisons (#1244).
+- Permit runtime-compatible mixed spec/ad-hoc design comparisons as diagnostics; refuse mixed-pair trusted-SHA certification while preserving strict checks and certification for two ad-hoc or two spec bundles (#1244).
 
 ### Changed
 

@@ -63,6 +63,7 @@ const cli = defineCli({
     },
   },
   notes: [
+    'Mixed spec/ad-hoc pairs are diagnostic only and refuse trusted-SHA certification.',
     'exit: 0 identical — certified only when source-bound (--expected-before-sha and',
     '      --expected-after-sha); without them 0 is an UNVERIFIED DIAGNOSTIC, not',
     '      certification (--json certifiesFully: false), so the local and',
