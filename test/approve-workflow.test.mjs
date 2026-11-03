@@ -135,6 +135,7 @@ async function runApprove({
   headSha = REPORT_SHA,
   allowSelfApproval,
   existingComments = [],
+  latestStatuses,
   grants = CALLER_GRANTS,
   program = approveScript(),
   reportJson = '{"surfaces":[],"actionTrustState":"STYLE_REVIEW_REQUIRED"}',
@@ -195,7 +196,7 @@ async function runApprove({
         listCommitStatusesForRef: async () => {
           need('statuses', 'read');
           return {
-            data: [
+            data: latestStatuses ?? [
               {
                 context: 'StyleProof',
                 state: 'failure',
@@ -265,6 +266,110 @@ async function runApprove({
   }
 
   return { statuses, created, updated, outputs: context.approvalOutputs };
+}
+
+for (const [file, workflowYml] of [
+  ['reusable', reusableApproveYml],
+  ['example', approveYml],
+]) {
+  for (const [state, description] of [
+    ['failure', 'StyleProof run failed — see the run'],
+    ['pending', 'StyleProof report running — no verdict yet'],
+  ]) {
+    test(`${file}: tick → untick → tick cannot clear a ${state} re-run (#1261)`, async () => {
+      const latestStatuses = [
+        {
+          context: 'StyleProof',
+          state,
+          description,
+          creator: { login: 'github-actions[bot]', type: 'Bot' },
+        },
+      ];
+      const results = [];
+      for (const ticked of [true, false, true]) {
+        const result = await runApprove({
+          actor: REVIEWER,
+          body: reportComment({ ticked, suffix: ' — _approved by @a-reviewer_' }),
+          latestStatuses,
+          program: reusableApproveScript({ workflowYml }),
+        });
+        latestStatuses.unshift(
+          ...result.statuses.map((status) => ({
+            ...status,
+            creator: { login: 'github-actions[bot]', type: 'Bot' },
+          })),
+        );
+        results.push(result);
+      }
+      assert.notEqual(latestStatuses[0].state, 'success');
+      assert.deepEqual(
+        results.map((result) => result.statuses),
+        [[], [], []],
+        'tick → untick → tick writes nothing',
+      );
+      assert.deepEqual(
+        results.flatMap((result) => result.created),
+        [],
+        'no new reply wording',
+      );
+      assert.equal(results[1].updated[0].body, reportComment());
+    });
+  }
+  test(`${file}: untick only withdraws canonical approvals or preserves approvable red (#1261)`, async () => {
+    const canonical = { login: 'github-actions[bot]', type: 'Bot' };
+    for (const [latest, allowed] of [
+      [{ state: 'success', description: 'Approved by @a-reviewer (run 123)' }, true],
+      [{ state: 'failure', description: 'Tick "Approve all changes" to sign off', target_url: REPORT_URL }, true],
+      [
+        {
+          state: 'pending',
+          description: 'Fork PR — maps captured in an untrusted job; maintainer approval required',
+          target_url: REPORT_URL,
+        },
+        true,
+      ],
+      [{ state: 'success', description: 'No reviewable style changes' }, false],
+      [{ state: 'failure', description: 'StyleProof evidence failed' }, false],
+      [{ state: 'failure', description: 'StyleProof run cancelled' }, false],
+      [
+        {
+          state: 'failure',
+          description: 'Tick "Approve all changes" to sign off',
+          target_url: 'https://example.com/stale',
+        },
+        false,
+      ],
+      [
+        { state: 'success', description: 'Approved by @a-reviewer', creator: { login: 'other[bot]', type: 'Bot' } },
+        false,
+      ],
+      [
+        {
+          state: 'success',
+          description: 'Approved by @a-reviewer',
+          creator: { login: 'github-actions[bot]', type: 'User' },
+        },
+        false,
+      ],
+      [null, false],
+    ]) {
+      const result = await runApprove({
+        actor: AUTHOR,
+        body: reportComment({ suffix: ' — _approved by @a-reviewer_' }),
+        latestStatuses: latest
+          ? [
+              { context: 'unrelated', state: 'success' },
+              { context: 'StyleProof', creator: canonical, ...latest },
+            ]
+          : [],
+        program: reusableApproveScript({ workflowYml }),
+      });
+      assert.equal(result.statuses.length, allowed ? 1 : 0, JSON.stringify(latest));
+      if (allowed) assert.equal(result.statuses[0].state, 'failure');
+      assert.deepEqual(result.created, []);
+      assert.equal(result.updated[0].body, reportComment());
+    }
+  });
 }
 
 test('a write-access reviewer who is not the author still signs off (#477)', async () => {

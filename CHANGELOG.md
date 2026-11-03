@@ -31,6 +31,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Keep failed or unfinished StyleProof runs blocked when the approval box is unticked and ticked again (#1261).
+
 - Load TypeScript config in CommonJS projects as ESM (#1248). On Node 22.13.0,
   a config whose own body starts running and then throws is evaluated only once,
   without misleading TypeScript loader advice.

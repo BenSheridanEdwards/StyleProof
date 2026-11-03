@@ -274,6 +274,34 @@ jobs:
               }
             }
 
+            // The newest StyleProof status for this exact head is the canonical
+            // machine verdict. Only the Action's pending review verdict is eligible;
+            // certification failures, clean/approved reports, and stale target URLs
+            // cannot be waved through by a checkbox. A fork (untrusted capture) PR's
+            // verdict is always pending with the fork description — including a
+            // clean one, which only a maintainer's tick may turn green.
+            const readPendingStatus = async (withdraw = false) => {
+              const response = await github.rest.repos.listCommitStatusesForRef({
+                ...context.repo,
+                ref: headSha,
+                per_page: 100,
+              });
+              const latest = response.data.find((candidate) => candidate.context === STATUS);
+              const canonicalCreator =
+                latest?.creator?.type === 'Bot' && latest.creator.login === 'github-actions[bot]';
+              const eligibleFailure =
+                latest?.state === 'failure' &&
+                (latest?.description === 'StyleProof changes need sign-off — tick the box in the report comment' ||
+                  latest?.description === 'Tick "Approve all changes" to sign off' ||
+                  latest?.description?.startsWith('Needs a reviewer other than @'));
+              const eligibleUntrustedPending =
+                latest?.state === 'pending' &&
+                latest?.description === 'Fork PR — maps captured in an untrusted job; maintainer approval required';
+              const approvedStatus = latest?.state === 'success' && latest?.description?.startsWith('Approved by @');
+              return canonicalCreator && ((withdraw && approvedStatus) ||
+                ((eligibleFailure || eligibleUntrustedPending) && latest.target_url === reportUrl));
+            };
+
             // A tick is authority-bearing, so bind it to the one current immutable
             // publication before evaluating self-approval. Unticks remain a safe way to
             // withdraw approval and never need publication readback to turn the gate red.
@@ -301,31 +329,6 @@ jobs:
                 canonicalComments[0].body !== body
               ) return;
 
-              // The newest StyleProof status for this exact head is the canonical
-              // machine verdict. Only the Action's pending review verdict is eligible;
-              // certification failures, clean/approved reports, and stale target URLs
-              // cannot be waved through by a checkbox. A fork (untrusted capture) PR's
-              // verdict is always pending with the fork description — including a
-              // clean one, which only a maintainer's tick may turn green.
-              const readPendingStatus = async () => {
-                const response = await github.rest.repos.listCommitStatusesForRef({
-                  ...context.repo,
-                  ref: headSha,
-                  per_page: 100,
-                });
-                const latest = response.data.find((candidate) => candidate.context === STATUS);
-                const canonicalCreator =
-                  latest?.creator?.type === 'Bot' && latest.creator.login === 'github-actions[bot]';
-                const eligibleFailure =
-                  latest?.state === 'failure' &&
-                  (latest?.description === 'StyleProof changes need sign-off — tick the box in the report comment' ||
-                    latest?.description === 'Tick "Approve all changes" to sign off' ||
-                    latest?.description?.startsWith('Needs a reviewer other than @'));
-                const eligibleUntrustedPending =
-                  latest?.state === 'pending' &&
-                  latest?.description === 'Fork PR — maps captured in an untrusted job; maintainer approval required';
-                return canonicalCreator && (eligibleFailure || eligibleUntrustedPending) && latest.target_url === reportUrl;
-              };
               if (!(await readPendingStatus())) return;
 
               // Read both canonical artifacts of the immutable publication named by the
@@ -506,6 +509,13 @@ jobs:
                 pull_number: context.payload.issue.number,
               });
               if (latestPr.data.head.sha !== headSha) return;
+            }
+
+            // Withdrawing approval cannot make a failed or unfinished run approvable.
+            // Still clear the displayed approval suffix using the existing unticked box.
+            if (!approved && !(await readPendingStatus(true))) {
+              await renderBox(false, '');
+              return;
             }
 
             // A sign-off must come from someone other than the author. GitHub reports
