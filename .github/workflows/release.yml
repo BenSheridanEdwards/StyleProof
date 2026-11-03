@@ -34,6 +34,7 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest # styleproof is public, so GitHub-hosted runners are free
+    timeout-minutes: 30
     outputs:
       released: ${{ steps.check.outputs.released }}
       version: ${{ steps.check.outputs.version }}

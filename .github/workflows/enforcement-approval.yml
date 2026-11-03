@@ -33,6 +33,7 @@ jobs:
       (startsWith(github.event.comment.body, '<!-- enforcement-approval -->') ||
       startsWith(github.event.changes.body.from, '<!-- enforcement-approval -->')))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # Job-level, so a run whose job is skipped, such as an edit of any other
     # comment, never joins the group and cancels a queued gate run.
     concurrency:
