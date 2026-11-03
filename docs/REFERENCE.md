@@ -1694,7 +1694,7 @@ For advisory-only (the status goes red but the job stays green — useful when a
 
 In both the reusable and example approval workflows, a re-run of an approve run by anyone other than the original ticker is refused; tick the approval box again.
 
-It's **asynchronous by design**: approval is a checkbox tick handled by a separate workflow, so to clear the red you tick **Approve all changes**, then **re-run the StyleProof job** — the re-run sees the sign-off on the commit status and passes. (A new push that changes styles re-opens it.)
+It's **asynchronous by design**: approval is a checkbox tick handled by a separate workflow, so to clear the red you tick **Approve all changes**, then **re-run the StyleProof job** — the re-run verifies the sign-off receipt for the same commit, reviewable diff and trust state before passing. A changed diff needs a new tick. Approvals recorded before upgrading do not carry forward to a re-run; tick again once. Repositories that copied `example/styleproof-approve.yml` or pin the reusable approve workflow separately from the Action must update it with the Action, or re-runs after a tick will not keep the approval.
 
 **Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
 

@@ -1237,6 +1237,18 @@ function runActionPipeline({ cwd, beforeDir, afterDir, baseSha, headSha, certify
   };
 }
 
+test('verdict publishes a deterministic reviewDigest into report and diff (#1262)', (t) => {
+  const fixture = reachActionFixture(t, { level: 'gate' });
+  const first = runActionPipeline(fixture);
+  const second = runActionPipeline(fixture);
+  assert.match(first.diff.reviewDigest, /^[0-9a-f]{64}$/);
+  assert.equal(first.diff.reviewDigest, first.report.reviewDigest);
+  assert.equal(first.diff.reviewDigest, second.diff.reviewDigest);
+  assert.equal(second.diff.reviewDigest, second.report.reviewDigest);
+  const outputs = JSON.parse(fs.readFileSync(path.join(fixture.cwd, 'verdict.json'), 'utf8'));
+  assert.equal(outputs['diff-digest'], second.diff.reviewDigest);
+});
+
 function reachActionFixture(t, { level, legacyBase = false } = {}) {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-reach-'));
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
@@ -1495,7 +1507,21 @@ test('composite action treats incomplete forced-state evidence as unapprovable c
       reportConsistency: { ok: true, reason: 'aligned' },
       statesUncertified: 1,
       reviewableCounts: { dom: 0, style: 0, state: 1 },
-      surfaces: [{ surface: 'home@1280', findings: [{ kind: 'state' }] }],
+      surfaces: [
+        {
+          surface: 'home@1280',
+          findings: [
+            {
+              kind: 'state',
+              path: 'body',
+              cls: '',
+              state: 'hover',
+              sub: '',
+              props: [{ prop: 'color', before: 'red', after: 'blue' }],
+            },
+          ],
+        },
+      ],
       inventory: { added: [], removed: [], unacknowledged: [], staleAcknowledgements: [] },
       dataResidue: { blocking: 0, unacknowledged: [] },
     };
@@ -1724,7 +1750,20 @@ test('composite action does not expose raw-only findings as reviewable changes',
       comparison: { blocksCertification: false },
       reportConsistency: { ok: false, reason: 'raw_only_no_reviewable' },
       reviewableCounts: { dom: 0, style: 0, state: 0 },
-      surfaces: [{ surface: 'home@320', findings: [{ kind: 'style', path: '#noise' }] }],
+      surfaces: [
+        {
+          surface: 'home@320',
+          findings: [
+            {
+              kind: 'style',
+              path: '#noise',
+              cls: '',
+              pseudo: null,
+              props: [{ prop: 'margin-left', before: '0px', after: '10px' }],
+            },
+          ],
+        },
+      ],
       inventory: { added: [], removed: [], unacknowledged: [], staleAcknowledgements: [] },
       dataResidue: { blocking: 0, unacknowledged: [] },
     };
@@ -1960,7 +1999,8 @@ async function runGateStep(
   statuses,
   runOverrides = {},
   lookupError = false,
-  artifacts = [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: false }],
+  artifacts = [{ name: `styleproof-approval-42-${'a'.repeat(40)}-${'d'.repeat(64)}`, expired: false }],
+  digest = 'd'.repeat(64),
 ) {
   const match = actionYml.match(/- id: gate[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
   assert.ok(match, 'action.yml should contain the gate github-script program');
@@ -1968,6 +2008,7 @@ async function runGateStep(
     .split('\n')
     .map((line) => line.replace(/^ {10}/, ''))
     .join('\n')
+    .replaceAll('${{ steps.verdict.outputs.diff-digest }}', digest)
     .replaceAll('${{ steps.context.outputs.pr-number }}', '42')
     .replace("'${{ steps.diff.outputs.changed }}'", "'true'")
     .replaceAll('${{ steps.context.outputs.head-sha }}', 'a'.repeat(40))
@@ -2009,6 +2050,31 @@ async function runGateStep(
   );
   return outputs;
 }
+
+test('gate carries approval only for the current diff digest (#1262)', async () => {
+  const status = {
+    context: 'StyleProof',
+    state: 'success',
+    description: 'Approved by @reviewer (run 123)',
+    created_at: '2026-10-20T10:00:30Z',
+    creator: { login: 'github-actions[bot]', type: 'Bot' },
+  };
+  for (const [artifactDigest, currentDigest] of [
+    ['e'.repeat(64), 'd'.repeat(64)],
+    ['', 'd'.repeat(64)],
+    ['d'.repeat(64), ''],
+    ['', ''],
+    ['D'.repeat(64), 'D'.repeat(64)],
+  ]) {
+    const name = `styleproof-approval-42-${'a'.repeat(40)}${artifactDigest ? `-${artifactDigest}` : ''}`;
+    assert.deepEqual(
+      await runGateStep([status], {}, false, [{ name, expired: false }], currentDigest),
+      { approved: 'false', approver: '' },
+      `${artifactDigest} / ${currentDigest}`,
+    );
+  }
+  assert.equal((await runGateStep([status])).approved, 'true');
+});
 
 test('gate honours a prior approval only from the canonical github-actions[bot] creator', async () => {
   const status = (creator) => ({
@@ -2067,9 +2133,9 @@ test('approval run receipts fail closed on invalid metadata or timestamps', asyn
 
   for (const artifacts of [
     [],
-    [{ name: `styleproof-approval-42-${'a'.repeat(40)}`, expired: true }],
-    [{ name: `styleproof-approval-43-${'a'.repeat(40)}`, expired: false }],
-    [{ name: `styleproof-approval-42-${'b'.repeat(40)}`, expired: false }],
+    [{ name: `styleproof-approval-42-${'a'.repeat(40)}-${'d'.repeat(64)}`, expired: true }],
+    [{ name: `styleproof-approval-43-${'a'.repeat(40)}-${'d'.repeat(64)}`, expired: false }],
+    [{ name: `styleproof-approval-42-${'b'.repeat(40)}-${'d'.repeat(64)}`, expired: false }],
   ]) {
     assert.deepEqual(await runGateStep([status], {}, false, artifacts), rejected);
   }

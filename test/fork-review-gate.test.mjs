@@ -18,6 +18,7 @@ const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const nativeRequire = createRequire(import.meta.url);
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const HEAD_SHA = 'c'.repeat(40);
+const REVIEW_DIGEST = 'e'.repeat(64);
 const REPOSITORY = 'acme/app';
 const ARTIFACT_URL = `https://github.com/${REPOSITORY}/actions/runs/9001/artifacts/77`;
 const UNTRUSTED_DESCRIPTION = 'Fork PR — maps captured in an untrusted job; maintainer approval required';
@@ -107,6 +108,7 @@ function values({
     'steps.gate.outputs.approved': approved ? 'true' : 'false',
     'steps.gate.outputs.approver': approved ? approver : '',
     'steps.verdict.outputs.state': trustState,
+    'steps.verdict.outputs.diff-digest': REVIEW_DIGEST,
     'steps.config.outputs.blocking': 'true',
     'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': ARTIFACT_URL,
     'steps.report-artifact.outputs.artifact-digest': 'd'.repeat(64),
@@ -164,7 +166,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
     rest: {
       actions: {
         listWorkflowRunArtifacts: async () => ({
-          data: { artifacts: [{ name: `styleproof-approval-42-${HEAD_SHA}`, expired: false }] },
+          data: { artifacts: [{ name: `styleproof-approval-42-${HEAD_SHA}-${REVIEW_DIGEST}`, expired: false }] },
         }),
         getWorkflowRun: async () => ({
           data: {
@@ -874,7 +876,7 @@ test('the verdict step records the trusted untrusted-capture flag and the gate r
   assert.match(verdictStep, /STYLEPROOF_UNTRUSTED_CAPTURE: \$\{\{ steps\.context\.outputs\.untrusted-capture \}\}/);
   assert.match(verdictStep, /report\.untrustedCapture = process\.env\.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';/);
   const gateStep = actionYml.match(/- id: gate[\s\S]*?(?=\n {4}#|\n {4}- id:|\n {4}- name:)/)[0];
-  assert.match(gateStep, /if \(changed \|\| untrustedCapture\)/);
+  assert.match(gateStep, /if \(\(changed \|\| untrustedCapture\) &&/);
   assert.match(gateStep, /inputs\.mode == 'advisory'/);
   const contextStep = actionYml.match(/- id: context[\s\S]*?(?=\n {4}#|\n {4}- id:)/)[0];
   assert.match(contextStep, /core\.setOutput\('untrusted-capture', resolved && untrustedCapture \? 'true' : 'false'\)/);

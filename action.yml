@@ -657,6 +657,7 @@ runs:
         script: |
           const fs = require('fs');
           const { classifyStyleProofVerdict } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/verdict.js`);
+          const { reviewDiffDigest } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-digest.js`);
           const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
           const verdict = classifyStyleProofVerdict(diff, {
             gateInventoryRemovals: '${{ steps.config.outputs.gate-inventory-removals }}' !== 'false',
@@ -665,15 +666,19 @@ runs:
             certifyGate: process.env.STYLEPROOF_CERTIFY_GATE === 'true',
           });
           const { state, reviewableChanged, dataResidueKeys } = verdict;
+          const reviewDigest = reviewDiffDigest(diff, state);
           diff.actionTrustState = state;
+          diff.reviewDigest = reviewDigest;
           fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
           const reportPath = 'styleproof-report/report.json';
           const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
           report.actionTrustState = state;
+          report.reviewDigest = reviewDigest;
           // Always written by this trusted step (never inherited from generated output):
           // the approve workflow lets a maintainer sign off a clean verdict only when set.
           report.untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
           fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+          core.setOutput('diff-digest', reviewDigest);
           core.setOutput('state', state);
           core.setOutput('reviewable-changed', reviewableChanged ? 'true' : 'false');
           core.setOutput('data-residue-keys', JSON.stringify(dataResidueKeys));
@@ -697,7 +702,8 @@ runs:
           const untrustedCapture = '${{ steps.context.outputs.untrusted-capture }}' === 'true';
           let approved = false;
           let approver = '';
-          if (changed || untrustedCapture) {
+          const reviewDigest = '${{ steps.verdict.outputs.diff-digest }}';
+          if ((changed || untrustedCapture) && /^[0-9a-f]{64}$/.test(reviewDigest)) {
             const mine = JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null');
             // A bot identity alone is shared by every workflow token. Read back the
             // issue-comment run named by the approval and its original status receipt.
@@ -722,7 +728,7 @@ runs:
                     ...context.repo, run_id: m[2], per_page: 100,
                   });
                   const bound = artifacts.artifacts.some((artifact) => !artifact.expired &&
-                    artifact.name === 'styleproof-approval-${{ steps.context.outputs.pr-number }}-${{ steps.context.outputs.head-sha }}');
+                    artifact.name === `styleproof-approval-${{ steps.context.outputs.pr-number }}-${{ steps.context.outputs.head-sha }}-${reviewDigest}`);
                   // Carry-forward statuses still need the original receipt on this SHA.
                   const { data } = await github.rest.repos.listCommitStatusesForRef({
                     ...context.repo, ref: '${{ steps.context.outputs.head-sha }}', per_page: 100,
