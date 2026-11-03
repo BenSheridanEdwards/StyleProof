@@ -281,9 +281,12 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
 });
 
 test('CI compiles each fresh checkout once, through the install prepare step, and never reuses dist', () => {
-  // pnpm 11 runs the root project's own `prepare` on `pnpm install` (dependency
-  // build scripts stay blocked), and `prepare` runs `pnpm run build` (tsc). A
-  // second `pnpm run build` step recompiled the same tree in every lane (#1256).
+  // On a fresh `pnpm install` (no node_modules yet) pnpm 11 runs the root
+  // project's own `prepare` (dependency build scripts stay blocked), and
+  // `prepare` runs `pnpm run build` (tsc). A no-op reinstall over an existing
+  // node_modules skips `prepare`, so CI must never restore node_modules or
+  // anything else into the workspace. A second `pnpm run build` step
+  // recompiled the same tree in every lane (#1256).
   assert.equal(packageJson.scripts.build, 'tsc');
   assert.match(packageJson.scripts.prepare, /^pnpm run build && /);
   const workspace = load(fs.readFileSync(path.join(here, '..', 'pnpm-workspace.yaml'), 'utf8'));
@@ -291,14 +294,21 @@ test('CI compiles each fresh checkout once, through the install prepare step, an
   const npmrc = path.join(here, '..', '.npmrc');
   if (fs.existsSync(npmrc)) assert.doesNotMatch(fs.readFileSync(npmrc, 'utf8'), /ignore-scripts/);
 
-  const { jobs } = load(ci);
+  const workflow = load(ci);
+  const { jobs } = workflow;
   const installs = (step) => /\bpnpm install\b/.test(step.run ?? '');
   const installing = Object.keys(jobs).filter((name) => jobs[name].steps?.some(installs));
   assert.deepEqual(installing, ['build', 'coverage-shards', 'e2e', 'cli-smoke', 'detection-corpus']);
+  // npm_config_ignore_scripts / PNPM_CONFIG_IGNORE_SCRIPTS at any level would skip prepare.
+  const suppressesScripts = /ignore.?scripts/i;
+  assert.doesNotMatch(JSON.stringify(workflow.env ?? {}), suppressesScripts, 'workflow env skips the prepare build');
+  // Only the pnpm store and Playwright browsers are restored; nothing lands in the workspace.
+  const cachedPaths = new Set(['${{ steps.pnpm-store.outputs.path }}', '~/.cache/ms-playwright']);
 
   for (const name of installing) {
     const job = jobs[name];
     assert.equal(job['continue-on-error'], undefined, name);
+    assert.doesNotMatch(JSON.stringify(job.env ?? {}), suppressesScripts, `${name} env skips the prepare build`);
     const installIndex = job.steps.findIndex(installs);
     const install = job.steps[installIndex];
     assert.deepEqual(
@@ -309,11 +319,22 @@ test('CI compiles each fresh checkout once, through the install prepare step, an
     assert.equal(install.if, undefined, `${name} never skips the install that builds dist`);
     assert.equal(install['continue-on-error'], undefined, `${name} lets a failed prepare build fail the job`);
     assert.equal(install.env, undefined, name);
+    // The build runs on the requested Node, and pnpm/action-setup never installs (and so
+    // pre-builds, or leaves a node_modules that turns the real install into a no-op).
+    const setupNode = job.steps.findIndex((step) => step.uses?.startsWith('actions/setup-node@'));
+    const setupPnpm = job.steps.findIndex((step) => step.uses?.startsWith('pnpm/action-setup@'));
+    assert.ok(setupNode !== -1 && setupNode < installIndex, `${name} sets up the requested Node before install`);
+    assert.ok(setupPnpm !== -1 && setupPnpm < installIndex, `${name} sets up pnpm before install`);
+    assert.equal(job.steps[setupPnpm].with?.run_install, undefined, `${name}: pnpm/action-setup installs implicitly`);
 
     job.steps.forEach((step, index) => {
       const run = step.run ?? '';
       assert.doesNotMatch(run, /\bpnpm (run )?build\b|\btsc\b/, `${name} recompiles what prepare just built`);
-      assert.doesNotMatch(String(step.with?.path ?? ''), /\bdist\b|node_modules/, `${name} restores build output`);
+      const uses = step.uses ?? '';
+      assert.ok(!uses.startsWith('actions/download-artifact@'), `${name} downloads an artifact into the workspace`);
+      if (uses.startsWith('actions/cache')) {
+        assert.ok(cachedPaths.has(step.with?.path), `${name} restores '${step.with?.path}' into the workspace`);
+      }
       // Every dist consumer runs after the install that built it.
       if (/^(pnpm (--silent )?(run|exec|ls)|node) /.test(run)) {
         assert.ok(index > installIndex, `${name}: '${run}' runs before install built dist`);

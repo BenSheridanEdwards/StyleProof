@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- StyleProof's own CI builds each checkout once, in the `prepare` step of `pnpm install`, instead of again in a separate build step (#1256). The published package, CLI and Action are unchanged.
 - Change Reach says matched in reports, headlines and CLI gates, and renames the section to "Changed but never matched". The `report.json` why strings now say "which matched a captured element" and "no matched rule references it". A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached (#1238).
 
 ### Added

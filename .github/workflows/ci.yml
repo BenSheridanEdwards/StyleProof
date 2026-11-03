@@ -60,11 +60,12 @@ jobs:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml') }}
 
-      # Install is also the build: pnpm runs this package's own `prepare`
-      # (`pnpm run build`, i.e. tsc) on every install, so a type error fails
-      # this step. Every job here installs into a fresh checkout and caches
-      # only the pnpm store, never dist/, so dist/ is always this checkout's
-      # build. No job runs a second `pnpm run build` (#1256).
+      # Install is also the build: on a fresh install (no node_modules yet)
+      # pnpm runs this package's own `prepare` (`pnpm run build`, i.e. tsc),
+      # so a type error fails this step. A no-op reinstall over an existing
+      # node_modules skips `prepare`, so every job here installs into a fresh
+      # checkout and caches only the pnpm store and Playwright browsers, never
+      # node_modules or dist/. No job runs a second `pnpm run build` (#1256).
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - uses: actions/cache/save@v6
