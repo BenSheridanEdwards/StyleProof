@@ -87,6 +87,7 @@ async function commentBody({
   const github = {
     paginate: async (route, params) => (await route(params)).data,
     rest: {
+      pulls: { get: async () => ({ data: { head: { sha: 'c'.repeat(40) } } }) },
       issues: {
         listComments: async () => ({ data: [] }),
         createComment: async (input) => comments.push(input),

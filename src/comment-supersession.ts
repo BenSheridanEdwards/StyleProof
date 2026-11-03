@@ -1,8 +1,8 @@
 /**
  * Rerun-attempt supersession guard for the upserted PR comment: deliveries can
  * land out of order, so the comment records which attempt wrote it and the
- * upsert refuses to overwrite a LATER attempt of the SAME run. A different run
- * id always supersedes. Split-layout certify statuses additionally order their
+ * upsert refuses to overwrite a later attempt of the same run or a later run
+ * for the same head commit. Split-layout certify statuses additionally order their
  * capture run against GitHub's runs for the same workflow and head commit.
  */
 
@@ -25,21 +25,27 @@ export function parseRunAttemptReceiptMarker(commentBody: string): RunAttemptRec
   return { runId: match[1], runAttempt: match[2] };
 }
 
-/** True when this delivery may overwrite the existing comment; false only when a strictly greater attempt of the SAME run wrote it. */
+/** Keep later attempts of this run, and later runs when the same head is proven. */
 export function shouldSupersedeExistingComment(options: {
   existingCommentBody: string | null | undefined;
   runId: string;
   runAttempt: string;
+  headSha?: string;
 }): boolean {
   const existing = options.existingCommentBody ? parseRunAttemptReceiptMarker(options.existingCommentBody) : null;
-  if (existing === null || existing.runId !== options.runId) return true;
+  if (existing === null) return true;
+  if (existing.runId !== options.runId) {
+    const sameHead =
+      options.headSha && options.existingCommentBody?.includes(`<!-- styleproof-sha:${options.headSha} -->`);
+    return !sameHead || !/^\d+$/.test(options.runId) || BigInt(existing.runId) <= BigInt(options.runId);
+  }
   const existingAttempt = Number(existing.runAttempt);
   const deliveryAttempt = Number(options.runAttempt);
   if (!Number.isFinite(existingAttempt) || !Number.isFinite(deliveryAttempt)) return true;
   return existingAttempt <= deliveryAttempt;
 }
 
-/** Accept later-attempt receipts only from bots or verified repository writers. */
+/** Accept later delivery receipts only from bots or verified repository writers. */
 export async function findLaterAttemptReceipt(options: {
   github: {
     rest: {
@@ -56,6 +62,7 @@ export async function findLaterAttemptReceipt(options: {
   comments: readonly { body?: string | null; user?: { type?: string; login?: string } | null }[];
   runId: string;
   runAttempt: string;
+  headSha?: string;
 }): Promise<boolean> {
   const permissions = new Map<string, boolean>();
 
@@ -177,4 +184,76 @@ export async function captureRunSuperseded(options: {
     throw new Error('StyleProof: the capture run list is incomplete; delivery order cannot be proven');
   }
   return isSupersededCaptureRun(capture, data.workflow_runs);
+}
+
+/** Skip a failure write only when a trusted receipt proves a later run took this head. */
+export async function reviewRunSuperseded(options: {
+  github: {
+    rest: {
+      repos: {
+        listCommitStatusesForRef(parameters: {
+          owner: string;
+          repo: string;
+          ref: string;
+          per_page: number;
+        }): Promise<{ data: { context: string; target_url?: string | null }[] }>;
+      };
+      issues: { listComments: unknown };
+    };
+    paginate(
+      method: unknown,
+      parameters: {
+        owner: string;
+        repo: string;
+        issue_number: number;
+        per_page: number;
+      },
+    ): Promise<{ body?: string | null; user?: { type?: string } | null }[]>;
+  };
+  repo: { owner: string; repo: string };
+  headSha: string;
+  prNumber: number;
+  runId: string;
+  runAttempt: string;
+  statusContext: string;
+  commentMarker: string;
+}): Promise<boolean> {
+  if (!/^\d+$/.test(options.runId)) return false;
+  try {
+    const { data } = await options.github.rest.repos.listCommitStatusesForRef({
+      ...options.repo,
+      ref: options.headSha,
+      per_page: 100,
+    });
+    const latest = data.find((status) => status.context === options.statusContext);
+    const prefix = `https://github.com/${options.repo.owner}/${options.repo.repo}/actions/runs/`;
+    const runPath = latest?.target_url?.startsWith(prefix) ? latest.target_url.slice(prefix.length) : '';
+    const runId = runPath?.match(/^(\d+)(?:\/(?:artifacts|attempts)\/\d+)?\/?$/)?.[1];
+    if (runId && BigInt(runId) > BigInt(options.runId)) return true;
+  } catch {
+    // A missing status receipt cannot prove supersession. Try the comment too.
+  }
+  try {
+    const comments = await options.github.paginate(options.github.rest.issues.listComments, {
+      ...options.repo,
+      issue_number: options.prNumber,
+      per_page: 100,
+    });
+    return comments.some((comment) => {
+      if (comment.user?.type !== 'Bot' || !comment.body?.includes(options.commentMarker)) return false;
+      const receipt = parseRunAttemptReceiptMarker(comment.body);
+      return (
+        receipt !== null &&
+        !shouldSupersedeExistingComment({
+          existingCommentBody: comment.body,
+          runId: options.runId,
+          runAttempt: options.runAttempt,
+          headSha: options.headSha,
+        })
+      );
+    });
+  } catch {
+    // Unknown ordering must replace any earlier green with failure.
+    return false;
+  }
 }

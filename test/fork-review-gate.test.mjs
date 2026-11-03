@@ -59,7 +59,8 @@ function stepRuns(stepName, scenario) {
   const expression = condition
     .replace(/always\(\)/g, 'true')
     .replace(/failure\(\)/g, String(scenario.failed === true))
-    .replace(/success\(\)/g, String(!scenario.failed))
+    .replace(/cancelled\(\)/g, String(scenario.cancelled === true))
+    .replace(/success\(\)/g, String(!scenario.failed && !scenario.cancelled))
     .replace(/'([^']*)'|([a-z_]+(?:\.[\w-]+)+)/g, (_, literal, name) => {
       if (literal !== undefined) return JSON.stringify(literal);
       assert.ok(Object.hasOwn(given, name), `no test value for ${name} in the ${stepName} if:`);
@@ -87,9 +88,13 @@ function values({
   statusOutcome = '',
   trust,
   failed = false,
-  runSucceeded = !failed,
+  cancelled = false,
+  captureOutcome = 'success',
+  runSucceeded = !failed && !cancelled,
 }) {
   return {
+    'inputs.capture-outcome': captureOutcome,
+    'steps.run-cancelled.outputs.cancelled': cancelled ? 'true' : '',
     'steps.certify-success.outputs.succeeded': runSucceeded ? 'true' : '',
     'github.event_name': event,
     'inputs.allow-self-approval': 'false',
@@ -164,6 +169,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
   const github = {
     paginate: async (route, params) => (await route(params)).data,
     rest: {
+      pulls: { get: async () => ({ data: { head: { sha: HEAD_SHA } } }) },
       actions: {
         listWorkflowRunArtifacts: async () => ({
           data: { artifacts: [{ name: `styleproof-approval-42-${HEAD_SHA}-${REVIEW_DIGEST}`, expired: false }] },
@@ -918,9 +924,10 @@ test('a stale review delivery leaves the newer status untouched before processin
   assert.deepEqual(result.statuses, []);
 });
 
-test('review failure status runs only for real failures, never deliberate stale skips', () => {
+test('review failure status runs for failures and cancellation, never deliberate stale skips', () => {
   for (const mode of ['review-gate', 'migration', 'advisory']) {
     assert.equal(stepRuns('Set review failure status', { mode, failed: true }), true);
+    assert.equal(stepRuns('Set review failure status', { mode, cancelled: true }), true);
     assert.equal(stepRuns('Set review failure status', { mode, failed: false }), false);
     assert.equal(stepRuns('Set review failure status', { mode, failed: true, staleDelivery: 'true' }), false);
     assert.equal(stepRuns('Set review failure status', { mode, failed: true, reviewStale: 'true' }), false);
