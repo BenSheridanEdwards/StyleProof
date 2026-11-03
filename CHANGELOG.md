@@ -7,6 +7,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Failed or skipped captures now reach the Action and set a terminal failure status without
+  changing the PR comment; cancelled and timed-out runs request a re-run instead of leaving
+  pending or an earlier green/red verdict standing (#1263, #1264, #1265). The optional
+  `capture-outcome` Action input defaults to `success` for existing callers.
+- Generated workflows cancel superseded PR capture/report jobs without cancelling branch
+  storage publication or pruning. Late deliveries preserve a newer report comment, and
+  failed runs preserve a proven later run's status on the same commit (#1266).
+  Every comment and status delivery honours review pending's supersession result.
+  Cross-run comment receipts trust only `github-actions[bot]`; same-run attempt
+  receipts still accept bots or verified repository writers. With a personal-access
+  or App token, cross-run ordering relies on the status receipt. Failed captures skip
+  status writes only when the PR is proven closed or its head moved; PR lookup errors
+  warn and still write failure. Captures awaiting workflow
+  approval get a distinct unapprovable failure description.
+  Run `npx styleproof-init --upgrade` to refresh existing single and split scaffolds.
+
 ### Migration
 
 1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
@@ -99,7 +115,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Miss stored-base restores when the colocated harness changes, without changing base/head comparability; existing stored bases miss once (#1135).
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
 - Review runs set the status pending before processing, so a failing re-run cannot keep an
-  earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).
+  earlier success; errors before a verdict set failure. Cancelled re-runs now set failure
+  with a re-run description (#1146, #1264, #1265).
 - Later-attempt receipts need a bot or repository write permission, so read-only members and
   collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
 

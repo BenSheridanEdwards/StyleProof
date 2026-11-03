@@ -866,7 +866,10 @@ for (const storage of ['artifact', 'branch']) {
         files: { 'styleproof-report/report.md': '## StyleProof report\nNo changes detected.\n### Details\n' },
         github: {
           paginate: async () => [],
-          rest: { issues: { createComment: async ({ body }) => comments.push(body) } },
+          rest: {
+            issues: { createComment: async ({ body }) => comments.push(body) },
+            pulls: { get: async () => ({ data: { head: { sha: 'a'.repeat(40) } } }) },
+          },
         },
       });
       assert.equal(comments.length, 1);
