@@ -1484,3 +1484,42 @@ function linkNodeModules(dir: string) {
     'dir',
   );
 }
+
+test('documented design-vs-build commands compare identical and changed styles', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-design-build-'));
+  try {
+    writeFixtureApp(app, await freePort());
+    const page = path.join(app, 'design.html');
+    fs.writeFileSync(page, '<!doctype html><html><body><p style="color: red">Hello</p></body></html>');
+    const url = pathToFileURL(page).href;
+    const init = run(app, process.execPath, [INIT, '--external-server', '--base-url', url]);
+    expect(init.status, init.stderr).toBe(0);
+    fs.writeFileSync(
+      path.join(app, 'e2e/styleproof.spec.ts'),
+      `import { defineStyleMapCapture } from 'styleproof';
+defineStyleMapCapture({ surfaces: [{ key: 'index', widths: [1280], go: async page => { await page.goto(${JSON.stringify(url)}); } }], dir: process.env.STYLEMAP_DIR });`,
+    );
+    const capture = run(app, process.execPath, [CLI, 'capture']);
+    expect(capture.status, capture.stderr + capture.stdout).toBe(0);
+    for (const changed of [false, true]) {
+      if (changed) fs.writeFileSync(page, '<!doctype html><html><body><p style="color: blue">Hello</p></body></html>');
+      const design = run(app, process.execPath, [
+        path.join(root, 'bin/styleproof-capture.mjs'),
+        url,
+        '--key',
+        'index',
+        '--widths',
+        '1280',
+        '--out',
+        'design',
+      ]);
+      expect(design.status, design.stderr + design.stdout).toBe(0);
+      const diff = run(app, process.execPath, [DIFF, 'design', '.styleproof/maps/current', '--allow-unasserted']);
+      expect(diff.status, diff.stderr + diff.stdout).toBe(changed ? 1 : 0);
+      expect(diff.stderr).toContain('UNVERIFIED DIAGNOSTIC: mixed spec/ad-hoc');
+      if (changed) expect(diff.stdout).toContain('color:');
+    }
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});

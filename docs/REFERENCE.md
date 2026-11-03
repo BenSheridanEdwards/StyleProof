@@ -1009,8 +1009,16 @@ When you build a design in production, "looks the same" is a judgement call — 
 
 ```bash
 styleproof-capture https://example.com/pricing --key pricing --widths 1440,1024,768 --out design
-styleproof-diff design .styleproof/maps/current   # design vs build — zero diff = pixel-identical
+styleproof-diff design .styleproof/maps/current --allow-unasserted   # design vs build — zero diff = no computed-style differences
 ```
+
+Mixed spec/ad-hoc design comparisons check runtime identity and are diagnostic, never certification.
+`--allow-unasserted` permits unasserted completeness and unknown determinism: exit 0
+means no reviewable differences, 1 means differences or other evidence blockers,
+and 2 means incompatible runtimes or a capture/usage error. Match surface keys and
+widths on both sides: inspect `ls .styleproof/maps/current` for the build’s auto-detected
+widths, or pass the same widths to both captures. Mixed pairs refuse trusted-SHA
+certification. Zero computed-style differences do not prove pixel identity.
 
 You watch one number as you implement: the diff starts large and shrinks toward zero, and it hits zero the moment the built page matches the design. It's the objective version of putting the mockup and the app side by side and squinting.
 
@@ -1024,7 +1032,7 @@ It follows the nav too: every same-origin page the site links to is crawled the 
 
 ```bash
 styleproof-capture https://example.com --crawl --out design    # maps every reachable surface
-styleproof-diff design .styleproof/maps/current                # diff the whole surface vs your build
+styleproof-diff design .styleproof/maps/current --allow-unasserted             # diff the whole surface vs your build
 ```
 
 It's **exhaustive by default**: the crawl stops when there is nothing left to drive — every control tried once, every structurally new surface captured — not at a budget. Dedup bounds the normal case — controls dedup by selector, surfaces by a structural fingerprint, so a finite UI runs out of new surfaces — and the `--max-depth` cap bounds the pathological one: an append-generator (a composer that appends a fresh-identity node per click) never repeats a fingerprint, so dedup can't stop it; the depth cap (16 by default) does. `--max-depth` / `--max-actions` / `--max-states` are otherwise deliberate throttles. It's deterministic (document order; the same surface reached two ways is captured once) and self-settling — it waits for an async app (React/Vue/Babel that boots after `load`) to mount before reading, so a bare crawl of a client-rendered page still captures the mounted UI.

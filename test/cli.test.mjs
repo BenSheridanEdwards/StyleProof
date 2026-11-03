@@ -3252,3 +3252,71 @@ test('styleproof-map keeps a local capture local unless upload is requested', ()
     rmTmp(binDir);
   }
 });
+
+for (const changed of [false, true]) {
+  test(`design-vs-build diagnostic reports ${changed ? 'real differences' : 'identical styles'}`, () => {
+    const { root, A, B } = differingPair();
+    if (!changed) {
+      for (const name of fs.readdirSync(A).filter(isMapFile)) fs.copyFileSync(path.join(A, name), path.join(B, name));
+    }
+    const file = path.join(A, MAP_MANIFEST);
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    manifest.spec = MAP_MANIFEST;
+    manifest.compatibilityKey = fixtureCompatibilityKey('adhoc-design');
+    fs.writeFileSync(file, JSON.stringify(manifest));
+    const r = run(DIFF, [A, B, '--allow-unasserted']);
+    assert.equal(r.status, changed ? 1 : 0, r.stderr + r.stdout);
+    assert.match(r.stderr, /UNVERIFIED DIAGNOSTIC: mixed spec\/ad-hoc/);
+    rmTmp(root);
+  });
+}
+
+test('two ad-hoc bundles retain strict compatibility checks', () => {
+  const { root, A, B } = differingPair();
+  for (const dir of [A, B]) {
+    const file = path.join(dir, MAP_MANIFEST);
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    manifest.spec = MAP_MANIFEST;
+    manifest.compatibilityKey = fixtureCompatibilityKey(dir === A ? 'one' : 'two');
+    fs.writeFileSync(file, JSON.stringify(manifest));
+  }
+  const result = run(DIFF, [A, B, '--allow-unasserted']);
+  assert.equal(result.status, 2, result.stderr + result.stdout);
+  assert.match(result.stderr, /different capture compatibility contracts/);
+  rmTmp(root);
+});
+
+test('mixed trusted-SHA comparison refuses certification', () => {
+  const { root, A, B } = differingPair();
+  const sha = 'a'.repeat(40);
+  for (const dir of [A, B]) {
+    const file = path.join(dir, MAP_MANIFEST);
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    manifest.sha = sha;
+    manifest.dirty = false;
+    if (dir === A) manifest.spec = MAP_MANIFEST;
+    fs.writeFileSync(file, JSON.stringify(manifest));
+  }
+  const result = run(DIFF, [A, B, '--expected-before-sha', sha, '--expected-after-sha', sha]);
+  assert.equal(result.status, 2, result.stderr + result.stdout);
+  assert.match(result.stderr, /mixed spec\/ad-hoc captures are diagnostic only/);
+  rmTmp(root);
+});
+
+test('empty baseline and ad-hoc head preserve bound first-run results', () => {
+  const { root, B } = differingPair();
+  const sha = 'a'.repeat(40);
+  const empty = path.join(root, 'empty');
+  fs.mkdirSync(empty);
+  const file = path.join(B, MAP_MANIFEST);
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+  Object.assign(manifest, { sha, dirty: false, spec: MAP_MANIFEST });
+  fs.writeFileSync(file, JSON.stringify(manifest));
+  const trusted = ['--expected-before-sha', sha, '--expected-after-sha', sha];
+  const first = run(DIFF, [empty, B, ...trusted]);
+  assert.equal(first.status, 3, first.stderr + first.stdout);
+  const missing = run(DIFF, [B, empty, ...trusted]);
+  assert.equal(missing.status, 2, missing.stderr + missing.stdout);
+  assert.match(missing.stderr, /head map missing/);
+  rmTmp(root);
+});

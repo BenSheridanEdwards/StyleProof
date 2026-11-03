@@ -95,9 +95,10 @@ common:
   --no-screenshots  write lean .json.gz maps only (screenshots on by default)
   -h, --help        show this help
 
-Then diff against another capture — zero diff = pixel-identical:
+Then diff against another capture — diagnostic computed-style comparison (not certification):
   ${COMMAND} https://example.com --crawl --out design
-  styleproof-diff design .styleproof/maps/current
+  styleproof-diff design .styleproof/maps/current --allow-unasserted
+  Exit 0: no reviewable differences; 1: differences/evidence blockers; 2: capture/runtime error.
 
 env:
   STYLEPROOF_STALL_TIMEOUT_MS

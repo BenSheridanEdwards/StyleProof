@@ -20,6 +20,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Permit runtime-compatible mixed spec/ad-hoc design comparisons as diagnostics; refuse mixed-pair trusted-SHA certification while preserving strict checks and certification for two ad-hoc or two spec bundles (#1244).
 - `./node_modules/.bin/styleproof capture` now finds project Playwright when
   `node_modules/.bin` is absent from PATH (#1247).
 
