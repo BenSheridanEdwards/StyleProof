@@ -388,6 +388,13 @@ Opt-in flags reproduce the heavier architectures:
   diff; certify approves nothing, so a fork PR's status stays `pending`.
   `split + branch + review-gate` reproduces the pre-v7 scaffold exactly.
 
+Generated workflows cancel superseded capture/report jobs for the same PR or head
+repository and branch. Failed captures and cancelled runs end with a failure
+status requesting a re-run, without rewriting the report comment. Late reports
+preserve the comment for the current PR head and a proven later run's status on
+the same commit. Run `npx styleproof-init --upgrade` to adopt this scheduling and
+capture-failure handling in existing workflows.
+
 Existing scaffolds keep their architecture: a marker in the generated workflow
 records the chosen mode, and `styleproof-init --check` / `--upgrade` verify
 that mode's file set instead of rewriting it. To switch an existing scaffold,

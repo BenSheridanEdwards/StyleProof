@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import yaml from 'js-yaml';
+import { mkTmp, rmTmp } from './helpers.mjs';
 
 const action = yaml.load(fs.readFileSync(new URL('../action.yml', import.meta.url), 'utf8'));
 const steps = action.runs.steps;
@@ -194,6 +195,97 @@ for (const [head, existingHead, existingRun, stale, count] of [
     assert.equal(result.writes.length, count);
   });
 }
+
+for (const workflow of ['single', 'split'])
+  for (const storage of ['artifact', 'branch'])
+    for (const mode of ['certify', 'review-gate', 'advisory']) {
+      test(`scaffold ${workflow}/${storage}/${mode} delivers failed captures and isolates concurrency`, () => {
+        const root = mkTmp();
+        try {
+          fs.writeFileSync(`${root}/package.json`, '{"name":"fixture","private":true}');
+          // Invoke from the fixture, as consumers do.
+          const init = spawnSync(
+            process.execPath,
+            [
+              new URL('../bin/styleproof-init.mjs', import.meta.url).pathname,
+              '--workflow',
+              workflow,
+              '--storage',
+              storage,
+              '--mode',
+              mode,
+              '--external-server',
+            ],
+            { cwd: root, encoding: 'utf8' },
+          );
+          assert.equal(init.status, 0, init.stderr);
+          const capture = yaml.load(fs.readFileSync(`${root}/.github/workflows/styleproof.yml`, 'utf8'));
+          const job = capture.jobs[workflow === 'single' ? 'styleproof' : 'capture'];
+          assert.equal(capture.concurrency, undefined);
+          assert.equal(job.concurrency['cancel-in-progress'], true);
+          assert.match(job.concurrency.group, /github.workflow/);
+          assert.match(job.concurrency.group, /github.event.pull_request.number/);
+          for (const name of ['publish-base', 'prune', 'sweep'])
+            if (capture.jobs[name]) assert.equal(capture.jobs[name].concurrency, undefined);
+          const report =
+            workflow === 'single'
+              ? job
+              : yaml.load(fs.readFileSync(`${root}/.github/workflows/styleproof-report.yml`, 'utf8')).jobs.report;
+          const actionStep = report.steps.find((entry) => entry.uses?.includes('BenSheridanEdwards/StyleProof@'));
+          for (const outcome of ['failure', 'cancelled']) assert.equal(condition(actionStep.if, {}, outcome), true);
+          if (workflow === 'single') assert.equal(actionStep.with['capture-outcome'], '${{ steps.maps.outcome }}');
+          else {
+            for (const outcome of ['success', 'failure', 'cancelled', 'timed_out', 'startup_failure']) {
+              assert.equal(
+                condition(report.if, {
+                  'github.event.workflow_run.event': 'pull_request',
+                  'github.event.workflow_run.conclusion': outcome,
+                }),
+                true,
+              );
+            }
+            assert.equal(
+              condition(report.if, {
+                'github.event.workflow_run.event': 'pull_request',
+                'github.event.workflow_run.conclusion': 'skipped',
+              }),
+              false,
+            );
+            const download = report.steps.find((entry) => entry.uses?.startsWith('actions/download-artifact'));
+            assert.ok(download.id);
+            for (const entry of [download, report.steps.find((entry) => entry.id === 'capture-meta')]) {
+              assert.equal(condition(entry.if, { 'github.event.workflow_run.conclusion': 'failure' }), false);
+              assert.equal(condition(entry.if, { 'github.event.workflow_run.conclusion': 'success' }), true);
+            }
+            for (const conclusion of ['success', 'failure', 'cancelled', 'timed_out']) {
+              for (const downloadOutcome of ['success', 'failure', 'cancelled', 'skipped']) {
+                assert.equal(
+                  expressionValue(actionStep.with['capture-outcome'], {
+                    'github.event.workflow_run.conclusion': conclusion,
+                    [`steps.${download.id}.outcome`]: downloadOutcome,
+                  }),
+                  conclusion === 'success' ? downloadOutcome : conclusion,
+                );
+              }
+            }
+            assert.equal(
+              condition(report.if, {
+                'github.event.workflow_run.event': 'push',
+                'github.event.workflow_run.conclusion': 'failure',
+              }),
+              false,
+            );
+            assert.match(actionStep.with['capture-outcome'], /github.event.workflow_run.conclusion/);
+            assert.match(actionStep.with['capture-outcome'], new RegExp(`steps\\.${download.id}\\.outcome`));
+            assert.equal(report.concurrency['cancel-in-progress'], true);
+            assert.match(report.concurrency.group, /head_repository.full_name/);
+            assert.match(report.concurrency.group, /head_branch/);
+          }
+        } finally {
+          rmTmp(root);
+        }
+      });
+    }
 
 test('a delayed pending write cannot erase a later run status before the failure guard reads it', async () => {
   const statuses = [

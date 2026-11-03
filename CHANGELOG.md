@@ -11,6 +11,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   changing the PR comment; cancelled and timed-out runs request a re-run instead of leaving
   pending or an earlier green/red verdict standing (#1263, #1264, #1265). The optional
   `capture-outcome` Action input defaults to `success` for existing callers.
+- Generated workflows cancel superseded PR capture/report jobs without cancelling branch
+  storage publication or pruning. Late deliveries preserve a newer report comment, and
+  failed runs preserve a proven later run's status on the same commit (#1266).
+  Run `npx styleproof-init --upgrade` to refresh existing single and split scaffolds.
 
 ### Migration
 
