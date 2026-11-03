@@ -9,6 +9,7 @@
       "files": [
         {
           "source": "https://script.test/original.js",
+          "sourceKey": "/original.js",
           "contentHash": "59fc5e53a925740fbe2b382ee557e9794f5f2117fd920e3c5e2ac8a44355f754",
           "executed": [
             {
@@ -18,7 +19,7 @@
               },
               "end": {
                 "line": 1,
-                "column": 23
+                "column": 0
               }
             },
             {
@@ -28,7 +29,7 @@
               },
               "end": {
                 "line": 2,
-                "column": 13
+                "column": 0
               }
             },
             {
@@ -38,7 +39,7 @@
               },
               "end": {
                 "line": 3,
-                "column": 46
+                "column": 0
               }
             },
             {
@@ -48,7 +49,7 @@
               },
               "end": {
                 "line": 7,
-                "column": 1
+                "column": 0
               }
             },
             {
@@ -58,7 +59,7 @@
               },
               "end": {
                 "line": 8,
-                "column": 13
+                "column": 0
               }
             }
           ],
@@ -70,7 +71,7 @@
               },
               "end": {
                 "line": 4,
-                "column": 10
+                "column": 0
               }
             }
           ],
@@ -82,7 +83,7 @@
               },
               "end": {
                 "line": 5,
-                "column": 48
+                "column": 0
               }
             },
             {
@@ -92,7 +93,7 @@
               },
               "end": {
                 "line": 6,
-                "column": 3
+                "column": 0
               }
             }
           ]

@@ -1438,23 +1438,45 @@ setting does not clear the report's J2 gap or change its verdict.
 
 `StyleMap.scriptReach` has `{ version: 1, window, status, reason?, scripts }`.
 Each script records its URL, a `mapped`, `unmeasured` or `unknown` status, and
-mapped `files` or a reason. Original files hold `source`, optional SHA-256
+mapped `files` or a reason. Original files hold `source`, an origin-independent
+`sourceKey`, optional SHA-256
 `contentHash`, and `executed`, `mixed`, `unexecuted` arrays of `{ start, end }`
 positions. Lines are 1-based, UTF-16 columns 0-based, ends exclusive. These are
 source-map segment spans, not a claim about unmapped code. A V8 boundary inside
 a segment is `mixed`; it cannot be interpolated into an exact original column.
-When no original content or next same-line mapping supplies an end, equal start
-and end positions preserve only the mapping anchor. `sourcesContent` supplies
+Each span ends at the next greater original anchor for that source on that line,
+using all mappings sorted by original position. Without a later anchor, equal
+start and end positions preserve only the mapping anchor; original line length
+never stretches coverage across unmapped code. HTTP source keys use the
+origin-relative path, so different capture hosts or ports do not change identity. `sourcesContent` supplies
 the hash; an absent/null entry leaves the hash absent. No original files are
 fetched to invent hashes. Vendored `node_modules` sources are excluded.
 
 Inline data maps, `sourceMappingURL` references and `SourceMap`/`X-SourceMap`
-response headers are supported through page/CDP fetches. Unsupported maps
+response headers are supported through page/CDP fetches. File maps are read
+directly from disk, including under persistent browser contexts. HTTP map fetches
+include page credentials and go through Playwright/HAR routing. A blocked page
+fetch falls back to Chromium’s CDP network loader with credentials; this fallback
+can bypass Playwright/HAR routing. Only capture builds whose source-map URLs you
+trust. Each resource attempt is bounded to 500 ms and all map reads together
+share a 1500 ms budget. Unread scripts become `unknown` when the budget expires. Unsupported maps
 (including indexed/section maps), malformed mappings and failed reads record
 `unknown` with a reason. Scripts without a map record `unmeasured` by URL.
 Legacy maps and captures without the setting have no `scriptReach` field and
 supply no script evidence. Coverage shared with a spec's `page.coverage` is
-`unmeasured`, including coverage enabled before StyleProof starts. Evidence over
+`unmeasured`, including coverage enabled before StyleProof starts. Ownership is
+checked without starting or stopping public coverage as a probe. StyleProof
+reads Playwright’s in-process ownership bridge and treats external CDP
+controllers conservatively as potentially shared profilers. Transports or
+Playwright versions without that read-only bridge record `unmeasured` with
+`script coverage ownership unavailable`. Non-Chromium records
+`script coverage requires Chromium`. A later public coverage start releases
+StyleProof’s CDP session before starting the spec’s session. Ownership is checked
+again before taking counters and before stopping coverage, including pre-bound
+collectors. If another collector is active at cleanup, CDP teardown waits for
+page close so it cannot disable that collector. Returned V8 evidence is also
+validated, so a lost/empty/non-binary
+coverage result never counts as measured. `blob:` UUID scripts are excluded. Evidence over
 1 MiB becomes `unknown` instead of silently truncating sources or bloating the
 capture bundle. No raw V8 coverage, source-map text or original content is stored.
 
@@ -1463,7 +1485,11 @@ For direct capture, arm `trackScriptReach(page)` **before** navigation, pass
 tracker in `finally`. Use a new tracker for every capture; without one, evidence
 is `unmeasured`. A `go()` that does not navigate after arming also records
 `unmeasured`: earlier module execution cannot be recovered. A self-check compares mapped app-source ranges and hashes;
-changed or missing evidence makes the capture unproven just like J1.
+changed execution in a mapped app file makes the capture unproven just like J1.
+Generated script URLs, capture origins and non-mapped gaps are not execution
+evidence. If gaps or availability differ between runs (including a one-sided
+map-fetch failure), the saved script reach becomes `unknown` with
+`script evidence not reproducible` rather than failing the capture.
 
 ## Optional: selective remap (advisory + CI opt-in)
 

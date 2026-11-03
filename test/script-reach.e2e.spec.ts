@@ -85,7 +85,7 @@ test('coverage already owned by the spec stays unmeasured and leaves its session
   }
 });
 
-for (const mode of ['inline', 'header', 'malformed', 'missing-content'] as const) {
+for (const mode of ['inline', 'header', 'x-header', 'malformed', 'missing-content'] as const) {
   test(`source-map acquisition: ${mode}`, async ({ page }) => {
     const original = readFileSync(new URL('bundle.js', root), 'utf8').replace(/\/\/# sourceMappingURL=.*\n?/, '');
     const map = JSON.parse(readFileSync(new URL('bundle.js.map', root), 'utf8'));
@@ -96,9 +96,9 @@ for (const mode of ['inline', 'header', 'malformed', 'missing-content'] as const
         : 'branch.map';
     await page.route('https://script.test/bundle.js', (route) =>
       route.fulfill({
-        body: original + (mode === 'header' ? '' : `\n//# sourceMappingURL=${reference}`),
+        body: original + (mode.endsWith('header') ? '' : `\n//# sourceMappingURL=${reference}`),
         contentType: 'application/javascript',
-        headers: mode === 'header' ? { SourceMap: reference } : {},
+        headers: mode === 'header' ? { SourceMap: reference } : mode === 'x-header' ? { 'X-SourceMap': reference } : {},
       }),
     );
     await page.route('https://script.test/branch.map', (route) =>
@@ -198,7 +198,8 @@ test('a spec starting coverage during capture retains a usable session', async (
     expect(
       (await page.coverage.stopJSCoverage()).some(
         (entry) =>
-          entry.url.endsWith('/bundle.js') && entry.functions.some((fn) => fn.ranges.some((range) => range.count > 0)),
+          entry.url.endsWith('/bundle.js') &&
+          entry.functions.some((fn) => fn.ranges.some((range) => range.count === 0)),
       ),
     ).toBe(true);
   } finally {
@@ -236,5 +237,245 @@ test('same-document hash navigation cannot recover earlier module execution', as
     expect(map.scriptReach?.status).toBe('unmeasured');
   } finally {
     await scriptReach.dispose();
+  }
+});
+
+test('review 2: pre-bound coverage methods cannot turn a shared session into measured-empty evidence', async ({
+  page,
+}) => {
+  const start = page.coverage.startJSCoverage.bind(page.coverage);
+  const stop = page.coverage.stopJSCoverage.bind(page.coverage);
+  const tracker = await trackScriptReach(page);
+  try {
+    await start();
+    await page.goto('https://script.test/');
+    await stop();
+    const map = await captureStyleMap(page, {
+      captureScriptReach: true,
+      scriptReach: tracker,
+      stabilize: false,
+      captureStates: false,
+    });
+    expect(map.scriptReach).toMatchObject({ status: 'unmeasured', reason: 'shared V8 precise coverage', scripts: [] });
+  } finally {
+    await tracker.dispose();
+  }
+});
+
+test('review 9: an existing raw CDP coverage session keeps its unexecuted blocks', async ({ page }) => {
+  const raw = await page.context().newCDPSession(page);
+  await raw.send('Profiler.enable');
+  await raw.send('Profiler.startPreciseCoverage', { callCount: true, detailed: true });
+  await page.goto('https://script.test/');
+  const tracker = await trackScriptReach(page);
+  await tracker.dispose();
+  const result = await raw.send('Profiler.takePreciseCoverage');
+  expect(
+    result.result.find((e) => e.url.endsWith('/bundle.js'))?.functions.some((f) => f.ranges.some((r) => r.count === 0)),
+  ).toBe(true);
+  await raw.detach();
+});
+
+test('review 7: local maps do not require opening a browser page', async ({ page }) => {
+  const browser = page.context().browser()!;
+  const original = browser.newPage;
+  browser.newPage = async () => {
+    throw new Error('newPage unavailable in persistent context');
+  };
+  const tracker = await trackScriptReach(page);
+  try {
+    await page.goto(new URL('index.html', root).href);
+    const map = await captureStyleMap(page, {
+      captureScriptReach: true,
+      scriptReach: tracker,
+      stabilize: false,
+      captureStates: false,
+    });
+    expect(map.scriptReach?.scripts.find((s) => s.url.endsWith('/bundle.js'))?.status).toBe('mapped');
+  } finally {
+    browser.newPage = original;
+    await tracker.dispose();
+  }
+});
+
+test('review 11: popup captures retain mapped navigation evidence', async ({ page }, testInfo) => {
+  const { captureSurface } = await import('../dist/runner/surface-capture.js');
+  const { resolveSettings } = await import('../dist/runner/settings.js');
+  const { loadStyleMap } = await import('../dist/capture.js');
+  await page.route('https://script.test/', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><body><button type="button" onclick="document.querySelector(\'dialog\').showModal()">Open panel</button><dialog>Panel</dialog><script src="bundle.js"></script></body>',
+    }),
+  );
+  const settings = resolveSettings({
+    dir: testInfo.outputPath('maps'),
+    captureScriptReach: true,
+    freezeClock: false,
+    selfCheck: true,
+    screenshots: false,
+    popups: true,
+  });
+  await captureSurface(
+    page,
+    {
+      key: 'popup',
+      async go() {
+        await page.goto('https://script.test/');
+      },
+    },
+    800,
+    settings,
+    { index: 1, total: 1 },
+  );
+  const captured = loadStyleMap(testInfo.outputPath('maps/popup-popup-01@800.json.gz'));
+  expect(captured.scriptReach?.scripts.some((s) => s.status === 'mapped')).toBe(true);
+});
+
+for (const variation of ['query', 'map-failure', 'third-party'] as const) {
+  test(`review 5: runner preserves unknown evidence for ${variation} drift`, async ({ page }, testInfo) => {
+    const { captureSurface } = await import('../dist/runner/surface-capture.js');
+    const { resolveSettings } = await import('../dist/runner/settings.js');
+    const { loadStyleMap } = await import('../dist/capture.js');
+    let visits = 0;
+    await page.route('https://script.test/', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: `<!doctype html><body><p>Ready</p><script src="bundle.js"></script><script src="unmapped.js?cache=${variation === 'query' ? visits : 0}"></script>${variation === 'third-party' && visits > 1 ? '<script src="https://vendor.test/widget.js"></script>' : ''}</body>`,
+      }),
+    );
+    await page.route('https://vendor.test/widget.js', (route) =>
+      route.fulfill({ contentType: 'application/javascript', body: 'document.body.dataset.vendor = "loaded";' }),
+    );
+    if (variation === 'map-failure')
+      await page.route('https://script.test/bundle.js.map', (route) =>
+        route.fulfill({
+          status: visits > 1 ? 503 : 200,
+          contentType: 'application/json',
+          body: visits > 1 ? 'unavailable' : readFileSync(new URL('bundle.js.map', root), 'utf8'),
+        }),
+      );
+    const settings = resolveSettings({
+      dir: testInfo.outputPath('maps'),
+      captureScriptReach: true,
+      freezeClock: false,
+      selfCheck: true,
+      screenshots: false,
+    });
+    await captureSurface(
+      page,
+      {
+        key: 'drift',
+        async go() {
+          visits++;
+          await page.goto('https://script.test/');
+        },
+      },
+      800,
+      settings,
+      { index: 1, total: 1 },
+    );
+    expect(loadStyleMap(testInfo.outputPath('maps/drift@800.json.gz')).scriptReach).toMatchObject({
+      status: 'unknown',
+      reason: 'script evidence not reproducible',
+    });
+  });
+}
+
+test('review 5: blob script UUIDs never enter app execution evidence', async ({ page }) => {
+  await page.route('https://script.test/', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><body><p>Ready</p><script>const s=document.createElement("script");s.src=URL.createObjectURL(new Blob(["document.body.dataset.ready=\'yes\'"],{type:"application/javascript"}));document.body.append(s);</script></body>',
+    }),
+  );
+  const tracker = await trackScriptReach(page);
+  try {
+    await page.goto('https://script.test/');
+    await page.waitForFunction(() => document.body.dataset.ready === 'yes');
+    const map = await captureStyleMap(page, {
+      captureScriptReach: true,
+      scriptReach: tracker,
+      captureStates: false,
+      stabilize: false,
+    });
+    expect(map.scriptReach?.status).toBe('measured');
+    expect(map.scriptReach?.scripts.some((script) => script.url.startsWith('blob:'))).toBe(false);
+  } finally {
+    await tracker.dispose();
+  }
+});
+
+test('review 7: file maps resolve in an actual persistent browser context', async ({ browser }, testInfo) => {
+  const context = await browser
+    .browserType()
+    .launchPersistentContext(testInfo.outputPath('persistent-profile'), { headless: true });
+  try {
+    const page = context.pages()[0];
+    const tracker = await trackScriptReach(page);
+    try {
+      await page.goto(new URL('index.html', root).href);
+      const map = await captureStyleMap(page, {
+        captureScriptReach: true,
+        scriptReach: tracker,
+        stabilize: false,
+        captureStates: false,
+      });
+      expect(map.scriptReach?.scripts.find((s) => s.url.endsWith('/bundle.js'))?.status).toBe('mapped');
+    } finally {
+      await tracker.dispose();
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test('review 1/2: pre-bound active coverage remains precise after tracker disposal', async ({ page }) => {
+  const start = page.coverage.startJSCoverage.bind(page.coverage);
+  const stop = page.coverage.stopJSCoverage.bind(page.coverage);
+  const tracker = await trackScriptReach(page);
+  try {
+    await start();
+    await page.goto('https://script.test/');
+    const map = await captureStyleMap(page, {
+      captureScriptReach: true,
+      scriptReach: tracker,
+      captureStates: false,
+      stabilize: false,
+    });
+    expect(map.scriptReach?.status).toBe('unmeasured');
+    expect(
+      (await stop()).some(
+        (entry) =>
+          entry.url.endsWith('/bundle.js') &&
+          entry.functions.some(
+            (fn) => fn.isBlockCoverage && fn.ranges.length > 1 && fn.ranges.some((range) => range.count === 0),
+          ),
+      ),
+    ).toBe(true);
+  } finally {
+    await tracker.dispose();
+  }
+});
+
+test('CSS and script reach controllers coexist without being mistaken for shared coverage', async ({ page }) => {
+  const { trackServedRules } = await import('../dist/capture.js');
+  const servedRules = await trackServedRules(page);
+  const tracker = await trackScriptReach(page);
+  try {
+    await page.goto('https://script.test/');
+    const map = await captureStyleMap(page, {
+      captureReach: true,
+      servedRules,
+      captureScriptReach: true,
+      scriptReach: tracker,
+      captureStates: false,
+      stabilize: false,
+    });
+    expect(map.scriptReach?.scripts.some((script) => script.status === 'mapped')).toBe(true);
+    expect(map.reach?.version).toBe(2);
+  } finally {
+    await tracker.dispose();
+    await servedRules.dispose();
   }
 });

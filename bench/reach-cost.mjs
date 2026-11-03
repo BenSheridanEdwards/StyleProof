@@ -16,6 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { captureStyleMap, trackScriptReach } from '../dist/capture.js';
+import { registerStyleProofSession } from '../dist/capture/script-coverage-ownership.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outputArg = process.argv.indexOf('--output');
@@ -65,13 +66,13 @@ const TARGETS = [
 
 async function measure(browser, target, mode) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  const cdp = await page.context().newCDPSession(page);
+  const scriptReach = mode === 'J1+J2' ? await trackScriptReach(page) : undefined;
+  const cdp = registerStyleProofSession(await page.context().newCDPSession(page));
   if (mode !== 'off') {
     await cdp.send('DOM.enable');
     await cdp.send('CSS.enable');
     await cdp.send('CSS.startRuleUsageTracking');
   }
-  const scriptReach = mode === 'J1+J2' ? await trackScriptReach(page) : undefined;
   const start = performance.now();
   await page.goto(target.url, { waitUntil: 'load' });
   const loaded = performance.now();

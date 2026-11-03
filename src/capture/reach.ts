@@ -3,6 +3,7 @@
 // tracking reports the matched ranges, forced :hover/:focus/:active included; the
 // stylesheet text names the rules. Stylesheets StyleProof injects never enter it.
 import { createHash } from 'node:crypto';
+import { registerStyleProofSession } from './script-coverage-ownership.js';
 import type { CDPSession, Page } from '@playwright/test';
 import type { ServedRule, ServedRules } from './types.js';
 import { GENERATED_PSEUDOS } from '../pseudo-references.js';
@@ -979,7 +980,7 @@ async function resolveFontVars(
  * armed later still reads inline and constructed sheets and counts the rest unreadable.
  */
 export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
-  const client = await page.context().newCDPSession(page);
+  const client = registerStyleProofSession(await page.context().newCDPSession(page));
   const sheets = new Map<string, SheetHeader>();
   client.on('CSS.styleSheetAdded', ({ header }) => sheets.set(header.styleSheetId, header));
   client.on('CSS.styleSheetRemoved', ({ styleSheetId }) => sheets.delete(styleSheetId));

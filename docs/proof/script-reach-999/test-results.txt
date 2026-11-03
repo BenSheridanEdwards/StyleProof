@@ -1,3 +1,6 @@
+Historical pre-review receipt. Superseded by review-fixes.txt for the corrections.
+The old cost receipt is retained; cost was not rerun for the corrections.
+
 StyleProof script reach: test-first proof
 
 Before implementation: node --test test/script-reach.test.mjs

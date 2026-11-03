@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { isDeepStrictEqual } from 'node:util';
+import { scriptExecutionProjection } from '../script-reach.js';
 import { captureStyleMap } from '../capture.js';
 import type { ServedRuleTracker } from '../capture/reach.js';
 import { trackScriptReach } from '../capture/script-reach.js';
@@ -132,11 +133,45 @@ export function assertDeterministicReach(first: StyleMap, again: StyleMap, surfa
 
 /** Compare mapped app-source evidence, never V8 script IDs, function names or counters. */
 export function assertDeterministicScriptReach(first: StyleMap, again: StyleMap, surfaceKey: string): void {
-  if (!first.scriptReach || !again.scriptReach || !isDeepStrictEqual(first.scriptReach, again.scriptReach)) {
+  if (!first.scriptReach || !again.scriptReach) {
     throw new Error(
       `styleproof self-check failed: ${surfaceKey} is non-deterministic — original-source script reach evidence changed or is missing.`,
     );
   }
+  const left = scriptExecutionProjection(first.scriptReach);
+  const right = scriptExecutionProjection(again.scriptReach);
+  const common = new Set(
+    left.map((file) => file.sourceKey).filter((key) => right.some((file) => file.sourceKey === key)),
+  );
+  const commonLeft = left.filter((file) => common.has(file.sourceKey));
+  const commonRight = right.filter((file) => common.has(file.sourceKey));
+  const gaps = [...first.scriptReach.scripts, ...again.scriptReach.scripts].some(
+    (script) => script.status !== 'mapped',
+  );
+  if (
+    !isDeepStrictEqual(commonLeft, commonRight) ||
+    (!gaps &&
+      first.scriptReach.status === 'measured' &&
+      again.scriptReach.status === 'measured' &&
+      !isDeepStrictEqual(left, right))
+  ) {
+    throw new Error(
+      `styleproof self-check failed: ${surfaceKey} is non-deterministic — original-source script reach evidence changed or is missing.`,
+    );
+  }
+  const residual = (map: StyleMap): unknown => [
+    map.scriptReach?.status,
+    map.scriptReach?.reason,
+    map.scriptReach?.scripts.filter((script) => script.status !== 'mapped'),
+  ];
+  if (isDeepStrictEqual(left, right) && isDeepStrictEqual(residual(first), residual(again))) return;
+  first.scriptReach = {
+    version: 1,
+    window: 'navigation',
+    status: 'unknown',
+    reason: 'script evidence not reproducible',
+    scripts: [],
+  };
 }
 
 /** Capture the surface again and throw if computed styles or enabled reach evidence drifted. */

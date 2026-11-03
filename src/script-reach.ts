@@ -6,6 +6,8 @@ export type SourcePosition = { line: number; column: number };
 export type SourceSpan = { start: SourcePosition; end: SourcePosition };
 export type ScriptSourceReach = {
   source: string;
+  /** Origin-independent identity for joins across capture hosts. */
+  sourceKey?: string;
   contentHash?: string;
   executed: SourceSpan[];
   mixed: SourceSpan[];
@@ -25,7 +27,7 @@ export type ScriptReach = {
   scripts: ScriptReachEntry[];
 };
 export type BinaryScriptCoverage = {
-  functions: { ranges: { startOffset: number; endOffset: number; count: number }[] }[];
+  functions: { isBlockCoverage?: boolean; ranges: { startOffset: number; endOffset: number; count: number }[] }[];
 };
 export type SourceMap = {
   version: number;
@@ -107,20 +109,107 @@ function mappedSegments(map: SourceMap, generated: string): Segment[] {
   return segments;
 }
 
-function execution(entry: BinaryScriptCoverage, start: number, end: number): 'executed' | 'mixed' | 'unexecuted' {
-  const ranges = entry.functions.flatMap((f) => f.ranges).filter((r) => r.startOffset < end && r.endOffset > start);
-  const edges = [
-    ...new Set([start, end, ...ranges.flatMap((r) => [Math.max(start, r.startOffset), Math.min(end, r.endOffset)])]),
-  ].sort((a, b) => a - b);
-  const states = edges.slice(0, -1).map((offset) => {
-    const containing = ranges.filter((r) => r.startOffset <= offset && offset < r.endOffset);
-    const size = Math.min(...containing.map((r) => r.endOffset - r.startOffset));
-    // Conflicting equally-specific evidence cannot prove full execution.
+type ExecutionKind = 'executed' | 'mixed' | 'unexecuted';
+type CoverageRange = BinaryScriptCoverage['functions'][number]['ranges'][number];
+type ExecutionRun = { start: number; end: number; kind: ExecutionKind };
+
+/** Sort V8 boundaries once, keeping the innermost active range at the head of a heap. */
+function executionRuns(entry: BinaryScriptCoverage): ExecutionRun[] {
+  const ranges: CoverageRange[] = entry.functions.flatMap((f) => f.ranges);
+  const events = ranges
+    .flatMap((range, id) => [
+      { offset: range.startOffset, id, start: true },
+      { offset: range.endOffset, id, start: false },
+    ])
+    .sort((a, b) => a.offset - b.offset);
+  const active = new Set<number>();
+  const heap: number[] = [];
+  const less = (a: number, b: number): boolean => {
+    const x = ranges[a],
+      y = ranges[b];
     return (
-      containing.filter((r) => r.endOffset - r.startOffset === size).every((r) => r.count > 0) && containing.length > 0
+      x.endOffset - x.startOffset < y.endOffset - y.startOffset ||
+      (x.endOffset - x.startOffset === y.endOffset - y.startOffset && x.count < y.count)
     );
+  };
+  const runs: ExecutionRun[] = [];
+  let previous = 0;
+  for (let i = 0; i < events.length;) {
+    const offset = events[i].offset;
+    while (heap.length && !active.has(heap[0])) popRange(heap, less);
+    if (offset > previous)
+      runs.push({
+        start: previous,
+        end: offset,
+        kind: heap.length && ranges[heap[0]].count > 0 ? 'executed' : 'unexecuted',
+      });
+    i = advanceRanges(events, i, active, heap, less);
+    previous = offset;
+  }
+  return runs;
+}
+
+function advanceRanges(
+  events: { offset: number; id: number; start: boolean }[],
+  index: number,
+  active: Set<number>,
+  heap: number[],
+  less: (a: number, b: number) => boolean,
+): number {
+  const offset = events[index].offset;
+  while (index < events.length && events[index].offset === offset) {
+    const event = events[index++];
+    if (event.start) {
+      active.add(event.id);
+      pushRange(heap, event.id, less);
+    } else active.delete(event.id);
+  }
+  return index;
+}
+
+function pushRange(heap: number[], value: number, less: (a: number, b: number) => boolean): void {
+  let index = heap.length;
+  heap.push(value);
+  while (index > 0) {
+    const parent = Math.floor((index - 1) / 2);
+    if (!less(value, heap[parent])) break;
+    heap[index] = heap[parent];
+    index = parent;
+  }
+  heap[index] = value;
+}
+
+function popRange(heap: number[], less: (a: number, b: number) => boolean): void {
+  const value = heap.pop()!;
+  if (!heap.length) return;
+  let index = 0;
+  while (index * 2 + 1 < heap.length) {
+    let child = index * 2 + 1;
+    if (child + 1 < heap.length && less(heap[child + 1], heap[child])) child++;
+    if (!less(heap[child], value)) break;
+    heap[index] = heap[child];
+    index = child;
+  }
+  heap[index] = value;
+}
+
+function segmentExecutions(segments: Segment[], runs: ExecutionRun[]): ExecutionKind[] {
+  let index = 0;
+  return segments.map((segment) => {
+    while (index < runs.length && runs[index].end <= segment.offset) index++;
+    let any = false,
+      all = true,
+      covered = segment.offset;
+    for (let i = index; i < runs.length && runs[i].start < segment.end; i++) {
+      const run = runs[i];
+      if (run.start > covered) all = false;
+      any ||= run.kind === 'executed';
+      all &&= run.kind === 'executed';
+      covered = Math.max(covered, run.end);
+    }
+    all &&= covered >= segment.end;
+    return all ? 'executed' : any ? 'mixed' : 'unexecuted';
   });
-  return states.every(Boolean) ? 'executed' : states.some(Boolean) ? 'mixed' : 'unexecuted';
 }
 
 /** No dependency source, including webpack URLs, contributes app execution evidence. */
@@ -128,7 +217,6 @@ export function isAppScriptSource(source: string): boolean {
   return !/(^|[\\/])node_modules[\\/]/.test(source);
 }
 
-type ExecutionKind = 'executed' | 'mixed' | 'unexecuted';
 type SpanEvent = { column: number; kind: ExecutionKind; delta: number };
 const EXECUTION_KINDS = ['executed', 'mixed', 'unexecuted'] as const;
 
@@ -177,7 +265,7 @@ function sweepLine(file: ScriptSourceReach, line: number, events: SpanEvent[]): 
   }
 }
 
-type OriginalSource = { source: string; contentHash?: string; lines?: string[] };
+type OriginalSource = { source: string; sourceKey: string; contentHash?: string; lines?: string[] };
 
 function originalSource(map: SourceMap, index: number, mapUrl: string): OriginalSource | undefined {
   const source = new URL(
@@ -185,21 +273,38 @@ function originalSource(map: SourceMap, index: number, mapUrl: string): Original
     new URL(map.sourceRoot ? map.sourceRoot.replace(/\/?$/, '/') : '.', mapUrl),
   ).href;
   if (!isAppScriptSource(source)) return undefined;
+  const parsed = new URL(source);
+  const sourceKey = /^(https?|file):$/.test(parsed.protocol) ? parsed.pathname : source;
   const content = map.sourcesContent?.[index];
   return typeof content === 'string'
-    ? { source, contentHash: createHash('sha256').update(content).digest('hex'), lines: content.split('\n') }
-    : { source };
+    ? { source, sourceKey, contentHash: createHash('sha256').update(content).digest('hex'), lines: content.split('\n') }
+    : { source, sourceKey };
 }
 
-function originalSpan(segment: Segment, next: Segment | undefined, original: OriginalSource): SourceSpan {
+/** Next greater original column, independent of generated order, never the line length. */
+function originalEnds(segments: Segment[]): Map<string, number> {
+  const positions = new Map<string, Set<number>>();
+  for (const segment of segments) {
+    if (segment.source === undefined) continue;
+    const key = `${segment.source}:${segment.line}`;
+    const columns = positions.get(key) ?? new Set<number>();
+    columns.add(segment.column);
+    positions.set(key, columns);
+  }
+  const ends = new Map<string, number>();
+  for (const [key, columns] of positions) {
+    const sorted = [...columns].sort((a, b) => a - b);
+    sorted.forEach((column, i) => ends.set(`${key}:${column}`, sorted[i + 1] ?? column));
+  }
+  return ends;
+}
+
+function originalSpan(segment: Segment, ends: Map<string, number>, original: OriginalSource): SourceSpan {
   const line = segment.line + 1;
   const text = original.lines?.[segment.line];
   if (original.lines && (text === undefined || segment.column > text.length))
     throw new Error('original position outside sourcesContent');
-  const column =
-    next && next.source === segment.source && next.line === segment.line && next.column > segment.column
-      ? next.column
-      : (text?.length ?? segment.column);
+  const column = ends.get(`${segment.source}:${segment.line}:${segment.column}`) ?? segment.column;
   return { start: { line, column: segment.column }, end: { line, column } };
 }
 
@@ -211,6 +316,7 @@ function ensureSourceFile(files: Map<string, ScriptSourceReach>, original: Origi
   }
   const file = {
     source: original.source,
+    sourceKey: original.sourceKey,
     ...(original.contentHash ? { contentHash: original.contentHash } : {}),
     executed: [],
     mixed: [],
@@ -222,7 +328,7 @@ function ensureSourceFile(files: Map<string, ScriptSourceReach>, original: Origi
 
 /**
  * Project mapped generated segments, never interpolate an original position across a V8 boundary.
- * A split segment is mixed. With no next same-line anchor or original content, keep a point anchor.
+ * A split segment is mixed. Without a later original anchor on the same source line, keep a point anchor.
  */
 export function mapScriptCoverage(
   entry: BinaryScriptCoverage,
@@ -232,14 +338,25 @@ export function mapScriptCoverage(
 ): ScriptSourceReach[] {
   const segments = mappedSegments(map, generated);
   const files = new Map<string, ScriptSourceReach>();
+  const executions = segmentExecutions(segments, executionRuns(entry));
+  const ends = originalEnds(segments);
   const originals = map.sources.map((_, index) => originalSource(map, index, mapUrl));
   segments.forEach((segment, index) => {
     if (segment.source === undefined || segment.offset >= segment.end) return;
     const original = originals[segment.source];
     if (!original) return;
     const file = ensureSourceFile(files, original);
-    file[execution(entry, segment.offset, segment.end)].push(originalSpan(segment, segments[index + 1], original));
+    file[executions[index]].push(originalSpan(segment, ends, original));
   });
   for (const file of files.values()) normalizeSource(file);
   return [...files.values()].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+}
+
+/** Mapped app-file execution only, independent of generated URLs and capture origins. */
+export function scriptExecutionProjection(evidence: ScriptReach): Omit<ScriptSourceReach, 'source'>[] {
+  const files = evidence.scripts.filter((script) => script.status === 'mapped').flatMap((script) => script.files ?? []);
+  const canonical = files.map(({ source, sourceKey, ...file }) =>
+    JSON.stringify({ sourceKey: sourceKey ?? source, ...file }),
+  );
+  return [...new Set(canonical)].sort().map((file: string) => JSON.parse(file) as Omit<ScriptSourceReach, 'source'>);
 }

@@ -44,7 +44,7 @@ test('a V8 boundary inside one mapped segment is mixed, not fully executed', () 
   );
   assert.deepEqual(file.executed, []);
   assert.deepEqual(file.unexecuted, []);
-  assert.deepEqual(file.mixed, [{ start: { line: 1, column: 0 }, end: { line: 1, column: 8 } }]);
+  assert.deepEqual(file.mixed, [{ start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }]);
 });
 
 test('missing original content leaves hash absent; vendored sources are excluded', () => {
@@ -81,7 +81,7 @@ test('mixed original line retains executed and unexecuted column spans', () => {
   );
   assert.deepEqual(file.executed, [
     { start: { line: 1, column: 0 }, end: { line: 1, column: 5 } },
-    { start: { line: 1, column: 10 }, end: { line: 1, column: 15 } },
+    { start: { line: 1, column: 10 }, end: { line: 1, column: 10 } },
   ]);
   assert.deepEqual(file.unexecuted, [{ start: { line: 1, column: 5 }, end: { line: 1, column: 10 } }]);
 });
@@ -152,7 +152,7 @@ test('multiple generated branches mapping to one original span are mixed when ex
   );
   assert.deepEqual(file.executed, []);
   assert.deepEqual(file.unexecuted, []);
-  assert.deepEqual(file.mixed, [{ start: { line: 1, column: 0 }, end: { line: 1, column: 8 } }]);
+  assert.deepEqual(file.mixed, [{ start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }]);
 });
 
 test('a rejecting script tracker adds unknown evidence without losing the map', async () => {
@@ -171,4 +171,156 @@ test('a rejecting script tracker adds unknown evidence without losing the map', 
   const legacy = { elements: {} };
   await attachScriptReach(legacy, {});
   assert.equal(Object.hasOwn(legacy, 'scriptReach'), false);
+});
+
+for (const mappings of ['AAAA', 'AAAA,K']) {
+  test(`review 3: trailing unmapped code stays outside executed evidence: ${mappings}`, () => {
+    const [file] = mapScriptCoverage(
+      { functions: [{ ranges: [{ startOffset: 0, endOffset: 19, count: 1 }] }] },
+      'ok(); if (f) bad();',
+      { version: 3, sources: ['a.js'], sourcesContent: ['ok(); if (f) bad();'], mappings },
+      'https://app.test/a.map',
+    );
+    assert.deepEqual(file.executed, [{ start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }]);
+  });
+}
+
+test('review 3: original anchors are indexed across generated order and unmapped gaps', () => {
+  const [file] = mapScriptCoverage(
+    entry,
+    '123456789012345',
+    { ...sourceMap, sourcesContent: ['ok(); if (f) bad();'], mappings: 'AAAU,K,K AAV'.replaceAll(' ', '') },
+    'https://app.test/a.map',
+  );
+  assert.deepEqual(file.executed, [
+    { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+    { start: { line: 1, column: 10 }, end: { line: 1, column: 10 } },
+  ]);
+});
+
+test('review 4: 20k segments and 10k V8 ranges map within a generous linear-sweep budget', () => {
+  const count = 20_000;
+  const generated = 'x'.repeat(count);
+  const map = {
+    version: 3,
+    sources: ['a.js'],
+    sourcesContent: [generated],
+    mappings:
+      'AAAA,' +
+      Array(count - 1)
+        .fill('CAAC')
+        .join(','),
+  };
+  const ranges = [
+    { startOffset: 0, endOffset: count, count: 1 },
+    ...Array.from({ length: count / 2 }, (_, i) => ({ startOffset: i * 2, endOffset: i * 2 + 1, count: 0 })),
+  ];
+  const before = performance.now();
+  const files = mapScriptCoverage({ functions: [{ ranges }] }, generated, map, 'https://app.test/a.map');
+  const elapsed = performance.now() - before;
+  assert.equal(files.length, 1);
+  assert.ok(elapsed < 1800, `mapping took ${elapsed.toFixed(1)} ms (budget 1800 ms)`);
+});
+
+test('review 8: original source key is independent of capture origin and port', () => {
+  const map = { ...sourceMap, sourceRoot: '../src' };
+  const first = mapScriptCoverage(entry, '123456789012345', map, 'http://localhost:3100/dist/a.map')[0];
+  const second = mapScriptCoverage(entry, '123456789012345', map, 'http://localhost:4100/dist/a.map')[0];
+  assert.equal(first.sourceKey, '/src/original.js');
+  assert.equal(first.sourceKey, second.sourceKey);
+});
+
+for (const gap of ['blob', 'query', 'timeout', 'third-party']) {
+  test(`review 5: non-mapped ${gap} drift becomes unknown without failing self-check`, async () => {
+    const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
+    const evidence = (url, status = 'unmeasured') => ({
+      version: 1,
+      window: 'navigation',
+      status: 'measured',
+      scripts: [{ url, status, reason: 'source map absent' }],
+    });
+    const first = {
+      scriptReach: evidence(gap === 'blob' ? 'blob:https://app.test/one' : 'https://app.test/unmapped.js?cache=1'),
+    };
+    const again = {
+      scriptReach: evidence(
+        gap === 'blob' ? 'blob:https://app.test/two' : 'https://app.test/unmapped.js?cache=2',
+        gap === 'timeout' ? 'unknown' : 'unmeasured',
+      ),
+    };
+    if (gap === 'third-party') again.scriptReach.scripts = [];
+    assert.doesNotThrow(() => assertDeterministicScriptReach(first, again, 'home'));
+    assert.equal(first.scriptReach.status, 'unknown');
+    assert.equal(first.scriptReach.reason, 'script evidence not reproducible');
+  });
+}
+
+test('review 5: mapped app evidence ignores generated URLs and capture origins', async () => {
+  const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
+  const file = {
+    source: 'http://localhost:3100/src/app.js',
+    sourceKey: '/src/app.js',
+    contentHash: 'hash',
+    executed: [{ start: { line: 1, column: 0 }, end: { line: 1, column: 4 } }],
+    mixed: [],
+    unexecuted: [],
+  };
+  const evidence = (url, source) => ({
+    scriptReach: {
+      version: 1,
+      window: 'navigation',
+      status: 'measured',
+      scripts: [{ url, status: 'mapped', files: [{ ...file, source }] }],
+    },
+  });
+  const first = evidence('https://app.test/a.js?cache=1', file.source);
+  const again = evidence('https://app.test/a.js?cache=2', 'http://localhost:4100/src/app.js');
+  assert.doesNotThrow(() => assertDeterministicScriptReach(first, again, 'home'));
+  assert.equal(first.scriptReach.status, 'measured');
+});
+
+test('review 9: non-Chromium reports the correct reason without probing coverage', async () => {
+  const { trackScriptReach } = await import('../dist/capture/script-reach.js');
+  const page = {
+    context: () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) }),
+    coverage: {
+      startJSCoverage: async () => {
+        throw new Error('must not probe');
+      },
+      stopJSCoverage: async () => {
+        throw new Error('must not probe');
+      },
+    },
+  };
+  const tracker = await trackScriptReach(page);
+  assert.equal((await tracker.stop()).reason, 'script coverage requires Chromium');
+  await tracker.dispose();
+});
+
+test('review 5: a map-fetch failure on one run becomes unknown instead of a self-check failure', async () => {
+  const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
+  const first = {
+    scriptReach: {
+      version: 1,
+      window: 'navigation',
+      status: 'measured',
+      scripts: [
+        {
+          url: 'https://app.test/bundle.js',
+          status: 'mapped',
+          files: mapScriptCoverage(entry, '123456789012345', sourceMap, 'https://app.test/a.map'),
+        },
+      ],
+    },
+  };
+  const again = {
+    scriptReach: {
+      version: 1,
+      window: 'navigation',
+      status: 'measured',
+      scripts: [{ url: 'https://app.test/bundle.js', status: 'unknown', reason: 'script map-read budget exhausted' }],
+    },
+  };
+  assert.doesNotThrow(() => assertDeterministicScriptReach(first, again, 'home'));
+  assert.equal(first.scriptReach.reason, 'script evidence not reproducible');
 });
