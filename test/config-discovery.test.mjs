@@ -966,3 +966,110 @@ test('styleproof-map: nested cwd uses the root config spec, not the default e2e 
     rmTmp(root);
   }
 });
+
+for (const type of [undefined, 'commonjs', 'module']) {
+  test(`capture loads TypeScript config in ${type ?? 'default'} package`, () => {
+    const root = mkTmp();
+    try {
+      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ type }));
+      fs.writeFileSync(path.join(root, 'styleproof.config.ts'), "export default { spec: 'missing.spec.ts' };\n");
+      const result = spawnSync(process.execPath, [MAP], { cwd: root, encoding: 'utf8', timeout: 30000 });
+      const text = `${result.stdout}${result.stderr}`;
+      assert.equal(result.status, 2, text);
+      assert.doesNotMatch(text, /could not load|Cannot use import statement/);
+      assert.match(text, /missing.spec.ts/);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+
+test('sync top-level throw runs TypeScript config only once and preserves hashbang line numbers', () => {
+  const root = mkTmp();
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+    fs.writeFileSync(
+      path.join(root, 'styleproof.config.ts'),
+      `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs';
+appendFileSync(new URL('./marker.txt', import.meta.url), 'ran\\n');
+throw new Error('boom');`,
+    );
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => {
+        assert.match(error.message, /boom/);
+        assert.equal(fs.readFileSync(path.join(root, 'marker.txt'), 'utf8'), 'ran\n');
+        assert.match(error.message, /:4:\d+/);
+        assert.doesNotMatch(error.message, /Next: run on a Node/);
+        return true;
+      },
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('sync TypeScript config loads with a byte order mark before its hashbang', () => {
+  const root = mkTmp();
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+    fs.writeFileSync(
+      path.join(root, 'styleproof.config.ts'),
+      "﻿#!/usr/bin/env node\nexport default { spec: 'bom.spec.ts' };\n",
+    );
+    assert.equal(loadStyleProofConfig(root).spec, 'bom.spec.ts');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('imported CommonJS syntax failure runs TypeScript config only once', () => {
+  const root = mkTmp();
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+    fs.mkdirSync(path.join(root, 'sub'));
+    fs.writeFileSync(path.join(root, 'sub/package.json'), '{"type":"commonjs"}');
+    fs.writeFileSync(path.join(root, 'sub/helper.js'), 'export const value = 1;');
+    fs.writeFileSync(
+      path.join(root, 'styleproof.config.ts'),
+      `import { appendFileSync } from 'node:fs';
+appendFileSync(new URL('./marker.txt', import.meta.url), 'ran\\n');
+await import('./sub/helper.js');
+export default {};`,
+    );
+    const result = spawnSync(process.execPath, [MAP], { cwd: root, encoding: 'utf8', timeout: 30000 });
+    assert.equal(result.status, 2);
+    assert.equal(fs.readFileSync(path.join(root, 'marker.txt'), 'utf8'), 'ran\n');
+    assert.match(result.stderr, /Unexpected token/);
+    assert.doesNotMatch(result.stderr, /Next: run on a Node/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+for (const kind of ['file', 'directory']) {
+  test(`loads TypeScript config through a symlinked ${kind}`, async () => {
+    const root = mkTmp();
+    try {
+      const real = path.join(root, 'real');
+      fs.mkdirSync(real);
+      fs.writeFileSync(path.join(real, 'package.json'), '{"type":"commonjs"}');
+      const config = path.join(real, 'styleproof.config.ts');
+      fs.writeFileSync(config, "export default { spec: 'missing.spec.ts' };\n");
+      let cwd = real;
+      if (kind === 'file') {
+        const target = path.join(real, 'shared.ts');
+        fs.renameSync(config, target);
+        fs.symlinkSync(target, config);
+      } else {
+        cwd = path.join(root, 'linked');
+        fs.symlinkSync(real, cwd, 'dir');
+      }
+      const loaded = await loadStyleProofConfigAsync(cwd);
+      assert.equal(loaded.spec, 'missing.spec.ts');
+    } finally {
+      rmTmp(root);
+    }
+  });
+}

@@ -48,6 +48,11 @@ export function isUnloadableTypeScriptConfig(filename: string, error: unknown): 
   if (error instanceof StyleProofConfigError && code === UNLOADABLE_TS) return true;
   return (
     code === 'ERR_UNKNOWN_FILE_EXTENSION' ||
+    (error instanceof SyntaxError &&
+      /Cannot use import statement outside a module|Unexpected token ['"]export['"]/.test(error.message) &&
+      [filename, fs.realpathSync(filename)].some((configPath) =>
+        error.stack?.split('\n', 1)[0]?.startsWith(configPath + ':'),
+      )) ||
     /Unknown file extension|ERR_UNKNOWN_FILE_EXTENSION/.test(errorMessage(error)) ||
     isMissingStyleProofPackage(error)
   );
@@ -73,8 +78,16 @@ export function unloadableStyleProofConfigMessage(filePath: string, error: unkno
   return lines.join('\n');
 }
 
-export function unloadableTypeScriptConfigError(filePath: string, error: unknown): StyleProofConfigError {
-  const wrapped = new StyleProofConfigError(unloadableStyleProofConfigMessage(filePath, error));
+export function unloadableTypeScriptConfigError(
+  filePath: string,
+  error: unknown,
+  configRan = false,
+): StyleProofConfigError {
+  const wrapped = new StyleProofConfigError(
+    configRan
+      ? `${filePath} could not be evaluated\n  ${errorMessage(error)}`
+      : unloadableStyleProofConfigMessage(filePath, error),
+  );
   (wrapped as { code?: string }).code = UNLOADABLE_TS;
   wrapped.cause = error instanceof Error ? error : undefined;
   return wrapped;
@@ -198,8 +211,8 @@ function spawnConfigModuleEval(
       // so it fails closed rather than returning policy or hanging the load. An unhandled rejection
       // exits 1 at once, as Node's default would, even mid-import or after 'exit' has run.
       // fd 3 carries the result: policy JSON, the schema error for a rejected policy, or a marker that the
-      // config's code ran before it failed. Only an empty fd 3 (the import failed to parse or link, or
-      // threw at top level) lets the parent retry with type stripping.
+      // config's code ran before it failed. Only an empty fd 3 (the import failed to parse or link
+      // before the config body started) lets the parent retry with type stripping.
       `import { writeFileSync, writeSync } from 'node:fs';
        import { plainObject, parseConfigRecord, StyleProofConfigError } from ${JSON.stringify(new URL('./schema.js', import.meta.url).href)};
        const NAME = ${JSON.stringify(configFilename)};
@@ -214,6 +227,7 @@ function spawnConfigModuleEval(
        let pendingWork = '';
        let exiting = false;
        let evaluated = false;
+       globalThis[Symbol.for('styleproof.configStarted')] = () => { evaluated = true; };
        let importError;
        let invalid;
        const report = (message) => writeSync(2, NAME + ' ' + message + '\\n');
@@ -232,7 +246,7 @@ function spawnConfigModuleEval(
        });
        process.on('uncaughtExceptionMonitor', (error) => {
          crashed = true;
-         // The import's own rejection is a parse, link or top-level failure; any other crash is config code.
+         // Parse/link failures leave evaluated false; the body marker records top-level throws.
          if (error !== importError) evaluated = true;
        });
        process.exit = (code) => {
@@ -304,7 +318,7 @@ function spawnConfigModuleEval(
 /** Run `run` against a temp copy of the config with bare specifiers rewritten to file URLs. */
 function withRewrittenConfigCopy<T>(
   filePath: string,
-  ext: '.mjs' | '.ts',
+  ext: '.mjs' | '.mts',
   run: (tmp: string, roots: string[], cwd: string) => T,
 ): T {
   const dir = path.dirname(filePath);
@@ -314,7 +328,12 @@ function withRewrittenConfigCopy<T>(
     `.styleproof-config-eval-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}${ext}`,
   );
   try {
-    fs.writeFileSync(tmp, rewriteBareSpecifiersToResolvedUrls(fs.readFileSync(filePath, 'utf8'), roots));
+    const source = rewriteBareSpecifiersToResolvedUrls(fs.readFileSync(filePath, 'utf8'), roots);
+    // Preserve error line numbers and keep a hashbang on the first line.
+    fs.writeFileSync(
+      tmp,
+      source.replace(/^(\uFEFF?(?:#![^\n]*(?:\n|$))?)/, "$1globalThis[Symbol.for('styleproof.configStarted')]?.();"),
+    );
     return run(tmp, roots, roots[0] ?? dir);
   } finally {
     fs.rmSync(tmp, { force: true });
@@ -370,8 +389,8 @@ function forwardEvalStdout(result: EvalResult | undefined): void {
 
 /**
  * Evaluate a discovered `.ts` config synchronously: plain-module first, then type stripping. Type
- * stripping is retried only with an empty result channel (parse, link or top-level import failure).
- * Completed evaluation, deferred failures and an import still pending at exit make a failure final.
+ * stripping is retried only with an empty result channel (parse or link failure before the body starts).
+ * Top-level throws, deferred failures and an import still pending at exit make a failure final.
  */
 export function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown> {
   let plainError: unknown;
@@ -383,11 +402,11 @@ export function evaluateTypeScriptConfigSync(filePath: string): Record<string, u
     if (plainResult && configRanInEvalChild(plainResult)) {
       if (evalResultText(plainResult).startsWith(INVALID_POLICY_PREFIX)) throw error;
       forwardEvalStdout(plainResult);
-      throw unloadableTypeScriptConfigError(filePath, error);
+      throw unloadableTypeScriptConfigError(filePath, error, true);
     }
     plainError = error;
   }
-  const stripped = withRewrittenConfigCopy(filePath, '.ts', (tmp, roots, cwd) =>
+  const stripped = withRewrittenConfigCopy(filePath, '.mts', (tmp, roots, cwd) =>
     spawnConfigModuleEval(tmp, path.basename(filePath), cwd, roots, ['--experimental-strip-types']),
   );
   throwIfInvalidPolicy(stripped);
@@ -396,7 +415,7 @@ export function evaluateTypeScriptConfigSync(filePath: string): Record<string, u
       return parseEvalOutput(filePath, stripped);
     } catch (error) {
       forwardEvalStdout(stripped);
-      throw unloadableTypeScriptConfigError(filePath, error);
+      throw unloadableTypeScriptConfigError(filePath, error, configRanInEvalChild(stripped));
     }
   }
   const stripText = stripped.stderr ?? '';
@@ -408,5 +427,6 @@ export function evaluateTypeScriptConfigSync(filePath: string): Record<string, u
   throw unloadableTypeScriptConfigError(
     filePath,
     new Error(stripText.trim() || 'sync loader cannot evaluate TypeScript'),
+    configRanInEvalChild(stripped),
   );
 }

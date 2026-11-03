@@ -95,7 +95,7 @@ async function loadEsmConfig(found: StyleProofConfigLocation): Promise<Record<st
     return await importConfigRecord(found.path);
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
-    if (isUnloadableTypeScriptConfig(found.filename, e)) {
+    if (isUnloadableTypeScriptConfig(found.path, e)) {
       try {
         return evaluateTypeScriptConfigSync(found.path);
       } catch (syncError) {
