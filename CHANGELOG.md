@@ -16,8 +16,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   failed runs preserve a proven later run's status on the same commit (#1266).
   Every comment and status delivery honours review pending's supersession result.
   Cross-run comment receipts trust only `github-actions[bot]`; same-run attempt
-  receipts still accept bots or verified repository writers. Failed captures skip
-  status writes when the PR is closed or its head moved. Captures awaiting workflow
+  receipts still accept bots or verified repository writers. With a personal-access
+  or App token, cross-run ordering relies on the status receipt. Failed captures skip
+  status writes only when the PR is proven closed or its head moved; PR lookup errors
+  warn and still write failure. Captures awaiting workflow
   approval get a distinct unapprovable failure description.
   Run `npx styleproof-init --upgrade` to refresh existing single and split scaffolds.
 

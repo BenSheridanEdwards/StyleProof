@@ -30,13 +30,14 @@ function condition(expression, values = {}, outcome = 'success') {
 async function program(
   name,
   values = {},
-  { comments = [], statuses = [], head = A, state = 'open', unavailable = false } = {},
+  { comments = [], statuses = [], head = A, state = 'open', unavailable = false, prUnavailable = false } = {},
 ) {
   const entry = step(name);
   assert.ok(entry, name);
   const outputs = {};
   const writes = [];
   const logs = [];
+  const warnings = [];
   const github = {
     paginate: async () => {
       if (unavailable) throw new Error('offline');
@@ -48,7 +49,12 @@ async function program(
         createComment: async (request) => writes.push(request),
         updateComment: async (request) => writes.push(request),
       },
-      pulls: { get: async () => ({ data: { state, head: { sha: head } } }) },
+      pulls: {
+        get: async () => {
+          if (prUnavailable) throw new Error('PR lookup unavailable');
+          return { data: { state, head: { sha: head } } };
+        },
+      },
       repos: {
         listCommitStatusesForRef: async () => {
           if (unavailable) throw new Error('offline');
@@ -83,7 +89,7 @@ async function program(
     {
       repo: { owner: 'owner', repo: 'repo' },
       runId: 100,
-      eventName: 'pull_request',
+      eventName: values['github.event_name'] ?? 'pull_request',
       payload: { repository: { private: false } },
     },
     {
@@ -91,12 +97,12 @@ async function program(
         outputs[key] = value;
       },
       info: (message) => logs.push(message),
-      warning() {},
+      warning: (message) => warnings.push(message),
     },
     { env },
     (name) => (name === 'fs' ? { existsSync: () => false } : createRequire(import.meta.url)(name)),
   );
-  return { outputs, writes, statuses, logs };
+  return { outputs, writes, statuses, logs, warnings };
 }
 
 for (const outcome of [
@@ -380,6 +386,25 @@ test('a moved PR head skips only the comment; same-head later receipt skips both
 });
 
 for (const name of ['Set review failure status', 'Set certify failure status']) {
+  test(`${name}: failed PR lookup replaces an earlier green with failure`, async () => {
+    const values = {
+      'inputs.capture-outcome': 'failure',
+      'steps.context.outputs.pr-number': '7',
+      'inputs.mode': name === 'Set certify failure status' ? 'certify' : 'review-gate',
+      'inputs.fail-on-diff': 'true',
+      'inputs.require-approval': 'false',
+      'github.event_name': name === 'Set certify failure status' ? 'workflow_run' : 'pull_request',
+    };
+    assert.equal(condition(step(name).if, values, 'failure'), true);
+    const statuses = [{ context: 'StyleProof', state: 'success', description: 'Approved by @reviewer' }];
+    const result = await program(name, values, { statuses, prUnavailable: true });
+    assert.equal(statuses.length, 2);
+    assert.equal(statuses[0].state, 'failure');
+    assert.equal(statuses[0].sha, A);
+    assert.equal(statuses[0].context, 'StyleProof');
+    assert.ok(result.warnings.some((message) => /PR.*failing closed.*PR lookup unavailable/.test(message)));
+  });
+
   for (const [state, head, count] of [
     ['open', A, 1],
     ['closed', A, 0],

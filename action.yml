@@ -1462,12 +1462,17 @@ runs:
         script: |
           const capture = process.env.STYLEPROOF_CAPTURE_OUTCOME;
           if (capture !== 'success') {
-            const { data: currentPr } = await github.rest.pulls.get({
-              ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
-            });
-            if (currentPr.state !== 'open' || currentPr.head.sha !== '${{ steps.context.outputs.head-sha }}') {
-              core.info('StyleProof: capture failure belongs to a closed PR or its head moved — status unchanged.');
-              return;
+            try {
+              const { data: currentPr } = await github.rest.pulls.get({
+                ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
+              });
+              const headMoved = currentPr.head?.sha && currentPr.head.sha !== '${{ steps.context.outputs.head-sha }}';
+              if (currentPr.state === 'closed' || headMoved) {
+                core.info('StyleProof: capture failure belongs to a closed PR or its head moved — status unchanged.');
+                return;
+              }
+            } catch (error) {
+              core.warning(`StyleProof: PR state could not be read; failing closed: ${error.message}`);
             }
           }
           const { reviewRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
@@ -1526,12 +1531,17 @@ runs:
         script: |
           const capture = process.env.STYLEPROOF_CAPTURE_OUTCOME;
           if (capture !== 'success') {
-            const { data: currentPr } = await github.rest.pulls.get({
-              ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
-            });
-            if (currentPr.state !== 'open' || currentPr.head.sha !== '${{ steps.context.outputs.head-sha }}') {
-              core.info('StyleProof: capture failure belongs to a closed PR or its head moved — status unchanged.');
-              return;
+            try {
+              const { data: currentPr } = await github.rest.pulls.get({
+                ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
+              });
+              const headMoved = currentPr.head?.sha && currentPr.head.sha !== '${{ steps.context.outputs.head-sha }}';
+              if (currentPr.state === 'closed' || headMoved) {
+                core.info('StyleProof: capture failure belongs to a closed PR or its head moved — status unchanged.');
+                return;
+              }
+            } catch (error) {
+              core.warning(`StyleProof: PR state could not be read; failing closed: ${error.message}`);
             }
           }
           const { reviewRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
