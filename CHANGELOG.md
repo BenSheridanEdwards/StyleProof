@@ -21,8 +21,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Load TypeScript config in CommonJS projects as ESM (#1248). On Node 22.13.0,
-  configs that start running and then throw are evaluated only once, without
-  misleading TypeScript loader advice.
+  a config whose own body starts running and then throws is evaluated only once,
+  without misleading TypeScript loader advice.
 - Ignore unrelated JSON files in capture directories when comparing and reporting (#1245).
   Maps saved with `saveStyleMap` without `<key>@<width>.json[.gz]` names are now ignored.
 

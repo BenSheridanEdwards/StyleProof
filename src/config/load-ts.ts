@@ -332,7 +332,7 @@ function withRewrittenConfigCopy<T>(
     // Preserve error line numbers and keep a hashbang on the first line.
     fs.writeFileSync(
       tmp,
-      source.replace(/^(#![^\n]*(?:\n|$))?/, "$1globalThis[Symbol.for('styleproof.configStarted')]?.();"),
+      source.replace(/^(\uFEFF?(?:#![^\n]*(?:\n|$))?)/, "$1globalThis[Symbol.for('styleproof.configStarted')]?.();"),
     );
     return run(tmp, roots, roots[0] ?? dir);
   } finally {
