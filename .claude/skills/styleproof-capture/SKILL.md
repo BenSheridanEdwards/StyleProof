@@ -18,7 +18,7 @@ use the spec-driven `styleproof-map` — the `styleproof-baseline` skill.)
 
 ```bash
 styleproof-capture https://example.com/pricing --key pricing --widths 1440,1024,768 --out design
-styleproof-diff design .styleproof/maps/current   # design vs your build
+styleproof-diff design .styleproof/maps/current --allow-unasserted   # design vs your build
 ```
 
 Flags:

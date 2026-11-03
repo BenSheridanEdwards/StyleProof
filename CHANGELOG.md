@@ -23,6 +23,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Load TypeScript config in CommonJS projects as ESM (#1248). On Node 22.13.0,
   a config whose own body starts running and then throws is evaluated only once,
   without misleading TypeScript loader advice.
+- Permit runtime-compatible mixed spec/ad-hoc design comparisons as diagnostics; refuse mixed-pair trusted-SHA certification while preserving strict checks and certification for two ad-hoc or two spec bundles (#1244).
+- `./node_modules/.bin/styleproof capture` now finds project Playwright when
+  `node_modules/.bin` is absent from PATH (#1247).
+
 - Ignore unrelated JSON files in capture directories when comparing and reporting (#1245).
   Maps saved with `saveStyleMap` without `<key>@<width>.json[.gz]` names are now ignored.
 

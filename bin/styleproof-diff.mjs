@@ -15,7 +15,7 @@ import { summarizeComparability } from '../dist/diff.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import { collectStructureElevation, elevateReviewable } from '../dist/structure-elevation.js';
 import { assessComparisonTruth, rawFindingsExplainedByLiveText } from '../dist/change-groups.js';
-import { honestBaselineCompareAttribution } from '../dist/map-store.js';
+import { honestBaselineCompareAttribution, readMapManifest, MAP_MANIFEST } from '../dist/map-store.js';
 import { applyLegacyPairReceipts, auditLegacyPairs } from '../dist/legacy-pairs.js';
 import { applyCriticalObligationReceipts, auditCriticalObligations } from '../dist/critical-obligations.js';
 import { AUDIT_FILE_NAME, createAudit } from '../dist/audit.js';
@@ -66,6 +66,7 @@ const cli = defineCli({
     },
   },
   notes: [
+    'Mixed spec/ad-hoc pairs are diagnostic only and refuse trusted-SHA certification.',
     'exit: 0 identical — certified only when source-bound (--expected-before-sha and',
     '      --expected-after-sha); without them 0 is an UNVERIFIED DIAGNOSTIC, not',
     '      certification (--json certifiesFully: false), so the local and',
@@ -95,6 +96,14 @@ const { requireStateIdentity, expectedBeforeSha, expectedAfterSha } = inputs;
 // ── read everything while the (possibly restored) dirs still exist ─────────────
 const read = withCaptureDirs(NAME, inputs, () => {
   const evidence = readCompareEvidence(NAME, inputs, { migration, pixels });
+  const before = readMapManifest(inputs.beforeDir);
+  const after = readMapManifest(inputs.afterDir);
+  if (before && after && (before.spec === MAP_MANIFEST) !== (after.spec === MAP_MANIFEST)) {
+    console.error(
+      'UNVERIFIED DIAGNOSTIC: mixed spec/ad-hoc pairs skip spec, StyleProof version, Playwright runtime hash, and base URL checks.',
+    );
+  }
+
   // #766 navigable Global chrome + visible paired-surface add/remove, read from the maps before cleanup.
   const elevation = collectStructureElevation({
     beforeDir: inputs.beforeDir,
