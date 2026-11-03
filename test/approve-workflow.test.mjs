@@ -25,6 +25,7 @@ const PUBLICATION_SHA = 'c'.repeat(40);
 const RUN_ID = '9001';
 const RUN_ATTEMPT = '2';
 const REPORT_URL = `https://github.com/acme/app/blob/${PUBLICATION_SHA}/pr-7/report.md`;
+const WITHDRAWN = 'Approval withdrawn by @a-reviewer — re-run StyleProof for a verdict';
 const AUTHOR = 'pr-author';
 const REVIEWER = 'a-reviewer';
 const GRANT_LEVELS = { none: 0, read: 1, write: 2 };
@@ -302,11 +303,13 @@ for (const [file, workflowYml] of [
         results.push(result);
       }
       assert.notEqual(latestStatuses[0].state, 'success');
+      assert.deepEqual(results[0].statuses, [], 'the first tick refuses the unfinished or failed run');
       assert.deepEqual(
-        results.map((result) => result.statuses),
-        [[], [], []],
-        'tick → untick → tick writes nothing',
+        results[1].statuses.map(({ state, description, target_url }) => ({ state, description, target_url })),
+        [{ state: 'failure', description: WITHDRAWN, target_url: REPORT_URL }],
+        'untick revokes old receipts without making the run approvable',
       );
+      assert.deepEqual(results[2].statuses, [], 'the following tick refuses the withdrawn status');
       assert.deepEqual(
         results.flatMap((result) => result.created),
         [],
@@ -315,7 +318,113 @@ for (const [file, workflowYml] of [
       assert.equal(results[1].updated[0].body, reportComment());
     });
   }
-  test(`${file}: untick only withdraws canonical approvals or preserves approvable red (#1261)`, async () => {
+  test(`${file}: approve → re-run pending → untick revokes the receipt in the Action gate (#1261)`, async () => {
+    const digest = 'd'.repeat(64);
+    const canonical = { login: 'github-actions[bot]', type: 'Bot' };
+    const approval = await runApprove({
+      actor: REVIEWER,
+      program: reusableApproveScript({ workflowYml }),
+      reportJson: JSON.stringify({ actionTrustState: 'STYLE_REVIEW_REQUIRED', reviewDigest: digest }),
+    });
+    const prior = { ...approval.statuses[0], creator: canonical, created_at: '2026-10-20T10:00:30Z' };
+    const pending = {
+      context: 'StyleProof',
+      state: 'pending',
+      description: 'StyleProof report running — no verdict yet',
+      creator: canonical,
+    };
+    const statuses = [pending, prior];
+    const gateStep = yaml.load(actionYml).runs.steps.find((step) => step.id === 'gate');
+    const script = gateStep.with.script
+      .replaceAll('${{ steps.verdict.outputs.diff-digest }}', digest)
+      .replaceAll('${{ steps.context.outputs.pr-number }}', '7')
+      .replaceAll('${{ steps.context.outputs.head-sha }}', REPORT_SHA)
+      .replaceAll('${{ steps.diff.outputs.changed }}', 'true')
+      .replaceAll('${{ steps.context.outputs.untrusted-capture }}', 'false');
+    assert.doesNotMatch(script, /\$\{\{/);
+    const outputs = {};
+    const github = {
+      rest: {
+        actions: {
+          getWorkflowRun: async () => ({
+            data: {
+              status: 'completed',
+              conclusion: 'success',
+              event: 'issue_comment',
+              head_branch: 'main',
+              triggering_actor: { login: REVIEWER },
+              run_started_at: '2026-10-20T10:00:00Z',
+              updated_at: '2026-10-20T10:01:00Z',
+            },
+          }),
+          listWorkflowRunArtifacts: async () => ({
+            data: { artifacts: [{ name: approval.outputs['approval-artifact'], expired: false }] },
+          }),
+        },
+        repos: { listCommitStatusesForRef: async () => ({ data: statuses }) },
+      },
+    };
+    const gate = new AsyncFunction('github', 'context', 'core', script);
+    const context = { repo: { owner: 'acme', repo: 'app' }, payload: { repository: { default_branch: 'main' } } };
+    const core = {
+      setOutput: (key, value) => {
+        outputs[key] = value;
+      },
+    };
+    const saved = process.env.STYLEPROOF_PRIOR_STATUS;
+    process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(prior);
+    try {
+      await gate(github, context, core);
+      assert.equal(outputs.approved, 'true', 'the receipt carries forward before the untick');
+      const withdrawal = await runApprove({
+        actor: REVIEWER,
+        body: reportComment({ suffix: ' — _approved by @a-reviewer_' }),
+        latestStatuses: statuses,
+        program: reusableApproveScript({ workflowYml }),
+      });
+      statuses.unshift(...withdrawal.statuses.map((status) => ({ ...status, creator: canonical })));
+      await gate(github, context, core);
+      assert.equal(outputs.approved, 'false', 'untick during the re-run revokes the old receipt');
+      assert.equal(outputs.approver, '');
+      assert.deepEqual(withdrawal.created, []);
+      assert.equal(withdrawal.updated[0].body, reportComment());
+    } finally {
+      if (saved === undefined) delete process.env.STYLEPROOF_PRIOR_STATUS;
+      else process.env.STYLEPROOF_PRIOR_STATUS = saved;
+    }
+  });
+  test(`${file}: tick refuses the withdrawn description (#1261)`, async () => {
+    const result = await runApprove({
+      actor: REVIEWER,
+      latestStatuses: [
+        {
+          context: 'StyleProof',
+          state: 'failure',
+          description: WITHDRAWN,
+          target_url: REPORT_URL,
+          creator: { login: 'github-actions[bot]', type: 'Bot' },
+        },
+      ],
+      program: reusableApproveScript({ workflowYml }),
+    });
+    assert.deepEqual(result.statuses, []);
+    assert.deepEqual(result.outputs, {});
+  });
+  test(`${file}: untick without a report URL still revokes approval (#1261)`, async () => {
+    const body = reportComment({ suffix: ' — _approved by @a-reviewer_' }).replace(REPORT_URL, '');
+    const result = await runApprove({
+      actor: REVIEWER,
+      body,
+      latestStatuses: [],
+      program: reusableApproveScript({ workflowYml }),
+    });
+    assert.equal(result.statuses[0]?.state, 'failure');
+    assert.equal(result.statuses[0]?.description, WITHDRAWN);
+    assert.ok(!Object.hasOwn(result.statuses[0], 'target_url'));
+    assert.deepEqual(result.created, []);
+    assert.equal(result.updated[0].body, reportComment().replace(REPORT_URL, ''));
+  });
+  test(`${file}: untick always revokes approval and only preserves eligible sign-off red (#1261)`, async () => {
     const canonical = { login: 'github-actions[bot]', type: 'Bot' };
     for (const [latest, allowed] of [
       [{ state: 'success', description: 'Approved by @a-reviewer (run 123)' }, true],
@@ -364,8 +473,15 @@ for (const [file, workflowYml] of [
           : [],
         program: reusableApproveScript({ workflowYml }),
       });
-      assert.equal(result.statuses.length, allowed ? 1 : 0, JSON.stringify(latest));
-      if (allowed) assert.equal(result.statuses[0].state, 'failure');
+      assert.equal(result.statuses.length, 1, JSON.stringify(latest));
+      assert.equal(result.statuses[0].state, 'failure');
+      assert.equal(
+        result.statuses[0].description,
+        allowed
+          ? 'Tick "Approve all changes" to sign off'
+          : `Approval withdrawn by @${AUTHOR} — re-run StyleProof for a verdict`,
+      );
+      assert.equal(result.statuses[0].target_url, REPORT_URL);
       assert.deepEqual(result.created, []);
       assert.equal(result.updated[0].body, reportComment());
     }
@@ -977,7 +1093,7 @@ test('approval receipt names bind the published reviewDigest, with legacy fallba
       assert.equal(result.statuses[0].state, 'success', 'legacy reports still approve');
       assert.equal(result.outputs['approved-pr'], '7');
       assert.equal(result.outputs['approved-sha'], REPORT_SHA);
-      assert.equal(result.outputs['review-digest'], digest);
+      assert.equal(result.outputs['review-digest'], undefined);
       assert.ok(result.outputs['approval-artifact'].length < 256);
       assert.equal(
         result.outputs['approval-artifact'],

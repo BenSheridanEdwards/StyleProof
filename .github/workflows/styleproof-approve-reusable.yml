@@ -516,9 +516,17 @@ jobs:
               if (latestPr.data.head.sha !== headSha) return;
             }
 
-            // Withdrawing approval cannot make a failed or unfinished run approvable.
-            // Still clear the displayed approval suffix using the existing unticked box.
+            // Revoke old receipts even while a re-run is pending, without making a
+            // failed or unfinished run approvable by a later tick.
             if (!approved && !(await readPendingStatus(true))) {
+              await github.rest.repos.createCommitStatus({
+                ...context.repo,
+                sha: headSha,
+                context: STATUS,
+                state: 'failure',
+                description: `Approval withdrawn by @${actor} — re-run StyleProof for a verdict`,
+                ...(reportUrl ? { target_url: reportUrl } : {}),
+              });
               await renderBox(false, '');
               return;
             }
@@ -567,7 +575,6 @@ jobs:
             if (approved) {
               core.setOutput('approved-pr', String(context.payload.issue.number));
               core.setOutput('approved-sha', headSha);
-              core.setOutput('review-digest', reviewDigest);
               core.setOutput('approval-artifact', `styleproof-approval-${context.payload.issue.number}-${headSha}${reviewDigest ? `-${reviewDigest}` : ''}`);
               require('node:fs').writeFileSync('styleproof-approval.txt', headSha);
             }
