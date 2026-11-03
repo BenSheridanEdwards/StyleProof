@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `./node_modules/.bin/styleproof capture` now finds project Playwright when
+  `node_modules/.bin` is absent from PATH (#1247).
+
 - Ignore unrelated JSON files in capture directories when comparing and reporting (#1245).
   Maps saved with `saveStyleMap` without `<key>@<width>.json[.gz]` names are now ignored.
 

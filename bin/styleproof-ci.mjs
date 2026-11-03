@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { projectPlaywright } from './project-playwright.mjs';
 import {
   browsersRequiredByCaptureConfig,
   evaluateBrowserPreflight,
@@ -283,7 +284,6 @@ if (specRefProvided) {
 /** PATH with `cwd`'s own node_modules/.bin FIRST, so base-side spawns resolve the
  *  cold-base worktree's own Playwright rather than the head's. */
 const binFirstPath = (cwd) => `${path.join(cwd, 'node_modules', '.bin')}${path.delimiter}${env.PATH}`;
-const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 
 /** Run a command with inherited stdio; throw on failure so finally hooks still run. */
 function runOrDie(command, what, { cwd = consumerCwd, extraEnv = {} } = {}) {
@@ -345,12 +345,12 @@ function logMapRestoreDecision(decision) {
 }
 
 function playwrightInstall(cwd, browserNames = ['chromium']) {
-  const result = spawnSync(playwright, ['install', '--with-deps', ...browserNames], {
+  const result = projectPlaywright(['install', '--with-deps', ...browserNames], {
     stdio: 'inherit',
     cwd,
     env: { ...env, PATH: binFirstPath(cwd) },
   });
-  if (result.error) log(`could not run ${playwright} install — ${result.error.message}`);
+  if (result.error) log(`could not run playwright install — ${result.error.message}`);
   return !result.error && (result.status ?? 1) === 0;
 }
 

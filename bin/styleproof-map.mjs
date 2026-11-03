@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { projectPlaywright } from './project-playwright.mjs';
 import { selectCaptureWorkers } from '../dist/capture-workers.js';
 import { missingSpecMessage, nonLinuxUploadWarning, playwrightMissingMessage } from '../dist/cli-errors.js';
 import {
@@ -107,6 +108,9 @@ const cli = defineCli({
     },
   },
   notes: [
+    'Playwright uses the project @playwright/test CLI when PATH has no runnable executable.',
+    'Windows batch shims use the project CLI via Node.',
+    '',
     'A styleproof.config.json at the repo root supplies project defaults — "spec", "dirtyAllow",',
     '"cacheBranch", "remote" — with flags and env overriding it, except "dirtyAllow", which',
     'ACCUMULATES across config, STYLEPROOF_DIRTY_ALLOW, and every --dirty-allow flag.',
@@ -381,7 +385,6 @@ const onlySurfaces = reuseFrom
   ? parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES)
   : parseOnlySurfacesEnv(env.STYLEPROOF_ONLY_SURFACES);
 
-const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const hasConfigArg = playwrightArgs.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 const configArgs =
   fs.existsSync(STYLEPROOF_PLAYWRIGHT_CONFIG) && !hasConfigArg ? ['--config', STYLEPROOF_PLAYWRIGHT_CONFIG] : [];
@@ -422,7 +425,7 @@ const captureEnv = (label) => ({
   ...(onlySurfaces ? { STYLEPROOF_ONLY_SURFACES: [...onlySurfaces].join(',') } : {}),
 });
 const runCapture = (label, extraEnv = {}) =>
-  spawnSync(playwright, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs, ...workerArgs], {
+  projectPlaywright(['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs, ...workerArgs], {
     stdio: 'inherit',
     env: { ...captureEnv(label), ...extraEnv },
   });
