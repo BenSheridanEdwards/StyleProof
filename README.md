@@ -405,6 +405,8 @@ Parallel head captures run largest base maps first; `parallel: false` and report
 
 The TypeScript config file itself supports ESM syntax regardless of package type;
 local ESM `.ts` helper imports still require a module project.
+Once the config body starts, a loading error is reported without retrying it with
+type stripping or suggesting a different Node version.
 
 The map CLI evaluates JavaScript and TypeScript config in a separate process, so
 cold-base npm checkouts can use their own Playwright installation without
