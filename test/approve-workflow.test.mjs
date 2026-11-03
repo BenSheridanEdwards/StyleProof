@@ -959,23 +959,31 @@ test('a token without pull-requests: write names the missing permission, not a b
   }
 });
 
-test('approved runs upload a receipt bound to the PR and SHA', () => {
-  for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'example/styleproof-approve.yml']) {
-    const workflow = yaml.load(fs.readFileSync(path.join(root, file), 'utf8'));
-    const steps = workflow.jobs.approve.steps;
-    const approval = steps.find((step) => step.id === 'approval');
-    const upload = steps.find((step) => step.uses === 'actions/upload-artifact@v6');
+test('approval receipt names bind the published reviewDigest, with legacy fallback (#1262)', async () => {
+  for (const workflowYml of [reusableApproveYml, approveYml]) {
+    const upload = yaml.load(workflowYml).jobs.approve.steps.find((step) => step.uses === 'actions/upload-artifact@v6');
     assert.equal(upload.if, "steps.approval.outputs.approved-sha != ''");
-    assert.deepEqual(upload.with, {
-      name: 'styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}',
-      path: 'styleproof-approval.txt',
-      'retention-days': '${{ github.retention_days }}',
-      'if-no-files-found': 'error',
-    });
-    assert.match(
-      approval.with.script,
-      /if \(approved\) \{\s+core.setOutput\('approved-pr', String\(context.payload.issue.number\)\);\s+core.setOutput\('approved-sha', headSha\);\s+require\('node:fs'\).writeFileSync\('styleproof-approval.txt', headSha\);\s+\}/,
-    );
+    assert.equal(upload.with.path, 'styleproof-approval.txt');
+    assert.equal(upload.with['retention-days'], '${{ github.retention_days }}');
+    assert.equal(upload.with['if-no-files-found'], 'error');
+    assert.equal(upload.with.name, '${{ steps.approval.outputs.approval-artifact }}');
+    for (const reviewDigest of ['d'.repeat(64), undefined, '', 'D'.repeat(64), 'd'.repeat(63), 123]) {
+      const result = await runApprove({
+        actor: REVIEWER,
+        program: reusableApproveScript({ workflowYml }),
+        reportJson: JSON.stringify({ actionTrustState: 'STYLE_REVIEW_REQUIRED', reviewDigest }),
+      });
+      const digest = typeof reviewDigest === 'string' && /^[0-9a-f]{64}$/.test(reviewDigest) ? reviewDigest : '';
+      assert.equal(result.statuses[0].state, 'success', 'legacy reports still approve');
+      assert.equal(result.outputs['approved-pr'], '7');
+      assert.equal(result.outputs['approved-sha'], REPORT_SHA);
+      assert.equal(result.outputs['review-digest'], digest);
+      assert.ok(result.outputs['approval-artifact'].length < 256);
+      assert.equal(
+        result.outputs['approval-artifact'],
+        `styleproof-approval-7-${REPORT_SHA}${digest ? `-${digest}` : ''}`,
+      );
+    }
   }
 });
 

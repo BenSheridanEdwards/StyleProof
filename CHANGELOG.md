@@ -31,6 +31,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Bind carried-forward approvals to the reviewed diff and trust state (#1262). Approvals recorded before upgrading do not carry forward to a re-run; tick again once.
+
 - Keep failed or unfinished StyleProof runs blocked when the approval box is unticked and ticked again (#1261).
 
 - Load TypeScript config in CommonJS projects as ESM (#1248). On Node 22.13.0,

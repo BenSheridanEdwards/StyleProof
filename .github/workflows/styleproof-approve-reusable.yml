@@ -302,6 +302,8 @@ jobs:
                 ((eligibleFailure || eligibleUntrustedPending) && latest.target_url === reportUrl));
             };
 
+            let reviewDigest = '';
+
             // A tick is authority-bearing, so bind it to the one current immutable
             // publication before evaluating self-approval. Unticks remain a safe way to
             // withdraw approval and never need publication readback to turn the gate red.
@@ -475,6 +477,9 @@ jobs:
               ) return;
               try {
                 const parsedReport = JSON.parse(publishedJson);
+                if (typeof parsedReport?.reviewDigest === 'string' && /^[0-9a-f]{64}$/.test(parsedReport.reviewDigest)) {
+                  reviewDigest = parsedReport.reviewDigest;
+                }
                 // A clean verdict is approvable only when the Action marked the capture
                 // untrusted (fork PR): the fork produced both map sets, so it needs sign-off.
                 if (
@@ -562,12 +567,14 @@ jobs:
             if (approved) {
               core.setOutput('approved-pr', String(context.payload.issue.number));
               core.setOutput('approved-sha', headSha);
+              core.setOutput('review-digest', reviewDigest);
+              core.setOutput('approval-artifact', `styleproof-approval-${context.payload.issue.number}-${headSha}${reviewDigest ? `-${reviewDigest}` : ''}`);
               require('node:fs').writeFileSync('styleproof-approval.txt', headSha);
             }
       - uses: actions/upload-artifact@v6
         if: steps.approval.outputs.approved-sha != ''
         with:
-          name: styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}
+          name: ${{ steps.approval.outputs.approval-artifact }}
           path: styleproof-approval.txt
           retention-days: ${{ github.retention_days }}
           if-no-files-found: error
