@@ -5,7 +5,7 @@
 // Three modes per target, timed from navigation to the end of evidence collection:
 //   off    — captureStyleMap alone (today)
 //   J1     — plus CSS rule usage (CSS.startRuleUsageTracking → stopRuleUsageTracking)
-//   J1+J2  — plus binary V8 block coverage (Profiler.startPreciseCoverage, no call counts)
+//   J1+J2  — plus src/ navigation coverage and original-source resolution (no call counts)
 // Modes rotate every round so machine drift spreads across all three. Timings are
 // only as good as the host: the receipt records its load average, and the numbers
 // worth citing come from the quiet CI runner (.github/workflows/reach-cost.yml).
@@ -15,10 +15,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { captureStyleMap } from '../dist/capture.js';
+import { captureStyleMap, trackScriptReach } from '../dist/capture.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const RESULTS_PATH = path.join(ROOT, 'bench', 'reach-cost.results.json');
+const outputArg = process.argv.indexOf('--output');
+const RESULTS_PATH =
+  outputArg === -1 ? path.join(ROOT, 'bench', 'reach-cost.results.json') : path.resolve(process.argv[outputArg + 1]);
 const runsArg = process.argv.indexOf('--runs');
 const RUNS = runsArg === -1 ? 7 : Number(process.argv[runsArg + 1]);
 if (!Number.isInteger(RUNS) || RUNS < 1) {
@@ -69,19 +71,18 @@ async function measure(browser, target, mode) {
     await cdp.send('CSS.enable');
     await cdp.send('CSS.startRuleUsageTracking');
   }
-  if (mode === 'J1+J2') {
-    await cdp.send('Profiler.enable');
-    await cdp.send('Profiler.startPreciseCoverage', { callCount: false, detailed: true });
-  }
+  const scriptReach = mode === 'J1+J2' ? await trackScriptReach(page) : undefined;
   const start = performance.now();
   await page.goto(target.url, { waitUntil: 'load' });
   const loaded = performance.now();
-  await captureStyleMap(page);
+  const map = await captureStyleMap(page, { captureScriptReach: mode === 'J1+J2', scriptReach });
   const bytes = { J1: 0, J2: 0 };
   if (mode !== 'off') bytes.J1 = JSON.stringify((await cdp.send('CSS.stopRuleUsageTracking')).ruleUsage).length;
-  if (mode === 'J1+J2') {
-    bytes.J2 = JSON.stringify((await cdp.send('Profiler.takePreciseCoverage')).result).length;
-    await cdp.send('Profiler.stopPreciseCoverage');
+  if (scriptReach) {
+    if (target.id === 'react-table' && !map.scriptReach?.scripts.some((script) => script.status === 'mapped')) {
+      throw new Error('React cost target did not resolve app-source coverage');
+    }
+    bytes.J2 = JSON.stringify(map.scriptReach).length;
   }
   const done = performance.now();
   await page.close();
@@ -162,6 +163,7 @@ const receipt = {
     loadavgEnd: os.loadavg().map(round),
     ci: process.env.GITHUB_ACTIONS === 'true',
   },
+  scriptEvidence: 'src/ original-source ranges (J2 bytes use the legacy rawEvidenceBytes field)',
   node: process.version,
   browser: `chromium ${browserVersion}`,
   runs: RUNS,

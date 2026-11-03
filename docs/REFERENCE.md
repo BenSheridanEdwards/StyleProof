@@ -1409,15 +1409,61 @@ Matches only inside shadow roots, iframes, `ignore` regions or volatile regions 
 
 `classifyRuleReach` compares the ledgers and reports outside-only changed rules, consumers or referrers as `unmeasured`, never `reached`.
 
-When any base or head capture carries a ledger, or `changeReach: 'gate'` is enabled, the report adds a **Reach incomplete** status under the headline and a **Changed but never matched** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Outside-only changed rules, consumers or referrers appear under **Changed but unmeasured** with their reasons; they never count as reached. Missing or old ledgers and unreadable stylesheets produce named evidence gaps with remedies. A run with complete ledgers whose changed served rules all matched has no new section, but remains reach-incomplete: render-code coverage, class-list deltas, and the join between changed stylesheets and served sheets are not recorded yet. The source column names the served sheet; source-map resolution is not recorded yet.
+When any base or head capture carries a ledger, or `changeReach: 'gate'` is enabled, the report adds a **Reach incomplete** status under the headline and a **Changed but never matched** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Outside-only changed rules, consumers or referrers appear under **Changed but unmeasured** with their reasons; they never count as reached. Missing or old ledgers and unreadable stylesheets produce named evidence gaps with remedies. A run with complete ledgers whose changed served rules all matched has no new section, but remains reach-incomplete: the script-to-diff join, class-list deltas, and the join between changed stylesheets and served sheets are not built yet. The source column names the served sheet; source-map resolution is not recorded yet.
 
 `changeReach: 'warn'` is the default in `styleproof.config.ts` (or JSON): reach findings never change the verdict or exit codes, and the diff CLI output stays unchanged. Reports from captures without any ledger stay unchanged too. Opt into `changeReach: 'gate'` to hold changed J1 rules classified as `never-rendered`, `unmeasured` or `blind-channel`, plus J1 ledger gaps: missing or old ledgers, unreadable sheets, a side without captures, or incomplete ledgers. This includes legacy maps under opt-in gate; recapture missing evidence with `captureReach`. Both `styleproof-diff` and `styleproof-report` exit `1` when reach holds the run. Certify mode with `fail-on-diff: true` and without `require-approval: true` yields `CERTIFICATION_FAILED`; review-gate and migration yield `STYLE_REVIEW_REQUIRED`, cleared by the existing Approve box. Advisory mode remains non-blocking for reach findings. Approval clears the verdict, not the reach finding.
 
-Render-code coverage (J2), class-list deltas (J3), and the not-yet-built changed-stylesheet join remain named warn-only gaps under both levels. They keep the strip at **Reach incomplete**, but do not hold the verdict. The strip and section name changed stylesheets no capture served as "not checked"; `blocking` excludes this gap.
+The script-to-diff join (J2), class-list deltas (J3), and the not-yet-built changed-stylesheet join remain named warn-only gaps under both levels. They keep the strip at **Reach incomplete**, but do not hold the verdict. The strip and section name changed stylesheets no capture served as "not checked"; `blocking` excludes this gap.
 
 `report.json` and the report API result include `reach` when a capture carries a ledger or gate is enabled: `{ level, blocking, complete, ledger, counts, rules, unreadableSheets, gaps }`. `blocking` is the held rule and ledger-gap count, always `0` under warn. `counts` has zero-filled `reached`, `never-rendered`, `unmeasured`, and `blind-channel` keys; `rules` keeps every changed rule, including reached ones. Each gap has `{ join, status, side?, kind, reason, remedy }`. `complete` remains false while evidence gaps exist. Under gate, `styleproof-diff --json` includes `reach: { level, ledger, counts, blocking }`; under warn it omits `reach` to preserve the existing receipt. A map with `reach` still diffs identically to one without at the computed-style layer. If `maxReportBytes` cannot fit the reach status, report generation fails with a request to increase the budget instead of hiding the warning. The ledger adds about 23 bytes per served rule to a gzipped map.
 
 Custom-property fonts resolve by union over every possible declared or registered value, including transitive aliases and fallbacks. A `var()` that can join a family name (for example `font-family: Brand var(--x)` or `font: 15px Brand var(--x)`) records reach unknown. Font shorthands allow substitutions in pre-size and line-height slots, or where the union proves that facing tokens cannot form a family name; fallback text and custom-property values retain the broader adjacency guard. `var()` in animation values, inline custom properties used by fonts, inline font/animation variable readers, font variable readers in other frames and failed registration lookups also record reach unknown. Inline styles are read from Chromium’s parsed declarations, including decoded custom-property names, across document and author shadow roots. Inline font/animation readers and exact closure-name declarations record reach unknown, as do failed CDP reads or a changed count of styled elements. Every read stylesheet records reach unknown on ambiguous unquoted `url()` bodies containing unescaped comment openers, quotes or an opening parenthesis, and on escaped `url()` function names (#1230). CSS whitespace before a quoted URL and benign escapes in literal URL arguments remain supported. This guard also applies to URL text in comments and strings; ledger keys, hashes and version 2 are unchanged; escaped selectors and strings elsewhere are unaffected.
+
+### Script execution evidence (J2)
+
+`captureScriptReach` is a separate opt-in setting, off by default, on
+`defineStyleMapCapture`, `defineCrawlCapture` and `CaptureOptions`. Enabling
+`captureReach` alone does not collect it. There is no CLI flag for either setting.
+
+```ts
+defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true });
+```
+
+The runner arms binary V8 block coverage before each surface's `go()`, including
+self-checks and popup reopens, and stops after the map read. Evidence records
+`window: 'navigation'`: module/render code and transient loading branches that
+ran before settle count as executed. Execution alone does not prove that a value
+reached a rendered element. The git-diff join is not implemented yet, so this
+setting does not clear the report's J2 gap or change its verdict.
+
+`StyleMap.scriptReach` has `{ version: 1, window, status, reason?, scripts }`.
+Each script records its URL, a `mapped`, `unmeasured` or `unknown` status, and
+mapped `files` or a reason. Original files hold `source`, optional SHA-256
+`contentHash`, and `executed`, `mixed`, `unexecuted` arrays of `{ start, end }`
+positions. Lines are 1-based, UTF-16 columns 0-based, ends exclusive. These are
+source-map segment spans, not a claim about unmapped code. A V8 boundary inside
+a segment is `mixed`; it cannot be interpolated into an exact original column.
+When no original content or next same-line mapping supplies an end, equal start
+and end positions preserve only the mapping anchor. `sourcesContent` supplies
+the hash; an absent/null entry leaves the hash absent. No original files are
+fetched to invent hashes. Vendored `node_modules` sources are excluded.
+
+Inline data maps, `sourceMappingURL` references and `SourceMap`/`X-SourceMap`
+response headers are supported through page/CDP fetches. Unsupported maps
+(including indexed/section maps), malformed mappings and failed reads record
+`unknown` with a reason. Scripts without a map record `unmeasured` by URL.
+Legacy maps and captures without the setting have no `scriptReach` field and
+supply no script evidence. Coverage shared with a spec's `page.coverage` is
+`unmeasured`, including coverage enabled before StyleProof starts. Evidence over
+1 MiB becomes `unknown` instead of silently truncating sources or bloating the
+capture bundle. No raw V8 coverage, source-map text or original content is stored.
+
+For direct capture, arm `trackScriptReach(page)` **before** navigation, pass
+`{ captureScriptReach: true, scriptReach }` to `captureStyleMap`, and dispose the
+tracker in `finally`. Use a new tracker for every capture; without one, evidence
+is `unmeasured`. A `go()` that does not navigate after arming also records
+`unmeasured`: earlier module execution cannot be recovered. A self-check compares mapped app-source ranges and hashes;
+changed or missing evidence makes the capture unproven just like J1.
 
 ## Optional: selective remap (advisory + CI opt-in)
 

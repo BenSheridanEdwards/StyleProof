@@ -1,3 +1,5 @@
+import type { ScriptReach } from '../script-reach.js';
+import type { ScriptReachTracker } from './script-reach.js';
 import type { NavigableItem } from '../inventory.js';
 import type { DataResidueEntry } from '../data-residue.js';
 import type { ServedRuleTracker } from './reach.js';
@@ -135,6 +137,8 @@ export type StyleMap = {
   dataResidue?: DataResidueEntry[];
   /** Served CSS rules and which matched while the map was read; only with `captureReach: true` (Change Reach, #991). */
   reach?: ServedRules;
+  /** Original app-source execution from navigation to the end of the map read. Absent on legacy maps. */
+  scriptReach?: ScriptReach;
 };
 
 /** One served CSS leaf rule (a style rule, `@keyframes`, `@font-face`…) in the Change Reach ledger. */
@@ -206,6 +210,10 @@ export type CaptureOptions = {
   captureComponent?: boolean;
   /** Opt-in Change Reach ledger: record served CSS rules and which matched into `StyleMap.reach` (default off). */
   captureReach?: boolean;
+  /** Opt-in binary script coverage resolved to original sources (default off). */
+  captureScriptReach?: boolean;
+  /** Arm trackScriptReach(page) before navigation; absent trackers produce unmeasured evidence. */
+  scriptReach?: ScriptReachTracker;
   /**
    * A `trackServedRules(page)` armed BEFORE navigation. Without one, `captureReach` arms its own after
    * the page loaded, and linked stylesheets read as `unreadable` because Chromium did not keep their text.

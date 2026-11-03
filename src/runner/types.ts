@@ -96,6 +96,8 @@ export type DefineOptions = ForcedStateLimits & {
   inventory?: boolean;
   /** Opt-in Change Reach ledger: record served CSS rules and which matched into `StyleMap.reach` (default off). */
   captureReach?: boolean;
+  /** Record original-source script execution from navigation (default off; needs source maps). */
+  captureScriptReach?: boolean;
   /** Data-residue guard: `'gate'` (default) blocks the diff on an unacknowledged failing endpoint; `'warn'` only records. */
   dataResidue?: 'warn' | 'gate';
   /** Declare live/age/clock text; `{ freeze: true }` makes drift fail-closed. Requires `captureText` (default true; fails if explicitly false). */

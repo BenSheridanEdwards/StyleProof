@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "window": "navigation",
+  "status": "measured",
+  "scripts": [
+    {
+      "url": "https://script.test/bundle.js",
+      "status": "mapped",
+      "files": [
+        {
+          "source": "https://script.test/original.js",
+          "contentHash": "59fc5e53a925740fbe2b382ee557e9794f5f2117fd920e3c5e2ac8a44355f754",
+          "executed": [
+            {
+              "start": {
+                "line": 1,
+                "column": 0
+              },
+              "end": {
+                "line": 1,
+                "column": 23
+              }
+            },
+            {
+              "start": {
+                "line": 2,
+                "column": 0
+              },
+              "end": {
+                "line": 2,
+                "column": 13
+              }
+            },
+            {
+              "start": {
+                "line": 3,
+                "column": 0
+              },
+              "end": {
+                "line": 3,
+                "column": 46
+              }
+            },
+            {
+              "start": {
+                "line": 7,
+                "column": 0
+              },
+              "end": {
+                "line": 7,
+                "column": 1
+              }
+            },
+            {
+              "start": {
+                "line": 8,
+                "column": 0
+              },
+              "end": {
+                "line": 8,
+                "column": 13
+              }
+            }
+          ],
+          "mixed": [
+            {
+              "start": {
+                "line": 4,
+                "column": 0
+              },
+              "end": {
+                "line": 4,
+                "column": 10
+              }
+            }
+          ],
+          "unexecuted": [
+            {
+              "start": {
+                "line": 5,
+                "column": 0
+              },
+              "end": {
+                "line": 5,
+                "column": 48
+              }
+            },
+            {
+              "start": {
+                "line": 6,
+                "column": 0
+              },
+              "end": {
+                "line": 6,
+                "column": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://script.test/unmapped.js",
+      "status": "unmeasured",
+      "reason": "source map absent"
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "generated": "2026-11-03T17:17:26.246Z",
+  "host": {
+    "platform": "darwin arm64",
+    "cpus": 12,
+    "loadavgStart": [
+      6.4,
+      17.5,
+      22.4
+    ],
+    "loadavgEnd": [
+      6.7,
+      13.1,
+      19.7
+    ],
+    "ci": false
+  },
+  "scriptEvidence": "src/ original-source ranges (J2 bytes use the legacy rawEvidenceBytes field)",
+  "node": "v26.12.1",
+  "browser": "chromium 149.0.7827.55",
+  "runs": 7,
+  "thresholds": {
+    "J1": "≤ 5%",
+    "J1+J2": "≤ 15%",
+    "basis": "median total vs off"
+  },
+  "verdict": {
+    "J1": "within threshold",
+    "J1+J2": "within threshold"
+  },
+  "targets": [
+    {
+      "id": "detection-fixture",
+      "kind": "static, CSS-rich",
+      "modes": {
+        "off": {
+          "medianLoadMs": 7.4,
+          "medianTotalMs": 923.4,
+          "minTotalMs": 913.2,
+          "maxTotalMs": 936.3,
+          "rawEvidenceBytes": {
+            "J1": 0,
+            "J2": 0
+          }
+        },
+        "J1": {
+          "medianLoadMs": 7.5,
+          "medianTotalMs": 923.7,
+          "minTotalMs": 916.1,
+          "maxTotalMs": 948.6,
+          "rawEvidenceBytes": {
+            "J1": 2585,
+            "J2": 0
+          }
+        },
+        "J1+J2": {
+          "medianLoadMs": 7.7,
+          "medianTotalMs": 949.2,
+          "minTotalMs": 930.3,
+          "maxTotalMs": 965.8,
+          "rawEvidenceBytes": {
+            "J1": 2585,
+            "J2": 218
+          }
+        }
+      },
+      "overheadPct": {
+        "J1": 0,
+        "J1+J2": 2.8
+      }
+    },
+    {
+      "id": "example-demo",
+      "kind": "static dogfood surface",
+      "modes": {
+        "off": {
+          "medianLoadMs": 3.8,
+          "medianTotalMs": 780.5,
+          "minTotalMs": 773.5,
+          "maxTotalMs": 803.7,
+          "rawEvidenceBytes": {
+            "J1": 0,
+            "J2": 0
+          }
+        },
+        "J1": {
+          "medianLoadMs": 3.7,
+          "medianTotalMs": 789.8,
+          "minTotalMs": 775,
+          "maxTotalMs": 803.8,
+          "rawEvidenceBytes": {
+            "J1": 2937,
+            "J2": 0
+          }
+        },
+        "J1+J2": {
+          "medianLoadMs": 4,
+          "medianTotalMs": 801.6,
+          "minTotalMs": 792.9,
+          "maxTotalMs": 869.6,
+          "rawEvidenceBytes": {
+            "J1": 2855,
+            "J2": 213
+          }
+        }
+      },
+      "overheadPct": {
+        "J1": 1.2,
+        "J1+J2": 2.7
+      }
+    },
+    {
+      "id": "react-table",
+      "kind": "React, 300 rows",
+      "modes": {
+        "off": {
+          "medianLoadMs": 33.6,
+          "medianTotalMs": 5017.3,
+          "minTotalMs": 4885.7,
+          "maxTotalMs": 5098,
+          "rawEvidenceBytes": {
+            "J1": 0,
+            "J2": 0
+          }
+        },
+        "J1": {
+          "medianLoadMs": 34.9,
+          "medianTotalMs": 5063.8,
+          "minTotalMs": 4942.4,
+          "maxTotalMs": 5088.4,
+          "rawEvidenceBytes": {
+            "J1": 1182,
+            "J2": 0
+          }
+        },
+        "J1+J2": {
+          "medianLoadMs": 33.3,
+          "medianTotalMs": 5449.1,
+          "minTotalMs": 5309.9,
+          "maxTotalMs": 5488.2,
+          "rawEvidenceBytes": {
+            "J1": 1100,
+            "J2": 4132
+          }
+        }
+      },
+      "overheadPct": {
+        "J1": 0.9,
+        "J1+J2": 8.6
+      }
+    }
+  ]
+}

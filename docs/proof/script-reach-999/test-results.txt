@@ -1,0 +1,84 @@
+StyleProof script reach: test-first proof
+
+Before implementation: node --test test/script-reach.test.mjs
+Error [ERR_MODULE_NOT_FOUND]
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 213.077875
+
+Before implementation: pnpm exec playwright test test/script-reach.e2e.spec.ts --workers=1
+SyntaxError: The requested module '../dist/capture.js' does not provide an export named 'trackScriptReach'
+
+Additional test-first regressions:
+Overlapping original spans: expected empty executed spans, received an executed span.
+Same-document hash navigation: expected unmeasured, received measured.
+Script-only report: expected blocking=0, received undefined.
+
+After implementation: node --test test/script-reach.test.mjs test/report-reach.test.mjs
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 610.641834
+
+After implementation: pnpm exec playwright test test/script-reach.e2e.spec.ts --workers=1
+  14 passed (4.9s)
+
+Final pnpm run verify (typecheck, lint, anti-slop, formatting, privacy, context, suppressions and unit tests)
+ℹ tests 4518
+ℹ suites 32
+ℹ pass 4518
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 391066.137416
+
+Final pnpm run test:e2e
+  1 skipped
+  667 passed (4.5m)
+Existing skip: non-Chromium forced-state test in the Chromium-only project.
+
+An earlier verify run was invalidated by concurrent dist rebuilds. The final run above ran without rebuilding dist during the unit suite.
+
+Actual browser evidence: execution.json records original line 3 executed, line 4 mixed, line 5 unexecuted, and unmapped.js unmeasured.
+Report evidence: report.json retains complete=false, blocking=0 and names the unbuilt J2 join and navigation-window limit.
+Visual screenshot proof: not applicable; this change stores execution evidence and adds report guidance, without changing a visual layout.
+
+Cost command: node bench/reach-cost.mjs --output docs/proof/script-reach-999/cost.json
+StyleProof reach cost — 7 run(s) per mode, chromium 149.0.7827.55
+
+  detection-fixture (static, CSS-rich)
+    off    median   923.4 ms (load 7.4 ms, range 913.2–936.3)
+    J1     median   923.7 ms (load 7.5 ms, range 916.1–948.6)  overhead 0%
+    J1+J2  median   949.2 ms (load 7.7 ms, range 930.3–965.8)  overhead 2.8%
+  example-demo (static dogfood surface)
+    off    median   780.5 ms (load 3.8 ms, range 773.5–803.7)
+    J1     median   789.8 ms (load 3.7 ms, range 775–803.8)  overhead 1.2%
+    J1+J2  median   801.6 ms (load 4 ms, range 792.9–869.6)  overhead 2.7%
+  react-table (React, 300 rows)
+    off    median  5017.3 ms (load 33.6 ms, range 4885.7–5098)
+    J1     median  5063.8 ms (load 34.9 ms, range 4942.4–5088.4)  overhead 0.9%
+    J1+J2  median  5449.1 ms (load 33.3 ms, range 5309.9–5488.2)  overhead 8.6%
+
+  J1 ≤ 5%: within threshold
+  J1+J2 ≤ 15%: within threshold
+  host load average 6.4 / 17.5 / 22.4 at start, 6.7 / 13.1 / 19.7 at end
+
+receipt → docs/proof/script-reach-999/cost.json
+
+Reference receipt: linux x64, 4 CPUs, v22.23.3, chromium 149.0.7827.55, CI=true.
+Local receipt: darwin arm64, 12 CPUs, v26.12.1, chromium 149.0.7827.55, CI=false. Different hosts; these are overhead comparisons, not an identical-runner noise claim.
+detection-fixture: prior CI J1+J2 6.5%; local 2.8%.
+example-demo: prior CI J1+J2 3.8%; local 2.7%.
+react-table: prior CI J1+J2 5.3%; local 8.6%.
+
+Known conservative limits: flat source-map v3 only; unsupported indexed maps are unknown. Missing sourcesContent leaves hashes absent. A V8 boundary inside a mapped segment is mixed. Evidence above 1 MiB is unknown.

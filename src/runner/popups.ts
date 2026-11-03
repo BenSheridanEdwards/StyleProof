@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { trackScriptReach, type ScriptReachTracker } from '../capture/script-reach.js';
 import {
   captureStyleMap,
   captureSurfaceScreenshots,
@@ -14,7 +15,7 @@ import { DANGER_SOURCE, DANGER_TEXT_SOURCE, SUBMITS_FORM_SOURCE } from '../dange
 import { realNow } from '../spec-clock.js';
 import { captureArtifactStem } from '../surface-keys.js';
 import { popupDomSnapshot, type PopupCandidate, type PopupSnapshotArgs } from './browser.js';
-import { assertDeterministicReach, selfCheckErrorMessage } from './self-check.js';
+import { assertDeterministicReach, assertDeterministicScriptReach, selfCheckErrorMessage } from './self-check.js';
 import { captureOptionsFor, resolvePopupCaptureOptions } from './settings.js';
 import type { ExpandedSurface, ResolvedPopupCaptureOptions, Settings } from './types.js';
 
@@ -117,11 +118,13 @@ type PopupRun = {
   pristine: ReadonlySet<string>;
   pending: () => number;
   servedRules?: ServedRuleTracker;
+  scriptReach?: ScriptReachTracker;
 };
 
 function captureOpenedPopupMap(run: PopupRun, popupId: string): Promise<StyleMap> {
   return captureStyleMap(run.page, {
     ...captureOptionsFor(run.surface, run.s, run.pending, run.servedRules),
+    scriptReach: run.scriptReach,
     captureComponent: run.s.captureComponent,
     metadata: popupMetadata(run.surface, popupId),
   });
@@ -134,31 +137,37 @@ async function assertPopupDeterministic(
   popupId: string,
   first: StyleMap,
 ): Promise<string[] | undefined> {
-  const reopened = await openPopupCandidate(
-    run.page,
-    run.surface,
-    run.viewport,
-    run.options,
-    candidate,
-    run.pristine,
-    run.s.captureText,
-  );
-  if (reopened.status === 'leaked') return reopened.leaked;
-  if (reopened.status !== 'opened') {
-    throw new Error(
-      `styleproof self-check failed: ${run.surface.key}-${popupId} popup did not reopen` +
-        (reopened.status === 'missing' ? ' (its trigger disappeared from the DOM or changed identity)' : ''),
+  const scriptReach = run.s.captureScriptReach ? await trackScriptReach(run.page) : undefined;
+  try {
+    const reopened = await openPopupCandidate(
+      run.page,
+      run.surface,
+      run.viewport,
+      run.options,
+      candidate,
+      run.pristine,
+      run.s.captureText,
     );
+    if (reopened.status === 'leaked') return reopened.leaked;
+    if (reopened.status !== 'opened') {
+      throw new Error(
+        `styleproof self-check failed: ${run.surface.key}-${popupId} popup did not reopen` +
+          (reopened.status === 'missing' ? ' (its trigger disappeared from the DOM or changed identity)' : ''),
+      );
+    }
+    const again = await captureOpenedPopupMap({ ...run, scriptReach }, popupId);
+    if (run.s.captureScriptReach) assertDeterministicScriptReach(first, again, `${run.surface.key}-${popupId}`);
+    if (run.s.captureReach) assertDeterministicReach(first, again, `${run.surface.key}-${popupId}`);
+    const drift = diffStyleMaps(first, again);
+    if (drift.length) {
+      throw new Error(
+        selfCheckErrorMessage(`${run.surface.key}-${popupId}`, drift, first.volatile, first.liveCandidates),
+      );
+    }
+    return undefined;
+  } finally {
+    await scriptReach?.dispose();
   }
-  const again = await captureOpenedPopupMap(run, popupId);
-  if (run.s.captureReach) assertDeterministicReach(first, again, `${run.surface.key}-${popupId}`);
-  const drift = diffStyleMaps(first, again);
-  if (drift.length) {
-    throw new Error(
-      selfCheckErrorMessage(`${run.surface.key}-${popupId}`, drift, first.volatile, first.liveCandidates),
-    );
-  }
-  return undefined;
 }
 
 async function capturePopupCandidate(run: PopupRun, candidate: PopupCandidate): Promise<void> {
@@ -167,28 +176,33 @@ async function capturePopupCandidate(run: PopupRun, candidate: PopupCandidate): 
   const skip = (reason: string): void => {
     warn(`styleproof: skipped ${surface.key}-${popupId}@${run.viewport.width} — ${reason}`);
   };
-  const opened = await openPopupCandidate(
-    page,
-    surface,
-    run.viewport,
-    run.options,
-    candidate,
-    run.pristine,
-    run.s.captureText,
-  );
-  if (opened.status === 'none') return;
-  if (opened.status !== 'opened')
-    return skip(SKIP_REASONS[opened.status](opened.status === 'leaked' ? opened.leaked : []));
+  const scriptReach = s.captureScriptReach ? await trackScriptReach(page) : undefined;
+  try {
+    const opened = await openPopupCandidate(
+      page,
+      surface,
+      run.viewport,
+      run.options,
+      candidate,
+      run.pristine,
+      run.s.captureText,
+    );
+    if (opened.status === 'none') return;
+    if (opened.status !== 'opened')
+      return skip(SKIP_REASONS[opened.status](opened.status === 'leaked' ? opened.leaked : []));
 
-  const map = await captureOpenedPopupMap(run, popupId);
-  if (s.selfCheck) {
-    const leaked = await assertPopupDeterministic(run, candidate, popupId, map);
-    if (leaked) return skip(SKIP_REASONS['self-check-leaked'](leaked));
+    const map = await captureOpenedPopupMap({ ...run, scriptReach }, popupId);
+    if (s.selfCheck) {
+      const leaked = await assertPopupDeterministic(run, candidate, popupId, map);
+      if (leaked) return skip(SKIP_REASONS['self-check-leaked'](leaked));
+    }
+    if (s.liveText) map.metadata = { ...map.metadata, liveText: s.liveText };
+    const stem = captureArtifactStem(s.outDir, `${surface.key}-${popupId}`, run.viewport.width);
+    saveStyleMap(`${stem}.json.gz`, map);
+    if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
+  } finally {
+    await scriptReach?.dispose();
   }
-  if (s.liveText) map.metadata = { ...map.metadata, liveText: s.liveText };
-  const stem = captureArtifactStem(s.outDir, `${surface.key}-${popupId}`, run.viewport.width);
-  saveStyleMap(`${stem}.json.gz`, map);
-  if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
 }
 
 /** Enumerate the surface's popup triggers once, then capture each opened popup as `<surface>-popup-XX`. */

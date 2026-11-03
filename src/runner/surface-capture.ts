@@ -1,5 +1,6 @@
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { trackScriptReach } from '../capture/script-reach.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { detectViewportWidths } from '../breakpoints.js';
@@ -201,18 +202,25 @@ export async function captureSurface(
       s.surfaceTimeoutMs,
       () => phase,
       async (surfaceRun) => {
-        await surface.go(page);
-        const map = await captureStyleMap(page, {
-          ...captureOptionsFor(surface, s, requests.pending, servedRules),
-          captureComponent: s.captureComponent,
-          inventory: s.inventory,
-          requiredVisibleState: surface.requiredVisibleState,
-          metadata: surface.metadata,
-          // The self-check re-run gets no callback, so a breach there is named 'self-check'.
-          onPhase: (captureStylePhase) => {
-            phase = captureStylePhase;
-          },
-        });
+        const scriptReach = s.captureScriptReach ? await trackScriptReach(page) : undefined;
+        let map: StyleMap;
+        try {
+          await surface.go(page);
+          map = await captureStyleMap(page, {
+            scriptReach,
+            ...captureOptionsFor(surface, s, requests.pending, servedRules),
+            captureComponent: s.captureComponent,
+            inventory: s.inventory,
+            requiredVisibleState: surface.requiredVisibleState,
+            metadata: surface.metadata,
+            // The self-check re-run gets no callback, so a breach there is named 'self-check'.
+            onPhase: (captureStylePhase) => {
+              phase = captureStylePhase;
+            },
+          });
+        } finally {
+          await scriptReach?.dispose();
+        }
 
         if (s.selfCheck) {
           phase = 'self-check';

@@ -40,6 +40,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Opt-in `captureScriptReach` records navigation-window V8 block execution as original-source executed, mixed and unexecuted ranges with available content hashes. Missing source maps or shared Playwright coverage remain unmeasured; reader failures remain unknown. Self-checks compare mapped evidence. No git-diff join or verdict change is included (#999).
+
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
 
 - Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).

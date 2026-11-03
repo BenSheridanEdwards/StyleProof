@@ -165,6 +165,7 @@ export function resolveSettings(c: CaptureConfig): Settings {
     popups: resolvePopupCaptureOptions(c.popups),
     inventory: c.inventory ?? false,
     captureReach: c.captureReach ?? false,
+    captureScriptReach: c.captureScriptReach ?? false,
     liveText,
     tolerateSurfaceFailures: envFlag(env.STYLEPROOF_TOLERATE_SURFACE_FAILURES),
   };
@@ -188,6 +189,7 @@ export function captureOptionsFor(
     ignore: surface.ignore ?? [],
     captureText: s.captureText,
     captureReach: s.captureReach,
+    captureScriptReach: s.captureScriptReach,
     servedRules,
     pendingRequests: pending,
   };
