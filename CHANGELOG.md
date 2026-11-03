@@ -7,11 +7,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Fixed
-
-- `./node_modules/.bin/styleproof capture` now finds project Playwright when
-  `node_modules/.bin` is absent from PATH (#1247).
-
 ### Changed
 
 - Change Reach says matched in reports, headlines and CLI gates, and renames the section to "Changed but never matched". The `report.json` why strings now say "which matched a captured element" and "no matched rule references it". A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached (#1238).
@@ -24,6 +19,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. Compare-only SIGTERM is ignored, so container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or crashes can leave `<repo>/.worktrees/styleproof-base-*`; the next `--capture-base` removes only hour-old, current-user scratch dirs with confirmed dead owners. The nested base checkout can inherit head root files through Node module resolution, postcss/browserslist config or pnpm workspace detection when the base lacks its own. The flag rejects two explicit directories.
 
 ### Fixed
+
+- `./node_modules/.bin/styleproof capture` now finds project Playwright when
+  `node_modules/.bin` is absent from PATH (#1247).
 
 - Ignore unrelated JSON files in capture directories when comparing and reporting (#1245).
   Maps saved with `saveStyleMap` without `<key>@<width>.json[.gz]` names are now ignored.
