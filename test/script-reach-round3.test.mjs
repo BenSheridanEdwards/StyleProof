@@ -193,3 +193,57 @@ test('R3.3 collision detection precedes per-script compaction limits', async () 
   ]);
   assert.ok(result.scripts.every((script) => script.status === 'unknown' && script.reason === 'source key collision'));
 });
+
+test('R3.3 bundler URLs contribute paths without query or fragment', () => {
+  for (const scheme of ['webpack://fixture/', 'vite:'])
+    assert.deepEqual(
+      sourceIdentities(
+        map('', [scheme + 'packages/ui/src/Button.tsx?cache=fixture#fragment']),
+        'https://app.test/a.map',
+        root,
+      ),
+      ['packages/ui/src/Button.tsx'],
+    );
+  assert.throws(
+    () =>
+      sourceIdentities(
+        map('', ['webpack://one/src/app.js?cache=one', 'webpack://two/src/app.js?cache=two']),
+        'https://app.test/a.map',
+        root,
+      ),
+    /source key collision/,
+  );
+});
+
+test('R3.3 URL paths decode once and agree with filesystem source keys', () => {
+  const filename = path.join(root, 'src/a%20b.ts');
+  assert.deepEqual(
+    sourceIdentities(map('', ['https://app.test/src/a%2520b.ts']), 'https://app.test/a.map', root),
+    sourceIdentities(map('', [pathToFileURL(filename).href]), 'https://app.test/a.map', root),
+  );
+});
+
+test('R3.3 sourceRoot and relative sources resolve together before extracting URI paths', () => {
+  for (const sourceRoot of ['webpack://fixture/packages/', 'vite:packages/'])
+    assert.deepEqual(
+      sourceIdentities(
+        { ...map('', ['ui/src/Button.tsx?cache=fixture#fragment']), sourceRoot },
+        'https://app.test/a.map',
+        root,
+      ),
+      ['packages/ui/src/Button.tsx'],
+    );
+});
+
+test('R3.3 fragment-only source references resolve against the map URL itself', () => {
+  assert.deepEqual(sourceIdentities(map('', ['#original']), 'https://app.test/assets/app.map', root), [
+    'assets/app.map',
+  ]);
+});
+
+test('R3.3 rooted Windows paths cannot become relative HTTP source keys', () => {
+  assert.throws(
+    () => sourceIdentities(map('', ['\\outside\\app.js']), 'https://app.test/a.map', 'C:\\project'),
+    /source outside project root/,
+  );
+});

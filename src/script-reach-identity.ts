@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { SourceMap } from './script-reach.js';
 import { ScriptEvidenceError } from './script-reach-limits.js';
 const BUNDLER = /^(?:webpack(?:-internal)?|vite|rollup|parcel):/;
-const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\\\)/i;
+const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\)/i;
 const SCHEME = /^[a-z][a-z\d+.-]*:/i;
 
 function filesystemKey(filename: string, projectRoot: string): string {
@@ -15,21 +15,29 @@ function filesystemKey(filename: string, projectRoot: string): string {
 }
 
 function bundlerPath(address: string): string {
-  return address.replace(/^[a-z][a-z\d+.-]*:(?:\/\/[^/]*\/|\/)?/i, '');
+  return new URL(address).pathname.replace(/^\//, '');
+}
+
+function sourceDirectory(root: string | undefined, mapUrl: string): URL {
+  if (!root) return new URL(mapUrl);
+  let url = new URL(root, mapUrl);
+  // Vite's opaque scheme becomes a hierarchical URL so relative sources resolve normally.
+  if (!url.pathname.startsWith('/') && BUNDLER.test(url.href)) url = new URL(`${url.protocol}/${url.pathname}`);
+  url.pathname = url.pathname.replace(/\/?$/, '/');
+  url.search = '';
+  url.hash = '';
+  return url;
 }
 
 function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string {
   if (WINDOWS_PATH.test(source) || path.posix.isAbsolute(source)) return filesystemKey(source, projectRoot);
-  if (BUNDLER.test(source)) return projectKey(bundlerPath(source), projectRoot);
-  if (root && BUNDLER.test(root) && !SCHEME.test(source))
-    return projectKey(path.posix.join(bundlerPath(root), source), projectRoot);
   if (root && (WINDOWS_PATH.test(root) || path.posix.isAbsolute(root)) && !SCHEME.test(source))
     return filesystemKey((WINDOWS_PATH.test(root) ? path.win32 : path).resolve(root, source), projectRoot);
-  const base = root ? new URL(root.replace(/\/?$/, '/'), mapUrl) : new URL('.', mapUrl);
-  const resolved = new URL(source.replaceAll('\\', '/'), base);
+  const resolved = SCHEME.test(source)
+    ? new URL(source)
+    : new URL(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl));
   if (resolved.protocol === 'file:') return filesystemKey(fileURLToPath(resolved), projectRoot);
-  if (BUNDLER.test(resolved.href)) return projectKey(bundlerPath(resolved.href), projectRoot);
-  return projectKey(decodeURIComponent(resolved.pathname).replace(/^\//, ''), projectRoot);
+  return projectKey(resolved.pathname.replace(/^\//, ''), projectRoot);
 }
 
 function projectKey(value: string, projectRoot: string): string {

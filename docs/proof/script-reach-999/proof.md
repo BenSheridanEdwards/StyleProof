@@ -12,13 +12,13 @@ root, preserve complete package paths, and refuse outside-root paths/collisions.
 Primary test-first receipt: 22 unit regressions failed (4 already passed), plus
 four Chromium regressions failed before implementation. Further HAR-array and
 pre-compaction collision tests also failed before their fixes. Focused checks
-now pass: 80 unit tests and 38 script-reach browser scenarios.
+now pass: 85 unit tests and 38 script-reach browser scenarios.
 
 Key tests in `test/script-reach-round3*.{test.mjs,e2e.spec.ts}`:
 
 - `R3.1`: QA's nonmonotonic mappings, removed DEBUG code and repeated starts.
 - `R3.2`: three distinct same-kind anchors survive compaction.
-- `R3.3`: monorepo/nested paths, checkout roots, outside-root and collisions.
+- `R3.3`: monorepo/nested paths, checkout roots, URI resolution, Windows roots, outside-root and collisions.
 - `R3.4`: webpack eval and missing metadata remain named unmeasured entries.
 - `R3.5`: the tracked file-spoof regression passes the actual privacy scanner.
 - `R3.6`: vendor-only mappings do not consume the app cap; a real React bundle maps.
@@ -47,21 +47,21 @@ Full gates on the staged final implementation:
 ℹ style reads: 14740 legacy, 14740 shared
 ℹ budget 328: 82 planner path reads
 ℹ budget 327: 82 planner path reads
-ℹ tests 4629
+ℹ tests 4634
 ℹ suites 32
-ℹ pass 4629
+ℹ pass 4634
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 279173.121166
+ℹ duration_ms 262702.913541
 ```
 
 `pnpm run test:e2e`
 
 ```text
   1 skipped
-  691 passed (3.8m)
+  691 passed (3.7m)
 ```
 
 The one existing skip is the non-Chromium forced-state case in the Chromium project.
