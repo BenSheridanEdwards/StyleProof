@@ -64,6 +64,7 @@ jobs:
     # as a JSON array of labels; anything else is one label. An empty value (for
     # example an unset `vars.*` passed through) falls back to ubuntu-latest.
     runs-on: ${{ startsWith(inputs.runs-on, '[') && fromJSON(inputs.runs-on) || inputs.runs-on || 'ubuntu-latest' }}
+    timeout-minutes: 5
     steps:
       - uses: actions/github-script@v9
         id: approval

@@ -43,6 +43,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.dogfood != 'false' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
       PHASE1_MAPPING_SPECS: test/phase1-foundation-harness.e2e.spec.ts test/phase1-structure-harness.e2e.spec.ts
     steps:
