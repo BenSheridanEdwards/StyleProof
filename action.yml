@@ -242,7 +242,10 @@ runs:
           cancelled|timed_out)
             echo 'StyleProof capture cancelled — re-run for a verdict' >&2
             exit 1 ;;
-          failure|skipped|startup_failure|action_required|neutral|stale)
+          action_required)
+            echo 'StyleProof capture awaits workflow approval — approve, then re-run' >&2
+            exit 1 ;;
+          failure|skipped|startup_failure|neutral|stale)
             echo "StyleProof capture failed ($STYLEPROOF_CAPTURE_OUTCOME) — re-run for a verdict" >&2
             exit 1 ;;
           *)
@@ -1451,11 +1454,22 @@ runs:
       env:
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
+        STYLEPROOF_CAPTURE_OUTCOME: ${{ inputs.capture-outcome }}
         STYLEPROOF_TRUST_STATE: ${{ steps.trust.outputs.state }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
+          const capture = process.env.STYLEPROOF_CAPTURE_OUTCOME;
+          if (capture !== 'success') {
+            const { data: currentPr } = await github.rest.pulls.get({
+              ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
+            });
+            if (currentPr.state !== 'open' || currentPr.head.sha !== '${{ steps.context.outputs.head-sha }}') {
+              core.info('StyleProof: capture failure belongs to a closed PR or its head moved — status unchanged.');
+              return;
+            }
+          }
           const { reviewRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           if (await reviewRunSuperseded({
             github, repo: context.repo, headSha: '${{ steps.context.outputs.head-sha }}',
@@ -1488,7 +1502,9 @@ runs:
             sha: '${{ steps.context.outputs.head-sha }}',
             context: process.env.STYLEPROOF_STATUS_CONTEXT,
             state: 'failure',
-            description: `StyleProof certify run failed (${trust || 'no verdict'}) — see the run`.slice(0, 140),
+            description: capture === 'action_required'
+              ? 'StyleProof capture awaits workflow approval — approve, then re-run'
+              : `StyleProof certify run failed (${trust || 'no verdict'}) — see the run`.slice(0, 140),
             target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
           });
 
@@ -1508,6 +1524,16 @@ runs:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
+          const capture = process.env.STYLEPROOF_CAPTURE_OUTCOME;
+          if (capture !== 'success') {
+            const { data: currentPr } = await github.rest.pulls.get({
+              ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
+            });
+            if (currentPr.state !== 'open' || currentPr.head.sha !== '${{ steps.context.outputs.head-sha }}') {
+              core.info('StyleProof: capture failure belongs to a closed PR or its head moved — status unchanged.');
+              return;
+            }
+          }
           const { reviewRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           if (await reviewRunSuperseded({
             github, repo: context.repo, headSha: '${{ steps.context.outputs.head-sha }}',
@@ -1519,7 +1545,6 @@ runs:
             core.info('StyleProof: a later run took over this commit — status unchanged.');
             return;
           }
-          const capture = process.env.STYLEPROOF_CAPTURE_OUTCOME;
           const cancelled = process.env.STYLEPROOF_RUN_CANCELLED === 'true' || ['cancelled', 'timed_out'].includes(capture);
           await github.rest.repos.createCommitStatus({
             ...context.repo,
@@ -1528,8 +1553,10 @@ runs:
             state: 'failure',
             description: cancelled
               ? 'StyleProof run cancelled — re-run for a verdict'
-              : capture !== 'success'
-                ? 'StyleProof capture failed — re-run for a verdict'
-                : 'StyleProof run failed — see the run',
+              : capture === 'action_required'
+                ? 'StyleProof capture awaits workflow approval — approve, then re-run'
+                : capture !== 'success'
+                  ? 'StyleProof capture failed — re-run for a verdict'
+                  : 'StyleProof run failed — see the run',
             target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
           });

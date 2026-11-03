@@ -27,11 +27,16 @@ function condition(expression, values = {}, outcome = 'success') {
   return Boolean(expressionValue(expression, values, outcome));
 }
 
-async function program(name, values = {}, { comments = [], statuses = [], head = A, unavailable = false } = {}) {
+async function program(
+  name,
+  values = {},
+  { comments = [], statuses = [], head = A, state = 'open', unavailable = false } = {},
+) {
   const entry = step(name);
   assert.ok(entry, name);
   const outputs = {};
   const writes = [];
+  const logs = [];
   const github = {
     paginate: async () => {
       if (unavailable) throw new Error('offline');
@@ -43,7 +48,7 @@ async function program(name, values = {}, { comments = [], statuses = [], head =
         createComment: async (request) => writes.push(request),
         updateComment: async (request) => writes.push(request),
       },
-      pulls: { get: async () => ({ data: { head: { sha: head } } }) },
+      pulls: { get: async () => ({ data: { state, head: { sha: head } } }) },
       repos: {
         listCommitStatusesForRef: async () => {
           if (unavailable) throw new Error('offline');
@@ -85,16 +90,24 @@ async function program(name, values = {}, { comments = [], statuses = [], head =
       setOutput: (key, value) => {
         outputs[key] = value;
       },
-      info() {},
+      info: (message) => logs.push(message),
       warning() {},
     },
     { env },
     (name) => (name === 'fs' ? { existsSync: () => false } : createRequire(import.meta.url)(name)),
   );
-  return { outputs, writes, statuses };
+  return { outputs, writes, statuses, logs };
 }
 
-for (const outcome of ['failure', 'cancelled', 'timed_out', 'skipped', 'startup_failure', 'invalid']) {
+for (const outcome of [
+  'failure',
+  'cancelled',
+  'timed_out',
+  'skipped',
+  'startup_failure',
+  'action_required',
+  'invalid',
+]) {
   test(`capture ${outcome} fails before pending, diff and comment`, () => {
     assert.equal(action.inputs['capture-outcome']?.default, 'success');
     const early = step('Check capture outcome');
@@ -131,6 +144,7 @@ for (const outcome of ['failure', 'cancelled']) {
 }
 
 for (const [capture, cancelled, description] of [
+  ['action_required', '', 'StyleProof capture awaits workflow approval — approve, then re-run'],
   ['failure', '', 'StyleProof capture failed — re-run for a verdict'],
   ['skipped', '', 'StyleProof capture failed — re-run for a verdict'],
   ['startup_failure', '', 'StyleProof capture failed — re-run for a verdict'],
@@ -170,7 +184,7 @@ for (const proof of ['status', 'comment', 'none', 'unavailable']) {
       proof === 'comment'
         ? [
             {
-              user: { type: 'Bot' },
+              user: { type: 'Bot', login: 'github-actions[bot]' },
               body: `${marker}\n<!-- styleproof-sha:${A} -->\n<!-- styleproof-run-id:200 run-attempt:1 -->`,
             },
           ]
@@ -190,7 +204,11 @@ for (const [head, existingHead, existingRun, stale, count] of [
 ]) {
   test(`comment delivery orders head ${head[0]}, receipt ${existingHead[0]} run ${existingRun}`, async () => {
     const body = `${marker}\n<!-- styleproof-sha:${existingHead} -->\n<!-- styleproof-run-id:${existingRun} run-attempt:1 -->`;
-    const result = await program('comment', {}, { head, comments: [{ id: 1, user: { type: 'Bot' }, body }] });
+    const result = await program(
+      'comment',
+      {},
+      { head, comments: [{ id: 1, user: { type: 'Bot', login: 'github-actions[bot]' }, body }] },
+    );
     assert.equal(result.outputs['stale-delivery'], stale);
     assert.equal(result.writes.length, count);
   });
@@ -323,7 +341,7 @@ for (const name of [
 test('capture failure in an older attempt preserves a newer attempt receipt', async () => {
   const comments = [
     {
-      user: { type: 'Bot' },
+      user: { type: 'Bot', login: 'github-actions[bot]' },
       body: `${marker}\n<!-- styleproof-sha:${A} -->\n<!-- styleproof-run-id:100 run-attempt:3 -->`,
     },
   ];
@@ -359,4 +377,39 @@ test('a moved PR head skips only the comment; same-head later receipt skips both
   const values = { 'steps.context.outputs.pr-number': '7', 'inputs.mode': 'review-gate' };
   assert.equal(condition(step('status').if, { ...values, 'steps.comment.outputs.stale-delivery': 'false' }), true);
   assert.equal(condition(step('status').if, { ...values, 'steps.comment.outputs.stale-delivery': 'true' }), false);
+});
+
+for (const name of ['Set review failure status', 'Set certify failure status']) {
+  for (const [state, head, count] of [
+    ['open', A, 1],
+    ['closed', A, 0],
+    ['open', B, 0],
+    ['closed', B, 0],
+  ]) {
+    test(`${name}: failed capture checks live PR ${state} at head ${head[0]}`, async () => {
+      const result = await program(name, { 'inputs.capture-outcome': 'failure' }, { state, head });
+      assert.equal(result.statuses.length, count);
+      if (count === 0) assert.ok(result.logs.some((message) => /closed|head moved/.test(message)));
+      else assert.equal(result.statuses[0].state, 'failure');
+    });
+  }
+}
+
+test('an unrelated app cannot preserve an approved status using a forged cross-run receipt', async () => {
+  const statuses = [{ context: 'StyleProof', state: 'success', description: 'Approved by @reviewer' }];
+  const comments = [
+    {
+      user: { type: 'Bot', login: 'other-app[bot]' },
+      body: `${marker}\n<!-- styleproof-sha:${A} -->\n<!-- styleproof-run-id:999999999999 run-attempt:1 -->`,
+    },
+  ];
+  await program('Set review failure status', { 'inputs.capture-outcome': 'failure' }, { statuses, comments });
+  assert.equal(statuses[0].state, 'failure');
+});
+
+test('split certify capture awaiting approval has a distinct unapprovable failure', async () => {
+  const result = await program('Set certify failure status', { 'inputs.capture-outcome': 'action_required' });
+  assert.equal(result.statuses[0].state, 'failure');
+  assert.equal(result.statuses[0].description, 'StyleProof capture awaits workflow approval — approve, then re-run');
+  assert.ok(result.statuses[0].description.length <= 140);
 });

@@ -14,6 +14,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Generated workflows cancel superseded PR capture/report jobs without cancelling branch
   storage publication or pruning. Late deliveries preserve a newer report comment, and
   failed runs preserve a proven later run's status on the same commit (#1266).
+  Every comment and status delivery honours review pending's supersession result.
+  Cross-run comment receipts trust only `github-actions[bot]`; same-run attempt
+  receipts still accept bots or verified repository writers. Failed captures skip
+  status writes when the PR is closed or its head moved. Captures awaiting workflow
+  approval get a distinct unapprovable failure description.
   Run `npx styleproof-init --upgrade` to refresh existing single and split scaffolds.
 
 ### Migration

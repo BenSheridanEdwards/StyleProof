@@ -45,7 +45,7 @@ export function shouldSupersedeExistingComment(options: {
   return existingAttempt <= deliveryAttempt;
 }
 
-/** Accept later delivery receipts only from bots or verified repository writers. */
+/** Accept cross-run receipts only from GitHub Actions; same-run receipts also trust verified writers. */
 export async function findLaterAttemptReceipt(options: {
   github: {
     rest: {
@@ -66,9 +66,15 @@ export async function findLaterAttemptReceipt(options: {
 }): Promise<boolean> {
   const permissions = new Map<string, boolean>();
 
-  for (const comment of options.comments) {
-    if (shouldSupersedeExistingComment({ ...options, existingCommentBody: comment.body })) continue;
+  const laterComments = options.comments
+    .filter((comment) => !shouldSupersedeExistingComment({ ...options, existingCommentBody: comment.body }))
+    .filter(
+      (comment) =>
+        parseRunAttemptReceiptMarker(comment.body ?? '')?.runId === options.runId ||
+        comment.user?.login === 'github-actions[bot]',
+    );
 
+  for (const comment of laterComments) {
     if (comment.user?.type === 'Bot') return true;
     const login = comment.user?.login;
 
@@ -208,7 +214,7 @@ export async function reviewRunSuperseded(options: {
         issue_number: number;
         per_page: number;
       },
-    ): Promise<{ body?: string | null; user?: { type?: string } | null }[]>;
+    ): Promise<{ body?: string | null; user?: { type?: string; login?: string } | null }[]>;
   };
   repo: { owner: string; repo: string };
   headSha: string;
@@ -244,6 +250,7 @@ export async function reviewRunSuperseded(options: {
       const receipt = parseRunAttemptReceiptMarker(comment.body);
       return (
         receipt !== null &&
+        (receipt.runId === options.runId || comment.user?.login === 'github-actions[bot]') &&
         !shouldSupersedeExistingComment({
           existingCommentBody: comment.body,
           runId: options.runId,

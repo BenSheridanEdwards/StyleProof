@@ -46,7 +46,7 @@ test('later run receipts suppress delivery only for the same head and a trusted 
     ['b'.repeat(40), '200', 'Bot', 'read', false],
     [headSha, '99', 'Bot', 'read', false],
     [headSha, '200', 'User', 'read', false],
-    [headSha, '200', 'User', 'write', true],
+    [headSha, '200', 'User', 'write', false],
   ]) {
     assert.equal(
       await findLaterAttemptReceipt({
@@ -55,7 +55,9 @@ test('later run receipts suppress delivery only for the same head and a trusted 
         headSha,
         runId: '100',
         runAttempt: '2',
-        comments: [{ body: body(sha, runId), user: { type, login: 'reviewer' } }],
+        comments: [
+          { body: body(sha, runId), user: { type, login: type === 'Bot' ? 'github-actions[bot]' : 'reviewer' } },
+        ],
       }),
       later,
     );
@@ -67,7 +69,7 @@ test('terminal supersession requires a matching latest status URL or trusted sam
   const prefix = 'https://github.com/owner/repo/actions/runs/';
   const body = `<!-- styleproof-report -->\n<!-- styleproof-sha:${headSha} -->\n<!-- styleproof-run-id:200 run-attempt:1 -->`;
   const status = (runId, context = 'StyleProof') => ({ context, target_url: `${prefix}${runId}` });
-  const bot = (text = body) => ({ user: { type: 'Bot' }, body: text });
+  const bot = (text = body) => ({ user: { type: 'Bot', login: 'github-actions[bot]' }, body: text });
   for (const [statuses, comments, expected] of [
     [[status('200')], [], true],
     [[status('200/artifacts/77')], [], true],
@@ -83,6 +85,8 @@ test('terminal supersession requires a matching latest status URL or trusted sam
       false,
     ],
     [[], [bot()], true],
+    [[], [{ ...bot(), user: { type: 'Bot', login: 'other-app[bot]' } }], false],
+    [[], [{ ...bot(), user: { type: 'Bot' } }], false],
     [[], [bot(body.replace(headSha, 'b'.repeat(40)))], false],
     [[], [bot(body.replace('<!-- styleproof-report -->', 'other'))], false],
     [[], [{ ...bot(), user: { type: 'User' } }], false],
@@ -116,3 +120,41 @@ test('terminal supersession requires a matching latest status URL or trusted sam
     assert.deepEqual(refs, [headSha]);
   }
 });
+
+for (const [runId, type, login, permission, expected] of [
+  ['200', 'Bot', 'github-actions[bot]', 'read', true],
+  ['200', 'Bot', 'other-app[bot]', 'write', false],
+  ['200', 'Bot', undefined, 'read', false],
+  ['200', 'User', 'writer', 'write', false],
+  ['100', 'Bot', 'other-app[bot]', 'read', true],
+  ['100', 'User', 'writer', 'write', true],
+  ['100', 'User', 'reader', 'read', false],
+]) {
+  test(`receipt trust for run ${runId}, ${type} ${login}, permission ${permission}`, async () => {
+    let lookups = 0;
+    const result = await findLaterAttemptReceipt({
+      github: {
+        rest: {
+          repos: {
+            getCollaboratorPermissionLevel: async () => {
+              lookups += 1;
+              return { data: { permission } };
+            },
+          },
+        },
+      },
+      repo: { owner: 'owner', repo: 'repo' },
+      headSha: 'a'.repeat(40),
+      runId: '100',
+      runAttempt: '1',
+      comments: [
+        {
+          user: { type, login },
+          body: `<!-- styleproof-sha:${'a'.repeat(40)} -->\n<!-- styleproof-run-id:${runId} run-attempt:2 -->`,
+        },
+      ],
+    });
+    assert.equal(result, expected);
+    if (runId !== '100') assert.equal(lookups, 0);
+  });
+}
