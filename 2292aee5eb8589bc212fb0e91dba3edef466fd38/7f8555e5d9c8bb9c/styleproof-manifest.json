@@ -13,7 +13,7 @@
   ],
   "spec": "example/styleproof.spec.ts",
   "specHash": "bc8ddc1fce08137d86daa6c99a865024e28dc72dcd354b2565e49d57572af957",
-  "harnessHash": "610ca654e44d6134623a24faf3fd2d1a9c04d60d71bbf757168bf773c0a9687c",
+  "harnessHash": "3c93cdd5108681fb3324e6923623c488166a27a97f32831fdc1bdc43d28e969d",
   "lockfile": "pnpm-lock.yaml",
   "lockfileHash": "33a52269b2f173e40ab20d4e8bcf8979205d669304963fd41a5c6a1f33288f43",
   "playwrightVersion": "1.61.1",
@@ -24,5 +24,5 @@
   "screenshots": true,
   "har": false,
   "compatibilityKey": "7f8555e5d9c8bb9c",
-  "createdAt": "2026-11-03T20:00:38.211Z"
+  "createdAt": "2026-11-03T20:21:29.405Z"
 }
