@@ -5,12 +5,8 @@ first.
 
 ## Agent tooling
 
-This repo is wired for four Claude Code tools.
+This repo is wired for three Claude Code tools.
 
-- **Ponytail** — the default working mode for coding, review, refactor, and
-  design (see _Simplicity first_ in the [start-here guide](README.md)).
-  Installed as a global plugin; switch intensity with
-  `/ponytail lite|full|ultra`. Turn off per session with `stop ponytail`.
 - **GitNexus** — code-intelligence graph. The MCP server is committed in
   [`.mcp.json`](../.mcp.json) (runs via `npx -y gitnexus mcp`, no global install
   needed); the skills live in `.claude/skills/gitnexus/`; the index lives in

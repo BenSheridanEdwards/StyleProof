@@ -691,7 +691,7 @@ The browser command checks the current checkout. Install Chromium with
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
 for the dev loop, and [`.agents/README.md`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/.agents/README.md)
 (where `AGENTS.md` and `CLAUDE.md` point) for the operating rules and agent tooling. The repo
-is wired for Claude Code with **Ponytail** (default lazy-coding mode), **GitNexus**
+is wired for Claude Code with **GitNexus**
 (code-intelligence graph — MCP server in [`.mcp.json`](.mcp.json), skills in
 `.claude/skills/gitnexus/`), and **Graphify** (`/graphify` knowledge graph). The
 GitNexus index (`.gitnexus/`) and Graphify output (`graphify-out/`) are gitignored;
