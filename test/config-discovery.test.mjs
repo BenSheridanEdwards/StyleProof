@@ -984,6 +984,32 @@ for (const type of [undefined, 'commonjs', 'module']) {
   });
 }
 
+test('sync top-level throw runs TypeScript config only once and preserves hashbang line numbers', () => {
+  const root = mkTmp();
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+    fs.writeFileSync(
+      path.join(root, 'styleproof.config.ts'),
+      `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs';
+appendFileSync(new URL('./marker.txt', import.meta.url), 'ran\\n');
+throw new Error('boom');`,
+    );
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => {
+        assert.match(error.message, /boom/);
+        assert.equal(fs.readFileSync(path.join(root, 'marker.txt'), 'utf8'), 'ran\n');
+        assert.match(error.message, /:4:\d+/);
+        assert.doesNotMatch(error.message, /Next: run on a Node/);
+        return true;
+      },
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('imported CommonJS syntax failure runs TypeScript config only once', () => {
   const root = mkTmp();
   try {
