@@ -195,7 +195,8 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
     /COVERAGE_LINE_FLOOR = 40/,
   );
   assert.match(buildJob, /matrix:\n[\s\S]*node: \['22\.13\.0', '22', '24'\]/);
-  assert.match(buildJob, /pnpm run build/);
+  // Install's prepare builds; the once-per-checkout contract has its own test below.
+  assert.match(buildJob, /run: pnpm install --frozen-lockfile\n/);
   assert.match(buildJob, /if: matrix\.node != '22'/);
   // Full units run once, in the Node 22 coverage job; the floor and 24 legs run a quick check.
   assert.match(buildJob, /run: pnpm run test:node-compat/);
@@ -210,8 +211,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(e2eJob, /name: e2e \(node 22, shard/);
   assert.match(e2eJob, /shard: \[1, 2, 3, 4, 5, 6\]/);
   assert.match(e2eJob, /node-version: '22'/);
-  assert.match(e2eJob, /run: pnpm install --frozen-lockfile/);
-  assert.match(e2eJob, /run: pnpm run build/);
+  assert.match(e2eJob, /run: pnpm install --frozen-lockfile\n/);
   assert.match(e2eJob, /pnpm exec playwright install --with-deps chromium firefox/);
   assert.match(e2eJob, /pnpm exec playwright install chromium firefox/);
   assert.match(
@@ -248,15 +248,14 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(playwrightConfig, /grep: \/non-Chromium capture persists unsupported forced-state evidence\$\//);
   assert.match(playwrightConfig, /Desktop Firefox/);
 
-  assert.match(cliSmoke, /pnpm run build/);
+  assert.match(cliSmoke, /run: pnpm install --frozen-lockfile\n/);
   assert.match(cliSmoke, /node --test test\/package-smoke\.test\.mjs/);
   assert.doesNotMatch(cliSmoke, /pnpm run typecheck|playwright/);
 
   // The corpus job mirrors the e2e browser setup but needs Chromium only.
   assert.match(detectionCorpus, /name: detection corpus/);
   assert.match(detectionCorpus, /node-version: '22'/);
-  assert.match(detectionCorpus, /pnpm install/);
-  assert.match(detectionCorpus, /pnpm run build/);
+  assert.match(detectionCorpus, /run: pnpm install --frozen-lockfile\n/);
   assert.match(detectionCorpus, /Cache Playwright browsers/);
   assert.match(detectionCorpus, /pnpm exec playwright install --with-deps chromium/);
   assert.match(detectionCorpus, /pnpm exec playwright install chromium/);
@@ -279,6 +278,48 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(required, /set -euo pipefail/);
   // The policy itself is executed case by case in test/ci-required-policy.test.mjs.
   assert.doesNotMatch(required, /actions\/checkout/);
+});
+
+test('CI compiles each fresh checkout once, through the install prepare step, and never reuses dist', () => {
+  // pnpm 11 runs the root project's own `prepare` on `pnpm install` (dependency
+  // build scripts stay blocked), and `prepare` runs `pnpm run build` (tsc). A
+  // second `pnpm run build` step recompiled the same tree in every lane (#1256).
+  assert.equal(packageJson.scripts.build, 'tsc');
+  assert.match(packageJson.scripts.prepare, /^pnpm run build && /);
+  const workspace = load(fs.readFileSync(path.join(here, '..', 'pnpm-workspace.yaml'), 'utf8'));
+  assert.equal(workspace.ignoreScripts, undefined, 'pnpm-workspace.yaml must not skip the prepare build');
+  const npmrc = path.join(here, '..', '.npmrc');
+  if (fs.existsSync(npmrc)) assert.doesNotMatch(fs.readFileSync(npmrc, 'utf8'), /ignore-scripts/);
+
+  const { jobs } = load(ci);
+  const installs = (step) => /\bpnpm install\b/.test(step.run ?? '');
+  const installing = Object.keys(jobs).filter((name) => jobs[name].steps?.some(installs));
+  assert.deepEqual(installing, ['build', 'coverage-shards', 'e2e', 'cli-smoke', 'detection-corpus']);
+
+  for (const name of installing) {
+    const job = jobs[name];
+    assert.equal(job['continue-on-error'], undefined, name);
+    const installIndex = job.steps.findIndex(installs);
+    const install = job.steps[installIndex];
+    assert.deepEqual(
+      job.steps.filter(installs).map((step) => step.run),
+      ['pnpm install --frozen-lockfile'],
+      `${name} installs once, with lifecycle scripts, so prepare builds this checkout`,
+    );
+    assert.equal(install.if, undefined, `${name} never skips the install that builds dist`);
+    assert.equal(install['continue-on-error'], undefined, `${name} lets a failed prepare build fail the job`);
+    assert.equal(install.env, undefined, name);
+
+    job.steps.forEach((step, index) => {
+      const run = step.run ?? '';
+      assert.doesNotMatch(run, /\bpnpm (run )?build\b|\btsc\b/, `${name} recompiles what prepare just built`);
+      assert.doesNotMatch(String(step.with?.path ?? ''), /\bdist\b|node_modules/, `${name} restores build output`);
+      // Every dist consumer runs after the install that built it.
+      if (/^(pnpm (--silent )?(run|exec|ls)|node) /.test(run)) {
+        assert.ok(index > installIndex, `${name}: '${run}' runs before install built dist`);
+      }
+    });
+  }
 });
 
 test('repository workflows upload only consumed coverage, browser shards and approval receipts', () => {

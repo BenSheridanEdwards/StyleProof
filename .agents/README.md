@@ -88,7 +88,7 @@ holds until a check exists.
 | No anti-slop rule set to `error` fails ([ADR 0010](decisions/0010-anti-slop-oxlint-rules.md)). | `pnpm run lint:slop` in `pre-push` and CI |
 | Every inline `eslint-disable*` or `oxlint-disable*` names its rules and a `-- reason`; every type suppression is a `@ts-expect-error` with its reason. | `pnpm run check:suppressions` in CI |
 | Formatting matches Prettier. | `pnpm run format:check` in `pre-commit` and CI |
-| `strict` TypeScript compiles. | `pnpm run build` in CI on Node 22.13.0, 22 and 24 |
+| `strict` TypeScript compiles. | `pnpm run build`, run by `prepare` during `pnpm install` in CI on Node 22.13.0, 22 and 24 |
 | No private project names, local paths or denylisted tokens in any tracked text file. | `pnpm run privacy:check` in CI and `prepublishOnly` |
 | Secrets stay out of commits. | gitleaks in `pre-commit` (skipped with a warning when absent) and `secret-scan.yml` |
 | No new dead code, duplication, or complexity over the baseline. | Fallow in `pre-commit` and `fallow.yml` |

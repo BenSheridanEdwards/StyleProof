@@ -60,6 +60,11 @@ jobs:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml') }}
 
+      # Install is also the build: pnpm runs this package's own `prepare`
+      # (`pnpm run build`, i.e. tsc) on every install, so a type error fails
+      # this step. Every job here installs into a fresh checkout and caches
+      # only the pnpm store, never dist/, so dist/ is always this checkout's
+      # build. No job runs a second `pnpm run build` (#1256).
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - uses: actions/cache/save@v6
@@ -67,9 +72,6 @@ jobs:
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
-
-      - name: Build
-        run: pnpm run build
 
       # Lint, format, privacy, audit, and demo run once, on the '22' leg.
       - name: Lint
@@ -114,7 +116,8 @@ jobs:
         run: node scripts/demo-report.mjs --check
 
       - name: Node quick check
-        # Build already emitted and typechecked this exact checkout on this Node.
+        # Install's prepare build already emitted and typechecked this exact
+        # checkout on this Node.
         # The full unit suite runs once, in the Node 22 coverage job. The floor
         # and 24 legs run a quick check: the packed-CLI smoke, config loading
         # and the test runner itself, the paths that differ between Node lines.
@@ -149,7 +152,6 @@ jobs:
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
-      - run: pnpm run build
       - name: Unit coverage shard
         run: pnpm run test:coverage --shard ${{ matrix.shard }}/3 --lcov coverage-${{ matrix.shard }}.info
       - uses: actions/upload-artifact@v6
@@ -217,9 +219,6 @@ jobs:
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
-
-      - name: Build
-        run: pnpm run build
 
       # The one place the browser capture path (page.evaluate + CDP) is
       # exercised — a self-contained file:// fixture, no live server. The
@@ -330,7 +329,6 @@ jobs:
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
-      - run: pnpm run build
       - run: node --test test/package-smoke.test.mjs
 
   # Detection-rate corpus: the seeded-mutation measurement must stay green, or a
@@ -367,9 +365,6 @@ jobs:
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
-
-      - name: Build
-        run: pnpm run build
 
       - name: Get Playwright version
         id: playwright-version
