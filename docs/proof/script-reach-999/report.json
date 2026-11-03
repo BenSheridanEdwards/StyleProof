@@ -2,7 +2,7 @@
   "level": "warn",
   "blocking": 0,
   "complete": false,
-  "ledger": "complete",
+  "ledger": "missing",
   "counts": {
     "reached": 0,
     "never-rendered": 0,
@@ -12,6 +12,22 @@
   "rules": [],
   "unreadableSheets": 0,
   "gaps": [
+    {
+      "join": "J1",
+      "status": "unknown",
+      "side": "base",
+      "kind": "ledger",
+      "reason": "missing base ledger on 1 capture(s); changed rules cannot be listed",
+      "remedy": "recapture with `captureReach`"
+    },
+    {
+      "join": "J1",
+      "status": "unknown",
+      "side": "head",
+      "kind": "ledger",
+      "reason": "missing head ledger on 1 capture(s); changed rules cannot be listed",
+      "remedy": "recapture with `captureReach`"
+    },
     {
       "join": "J1",
       "status": "unknown",

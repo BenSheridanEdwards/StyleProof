@@ -29,7 +29,7 @@ test('VLQ decodes signed deltas and rejects invalid, truncated and overflowing v
 
 test('coverage maps executed and unexecuted branches to original lines and hashes content', () => {
   const [file] = mapScriptCoverage(entry, '123456789012345', sourceMap, 'https://example.test/app.js.map');
-  assert.equal(file.source, 'https://example.test/original.js');
+  assert.equal(file.source, 'original.js');
   assert.equal(file.contentHash, createHash('sha256').update(sourceMap.sourcesContent[0]).digest('hex'));
   assert.equal(file.executed[0].start.line, 1);
   assert.equal(file.unexecuted[0].start.line, 2);
@@ -93,11 +93,11 @@ test('unmapped segments terminate evidence and sourceRoot resolves relative sour
     { ...sourceMap, mappings: 'AAAA,K', sourceRoot: '../src' },
     'https://example.test/dist/app.js.map',
   );
-  assert.equal(file.source, 'https://example.test/src/original.js');
+  assert.equal(file.source, 'src/original.js');
   assert.deepEqual(file.unexecuted, []);
 });
 
-test('script self-check compares mapped evidence and rejects changed ranges or missing evidence', async () => {
+test('script self-check compares mapped evidence and records changed or missing evidence as unknown', async () => {
   const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
   const { hashDeterminismMap } = await import('../dist/determinism-oracle.js');
   const scriptReach = {
@@ -116,12 +116,10 @@ test('script self-check compares mapped evidence and rejects changed ranges or m
   const again = structuredClone(first);
   assert.doesNotThrow(() => assertDeterministicScriptReach(first, again, 'home'));
   again.scriptReach.scripts[0].files[0].executed = [];
-  assert.throws(
-    () => assertDeterministicScriptReach(first, again, 'home'),
-    /self-check failed.*original-source script reach/,
-  );
+  assert.doesNotThrow(() => assertDeterministicScriptReach(first, again, 'home'));
+  assert.equal(first.scriptReach.status, 'unknown');
   assert.notEqual(hashDeterminismMap(first), hashDeterminismMap(again));
-  assert.throws(() => assertDeterministicScriptReach(first, {}, 'home'), /missing/);
+  assert.doesNotThrow(() => assertDeterministicScriptReach(first, {}, 'home'));
 });
 
 test('script reach defaults off and resolves independently of CSS reach', async () => {
@@ -193,7 +191,7 @@ test('review 3: original anchors are indexed across generated order and unmapped
     'https://app.test/a.map',
   );
   assert.deepEqual(file.executed, [
-    { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+    { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } },
     { start: { line: 1, column: 10 }, end: { line: 1, column: 10 } },
   ]);
 });
@@ -226,7 +224,7 @@ test('review 8: original source key is independent of capture origin and port', 
   const map = { ...sourceMap, sourceRoot: '../src' };
   const first = mapScriptCoverage(entry, '123456789012345', map, 'http://localhost:3100/dist/a.map')[0];
   const second = mapScriptCoverage(entry, '123456789012345', map, 'http://localhost:4100/dist/a.map')[0];
-  assert.equal(first.sourceKey, '/src/original.js');
+  assert.equal(first.sourceKey, 'src/original.js');
   assert.equal(first.sourceKey, second.sourceKey);
 });
 

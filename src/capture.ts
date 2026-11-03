@@ -61,7 +61,14 @@ export {
 export { trackDataResidue, trackInflightRequests } from './capture/network.js';
 export { trackServedRules, type ServedRuleTracker } from './capture/reach.js';
 export { trackScriptReach, type ScriptReachTracker } from './capture/script-reach.js';
-export type { ScriptReach, ScriptReachEntry, ScriptSourceReach, SourceSpan, SourcePosition } from './script-reach.js';
+export type {
+  ScriptReach,
+  ScriptReachEntry,
+  ScriptSourceReach,
+  SourceSpan,
+  CompactSourceSpan,
+  SourcePosition,
+} from './script-reach.js';
 export { urlMatcher } from './capture/url-glob.js';
 export {
   captureKeyFromMapFile,

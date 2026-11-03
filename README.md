@@ -656,8 +656,9 @@ on nested scrollers under strict style CSP, so its temporary expansion does not 
 `defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true })`. Each
 surface@width stores original-source executed, mixed and unexecuted ranges plus
 content hashes and stable source keys in `StyleMap.scriptReach`. Unmapped
-code stays outside executed spans, and changing non-mapped evidence during a
-self-check records script reach unknown. Enable source maps in the capture
+code stays outside executed spans. Any script-evidence drift during a
+self-check records script reach unknown, including storage-dependent first and repeat visits.
+Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
 build; missing maps read `unmeasured`. The window runs from navigation through
 the map read, so transient loading branches count as executed. Execution alone
 does not prove a value rendered. The git-diff join and J3 class-list deltas

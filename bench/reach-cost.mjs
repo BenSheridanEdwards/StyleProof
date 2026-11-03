@@ -1,6 +1,6 @@
 // Reach cost (#989): what does recording reach evidence add to a capture?
 //
-//   node bench/reach-cost.mjs [--runs N]   # measure (writes bench/reach-cost.results.json)
+//   node bench/reach-cost.mjs [--runs N] [--target react-table-repeat]   # measure (writes bench/reach-cost.results.json)
 //
 // Three modes per target, timed from navigation to the end of evidence collection:
 //   off    — captureStyleMap alone (today)
@@ -12,6 +12,7 @@
 import { chromium } from '@playwright/test';
 import esbuild from 'esbuild';
 import fs from 'node:fs';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -50,6 +51,30 @@ fs.writeFileSync(
     '<body><div id="root"></div><script src="app.js"></script></body></html>\n',
 );
 
+// A real cacheable server is necessary: Playwright routing disables the HTTP cache.
+const server = createServer((request, response) => {
+  const name = path.basename(new URL(request.url, 'http://fixture.test').pathname) || 'index.html';
+  const resource = path.join(out, name);
+  if (!fs.existsSync(resource)) {
+    response.writeHead(404);
+    response.end();
+    return;
+  }
+  response.writeHead(200, {
+    'cache-control': 'max-age=3600',
+    'content-type': name.endsWith('.js')
+      ? 'application/javascript'
+      : name.endsWith('.css')
+        ? 'text/css'
+        : name.endsWith('.map')
+          ? 'application/json'
+          : 'text/html',
+  });
+  response.end(fs.readFileSync(resource));
+});
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+const repeatUrl = `http://127.0.0.1:${server.address().port}/`;
+
 const TARGETS = [
   {
     id: 'detection-fixture',
@@ -62,10 +87,33 @@ const TARGETS = [
     url: pathToFileURL(path.join(ROOT, 'example/demo/index.html')).href,
   },
   { id: 'react-table', kind: 'React, 300 rows', url: pathToFileURL(path.join(out, 'index.html')).href },
+  {
+    id: 'react-table-repeat',
+    kind: 'React, 300 rows, mean of 3 cacheable navigations on one page',
+    url: repeatUrl,
+    navigations: 3,
+  },
 ];
+
+const targetArg = process.argv.indexOf('--target');
+const selectedTargets =
+  targetArg === -1 ? TARGETS : TARGETS.filter((target) => target.id === process.argv[targetArg + 1]);
+if (!selectedTargets.length) throw new Error('unknown reach-cost target');
 
 async function measure(browser, target, mode) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    const samples = [];
+    for (let visit = 0; visit < (target.navigations ?? 1); visit++)
+      samples.push(await measureNavigation(page, target, mode));
+    const mean = (key) => samples.reduce((sum, sample) => sum + sample[key], 0) / samples.length;
+    return { load: mean('load'), total: mean('total'), bytes: samples.at(-1).bytes };
+  } finally {
+    await page.close();
+  }
+}
+
+async function measureNavigation(page, target, mode) {
   const scriptReach = mode === 'J1+J2' ? await trackScriptReach(page) : undefined;
   const cdp = registerStyleProofSession(await page.context().newCDPSession(page));
   if (mode !== 'off') {
@@ -80,13 +128,16 @@ async function measure(browser, target, mode) {
   const bytes = { J1: 0, J2: 0 };
   if (mode !== 'off') bytes.J1 = JSON.stringify((await cdp.send('CSS.stopRuleUsageTracking')).ruleUsage).length;
   if (scriptReach) {
-    if (target.id === 'react-table' && !map.scriptReach?.scripts.some((script) => script.status === 'mapped')) {
+    if (
+      target.id.startsWith('react-table') &&
+      (map.scriptReach?.status !== 'measured' || !map.scriptReach?.scripts.some((script) => script.status === 'mapped'))
+    ) {
       throw new Error('React cost target did not resolve app-source coverage');
     }
     bytes.J2 = JSON.stringify(map.scriptReach).length;
   }
   const done = performance.now();
-  await page.close();
+  await cdp.detach();
   return { load: loaded - start, total: done - start, bytes };
 }
 
@@ -98,17 +149,18 @@ const round = (n) => Math.round(n * 10) / 10;
 
 const loadavgStart = os.loadavg();
 const browser = await chromium.launch();
-const samples = Object.fromEntries(TARGETS.map((t) => [t.id, Object.fromEntries(MODES.map((m) => [m, []]))]));
-for (const target of TARGETS) for (const mode of MODES) await measure(browser, target, mode); // warm-up, discarded
+const samples = Object.fromEntries(selectedTargets.map((t) => [t.id, Object.fromEntries(MODES.map((m) => [m, []]))]));
+for (const target of selectedTargets) for (const mode of MODES) await measure(browser, target, mode); // warm-up, discarded
 for (let r = 0; r < RUNS; r++)
-  for (const target of TARGETS)
+  for (const target of selectedTargets)
     for (const mode of [...MODES.slice(r % MODES.length), ...MODES.slice(0, r % MODES.length)])
       samples[target.id][mode].push(await measure(browser, target, mode));
 const browserVersion = browser.version();
 await browser.close();
+await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 fs.rmSync(out, { recursive: true, force: true });
 
-const targets = TARGETS.map((t) => {
+const targets = selectedTargets.map((t) => {
   const s = samples[t.id];
   const off = median(s.off.map((x) => x.total));
   const modes = Object.fromEntries(

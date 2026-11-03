@@ -8,95 +8,22 @@
       "status": "mapped",
       "files": [
         {
-          "source": "https://script.test/original.js",
-          "sourceKey": "/original.js",
+          "source": "original.js",
+          "sourceKey": "original.js",
           "contentHash": "59fc5e53a925740fbe2b382ee557e9794f5f2117fd920e3c5e2ac8a44355f754",
           "executed": [
-            {
-              "start": {
-                "line": 1,
-                "column": 0
-              },
-              "end": {
-                "line": 1,
-                "column": 0
-              }
-            },
-            {
-              "start": {
-                "line": 2,
-                "column": 0
-              },
-              "end": {
-                "line": 2,
-                "column": 0
-              }
-            },
-            {
-              "start": {
-                "line": 3,
-                "column": 0
-              },
-              "end": {
-                "line": 3,
-                "column": 0
-              }
-            },
-            {
-              "start": {
-                "line": 7,
-                "column": 0
-              },
-              "end": {
-                "line": 7,
-                "column": 0
-              }
-            },
-            {
-              "start": {
-                "line": 8,
-                "column": 0
-              },
-              "end": {
-                "line": 8,
-                "column": 0
-              }
-            }
+            [1, 0, 0],
+            [2, 0, 0],
+            [3, 0, 0],
+            [7, 0, 0],
+            [8, 0, 0]
           ],
-          "mixed": [
-            {
-              "start": {
-                "line": 4,
-                "column": 0
-              },
-              "end": {
-                "line": 4,
-                "column": 0
-              }
-            }
-          ],
+          "mixed": [[4, 0, 0]],
           "unexecuted": [
-            {
-              "start": {
-                "line": 5,
-                "column": 0
-              },
-              "end": {
-                "line": 5,
-                "column": 0
-              }
-            },
-            {
-              "start": {
-                "line": 6,
-                "column": 0
-              },
-              "end": {
-                "line": 6,
-                "column": 0
-              }
-            }
-          ]
+            [5, 0, 0],
+            [6, 0, 0]
+          ],
+          "encoding": "line-column-tuples"
         }
       ]
     },

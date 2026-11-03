@@ -133,45 +133,52 @@ export function assertDeterministicReach(first: StyleMap, again: StyleMap, surfa
 
 /** Compare mapped app-source evidence, never V8 script IDs, function names or counters. */
 export function assertDeterministicScriptReach(first: StyleMap, again: StyleMap, surfaceKey: string): void {
-  if (!first.scriptReach || !again.scriptReach) {
-    throw new Error(
-      `styleproof self-check failed: ${surfaceKey} is non-deterministic — original-source script reach evidence changed or is missing.`,
-    );
-  }
-  const left = scriptExecutionProjection(first.scriptReach);
-  const right = scriptExecutionProjection(again.scriptReach);
-  const common = new Set(
-    left.map((file) => file.sourceKey).filter((key) => right.some((file) => file.sourceKey === key)),
-  );
-  const commonLeft = left.filter((file) => common.has(file.sourceKey));
-  const commonRight = right.filter((file) => common.has(file.sourceKey));
-  const gaps = [...first.scriptReach.scripts, ...again.scriptReach.scripts].some(
-    (script) => script.status !== 'mapped',
-  );
-  if (
-    !isDeepStrictEqual(commonLeft, commonRight) ||
-    (!gaps &&
-      first.scriptReach.status === 'measured' &&
-      again.scriptReach.status === 'measured' &&
-      !isDeepStrictEqual(left, right))
-  ) {
-    throw new Error(
-      `styleproof self-check failed: ${surfaceKey} is non-deterministic — original-source script reach evidence changed or is missing.`,
-    );
-  }
+  const left = first.scriptReach ? scriptExecutionProjection(first.scriptReach) : [];
+  const right = again.scriptReach ? scriptExecutionProjection(again.scriptReach) : [];
   const residual = (map: StyleMap): unknown => [
     map.scriptReach?.status,
     map.scriptReach?.reason,
     map.scriptReach?.scripts.filter((script) => script.status !== 'mapped'),
   ];
   if (isDeepStrictEqual(left, right) && isDeepStrictEqual(residual(first), residual(again))) return;
+  const rightByKey = new Map(right.map((file) => [file.sourceKey, file]));
+  const changed = left.find(
+    (file) => rightByKey.has(file.sourceKey) && !isDeepStrictEqual(file, rightByKey.get(file.sourceKey)),
+  );
+  const location = changed
+    ? `: ${changed.sourceKey}:${firstScriptDifference(changed, rightByKey.get(changed.sourceKey)!)}`
+    : '';
   first.scriptReach = {
     version: 1,
     window: 'navigation',
     status: 'unknown',
-    reason: 'script evidence not reproducible',
-    scripts: [],
+    reason: `script evidence not reproducible${location}`,
+    scripts: isDeepStrictEqual(left, right) ? (first.scriptReach?.scripts ?? []) : [],
   };
+  void surfaceKey;
+}
+
+function scriptLines(file: ReturnType<typeof scriptExecutionProjection>[number]): Map<number, unknown[]> {
+  const lines = new Map<number, unknown[]>();
+  for (const kind of ['executed', 'mixed', 'unexecuted'] as const)
+    for (const span of file[kind]) {
+      const row = lines.get(span.start.line) ?? [];
+      row.push([kind, span]);
+      lines.set(span.start.line, row);
+    }
+  return lines;
+}
+function firstScriptDifference(
+  file: ReturnType<typeof scriptExecutionProjection>[number],
+  other: ReturnType<typeof scriptExecutionProjection>[number],
+): number {
+  const lines = scriptLines(file),
+    otherLines = scriptLines(other);
+  return (
+    [...new Set([...lines.keys(), ...otherLines.keys()])]
+      .sort((a, b) => a - b)
+      .find((line) => !isDeepStrictEqual(lines.get(line), otherLines.get(line))) ?? 1
+  );
 }
 
 /** Capture the surface again and throw if computed styles or enabled reach evidence drifted. */

@@ -27,9 +27,9 @@ test('navigation coverage records branches at ORIGINAL lines and unmapped script
     expect(map.scriptReach?.window).toBe('navigation');
     const script = map.scriptReach?.scripts.find((s) => s.url === 'https://script.test/bundle.js');
     expect(script?.status).toBe('mapped');
-    const file = script?.files?.find((f) => f.source === 'https://script.test/original.js');
-    expect(file?.executed.some((r) => r.start.line === 3)).toBe(true);
-    expect(file?.unexecuted.some((r) => r.start.line === 5)).toBe(true);
+    const file = script?.files?.find((f) => f.sourceKey === 'original.js');
+    expect(file?.executed.some((r) => (Array.isArray(r) ? r[0] : r.start.line) === 3)).toBe(true);
+    expect(file?.unexecuted.some((r) => (Array.isArray(r) ? r[0] : r.start.line) === 5)).toBe(true);
     expect(map.scriptReach?.scripts.find((s) => s.url.endsWith('/unmapped.js'))).toMatchObject({
       status: 'unmeasured',
       reason: 'source map absent',
@@ -52,7 +52,11 @@ test('page.coverage interference invalidates script evidence without failing cap
       captureStates: false,
       stabilize: false,
     });
-    expect(map.scriptReach).toMatchObject({ status: 'unmeasured', reason: 'shared V8 precise coverage', scripts: [] });
+    expect(map.scriptReach).toMatchObject({
+      status: 'unmeasured',
+      reason: 'page.coverage used during capture',
+      scripts: [],
+    });
   } finally {
     await scriptReach.dispose();
   }
@@ -78,7 +82,7 @@ test('coverage already owned by the spec stays unmeasured and leaves its session
       stabilize: false,
       captureStates: false,
     });
-    expect(map.scriptReach?.reason).toBe('shared V8 precise coverage');
+    expect(map.scriptReach?.reason).toMatch(/page.coverage/);
     expect((await page.coverage.stopJSCoverage()).some((entry) => entry.url.endsWith('/bundle.js'))).toBe(true);
   } finally {
     await scriptReach.dispose();
@@ -116,7 +120,8 @@ for (const mode of ['inline', 'header', 'x-header', 'malformed', 'missing-conten
       const script = captured.scriptReach?.scripts.find((s) => s.url.endsWith('/bundle.js'));
       expect(script?.status).toBe(mode === 'malformed' ? 'unknown' : 'mapped');
       if (mode === 'missing-content') expect(script?.files?.[0].contentHash).toBeUndefined();
-      if (mode !== 'malformed') expect(script?.files?.[0].unexecuted.some((r) => r.start.line === 5)).toBe(true);
+      if (mode !== 'malformed')
+        expect(script?.files?.[0].unexecuted.some((r) => (Array.isArray(r) ? r[0] : r.start.line) === 5)).toBe(true);
     } finally {
       await scriptReach.dispose();
     }
@@ -151,9 +156,13 @@ for (const drift of [false, true]) {
       },
     };
     const capture = captureSurface(page, surface, 800, settings, { index: 1, total: 1 });
-    if (drift)
-      await expect(capture).rejects.toThrow(/self-check failed.*original-source script reach evidence changed/);
-    else {
+    if (drift) {
+      await capture;
+      expect(loadStyleMap(testInfo.outputPath('maps/branch@800.json.gz')).scriptReach).toMatchObject({
+        status: 'unknown',
+        reason: 'script evidence not reproducible: original.js:2',
+      });
+    } else {
       await capture;
       expect(
         loadStyleMap(testInfo.outputPath('maps/branch@800.json.gz')).scriptReach?.scripts.some(
@@ -194,7 +203,7 @@ test('a spec starting coverage during capture retains a usable session', async (
       captureStates: false,
       stabilize: false,
     });
-    expect(map.scriptReach?.reason).toBe('shared V8 precise coverage');
+    expect(map.scriptReach?.reason).toMatch(/page.coverage/);
     expect(
       (await page.coverage.stopJSCoverage()).some(
         (entry) =>
@@ -256,7 +265,11 @@ test('review 2: pre-bound coverage methods cannot turn a shared session into mea
       stabilize: false,
       captureStates: false,
     });
-    expect(map.scriptReach).toMatchObject({ status: 'unmeasured', reason: 'shared V8 precise coverage', scripts: [] });
+    expect(map.scriptReach).toMatchObject({
+      status: 'unmeasured',
+      reason: 'page.coverage used during capture',
+      scripts: [],
+    });
   } finally {
     await tracker.dispose();
   }
@@ -306,6 +319,15 @@ test('review 11: popup captures retain mapped navigation evidence', async ({ pag
     route.fulfill({
       contentType: 'text/html',
       body: '<!doctype html><body><button type="button" onclick="document.querySelector(\'dialog\').showModal()">Open panel</button><dialog>Panel</dialog><script src="bundle.js"></script></body>',
+    }),
+  );
+  // Route-fulfilled scripts can retain renderer best-effort functions across reopens.
+  // Keep this popup test focused on mapped evidence; real cache reuse has its own server regression.
+  let scriptVisit = 0;
+  await page.route('https://script.test/bundle.js', (route) =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: readFileSync(new URL('bundle.js', root), 'utf8') + `\n// popup visit ${++scriptVisit}\n`,
     }),
   );
   const settings = resolveSettings({
@@ -375,10 +397,9 @@ for (const variation of ['query', 'map-failure', 'third-party'] as const) {
       settings,
       { index: 1, total: 1 },
     );
-    expect(loadStyleMap(testInfo.outputPath('maps/drift@800.json.gz')).scriptReach).toMatchObject({
-      status: 'unknown',
-      reason: 'script evidence not reproducible',
-    });
+    const evidence = loadStyleMap(testInfo.outputPath('maps/drift@800.json.gz')).scriptReach;
+    if (variation === 'query') expect(evidence?.status).toBe('measured');
+    else expect(evidence).toMatchObject({ status: 'unknown', reason: 'script evidence not reproducible' });
   });
 }
 
@@ -400,7 +421,10 @@ test('review 5: blob script UUIDs never enter app execution evidence', async ({ 
       stabilize: false,
     });
     expect(map.scriptReach?.status).toBe('measured');
-    expect(map.scriptReach?.scripts.some((script) => script.url.startsWith('blob:'))).toBe(false);
+    expect(map.scriptReach?.scripts.find((script) => script.url === 'blob:')).toMatchObject({
+      status: 'unmeasured',
+      reason: 'blob script has no stable source map',
+    });
   } finally {
     await tracker.dispose();
   }

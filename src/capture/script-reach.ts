@@ -1,12 +1,19 @@
-import { registerStyleProofSession, scriptCoverageOwnership } from './script-coverage-ownership.js';
+import {
+  registerStyleProofSession,
+  scriptCoverageOwnership,
+  scriptCoverageMarker,
+  ownershipReason,
+} from './script-coverage-ownership.js';
 /** Navigation-window script coverage. Reader failures are evidence gaps, never capture failures. */
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-resources.js';
+import { storedScriptUrl } from '../script-reach-identity.js';
+import { compactScriptEvidence } from '../script-reach-storage.js';
 import { performance } from 'node:perf_hooks';
 import type { CaptureOptions, StyleMap } from './types.js';
 import type { CDPSession, Page, Response } from '@playwright/test';
 import {
   mapScriptCoverage,
+  ScriptEvidenceError,
   type ScriptReach,
   type ScriptReachEntry,
   type BinaryScriptCoverage,
@@ -25,9 +32,7 @@ export function unmeasuredScriptReach(reason: string): ScriptReach {
 function foreignCoverage(page: Page): ScriptReach | undefined {
   const ownership = scriptCoverageOwnership(page);
   if (ownership === 'exclusive') return undefined;
-  return unmeasuredScriptReach(
-    ownership === 'shared' ? 'shared V8 precise coverage' : 'script coverage ownership unavailable',
-  );
+  return unmeasuredScriptReach(ownershipReason(ownership));
 }
 
 /** Attach only opt-in evidence; custom trackers are also allowed to fail without losing the map. */
@@ -48,75 +53,6 @@ export async function attachScriptReach(map: StyleMap, options: CaptureOptions):
   }
 }
 
-const MAP_READ_BUDGET_MS = 1500;
-const RESOURCE_TIMEOUT_MS = 500;
-
-class MapReadTimeout extends Error {}
-
-async function beforeDeadline<T>(operation: Promise<T>, deadline: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      operation,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new MapReadTimeout('script map-read budget exhausted')),
-          Math.max(0, deadline - performance.now()),
-        );
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function readResource(page: Page, client: CDPSession, url: string, deadline: number): Promise<string> {
-  if (url.startsWith('data:')) {
-    const comma = url.indexOf(',');
-    if (comma < 0) throw new Error('invalid data URL');
-    const payload = decodeURIComponent(url.slice(comma + 1));
-    return /;base64$/i.test(url.slice(0, comma)) ? Buffer.from(payload, 'base64').toString('utf8') : payload;
-  }
-  if (url.startsWith('file:')) return beforeDeadline(readFile(fileURLToPath(url), 'utf8'), deadline);
-  // These requests use page credentials and Playwright/HAR routing; see the capture reference.
-  try {
-    return await beforeDeadline(
-      page.evaluate(
-        async ({ address, timeout }) => {
-          const response = await fetch(address, { credentials: 'include', signal: AbortSignal.timeout(timeout) });
-          if (!response.ok) throw new Error('source map request failed');
-          return response.text();
-        },
-        { address: url, timeout: Math.max(1, Math.min(RESOURCE_TIMEOUT_MS, Math.floor(deadline - performance.now()))) },
-      ),
-      deadline,
-    );
-  } catch {
-    if (performance.now() >= deadline) throw new MapReadTimeout();
-    return beforeDeadline(readCdpResource(client, url), Math.min(deadline, performance.now() + RESOURCE_TIMEOUT_MS));
-  }
-}
-
-async function readCdpResource(client: CDPSession, url: string): Promise<string> {
-  const { frameTree } = await client.send('Page.getFrameTree');
-  const { resource } = await client.send('Network.loadNetworkResource', {
-    frameId: frameTree.frame.id,
-    url,
-    options: { disableCache: false, includeCredentials: true },
-  });
-  if (!resource.success || !resource.stream) throw new Error('source map request failed');
-  const chunks: Buffer[] = [];
-  try {
-    for (;;) {
-      const chunk = await client.send('IO.read', { handle: resource.stream });
-      chunks.push(Buffer.from(chunk.data, chunk.base64Encoded ? 'base64' : 'utf8'));
-      if (chunk.eof) return Buffer.concat(chunks).toString('utf8');
-    }
-  } finally {
-    await client.send('IO.close', { handle: resource.stream }).catch(() => {});
-  }
-}
-
 async function resolveScript(
   page: Page,
   client: CDPSession,
@@ -125,7 +61,7 @@ async function resolveScript(
   header: string | undefined,
   deadline: number,
 ): Promise<ScriptReachEntry> {
-  const url = script.url;
+  const url = storedScriptUrl(script.url);
   try {
     const { scriptSource } = await client.send('Debugger.getScriptSource', { scriptId: script.scriptId });
     const directive = [
@@ -133,9 +69,11 @@ async function resolveScript(
     ].at(-1);
     const reference = header || script.sourceMapURL || directive?.[1] || directive?.[2];
     if (!reference) return { url, status: 'unmeasured', reason: 'source map absent' };
-    const mapUrl = new URL(reference, url).href;
-    const map = JSON.parse(await readResource(page, client, mapUrl, deadline));
-    const files = mapScriptCoverage(entry, scriptSource, map, mapUrl.startsWith('data:') ? url : mapUrl);
+    const mapUrl = new URL(reference, script.url).href;
+    const map = JSON.parse(await readResource(page, client, mapUrl, script.url, deadline));
+    const files = mapScriptCoverage(entry, scriptSource, map, mapUrl.startsWith('data:') ? script.url : mapUrl, {
+      deadline,
+    });
     return files.length
       ? { url, status: 'mapped', files }
       : { url, status: 'unmeasured', reason: 'no mapped app sources' };
@@ -143,10 +81,7 @@ async function resolveScript(
     return {
       url,
       status: 'unknown',
-      reason:
-        error instanceof MapReadTimeout
-          ? 'script map-read budget exhausted'
-          : 'source map could not be read or resolved',
+      reason: error instanceof ScriptEvidenceError ? error.message : 'source map could not be read or resolved',
     };
   }
 }
@@ -159,23 +94,18 @@ type ScriptRead = {
   headers: ReadonlyMap<string, string>;
 };
 
-function validCoverage(entries: CollectedScript[], scripts: ReadonlyMap<string, ParsedScript>): boolean {
-  const appEntries = entries.filter((entry) => scripts.has(entry.scriptId));
-  const bestEffort = appEntries.some((entry) =>
-    entry.functions.some((f) => f.isBlockCoverage === false && f.ranges.some((r) => r.count > 0)),
-  );
-  const callCounts = entries.some((entry) => entry.functions.some((f) => f.ranges.some((r) => r.count > 1)));
-  return entries.length > 0 && (!scripts.size || appEntries.length > 0) && !bestEffort && !callCounts;
-}
-
 async function resolveScripts(input: ScriptRead, coverage: CollectedScript[]): Promise<ScriptReachEntry[]> {
   const deadline = performance.now() + MAP_READ_BUDGET_MS;
   const entries: ScriptReachEntry[] = [];
   for (const entry of coverage) {
     const script = input.scripts.get(entry.scriptId);
     if (!script) continue;
-    if (performance.now() >= deadline)
-      entries.push({ url: script.url, status: 'unknown', reason: 'script map-read budget exhausted' });
+    if (script.url.startsWith('blob:'))
+      entries.push({ url: 'blob:', status: 'unmeasured', reason: 'blob script has no stable source map' });
+    else if (entry.functions.some((f) => f.isBlockCoverage === false && f.ranges.some((r) => r.count > 0)))
+      entries.push({ url: storedScriptUrl(script.url), status: 'unknown', reason: 'best-effort coverage' });
+    else if (performance.now() >= deadline)
+      entries.push({ url: storedScriptUrl(script.url), status: 'unknown', reason: 'script map-read budget exhausted' });
     else entries.push(await boundedResolve(input, script, entry, deadline));
   }
   return entries.sort((a, b) => {
@@ -197,19 +127,12 @@ async function boundedResolve(
       deadline,
     );
   } catch {
-    return { url: script.url, status: 'unknown', reason: 'script map-read budget exhausted' };
+    return { url: storedScriptUrl(script.url), status: 'unknown', reason: 'script map-read budget exhausted' };
   }
 }
 
-function boundedEvidence(scripts: ScriptReachEntry[]): ScriptReach {
-  const evidence: ScriptReach = { version: 1, window: 'navigation', status: 'measured', scripts };
-  return Buffer.byteLength(JSON.stringify(evidence)) > 1024 * 1024
-    ? { version: 1, window: 'navigation', status: 'unknown', reason: 'script evidence exceeds 1 MiB', scripts: [] }
-    : evidence;
-}
-
 /** A foreign active profiler must never receive our session's implicit Profiler.disable. */
-async function releaseClient(page: Page, client: CDPSession): Promise<'exclusive' | 'shared' | 'unknown'> {
+async function releaseClient(page: Page, client: CDPSession): Promise<ReturnType<typeof scriptCoverageOwnership>> {
   const ownership = scriptCoverageOwnership(page);
   if (ownership === 'exclusive') await client.detach().catch(() => {});
   else
@@ -227,13 +150,11 @@ export async function trackScriptReach(page: Page): Promise<ScriptReachTracker> 
   const ownership = scriptCoverageOwnership(page);
   if (ownership !== 'exclusive') {
     return {
-      stop: async () =>
-        unmeasuredScriptReach(
-          ownership === 'shared' ? 'shared V8 precise coverage' : 'script coverage ownership unavailable',
-        ),
+      stop: async () => unmeasuredScriptReach(ownershipReason(ownership)),
       dispose: async () => {},
     };
   }
+  const marker = scriptCoverageMarker(page);
   let client: CDPSession | undefined;
   let reason: string | undefined;
   let disposed = false;
@@ -250,14 +171,15 @@ export async function trackScriptReach(page: Page): Promise<ScriptReachTracker> 
   const originalStart = coverage.startJSCoverage;
   const originalStop = coverage.stopJSCoverage;
   const start: typeof originalStart = async (options) => {
-    reason = 'shared V8 precise coverage';
+    reason = 'page.coverage used during capture';
     const previous = client;
     client = undefined;
+    await previous?.send('Network.setCacheDisabled', { cacheDisabled: false }).catch(() => {});
     await previous?.detach().catch(() => {});
     return originalStart.call(coverage, options);
   };
   const stop: typeof originalStop = async () => {
-    reason = 'shared V8 precise coverage';
+    reason = 'page.coverage used during capture';
     return originalStop.call(coverage);
   };
   if (!reason) {
@@ -267,16 +189,14 @@ export async function trackScriptReach(page: Page): Promise<ScriptReachTracker> 
     try {
       client = registerStyleProofSession(await page.context().newCDPSession(page));
       client.on('Debugger.scriptParsed', (script) => {
-        if (/^(https?|file|webpack):/.test(script.url)) scripts.set(script.scriptId, script);
+        if (/^(https?|file|webpack|blob):/.test(script.url)) scripts.set(script.scriptId, script);
       });
       await client.send('Page.enable');
       client.on('Page.frameNavigated', ({ frame }) => {
         if (!frame.parentId) navigated = true;
       });
-      await client.send('Debugger.enable');
-      await client.send('Debugger.setSkipAllPauses', { skip: true });
-      // Enabling the debugger also emits scripts from the previous document; they are outside this window.
-      scripts.clear();
+      await client.send('Network.enable');
+      await client.send('Network.setCacheDisabled', { cacheDisabled: true });
       await client.send('Profiler.enable');
       await client.send('Profiler.startPreciseCoverage', { callCount: false, detailed: true });
     } catch {
@@ -290,12 +210,10 @@ export async function trackScriptReach(page: Page): Promise<ScriptReachTracker> 
     if (coverage.startJSCoverage === start) coverage.startJSCoverage = originalStart;
     if (coverage.stopJSCoverage === stop) coverage.stopJSCoverage = originalStop;
     if (client) {
+      await client.send('Network.setCacheDisabled', { cacheDisabled: false }).catch(() => {});
       const ownership = await releaseClient(page, client);
       client = undefined;
-      if (result && ownership !== 'exclusive')
-        result = unmeasuredScriptReach(
-          ownership === 'shared' ? 'shared V8 precise coverage' : 'script coverage ownership unavailable',
-        );
+      if (result && ownership !== 'exclusive') result = unmeasuredScriptReach(ownershipReason(ownership));
     }
   };
   return {
@@ -305,18 +223,33 @@ export async function trackScriptReach(page: Page): Promise<ScriptReachTracker> 
       try {
         if (reason || !client || disposed)
           return (result = unmeasuredScriptReach(reason ?? 'script coverage tracker disposed'));
+        if (scriptCoverageMarker(page) !== marker)
+          return (result = unmeasuredScriptReach('page.coverage used during capture'));
         const beforeRead = foreignCoverage(page);
         if (beforeRead) return (result = beforeRead);
         if (!navigated) return (result = unmeasuredScriptReach('navigation not observed after tracker start'));
+        const ownedClient = client;
+        client.on('Debugger.paused', () => {
+          void ownedClient.send('Debugger.resume').catch(() => {});
+        });
+        await client.send('Debugger.enable');
+        await client.send('Debugger.setSkipAllPauses', { skip: true });
         const coverageResult = await client.send('Profiler.takePreciseCoverage');
         if (reason) return (result = unmeasuredScriptReach(reason));
         const afterRead = foreignCoverage(page);
         if (afterRead) return (result = afterRead);
-        if (!validCoverage(coverageResult.result, scripts))
-          return (result = unmeasuredScriptReach('shared V8 precise coverage'));
+        if (
+          !coverageResult.result.length ||
+          coverageResult.result.some((entry: CollectedScript) =>
+            entry.functions.some((f) => f.ranges.some((r) => r.count > 1)),
+          )
+        )
+          return (result = unmeasuredScriptReach('V8 precise coverage ownership changed'));
         await client.send('Profiler.stopPreciseCoverage');
         const entries = await resolveScripts({ page, client, scripts, headers }, coverageResult.result);
-        result = reason ? unmeasuredScriptReach(reason) : boundedEvidence(entries);
+        result = reason
+          ? unmeasuredScriptReach(reason)
+          : { version: 1, window: 'navigation', status: 'measured', scripts: entries.map(compactScriptEvidence) };
       } catch {
         result = {
           version: 1,

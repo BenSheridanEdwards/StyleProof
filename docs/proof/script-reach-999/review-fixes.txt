@@ -1,3 +1,5 @@
+Historical round-one receipt. Superseded by round2.md for current behavior.
+
 StyleProof #999 review corrections
 Branch: feat/reach-script-coverage-999
 Rebased onto origin/main before fixing; the pre-fix implementation commit after rebase is fd213d2e2.

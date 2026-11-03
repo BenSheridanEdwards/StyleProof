@@ -158,6 +158,7 @@ export type {
   ScriptReachEntry,
   ScriptSourceReach,
   SourceSpan,
+  CompactSourceSpan,
   SourcePosition,
 } from './capture.js';
 

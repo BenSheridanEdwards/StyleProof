@@ -120,9 +120,8 @@ test('review 11: evidence over 1 MiB becomes unknown without partial sources', a
   assert.deepEqual(await tracker.stop(), {
     version: 1,
     window: 'navigation',
-    status: 'unknown',
-    reason: 'script evidence exceeds 1 MiB',
-    scripts: [],
+    status: 'measured',
+    scripts: [{ url: 'https://app.test/0.js', status: 'unknown', reason: 'script evidence exceeds 1 MiB' }],
   });
 });
 
@@ -149,7 +148,7 @@ test('review 1/2: an active foreign collector is rejected before taking its coun
   page._connection.toImpl = () => ({ coverage: { _jsCoverage: { _enabled: true } } });
   page.once = () => {};
   const evidence = await tracker.stop();
-  assert.equal(evidence.reason, 'shared V8 precise coverage');
+  assert.equal(evidence.reason, 'page.coverage active');
   assert.equal(calls.includes('Profiler.takePreciseCoverage'), false);
   assert.equal(calls.includes('Profiler.stopPreciseCoverage'), false);
   assert.equal(calls.includes('detach'), false);
