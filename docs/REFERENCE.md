@@ -1427,16 +1427,20 @@ has a CLI flag. Binary V8 coverage runs before each `go()` through the map read,
 including self-checks/popups. `window: 'navigation'` includes transient loading;
 execution does not prove rendering. No diff join or verdict change is built.
 
-`StyleMap.scriptReach` stores `{ version: 1, window, status, reason?, scripts }`.
+`StyleMap.scriptReach` stores `{ version: 1, window, status, reason?, notes?, scripts }`.
 Scripts have a URL, `mapped`/`unmeasured`/`unknown`, and files or a reason. Files
 hold `source`, `sourceKey`, optional SHA-256 `contentHash`, and
 `executed`/`mixed`/`unexecuted`. With `encoding: 'line-column-tuples'`, ranges are
 `[line, startColumn, endColumn]`: 1-based lines, 0-based UTF-16 columns, exclusive
-ends. Legacy `{ start, end }` ranges remain readable.
-**Readers may trust only the start column of executed evidence.** New captures
-store anchors for every state, never interpolated extents. Fully executed generated
-segments contribute original starts; a split segment or conflicting states at one
-start is mixed. Unmapped text supplies no execution proof. CRLF, CR, LF, U+2028
+ends.
+**Readers may trust only the start column of executed evidence:** the innermost V8
+block containing that generated segment ran, not necessarily every expression in it.
+All states store anchors, never interpolated extents; split segments or conflicting
+states at one start are mixed. Named J2 residuals, also stored in `notes`, are default
+parameter values, destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`),
+and later links of short-circuited optional chains. V8 can report their containing
+block executed when these expressions did not evaluate. The 2.2 join must treat
+these expressions as unknown, never reached on this evidence alone. Unmapped text supplies no execution proof. CRLF, CR, LF, U+2028
 and U+2029 preserve offsets. Invalid original positions fail; null sources are unmapped.
 
 Keys resolve `sourceRoot` plus `sources[i]`, stripping bundler prefixes such as
@@ -1444,14 +1448,16 @@ Keys resolve `sourceRoot` plus `sources[i]`, stripping bundler prefixes such as
 POSIX paths relative to the project root (process cwd; direct trackers may pass
 `{ projectRoot }`). Relative HTTP sources retain their resolved URL pathname
 without its leading slash. All directories, including nested `src` and monorepo
-packages, survive. Outside-root paths or any collision invalidate involved scripts;
+packages, survive. Vite `/@fs/` and decoded filesystem URL paths use the same
+project-root validation. Empty/query-only webpack ignored modules are non-app. Outside-root paths or any collision invalidate involved scripts;
 never merge. `node_modules` is excluded before app indexing/counting. Hashes come
 only from `sourcesContent`; missing/null content has no hash. Original files are
 never fetched. No raw V8 output, maps or source content is stored.
 
 Maps support inline data, `sourceMappingURL`, and `SourceMap`/`X-SourceMap` headers.
-Without routes/HAR, credentialed CDP reads bypass page JS, fetch patches and request
-listeners. Routing/HAR requires credentialed page fetch, with no CDP fallback.
+Credentialed CDP reads bypass page JS, fetch patches and request listeners, even
+when unrelated runner replay routes exist. Only a route/HAR matcher that matches
+the map URL requires credentialed page fetch, with no CDP fallback.
 Disk reads require a file page and file script, regular file under the input cap,
 and AbortSignal; spoofed HTTP `sourceURL` cannot grant disk access.
 
@@ -1462,11 +1468,13 @@ Generous backstops are 30 seconds overall and 10 seconds/resource. Reader failur
 are evidence gaps, never capture failures. URLs omit credentials, queries,
 fragments and machine paths. Missing maps are unmeasured; blobs retain `blob:`.
 Unsupported/eval/anonymous URLs and missing metadata remain named unmeasured with
-`unsupported script URL`.
+`unsupported script URL`. Playwright utility/evaluation scripts are excluded;
+the page’s own anonymous/eval scripts stay named unmeasured.
 
-Cache is disabled until navigation load completes, before forced states. Positive
-best-effort coverage makes that script unknown. Debugger enables at stop and resumes
-pauses. Read-only ownership detection supports Playwright **1.61.x** (tested 1.61.1).
+Cache is disabled until navigation load completes, or map reading starts for a
+same-document/SPA capture. Positive best-effort coverage makes that script unknown.
+Debugger collects script ancestry from arming, with a pause-resume handler installed
+first and pauses skipped before enabling it. Read-only ownership detection supports Playwright **1.61.x** (tested 1.61.1).
 An absent bridge reports `script coverage ownership unavailable` and warns once/process;
 non-Chromium reports `script coverage requires Chromium`. User CDP, active public
 coverage and public use during capture (including pre-bound methods) have distinct

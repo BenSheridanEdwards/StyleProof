@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { compactScriptEvidence } from '../dist/script-reach-storage.js';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,7 +31,7 @@ const vlq = (n) => {
   return out;
 };
 
-test('Q1 exact repro: executed spans never bridge the unmapped gap over dead bad()', () => {
+test('exact repro: executed spans never bridge the unmapped gap over dead bad()', () => {
   const [file] = mapScriptCoverage(coverage, text, map, 'https://app.test/app.js.map');
   assert.ok(
     file.executed.every((span) => span.end.column <= 13 || span.start.column >= 19),
@@ -38,7 +39,7 @@ test('Q1 exact repro: executed spans never bridge the unmapped gap over dead bad
   );
 });
 
-test('N3 null sources are unmapped barriers, not invalid source maps', () => {
+test('null sources are unmapped barriers, not invalid source maps', () => {
   const files = mapScriptCoverage(
     coverage,
     text,
@@ -49,7 +50,7 @@ test('N3 null sources are unmapped barriers, not invalid source maps', () => {
   assert.equal(files[0].sourceKey, 'src/app.js');
 });
 
-test('N4 terminal original anchors outside sourcesContent cannot stretch a span', () => {
+test('terminal original anchors outside sourcesContent cannot stretch a span', () => {
   assert.throws(
     () =>
       mapScriptCoverage(
@@ -62,7 +63,7 @@ test('N4 terminal original anchors outside sourcesContent cannot stretch a span'
   );
 });
 
-test('N1 source mapping has a segment-count guard before large indexes accumulate', () => {
+test('source mapping has a segment-count guard before large indexes accumulate', () => {
   const count = 120_000;
   assert.throws(
     () =>
@@ -76,14 +77,14 @@ test('N1 source mapping has a segment-count guard before large indexes accumulat
   );
 });
 
-test('N1 mapping rejects an expired CPU budget', () => {
+test('mapping rejects an expired CPU budget', () => {
   assert.throws(
     () => mapScriptCoverage(coverage, text, map, 'https://app.test/a.map', { deadline: 0 }),
     /mapping.*budget/,
   );
 });
 
-test('N6 source identity removes checkout roots and webpack namespaces', () => {
+test('source identity removes checkout roots and webpack namespaces', () => {
   const make = (source) =>
     mapScriptCoverage(coverage, text, { ...map, sources: [source] }, 'https://app.test/app.js.map', {
       projectRoot: source.startsWith('file:') ? path.dirname(path.dirname(fileURLToPath(source))) : process.cwd(),
@@ -100,7 +101,7 @@ test('N6 source identity removes checkout roots and webpack namespaces', () => {
   }
 });
 
-test('B3 mapped execution drift records a named unknown and never throws', () => {
+test('mapped execution drift records a named unknown and never throws', () => {
   const first = {
     scriptReach: {
       version: 1,
@@ -110,7 +111,11 @@ test('B3 mapped execution drift records a named unknown and never throws', () =>
         {
           url: 'https://app.test/a.js',
           status: 'mapped',
-          files: mapScriptCoverage(coverage, text, map, 'https://app.test/a.map'),
+          files: compactScriptEvidence({
+            url: 'https://app.test/a.js',
+            status: 'mapped',
+            files: mapScriptCoverage(coverage, text, map, 'https://app.test/a.map'),
+          }).files,
         },
       ],
     },
@@ -146,7 +151,7 @@ test('project roots preserve lib paths across different checkouts', () => {
   assert.ok(!JSON.stringify(a).includes(os.homedir()));
 });
 
-test('N2 compact evidence removes interior duplicate anchors but retains exclusive-end anchors', async () => {
+test('compact evidence retains each distinct original anchor', async () => {
   const { compactScriptEvidence } = await import('../dist/script-reach-storage.js');
   const span = (a, b) => ({ start: { line: 1, column: a }, end: { line: 1, column: b } });
   const file = {
@@ -160,12 +165,13 @@ test('N2 compact evidence removes interior duplicate anchors but retains exclusi
     compactScriptEvidence({ url: 'https://app.test/a.js', status: 'mapped', files: [file] }).files[0].executed,
     [
       [1, 0, 5],
+      [1, 2, 2],
       [1, 5, 5],
     ],
   );
 });
 
-test('N6 development-server file URLs cannot retain home paths', async () => {
+test('development-server file URLs cannot retain home paths', async () => {
   const { storedScriptUrl } = await import('../dist/script-reach-identity.js');
   const url = 'https://app.test/@fs' + path.join(os.homedir(), 'checkout', 'src/app.js') + '?token=fixture#fragment';
   assert.equal(storedScriptUrl(url, path.join(os.homedir(), 'checkout')), 'https://app.test/src/app.js');

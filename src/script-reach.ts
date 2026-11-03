@@ -15,7 +15,7 @@ export type SourcePosition = { line: number; column: number };
 /** Original lines are 1-based, UTF-16 columns 0-based, ends exclusive. Equal ends are mapping anchors. */
 export type SourceSpan = { start: SourcePosition; end: SourcePosition };
 export type CompactSourceSpan = [line: number, startColumn: number, endColumn: number];
-export type ScriptSourceReach<Span = SourceSpan | CompactSourceSpan> = {
+export type ScriptSourceReach<Span = CompactSourceSpan> = {
   source: string;
   /** Origin-independent identity for joins across capture hosts. */
   sourceKey?: string;
@@ -25,17 +25,19 @@ export type ScriptSourceReach<Span = SourceSpan | CompactSourceSpan> = {
   mixed: Span[];
   unexecuted: Span[];
 };
-export type ScriptReachEntry = {
+export type ScriptReachEntry<Span = CompactSourceSpan> = {
   url: string;
   status: 'mapped' | 'unknown' | 'unmeasured';
   reason?: string;
-  files?: ScriptSourceReach[];
+  files?: ScriptSourceReach<Span>[];
 };
 export type ScriptReach = {
   version: 1;
   window: 'navigation';
   status: 'measured' | 'unknown' | 'unmeasured';
   reason?: string;
+  /** V8 block-coverage residuals; consumers must retain these limits. */
+  notes?: string[];
   scripts: ScriptReachEntry[];
 };
 export type BinaryScriptCoverage = {
@@ -387,11 +389,10 @@ export function scriptExecutionProjection(evidence: ScriptReach): Omit<ScriptSou
       ...Object.fromEntries(
         EXECUTION_KINDS.map((kind) => [
           kind,
-          file[kind].map((span) =>
-            Array.isArray(span)
-              ? { start: { line: span[0], column: span[1] }, end: { line: span[0], column: span[2] } }
-              : span,
-          ),
+          file[kind].map((span) => {
+            const [line, start, end] = span as CompactSourceSpan;
+            return { start: { line, column: start }, end: { line, column: end } };
+          }),
         ]),
       ),
     }),

@@ -7,6 +7,7 @@ import {
 /** Navigation-window script coverage. Reader failures are evidence gaps, never capture failures. */
 import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-resources.js';
 import { storedScriptUrl } from '../script-reach-identity.js';
+import { MAX_GENERATED_LENGTH } from '../script-reach-limits.js';
 import { storedScriptEvidence } from '../script-reach-storage.js';
 import { performance } from 'node:perf_hooks';
 import type { CaptureOptions, StyleMap } from './types.js';
@@ -16,13 +17,21 @@ import {
   ScriptEvidenceError,
   type ScriptReach,
   type ScriptReachEntry,
+  type SourceSpan,
   type BinaryScriptCoverage,
 } from '../script-reach.js';
 
-type ParsedScript = { scriptId: string; url: string; sourceMapURL?: string };
+type ParsedScript = {
+  scriptId: string;
+  url: string;
+  sourceMapURL?: string;
+  length?: number;
+  stackTrace?: { callFrames: { scriptId: string }[] };
+};
 export type ScriptReachTracker = {
   stop: () => Promise<ScriptReach>;
   dispose: () => Promise<void>;
+  beginMapRead?: () => Promise<void>;
 };
 
 export function unmeasuredScriptReach(reason: string): ScriptReach {
@@ -58,10 +67,12 @@ async function resolveScript(
   script: ParsedScript,
   entry: BinaryScriptCoverage,
   deadline: number,
-): Promise<ScriptReachEntry> {
+): Promise<ScriptReachEntry<SourceSpan>> {
   const { page, client } = input;
   const url = storedScriptUrl(script.url, input.projectRoot);
   try {
+    if ((script.length ?? 0) > MAX_GENERATED_LENGTH)
+      throw new ScriptEvidenceError('source mapping size limit exceeded');
     const { scriptSource } = await client.send('Debugger.getScriptSource', { scriptId: script.scriptId });
     const directive = [
       ...scriptSource.matchAll(/\/\/[#@]\s*sourceMappingURL=([^\s]+)|\/\*[#@]\s*sourceMappingURL=([^\s*]+)\s*\*\//g),
@@ -95,11 +106,36 @@ type ScriptRead = {
   projectRoot: string;
 };
 
-async function resolveScripts(input: ScriptRead, coverage: CollectedScript[]): Promise<ScriptReachEntry[]> {
+/** 1.61 omits the historical sourceURL marker; identify its utility and direct evaluations. */
+async function playwrightScripts(input: ScriptRead): Promise<Set<string>> {
+  const internal = new Set<string>();
+  const utilities = new Set<string>();
+  for (const script of input.scripts.values()) {
+    if (script.url || script.stackTrace || (script.length ?? 0) > MAX_GENERATED_LENGTH) continue;
+    const { scriptSource } = await input.client
+      .send('Debugger.getScriptSource', { scriptId: script.scriptId })
+      .catch(() => ({ scriptSource: '' }));
+    if (
+      scriptSource.includes('return new (module.exports.UtilityScript())(globalThis,') &&
+      scriptSource.includes('var UtilityScript = class {')
+    ) {
+      utilities.add(script.scriptId);
+      internal.add(script.scriptId);
+    } else if (scriptSource === '((utilityScript, ...args) => utilityScript.evaluate(...args))')
+      internal.add(script.scriptId);
+  }
+  for (const script of input.scripts.values())
+    if (!script.url && utilities.has(script.stackTrace?.callFrames[0]?.scriptId ?? '')) internal.add(script.scriptId);
+  return internal;
+}
+
+async function resolveScripts(input: ScriptRead, coverage: CollectedScript[]): Promise<ScriptReachEntry<SourceSpan>[]> {
   const deadline = performance.now() + MAP_READ_BUDGET_MS;
-  const entries: ScriptReachEntry[] = [];
+  const entries: ScriptReachEntry<SourceSpan>[] = [];
+  const internal = await beforeDeadline(playwrightScripts(input), deadline);
   for (const entry of coverage) {
     const script = input.scripts.get(entry.scriptId);
+    if (internal.has(entry.scriptId) || (script?.url ?? entry.url) === '__playwright_evaluation_script__') continue;
     if (!script || !/^(https?|file|webpack|blob):/.test(script.url)) {
       entries.push({
         url: storedScriptUrl(script?.url ?? entry.url ?? '', input.projectRoot),
@@ -132,7 +168,7 @@ async function boundedResolve(
   script: ParsedScript,
   entry: CollectedScript,
   deadline: number,
-): Promise<ScriptReachEntry> {
+): Promise<ScriptReachEntry<SourceSpan>> {
   try {
     return await beforeDeadline(resolveScript(input, script, entry, deadline), deadline);
   } catch {
@@ -212,8 +248,17 @@ export async function trackScriptReach(
     try {
       client = registerStyleProofSession(await page.context().newCDPSession(page));
       client.on('Debugger.scriptParsed', (script) => {
-        scripts.set(script.scriptId, script);
+        scripts.set(script.scriptId, {
+          ...script,
+          stackTrace: script.stackTrace ?? scripts.get(script.scriptId)?.stackTrace,
+        });
       });
+      const ownedClient = client;
+      client.on('Debugger.paused', () => {
+        void ownedClient.send('Debugger.resume').catch(() => {});
+      });
+      await client.send('Debugger.setSkipAllPauses', { skip: true });
+      await client.send('Debugger.enable');
       await client.send('Page.enable');
       client.on('Page.frameNavigated', ({ frame }) => {
         if (!frame.parentId) navigated = true;
@@ -245,6 +290,7 @@ export async function trackScriptReach(
   };
   return {
     dispose,
+    beginMapRead: restoreCache,
     stop: async () => {
       if (result) return result;
       try {
@@ -255,10 +301,6 @@ export async function trackScriptReach(
         const beforeRead = foreignCoverage(page);
         if (beforeRead) return (result = beforeRead);
         if (!navigated) return (result = unmeasuredScriptReach('navigation not observed after tracker start'));
-        const ownedClient = client;
-        client.on('Debugger.paused', () => {
-          void ownedClient.send('Debugger.resume').catch(() => {});
-        });
         await client.send('Debugger.enable');
         await client.send('Debugger.setSkipAllPauses', { skip: true });
         const coverageResult = await client.send('Profiler.takePreciseCoverage');

@@ -29,7 +29,7 @@ function sourceDirectory(root: string | undefined, mapUrl: string): URL {
   return url;
 }
 
-function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string {
+function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string | undefined {
   if (WINDOWS_PATH.test(source) || path.posix.isAbsolute(source)) return filesystemKey(source, projectRoot);
   if (root && (WINDOWS_PATH.test(root) || path.posix.isAbsolute(root)) && !SCHEME.test(source))
     return filesystemKey((WINDOWS_PATH.test(root) ? path.win32 : path).resolve(root, source), projectRoot);
@@ -37,6 +37,12 @@ function sourceKey(source: string, root: string | undefined, mapUrl: string, pro
     ? new URL(source)
     : new URL(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl));
   if (resolved.protocol === 'file:') return filesystemKey(fileURLToPath(resolved), projectRoot);
+  const pathname = decodeURIComponent(resolved.pathname).replaceAll('\\', '/');
+  if (BUNDLER.test(resolved.href) && !pathname.replaceAll('/', '')) return undefined;
+  const viteFile = pathname.startsWith('/@fs/');
+  const filename = viteFile ? pathname.slice(4) : pathname;
+  if (viteFile || /^\/(?:Users|home|root|tmp)(?:\/|$)/.test(filename) || /^\/?[a-z]:\//i.test(filename))
+    return filesystemKey(filename.replace(/^\/(?=[a-z]:\/)/i, ''), projectRoot);
   return projectKey(resolved.pathname.replace(/^\//, ''), projectRoot);
 }
 
@@ -55,7 +61,7 @@ export function sourceIdentities(map: SourceMap, mapUrl: string, projectRoot = p
   return map.sources.map((source) => {
     if (source === null || /(^|[\\/])node_modules[\\/]/.test((map.sourceRoot ?? '') + '/' + source)) return undefined;
     const key = sourceKey(source, map.sourceRoot, mapUrl, projectRoot);
-    if (/(^|\/)node_modules\//.test(key)) return undefined;
+    if (!key || /(^|\/)node_modules\//.test(key)) return undefined;
     if (seen.has(key)) throw new ScriptEvidenceError('source key collision');
     seen.add(key);
     return key;
@@ -82,9 +88,13 @@ export function storedScriptUrl(address: string, projectRoot = process.cwd()): s
     if (BUNDLER.test(address)) return url.protocol + '/' + bundlerPath(url.href).replace(/^\.\//, '');
     if (!/^https?:$/.test(url.protocol)) return url.protocol;
     const filename = decodeURIComponent(url.pathname).replace(/^\/@fs/, '');
-    if (/^\/(?:Users|home)\//.test(filename)) {
+    if (
+      url.pathname.startsWith('/@fs/') ||
+      /^\/(?:Users|home|root|tmp)(?:\/|$)/.test(filename) ||
+      /^\/?[a-z]:\//i.test(filename)
+    ) {
       try {
-        url.pathname = '/' + filesystemKey(filename, projectRoot);
+        url.pathname = '/' + filesystemKey(filename.replace(/^\/(?=[a-z]:\/)/i, ''), projectRoot);
       } catch {
         return url.origin + '/';
       }

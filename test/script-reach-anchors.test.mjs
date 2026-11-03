@@ -21,7 +21,7 @@ const map = (mappings, sources = ['src/app.js'], sourcesContent) => ({
 const span = (line, column) => ({ start: { line, column }, end: { line, column } });
 const root = path.join(tmpdir(), 'reach-project');
 
-test('R3.1 QA nonmonotonic mappings can never interpolate executed extents', () => {
+test('nonmonotonic mappings can never interpolate executed extents', () => {
   const text = 'ok(); if (f) bad(); tail();';
   const [file] = mapScriptCoverage(
     coverage(text, [{ startOffset: 13, endOffset: 19, count: 0 }]),
@@ -33,7 +33,7 @@ test('R3.1 QA nonmonotonic mappings can never interpolate executed extents', () 
   assert.ok(file.mixed.some((r) => r.start.column === 13));
 });
 
-test('R3.1 minifier-removed DEBUG branch has no executed extent', async () => {
+test('minifier-removed DEBUG branch has no executed extent', async () => {
   const original = 'ok(); if (DEBUG) { boom(); } tail();';
   const built = await transform(original, {
     sourcemap: 'external',
@@ -50,7 +50,7 @@ test('R3.1 minifier-removed DEBUG branch has no executed extent', async () => {
 });
 
 for (const mappings of ['AAAA,KAAA', 'AAAA,KAAK,KAAL', 'AAAA,KAAK,KAAL,KAAM'])
-  test(`R3.1 repeated original starts aggregate states: ${mappings}`, () => {
+  test(`repeated original starts aggregate states: ${mappings}`, () => {
     const text = 'x'.repeat(20);
     const [file] = mapScriptCoverage(
       coverage(text, [
@@ -65,7 +65,7 @@ for (const mappings of ['AAAA,KAAA', 'AAAA,KAAK,KAAL', 'AAAA,KAAK,KAAL,KAAM'])
     if (mappings !== 'AAAA,KAAK,KAAL,KAAM') assert.ok(file.mixed.some((r) => r.start.column === 0));
   });
 
-test('R3.2 compact storage preserves three distinct same-kind anchors', () => {
+test('compact storage preserves three distinct same-kind anchors', () => {
   const script = {
     url: 'https://app.test/a.js',
     status: 'mapped',
@@ -80,7 +80,7 @@ test('R3.2 compact storage preserves three distinct same-kind anchors', () => {
   ]);
 });
 
-test('R3.3 monorepo and nested src keys retain their complete project paths', () => {
+test('monorepo and nested src keys retain their complete project paths', () => {
   const sources = [
     'webpack://fixture/packages/ui/src/Button.tsx',
     'webpack://fixture/packages/app/src/Button.tsx',
@@ -97,7 +97,7 @@ test('R3.3 monorepo and nested src keys retain their complete project paths', ()
   ]);
 });
 
-test('R3.3 file sources and sourceRoot resolve relative to each capture project root', () => {
+test('file sources and sourceRoot resolve relative to each capture project root', () => {
   const keys = (checkout) => {
     const project = path.join(tmpdir(), 'work', checkout);
     return sourceIdentities(
@@ -112,7 +112,7 @@ test('R3.3 file sources and sourceRoot resolve relative to each capture project 
   assert.deepEqual(sourceIdentities(map('', [absolute]), 'https://app.test/a.map', root), ['components/index.js']);
 });
 
-test('R3.3 relative HTTP sources retain the resolved pathname', () => {
+test('relative HTTP sources retain the resolved pathname', () => {
   assert.deepEqual(
     sourceIdentities(
       { ...map('', ['index.js']), sourceRoot: '../components/' },
@@ -123,7 +123,7 @@ test('R3.3 relative HTTP sources retain the resolved pathname', () => {
   );
 });
 
-test('R3.3 sources outside the capture project are refused', () => {
+test('sources outside the capture project are refused', () => {
   assert.throws(
     () =>
       sourceIdentities(
@@ -135,7 +135,7 @@ test('R3.3 sources outside the capture project are refused', () => {
   );
 });
 
-test('R3.3 colliding source identities are refused rather than merged', () => {
+test('colliding source identities are refused rather than merged', () => {
   assert.throws(
     () =>
       sourceIdentities(
@@ -147,12 +147,12 @@ test('R3.3 colliding source identities are refused rather than merged', () => {
   );
 });
 
-test('R3.5 the file-spoof regression is privacy-clean once tracked', () => {
-  const text = readFileSync(new URL('./script-reach-round2.e2e.spec.ts', import.meta.url), 'utf8');
-  assert.deepEqual(findPrivacyFindings([{ file: 'test/script-reach-round2.e2e.spec.ts', text }]), []);
+test('the file-spoof regression is privacy-clean once tracked', () => {
+  const text = readFileSync(new URL('./script-reach-lifecycle.e2e.spec.ts', import.meta.url), 'utf8');
+  assert.deepEqual(findPrivacyFindings([{ file: 'test/script-reach-lifecycle.e2e.spec.ts', text }]), []);
 });
 
-test('R3.6 vendor mappings do not consume the app segment cap', () => {
+test('vendor mappings do not consume the app segment cap', () => {
   const count = 110_000,
     text = 'x'.repeat(count + 1);
   const files = mapScriptCoverage(
@@ -166,7 +166,7 @@ test('R3.6 vendor mappings do not consume the app segment cap', () => {
 });
 
 for (const separator of ['\r\n', '\u2028', '\u2029', '\r'])
-  test(`R3.14 generated line separator ${JSON.stringify(separator)} preserves V8 offsets`, () => {
+  test(`generated line separator ${JSON.stringify(separator)} preserves V8 offsets`, () => {
     const text = 'a();' + separator + 'b();';
     const [file] = mapScriptCoverage(
       coverage(text, [{ startOffset: 4 + separator.length, endOffset: text.length, count: 0 }]),
@@ -178,7 +178,7 @@ for (const separator of ['\r\n', '\u2028', '\u2029', '\r'])
     assert.deepEqual(file.unexecuted, [span(2, 0)]);
   });
 
-test('R3.3 collision detection precedes per-script compaction limits', async () => {
+test('collision detection precedes per-script compaction limits', async () => {
   const { storedScriptEvidence } = await import('../dist/script-reach-storage.js');
   const file = {
     source: 'src/shared.js',
@@ -194,7 +194,7 @@ test('R3.3 collision detection precedes per-script compaction limits', async () 
   assert.ok(result.scripts.every((script) => script.status === 'unknown' && script.reason === 'source key collision'));
 });
 
-test('R3.3 bundler URLs contribute paths without query or fragment', () => {
+test('bundler URLs contribute paths without query or fragment', () => {
   for (const scheme of ['webpack://fixture/', 'vite:'])
     assert.deepEqual(
       sourceIdentities(
@@ -215,7 +215,7 @@ test('R3.3 bundler URLs contribute paths without query or fragment', () => {
   );
 });
 
-test('R3.3 URL paths decode once and agree with filesystem source keys', () => {
+test('URL paths decode once and agree with filesystem source keys', () => {
   const filename = path.join(root, 'src/a%20b.ts');
   assert.deepEqual(
     sourceIdentities(map('', ['https://app.test/src/a%2520b.ts']), 'https://app.test/a.map', root),
@@ -223,7 +223,7 @@ test('R3.3 URL paths decode once and agree with filesystem source keys', () => {
   );
 });
 
-test('R3.3 sourceRoot and relative sources resolve together before extracting URI paths', () => {
+test('sourceRoot and relative sources resolve together before extracting URI paths', () => {
   for (const sourceRoot of ['webpack://fixture/packages/', 'vite:packages/'])
     assert.deepEqual(
       sourceIdentities(
@@ -235,15 +235,61 @@ test('R3.3 sourceRoot and relative sources resolve together before extracting UR
     );
 });
 
-test('R3.3 fragment-only source references resolve against the map URL itself', () => {
+test('fragment-only source references resolve against the map URL itself', () => {
   assert.deepEqual(sourceIdentities(map('', ['#original']), 'https://app.test/assets/app.map', root), [
     'assets/app.map',
   ]);
 });
 
-test('R3.3 rooted Windows paths cannot become relative HTTP source keys', () => {
+test('rooted Windows paths cannot become relative HTTP source keys', () => {
   assert.throws(
     () => sourceIdentities(map('', ['\\outside\\app.js']), 'https://app.test/a.map', 'C:\\project'),
     /source outside project root/,
+  );
+});
+
+for (const prefix of ['http://dev.test/@fs', 'http://dev.test'])
+  test(`filesystem URL sources validate the capture root: ${prefix}`, () => {
+    const outside = path.join(path.parse(root).root, 'Users', 'other', 'outside.js');
+    assert.throws(
+      () => sourceIdentities(map('AAAA', [prefix + outside]), 'http://dev.test/a.map', root),
+      /outside project root/,
+    );
+  });
+
+test('Vite filesystem sources have the same keys in two checkouts', () => {
+  const roots = ['first', 'second'].map((name) => path.join(root, name));
+  const keys = roots.map((projectRoot) =>
+    sourceIdentities(
+      map('AAAA', ['http://dev.test/@fs' + path.join(projectRoot, 'packages/ui/src/Button.tsx')]),
+      'http://dev.test/a.map',
+      projectRoot,
+    ),
+  );
+  assert.deepEqual(keys, [['packages/ui/src/Button.tsx'], ['packages/ui/src/Button.tsx']]);
+});
+
+test('webpack ignored module sources are non-app', () => {
+  assert.deepEqual(
+    sourceIdentities(map('AAAA', ['webpack://_N_E/?3c5f', 'webpack://_N_E/']), 'https://app.test/a.map', root),
+    [undefined, undefined],
+  );
+});
+
+test('compaction preserves distinct point anchors even inside another range', () => {
+  const file = {
+    source: 'src/a.js',
+    executed: [
+      [1, 0, 20],
+      [1, 4, 4],
+      [1, 10, 10],
+      [1, 18, 18],
+    ],
+    mixed: [],
+    unexecuted: [],
+  };
+  assert.deepEqual(
+    compactScriptEvidence({ url: 'https://app.test/a.js', status: 'mapped', files: [file] }).files[0].executed,
+    file.executed,
   );
 });

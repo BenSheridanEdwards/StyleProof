@@ -1,38 +1,34 @@
 import { MAX_CAPTURE_EVIDENCE_BYTES, MAX_SCRIPT_EVIDENCE_BYTES } from './script-reach-limits.js';
-import type { ScriptReach, ScriptReachEntry, CompactSourceSpan, SourceSpan } from './script-reach.js';
+import type {
+  ScriptReach,
+  ScriptReachEntry,
+  ScriptSourceReach,
+  CompactSourceSpan,
+  SourceSpan,
+} from './script-reach.js';
 
-/** One tuple per single-line range, keeping isolated anchors but dropping redundant ones. */
-export function compactScriptEvidence(script: ScriptReachEntry): ScriptReachEntry {
-  const compact = {
-    ...script,
-    ...(script.files
+/** Adapt the pure mapper's objects to stored tuples; no stored object format is supported. */
+function compactSpans(spans: (SourceSpan | CompactSourceSpan)[]): CompactSourceSpan[] {
+  return spans
+    .map((span): CompactSourceSpan =>
+      Array.isArray(span) ? [...span] : [span.start.line, span.start.column, span.end.column],
+    )
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1] || b[2] - a[2]);
+}
+
+/** One tuple per original anchor; never merge distinct points. */
+export function compactScriptEvidence(script: ScriptReachEntry<SourceSpan | CompactSourceSpan>): ScriptReachEntry {
+  const { files, ...entry } = script;
+  const compact: ScriptReachEntry = {
+    ...entry,
+    ...(files
       ? {
-          files: script.files.map((file) => ({
+          files: files.map((file): ScriptSourceReach => ({
             ...file,
-            encoding: 'line-column-tuples' as const,
-            ...Object.fromEntries(
-              ['executed', 'mixed', 'unexecuted'].map((kind) => {
-                const spans = file[kind as 'executed'].map((span: SourceSpan | CompactSourceSpan): CompactSourceSpan =>
-                  Array.isArray(span) ? span : [span.start.line, span.start.column, span.end.column],
-                );
-                spans.sort((a, b) => a[0] - b[0] || a[1] - b[1] || b[2] - a[2]);
-                let previous: CompactSourceSpan | undefined;
-                return [
-                  kind,
-                  spans.filter((span) => {
-                    if (
-                      span[1] === span[2] &&
-                      previous?.[0] === span[0] &&
-                      previous[1] <= span[1] &&
-                      previous[2] > span[2]
-                    )
-                      return false;
-                    previous = span;
-                    return true;
-                  }),
-                ];
-              }),
-            ),
+            encoding: 'line-column-tuples',
+            executed: compactSpans(file.executed),
+            mixed: compactSpans(file.mixed),
+            unexecuted: compactSpans(file.unexecuted),
           })),
         }
       : {}),
@@ -43,10 +39,10 @@ export function compactScriptEvidence(script: ScriptReachEntry): ScriptReachEntr
 }
 
 /** Collisions invalidate every involved script, even when hashes happen to agree. */
-export function storedScriptEvidence(scripts: ScriptReachEntry[]): ScriptReach {
+export function storedScriptEvidence(scripts: ScriptReachEntry<SourceSpan | CompactSourceSpan>[]): ScriptReach {
   const entries = scripts.map((script) => ({ ...script }));
-  const owners = new Map<string, ScriptReachEntry>();
-  const collisions = new Set<ScriptReachEntry>();
+  const owners = new Map<string, ScriptReachEntry<SourceSpan | CompactSourceSpan>>();
+  const collisions = new Set<ScriptReachEntry<SourceSpan | CompactSourceSpan>>();
   for (const script of entries)
     for (const file of script.files ?? []) {
       const key = file.sourceKey ?? file.source;
@@ -65,6 +61,9 @@ export function storedScriptEvidence(scripts: ScriptReachEntry[]): ScriptReach {
     version: 1,
     window: 'navigation',
     status: 'measured',
+    notes: [
+      'Executed anchors mean the innermost V8 block containing the generated segment ran; expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.',
+    ],
     scripts: entries.map(compactScriptEvidence),
   };
   return Buffer.byteLength(JSON.stringify(evidence)) > MAX_CAPTURE_EVIDENCE_BYTES

@@ -30,7 +30,7 @@ async function serve(script: string, map?: object) {
   };
 }
 
-test('R3.1 QA false branch stores executed anchors only', async ({ page }) => {
+test('false branch stores executed anchors only', async ({ page }) => {
   const source = 'ok(); if (f) bad(); tail();';
   const host = await serve(source + '\n//# sourceMappingURL=app.js.map', {
     version: 3,
@@ -43,15 +43,13 @@ test('R3.1 QA false branch stores executed anchors only', async ({ page }) => {
     await page.goto(host.url);
     const script = (await tracker.stop()).scripts.find((s) => s.url.endsWith('/app.js'));
     expect(script?.status).toBe('mapped');
-    expect(
-      script?.files?.[0].executed.every((r) => (Array.isArray(r) ? r[1] === r[2] : r.start.column === r.end.column)),
-    ).toBe(true);
+    expect(script?.files?.[0].executed.every((r) => r[1] === r[2])).toBe(true);
   } finally {
     await host.close();
   }
 });
 
-test('R3.4 webpack eval scripts remain visible as unsupported unmeasured entries', async ({ page }) => {
+test('webpack eval scripts remain visible as unsupported unmeasured entries', async ({ page }) => {
   const host = await serve('eval("window.ready=true;\\n//# sourceURL=webpack-internal:///./src/eval.js")');
   try {
     const tracker = await trackScriptReach(page);
@@ -67,7 +65,7 @@ test('R3.4 webpack eval scripts remain visible as unsupported unmeasured entries
   }
 });
 
-test('R3.10 CDP map reads are invisible to page fetch patches and request listeners', async ({ page }) => {
+test('CDP map reads are invisible to page fetch patches and request listeners', async ({ page }) => {
   const script = 'window.ready=true;\n//# sourceMappingURL=app.js.map';
   const host = await serve(script, {
     version: 3,
@@ -95,7 +93,7 @@ test('R3.10 CDP map reads are invisible to page fetch patches and request listen
   }
 });
 
-test('R3.6 a realistic 1–2 MiB React bundle maps despite more than 100k total segments', async ({ page }) => {
+test('a realistic 1–2 MiB React bundle maps despite more than 100k total segments', async ({ page }) => {
   const directory = await mkdtemp(path.join(tmpdir(), 'reach-large-bundle-'));
   try {
     const built = await buildLargeReachBundle(directory);
@@ -114,5 +112,99 @@ test('R3.6 a realistic 1–2 MiB React bundle maps despite more than 100k total 
   } finally {
     for (const name of await readdir(directory)) await unlink(path.join(directory, name));
     await rmdir(directory);
+  }
+});
+
+test('V8 block evidence retains explicit expression-evaluation residuals', async ({ page }) => {
+  const { transform } = await import('esbuild');
+  const original = [
+    'window.faultCalls = 0;',
+    'function renderFault() { window.faultCalls++; return "fault"; }',
+    'function parameter(tone = renderFault()) { return tone; }',
+    'function destructure({ style = renderFault() }) { return style; }',
+    'let or = "ok"; or ||= renderFault();',
+    'let and = false; and &&= renderFault();',
+    'let nullish = "ok"; nullish ??= renderFault();',
+    'let fault = null; fault?.message.toUpperCase();',
+    'parameter("ok"); destructure({ style: "ok" });',
+  ].join('\n');
+  const built = await transform(original, { sourcefile: 'src/residual.js', sourcemap: 'external', minify: true });
+  const host = await serve(built.code + '\n//# sourceMappingURL=app.js.map', JSON.parse(built.map));
+  try {
+    const tracker = await trackScriptReach(page);
+    await page.goto(host.url);
+    const evidence = await tracker.stop();
+    expect(await page.evaluate(() => (window as unknown as { faultCalls: number }).faultCalls)).toBe(0);
+    const file = evidence.scripts.find((s) => s.url.endsWith('/app.js'))?.files?.[0];
+    // 2.2 must NOT treat these lines as reached: V8 reports their containing block only.
+    for (const line of [3, 4, 5, 6, 7, 8]) expect(file?.executed.some((span) => span[0] === line)).toBe(true);
+    expect(evidence.notes?.join(' ')).toMatch(
+      /default parameter.*destructuring default.*logical assignment.*optional chain/,
+    );
+  } finally {
+    await host.close();
+  }
+});
+
+test('runner uses the CDP map loader outside its replay matcher', async ({ page }, testInfo) => {
+  const { captureSurface } = await import('../dist/runner/surface-capture.js');
+  const { resolveSettings } = await import('../dist/runner/settings.js');
+  const { loadStyleMap } = await import('../dist/capture.js');
+  const host = await serve('window.ready=true;\n//# sourceMappingURL=app.js.map', {
+    version: 3,
+    sources: ['src/app.js'],
+    sourcesContent: ['window.ready=true;'],
+    mappings: 'AAAA',
+  });
+  try {
+    const settings = resolveSettings({
+      dir: testInfo.outputPath('maps'),
+      captureScriptReach: true,
+      selfCheck: false,
+      screenshots: false,
+      freezeClock: false,
+      replayUrl: '**/api/**',
+    });
+    const requests: string[] = [];
+    page.on('request', (r) => requests.push(r.url()));
+    await captureSurface(
+      page,
+      {
+        key: 'reader',
+        async go() {
+          await page.goto(host.url);
+          await page.evaluate(() => {
+            window.fetch = async () => {
+              throw new Error('page fetch must not read map');
+            };
+          });
+        },
+      },
+      800,
+      settings,
+      { index: 1, total: 1 },
+    );
+    expect(
+      loadStyleMap(testInfo.outputPath('maps/reader@800.json.gz')).scriptReach?.scripts.find((s) =>
+        s.url.endsWith('/app.js'),
+      )?.status,
+    ).toBe('mapped');
+    expect(requests.some((url) => url.endsWith('.map'))).toBe(false);
+  } finally {
+    await host.close();
+  }
+});
+
+test('capture excludes Playwright evaluations and preserves page anonymous eval', async ({ page }) => {
+  const host = await serve('eval("window.fromPage=true")');
+  try {
+    const tracker = await trackScriptReach(page);
+    await page.goto(host.url);
+    for (let i = 0; i < 4; i++) await page.evaluate(() => document.body.textContent);
+    const evidence = await tracker.stop();
+    expect(evidence.scripts.filter((s) => s.url === '<anonymous>')).toHaveLength(1);
+    expect(evidence.scripts.find((s) => s.url === '<anonymous>')?.status).toBe('unmeasured');
+  } finally {
+    await host.close();
   }
 });

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { compactScriptEvidence } from '../dist/script-reach-storage.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { decodeVlq, mapScriptCoverage } from '../dist/script-reach.js';
@@ -108,7 +109,11 @@ test('script self-check compares mapped evidence and records changed or missing 
       {
         url: 'https://example.test/app.js',
         status: 'mapped',
-        files: mapScriptCoverage(entry, '123456789012345', sourceMap, 'https://example.test/app.js.map'),
+        files: compactScriptEvidence({
+          url: 'https://example.test/app.js',
+          status: 'mapped',
+          files: mapScriptCoverage(entry, '123456789012345', sourceMap, 'https://example.test/app.js.map'),
+        }).files,
       },
     ],
   };
@@ -172,7 +177,7 @@ test('a rejecting script tracker adds unknown evidence without losing the map', 
 });
 
 for (const mappings of ['AAAA', 'AAAA,K']) {
-  test(`review 3: trailing unmapped code stays outside executed evidence: ${mappings}`, () => {
+  test(`trailing unmapped code stays outside executed evidence: ${mappings}`, () => {
     const [file] = mapScriptCoverage(
       { functions: [{ ranges: [{ startOffset: 0, endOffset: 19, count: 1 }] }] },
       'ok(); if (f) bad();',
@@ -183,7 +188,7 @@ for (const mappings of ['AAAA', 'AAAA,K']) {
   });
 }
 
-test('review 3: original anchors are indexed across generated order and unmapped gaps', () => {
+test('original anchors are indexed across generated order and unmapped gaps', () => {
   const [file] = mapScriptCoverage(
     entry,
     '123456789012345',
@@ -196,7 +201,7 @@ test('review 3: original anchors are indexed across generated order and unmapped
   ]);
 });
 
-test('review 4: 20k segments and 10k V8 ranges map within a generous linear-sweep budget', () => {
+test('20k segments and 10k V8 ranges map within a generous linear-sweep budget', () => {
   const count = 20_000;
   const generated = 'x'.repeat(count);
   const map = {
@@ -220,7 +225,7 @@ test('review 4: 20k segments and 10k V8 ranges map within a generous linear-swee
   assert.ok(elapsed < 1800, `mapping took ${elapsed.toFixed(1)} ms (budget 1800 ms)`);
 });
 
-test('review 8: original source key is independent of capture origin and port', () => {
+test('original source key is independent of capture origin and port', () => {
   const map = { ...sourceMap, sourceRoot: '../src' };
   const first = mapScriptCoverage(entry, '123456789012345', map, 'http://localhost:3100/dist/a.map')[0];
   const second = mapScriptCoverage(entry, '123456789012345', map, 'http://localhost:4100/dist/a.map')[0];
@@ -229,7 +234,7 @@ test('review 8: original source key is independent of capture origin and port', 
 });
 
 for (const gap of ['blob', 'query', 'timeout', 'third-party']) {
-  test(`review 5: non-mapped ${gap} drift becomes unknown without failing self-check`, async () => {
+  test(`non-mapped ${gap} drift becomes unknown without failing self-check`, async () => {
     const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
     const evidence = (url, status = 'unmeasured') => ({
       version: 1,
@@ -253,13 +258,13 @@ for (const gap of ['blob', 'query', 'timeout', 'third-party']) {
   });
 }
 
-test('review 5: mapped app evidence ignores generated URLs and capture origins', async () => {
+test('mapped app evidence ignores generated URLs and capture origins', async () => {
   const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
   const file = {
     source: 'http://localhost:3100/src/app.js',
     sourceKey: '/src/app.js',
     contentHash: 'hash',
-    executed: [{ start: { line: 1, column: 0 }, end: { line: 1, column: 4 } }],
+    executed: [[1, 0, 4]],
     mixed: [],
     unexecuted: [],
   };
@@ -277,7 +282,7 @@ test('review 5: mapped app evidence ignores generated URLs and capture origins',
   assert.equal(first.scriptReach.status, 'measured');
 });
 
-test('review 9: non-Chromium reports the correct reason without probing coverage', async () => {
+test('non-Chromium reports the correct reason without probing coverage', async () => {
   const { trackScriptReach } = await import('../dist/capture/script-reach.js');
   const page = {
     context: () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) }),
@@ -295,7 +300,7 @@ test('review 9: non-Chromium reports the correct reason without probing coverage
   await tracker.dispose();
 });
 
-test('review 5: a map-fetch failure on one run becomes unknown instead of a self-check failure', async () => {
+test('a map-fetch failure on one run becomes unknown instead of a self-check failure', async () => {
   const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
   const first = {
     scriptReach: {
@@ -306,7 +311,11 @@ test('review 5: a map-fetch failure on one run becomes unknown instead of a self
         {
           url: 'https://app.test/bundle.js',
           status: 'mapped',
-          files: mapScriptCoverage(entry, '123456789012345', sourceMap, 'https://app.test/a.map'),
+          files: compactScriptEvidence({
+            url: 'https://app.test/a.js',
+            status: 'mapped',
+            files: mapScriptCoverage(entry, '123456789012345', sourceMap, 'https://app.test/a.map'),
+          }).files,
         },
       ],
     },

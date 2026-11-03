@@ -485,6 +485,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   try {
     await reach?.start();
 
+    await options.scriptReach?.beginMapRead?.();
     const map = await readSettledPage(page, {
       options,
       limits,

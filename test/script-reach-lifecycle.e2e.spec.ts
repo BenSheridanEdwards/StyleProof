@@ -32,7 +32,7 @@ const fixture = {
   '/bundle.js.map': readFileSync(new URL('bundle.js.map', root), 'utf8'),
 };
 
-test('Q1 browser false branch is never executed through an unmapped gap', async ({ page }) => {
+test('browser false branch is never executed through an unmapped gap', async ({ page }) => {
   const text = 'ok(); if (f) bad(); tail();';
   const map = { version: 3, sources: ['src/app.js'], sourcesContent: [text], mappings: 'AAAA,K,cAAmB' };
   const host = await serve({
@@ -46,17 +46,13 @@ test('Q1 browser false branch is never executed through an unmapped gap', async 
     const result = await tracker.stop();
     const file = result.scripts.find((s) => s.url.endsWith('/bundle.js'))?.files?.[0];
     expect(file).toBeDefined();
-    expect(
-      file!.executed.every((r) =>
-        Array.isArray(r) ? r[2] <= 13 || r[1] >= 19 : r.end.column <= 13 || r.start.column >= 19,
-      ),
-    ).toBe(true);
+    expect(file!.executed.every((r) => r[2] <= 13 || r[1] >= 19)).toBe(true);
   } finally {
     await host.close();
   }
 });
 
-test('B1 four cacheable navigations on one page retain precise evidence', async ({ page }) => {
+test('four cacheable navigations on one page retain precise evidence', async ({ page }) => {
   const host = await serve(fixture);
   try {
     for (let visit = 0; visit < 4; visit++) {
@@ -71,7 +67,7 @@ test('B1 four cacheable navigations on one page retain precise evidence', async 
   }
 });
 
-test('B2 arming after a debugger interval cannot hang the next navigation', async ({ page }) => {
+test('arming after a debugger interval cannot hang the next navigation', async ({ page }) => {
   const host = await serve({ ...fixture, '/paused': '<body><script>setInterval(()=>{debugger},0)</script>' });
   try {
     await page.goto(host.url + 'paused');
@@ -83,7 +79,7 @@ test('B2 arming after a debugger interval cannot hang the next navigation', asyn
   }
 });
 
-test('B3 localStorage first and repeat visits record named unknown evidence', async ({ page }) => {
+test('localStorage first and repeat visits record named unknown evidence', async ({ page }) => {
   const text = 'if(localStorage.seen){window.result=1;}else{window.result=2;}localStorage.seen="yes";';
   const built = await transform(text, { sourcemap: 'external', sourcefile: 'src/visit.js', minify: true });
   const host = await serve({
@@ -105,7 +101,7 @@ test('B3 localStorage first and repeat visits record named unknown evidence', as
   }
 });
 
-test('N2/N9 app-sized evidence uses compact spans under the per-script cap', async ({ page }) => {
+test('app-sized evidence uses compact spans under the per-script cap', async ({ page }) => {
   const original = Array.from(
     { length: 2200 },
     (_, i) => `function f${i}(flag) {\n if(flag) return ${i};\n return -${i};\n}\nf${i}(${i % 2 === 0});`,
@@ -129,7 +125,7 @@ test('N2/N9 app-sized evidence uses compact spans under the per-script cap', asy
   }
 });
 
-test('B4 browser HTTP scripts cannot read a file source map', async ({ page }) => {
+test('browser HTTP scripts cannot read a file source map', async ({ page }) => {
   const host = await serve({
     '/bundle.js': 'window.ready=true;\n//# sourceMappingURL=' + new URL('bundle.js.map', root).href,
   });
@@ -145,7 +141,7 @@ test('B4 browser HTTP scripts cannot read a file source map', async ({ page }) =
   }
 });
 
-test('N8 browser map routing cannot be bypassed with the CDP fallback', async ({ page }) => {
+test('browser map routing cannot be bypassed with the CDP fallback', async ({ page }) => {
   const host = await serve(fixture);
   try {
     await page.route(host.url + 'bundle.js.map', (route) => route.abort());
@@ -160,7 +156,7 @@ test('N8 browser map routing cannot be bypassed with the CDP fallback', async ({
   }
 });
 
-test('B4 an HTTP page cannot spoof a file script URL to read local maps', async ({ page }, testInfo) => {
+test('an HTTP page cannot spoof a file script URL to read local maps', async ({ page }, testInfo) => {
   const mapPath = testInfo.outputPath('private.map');
   writeFileSync(
     mapPath,

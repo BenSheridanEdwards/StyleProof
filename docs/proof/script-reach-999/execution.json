@@ -2,112 +2,10 @@
   "version": 1,
   "window": "navigation",
   "status": "measured",
+  "notes": [
+    "Executed anchors mean the innermost V8 block containing the generated segment ran; expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached."
+  ],
   "scripts": [
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
-    {
-      "url": "<anonymous>",
-      "status": "unmeasured",
-      "reason": "unsupported script URL"
-    },
     {
       "url": "https://script.test/bundle.js",
       "status": "mapped",
@@ -117,16 +15,50 @@
           "sourceKey": "original.js",
           "contentHash": "59fc5e53a925740fbe2b382ee557e9794f5f2117fd920e3c5e2ac8a44355f754",
           "executed": [
-            [1, 0, 0],
-            [2, 0, 0],
-            [3, 0, 0],
-            [7, 0, 0],
-            [8, 0, 0]
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              2,
+              0,
+              0
+            ],
+            [
+              3,
+              0,
+              0
+            ],
+            [
+              7,
+              0,
+              0
+            ],
+            [
+              8,
+              0,
+              0
+            ]
           ],
-          "mixed": [[4, 0, 0]],
+          "mixed": [
+            [
+              4,
+              0,
+              0
+            ]
+          ],
           "unexecuted": [
-            [5, 0, 0],
-            [6, 0, 0]
+            [
+              5,
+              0,
+              0
+            ],
+            [
+              6,
+              0,
+              0
+            ]
           ],
           "encoding": "line-column-tuples"
         }

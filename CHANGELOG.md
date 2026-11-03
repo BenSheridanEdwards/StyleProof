@@ -36,15 +36,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Script reach preserves a spec’s precise block coverage when handing off ownership, rejects shared or unavailable ownership without a destructive probe, and checks pre-bound coverage results. Original spans stop at source-map anchors, coverage mapping uses a sorted interval sweep, source keys ignore capture origins, and map reads have bounded budgets. Self-checks compare mapped app-file execution; varying non-mapped gaps record unknown (#999).
-
 - Change Reach says matched in reports, headlines and CLI gates, and renames the section to "Changed but never matched". The `report.json` why strings now say "which matched a captured element" and "no matched rule references it". A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached (#1238).
 
 ### Added
 
-- Opt-in `captureScriptReach` records navigation-window V8 block execution as original-source executed, mixed and unexecuted ranges with available content hashes. Missing source maps or shared Playwright coverage remain unmeasured; reader failures remain unknown. Self-checks compare mapped evidence. No git-diff join or verdict change is included (#999).
-- Script reach now respects unmapped gaps, names blob scripts without UUIDs, disables code caching during capture, resumes debugger pauses at collection, and records self-check drift as unknown. Compact per-script evidence has bounded mapping/read budgets, safe project-relative identities, guarded local-file reads, and routing-aware map fallback (#999).
-- Script reach records execution only at original start anchors, resolves identities against the project root without path cuts, rejects collisions/outside-root sources, retains unsupported scripts, and bounds evidence at 4 MiB per map. App-only segment caps support realistic bundles; CDP map reads avoid page JS unless routing requires it (#999).
+- Opt-in `captureScriptReach` stores navigation-window V8 block evidence at original-source anchors, content hashes and project-relative keys. Missing maps/shared coverage stay unmeasured; read failures and self-check drift become unknown. Evidence notes name V8 expression-evaluation residuals; no git-diff join or verdict change is included (#999).
 
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
 

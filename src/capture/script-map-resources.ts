@@ -20,12 +20,13 @@ export async function readFileSourceMap(url: string, scriptUrl: string, signal: 
   return checkedMapText(await readFile(path, { encoding: 'utf8', signal }));
 }
 
-function routingActive(page: Page): boolean {
-  type Routing = { _routes?: unknown[]; _harRouters?: unknown[] };
-  return [page, page.context()].some((owner) => {
-    const routing = owner as unknown as Routing;
-    return Boolean(routing._routes?.length || routing._harRouters?.length);
-  });
+function routingActive(page: Page, url: string): boolean {
+  // Playwright 1.61 routeFromHAR also registers RouteHandlers in _routes.
+  // Reuse its matcher so glob, RegExp, predicate and baseURL semantics agree.
+  type Routing = { _routes?: { matches: (url: string) => boolean }[] };
+  return [page, page.context()].some((owner) =>
+    (owner as unknown as Routing)._routes?.some((route) => route.matches(url)),
+  );
 }
 export const MAP_READ_BUDGET_MS = 30_000;
 const RESOURCE_TIMEOUT_MS = 10_000;
@@ -75,7 +76,7 @@ export async function readResource(
       AbortSignal.timeout(Math.max(1, Math.min(RESOURCE_TIMEOUT_MS, Math.floor(deadline - performance.now())))),
     );
   }
-  if (!routingActive(page))
+  if (!routingActive(page, url))
     return beforeDeadline(readCdpResource(client, url), Math.min(deadline, performance.now() + RESOURCE_TIMEOUT_MS));
   // Only routing/HAR requires entering page JavaScript; CDP is the ordinary reader.
   try {

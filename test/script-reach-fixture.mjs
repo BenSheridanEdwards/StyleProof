@@ -20,7 +20,7 @@ export function scriptReachFixture({
   const context = {
     browser: () => ({ browserType: () => ({ name: () => 'chromium' }) }),
     newCDPSession: async () => client,
-    _routes: [],
+    _routes: har ? [{ matches: () => true }] : [],
     _harRouters: har ? [{}] : [],
   };
   const parsed = () =>
@@ -57,7 +57,7 @@ export function scriptReachFixture({
     },
   };
   const page = {
-    _routes: routes ? [{}] : [],
+    _routes: routes ? [{ matches: () => true }] : [],
     _connection: { _objects: new Map(), toImpl: () => ({ coverage: { _jsCoverage: state } }) },
     coverage: {
       async startJSCoverage() {},

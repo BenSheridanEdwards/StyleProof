@@ -28,8 +28,8 @@ test('navigation coverage records branches at ORIGINAL lines and unmapped script
     const script = map.scriptReach?.scripts.find((s) => s.url === 'https://script.test/bundle.js');
     expect(script?.status).toBe('mapped');
     const file = script?.files?.find((f) => f.sourceKey === 'original.js');
-    expect(file?.executed.some((r) => (Array.isArray(r) ? r[0] : r.start.line) === 3)).toBe(true);
-    expect(file?.unexecuted.some((r) => (Array.isArray(r) ? r[0] : r.start.line) === 5)).toBe(true);
+    expect(file?.executed.some((r) => r[0] === 3)).toBe(true);
+    expect(file?.unexecuted.some((r) => r[0] === 5)).toBe(true);
     expect(map.scriptReach?.scripts.find((s) => s.url.endsWith('/unmapped.js'))).toMatchObject({
       status: 'unmeasured',
       reason: 'source map absent',
@@ -120,8 +120,7 @@ for (const mode of ['inline', 'header', 'x-header', 'malformed', 'missing-conten
       const script = captured.scriptReach?.scripts.find((s) => s.url.endsWith('/bundle.js'));
       expect(script?.status).toBe(mode === 'malformed' ? 'unknown' : 'mapped');
       if (mode === 'missing-content') expect(script?.files?.[0].contentHash).toBeUndefined();
-      if (mode !== 'malformed')
-        expect(script?.files?.[0].unexecuted.some((r) => (Array.isArray(r) ? r[0] : r.start.line) === 5)).toBe(true);
+      if (mode !== 'malformed') expect(script?.files?.[0].unexecuted.some((r) => r[0] === 5)).toBe(true);
     } finally {
       await scriptReach.dispose();
     }
@@ -249,9 +248,7 @@ test('same-document hash navigation cannot recover earlier module execution', as
   }
 });
 
-test('review 2: pre-bound coverage methods cannot turn a shared session into measured-empty evidence', async ({
-  page,
-}) => {
+test('pre-bound coverage methods cannot turn a shared session into measured-empty evidence', async ({ page }) => {
   const start = page.coverage.startJSCoverage.bind(page.coverage);
   const stop = page.coverage.stopJSCoverage.bind(page.coverage);
   const tracker = await trackScriptReach(page);
@@ -275,7 +272,7 @@ test('review 2: pre-bound coverage methods cannot turn a shared session into mea
   }
 });
 
-test('review 9: an existing raw CDP coverage session keeps its unexecuted blocks', async ({ page }) => {
+test('an existing raw CDP coverage session keeps its unexecuted blocks', async ({ page }) => {
   const raw = await page.context().newCDPSession(page);
   await raw.send('Profiler.enable');
   await raw.send('Profiler.startPreciseCoverage', { callCount: true, detailed: true });
@@ -289,7 +286,7 @@ test('review 9: an existing raw CDP coverage session keeps its unexecuted blocks
   await raw.detach();
 });
 
-test('review 7: local maps do not require opening a browser page', async ({ page }) => {
+test('local maps do not require opening a browser page', async ({ page }) => {
   const browser = page.context().browser()!;
   const original = browser.newPage;
   browser.newPage = async () => {
@@ -311,7 +308,7 @@ test('review 7: local maps do not require opening a browser page', async ({ page
   }
 });
 
-test('review 11: popup captures retain mapped navigation evidence', async ({ page }, testInfo) => {
+test('popup captures retain mapped navigation evidence', async ({ page }, testInfo) => {
   const { captureSurface } = await import('../dist/runner/surface-capture.js');
   const { resolveSettings } = await import('../dist/runner/settings.js');
   const { loadStyleMap } = await import('../dist/capture.js');
@@ -355,7 +352,7 @@ test('review 11: popup captures retain mapped navigation evidence', async ({ pag
 });
 
 for (const variation of ['query', 'map-failure', 'third-party'] as const) {
-  test(`review 5: runner preserves unknown evidence for ${variation} drift`, async ({ page }, testInfo) => {
+  test(`runner preserves unknown evidence for ${variation} drift`, async ({ page }, testInfo) => {
     const { captureSurface } = await import('../dist/runner/surface-capture.js');
     const { resolveSettings } = await import('../dist/runner/settings.js');
     const { loadStyleMap } = await import('../dist/capture.js');
@@ -403,7 +400,7 @@ for (const variation of ['query', 'map-failure', 'third-party'] as const) {
   });
 }
 
-test('review 5: blob script UUIDs never enter app execution evidence', async ({ page }) => {
+test('blob script UUIDs never enter app execution evidence', async ({ page }) => {
   await page.route('https://script.test/', (route) =>
     route.fulfill({
       contentType: 'text/html',
@@ -430,7 +427,7 @@ test('review 5: blob script UUIDs never enter app execution evidence', async ({ 
   }
 });
 
-test('review 7: file maps resolve in an actual persistent browser context', async ({ browser }, testInfo) => {
+test('file maps resolve in an actual persistent browser context', async ({ browser }, testInfo) => {
   const context = await browser
     .browserType()
     .launchPersistentContext(testInfo.outputPath('persistent-profile'), { headless: true });
@@ -454,7 +451,7 @@ test('review 7: file maps resolve in an actual persistent browser context', asyn
   }
 });
 
-test('review 1/2: pre-bound active coverage remains precise after tracker disposal', async ({ page }) => {
+test('pre-bound active coverage remains precise after tracker disposal', async ({ page }) => {
   const start = page.coverage.startJSCoverage.bind(page.coverage);
   const stop = page.coverage.stopJSCoverage.bind(page.coverage);
   const tracker = await trackScriptReach(page);
@@ -502,4 +499,26 @@ test('CSS and script reach controllers coexist without being mistaken for shared
     await tracker.dispose();
     await servedRules.dispose();
   }
+});
+
+test('capture starts the map read before stopping script evidence', async ({ page }) => {
+  await page.goto('https://script.test/');
+  let mapReadStarted = false;
+  const scriptReach = {
+    beginMapRead: async () => {
+      mapReadStarted = true;
+    },
+    stop: async () => {
+      expect(mapReadStarted).toBe(true);
+      return { version: 1 as const, window: 'navigation' as const, status: 'unmeasured' as const, scripts: [] };
+    },
+    dispose: async () => {},
+  };
+  const map = await captureStyleMap(page, {
+    captureScriptReach: true,
+    scriptReach,
+    captureStates: false,
+    stabilize: false,
+  });
+  expect(map.scriptReach?.status).toBe('unmeasured');
 });

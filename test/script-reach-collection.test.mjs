@@ -10,7 +10,7 @@ async function capture(f) {
   return tracker.stop();
 }
 
-test('R3.4 unsupported webpack eval script is named unmeasured', async () => {
+test('unsupported webpack eval script is named unmeasured', async () => {
   const simple = scriptReachFixture({
     entries: [
       {
@@ -26,7 +26,7 @@ test('R3.4 unsupported webpack eval script is named unmeasured', async () => {
   assert.equal(result.scripts[0].reason, 'unsupported script URL');
 });
 
-test('R3.4 missing script metadata cannot silently produce measured empty evidence', async () => {
+test('missing script metadata cannot silently produce measured empty evidence', async () => {
   const f = scriptReachFixture();
   const original = f.client.send;
   f.client.send = async (method, args) =>
@@ -47,7 +47,7 @@ test('R3.4 missing script metadata cannot silently produce measured empty eviden
   ]);
 });
 
-test('R3.3 duplicate file keys across scripts make both scripts unknown', async () => {
+test('duplicate file keys across scripts make both scripts unknown', async () => {
   const f = scriptReachFixture({
     entries: [0, 1].map((i) => ({
       scriptId: String(i),
@@ -59,11 +59,11 @@ test('R3.3 duplicate file keys across scripts make both scripts unknown', async 
   assert.ok(result.scripts.every((s) => s.status === 'unknown' && s.reason === 'source key collision'));
 });
 
-test('R3.7 map read clock is a generous backstop rather than the normal limit', () => {
+test('map read clock is a generous backstop rather than the normal limit', () => {
   assert.ok(MAP_READ_BUDGET_MS >= 30_000);
 });
 
-test('R3.8 cache is restored at navigation load before map/forced-state reads', async () => {
+test('cache is restored at navigation load before map/forced-state reads', async () => {
   const f = scriptReachFixture();
   const t = await trackScriptReach(f.page);
   f.navigate();
@@ -74,7 +74,7 @@ test('R3.8 cache is restored at navigation load before map/forced-state reads', 
   await t.dispose();
 });
 
-test('R3.9 a total evidence cap rejects many individually in-limit scripts', async () => {
+test('a total evidence cap rejects many individually in-limit scripts', async () => {
   const count = 7;
   const f = scriptReachFixture({
     entries: Array.from({ length: count }, (_, i) => ({
@@ -95,7 +95,7 @@ test('R3.9 a total evidence cap rejects many individually in-limit scripts', asy
   assert.deepEqual(result.scripts, []);
 });
 
-test('R3.10 unrouted maps use CDP without entering page JavaScript', async () => {
+test('unrouted maps use CDP without entering page JavaScript', async () => {
   const f = scriptReachFixture();
   let entered = false;
   f.page.evaluate = async () => {
@@ -106,14 +106,14 @@ test('R3.10 unrouted maps use CDP without entering page JavaScript', async () =>
   assert.equal(entered, false);
 });
 
-test('R3.11 HAR router arrays require the routed page fetch', async () => {
+test('HAR router arrays require the routed page fetch', async () => {
   const f = scriptReachFixture({ har: true });
   const result = await capture(f);
   assert.equal(result.scripts[0].status, 'mapped');
   assert.ok(!f.calls.some(([name]) => name === 'Network.loadNetworkResource'));
 });
 
-test('R3.12 unavailable ownership warns once and never probes the profiler', async () => {
+test('unavailable ownership warns once and never probes the profiler', async () => {
   const original = console.warn;
   const warnings = [];
   console.warn = (message) => warnings.push(message);
@@ -131,9 +131,75 @@ test('R3.12 unavailable ownership warns once and never probes the profiler', asy
   }
 });
 
-test('R3.11 blocked HAR array routing cannot escape through CDP', async () => {
+test('blocked HAR array routing cannot escape through CDP', async () => {
   const f = scriptReachFixture({ har: true, blocked: true });
   const result = await capture(f);
   assert.equal(result.scripts[0].status, 'unknown');
   assert.ok(!f.calls.some(([name]) => name === 'Network.loadNetworkResource'));
+});
+
+test('an unrelated replay route uses the CDP map reader', async () => {
+  const f = scriptReachFixture({ blocked: true });
+  f.page._routes = [{ matches: (url) => url.endsWith('/api/data') }];
+  assert.equal((await capture(f)).scripts[0].status, 'mapped');
+  assert.ok(f.calls.some(([method]) => method === 'Network.loadNetworkResource'));
+});
+
+test('map read restores cache for same-document navigation without a load event', async () => {
+  const f = scriptReachFixture();
+  const tracker = await trackScriptReach(f.page);
+  f.navigate();
+  await tracker.beginMapRead?.();
+  assert.ok(f.calls.some(([method, args]) => method === 'Network.setCacheDisabled' && args.cacheDisabled === false));
+  assert.ok(!f.calls.some(([method]) => method === 'Profiler.takePreciseCoverage'));
+  await tracker.dispose();
+});
+
+test('oversized parsed scripts are refused before fetching generated code', async () => {
+  const f = scriptReachFixture();
+  const original = f.client.send;
+  f.client.send = async (method, args) => {
+    const result = await original(method, args);
+    if (method === 'Debugger.enable' || method === 'Profiler.startPreciseCoverage')
+      f.emit('Debugger.scriptParsed', { scriptId: '0', url: 'https://app.test/0.js', length: 4 * 1024 * 1024 + 1 });
+    return result;
+  };
+  const tracker = await trackScriptReach(f.page);
+  f.navigate();
+  const evidence = await tracker.stop();
+  assert.equal(evidence.scripts[0].status, 'unknown');
+  assert.match(evidence.scripts[0].reason, /size limit/);
+  assert.ok(!f.calls.some(([method]) => method === 'Debugger.getScriptSource'));
+});
+
+test('Playwright evaluation sourceURL is excluded while page eval remains named', async () => {
+  const f = scriptReachFixture({
+    entries: ['__playwright_evaluation_script__', ''].map((url, i) => ({
+      scriptId: String(i),
+      url,
+      functions: [{ ranges: [{ startOffset: 0, endOffset: 1, count: 1 }] }],
+    })),
+  });
+  const evidence = await capture(f);
+  assert.deepEqual(evidence.scripts, [{ url: '<anonymous>', status: 'unmeasured', reason: 'unsupported script URL' }]);
+});
+
+test('measured evidence names the four V8 expression residuals', async () => {
+  const evidence = await capture(scriptReachFixture());
+  assert.match(
+    evidence.notes?.join(' ') ?? '',
+    /default parameter.*destructuring default.*logical assignment.*optional chain/,
+  );
+});
+
+test('early script metadata collection resumes debugger pauses while arming', async () => {
+  const f = scriptReachFixture();
+  const original = f.client.send;
+  f.client.send = async (method, args) => {
+    if (method === 'Debugger.enable') f.emit('Debugger.paused', {});
+    return original(method, args);
+  };
+  const tracker = await trackScriptReach(f.page);
+  assert.ok(f.calls.some(([method]) => method === 'Debugger.resume'));
+  await tracker.dispose();
 });
