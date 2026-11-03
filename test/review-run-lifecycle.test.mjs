@@ -287,15 +287,38 @@ for (const workflow of ['single', 'split'])
       });
     }
 
-test('a delayed pending write cannot erase a later run status before the failure guard reads it', async () => {
-  const statuses = [
-    { context: 'StyleProof', state: 'success', target_url: 'https://github.com/owner/repo/actions/runs/200' },
-  ];
-  const result = await program('review-pending', {}, { statuses });
-  assert.equal(result.outputs['stale-delivery'], 'true');
-  assert.equal(statuses.length, 1);
-  assert.equal(statuses[0].state, 'success');
-});
+for (const name of [
+  'comment',
+  'status',
+  'publish',
+  'report-artifact',
+  'Set review failure status',
+  'Set certify failure status',
+]) {
+  test(`a delayed run marked stale by pending cannot write through ${name}`, async () => {
+    const statuses = [
+      { context: 'StyleProof', state: 'failure', target_url: 'https://github.com/owner/repo/actions/runs/200' },
+    ];
+    const result = await program('review-pending', {}, { statuses });
+    assert.equal(result.outputs['stale-delivery'], 'true');
+    const values = {
+      'steps.context.outputs.pr-number': '7',
+      'inputs.mode': name === 'Set certify failure status' ? 'certify' : 'review-gate',
+      'inputs.fail-on-diff': 'true',
+      'inputs.report-storage': name === 'publish' ? 'branch' : 'artifact',
+      'steps.delivery.outputs.upload': 'true',
+      'github.event_name': 'workflow_run',
+      'steps.review-pending.outputs.stale-delivery': result.outputs['stale-delivery'],
+    };
+    const outcome = name.includes('failure') ? 'failure' : 'success';
+    // Evaluate the real YAML guard: run 200 failed without creating a comment receipt.
+    assert.equal(condition(step(name).if, values, outcome), false);
+    assert.equal(result.writes.length, 0);
+    assert.equal(statuses.length, 1);
+    assert.equal(statuses[0].state, 'failure');
+    assert.equal(statuses[0].target_url, 'https://github.com/owner/repo/actions/runs/200');
+  });
+}
 
 test('capture failure in an older attempt preserves a newer attempt receipt', async () => {
   const comments = [

@@ -911,7 +911,7 @@ runs:
         NODE
 
     - id: publish
-      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'branch'
+      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'branch' && steps.review-pending.outputs.stale-delivery != 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -944,7 +944,7 @@ runs:
           --run-attempt '${{ github.run_attempt }}'
 
     - id: report-artifact
-      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'artifact'
+      if: steps.delivery.outputs.upload == 'true' && inputs.report-storage == 'artifact' && steps.review-pending.outputs.stale-delivery != 'true'
       uses: actions/upload-artifact@v6
       with:
         name: ${{ steps.validate.outputs.artifact-name }}
@@ -958,7 +958,7 @@ runs:
 
     - name: Upsert PR comment
       id: comment
-      if: success() && steps.context.outputs.pr-number != ''
+      if: success() && steps.context.outputs.pr-number != '' && steps.review-pending.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       env:
         STYLEPROOF_REPORT_STORAGE: ${{ inputs.report-storage }}
@@ -1184,6 +1184,7 @@ runs:
         steps.context.outputs.pr-number != '' &&
         (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory' ||
         (inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && github.event_name == 'workflow_run')) &&
+        steps.review-pending.outputs.stale-delivery != 'true' &&
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       env:
@@ -1440,6 +1441,7 @@ runs:
         steps.context.outputs.pr-number != '' &&
         inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' &&
         github.event_name == 'workflow_run' &&
+        steps.review-pending.outputs.stale-delivery != 'true' &&
         steps.comment.outputs.stale-delivery != 'true' &&
         steps.certify-pending.outputs.superseded != 'true' &&
         steps.status.outputs.superseded != 'true' &&
