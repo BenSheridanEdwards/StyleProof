@@ -275,9 +275,15 @@ for (const [file, workflowYml] of [
 ]) {
   for (const [state, description] of [
     ['failure', 'StyleProof run failed — see the run'],
+    ['failure', 'StyleProof evidence failed'],
+    ['failure', 'CERTIFICATION_FAILED'],
+    ['failure', 'StyleProof partial-baseline'],
+    ['failure', 'StyleProof run cancelled'],
+    ['failure', 'StyleProof capture failed'],
+    ['pending', 'StyleProof evidence pending'],
     ['pending', 'StyleProof report running — no verdict yet'],
   ]) {
-    test(`${file}: tick → untick → tick cannot clear a ${state} re-run (#1261)`, async () => {
+    test(`${file}: tick → untick → tick cannot clear ${description} (#1261)`, async () => {
       const latestStatuses = [
         {
           context: 'StyleProof',
@@ -306,10 +312,12 @@ for (const [file, workflowYml] of [
       assert.deepEqual(results[0].statuses, [], 'the first tick refuses the unfinished or failed run');
       assert.deepEqual(
         results[1].statuses.map(({ state, description, target_url }) => ({ state, description, target_url })),
-        [{ state: 'failure', description: WITHDRAWN, target_url: REPORT_URL }],
-        'untick revokes old receipts without making the run approvable',
+        description === 'StyleProof report running — no verdict yet'
+          ? [{ state: 'failure', description: WITHDRAWN, target_url: REPORT_URL }]
+          : [],
+        'untick preserves diagnostics and revokes receipts during the in-flight pending',
       );
-      assert.deepEqual(results[2].statuses, [], 'the following tick refuses the withdrawn status');
+      assert.deepEqual(results[2].statuses, [], 'the following tick refuses the newest status');
       assert.deepEqual(
         results.flatMap((result) => result.created),
         [],
@@ -382,6 +390,10 @@ for (const [file, workflowYml] of [
         latestStatuses: statuses,
         program: reusableApproveScript({ workflowYml }),
       });
+      assert.deepEqual(
+        withdrawal.statuses.map(({ state, description }) => ({ state, description })),
+        [{ state: 'failure', description: WITHDRAWN }],
+      );
       statuses.unshift(...withdrawal.statuses.map((status) => ({ ...status, creator: canonical })));
       await gate(github, context, core);
       assert.equal(outputs.approved, 'false', 'untick during the re-run revokes the old receipt');
@@ -424,9 +436,9 @@ for (const [file, workflowYml] of [
     assert.deepEqual(result.created, []);
     assert.equal(result.updated[0].body, reportComment().replace(REPORT_URL, ''));
   });
-  test(`${file}: untick always revokes approval and only preserves eligible sign-off red (#1261)`, async () => {
+  test(`${file}: untick preserves diagnostics and only writes a withdrawal when needed (#1261)`, async () => {
     const canonical = { login: 'github-actions[bot]', type: 'Bot' };
-    for (const [latest, allowed] of [
+    for (const [latest, allowed, withdrawn = false] of [
       [{ state: 'success', description: 'Approved by @a-reviewer (run 123)' }, true],
       [{ state: 'failure', description: 'Tick "Approve all changes" to sign off', target_url: REPORT_URL }, true],
       [
@@ -440,6 +452,8 @@ for (const [file, workflowYml] of [
       [{ state: 'success', description: 'No reviewable style changes' }, false],
       [{ state: 'failure', description: 'StyleProof evidence failed' }, false],
       [{ state: 'failure', description: 'StyleProof run cancelled' }, false],
+      [{ state: 'pending', description: 'StyleProof report running — no verdict yet' }, false, true],
+      [{ state: 'pending', description: 'StyleProof evidence pending' }, false],
       [
         {
           state: 'failure',
@@ -451,6 +465,7 @@ for (const [file, workflowYml] of [
       [
         { state: 'success', description: 'Approved by @a-reviewer', creator: { login: 'other[bot]', type: 'Bot' } },
         false,
+        true,
       ],
       [
         {
@@ -459,8 +474,9 @@ for (const [file, workflowYml] of [
           creator: { login: 'github-actions[bot]', type: 'User' },
         },
         false,
+        true,
       ],
-      [null, false],
+      [null, false, true],
     ]) {
       const result = await runApprove({
         actor: AUTHOR,
@@ -473,15 +489,21 @@ for (const [file, workflowYml] of [
           : [],
         program: reusableApproveScript({ workflowYml }),
       });
-      assert.equal(result.statuses.length, 1, JSON.stringify(latest));
-      assert.equal(result.statuses[0].state, 'failure');
-      assert.equal(
-        result.statuses[0].description,
-        allowed
-          ? 'Tick "Approve all changes" to sign off'
-          : `Approval withdrawn by @${AUTHOR} — re-run StyleProof for a verdict`,
+      assert.deepEqual(
+        result.statuses.map(({ state, description, target_url }) => ({ state, description, target_url })),
+        allowed || withdrawn
+          ? [
+              {
+                state: 'failure',
+                description: allowed
+                  ? 'Tick "Approve all changes" to sign off'
+                  : `Approval withdrawn by @${AUTHOR} — re-run StyleProof for a verdict`,
+                target_url: REPORT_URL,
+              },
+            ]
+          : [],
+        JSON.stringify(latest),
       );
-      assert.equal(result.statuses[0].target_url, REPORT_URL);
       assert.deepEqual(result.created, []);
       assert.equal(result.updated[0].body, reportComment());
     }

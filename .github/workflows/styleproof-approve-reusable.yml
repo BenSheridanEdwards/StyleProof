@@ -516,17 +516,29 @@ jobs:
               if (latestPr.data.head.sha !== headSha) return;
             }
 
-            // Revoke old receipts even while a re-run is pending, without making a
-            // failed or unfinished run approvable by a later tick.
+            // Revoke old receipts while a re-run is in flight. Other canonical
+            // verdicts already block receipt reuse; preserve their diagnostic text.
             if (!approved && !(await readPendingStatus(true))) {
-              await github.rest.repos.createCommitStatus({
+              const response = await github.rest.repos.listCommitStatusesForRef({
                 ...context.repo,
-                sha: headSha,
-                context: STATUS,
-                state: 'failure',
-                description: `Approval withdrawn by @${actor} — re-run StyleProof for a verdict`,
-                ...(reportUrl ? { target_url: reportUrl } : {}),
+                ref: headSha,
+                per_page: 100,
               });
+              const latest = response.data.find((candidate) => candidate.context === STATUS);
+              const canonicalCreator =
+                latest?.creator?.type === 'Bot' && latest.creator.login === 'github-actions[bot]';
+              const inFlight = latest?.state === 'pending' &&
+                latest.description === 'StyleProof report running — no verdict yet';
+              if (!canonicalCreator || inFlight) {
+                await github.rest.repos.createCommitStatus({
+                  ...context.repo,
+                  sha: headSha,
+                  context: STATUS,
+                  state: 'failure',
+                  description: `Approval withdrawn by @${actor} — re-run StyleProof for a verdict`,
+                  ...(reportUrl ? { target_url: reportUrl } : {}),
+                });
+              }
               await renderBox(false, '');
               return;
             }

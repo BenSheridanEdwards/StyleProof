@@ -528,6 +528,9 @@ tick the approval box again. A StyleProof re-run carries approval forward only
 for the same commit, reviewable diff and trust state. Approvals recorded before
 upgrading do not carry forward; tick again once. Repositories that copied `example/styleproof-approve.yml` or pin the reusable approve workflow separately from the Action must update it with the Action, or re-runs after a tick will not keep the approval.
 
+Unticking preserves existing failure diagnostics. During an in-flight StyleProof
+re-run, it writes a withdrawn status so the old approval receipt cannot carry forward.
+
 **Certify mode** (`fail-on-diff: true`) proves a change touched _nothing_
 visual: any difference at all fails the job. It's the job StyleProof was born
 for — certifying a CSS-to-Tailwind migration rendered byte-for-byte identical.
