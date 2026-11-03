@@ -1073,3 +1073,131 @@ for (const kind of ['file', 'directory']) {
     }
   });
 }
+
+for (const git of [false, true]) {
+  test(`trusted ancestor: own non-git parent and real repo git=${git}`, async () => {
+    const root = mkTmp();
+    try {
+      const nested = path.join(root, 'nested');
+      fs.mkdirSync(nested);
+      if (git) execFileSync('git', ['init', root], { timeout: 10000 });
+      fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'export default { requireApproval: true };');
+      assert.equal((await loadStyleProofConfigAsync(nested)).requireApproval, true);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+for (const mode of [0o777, 0o1777]) {
+  for (const plantedGit of [false, true]) {
+    test(
+      `unsafe ancestor: mode=${mode.toString(8)} plantedGit=${plantedGit}`,
+      { skip: process.platform === 'win32' },
+      async () => {
+        const root = mkTmp();
+        try {
+          const nested = path.join(root, 'nested');
+          const marker = path.join(root, 'executed');
+          fs.mkdirSync(nested);
+          if (plantedGit) fs.mkdirSync(path.join(root, '.git'));
+          fs.writeFileSync(
+            path.join(root, 'styleproof.config.mjs'),
+            `import fs from 'node:fs'; fs.writeFileSync(${JSON.stringify(marker)}, 'bad'); export default {};`,
+          );
+          fs.chmodSync(root, mode);
+          await loadStyleProofConfigAsync(nested);
+          assert.equal(fs.existsSync(marker), false, 'library must not evaluate unsafe ancestor');
+          const capture = spawnSync(
+            process.execPath,
+            [path.join(here, '..', 'bin', 'styleproof-capture.mjs'), 'http://127.0.0.1:9/'],
+            { cwd: nested, encoding: 'utf8', timeout: 15000 },
+          );
+          assert.equal(fs.existsSync(marker), false, 'capture must not evaluate unsafe ancestor');
+          assert.match(capture.stderr, /skipping unsafe folder .*world-writable/i);
+        } finally {
+          fs.chmodSync(root, 0o700);
+          rmTmp(root);
+        }
+      },
+    );
+  }
+}
+
+test('group writable repo and start config load; shared inner repo bounds discovery', async () => {
+  const root = mkTmp();
+  try {
+    execFileSync('git', ['init', root], { timeout: 10000 });
+    fs.chmodSync(root, 0o775);
+    const config = path.join(root, 'styleproof.config.mjs');
+    fs.writeFileSync(config, 'export default { requireApproval: true };');
+    fs.chmodSync(config, 0o664);
+    const nested = path.join(root, 'nested');
+    fs.mkdirSync(nested);
+    assert.equal((await loadStyleProofConfigAsync(root)).requireApproval, true);
+    assert.equal((await loadStyleProofConfigAsync(nested)).requireApproval, true);
+    execFileSync('git', ['init', '--shared=group', nested], { timeout: 10000 });
+    const sub = path.join(nested, 'sub');
+    fs.mkdirSync(sub);
+    assert.deepEqual(await loadStyleProofConfigAsync(sub), {});
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test(
+  'refusal notice requires a skipped config and is emitted once per process',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const root = mkTmp();
+    const originalWrite = process.stderr.write;
+    let output = '';
+    try {
+      const nested = path.join(root, 'nested');
+      fs.mkdirSync(nested);
+      fs.chmodSync(root, 0o777);
+      process.stderr.write = (chunk) => {
+        output += chunk;
+        return true;
+      };
+      await loadStyleProofConfigAsync(nested);
+      assert.equal(output, '');
+      fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
+      await loadStyleProofConfigAsync(nested);
+      await loadStyleProofConfigAsync(nested);
+      assert.match(output, /skipping unsafe folder .*world-writable/);
+      assert.equal(output.split('skipping unsafe folder').length - 1, 1);
+    } finally {
+      process.stderr.write = originalWrite;
+      fs.chmodSync(root, 0o700);
+      rmTmp(root);
+    }
+  },
+);
+
+test('refusal notice stops at the git boundary', { skip: process.platform === 'win32' }, async () => {
+  const root = mkTmp();
+  const originalWrite = process.stderr.write;
+  let output = '';
+  try {
+    const repo = path.join(root, 'repo');
+    const unsafe = path.join(repo, 'unsafe');
+    const nested = path.join(unsafe, 'nested');
+    fs.mkdirSync(nested, { recursive: true });
+    fs.mkdirSync(path.join(repo, '.git'));
+    fs.chmodSync(unsafe, 0o777);
+    fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
+    process.stderr.write = (chunk) => {
+      output += chunk;
+      return true;
+    };
+    await loadStyleProofConfigAsync(nested);
+    assert.equal(output, '');
+    fs.writeFileSync(path.join(repo, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
+    await loadStyleProofConfigAsync(nested);
+    assert.ok(output.includes(path.join(repo, 'styleproof.config.mjs')));
+  } finally {
+    process.stderr.write = originalWrite;
+    fs.chmodSync(path.join(root, 'repo', 'unsafe'), 0o700);
+    rmTmp(root);
+  }
+});

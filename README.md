@@ -421,6 +421,12 @@ sibling JSON; evaluation errors and invalid policy fail closed. A `.js` file
 follows its package's Node module format, and dynamic policy sees the caller's
 working directory.
 
+### Configuration
+
+Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `styleproof.config.js`, then `styleproof.config.json`, nearest first. The start folder and its config are always accepted. Trusted parent folders on POSIX are owned by you or root and are not world-writable. Group-write is allowed, so members of that group can plant a config. The first unsafe ancestor ends discovery; if a config exists there or above it, a stat-only notice names the skipped config, folder and reason once per process without evaluating it. Any `.git` file or directory in an accepted folder ends discovery. macOS ACLs are not considered. On Windows, discovery within a repository stops at its git root; outside a repository only the start folder is searched, with a notice if a parent config is skipped. A planted parent `.git` (for example `D:\.git`) still counts as being inside a repository on Windows. Run from the folder that holds the config to preserve loading in Windows non-git projects, root container jobs below runner-owned checkouts, world-writable checkouts, or parents owned by another non-root user.
+
+See the [config key table](docs/REFERENCE.md) for project defaults.
+
 ### The one CLI
 
 ```bash

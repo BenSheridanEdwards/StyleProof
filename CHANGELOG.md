@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Migration
+
+1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
+   subfolder are affected when the parent holding the config is world-writable,
+   owned by another non-root user, or a runner-owned checkout above a root
+   container job. Windows non-git projects run from a subfolder are also affected.
+   A `styleproof: skipping ...` notice on stderr names the skipped config, and
+   it no longer loads. Run StyleProof from the folder that holds the
+   config; on POSIX, alternatively fix ownership or remove world-write permission.
+   There is no config-path option or environment variable.
+
 ### Changed
 
 - Change Reach says matched in reports, headlines and CLI gates, and renames the section to "Changed but never matched". The `report.json` why strings now say "which matched a captured element" and "no matched rule references it". A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached (#1238).
@@ -29,6 +40,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Ignore unrelated JSON files in capture directories when comparing and reporting (#1245).
   Maps saved with `saveStyleMap` without `<key>@<width>.json[.gz]` names are now ignored.
+- **BREAKING (#1246):** Config discovery stops at unsafe POSIX parents and searches only the start folder in Windows non-git projects. Previously loaded configs no longer load in these cases:
+  - Root container jobs with a working-directory below a runner-owned checkout: run from the folder that holds the config, or correct checkout ownership.
+  - Umask-0000 / world-writable checkouts run from a subfolder: run from the folder that holds the config, or remove world-write permission.
+  - Windows non-git projects run from a subfolder: run from the folder that holds the config.
+  - Any parent owned by another non-root user: run from the folder that holds the config, or correct ownership.
 
 - Change Reach no longer claims every changed served CSS rule matched (0) when no served rule changed. Strip, section and summary name changed stylesheets no capture served as not checked under both levels; `changeReach: 'gate'` does not hold them until the #934 join exists. ADR 0009 corrected (#1240).
 - Change Reach records served-rule reader failures as ledger unknown instead of failing the capture (#1239).

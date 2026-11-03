@@ -1,7 +1,7 @@
 /**
  * Discovery and loading of the consumer's `styleproof.config.ts` (or `.mjs` /
  * `.js` / legacy `.json`). Discovery walks upward from the start directory to the
- * git root, so a package-subdirectory cwd still finds the repo-root config;
+ * git root through safe owned folders, including non-git project parents;
  * relative file-path fields resolve from that config file's directory, never from
  * `process.cwd()`. A missing file is `{}`; a file that exists but cannot be read,
  * evaluated, or validated throws — a discovered `.ts` never falls back to sibling
@@ -14,7 +14,6 @@ import { pathToFileURL } from 'node:url';
 import { errorMessage } from '../util.js';
 import {
   evaluateTypeScriptConfigSync,
-  isGitRoot,
   isUnloadableTypeScriptConfig,
   unloadableTypeScriptConfigError,
 } from './load-ts.js';
@@ -114,19 +113,89 @@ function locationAt(dir: string): StyleProofConfigLocation | undefined {
   return fs.existsSync(jsonPath) ? { path: jsonPath, dir, filename: CONFIG_JSON } : undefined;
 }
 
-/**
- * Walk from `startDir` toward the git root (or filesystem root); the nearest
- * directory with any config file wins (ESM over JSON). Never walks past a `.git`
- * boundary, so a parent checkout's config cannot leak in.
- */
+function unsafeDiscoveryFolder(dir: string): string | undefined {
+  try {
+    const stat = fs.statSync(dir);
+    if (stat.uid !== process.getuid!() && stat.uid !== 0) return 'owned by another user';
+    if (stat.mode & 0o002) return 'world-writable';
+    return undefined;
+  } catch {
+    return 'cannot stat folder';
+  }
+}
+
+function findGitBoundary(start: string): string | undefined {
+  let dir = start;
+  for (;;) {
+    if (fs.existsSync(path.join(dir, '.git'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+function discoveryFolderRejection(dir: string, start: string): string | undefined {
+  if (dir === start || process.platform === 'win32') return undefined;
+  return unsafeDiscoveryFolder(dir);
+}
+
+function endsDiscovery(dir: string, windowsBoundary: string | undefined): boolean {
+  return fs.existsSync(path.join(dir, '.git')) || (process.platform === 'win32' && !windowsBoundary);
+}
+
+const reportedDiscoveryRefusals = new Set<string>();
+
+function isConfigFile(configPath: string): boolean {
+  try {
+    return fs.statSync(configPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/** Probe existence only; never read or evaluate a skipped config. */
+function reportDiscoveryRefusal(dir: string, reason: string): void {
+  let candidate = dir;
+  for (;;) {
+    for (const filename of CONFIG_FILENAMES) {
+      const configPath = path.join(candidate, filename);
+      if (!isConfigFile(configPath)) continue;
+      const notice = `styleproof: skipping ${reason}: ${configPath}.\n`;
+      if (reportedDiscoveryRefusals.has(notice)) return;
+      reportedDiscoveryRefusals.add(notice);
+      process.stderr.write(notice);
+      return;
+    }
+    if (fs.existsSync(path.join(candidate, '.git'))) return;
+    const parent = path.dirname(candidate);
+    if (parent === candidate) return;
+    candidate = parent;
+  }
+}
+
+/** Accept the start folder; walk trusted ancestors up to the nearest .git marker. */
 export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofConfigDiscovery {
   const searched: string[] = [];
-  let dir = path.resolve(startDir);
+  const start = path.resolve(startDir);
+  let dir = start;
+  // These path-based checks do not prevent subtree renames between stat and import (TOCTOU).
+  // POSIX mode checks do not inspect macOS ACLs.
+  const windowsBoundary = process.platform === 'win32' ? findGitBoundary(start) : undefined;
   for (;;) {
+    const reason = discoveryFolderRejection(dir, start);
+    if (reason) {
+      reportDiscoveryRefusal(dir, `unsafe folder ${dir}: ${reason}`);
+      break;
+    }
     searched.push(...CONFIG_FILENAMES.map((filename) => path.join(dir, filename)));
     const location = locationAt(dir);
     if (location) return { location, searched };
-    if (isGitRoot(dir)) break;
+    if (endsDiscovery(dir, windowsBoundary)) {
+      if (process.platform === 'win32' && !windowsBoundary && path.dirname(dir) !== dir) {
+        reportDiscoveryRefusal(path.dirname(dir), 'parent config outside a repository on Windows');
+      }
+      break;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
