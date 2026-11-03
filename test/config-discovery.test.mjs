@@ -1010,6 +1010,20 @@ throw new Error('boom');`,
   }
 });
 
+test('sync TypeScript config loads with a byte order mark before its hashbang', () => {
+  const root = mkTmp();
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+    fs.writeFileSync(
+      path.join(root, 'styleproof.config.ts'),
+      "﻿#!/usr/bin/env node\nexport default { spec: 'bom.spec.ts' };\n",
+    );
+    assert.equal(loadStyleProofConfig(root).spec, 'bom.spec.ts');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('imported CommonJS syntax failure runs TypeScript config only once', () => {
   const root = mkTmp();
   try {
