@@ -1,4 +1,5 @@
 import type { Page, CDPSession } from '@playwright/test';
+import { warn } from './shared.js';
 
 const styleProofSessions = new WeakSet<object>();
 
@@ -30,7 +31,7 @@ export function scriptCoverageOwnership(page: Page): 'exclusive' | 'page-coverag
     const state =
       implementation?.coverage ?? implementation?.delegate?._coverage ?? implementation?._delegate?._coverage;
     const enabled = state?._jsCoverage?._enabled;
-    if (typeof enabled !== 'boolean' || !(connection?._objects instanceof Map)) return 'unknown';
+    if (typeof enabled !== 'boolean' || !(connection?._objects instanceof Map)) return unavailableOwnership();
     if (enabled) return 'page-coverage';
     const context = page.context();
     for (const peer of connection._objects.values()) {
@@ -39,7 +40,7 @@ export function scriptCoverageOwnership(page: Page): 'exclusive' | 'page-coverag
     }
     return 'exclusive';
   } catch {
-    return 'unknown';
+    return unavailableOwnership();
   }
 }
 
@@ -55,4 +56,15 @@ export function ownershipReason(ownership: ReturnType<typeof scriptCoverageOwner
   if (ownership === 'page-coverage') return 'page.coverage active';
   if (ownership === 'cdp-controller') return 'user CDP session present';
   return 'script coverage ownership unavailable';
+}
+
+let warnedUnavailable = false;
+function unavailableOwnership(): 'unknown' {
+  if (!warnedUnavailable) {
+    warnedUnavailable = true;
+    warn(
+      'styleproof: script coverage ownership unavailable; the read-only ownership bridge is supported on Playwright 1.61.x. Script reach is unmeasured.',
+    );
+  }
+  return 'unknown';
 }

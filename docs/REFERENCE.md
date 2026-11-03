@@ -1421,90 +1421,65 @@ Custom-property fonts resolve by union over every possible declared or registere
 
 ### Script execution evidence (J2)
 
-`captureScriptReach` is a separate opt-in setting, off by default, on
-`defineStyleMapCapture`, `defineCrawlCapture` and `CaptureOptions`. Enabling
-`captureReach` alone does not collect it. There is no CLI flag for either setting.
+`captureScriptReach: true` independently enables J2 on `defineStyleMapCapture`,
+`defineCrawlCapture` and `CaptureOptions`; default is off. Neither reach setting
+has a CLI flag. Binary V8 coverage runs before each `go()` through the map read,
+including self-checks/popups. `window: 'navigation'` includes transient loading;
+execution does not prove rendering. No diff join or verdict change is built.
 
-```ts
-defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true });
-```
+`StyleMap.scriptReach` stores `{ version: 1, window, status, reason?, scripts }`.
+Scripts have a URL, `mapped`/`unmeasured`/`unknown`, and files or a reason. Files
+hold `source`, `sourceKey`, optional SHA-256 `contentHash`, and
+`executed`/`mixed`/`unexecuted`. With `encoding: 'line-column-tuples'`, ranges are
+`[line, startColumn, endColumn]`: 1-based lines, 0-based UTF-16 columns, exclusive
+ends. Legacy `{ start, end }` ranges remain readable.
+**Readers may trust only the start column of executed evidence.** New captures
+store anchors for every state, never interpolated extents. Fully executed generated
+segments contribute original starts; a split segment or conflicting states at one
+start is mixed. Unmapped text supplies no execution proof. CRLF, CR, LF, U+2028
+and U+2029 preserve offsets. Invalid original positions fail; null sources are unmapped.
 
-The runner arms binary V8 block coverage before each surface's `go()`, including
-self-checks and popup reopens, and stops after the map read. Evidence records
-`window: 'navigation'`: module/render code and transient loading branches that
-ran before settle count as executed. Execution alone does not prove that a value
-reached a rendered element. The git-diff join is not implemented yet, so this
-setting does not clear the report's J2 gap or change its verdict.
+Keys resolve `sourceRoot` plus `sources[i]`, stripping bundler prefixes such as
+`webpack://namespace/` or `vite:`. Absolute filesystem/file-URL paths become
+POSIX paths relative to the project root (process cwd; direct trackers may pass
+`{ projectRoot }`). Relative HTTP sources retain their resolved URL pathname
+without its leading slash. All directories, including nested `src` and monorepo
+packages, survive. Outside-root paths or any collision invalidate involved scripts;
+never merge. `node_modules` is excluded before app indexing/counting. Hashes come
+only from `sourcesContent`; missing/null content has no hash. Original files are
+never fetched. No raw V8 output, maps or source content is stored.
 
-`StyleMap.scriptReach` has `{ version: 1, window, status, reason?, scripts }`.
-Each script records its URL, a `mapped`, `unmeasured` or `unknown` status, and
-mapped `files` or a reason. Original files hold project-relative `source` and
-`sourceKey`, optional SHA-256 `contentHash`, and `executed`, `mixed`, `unexecuted`
-arrays. New captures tag each file with `encoding: 'line-column-tuples'` and store
-`[line, startColumn, endColumn]` tuples. Legacy `{ start, end }` spans remain readable.
-Lines are 1-based, UTF-16 columns 0-based, ends exclusive. These are source-map
-segment spans. Each span ends at the next original anchor of any state on the same
-source line and never bridges an unmapped generated gap. Without a directly
-adjacent mapping, a point anchor records only that location. A V8 boundary inside
-a segment is `mixed`; it cannot be interpolated into an exact original column.
-Original positions outside `sourcesContent` are rejected. Redundant point anchors
-inside same-state ranges are omitted. Null `sources` entries are unmapped.
+Maps support inline data, `sourceMappingURL`, and `SourceMap`/`X-SourceMap` headers.
+Without routes/HAR, credentialed CDP reads bypass page JS, fetch patches and request
+listeners. Routing/HAR requires credentialed page fetch, with no CDP fallback.
+Disk reads require a file page and file script, regular file under the input cap,
+and AbortSignal; spoofed HTTP `sourceURL` cannot grant disk access.
 
-Source identities discard origins and webpack namespaces. Paths after the last
-`/src/` retain `src/`; other sources are relative to their longest common directory
-prefix (a single source uses its basename). This removes absolute checkout roots
-so builds on different ports or in different checkout directories join consistently.
-Stored script URLs omit credentials, queries and fragments; file URLs retain only
-a basename or `src/` path. `sourcesContent` supplies hashes; absent/null content
-leaves the hash absent. Original files are never fetched to invent hashes.
-Vendored `node_modules` sources are excluded before indexing mappings.
+Deterministic limits: 4 MiB generated UTF-8, 2 MiB mappings, 8 MiB map input,
+100,000 **app** segments, 200,000 V8 ranges, 1 MiB evidence/script and 4 MiB/map.
+Script excess preserves siblings; total excess produces unknown with no scripts.
+Generous backstops are 30 seconds overall and 10 seconds/resource. Reader failures
+are evidence gaps, never capture failures. URLs omit credentials, queries,
+fragments and machine paths. Missing maps are unmeasured; blobs retain `blob:`.
+Unsupported/eval/anonymous URLs and missing metadata remain named unmeasured with
+`unsupported script URL`.
 
-Inline data maps, `sourceMappingURL`, and `SourceMap`/`X-SourceMap` headers are
-supported. File maps are read directly only for `file:` scripts in `file:` pages, including
-under persistent contexts. A spoofed `sourceURL` on an HTTP page cannot grant disk access. The reader requires a regular file, checks its size and
-uses an abortable read. HTTP scripts cannot direct the capture to local files.
-HTTP map fetches include page credentials and use Playwright/HAR routing. A
-blocked page fetch can fall back to Chromium's credentialed CDP network loader
-only when neither routing nor HAR replay is active. Each resource attempt is
-bounded to 500 ms; map reads and mapping CPU share a 1500 ms budget. Mapping is
-also limited to 4 MiB generated text, 2 MiB mapping text, 100,000 segments and
-200,000 V8 ranges; raw map input is capped at 8 MiB. Oversized or unread scripts
-record `unknown` with a reason. Each script has a separate 1 MiB stored-evidence
-cap, so one oversized script does not discard measured siblings. No raw V8
-coverage, map text or original content is stored.
+Cache is disabled until navigation load completes, before forced states. Positive
+best-effort coverage makes that script unknown. Debugger enables at stop and resumes
+pauses. Read-only ownership detection supports Playwright **1.61.x** (tested 1.61.1).
+An absent bridge reports `script coverage ownership unavailable` and warns once/process;
+non-Chromium reports `script coverage requires Chromium`. User CDP, active public
+coverage and public use during capture (including pre-bound methods) have distinct
+unmeasured reasons. No destructive probe occurs. Public starts release the owned
+session first; teardown waits until page close while a foreign collector is active.
 
-Scripts without maps record `unmeasured` by URL. Blob scripts record
-`{ url: 'blob:', status: 'unmeasured' }`, without ephemeral UUIDs. Legacy captures
-without the setting have no `scriptReach` and supply no script evidence.
-StyleProof disables Chromium's cache on its owned session for the tracked window
-and restores it on cleanup, preventing V8 code-cache reuse from losing block
-coverage. Remaining best-effort scripts are individually `unknown` with
-`best-effort coverage`. Debugger is enabled only at stop; a pause handler resumes
-any existing pause while metadata is replayed.
-
-Ownership checks never start or stop public coverage as a probe. StyleProof
-reads Playwright's in-process bridge and conservatively refuses an external CDP
-controller (`user CDP session present`) or active public coverage
-(`page.coverage active`). Public coverage used during the window, including
-pre-bound methods, records `page.coverage used during capture`. A later public
-start releases StyleProof's session before starting the spec's session. If a
-foreign collector is active during cleanup, teardown waits for page close so it
-cannot disable that collector. Unsupported transports record
-`script coverage ownership unavailable`; non-Chromium records
-`script coverage requires Chromium`.
-
-For direct capture, arm `trackScriptReach(page)` **before** navigation, pass
-`{ captureScriptReach: true, scriptReach }` to `captureStyleMap`, and dispose the
-tracker in `finally`. Use a new tracker for every capture; without one, evidence
-is `unmeasured`. A `go()` that does not navigate after arming also records
-`unmeasured`: earlier module execution cannot be recovered. A self-check compares mapped app-source ranges and hashes;
-changed execution in a mapped app file records `unknown` with
-`script evidence not reproducible: <sourceKey>:<firstDifferentLine>`. Script drift
-never throws, including first/repeat visits that follow different storage branches.
-Generated script URLs, capture origins and non-mapped gaps are not execution
-evidence. If gaps or availability differ between runs (including a one-sided
-map-fetch failure), the saved script reach becomes `unknown` with
-`script evidence not reproducible` rather than failing the capture.
+Direct captures arm `trackScriptReach(page)` before navigation, pass it with
+`captureScriptReach: true` to `captureStyleMap`, and dispose in `finally`. Use a
+fresh tracker/navigation each time; otherwise evidence is unmeasured. Legacy maps
+without the setting have absent evidence. Self-checks compare mapped app anchors/hashes,
+excluding generated IDs/URLs/counters. Execution drift becomes unknown with
+`script evidence not reproducible: <sourceKey>:<line>`; gap/availability drift uses
+`script evidence not reproducible`. Script drift never throws, including storage branches.
 
 ## Optional: selective remap (advisory + CI opt-in)
 

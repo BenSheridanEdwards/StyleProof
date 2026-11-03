@@ -4,6 +4,111 @@
   "status": "measured",
   "scripts": [
     {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
+      "url": "<anonymous>",
+      "status": "unmeasured",
+      "reason": "unsupported script URL"
+    },
+    {
       "url": "https://script.test/bundle.js",
       "status": "mapped",
       "files": [

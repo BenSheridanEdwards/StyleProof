@@ -11,6 +11,7 @@
 // worth citing come from the quiet CI runner (.github/workflows/reach-cost.yml).
 import { chromium } from '@playwright/test';
 import esbuild from 'esbuild';
+import { buildLargeReachBundle, absolutizeMapSources } from './fixtures/reach-cost/large-bundle.mjs';
 import fs from 'node:fs';
 import { createServer } from 'node:http';
 import os from 'node:os';
@@ -45,6 +46,8 @@ await esbuild.build({
   entryNames: 'app',
   logLevel: 'warning',
 });
+absolutizeMapSources(path.join(out, 'app.js.map'));
+const largeBundle = await buildLargeReachBundle(out);
 fs.writeFileSync(
   path.join(out, 'index.html'),
   '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="app.css"></head>' +
@@ -88,6 +91,11 @@ const TARGETS = [
   },
   { id: 'react-table', kind: 'React, 300 rows', url: pathToFileURL(path.join(out, 'index.html')).href },
   {
+    id: 'react-catalogue-large',
+    kind: `React + ReactDOM, 7000 catalogue records, ${largeBundle.bytes} byte single bundle`,
+    url: largeBundle.url,
+  },
+  {
     id: 'react-table-repeat',
     kind: 'React, 300 rows, mean of 3 cacheable navigations on one page',
     url: repeatUrl,
@@ -129,7 +137,7 @@ async function measureNavigation(page, target, mode) {
   if (mode !== 'off') bytes.J1 = JSON.stringify((await cdp.send('CSS.stopRuleUsageTracking')).ruleUsage).length;
   if (scriptReach) {
     if (
-      target.id.startsWith('react-table') &&
+      target.id.startsWith('react-') &&
       (map.scriptReach?.status !== 'measured' || !map.scriptReach?.scripts.some((script) => script.status === 'mapped'))
     ) {
       throw new Error('React cost target did not resolve app-source coverage');

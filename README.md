@@ -654,9 +654,10 @@ framework-ignored elements, including the hover sink. Full-page capture preserve
 on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
 `captureScriptReach: true` separately opts into J2 script evidence (off by default):
 `defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true })`. Each
-surface@width stores original-source executed, mixed and unexecuted ranges plus
-content hashes and stable source keys in `StyleMap.scriptReach`. Unmapped
-code stays outside executed spans. Any script-evidence drift during a
+surface@width stores original-source executed, mixed and unexecuted anchors plus
+content hashes and stable source keys in `StyleMap.scriptReach`. Executed evidence proves only its start column. Unmapped
+code supplies no execution proof. Project-root-relative source keys preserve package directories;
+outside-root sources and collisions read unknown. Any script-evidence drift during a
 self-check records script reach unknown, including storage-dependent first and repeat visits.
 Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
 build; missing maps read `unmeasured`. The window runs from navigation through

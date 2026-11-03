@@ -167,7 +167,7 @@ test('B4 an HTTP page cannot spoof a file script URL to read local maps', async 
     JSON.stringify({ version: 3, sources: ['src/a.js'], sourcesContent: ['window.ready=true;'], mappings: 'AAAA' }),
   );
   const mapUrl = pathToFileURL(mapPath).href;
-  const sourceUrl = 'file:///virtual/source.js';
+  const sourceUrl = pathToFileURL(testInfo.outputPath('synthetic-source.js')).href;
   const host = await serve({
     '/bundle.js': `window.ready=true;\n//# sourceURL=${sourceUrl}\n//# sourceMappingURL=${mapUrl}`,
   });

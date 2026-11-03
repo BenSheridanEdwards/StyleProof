@@ -2,9 +2,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import type { Page, CDPSession } from '@playwright/test';
-import { ScriptEvidenceError } from '../script-reach.js';
+import { ScriptEvidenceError, MAX_MAP_BYTES } from '../script-reach-limits.js';
 
-const MAX_MAP_BYTES = 8 * 1024 * 1024;
 function checkedMapText(text: string): string {
   if (Buffer.byteLength(text) > MAX_MAP_BYTES) throw new ScriptEvidenceError('source map input size limit exceeded');
   return text;
@@ -22,14 +21,14 @@ export async function readFileSourceMap(url: string, scriptUrl: string, signal: 
 }
 
 function routingActive(page: Page): boolean {
-  type Routing = { _routes?: unknown[]; _harRouters?: Map<unknown, unknown> };
+  type Routing = { _routes?: unknown[]; _harRouters?: unknown[] };
   return [page, page.context()].some((owner) => {
     const routing = owner as unknown as Routing;
-    return Boolean(routing._routes?.length || routing._harRouters?.size);
+    return Boolean(routing._routes?.length || routing._harRouters?.length);
   });
 }
-export const MAP_READ_BUDGET_MS = 1500;
-const RESOURCE_TIMEOUT_MS = 500;
+export const MAP_READ_BUDGET_MS = 30_000;
+const RESOURCE_TIMEOUT_MS = 10_000;
 
 export class MapReadTimeout extends ScriptEvidenceError {
   constructor() {
@@ -76,7 +75,9 @@ export async function readResource(
       AbortSignal.timeout(Math.max(1, Math.min(RESOURCE_TIMEOUT_MS, Math.floor(deadline - performance.now())))),
     );
   }
-  // These requests use page credentials and Playwright/HAR routing; see the capture reference.
+  if (!routingActive(page))
+    return beforeDeadline(readCdpResource(client, url), Math.min(deadline, performance.now() + RESOURCE_TIMEOUT_MS));
+  // Only routing/HAR requires entering page JavaScript; CDP is the ordinary reader.
   try {
     return checkedMapText(
       await beforeDeadline(
@@ -97,8 +98,7 @@ export async function readResource(
   } catch (error) {
     if (error instanceof ScriptEvidenceError) throw error;
     if (performance.now() >= deadline) throw new MapReadTimeout();
-    if (routingActive(page)) throw new ScriptEvidenceError('source map fallback refused during routing or HAR replay');
-    return beforeDeadline(readCdpResource(client, url), Math.min(deadline, performance.now() + RESOURCE_TIMEOUT_MS));
+    throw new ScriptEvidenceError('source map fallback refused during routing or HAR replay');
   }
 }
 

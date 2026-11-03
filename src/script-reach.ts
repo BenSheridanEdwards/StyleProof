@@ -2,6 +2,14 @@
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { sourceIdentities } from './script-reach-identity.js';
+import {
+  ScriptEvidenceError,
+  MAX_GENERATED_LENGTH,
+  MAX_MAPPING_LENGTH,
+  MAX_APP_SEGMENTS,
+  MAX_COVERAGE_RANGES,
+} from './script-reach-limits.js';
+export { ScriptEvidenceError } from './script-reach-limits.js';
 
 export type SourcePosition = { line: number; column: number };
 /** Original lines are 1-based, UTF-16 columns 0-based, ends exclusive. Equal ends are mapping anchors. */
@@ -43,10 +51,8 @@ export type SourceMap = {
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const DIGITS = new Int16Array(128).fill(-1);
 for (let i = 0; i < BASE64.length; i++) DIGITS[BASE64.charCodeAt(i)] = i;
-export class ScriptEvidenceError extends Error {}
-const MAX_SEGMENTS = 100_000;
 function checkMappingBudget(generated: string, mappings: string, deadline = Infinity): void {
-  if (generated.length > 4 * 1024 * 1024 || mappings.length > 2 * 1024 * 1024)
+  if (Buffer.byteLength(generated, 'utf8') > MAX_GENERATED_LENGTH || mappings.length > MAX_MAPPING_LENGTH)
     throw new ScriptEvidenceError('source mapping size limit exceeded');
   if (performance.now() >= deadline) throw new ScriptEvidenceError('source mapping CPU budget exhausted');
 }
@@ -72,7 +78,7 @@ export function decodeVlq(segment: string): number[] {
   return values;
 }
 
-type Segment = { offset: number; end: number; source?: number; line: number; column: number; adjacent?: boolean };
+type Segment = { offset: number; end: number; source?: number; line: number; column: number };
 
 function validateMap(map: SourceMap): void {
   if (
@@ -111,27 +117,34 @@ function originalPosition(
   return cursor;
 }
 
-function connectSegments(previous: Segment | undefined, next: Segment | undefined): void {
-  if (!previous || !next) return;
-  previous.adjacent = previous.source === next.source && previous.line === next.line && next.column > previous.column;
+function generatedLines(text: string): { lines: string[]; starts: number[] } {
+  const lines: string[] = [],
+    starts = [0];
+  let previous = 0;
+  for (const match of text.matchAll(/\r\n|[\n\r\u2028\u2029]/g)) {
+    lines.push(text.slice(previous, match.index));
+    previous = match.index + match[0].length;
+    starts.push(previous);
+  }
+  lines.push(text.slice(previous));
+  return { lines, starts };
 }
 
-function checkSegmentBudget(count: number, generated: string, mappings: string, deadline: number): void {
-  if (count > MAX_SEGMENTS) throw new ScriptEvidenceError('source mapping segment limit exceeded');
-  if (count % 1024 === 0) checkMappingBudget(generated, mappings, deadline);
+function pushAppSegment(segments: Segment[], segment: Segment | undefined): void {
+  if (!segment) return;
+  if (segments.length >= MAX_APP_SEGMENTS) throw new ScriptEvidenceError('source mapping app segment limit exceeded');
+  segments.push(segment);
 }
 
 function mappedSegments(map: SourceMap, generated: string, deadline: number): Segment[] {
   validateMap(map);
   checkMappingBudget(generated, map.mappings, deadline);
-  const lines = generated.split('\n');
-  const originalLines = map.sourcesContent?.map((content) =>
-    typeof content === 'string' ? content.split('\n') : undefined,
-  );
-  const starts = [0];
-  for (const line of lines) starts.push(starts[starts.length - 1] + line.length + 1);
+  const { lines, starts } = generatedLines(generated);
   const appSources = map.sources.map(
     (source) => source !== null && isAppScriptSource((map.sourceRoot ?? '') + '/' + source),
+  );
+  const originalLines = map.sourcesContent?.map((content, index) =>
+    appSources[index] && typeof content === 'string' ? generatedLines(content).lines : undefined,
   );
   const segments: Segment[] = [];
   const cursor = { source: 0, line: 0, column: 0 };
@@ -147,7 +160,7 @@ function mappedSegments(map: SourceMap, generated: string, deadline: number): Se
       previous = undefined;
       continue;
     }
-    checkSegmentBudget(++count, generated, map.mappings, deadline);
+    if (++count % 8192 === 0) checkMappingBudget(generated, map.mappings, deadline);
     const fields = decodeVlq(match[0]);
     if (![1, 4, 5].includes(fields.length)) throw new Error('invalid source-map segment');
     generatedColumn += fields[0];
@@ -157,8 +170,7 @@ function mappedSegments(map: SourceMap, generated: string, deadline: number): Se
     const segment = original
       ? { offset, end: starts[generatedLine] + lines[generatedLine].length, ...original }
       : undefined;
-    connectSegments(previous, segment);
-    if (segment) segments.push(segment);
+    pushAppSegment(segments, segment);
     previous = segment;
   }
   return segments;
@@ -272,56 +284,25 @@ export function isAppScriptSource(source: string): boolean {
   return !/(^|[\\/])node_modules[\\/]/.test(source);
 }
 
-type SpanEvent = { column: number; kind: ExecutionKind; delta: number };
+type AnchorStates = Map<number, Map<number, number>>;
 const EXECUTION_KINDS = ['executed', 'mixed', 'unexecuted'] as const;
 
-function combinedKind(counts: Record<ExecutionKind, number>): ExecutionKind {
-  return counts.mixed || (counts.executed && counts.unexecuted) ? 'mixed' : counts.executed ? 'executed' : 'unexecuted';
+function addAnchor(states: AnchorStates, segment: Segment, kind: ExecutionKind): void {
+  const line = states.get(segment.line + 1) ?? new Map<number, number>();
+  const bit = kind === 'executed' ? 1 : kind === 'unexecuted' ? 2 : 4;
+  line.set(segment.column, (line.get(segment.column) ?? 0) | bit);
+  states.set(segment.line + 1, line);
 }
 
-/** Sweep overlapping original spans; conflicting generated occurrences cannot prove full execution. */
-function normalizeSource(file: ScriptSourceReach<SourceSpan>): void {
-  const lines = new Map<number, SpanEvent[]>();
-  const points = new Map<number, Map<number, { span: SourceSpan; counts: Record<ExecutionKind, number> }>>();
-  for (const kind of EXECUTION_KINDS) {
-    for (const span of file[kind]) {
-      if (span.start.column === span.end.column) {
-        const row = points.get(span.start.line) ?? new Map();
-        const point = row.get(span.start.column) ?? { span, counts: { executed: 0, mixed: 0, unexecuted: 0 } };
-        point.counts[kind]++;
-        row.set(span.start.column, point);
-        points.set(span.start.line, row);
-      } else {
-        const events = lines.get(span.start.line) ?? [];
-        events.push({ column: span.start.column, kind, delta: 1 }, { column: span.end.column, kind, delta: -1 });
-        lines.set(span.start.line, events);
-      }
+function writeAnchors(file: ScriptSourceReach<SourceSpan>, states: AnchorStates): void {
+  for (const [line, columns] of [...states].sort((a, b) => a[0] - b[0]))
+    for (const [column, bits] of [...columns].sort((a, b) => a[0] - b[0])) {
+      const kind = bits === 1 ? 'executed' : bits === 2 ? 'unexecuted' : 'mixed';
+      file[kind].push({ start: { line, column }, end: { line, column } });
     }
-    file[kind] = [];
-  }
-  for (const [line, events] of lines) sweepLine(file, line, events);
-  for (const row of points.values()) for (const { span, counts } of row.values()) file[combinedKind(counts)].push(span);
-  for (const kind of EXECUTION_KINDS)
-    file[kind].sort((a, b) => a.start.line - b.start.line || a.start.column - b.start.column);
 }
 
-function sweepLine(file: ScriptSourceReach<SourceSpan>, line: number, events: SpanEvent[]): void {
-  events.sort((a, b) => a.column - b.column);
-  const counts = { executed: 0, mixed: 0, unexecuted: 0 };
-  let previous = events[0].column;
-  for (const event of events) {
-    if (event.column > previous && Object.values(counts).some((n) => n > 0)) {
-      const spans = file[combinedKind(counts)];
-      const last = spans.at(-1);
-      if (last?.end.line === line && last.end.column === previous) last.end.column = event.column;
-      else spans.push({ start: { line, column: previous }, end: { line, column: event.column } });
-    }
-    counts[event.kind] += event.delta;
-    previous = event.column;
-  }
-}
-
-type OriginalSource = { source: string; sourceKey: string; contentHash?: string; lines?: string[] };
+type OriginalSource = { source: string; sourceKey: string; contentHash?: string };
 
 function originalSource(map: SourceMap, index: number, identities: (string | undefined)[]): OriginalSource | undefined {
   const source = identities[index];
@@ -332,40 +313,8 @@ function originalSource(map: SourceMap, index: number, identities: (string | und
         source,
         sourceKey: source,
         contentHash: createHash('sha256').update(content).digest('hex'),
-        lines: content.split('\n'),
       }
     : { source, sourceKey: source };
-}
-
-/** Next greater original column, independent of generated order, never the line length. */
-function originalEnds(segments: Segment[]): Map<Segment, number> {
-  const sources = new Map<number, Map<number, Segment[]>>();
-  for (const segment of segments) {
-    if (segment.source === undefined) continue;
-    const lines = sources.get(segment.source) ?? new Map<number, Segment[]>();
-    const points = lines.get(segment.line) ?? [];
-    points.push(segment);
-    lines.set(segment.line, points);
-    sources.set(segment.source, lines);
-  }
-  const ends = new Map<Segment, number>();
-  for (const lines of sources.values()) for (const points of lines.values()) indexOriginalLine(points, ends);
-  return ends;
-}
-
-function indexOriginalLine(points: Segment[], ends: Map<Segment, number>): void {
-  points.sort((a, b) => a.column - b.column);
-  let next = points.at(-1)!.column;
-  for (let i = points.length - 1; i >= 0; i--) {
-    if (i + 1 < points.length && points[i].column < points[i + 1].column) next = points[i + 1].column;
-    ends.set(points[i], points[i].adjacent ? next : points[i].column);
-  }
-}
-
-function originalSpan(segment: Segment, ends: Map<Segment, number>, original: OriginalSource): SourceSpan {
-  const line = segment.line + 1;
-  const column = Math.min(ends.get(segment) ?? segment.column, original.lines?.[segment.line]?.length ?? Infinity);
-  return { start: { line, column: segment.column }, end: { line, column } };
 }
 
 function ensureSourceFile(
@@ -390,36 +339,38 @@ function ensureSourceFile(
 }
 
 /**
- * Project mapped generated segments, never interpolate an original position across a V8 boundary.
- * A split segment is mixed. Without a later original anchor on the same source line, keep a point anchor.
+ * Each generated segment contributes one original start anchor. No original extent is inferred.
+ * A split segment or conflicting states at a repeated original start contribute mixed evidence.
  */
 export function mapScriptCoverage(
   entry: BinaryScriptCoverage,
   generated: string,
   map: SourceMap,
   mapUrl: string,
-  options: { deadline?: number } = {},
+  options: { deadline?: number; projectRoot?: string } = {},
 ): ScriptSourceReach<SourceSpan>[] {
   const deadline = options.deadline ?? Infinity;
   const segments = mappedSegments(map, generated, deadline);
   checkMappingBudget(generated, map.mappings, deadline);
-  if (entry.functions.reduce((sum, f) => sum + f.ranges.length, 0) > 200_000)
+  if (entry.functions.reduce((sum, f) => sum + f.ranges.length, 0) > MAX_COVERAGE_RANGES)
     throw new ScriptEvidenceError('source mapping coverage range limit exceeded');
   const files = new Map<string, ScriptSourceReach<SourceSpan>>();
   const executions = segmentExecutions(segments, executionRuns(entry));
-  const ends = originalEnds(segments);
-  const identities = sourceIdentities(map, mapUrl);
+  const states = new Map<string, AnchorStates>();
+  const identities = sourceIdentities(map, mapUrl, options.projectRoot);
   const originals = map.sources.map((_, index) => originalSource(map, index, identities));
   segments.forEach((segment, index) => {
     if (segment.source === undefined || segment.offset >= segment.end) return;
     const original = originals[segment.source];
     if (!original) return;
     const file = ensureSourceFile(files, original);
-    file[executions[index]].push(originalSpan(segment, ends, original));
+    const anchors = states.get(file.sourceKey!) ?? new Map<number, Map<number, number>>();
+    addAnchor(anchors, segment, executions[index]);
+    states.set(file.sourceKey!, anchors);
   });
   for (const file of files.values()) {
     checkMappingBudget(generated, map.mappings, deadline);
-    normalizeSource(file);
+    writeAnchors(file, states.get(file.sourceKey!)!);
     checkMappingBudget(generated, map.mappings, deadline);
   }
   return [...files.values()].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));

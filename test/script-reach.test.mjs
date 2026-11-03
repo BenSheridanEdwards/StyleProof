@@ -72,7 +72,7 @@ test('invalid source maps and unmapped spans never fabricate original coverage',
   assert.deepEqual(mapScriptCoverage(entry, '123', { ...sourceMap, mappings: 'A' }, 'https://example.test/a.map'), []);
 });
 
-test('mixed original line retains executed and unexecuted column spans', () => {
+test('mixed original line retains distinct executed and unexecuted anchors', () => {
   const [file] = mapScriptCoverage(
     entry,
     '123456789012345',
@@ -80,10 +80,10 @@ test('mixed original line retains executed and unexecuted column spans', () => {
     'https://example.test/app.js.map',
   );
   assert.deepEqual(file.executed, [
-    { start: { line: 1, column: 0 }, end: { line: 1, column: 5 } },
+    { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } },
     { start: { line: 1, column: 10 }, end: { line: 1, column: 10 } },
   ]);
-  assert.deepEqual(file.unexecuted, [{ start: { line: 1, column: 5 }, end: { line: 1, column: 10 } }]);
+  assert.deepEqual(file.unexecuted, [{ start: { line: 1, column: 5 }, end: { line: 1, column: 5 } }]);
 });
 
 test('unmapped segments terminate evidence and sourceRoot resolves relative sources', () => {

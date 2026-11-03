@@ -1,45 +1,88 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { SourceMap } from './script-reach.js';
+import { ScriptEvidenceError } from './script-reach-limits.js';
+const BUNDLER = /^(?:webpack(?:-internal)?|vite|rollup|parcel):/;
+const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\\\)/i;
+const SCHEME = /^[a-z][a-z\d+.-]*:/i;
 
-/** Only project-relative paths leave the reader; checkout roots and bundler namespaces are discarded. */
-export function sourceIdentities(map: SourceMap, mapUrl: string): (string | undefined)[] {
-  const paths = map.sources.map((source) => {
-    if (source === null || /(^|[\\/])node_modules[\\/]/.test((map.sourceRoot ?? '') + '/' + source)) return undefined;
-    const resolved = new URL(
-      source.replaceAll('\\', '/'),
-      new URL(map.sourceRoot ? map.sourceRoot.replace(/\/?$/, '/') : '.', mapUrl),
-    );
-    const pathname = decodeURIComponent(resolved.pathname).replaceAll('\\', '/');
-    const src = pathname.lastIndexOf('/src/');
-    return src >= 0 ? pathname.slice(src + 1) : pathname.replace(/^\/+/, '').replace(/^(?:\.\/)+/, '');
-  });
-  const absolute = paths.filter((value): value is string => value !== undefined && !value.startsWith('src/'));
-  const prefix = absolute.length ? absolute[0].split('/').slice(0, -1) : [];
-  for (const value of absolute) while (prefix.length && !value.startsWith(prefix.join('/') + '/')) prefix.pop();
-  return paths.map((value) =>
-    value === undefined || value.startsWith('src/')
-      ? value
-      : /^(?:Users|home)\//.test(value) && prefix.length < 2
-        ? value.split('/').at(-1)
-        : value.slice(prefix.length ? prefix.join('/').length + 1 : 0),
-  );
+function filesystemKey(filename: string, projectRoot: string): string {
+  const paths = WINDOWS_PATH.test(filename) ? path.win32 : path;
+  const relative = paths.relative(paths.resolve(projectRoot), filename).replaceAll('\\', '/');
+  if (!relative || relative === '..' || relative.startsWith('../') || paths.isAbsolute(relative))
+    throw new ScriptEvidenceError('source outside project root');
+  return relative;
 }
 
-/** Queries, fragments, credentials and ephemeral blob IDs are never stored. */
-export function storedScriptUrl(address: string): string {
+function bundlerPath(address: string): string {
+  return address.replace(/^[a-z][a-z\d+.-]*:(?:\/\/[^/]*\/|\/)?/i, '');
+}
+
+function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string {
+  if (WINDOWS_PATH.test(source) || path.posix.isAbsolute(source)) return filesystemKey(source, projectRoot);
+  if (BUNDLER.test(source)) return projectKey(bundlerPath(source), projectRoot);
+  if (root && BUNDLER.test(root) && !SCHEME.test(source))
+    return projectKey(path.posix.join(bundlerPath(root), source), projectRoot);
+  if (root && (WINDOWS_PATH.test(root) || path.posix.isAbsolute(root)) && !SCHEME.test(source))
+    return filesystemKey((WINDOWS_PATH.test(root) ? path.win32 : path).resolve(root, source), projectRoot);
+  const base = root ? new URL(root.replace(/\/?$/, '/'), mapUrl) : new URL('.', mapUrl);
+  const resolved = new URL(source.replaceAll('\\', '/'), base);
+  if (resolved.protocol === 'file:') return filesystemKey(fileURLToPath(resolved), projectRoot);
+  if (BUNDLER.test(resolved.href)) return projectKey(bundlerPath(resolved.href), projectRoot);
+  return projectKey(decodeURIComponent(resolved.pathname).replace(/^\//, ''), projectRoot);
+}
+
+function projectKey(value: string, projectRoot: string): string {
+  const decoded = decodeURIComponent(value).replaceAll('\\', '/');
+  if (path.posix.isAbsolute(decoded) || WINDOWS_PATH.test(decoded)) return filesystemKey(decoded, projectRoot);
+  const key = path.posix.normalize(decoded);
+  if (key === '..' || key.startsWith('../') || key === '.')
+    throw new ScriptEvidenceError('source outside project root');
+  return key;
+}
+
+/** File paths are relative to a known project root; URL paths retain every project directory. */
+export function sourceIdentities(map: SourceMap, mapUrl: string, projectRoot = process.cwd()): (string | undefined)[] {
+  const seen = new Set<string>();
+  return map.sources.map((source) => {
+    if (source === null || /(^|[\\/])node_modules[\\/]/.test((map.sourceRoot ?? '') + '/' + source)) return undefined;
+    const key = sourceKey(source, map.sourceRoot, mapUrl, projectRoot);
+    if (/(^|\/)node_modules\//.test(key)) return undefined;
+    if (seen.has(key)) throw new ScriptEvidenceError('source key collision');
+    seen.add(key);
+    return key;
+  });
+}
+
+/** Preserve names without credentials, signed queries, code payloads or machine paths. */
+export function storedScriptUrl(address: string, projectRoot = process.cwd()): string {
+  if (!address) return '<anonymous>';
   if (address.startsWith('blob:')) return 'blob:';
-  const url = new URL(address);
-  url.search = '';
-  url.hash = '';
-  url.username = '';
-  url.password = '';
-  if (url.protocol === 'file:' || url.protocol === 'webpack:') {
-    const path = decodeURIComponent(url.pathname);
-    return `${url.protocol}/${path.includes('/src/') ? path.slice(path.lastIndexOf('/src/') + 1) : path.split('/').at(-1)}`;
+  try {
+    const url = new URL(address);
+    url.search = '';
+    url.hash = '';
+    url.username = '';
+    url.password = '';
+    if (url.protocol === 'file:') {
+      try {
+        return 'file:/' + filesystemKey(fileURLToPath(url), projectRoot);
+      } catch {
+        return 'file:';
+      }
+    }
+    if (BUNDLER.test(address)) return url.protocol + '/' + bundlerPath(url.href).replace(/^\.\//, '');
+    if (!/^https?:$/.test(url.protocol)) return url.protocol;
+    const filename = decodeURIComponent(url.pathname).replace(/^\/@fs/, '');
+    if (/^\/(?:Users|home)\//.test(filename)) {
+      try {
+        url.pathname = '/' + filesystemKey(filename, projectRoot);
+      } catch {
+        return url.origin + '/';
+      }
+    }
+    return url.href;
+  } catch {
+    return '<anonymous>';
   }
-  const pathname = decodeURIComponent(url.pathname);
-  if (/^\/(?:@fs\/)?(?:Users|home)\//.test(pathname))
-    url.pathname =
-      '/' +
-      (pathname.includes('/src/') ? pathname.slice(pathname.lastIndexOf('/src/') + 1) : pathname.split('/').at(-1));
-  return url.href;
 }

@@ -44,6 +44,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Opt-in `captureScriptReach` records navigation-window V8 block execution as original-source executed, mixed and unexecuted ranges with available content hashes. Missing source maps or shared Playwright coverage remain unmeasured; reader failures remain unknown. Self-checks compare mapped evidence. No git-diff join or verdict change is included (#999).
 - Script reach now respects unmapped gaps, names blob scripts without UUIDs, disables code caching during capture, resumes debugger pauses at collection, and records self-check drift as unknown. Compact per-script evidence has bounded mapping/read budgets, safe project-relative identities, guarded local-file reads, and routing-aware map fallback (#999).
+- Script reach records execution only at original start anchors, resolves identities against the project root without path cuts, rejects collisions/outside-root sources, retains unsupported scripts, and bounds evidence at 4 MiB per map. App-only segment caps support realistic bundles; CDP map reads avoid page JS unless routing requires it (#999).
 
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
 

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { mapScriptCoverage } from '../dist/script-reach.js';
 import { assertDeterministicScriptReach } from '../dist/runner/self-check.js';
 
@@ -85,7 +85,9 @@ test('N1 mapping rejects an expired CPU budget', () => {
 
 test('N6 source identity removes checkout roots and webpack namespaces', () => {
   const make = (source) =>
-    mapScriptCoverage(coverage, text, { ...map, sources: [source] }, 'https://app.test/app.js.map')[0];
+    mapScriptCoverage(coverage, text, { ...map, sources: [source] }, 'https://app.test/app.js.map', {
+      projectRoot: source.startsWith('file:') ? path.dirname(path.dirname(fileURLToPath(source))) : process.cwd(),
+    })[0];
   for (const source of [
     pathToFileURL(path.join(os.homedir(), 'checkout-one', 'src/app.js')).href,
     pathToFileURL(path.join(os.homedir(), 'checkout-two', 'src/app.js')).href,
@@ -120,7 +122,7 @@ test('B3 mapped execution drift records a named unknown and never throws', () =>
   assert.match(first.scriptReach.reason, /^script evidence not reproducible: src\/app.js:1$/);
 });
 
-test('N6 longest common directory prefixes remove checkout paths without src markers', () => {
+test('project roots preserve lib paths across different checkouts', () => {
   const make = (checkout) =>
     mapScriptCoverage(
       { functions: [{ ranges: [{ startOffset: 0, endOffset: 2, count: 1 }] }] },
@@ -132,13 +134,14 @@ test('N6 longest common directory prefixes remove checkout paths without src mar
         mappings: 'AAAA,CCAA',
       },
       'https://app.test/a.map',
+      { projectRoot: path.join(os.homedir(), checkout) },
     );
   const a = make('checkout-one'),
     b = make('checkout-two');
   assert.deepEqual(a, b);
   assert.deepEqual(
     a.map((f) => f.sourceKey),
-    ['a.js', 'b.js'],
+    ['lib/a.js', 'lib/b.js'],
   );
   assert.ok(!JSON.stringify(a).includes(os.homedir()));
 });
@@ -165,5 +168,5 @@ test('N2 compact evidence removes interior duplicate anchors but retains exclusi
 test('N6 development-server file URLs cannot retain home paths', async () => {
   const { storedScriptUrl } = await import('../dist/script-reach-identity.js');
   const url = 'https://app.test/@fs' + path.join(os.homedir(), 'checkout', 'src/app.js') + '?token=fixture#fragment';
-  assert.equal(storedScriptUrl(url), 'https://app.test/src/app.js');
+  assert.equal(storedScriptUrl(url, path.join(os.homedir(), 'checkout')), 'https://app.test/src/app.js');
 });

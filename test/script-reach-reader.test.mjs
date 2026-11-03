@@ -64,35 +64,22 @@ function fakePage({ fallback, maps = {}, count = 1 } = {}) {
   return { page, calls, navigate: () => listeners.get('Page.frameNavigated')?.({ frame: { id: 'main' } }) };
 }
 
-test('review 6: stalled CDP map loading has a bounded timeout', { timeout: 3000 }, async () => {
-  const { page, navigate } = fakePage({ fallback: () => new Promise(() => {}) });
-  const tracker = await trackScriptReach(page);
-  navigate();
-  const before = performance.now();
-  const evidence = await tracker.stop();
-  assert.equal(evidence.scripts[0].status, 'unknown');
-  assert.ok(performance.now() - before < 2500);
+test('map I/O has a bounded generous wall-clock backstop', async () => {
+  const { beforeDeadline } = await import('../dist/capture/script-map-resources.js');
+  await assert.rejects(beforeDeadline(new Promise(() => {}), performance.now() + 30), /budget exhausted/);
 });
 
-test(
-  'review 6: the overall map budget bounds many slow scripts and names unread scripts',
-  { timeout: 3500 },
-  async () => {
-    const { page, navigate, calls } = fakePage({
-      count: 10,
-      fallback: () => new Promise((resolve) => setTimeout(() => resolve({ resource: { success: false } }), 600)),
-    });
-    const tracker = await trackScriptReach(page);
-    navigate();
-    const before = performance.now();
-    const evidence = await tracker.stop();
-    assert.ok(performance.now() - before < 2500);
-    assert.equal(evidence.scripts.length, 10);
-    assert.ok(evidence.scripts.every((s) => s.status === 'unknown'));
-    assert.ok(evidence.scripts.some((s) => s.reason === 'script map-read budget exhausted'));
-    assert.ok(calls.filter((name) => name === 'Debugger.getScriptSource').length < 10);
-  },
-);
+test('deterministic mapping size limits name every unreadable script', async () => {
+  const { page, navigate } = fakePage({
+    count: 10,
+    maps: { map: { version: 3, sources: ['src/a.js'], mappings: 'A'.repeat(2 * 1024 * 1024 + 1) } },
+  });
+  const tracker = await trackScriptReach(page);
+  navigate();
+  const evidence = await tracker.stop();
+  assert.equal(evidence.scripts.length, 10);
+  assert.ok(evidence.scripts.every((s) => s.status === 'unknown' && s.reason === 'source mapping size limit exceeded'));
+});
 
 test('review 11: the CDP fallback reads a map when page fetch is blocked', async () => {
   const { page, navigate, calls } = fakePage();
