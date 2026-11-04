@@ -539,6 +539,15 @@ new baseline on merge. A surface that exists only on the PR head is still
 reviewable: it holds the status red until approved, then becomes part of the
 baseline once merged.
 
+Starting in **10.0.0**, a completed review-gate run passes the job even while
+changes await approval. Require the **StyleProof** status check (or your
+`status-context` name) in branch protection or a ruleset to block merges. Ticking
+**Approve all changes** turns that status green without re-running the job.
+Repositories without branch protection, including free private plans, no longer
+get a red job for unapproved changes. Config `blocking: true` and `false` remain
+accepted and no longer affect the job conclusion; `blocking: 'advisory'` keeps
+its advisory meaning. Capture/setup failures and evidence gates still fail the job.
+
 In both the reusable and example approval workflows, re-running an approve run
 by anyone other than the original ticker is refused;
 tick the approval box again. A StyleProof re-run carries approval forward only

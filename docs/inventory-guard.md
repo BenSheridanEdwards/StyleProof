@@ -95,8 +95,9 @@ NavigableItem[]` (an optional `StyleMap` field, ignored by the certification dif
   like `overlays`).
 - **Diff** (run level, `styleproof-diff`): `unionInventory(baseMaps)` vs
   `unionInventory(headMaps)` → `diffInventory` → `auditRemovals(delta, allowRemoved)`.
-- **Gate**: an unacknowledged removal exits **1** — the same blocking path as a visual
-  change (a removed feature is exactly the thing a human should sign off).
+- **Gate**: an unacknowledged removal exits **1** and fails the Action job in every
+  mode. A reviewer must acknowledge the removal with a reason in
+  `styleproof.inventory.json`; style approval cannot clear it.
 - **CLI/env**: `styleproof-diff` prints the 📐 Inventory section and reads
   `allowRemoved` from `styleproof.inventory.json` (or `$STYLEPROOF_INVENTORY`) — no
   spec edit needed in CI.

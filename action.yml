@@ -335,8 +335,8 @@ runs:
 
     # Policy config: an optional styleproof.config.json at the consumer repo root.
     # Today it carries one setting — `blocking` — but it's the home for future gate
-    # policy. Absent → all defaults (blocking on; opt out with "blocking": false);
-    # malformed policy fails loudly. Inputs stay the home for plumbing (dirs, token, mode);
+    # policy. Boolean `blocking` values remain accepted; only "advisory" changes the status.
+    # Malformed policy fails loudly. Inputs stay the home for plumbing (dirs, token, mode);
     # the config file is the home for policy.
     - id: config
       uses: actions/github-script@v9
@@ -1304,25 +1304,6 @@ runs:
         console.error(formatPartialBaselineFailEcho(parseBaselineFailureReceipts(report.baselineFailures)));
         process.exit(1);
         NODE
-
-    # blocking (on by default; opt out with styleproof.config.json "blocking": false): on
-    # UNAPPROVED changes/new surfaces, fail the job so the check is red even on a repo
-    # without a branch-protection rule requiring the status. Async by design — sign off in
-    # the comment, then re-run this job; the re-run sees the approval (via the gate step)
-    # and passes. Review-gate and migration modes.
-    - name: Block on unapproved changes
-      if: >-
-        steps.context.outputs.pr-number != '' &&
-        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration') &&
-        inputs.mode != 'advisory' &&
-        steps.config.outputs.blocking != 'advisory' &&
-        steps.config.outputs.blocking == 'true' &&
-        steps.verdict.outputs.state == 'STYLE_REVIEW_REQUIRED' &&
-        steps.gate.outputs.approved != 'true'
-      shell: bash
-      run: |
-        echo "StyleProof: unapproved style changes or new surfaces — tick 'Approve all changes' in the report comment, then re-run this job to clear the check." >&2
-        exit 1
 
     # Certify mode: fail the job on any diff (default). Skipped
     # in review-gate and migration modes, where the status check is the gate instead.

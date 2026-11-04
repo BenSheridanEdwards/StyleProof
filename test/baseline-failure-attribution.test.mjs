@@ -220,7 +220,7 @@ test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => 
   assert.match(actionYml, /parseBaselineFailureReceipts/);
   const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}# Review-gate)/);
   const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}# A failed base capture)/);
-  const partialGate = actionYml.match(/- name: Block on partial baseline[\s\S]*?(?=\n\s{4}# blocking)/);
+  const partialGate = actionYml.match(/- name: Block on partial baseline[\s\S]*?(?=\n\s{4}# Certify mode:)/);
   assert.ok(commentStep, 'PR comment step present');
   assert.ok(statusStep, 'commit-status step present');
   assert.ok(partialGate, 'partial-baseline fail step present');

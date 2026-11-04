@@ -215,12 +215,13 @@ export const styleproofConfigTemplate = (
  * For all available options, see the StyleProof docs or hover over defineConfig().
  */
 export default defineConfig({
-  // Advisory mode: posts comments and artifacts but NEVER blocks CI.
+  // Advisory mode: posts comments and artifacts without holding style findings.
   // Trust is earned, not assumed — observe the signal quality for a release cycle,
-  // then flip to blocking: true once confident in coverage.
+  // then set blocking: true and require the StyleProof status check in branch protection.
   blocking: 'advisory',
 
-  // Require explicit reviewer approval for visual changes (active when blocking: true)
+  // Boolean blocking values do not fail the job on unapproved changes (from 10.0.0).
+  // Require explicit reviewer approval for visual changes outside advisory mode.
   requireApproval: true,
 
   // Capture spec path (default e2e/styleproof.spec.ts)
