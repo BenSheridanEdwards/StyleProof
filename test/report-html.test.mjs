@@ -94,6 +94,8 @@ test('report.html only accepts exact trailing paragraph breaks and escapes other
       '',
       'near matches <br/> <BR> <br> ',
       '',
+      'escaped \\<br>',
+      '',
       'ordinary',
       'paragraph lines',
     ].join('\n'),
@@ -102,6 +104,7 @@ test('report.html only accepts exact trailing paragraph breaks and escapes other
   assert.match(html, /<p>unsafe&lt;br&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt;<\/p>/);
   assert.match(html, /<p>other &lt;strong&gt;markup&lt;\/strong&gt;<br><\/p>/);
   assert.match(html, /<p>near matches &lt;br\/&gt; &lt;BR&gt; &lt;br&gt; <\/p>/);
+  assert.match(html, /<p>escaped &lt;br&gt;<\/p>/, 'a Markdown-escaped <br> stays literal text, as on main');
   assert.match(html, /<p>ordinary paragraph lines<\/p>/);
   assert.doesNotMatch(html, /<script\b|<strong\b/i);
 });
