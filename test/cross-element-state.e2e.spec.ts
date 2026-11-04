@@ -58,7 +58,14 @@ test('captures forced states that restyle siblings and :has ancestors', async ({
   fs.mkdirSync(PROOF_DIR, { recursive: true });
   await page.setContent(after, { waitUntil: 'load' });
   const written = await captureStateLayerScreenshots(page, path.join(PROOF_DIR, 'cross-element'));
-  expect(written).toHaveLength(3);
+  expect(written.map((filename) => path.basename(filename))).toEqual([
+    'cross-element.hover.png',
+    'cross-element.focus.png',
+    'cross-element.active.png',
+    'cross-element.checked.png',
+    'cross-element.disabled.png',
+    'cross-element.placeholder-shown.png',
+  ]);
 });
 
 test('detached interactive controls mark the forced-state layer incomplete', async ({ page }) => {

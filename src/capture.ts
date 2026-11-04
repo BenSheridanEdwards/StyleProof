@@ -336,19 +336,30 @@ async function captureStateLayer(
   limits: Required<ForcedStateLimits>,
   ignore: string[],
   volatile: string[],
-): Promise<Pick<StyleMap, 'states' | 'stateComputedValueStyle'> & { statesSkipped: boolean }> {
-  if (options.captureStates === false) return { states: {}, statesSkipped: true };
+): Promise<
+  Pick<StyleMap, 'states' | 'stateLayers' | 'stateLayerOmissions' | 'stateTargets' | 'stateComputedValueStyle'> & {
+    statesSkipped: boolean;
+  }
+> {
+  if (options.captureStates === false) return { states: {}, stateLayers: [], statesSkipped: true };
   const browserName = page.context().browser()?.browserType().name();
   if (browserName !== 'chromium') {
     warn(
       `styleproof: forced-state capture requires Chromium CDP; ${browserName ?? 'this browser'} is unsupported, ` +
         'so statesSkipped: true was persisted.',
     );
-    return { states: {}, statesSkipped: true };
+    return { states: {}, stateLayers: [], statesSkipped: true };
   }
   const forced = await captureForcedStates(page, ignore, options.maxInteractive ?? 800, limits, volatile);
   const proof = forced.stateComputedValueStyle;
-  return { states: forced.states, statesSkipped: forced.skipped, ...(proof ? { stateComputedValueStyle: proof } : {}) };
+  return {
+    states: forced.states,
+    stateLayers: forced.stateLayers,
+    ...(forced.stateLayerOmissions ? { stateLayerOmissions: forced.stateLayerOmissions } : {}),
+    stateTargets: forced.stateTargets,
+    statesSkipped: forced.skipped,
+    ...(proof ? { stateComputedValueStyle: proof } : {}),
+  };
 }
 
 type SettledRead = {
@@ -380,13 +391,9 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   ).filter((o) => base.elements[o.path]);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, read.motion);
-  const { states, statesSkipped, stateComputedValueStyle } = await captureStateLayer(
-    page,
-    options,
-    read.limits,
-    read.ignore,
-    volatile,
-  );
+
+  const { states, stateLayers, stateLayerOmissions, stateTargets, statesSkipped, stateComputedValueStyle } =
+    await captureStateLayer(page, options, read.limits, read.ignore, volatile);
   const tokens = await page.evaluate(capturePageTokens);
   const inventory: NavigableItem[] = options.inventory
     ? classifyInventory(await page.evaluate(collectNavAffordances))
@@ -408,6 +415,9 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     defaults: base.defaults,
     elements: base.elements,
     states,
+    stateLayers,
+    ...(stateLayerOmissions ? { stateLayerOmissions } : {}),
+    ...(stateTargets ? { stateTargets } : {}),
     ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),

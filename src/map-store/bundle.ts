@@ -7,6 +7,7 @@ import { COVERAGE_LEDGER } from '../coverage.js';
 import { removeDirRecursive, sha256 } from '../node-util.js';
 import { readRegularFileNoFollow } from '../safe-filesystem.js';
 import { boundedText, readJsonSidecar } from './json.js';
+import { STATE_LAYER_NAMES } from '../capture/forced-states.js';
 
 export const DEFAULT_MAP_DIR = '.styleproof/maps';
 export const DEFAULT_MAP_LABEL = 'current';
@@ -66,7 +67,9 @@ export const isMapFile = (name: string): boolean =>
   !RESERVED_BUNDLE_FILES.has(name) && /^[^/\\]+@\d+\.json(\.gz)?$/.test(name);
 
 const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
-const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;
+const GENERATED_CAPTURE_ARTIFACT = new RegExp(
+  `@\\d+\\.(?:json(?:\\.gz)?|png|(?:${STATE_LAYER_NAMES.map((stateName) => stateName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\.png)$`,
+);
 
 /** True when a top-level entry is owned by StyleProof capture generation. */
 export function isOwnedCaptureArtifact(name: string): boolean {

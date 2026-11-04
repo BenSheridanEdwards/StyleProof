@@ -555,7 +555,11 @@ export type StateScopeArgs = {
   scope?: ForcedStateReadScope;
 };
 
-export type ForcedStateScopeAnalysis = { scope: ForcedStateReadScope; reason: string };
+export type ForcedStateScopeAnalysis = {
+  scope: ForcedStateReadScope;
+  reason: string;
+  legacy?: { scope: ForcedStateReadScope; reason: string };
+};
 
 /**
  * Derive the smallest sound forced-state read scope from the page's own state selectors.
@@ -567,18 +571,25 @@ export type ForcedStateScopeAnalysis = { scope: ForcedStateReadScope; reason: st
  * The UA stylesheet's state rules only restyle the control itself. Serialized into the page.
  */
 // fallow-ignore-next-line complexity
-export function analyzeForcedStateScope(): ForcedStateScopeAnalysis {
-  const state = /:(?:hover|focus|focus-visible|active)(?![\w-])/i;
+export function analyzeForcedStateScope(includeFormStates = true): ForcedStateScopeAnalysis {
+  const state = includeFormStates
+    ? /:(?:hover|focus|focus-visible|active|checked|disabled|placeholder-shown)(?![\w-])/i
+    : /:(?:hover|focus|focus-visible|active)(?![\w-])/i;
+
+  const legacyState = /:(?:hover|focus|focus-visible|active)(?![\w-])/i;
   const focusWithin = /:focus-within(?![\w-])/i;
   const rank: Record<ForcedStateReadScope, number> = { subtree: 0, parent: 1, document: 2 };
   const result: ForcedStateScopeAnalysis = {
     scope: 'subtree',
     reason: 'every state selector restyles only the control and its descendants',
   };
-  const widen = (scope: ForcedStateReadScope, reason: string): void => {
-    if (rank[scope] <= rank[result.scope]) return;
-    result.scope = scope;
-    result.reason = reason;
+
+  const legacyResult = { ...result };
+
+  const widen = (scope: ForcedStateReadScope, reason: string, legacy = true): void => {
+    if (rank[scope] > rank[result.scope]) Object.assign(result, { scope, reason });
+
+    if (legacy && rank[scope] > rank[legacyResult.scope]) Object.assign(legacyResult, { scope, reason });
   };
   // Escapes, strings and attribute selectors can spell `~`, `+` or `:hover` without being syntax.
   const syntax = (selector: string): string =>
@@ -591,15 +602,30 @@ export function analyzeForcedStateScope(): ForcedStateScopeAnalysis {
     const text = syntax(selector);
     if (focusWithin.test(text)) return widen('document', `\`${selector}\` uses :focus-within`);
     if (!state.test(text)) return;
-    if (/:has\(/i.test(text)) return widen('document', `\`${selector}\` uses :has()`);
-    if (/:host|::slotted|::part/i.test(text)) return widen('document', `\`${selector}\` crosses a shadow boundary`);
-    if (/:nth-[\w-]*\([^)]*:/i.test(text)) return widen('document', `\`${selector}\` uses an :nth-*(… of S) list`);
+    const legacy = legacyState.test(text);
+
+    if (/:has\(/i.test(text)) return widen('document', `\`${selector}\` uses :has()`, legacy);
+
+    if (/:host|::slotted|::part/i.test(text))
+      return widen('document', `\`${selector}\` crosses a shadow boundary`, legacy);
+
+    if (/:nth-[\w-]*\([^)]*:/i.test(text))
+      return widen('document', `\`${selector}\` uses an :nth-*(… of S) list`, legacy);
     if (/[~+]/.test(text.replace(/:nth-[\w-]*\([^)]*\)/gi, ':nth()')))
-      widen('parent', `\`${selector}\` restyles following siblings`);
+      widen('parent', `\`${selector}\` restyles following siblings`, legacy);
+  };
+
+  const classifyPrelude = (prelude: string): void => {
+    if (state.test(prelude) || focusWithin.test(prelude))
+      widen(
+        'document',
+        `\`${prelude.trim()}\` names a state outside a style rule`,
+        legacyState.test(prelude) || focusWithin.test(prelude),
+      );
   };
   const visitRules = (rules: CSSRuleList | undefined, context: string): void => {
     for (const rule of Array.from(rules ?? [])) {
-      if (result.scope === 'document') return;
+      if (legacyResult.scope === 'document') return;
       if (rule instanceof CSSImportRule) {
         visitSheet(rule.styleSheet);
       } else if (rule instanceof CSSStyleRule) {
@@ -609,14 +635,13 @@ export function analyzeForcedStateScope(): ForcedStateScopeAnalysis {
         visitRules((rule as CSSStyleRule & { cssRules?: CSSRuleList }).cssRules, selector);
       } else {
         const prelude = syntax(rule.cssText.slice(0, Math.max(0, rule.cssText.indexOf('{'))));
-        if (state.test(prelude) || focusWithin.test(prelude))
-          widen('document', `\`${prelude.trim()}\` names a state outside a style rule`);
+        classifyPrelude(prelude);
         visitRules((rule as CSSRule & { cssRules?: CSSRuleList }).cssRules, context);
       }
     }
   };
   const visitSheet = (sheet: CSSStyleSheet | null): void => {
-    if (!sheet || result.scope === 'document') return;
+    if (!sheet || legacyResult.scope === 'document') return;
     let rules: CSSRuleList;
     try {
       rules = sheet.cssRules;
@@ -628,7 +653,8 @@ export function analyzeForcedStateScope(): ForcedStateScopeAnalysis {
   };
   const adopted = (document as Document & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets ?? [];
   for (const sheet of [...Array.from(document.styleSheets), ...adopted]) visitSheet(sheet);
-  return result;
+
+  return includeFormStates ? { ...result, legacy: legacyResult } : result;
 }
 export type StateScopeResult = {
   delta: Record<string, Props>;
@@ -777,12 +803,26 @@ export function snapSessionBaseline(
   maxElements: number,
   check: boolean,
   snap: (typeof snapSubtree & { restingTargets?: Array<Element | null> }) | undefined,
+  formSweep = false,
 ): boolean | number[] {
   if (!snap) return false;
 
   const stateWindow = window as unknown as Record<string, unknown>;
   const typedKey = `${args.baselineKey}-typed-margins`;
   const previousBaseline = JSON.stringify([stateWindow[args.baselineKey], stateWindow[typedKey]]);
+
+  const sharedCountsFit = (counts: number[], targetCount: number): boolean => {
+    const bounded = counts.every((count) => count > 0 && count <= maxElements);
+    if (check) return bounded;
+    const total = counts.reduce((sum, count) => sum + count, 0);
+    return (formSweep || targetCount > 2) && bounded && total * (formSweep ? 3 : 4) <= args.maxElements;
+  };
+
+  // Once any scope lacks Typed OM, later scopes cannot restore proof for the whole baseline.
+  const mergeTypedBaseline = (
+    current: Record<string, Props> | undefined,
+    incoming: unknown,
+  ): Record<string, Props> | undefined => (current && incoming ? Object.assign(current, incoming) : undefined);
 
   // Keep the subtree planner local: this function is serialized over CDP.
   const subtreeBaseline = (): number[] | false => {
@@ -797,18 +837,10 @@ export function snapSessionBaseline(
         snap({ ...args, selector, maxElements: maxElements + 1, countOnly: true }, targets[index]).scanned,
     );
 
-    const total = counts.reduce((sum, count) => sum + count, 0);
+    if (!sharedCountsFit(counts, selectors.length)) return false;
 
-    // Stay within complete per-target reads and their four-read work budget.
-    if (
-      selectors.length <= 2 ||
-      counts.some((count) => count === 0 || count > maxElements) ||
-      total * 4 > args.maxElements
-    )
-      return false;
-
-    const baseline = {},
-      typed = {};
+    const baseline = {};
+    let typed: Record<string, Props> | undefined = {};
 
     if (!check) snap.restingTargets = targets;
 
@@ -820,10 +852,10 @@ export function snapSessionBaseline(
       snap({ ...args, selector, maxElements }, target);
 
       // Mixed Typed OM retains the per-scope availability rule.
-      if (!stateWindow[typedKey]) return false;
+      if (!formSweep && !stateWindow[typedKey]) return false;
 
       Object.assign(baseline, stateWindow[args.baselineKey]);
-      Object.assign(typed, stateWindow[typedKey]);
+      typed = mergeTypedBaseline(typed, stateWindow[typedKey]);
     }
 
     stateWindow[args.baselineKey] = baseline;
@@ -832,7 +864,7 @@ export function snapSessionBaseline(
     return !check || previousBaseline === JSON.stringify([baseline, typed]) ? counts : false;
   };
 
-  if (args.scope === 'subtree') return subtreeBaseline();
+  if (args.scope === 'subtree' || (formSweep && args.scope === 'parent')) return subtreeBaseline();
 
   if (!check) {
     const documentCount = snap({ ...args, countOnly: true });
@@ -843,15 +875,14 @@ export function snapSessionBaseline(
       documentCount.truncated ||
       documentCount.scanned === 0 ||
       documentCount.scanned > maxElements ||
-      args.selector.split(',').length <= 2 ||
-      args.maxElements <= documentCount.scanned * 8
+      (!formSweep && (args.selector.split(',').length <= 2 || args.maxElements <= documentCount.scanned * 8))
     )
       return false;
   }
   const read = snap(args);
   return (
     !read.truncated &&
-    !!stateWindow[typedKey] &&
+    (formSweep || !!stateWindow[typedKey]) &&
     (!check || previousBaseline === JSON.stringify([stateWindow[args.baselineKey], stateWindow[typedKey]]))
   );
 }
@@ -862,7 +893,11 @@ export function clearStateBaseline(baselineKey: string): void {
 }
 
 export type MarkArgs = { selector: string; skipSel: string; attr: string };
-export type MarkedInteractive = { id: string; path: string };
+export type MarkedInteractive = {
+  id: string;
+  path: string;
+  formStateLayers?: Array<'checked' | 'disabled' | 'placeholder-shown'>;
+};
 
 /**
  * Mark interactive elements once so CDP and page.evaluate address the same node
@@ -875,10 +910,30 @@ export function markInteractiveElements({ selector, skipSel, attr }: MarkArgs): 
   const pathOf = pathWindow.__spCreatePathOf?.() ?? pathWindow.__spPathOf ?? ((): string => '');
   let i = 0;
   return [...document.querySelectorAll(selector)].flatMap((el) => {
-    if (skipSel && el.matches(skipSel)) return [];
+    if (el.matches('input[type="hidden"]') || (skipSel && el.matches(skipSel))) return [];
     const id = `sp-${i++}`;
     el.setAttribute(attr, id);
-    return [{ id, path: pathOf(el) }];
+    const formStateLayers: NonNullable<MarkedInteractive['formStateLayers']> = [];
+
+    if (el.matches('input[type="checkbox"], input[type="radio"]') && !el.matches(':checked'))
+      formStateLayers.push('checked');
+
+    if (el.matches('button, input, select, textarea') && !el.matches(':disabled')) formStateLayers.push('disabled');
+    const supportsPlaceholder =
+      el.matches('textarea') ||
+      (el.matches('input') &&
+        // SAFETY: the input guard makes type the browser-normalized input type, including invalid values as text.
+        ['text', 'search', 'url', 'tel', 'email', 'password', 'number'].includes((el as HTMLInputElement).type));
+    // SAFETY: supportsPlaceholder restricts value access to placeholder-supporting controls.
+    if (
+      supportsPlaceholder &&
+      el.getAttribute('placeholder') &&
+      (el as HTMLInputElement | HTMLTextAreaElement).value.length > 0 &&
+      !el.matches(':placeholder-shown')
+    )
+      formStateLayers.push('placeholder-shown');
+
+    return [{ id, path: pathOf(el), formStateLayers }];
   });
 }
 

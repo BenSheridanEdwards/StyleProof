@@ -26,6 +26,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   handling stays unchanged. Tab, LF and CR no longer hide URL traversal.
   Source and sourceRoot also trim edge ASCII controls and spaces and normalize
   backslashes before classification, so padded absolute paths resolve project-relative.
+- Force `:checked`, `:disabled`, and `:placeholder-shown` on applicable form controls,
+  including sibling and ancestor effects. Captures record `stateLayers` and applicable
+  owners in `stateTargets`; unmatched layers remain uncompared, and owners whose resting
+  applicability changed do not produce false form-state drops. Hidden inputs are excluded.
+- Form states have an independent `maxFormStateScanWork` allowance (default 32,000),
+  separate from hover/focus/active. They add at most two forced reads per qualifying
+  control plus baseline/check work, using resolved nodes, shared baselines/counts, and
+  overlapped resets. For the same targets and scope, their three charged scans per
+  control fit whenever the legacy sweep's four fit under equal allowances. Screenshots
+  add three layers (`checked`, `disabled`, `placeholder-shown`) even when a layer has no
+  qualifying control, keeping pixel comparisons paired. Resting drift discards form
+  evidence rather than certifying it. Placeholder forcing is limited to supported types.
+- Forced form screenshots participate in selective reuse and stale capture cleanup.
+  Empty form layers copy the resting PNG. Matching form allowance/shared-baseline
+  omissions on both sides preserve legacy certification through explicit
+  `stateLayerOmissions`; one-sided layers and drift/read failures remain uncertified.
+  An unavailable shared baseline skips the form sweep, and isolated form Typed OM
+  proof cannot erase legacy evidence. Invalid input types follow the browser's text fallback.
+
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).

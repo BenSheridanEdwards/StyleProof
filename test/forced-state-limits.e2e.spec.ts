@@ -28,7 +28,7 @@ for (const [elements, work, incomplete] of [
     if (!incomplete) {
       expect(Object.keys(map.states)).toHaveLength(2);
       for (const states of Object.values(map.states))
-        expect(Object.keys(states).sort()).toEqual(['active', 'focus', 'hover']);
+        expect(Object.keys(states).sort()).toEqual(['active', 'disabled', 'focus', 'hover']);
     }
   });
 }

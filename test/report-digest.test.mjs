@@ -106,8 +106,14 @@ test('a map-supplied interaction-state name cannot carry a receipt marker or men
   const { slice } = report(
     pairFixture({
       surface: 'home@900',
-      before: pageMap({ states: states('rgb(0, 0, 255)') }),
-      after: pageMap({ states: states('rgb(0, 128, 0)') }),
+      before: {
+        ...pageMap({ states: states('rgb(0, 0, 255)') }),
+        stateLayers: ['hover', 'focus', 'active', 'checked', 'disabled', 'placeholder-shown', `hover${injection}`],
+      },
+      after: {
+        ...pageMap({ states: states('rgb(0, 128, 0)') }),
+        stateLayers: ['hover', 'focus', 'active', 'checked', 'disabled', 'placeholder-shown', `hover${injection}`],
+      },
     }),
   );
   assert.match(slice, /\*\*`button\.cta`\*\* interaction states changed: `:hover-+ styleproof-receipt head-sha-x/);

@@ -71,6 +71,16 @@ function remapStyleMap(before: StyleMap, remap: PathRemap): StyleMap {
     ...before,
     elements: remapKeys(before.elements, remap),
     states,
+    ...(before.stateTargets
+      ? {
+          stateTargets: Object.fromEntries(
+            Object.entries(before.stateTargets).map(([state, owners]) => [
+              state,
+              owners.map(remap).filter((owner): owner is string => owner !== null),
+            ]),
+          ),
+        }
+      : {}),
     ...(proof ? { stateComputedValueStyle: remapStateLayer(proof) } : {}),
     volatile: before.volatile?.map(remap).filter((p): p is string => p !== null),
     liveCandidates: withPath(before.liveCandidates),

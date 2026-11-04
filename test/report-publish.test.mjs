@@ -418,8 +418,8 @@ test('a receipt marker in map-supplied code-span values does not break the read-
   const injection = 'x <!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->';
   const button = 'body > div:nth-child(1) > button:nth-child(1)';
   const card = 'body > div:nth-child(1) > section:nth-child(2)';
-  const map = (color, tail) =>
-    makeMap({
+  const map = (color, tail) => ({
+    ...makeMap({
       states: { [button]: { [`hover ${injection}`]: { [button]: { color } } } },
       elements: {
         body: { tag: 'body', rect: [0, 0, 1280, 800] },
@@ -438,7 +438,9 @@ test('a receipt marker in map-supplied code-span values does not break the read-
           },
         },
       },
-    });
+    }),
+    stateLayers: ['hover', 'focus', 'active', 'checked', 'disabled', 'placeholder-shown', `hover ${injection}`],
+  });
   const dirs = pairFixture({
     surface: 'home@1280',
     before: map('rgb(0, 0, 0)', ''),

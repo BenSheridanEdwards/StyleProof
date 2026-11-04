@@ -1622,19 +1622,24 @@ The capture-the-subset step stays yours (it depends on your map layout), but the
 
 Forced hover, focus and active capture reads the whole unignored document for
 each control, including sibling and ancestor effects. It defaults to 2,000
-elements per read and 32,000 total element reads. A static page with `E` elements
+elements per read and 32,000 legacy element reads. Form states have their own
+32,000-read allowance; they never spend the legacy allowance. In document scope, a static page with `E` elements
 and `T` controls needs `4 * E * T` reads: one resting read and three forced reads
-per control. Going over either allowance persists `statesSkipped: true` and
-prevents state certification.
+per control. Legacy truncation persists `statesSkipped: true` and prevents state
+certification. Form allowance/shared-baseline omissions are recorded in
+`stateLayerOmissions`: matching omissions on both sides preserve legacy certification.
+One-sided layers, read failures, and resting drift remain uncertified. See
+[forced-state capture](forced-state-capture.md) for the full contract.
 
-Set `maxForcedStateElements` and `maxForcedStateScanWork` on
+Set `maxForcedStateElements`, `maxForcedStateScanWork`, and `maxFormStateScanWork` on
 `captureStyleMap`, `defineStyleMapCapture`, or `defineCrawlCapture` to choose an
-explicit allowance. Both must be positive safe integers. For example:
+explicit allowance. All three must be positive safe integers. For example:
 
 ```ts
 defineStyleMapCapture({
   dir: process.env.STYLEPROOF_DIR,
   maxForcedStateScanWork: 80_000,
+  maxFormStateScanWork: 80_000,
   surfaces: [
     {
       key: 'home',
@@ -1647,7 +1652,7 @@ defineStyleMapCapture({
 });
 ```
 
-Surfaces can override either value. Variants and live states inherit their
+Surfaces can override any of these values. Variants and live states inherit their
 surface's values and can override them independently. State recipes and popup
 captures inherit their surface's values. Each primary capture and self-check
 gets the same resolved limits and a fresh allowance.
@@ -1657,6 +1662,14 @@ Measure complete capture and self-check time before increasing allowances for
 large pages. Raising `maxInteractive` alone does not change either scan limit.
 These options do not disable states, sample controls, or certify truncated maps.
 CLI URL/crawl commands do not expose these options.
+
+Form work adds at most two forced variations per eligible control and one baseline
+charge, compared with the legacy sweep's three variations and baseline. Shared
+baselines/counts and resolved nodes are reused, reset waits overlap, and the
+resting baseline is checked after the sweep. Drift discards form evidence. All
+six forced screenshot layers are written, even when a form layer has no eligible
+owners, adding three screenshot layers while keeping pixel pairs complete.
+See [form applicability and owner comparability](forced-state-capture.md).
 
 ### Stylesheet-derived read scope
 
