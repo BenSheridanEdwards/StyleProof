@@ -52,7 +52,8 @@ const cases = [
 
 for (const [name, before, from, to, tokens] of cases) {
   for (const ran of [false, true]) {
-    test(`${name} on an ${ran ? 'executed' : 'unopened'} overlay is ${ran ? 'unknown' : 'never-rendered'}`, async () => {
+    const expected = ran ? (tokens ? 'unknown' : 'unmeasured') : 'never-rendered';
+    test(`${name} on an ${ran ? 'executed' : 'unopened'} overlay is ${expected}`, async () => {
       const after = before.replace(from, to);
       const maps = await Promise.all([shapedCapture(before, ran), shapedCapture(after, ran)]);
       const changes = sourceChanges(before, after);
@@ -60,8 +61,8 @@ for (const [name, before, from, to, tokens] of cases) {
       assert.deepEqual(
         units.map((unit) => [unit.side, unit.status]),
         [
-          ['base', ran ? 'unknown' : 'never-rendered'],
-          ['head', ran ? 'unknown' : 'never-rendered'],
+          ['base', expected],
+          ['head', expected],
         ],
       );
       if (tokens)

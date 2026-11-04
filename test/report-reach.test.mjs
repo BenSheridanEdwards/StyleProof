@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { reachSummaryLine } from '../dist/report/reach.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
-import { fixtureCommitSha, makeMap, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
+import { fixtureCommitSha, makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
 
 const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
 const map = (...rules) => ({
@@ -49,6 +49,31 @@ const intro =
   '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
 const table = ['| Rule | Change | Gated by | Source | Why |', '| --- | --- | --- | --- | --- |'];
 const darkRule = '@media (prefers-color-scheme: dark) > .panel';
+
+test('large reach detail leaves the global chrome block its display budget first', (t) => {
+  const rules = Array.from({ length: 300 }, (_, i) => rule(`.unopened-${i}`, 'base'));
+  const elements = {
+    'html > body > nav': { tag: 'nav', cls: '', style: { color: 'black' } },
+    'html > body > nav > a': { tag: 'a', cls: 'link', style: { color: 'black' } },
+  };
+  const base = { ...map(...rules), elements };
+  const head = {
+    ...map(...rules.map((entry) => ({ ...entry, hash: 'head' }))),
+    elements: {
+      ...elements,
+      'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'black' } },
+    },
+  };
+  const dirs = fixture(t, [base, base], [head, head]);
+  for (const dir of [dirs.beforeDir, dirs.afterDir])
+    for (const index of [0, 1]) fs.writeFileSync(path.join(dir, `surface-${index}@1280.png`), solidPng(1280, 400));
+  const wide = report(dirs, { includeContent: true });
+  assert.match(wide.md, /## 🧱 Global chrome/);
+  assert.ok(wide.md.indexOf('## 🧱 Global chrome') < wide.md.indexOf('## Changed but never matched'));
+  const bounded = report(dirs, { maxMarkdownBytes: 5000, includeContent: true });
+  assert.match(bounded.md, /## 🧱 Global chrome/);
+  assert.equal(bounded.json.reach.rules.length, 300);
+});
 
 test('unrendered changed CSS rules are listed with their condition and source without changing the verdict', (t) => {
   const side = (hash) => map(rule('.panel--fault', hash), rule(darkRule, hash), rule('.ok', hash, { used: true }));

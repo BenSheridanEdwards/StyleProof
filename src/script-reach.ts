@@ -29,6 +29,8 @@ export type ScriptReachEntry<Span = CompactSourceSpan> = {
   url: string;
   status: 'mapped' | 'unknown' | 'unmeasured';
   reason?: string;
+  /** A readable, resolved map contains only non-app source identities, not merely no mapped segments. */
+  nonAppSourcesOnly?: true;
   files?: ScriptSourceReach<Span>[];
 };
 export type ScriptReach = {

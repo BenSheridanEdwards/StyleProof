@@ -1,6 +1,7 @@
 /** One execution index per side/source, retaining script identity when captures are merged. */
-import type { ScriptSourceReach, SourceSpan } from './script-reach.js';
+import type { ScriptSourceReach, SourcePosition, SourceSpan } from './script-reach.js';
 import type { ScriptExecution } from './script-join.js';
+import { scriptTokens } from './script-join-tokens.js';
 
 type Anchor = { column: number; bits: number };
 export type ScriptSourceEvidence = ScriptSourceReach & { scriptUrl?: string };
@@ -83,7 +84,7 @@ function rowEvidence(row: Anchor[], start: number, end: number): number {
   return bits;
 }
 
-type RangeExecution = { execution: ScriptExecution; scope: 'range' | 'line' | 'preceding-anchor' };
+type RangeExecution = { execution: ScriptExecution; scope: 'range' | 'line' | 'preceding-anchor'; why?: string };
 
 function lineOnly(row: Anchor[] | undefined): row is Anchor[] {
   return row?.length === 1 && row[0].column === 0;
@@ -109,9 +110,51 @@ function precedingEvidence(range: SourceSpan, index: ScriptExecutionIndex): numb
   return cursor > 0 ? index.rows.get(index.lines[cursor - 1])!.at(-1)!.bits : 0;
 }
 
-export function executionIn(range: SourceSpan, index: ScriptExecutionIndex): RangeExecution {
-  let bits = 0,
-    lineBits = 0;
+function firstStart(range: SourceSpan, index: ScriptExecutionIndex): SourcePosition | undefined {
+  for (
+    let cursor = firstAtOrAfter(index.lines, range.start.line, (value) => value);
+    cursor < index.lines.length;
+    cursor++
+  ) {
+    const line = index.lines[cursor];
+    if (line > range.end.line) break;
+    const row = index.rows.get(line)!;
+    const anchor =
+      row[firstAtOrAfter(row, line === range.start.line ? range.start.column : 0, (point) => point.column)];
+    if (anchor && (line < range.end.line || anchor.column < range.end.column)) return { line, column: anchor.column };
+  }
+}
+
+function leadingExecution(range: SourceSpan, index: ScriptExecutionIndex, text?: string): RangeExecution | undefined {
+  if (text === undefined) return;
+  const first = firstStart(range, index);
+  if (!first) return;
+  const stop = first.line - range.start.line;
+  if (stop === 0 && first.column === range.start.column) return;
+  const prefix = text
+    .split(/\r\n|[\n\r\u2028\u2029]/)
+    .slice(0, stop + 1)
+    .map((line, i) => line.slice(i === 0 ? range.start.column : 0, i === stop ? first.column : undefined))
+    .join('\n');
+  if (!scriptTokens(prefix).length) return;
+  const preceding = rangeExecution(0, 'preceding-anchor', range, index);
+  return {
+    ...preceding,
+    why: `leading text before the first in-range anchor; ${preceding.why ?? 'preceding-anchor evidence cannot be ignored'}`,
+  };
+}
+
+function combinedExecution(bits: number, scope: RangeExecution['scope'], leading: RangeExecution): RangeExecution {
+  const negative = leading.execution === 'partly-ran' ? 3 : leading.execution === 'never-ran' ? 2 : 0;
+  bits |= negative;
+  // An unmeasured prefix cannot be proved by a later start. Any known idle
+  // portion still names the line as never-rendered rather than hiding it.
+  const execution = bits & 2 ? (bits & 1 ? 'partly-ran' : 'never-ran') : 'unmeasured';
+  return { execution, scope: scope === 'line' ? scope : 'preceding-anchor', why: leading.why };
+}
+
+export function executionIn(range: SourceSpan, index: ScriptExecutionIndex, text?: string): RangeExecution {
+  let bits = 0;
   let scope: RangeExecution['scope'] = 'range';
 
   for (
@@ -124,12 +167,12 @@ export function executionIn(range: SourceSpan, index: ScriptExecutionIndex): Ran
     const row = index.rows.get(line)!;
     if (lineOnly(row)) {
       scope = 'line';
-      lineBits |= rowEvidence(row, 0, Infinity);
     }
     bits |= rangeRowEvidence(row, line, range);
   }
 
-  return rangeExecution(bits || lineBits, scope, range, index);
+  const leading = leadingExecution(range, index, text);
+  return leading ? combinedExecution(bits, scope, leading) : rangeExecution(bits, scope, range, index);
 }
 
 function rangeExecution(
@@ -140,7 +183,15 @@ function rangeExecution(
 ): RangeExecution {
   if (!bits) {
     bits = precedingEvidence(range, index);
-    if (bits) scope = 'preceding-anchor';
+    if (bits && scope !== 'line') scope = 'preceding-anchor';
+    // A mapped start before this range can name an idle block, but cannot
+    // prove execution of text that the bundler may have removed entirely.
+    if (bits === 1)
+      return {
+        execution: 'unmeasured',
+        scope,
+        why: 'no mapped anchor inside the changed range; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler)',
+      };
   }
 
   return { execution: bits === 3 ? 'partly-ran' : bits === 2 ? 'never-ran' : bits === 1 ? 'ran' : 'unmeasured', scope };

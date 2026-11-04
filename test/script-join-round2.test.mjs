@@ -170,7 +170,7 @@ for (const tokenScoped of [false, true])
     assert.equal(json.surfaces.flatMap((surface) => surface.findings ?? []).length, 20);
     assert.ok(Buffer.byteLength(raw) <= DEFAULT_MAX_JSON_BYTES, `${Buffer.byteLength(raw)} JSON bytes`);
     assert.equal(json.findingsBudget?.omitted ?? 0, 0);
-    assert.equal(json.reach.scriptCounts.unknown, 3000);
+    assert.equal(json.reach.scriptCounts[tokenScoped ? 'unmeasured' : 'unknown'], 3000);
     const metadata = { ...json, reach: { ...json.reach, scripts: [] } };
     const tightBytes = Buffer.byteLength(JSON.stringify(metadata, null, 2)) + 1024;
     const tight = render('tight-report', { maxJsonBytes: tightBytes });

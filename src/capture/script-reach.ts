@@ -7,7 +7,7 @@ import {
 /** Navigation-window script coverage. Reader failures are evidence gaps, never capture failures. */
 import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-resources.js';
 import { applyMediaState } from '../media-states.js';
-import { storedScriptUrl } from '../script-reach-identity.js';
+import { sourceIdentities, storedScriptUrl } from '../script-reach-identity.js';
 import { STYLEPROOF_SCRIPT_URL } from './script-evaluation.js';
 import { resolveScriptProjectRoot, scriptProjectRootPrefix } from './script-project-root.js';
 import { MAX_GENERATED_LENGTH, MAX_SCRIPTS, MAX_SCRIPT_IDENTIFICATIONS } from '../script-reach-limits.js';
@@ -86,13 +86,22 @@ async function resolveScript(
     if (!reference) return { url, status: 'unmeasured', reason: 'source map absent' };
     const mapUrl = new URL(reference, script.url).href;
     const map = JSON.parse(await readResource(page, client, mapUrl, script.url, deadline));
-    const files = mapScriptCoverage(entry, scriptSource, map, mapUrl.startsWith('data:') ? script.url : mapUrl, {
+    const resolvedMapUrl = mapUrl.startsWith('data:') ? script.url : mapUrl;
+    const files = mapScriptCoverage(entry, scriptSource, map, resolvedMapUrl, {
       deadline,
       projectRoot: input.projectRoot,
     });
-    return files.length
-      ? { url, status: 'mapped', files }
-      : { url, status: 'unmeasured', reason: 'no mapped app sources' };
+    if (files.length) return { url, status: 'mapped', files };
+    const nonAppSourcesOnly =
+      map.sources.length > 0 &&
+      map.sources.every((source: string | null) => typeof source === 'string' && source.length > 0) &&
+      sourceIdentities(map, resolvedMapUrl, input.projectRoot).every((source) => source === undefined);
+    return {
+      url,
+      status: 'unmeasured',
+      reason: 'no mapped app sources',
+      ...(nonAppSourcesOnly ? { nonAppSourcesOnly: true as const } : {}),
+    };
   } catch (error) {
     return {
       url,

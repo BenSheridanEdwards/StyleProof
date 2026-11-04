@@ -1,0 +1,134 @@
+✔ unreachable declaration removed by esbuild cannot inherit positive execution (36.245417ms)
+✔ optimized idle ternary arm removed by esbuild cannot inherit positive execution (1.743125ms)
+✔ production-only removed debug JSX removed by esbuild cannot inherit positive execution (1.988458ms)
+✔ removed return after throw removed by esbuild cannot inherit positive execution (1.309833ms)
+✔ an unopened multiline function without body anchors uses only negative executed preceding evidence (0.576542ms)
+✔ an unopened multiline function without body anchors uses only negative unexecuted preceding evidence (0.157875ms)
+✔ an unopened multiline function without body anchors uses only negative mixed preceding evidence (0.13575ms)
+✔ a column-zero start proves entry only when it starts inside the changed range (0.284875ms)
+✖ a changed template tail combines idle leading text with later executed starts (1.068292ms)
+✖ a changed multi-token template tail combines idle leading text with later executed starts (0.433583ms)
+✖ a changed clsx template tail combines idle leading text with later executed starts (0.257167ms)
+✖ a changed empty map callback combines idle leading text with later executed starts (0.16525ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 8
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 153.144542
+
+✖ failing tests:
+
+test at test/script-join-round7.test.mjs:162:3
+✖ a changed template tail combines idle leading text with later executed starts (1.068292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'never-rendered',
+  -   'never-rendered'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:175:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'never-rendered', 'never-rendered' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round7.test.mjs:162:3
+✖ a changed multi-token template tail combines idle leading text with later executed starts (0.433583ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'never-rendered',
+  -   'never-rendered'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:175:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'never-rendered', 'never-rendered' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round7.test.mjs:162:3
+✖ a changed clsx template tail combines idle leading text with later executed starts (0.257167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'never-rendered',
+  -   'never-rendered'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:175:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'never-rendered', 'never-rendered' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round7.test.mjs:162:3
+✖ a changed empty map callback combines idle leading text with later executed starts (0.16525ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'never-rendered',
+  -   'never-rendered'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:175:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'never-rendered', 'never-rendered' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

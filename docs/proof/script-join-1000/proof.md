@@ -336,3 +336,131 @@ The push uses the CLI fixture's existing concurrent-worktree setting,
 `STYLEPROOF_E2E_PORT_BASE=28000`, for a separately checked port block. The fixture
 documents this setting in `test/cli-flow.e2e.spec.ts`; all hook tests, assertions
 and timeout bounds still run unchanged.
+
+
+## Round 7: preceding starts supply only negative evidence
+
+Rebased onto `66789afa5`; the README conflict preserves upstream's clipped-map
+validation guidance alongside the J2 contract. The retained [unit red](round7-red-unit.txt)
+has four failures and two passing negative controls. The [Chromium red](round7-red-browser.txt)
+has two failures and two passing overlay controls.
+
+| Reproduction | Red → green |
+| --- | --- |
+| Unreachable declaration after `return` | esbuild `minifySyntax: true` removes the declaration. Its changed literal inherited ran/unknown from preceding executed code; it now stays unmeasured on both revisions with the bundler-removal reason. Real Chromium capture and the real Git adapter cover this path. |
+| Optimized idle ternary arm | The removed arm likewise inherited ran/unknown; it now stays unmeasured on both revisions. A second real-Chromium/Git case covers this path. |
+| Unopened multiline function without body starts | A coarse executed header previously supplied positive execution, even allowing an exact-range proof to promote the unit to reached. It now stays unmeasured. Unexecuted and mixed preceding starts still produce never-rendered, including under corroboration. |
+| Column-zero start outside a trimmed token | Positive line fallback previously read ran. Only a start inside the changed range may now prove ran; a preceding column-zero start stays unmeasured while retaining the line-scope label. |
+
+An opened CSS/JSX overlay control with no start inside the changed range now reads
+**unmeasured**, replacing round six's unknown. Both are non-reached. The unopened
+controls remain never-rendered; the nullish-operand, token-join/split and
+same/different-script capture-merge regressions retain their earlier semantics.
+Three older unit assertions are aligned with this stricter rule, including the
+3,000-token report-budget fixture, which still requires all twenty style findings
+and the same JSON byte cap.
+
+The current [report JSON](round7-report.json), [Markdown](round7-report.md) and
+screenshot below use real minified esbuild builds, real Chromium evidence, two
+Git revisions and the report's real adapter. Both changed `app.tsx:4` literals
+are unmeasured with the removal caveat, J2 is warn-only, and reach is incomplete.
+The product-state identity warning, absent computed-style changes, inventory
+not-checked warning and unbuilt joins remain visible in the report artifacts.
+This is diagnostic execution evidence, not a certified same-state comparison.
+Every visible label and both reasons were inspected at reviewer size.
+
+![Removed literals stay unmeasured with the bundler caveat](round7-report-top.png)
+
+Before the addendum, targeted checks passed **406/406 units** and **73/73 browser cases**. The corpus
+passes all **32 cells** with no status changes: unknown counts remain five
+declared and six complete, J3 prototype labels remain separate, and every cell
+still asserts zero J2 run-level gaps. Fallow audit reports zero new dead code,
+complexity or duplication. Full-gate tails and publication status are in the handoff.
+
+Before the addendum, full verification passed **5,205/5,205**, with zero failures, cancellations or
+skips. The push uses the CLI fixture's existing `STYLEPROOF_E2E_PORT_BASE=28000`
+resource-isolation setting. All hook tests, assertions and timeout bounds run
+unchanged; no gate configuration changed.
+
+
+### Round 7 addendum: leading unmapped text and report order
+
+The [additional unit red](round7-addendum-red-unit.txt) retains four leading-text
+failures and eight passing controls. The [additional browser red](round7-addendum-red-browser.txt)
+retains three real-Chromium failures and eight passing controls. New minified
+production-define, post-throw and merged-return regressions already pass under
+the negative-only fallback; the merged head cannot inherit the selected zero
+branch's positive evidence.
+
+Leading text before the first in-range start is tokenized and joined to its
+preceding evidence, using the same negative-only rule. Idle template tails,
+multitoken edits, clsx text and empty map callbacks can no longer disappear
+behind later executed starts. An unmeasured leading prefix stays unmeasured
+unless a known idle portion already establishes never-rendered. Punctuation-only
+prefixes do not borrow a neighbour's state. The lookup uses sorted line/column
+indexes without slicing the full line index per changed unit; the 6,000-line
+regression stays green. Final targeted checks pass **451/451 units** and
+**81/81 browser cases**, including the real two-line-hunk control.
+
+The [report-order red](round7-addendum-red-report.txt) fails against the original
+allocation order. Reach detail now queues after chrome, gallery and content. Its
+regression checks both ordering and preservation of chrome detail under a 5 KB
+Markdown budget; JSON retains all 300 rule records. The block allocator is shared
+by J1 and J2 reach detail. The [additional JSON](round7-chrome-report.json) and
+[Markdown](round7-chrome-report.md) use real captures and the Git adapter with a
+nav addition on two surfaces. They retain the visible structure review gate,
+two unmeasured removed literals, the named `index.html` gap, product-state
+identity warning and inventory-not-checked warning. These are diagnostic
+artifacts, not a certified same-state compare. Every visible screenshot label
+and the full Markdown were inspected.
+
+![Chrome detail precedes advisory reach detail without hiding the evidence warnings](round7-chrome-report-top.png)
+
+Comment/type-only ranges continue to use conservative execution classification;
+the optional no-executable-code naming heuristic is not added.
+
+Before the second addendum, combined verification passed **5,215/5,215**, with zero failures,
+cancellations or skips. The corpus remains **32/32**, with no status changes.
+Fallow audit and the hook's production health check pass with zero new findings
+and zero threshold violations. No gate configuration or timeout changed.
+
+
+### Round 7 second addendum: vendor-only maps and current main
+
+Rebased cleanly onto `841add62d`, retaining both upstream and J2 README content.
+The branch includes `655471bbd`, `087c362bd` and `c4c5dc31c`. The corpus already
+requires zero J2 run-level gaps; its earlier unsupported-script gap expectation
+was removed in round five, so no stale two-gap expectation remains.
+
+The [F8 unit red](round7-f8-red-unit.txt) fails on the vendor-only entry, with
+legacy/absent/unreadable-map controls passing. The [real esbuild/Chromium red](round7-f8-red-browser.txt)
+fails on a shared vendor chunk and passes with its map missing. The browser
+fixture builds two ES-module entries with splitting, loading an app entry and
+an actual shared node_modules chunk on both revisions. A third control gives
+the chunk a readable app-source map with no mapped segments; that must retain
+the gap too.
+
+Capture now records optional `nonAppSourcesOnly: true` only after map reading,
+validation and identity resolution succeed, the source list is nonempty and
+contains no anonymous/null entries, and every identity is non-app. Empty app
+mappings cannot supply that marker. The join ignores only that marked
+unmeasured/no-mapped-app-sources entry. Missing, failed or older ambiguous entries
+still produce gaps. The marker survives tuple compaction without changing the
+capture evidence version; no public API breaks. The reference validation folder
+was read only and was not modified.
+
+After this rebase and F8 fix, targeted checks pass **456/456 units** and
+**84/84 browser cases**. The corpus passes all **32 cells**, with zero J2 gaps
+and no case-status changes; unknown counts remain five declared and six complete.
+The existing zero-gap oracle expectation remains correct. The [stored vendor
+example](round7-vendor-evidence.json) is actual browser evidence plus the join
+result: both changed app units stay unknown, the shared chunk carries the marker,
+and no run-level gap is emitted. The report examples were recaptured on this
+rebased source and inspected again, with Evidence expanded in both screenshots.
+
+Final verification on `841add62d` plus the complete round-seven fix passes
+**5,221/5,221**, with zero failures, cancellations or skips. Fallow audit and
+production health checks pass unchanged. The earlier formatting addition briefly
+raised classifyRange cognitive complexity to 17; simplifying reason concatenation
+removed the finding without changing thresholds. Full gate tails and the final
+published SHA are in the handoff.

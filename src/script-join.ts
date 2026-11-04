@@ -110,6 +110,8 @@ function mappedFiles(
   reasons: string[],
 ): void {
   for (const script of reach.scripts) {
+    if (script.nonAppSourcesOnly && script.status === 'unmeasured' && script.reason === 'no mapped app sources')
+      continue;
     if (script.status !== 'mapped') {
       reasons.push(script.reason ?? 'source map unavailable');
       continue;
@@ -226,18 +228,24 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
 
   const issue = contentHashIssue(file, contentHash);
   if (issue) return unit('unmeasured', 'unmeasured', issue);
-  const measured = executionIn(change.range, file);
+  const measured = executionIn(change.range, file, text);
   const execution = measured.execution;
   scope = measured.scope;
 
   if (execution === 'unmeasured')
-    return unit(execution, 'unmeasured', 'no mapped execution anchor inside or at or before the changed range');
+    return unit(
+      execution,
+      'unmeasured',
+      measured.why ?? 'no mapped execution anchor inside or at or before the changed range',
+    );
 
   if (execution === 'never-ran' || execution === 'partly-ran')
     return unit(
       execution,
       'never-rendered',
-      execution === 'never-ran' ? 'changed expression never ran' : 'changed expression only partly ran',
+      [execution === 'never-ran' ? 'changed expression never ran' : 'changed expression only partly ran', measured.why]
+        .filter(Boolean)
+        .join('; '),
     );
 
   const corroborated = proofs.some(

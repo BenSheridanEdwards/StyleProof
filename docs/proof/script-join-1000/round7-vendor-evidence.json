@@ -1,0 +1,149 @@
+{
+  "base": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached."
+    ],
+    "scripts": [
+      {
+        "url": "https://split.test/assets/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.js",
+            "sourceKey": "app.js",
+            "contentHash": "e0e09679bdd58a7d9cd46c4e4f306e8c0d66d5833792a8f01fb42562694c5fc4",
+            "executed": [
+              [
+                1,
+                41,
+                41
+              ],
+              [
+                1,
+                48,
+                48
+              ],
+              [
+                1,
+                57,
+                57
+              ],
+              [
+                1,
+                66,
+                66
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      },
+      {
+        "url": "https://split.test/assets/chunk-MMEDVBYP.js",
+        "status": "unmeasured",
+        "reason": "no mapped app sources",
+        "nonAppSourcesOnly": true
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "head": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached."
+    ],
+    "scripts": [
+      {
+        "url": "https://split.test/assets/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.js",
+            "sourceKey": "app.js",
+            "contentHash": "ac1264ceaf311c88b5ee2e5446d7666b7bfa585dac13e9a2635df242a4d24b0e",
+            "executed": [
+              [
+                1,
+                41,
+                41
+              ],
+              [
+                1,
+                48,
+                48
+              ],
+              [
+                1,
+                57,
+                57
+              ],
+              [
+                1,
+                66,
+                66
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      },
+      {
+        "url": "https://split.test/assets/chunk-MMEDVBYP.js",
+        "status": "unmeasured",
+        "reason": "no mapped app sources",
+        "nonAppSourcesOnly": true
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "join": {
+    "units": [
+      {
+        "sourceKey": "app.js",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 66
+          },
+          "end": {
+            "line": 1,
+            "column": 67
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved",
+        "level": "warn"
+      },
+      {
+        "sourceKey": "app.js",
+        "side": "head",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 66
+          },
+          "end": {
+            "line": 1,
+            "column": 67
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved",
+        "level": "warn"
+      }
+    ],
+    "gaps": []
+  }
+}

@@ -1,0 +1,69 @@
+Already up to date
+Done in 249ms using pnpm v11.7.0
+
+Running 4 tests using 1 worker
+
+(node:24355) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (2.5s)
+  ✓  2 [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (2.3s)
+  ✘  3 [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (2.3s)
+(node:51141) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (2.4s)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      92 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      93 |     expect(units).toHaveLength(scenario.count);
+    > 94 |     expect(units.map((unit) => unit.status)).toEqual(Array(scenario.count).fill(scenario.expected));
+         |                                              ^
+      95 |     expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      96 |     expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+      97 |     if (scenario.minifySyntax) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:94:46
+
+    Error Context: test-results/test-script-join-round6.e2-0cfb2-n-real-Chromium-through-git-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      92 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      93 |     expect(units).toHaveLength(scenario.count);
+    > 94 |     expect(units.map((unit) => unit.status)).toEqual(Array(scenario.count).fill(scenario.expected));
+         |                                              ^
+      95 |     expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      96 |     expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+      97 |     if (scenario.minifySyntax) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:94:46
+
+    Error Context: test-results/test-script-join-round6.e2-23a5f-n-real-Chromium-through-git-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git
+    [chromium] › test/script-join-round6.e2e.spec.ts:35:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git
+  2 passed (1.2m)

@@ -9,18 +9,90 @@ import { readScriptChanges } from '../dist/script-join-git.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 import { overlaySource } from './script-join-round6-fixture.mjs';
 
-for (const rendered of [false, true]) {
-  test(`${rendered ? 'opened' : 'unopened'} overlay CSS-template and JSX-text edits use real Chromium execution through git`, async ({
-    context,
-  }, testInfo) => {
+const scenarios = [
+  ...[false, true].map((rendered) => ({
+    name: `${rendered ? 'opened' : 'unopened'} overlay CSS-template and JSX-text edits use real Chromium execution through git`,
+    before: overlaySource(rendered),
+    after: overlaySource(rendered).replace('color: red;', 'color: blue;').replace('Service is down,', 'Service is up,'),
+    minifySyntax: false,
+    expected: rendered ? 'unmeasured' : 'never-rendered',
+    count: 4,
+  })),
+  ...[
+    [
+      'unreachable declaration',
+      'window.healthy = 1;\nfunction App() {\n  return "healthy";\n  const value = "down";\n}\nApp();',
+    ],
+    [
+      'optimized idle ternary arm',
+      'window.healthy = 1;\nfunction App() {\n  return true ? "healthy" : "down";\n}\nApp();',
+    ],
+    [
+      'production-only debug JSX',
+      'function App() {\n  if (process.env.NODE_ENV !== "production") {\n    return <p>Debug build down</p>;\n  }\n  return "healthy";\n}\nApp();',
+    ],
+    ['return after throw', 'function App() {\n  try { throw 1; return "down"; } catch {}\n}\nApp();'],
+  ].map(([name, before]) => ({
+    name: `${name} removed by esbuild cannot inherit execution in real Chromium through git`,
+    before,
+    after: before.replace('down', 'up'),
+    minifySyntax: true,
+    expected: 'unmeasured',
+    count: 2,
+  })),
+  {
+    name: 'a merged return cannot inherit execution from the selected zero branch',
+    before: 'function App(a) {\n  if (a) return 0;\n  return 1;\n}\nwindow.result = App(true);',
+    after: 'function App(a) {\n  if (a) return 0;\n  return undefined;\n}\nwindow.result = App(true);',
+    minifySyntax: true,
+    expected: ['never-rendered', 'unmeasured'],
+    count: 2,
+  },
+  ...[
+    [
+      'idle multiline template',
+      'const fallback = "ok";\nfunction App(a) {\n  return a ? `Service\n    is down` : fallback;\n}\nwindow.result = App(false);',
+      'is down',
+      'was down',
+    ],
+    [
+      'idle multi-token template',
+      'const fallback = "ok";\nfunction App(a) {\n  return a ? `Service\n    is down` : fallback;\n}\nwindow.result = App(false);',
+      'is down',
+      'was unavailable',
+    ],
+    [
+      'idle two-line template hunk',
+      'const fallback = "ok";\nfunction App(a) {\n  return a ? `Service\n    is down` : fallback;\n}\nwindow.result = App(false);',
+      'Service\n    is down',
+      'Service alert\n    was down',
+    ],
+    [
+      'idle clsx template',
+      'const clsx = (...args) => args.join("");\nconst open = Boolean(window.openOverlay);\nwindow.result = clsx(open && `\n    big`);',
+      'big',
+      'small',
+    ],
+    ['empty map callback', 'const xs = window.xs || [];\nwindow.result = xs.map((i) => foo +\n  5);', '5', '6'],
+  ].map(([name, before, from, to]) => ({
+    name: `${name} accounts for leading text before executed starts in real Chromium`,
+    before,
+    after: before.replace(from, to),
+    minifySyntax: true,
+    expected: 'never-rendered',
+    count: from.includes('\n') ? 4 : 2,
+  })),
+];
+
+for (const scenario of scenarios) {
+  test(scenario.name, async ({ context }, testInfo) => {
     const root = testInfo.outputPath('repository');
     fs.mkdirSync(root, { recursive: true });
     const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
     git('init', '-q');
     git('config', 'user.name', 'Fixture');
     git('config', 'user.email', 'fixture@example.test');
-    const before = overlaySource(rendered),
-      after = before.replace('color: red;', 'color: blue;').replace('Service is down,', 'Service is up,');
+    const { before, after } = scenario;
     const maps = [],
       dirs = [];
     for (const [i, text] of [before, after].entries()) {
@@ -37,6 +109,8 @@ for (const rendered of [false, true]) {
         sourcefile: 'app.tsx',
         sourcemap: 'external',
         jsxFactory: 'h',
+        minify: scenario.minifySyntax,
+        define: { 'process.env.NODE_ENV': '"production"' },
       });
       const page = await context.newPage();
       await page.route('https://overlay.test/**', (route) => {
@@ -70,9 +144,17 @@ for (const rendered of [false, true]) {
     const diff = readScriptChanges(dirs[0], dirs[1], { cwd: root, baseMaps: [maps[0]], headMaps: [maps[1]] });
     expect(diff.gaps).toEqual([]);
     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
-    expect(units).toHaveLength(4);
-    expect(units.map((unit) => unit.status)).toEqual(Array(4).fill(rendered ? 'unknown' : 'never-rendered'));
-    expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
-    expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+    expect(units).toHaveLength(scenario.count);
+    expect(units.map((unit) => unit.status)).toEqual(
+      Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+    );
+    if (scenario.expected === 'unmeasured' || !scenario.minifySyntax) {
+      expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+    }
+    if (scenario.expected === 'unmeasured') {
+      expect(units.every((unit) => unit.execution === 'unmeasured')).toBe(true);
+      expect(units.every((unit) => unit.why.includes('it may have been removed by the bundler'))).toBe(true);
+    }
   });
 }

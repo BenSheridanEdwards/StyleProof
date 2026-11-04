@@ -439,7 +439,6 @@ function renderReportBody(
     countChangedSurfaceScope(view.chrome.chrome, surfaceKeyOf).bases,
     countCapturedSurfaceBases(captureKeysIn(ctx.afterDir), surfaceKeyOf),
   );
-  const reachBlock = reach ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
   md.detail(
     content.chromeMd,
     `- ${content.globalChrome} global chrome element change(s) on every surface base that renders its container`,
@@ -457,6 +456,7 @@ function renderReportBody(
       `- ${content.contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
     );
   }
+  const reachBlock = reach ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
   return { oneSided, changed, reachBlock };
 }
 

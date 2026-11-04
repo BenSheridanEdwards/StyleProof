@@ -1,0 +1,37 @@
+Already up to date
+Done in 65ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:66390) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/script-join-vendor.e2e.spec.ts:10:3 › a code-split vendor chunk with a readable map avoids a J2 gap (181ms)
+(node:66507) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [chromium] › test/script-join-vendor.e2e.spec.ts:10:3 › a code-split vendor chunk with a missing map retains a J2 gap (295ms)
+
+
+  1) [chromium] › test/script-join-vendor.e2e.spec.ts:10:3 › a code-split vendor chunk with a readable map avoids a J2 gap
+
+    Error: expect(received).toHaveProperty(path, value)
+
+    Expected path: "nonAppSourcesOnly"
+    Received path: []
+
+    Expected value: true
+    Received value: {"reason": "no mapped app sources", "status": "unmeasured", "url": "https://split.test/assets/chunk-MMEDVBYP.js"}
+
+      41 |         if (readable) {
+      42 |           expect(chunk?.reason).toBe('no mapped app sources');
+    > 43 |           expect(chunk).toHaveProperty('nonAppSourcesOnly', true);
+         |                         ^
+      44 |         } else {
+      45 |           expect(chunk?.status).toBe('unknown');
+      46 |           expect(chunk).not.toHaveProperty('nonAppSourcesOnly');
+        at <checkout>/test/script-join-vendor.e2e.spec.ts:43:25
+
+    Error Context: test-results/test-script-join-vendor.e2-94a08-eadable-map-avoids-a-J2-gap-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/script-join-vendor.e2e.spec.ts:10:3 › a code-split vendor chunk with a readable map avoids a J2 gap
+  1 passed (1.4s)
