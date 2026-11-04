@@ -16,6 +16,7 @@ function fixture(
     states = false,
     elementPaths,
     foldedWidths = false,
+    styleFor,
     extra = {},
     options = {},
   } = {},
@@ -31,12 +32,18 @@ function fixture(
             tag: 'h2',
             cls: 'card-title',
             rect: [40, positions?.[index] ?? 40 + index * 130, 150, 35],
-            style: states
-              ? {}
-              : {
-                  ...(foldedWidths ? { width: head ? `${30 + index}px` : '20px' } : {}),
-                  color: head ? (different && index === 1 ? 'rgb(0, 128, 0)' : 'rgb(150, 30, 60)') : 'rgb(30, 60, 120)',
-                },
+            style: styleFor
+              ? styleFor(index, head)
+              : states
+                ? {}
+                : {
+                    ...(foldedWidths ? { width: head ? `${30 + index}px` : '20px' } : {}),
+                    color: head
+                      ? different && index === 1
+                        ? 'rgb(0, 128, 0)'
+                        : 'rgb(150, 30, 60)'
+                      : 'rgb(30, 60, 120)',
+                  },
           },
         ]),
       ),
@@ -204,11 +211,11 @@ test('element grouping retains kind, label, pseudo, state and summarized values'
   assert.equal(groupByElementChange([shorthand, longhands]).length, 1);
 });
 
-test('different semantic sections respect the crop count cap without combining their changes', (t) => {
+test('the crop count threshold collapses distinct exposed sections into one main-style union', (t) => {
   const { md, json } = fixture(t, { different: true, options: { maxCrops: 1 } });
-  assert.equal(sections(md).length, 2);
+  assert.equal(sections(md).length, 1);
   assert.equal(json.surfaces[0].regions.filter((region) => region.images.composite).length, 1);
-  assert.match(md, /Crop omitted: this surface reached the `--max-crops` limit/);
+  assert.doesNotMatch(md, /Crop omitted: this surface reached the `--max-crops` limit/);
   assert.equal((md.match(/\| `color` \|/g) ?? []).length, 2);
 });
 
@@ -308,7 +315,14 @@ test('non-representative elements retain their distinct folded geometry rows', (
   const { md } = fixture(t, { foldedWidths: true });
   assert.match(md, /3 elements restyled/);
   assert.match(md, /3 size\/position rows folded/);
-  for (const width of ['30px', '31px', '32px']) assert.ok(md.includes(`| \`width\` | \`20px\` | \`${width}\` |`));
+  for (const [index, width] of ['30px', '31px', '32px'].entries()) {
+    const heading = `**Card title** \`h2.card-title\` · \`article:nth-child(${index + 1}) > h2\``;
+    const start = md.indexOf(heading);
+    assert.ok(start >= 0, `missing folded attribution: ${heading}`);
+    const next = md.indexOf('\n**', start + heading.length);
+    const block = md.slice(start, next < 0 ? undefined : next);
+    assert.ok(block.includes(`| \`width\` | \`20px\` | \`${width}\` |`));
+  }
 });
 
 test('nearby identical state changes share one counted section and list', (t) => {
@@ -350,4 +364,90 @@ test('folded grid values cannot claim identical surfaces just because track coun
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.ok(md.includes('`600px ×2`') && md.includes('`900px ×2`'), md);
   assert.doesNotMatch(md, /Identical across 2 surfaces/);
+});
+
+test('a folded row on only the second element uses the section list tail', (t) => {
+  const { md } = fixture(t, {
+    styleFor: (index, head) => ({ color: head ? 'red' : 'blue', height: head && index === 1 ? '22px' : '20px' }),
+  });
+  assert.ok(md.includes('**Card title** `h2.card-title` · `article:nth-child(2) > h2`'));
+  assert.ok(md.includes('| `height` | `20px` | `22px` |'));
+});
+
+test('an off-canvas member does not replace the union of the exposed members', (t) => {
+  const { md, json, dirs } = fixture(t, { positions: [40, 170, 2000] });
+  assert.match(md, /1 of 3 elements is outside the captured screenshot/);
+  assert.doesNotMatch(md, /combined crop would be unreadable/);
+  assert.doesNotMatch(md, /All 3 changed elements are marked/);
+  const region = json.surfaces[0].regions[0];
+  assert.equal(region.cropFallback, undefined);
+  const image = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, region.images.annotated)));
+  assert.ok(image.height < 300, 'crop excludes the off-canvas member');
+  for (const row of [32, 162])
+    assert.ok(
+      Array.from({ length: image.width }, (_, x) => (row * image.width + x) * 4).some(
+        (offset) => image.data[offset] === 255 && image.data[offset + 1] === 0 && image.data[offset + 2] === 200,
+      ),
+      'both exposed elements are marked',
+    );
+});
+
+test('the crop cap preserves main collapse semantics including a zero cap', (t) => {
+  const zero = fixture(t, { options: { maxCrops: 0 } });
+  assert.equal(zero.json.surfaces[0].regions.filter((region) => region.images.composite).length, 1);
+  const many = fixture(t, {
+    count: 10,
+    styleFor: (index, head) => ({ color: head ? `rgb(${index + 10}, 30, 60)` : 'rgb(30, 60, 120)' }),
+    options: { maxCrops: 8 },
+  });
+  assert.equal(many.json.surfaces[0].regions.length, 1);
+  assert.ok(many.json.surfaces[0].regions[0].images.composite);
+  assert.equal(many.json.surfaces[0].regions[0].paths.length, 10);
+  assert.doesNotMatch(many.md, /max-crops.*limit/);
+});
+
+test('an unexposed section does not consume a crop slot', (t) => {
+  const { json } = fixture(t, {
+    styleFor: (index, head) => ({
+      color: head ? `rgb(${index + 10}, 30, 60)` : 'rgb(30, 60, 120)',
+      ...(index === 0 ? { display: 'none' } : {}),
+    }),
+    options: { maxCrops: 2 },
+  });
+  assert.equal(json.surfaces[0].regions.filter((region) => region.images.composite).length, 2);
+});
+
+test('a mixed parent-child region keeps main outermost heading anchors', (t) => {
+  const parent = 'body > section';
+  const child = `${parent} > h2`;
+  const map = (head) =>
+    makeMap({
+      elements: {
+        [parent]: { tag: 'section', cls: 'parent', rect: [20, 20, 300, 150], style: { color: head ? 'red' : 'blue' } },
+        [child]: { tag: 'h2', cls: 'child', rect: [30, 30, 100, 30], style: { color: head ? 'green' : 'blue' } },
+      },
+    });
+  const dirs = pairFixture({ surface: 'home@600', before: map(false), after: map(true) });
+  t.after(() => rmTmp(dirs.root));
+  const result = generateReport(dirs);
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.match(md, /### \*\*Parent\*\* `section.parent` · 2 elements restyled/);
+  assert.doesNotMatch(md, /section.parent` \+ 1 more/);
+  assert.deepEqual(
+    json.surfaces[0].regions[0].paths,
+    [parent, child],
+    'expanded JSON membership is deliberate and documented',
+  );
+});
+
+test('the element list follows visual top-to-bottom order rather than path sorting', (t) => {
+  const { md } = fixture(t, {
+    elementPaths: ['body > main > article > h2', 'body > aside > article > h2', 'body > footer > h2'],
+  });
+  const list = md.split('<summary>3 elements</summary>')[1].split('</details>')[0];
+  assert.deepEqual(
+    list.split('\n').filter((line) => line.startsWith('- ')),
+    ['- `main > article > h2`', '- `aside > article > h2`', '- `footer > h2`'],
+  );
 });

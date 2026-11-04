@@ -80,17 +80,24 @@ The `digest` key is present only when there is at least one row.
 Identical element changes share one counted section, one property table and a
 combined crop per resting or interactive state. The optional highlight view marks
 each element. Unreadable unions use the top-most element and explain the fallback.
-The folded element list uses the shortest path suffix unique within the section;
-it lists at most ten entries and counts any remainder. Folded geometry retains
-its own values, including values that differ between the matching elements.
+The folded element list runs top to bottom and uses the shortest path suffix unique
+within the section; it lists at most ten entries and counts any remainder. Folded
+geometry blocks carry that same element tail beside their values, including when
+only one matching element has a folded row. Crops union exposed members only; the
+caption separately counts elements outside the screenshot or otherwise unexposed.
+A top-most fallback is reserved for an unreadable union of exposed members.
 
 `report.json` preserves every existing region field. Each
-`surfaces[].regions[].paths` array lists all element paths covered by the section,
-including descendants whose folded evidence is displayed there. Combined sections
+`surfaces[].regions[].paths` membership expands from crop anchors to all element
+paths covered by the section, including descendants whose folded evidence is
+displayed there. Heading anchors still use outermost paths, so a mixed parent/child
+region keeps the parent heading without an extra descendant in the label. Combined sections
 add `elements: [{ path }]` for the primary changed elements. A readable-crop
 fallback adds `cropFallback: "top-most"`; `before` and `after` retain the union
-geometry. `cropOmitted: "max-crops"` identifies a crop-count omission; the existing
-`"budget"` reason still identifies file/byte omissions. Counts and original findings
+geometry. The existing `cropOmitted: "budget"` reason identifies file/byte omissions.
+The `maxCrops` threshold retains the legacy union collapse: too many exposed regions
+collapse into one union crop, and zero still allows that single crop. Regions with
+no exposed screenshot pair do not consume a slot. Counts and original findings
 are unchanged. Overlap regions containing different changes retain the existing
 mixed-region layout; they are not combined with other identical sections.
 
@@ -2089,7 +2096,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 | `--out <dir>`              | `styleproof-report` | Output directory.                                                                                                                            |
 | `--image-base-url <url>`   | relative            | Prefix for image URLs in `report.md`.                                                                                                        |
 | `--pad <px>`               | `12`                | Padding around changed rects when cropping.                                                                                                  |
-| `--max-crops <n>`          | `8`                 | Max sections with crops per surface; later sections retain their values with a crop-omission note.                                                                                              |
+| `--max-crops <n>`          | `8`                 | Max exposed crop regions per surface before collapsing into one union crop; zero still permits one.                                                                                              |
 | `--max-crop-files <n>`     | `60`                | Whole-report crop file ceiling; non-negative safe integer, `0` disables crops. Budget omissions are named; findings stay listed and counted. |
 | `--max-crop-bytes <bytes>` | `5000000`           | Hard whole-report crop byte ceiling; non-negative safe integer, `0` disables crops.                                                          |
 | `--fold-details-at <n>`    | `0`                 | Row count at which a crop's property tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds.                       |

@@ -9,6 +9,7 @@ import { annotationPaths } from './annotation-paths.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
   intersects,
+  outermost,
   paddedRect,
   screenshotRectOf,
   unionVisibleBoxes,
@@ -18,7 +19,13 @@ import {
 } from './geometry.js';
 import { cropFits, cropNote, MISLEADING_CROP_REASON, renderCropPair, type CropImages } from './crop-pair.js';
 import { codeValue } from '../code-span.js';
-import { oneSidedDomPaths, propertyGlanceLine, regionHeading, renderCropChanges } from './markdown.js';
+import {
+  elementPathTails,
+  oneSidedDomPaths,
+  propertyGlanceLine,
+  regionHeading,
+  renderCropChanges,
+} from './markdown.js';
 import {
   formatSurfaceListWithContext,
   formatSurfaceWithContext,
@@ -34,7 +41,7 @@ import {
 
 /** Crop regions for one change group, rendered top-to-bottom with their crops. */
 
-type Group = { paths: string[]; before: Box | null; after: Box | null; identical?: boolean; cropOmitted?: boolean };
+type Group = { paths: string[]; before: Box | null; after: Box | null; identical?: boolean };
 
 function groupForPath(pathKey: string, a: StyleMap, b: StyleMap, padBy: number): Group {
   return {
@@ -168,7 +175,7 @@ type RegionArgs = {
   seq: { crop: number };
   /** Sibling spacing changes whose run this region shows (#755). */
   spacing: SiblingSpacingChange[];
-  changes: (findings: Finding[]) => string[];
+  changes: (findings: Finding[], elementPaths?: string[]) => string[];
 };
 
 type CropPack = {
@@ -183,56 +190,65 @@ type CropPack = {
 const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
 
 function sectionHeading(group: Group, findings: Finding[]): string {
-  return regionHeading(group.identical ? [group.paths[0]] : group.paths, findings);
+  return regionHeading(group.identical ? [group.paths[0]] : outermost(group.paths), findings);
 }
 
 function elementList(group: Group): string[] {
   const { paths } = group;
   if (!group.identical || paths.length < 2) return [];
-  const tails = paths.map((elementPath) => elementPath.split(' > '));
-  const uniqueTail = (index: number): string => {
-    const parts = tails[index];
-    for (let length = 1; length < parts.length; length++) {
-      const tail = parts.slice(-length).join(' > ');
-      if (!tails.some((other, otherIndex) => otherIndex !== index && other.slice(-length).join(' > ') === tail))
-        return tail;
-    }
-    return parts.join(' > ');
-  };
+  const tails = elementPathTails(paths);
   return [
     '',
     '<details>',
     `<summary>${paths.length} elements</summary>`,
     '',
-    ...paths.slice(0, 10).map((_, index) => `- ${codeValue(uniqueTail(index))}`),
+    ...paths.slice(0, 10).map((elementPath) => `- ${codeValue(tails.get(elementPath)!)}`),
     ...(paths.length > 10 ? [`- … and ${paths.length - 10} more`] : []),
     '',
     '</details>',
   ];
 }
 
-/** Keep a combined frame readable and ensure crop dimension caps cannot hide its elements. */
-function cropFrame(a: RegionArgs, pngA: PNG, pngB: PNG): { box: Box; fallback: boolean } {
+type CropFrame = { box: Box; fallback: boolean; exposed: number; outside: number; unexposed: number };
+
+function outsideScreenshot(map: StyleMap, elementPath: string, png: PNG): boolean {
+  const rect = screenshotRectOf(map.elements[elementPath]);
+  if (!rect) return true;
+  const [x, y, width, height] = rect;
+  const left = map.viewport?.scrollX ?? 0;
+  return x + width <= left || x >= left + png.width || y + height <= 0 || y >= png.height;
+}
+
+/** Union only exposed members; missing capture coverage is distinct from an unreadable union. */
+function cropFrame(a: RegionArgs, pngA: PNG, pngB: PNG): CropFrame {
   const frames = a.g.paths.map((elementPath) => groupForPath(elementPath, a.mapA, a.mapB, a.ctx.padBy));
-  const box = unionVisibleBoxes(a.g.before, a.g.after)!;
-  if (!a.g.identical) return { box, fallback: false };
+  const exposed = frames.filter((frame) => hasExposedChangedEntry(a.mapA, a.mapB, frame.paths, [pngA, pngB]));
+  const excluded = frames.filter((frame) => !exposed.includes(frame));
+  const outside = excluded.filter(
+    (frame) => outsideScreenshot(a.mapA, frame.paths[0], pngA) && outsideScreenshot(a.mapB, frame.paths[0], pngB),
+  ).length;
+  const merged = collapseGroups(exposed)[0];
+  const box = unionVisibleBoxes(merged.before, merged.after)!;
   const viewportHeight = Math.min(a.mapA.viewport?.height ?? pngA.height, a.mapB.viewport?.height ?? pngB.height);
-  const ordered = frames.sort((left, right) => topY(left) - topY(right));
+  const ordered = exposed.sort((left, right) => topY(left) - topY(right));
   const separated = ordered.some((frame, index) => {
     const previous = ordered[index - 1];
     const previousBox = previous && unionVisibleBoxes(previous.before, previous.after);
     return previousBox && topY(frame) - (previousBox.y + previousBox.h) > viewportHeight;
   });
-  const allExposed = frames.every((frame) => hasExposedChangedEntry(a.mapA, a.mapB, frame.paths, [pngA, pngB]));
   const fallback =
-    frames.length > 1 && (box.h > viewportHeight * 2.5 || separated || !cropFits(a.ctx, box) || !allExposed);
-  const first =
-    ordered.find((frame) => hasExposedChangedEntry(a.mapA, a.mapB, frame.paths, [pngA, pngB])) ?? ordered[0];
-  return { box: fallback ? unionVisibleBoxes(first.before, first.after)! : box, fallback };
+    !!a.g.identical && exposed.length > 1 && (box.h > viewportHeight * 2.5 || separated || !cropFits(a.ctx, box));
+  return {
+    box: fallback ? unionVisibleBoxes(ordered[0].before, ordered[0].after)! : box,
+    fallback,
+    exposed: exposed.length,
+    outside,
+    unexposed: excluded.length - outside,
+  };
 }
 
 /** Mark every member of an identical section, including nested members. */
-function regionAnnotations(a: RegionArgs, findings: Finding[]) {
+function regionAnnotations(a: RegionArgs, findings: Finding[], pngs: Pngs) {
   const { g, mapA, mapB } = a;
   const annotations =
     g.identical && g.paths.length > 1
@@ -243,29 +259,42 @@ function regionAnnotations(a: RegionArgs, findings: Finding[]) {
     after: [...new Set(annotations.flatMap((paths) => paths.after))],
   };
   const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
-    paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
+    paths
+      .filter((p) => hasExposedChangedEntry(mapA, mapB, [p], pngs))
+      .map((p) => screenshotRectOf(map.elements[p]))
+      .filter((r): r is Rect => !!r);
   const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
   const changedNames = [...new Set(entries.filter((e): e is ElementEntry => !!e).map(shortElementName))].slice(0, 3);
   const changedLabel = changedNames.length ? ` — changed: ${changedNames.map(codeValue).join(', ')}` : '';
   return { rectsA: rectsOf(marked.before, mapA), rectsB: rectsOf(marked.after, mapB), changedLabel };
 }
 
-function combinedCropCaption(elementCount: number, fallback: boolean): string {
-  if (elementCount < 2) return '';
-  return fallback
-    ? `Top-most of ${elementCount} changed elements is marked; the combined crop would be unreadable.`
-    : `All ${elementCount} changed elements are marked.`;
+function markedElementsCaption(elementCount: number, frame: CropFrame): string {
+  const missing = frame.outside + frame.unexposed;
+  if (frame.fallback)
+    return `Top-most of ${frame.exposed} ${missing ? 'exposed ' : ''}changed elements is marked; the combined crop would be unreadable.`;
+  if (!missing) return `All ${elementCount} changed elements are marked.`;
+  return frame.exposed === 1
+    ? 'The exposed changed element is marked.'
+    : `All ${frame.exposed} exposed changed elements are marked.`;
+}
+
+function combinedCropCaption(elementCount: number, frame: CropFrame, combined: boolean): string {
+  const parts = combined && elementCount > 1 ? [markedElementsCaption(elementCount, frame)] : [];
+  if (frame.outside)
+    parts.push(
+      `${frame.outside} of ${elementCount} elements ${frame.outside === 1 ? 'is' : 'are'} outside the captured screenshot.`,
+    );
+  if (frame.unexposed)
+    parts.push(
+      `${frame.unexposed} of ${elementCount} elements ${frame.unexposed === 1 ? 'is' : 'are'} not exposed in the captured page.`,
+    );
+  return parts.join(' ');
 }
 
 /** Crop one region's pair (or explain why there is none). */
 function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, state?: string): CropPack {
   const { g, region, mapA, mapB, cg } = a;
-  if (g.cropOmitted)
-    return {
-      md: ['', '_Crop omitted: this surface reached the `--max-crops` limit. The change is still listed and counted._'],
-      images: {},
-      omitted: true,
-    };
   if (!region || !pngA || !pngB || !hasExposedChangedEntry(mapA, mapB, g.paths, [pngA, pngB])) {
     const note = cropNote(region, pngA, pngB);
     return {
@@ -275,9 +304,9 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
     };
   }
   a.seq.crop++;
-  const { rectsA, rectsB, changedLabel } = regionAnnotations(a, findings);
+  const { rectsA, rectsB, changedLabel } = regionAnnotations(a, findings, [pngA, pngB]);
   const frame = cropFrame(a, pngA, pngB);
-  const caption = combinedCropCaption(g.identical ? g.paths.length : 1, frame.fallback);
+  const caption = combinedCropCaption(g.paths.length, frame, !!g.identical);
   const packed = renderCropPair(a.ctx, {
     surface: cg.rep.sd.surface,
     suffix: String(a.seq.crop),
@@ -331,7 +360,7 @@ function singleStateHeading(
   const heading = headingFindings.filter((finding) => a.cg.rep.findings.includes(finding));
   const md = [
     '',
-    `### ${regionHeading(a.g.paths, heading)} ${codeValue(`:${state}`)}`,
+    `### ${regionHeading(outermost(a.g.paths), heading)} ${codeValue(`:${state}`)}`,
     '',
     a.surfaceList,
     '',
@@ -359,9 +388,9 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     if (packed.images.composite) stateImages[state] = packed.images;
     cropFallback ??= packed.cropFallback;
 
-    if (!combined) md.push(...a.changes(sf));
+    if (!combined) md.push(...a.changes(sf, a.g.paths));
   }
-  if (combined && findings.length) md.push(...elementList(a.g), ...a.changes(findings));
+  if (combined && findings.length) md.push(...elementList(a.g), ...a.changes(findings, a.g.paths));
   return { md, stateImages, cropFallback };
 }
 
@@ -381,7 +410,7 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
   if (glance) md.push('', glance);
   md.push(...spacingLines(a.spacing));
   const pack = regionCrop(a, cropFindings, a.pngs);
-  md.push(...pack.md, ...elementList(a.g), ...a.changes(cropFindings));
+  md.push(...pack.md, ...elementList(a.g), ...a.changes(cropFindings, a.g.paths));
   return { md, pack, trailing: [] };
 }
 
@@ -425,13 +454,13 @@ function renderRegion(a: RegionArgs) {
     : stateSections(a, regionFindings, stateOnly);
   md.push(...states.md);
 
-  if (stateOnly && rest.length) md.push(...a.changes(rest));
+  if (stateOnly && rest.length) md.push(...a.changes(rest, a.g.paths));
 
   if (!md.length) {
-    md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
+    md.push('', `### ${regionHeading(outermost(g.paths), regionFindings)}`, '', surfaceList);
     const note = cropNote(region, ...pngs);
     if (note) md.push('', note);
-    md.push(...a.changes(regionFindings));
+    md.push(...a.changes(regionFindings, a.g.paths));
   }
   md.push(...section.trailing);
   return { md, regionJson: regionSidecar(a, resting, states, stateOnly) };
@@ -452,9 +481,38 @@ function regionSidecar(a: RegionArgs, resting: CropPack, states: ReturnType<type
     ...(visualEvidence ? { visualEvidence, reason } : {}),
     ...spacingJson(a.spacing),
   };
-  if (resting.omitted || g.cropOmitted)
-    Object.assign(regionJson, { cropOmitted: g.cropOmitted ? 'max-crops' : 'budget' });
+  if (resting.omitted) Object.assign(regionJson, { cropOmitted: 'budget' });
   return regionJson;
+}
+
+type CropContext = Pick<RegionArgs, 'ctx' | 'cg' | 'mapA' | 'mapB' | 'pngs'>;
+
+/** Only sections with an actual exposed screenshot pair use a crop slot. */
+function groupHasCrop(g: Group, a: CropContext): boolean {
+  const findings = findingsInRegion(g, a.cg);
+  const { stateOnly, shownRest, hasDom } = regionVisibility(a.cg, findings);
+  const hasPair = (paths: string[], pngs: Pngs) =>
+    !!pngs[0] && !!pngs[1] && hasExposedChangedEntry(a.mapA, a.mapB, paths, pngs);
+  if (!stateOnly && shownRest.length && hasPair(g.paths, a.pngs)) return true;
+  if (hasDom) return false;
+  return STATE_LAYER_NAMES.some((state) => {
+    const paths = findings
+      .filter((finding) => finding.kind === 'state' && finding.state === state)
+      .map((finding) => finding.path);
+    return paths.length > 0 && hasPair(paths, screenshotPair(a.ctx, a.cg.rep.sd.surface, `.${state}`));
+  });
+}
+
+/** Main's cap is a union-collapse threshold, including maxCrops: 0, rather than an image omission. */
+function limitCropGroups(groups: Group[], a: CropContext): Group[] {
+  const exposed = groups.filter((group) => groupHasCrop(group, a));
+  if (exposed.length <= Math.max(1, a.ctx.maxCrops)) return groups;
+  const merged = collapseGroups(exposed)[0];
+  merged.paths.sort(
+    (left, right) =>
+      topY(groupForPath(left, a.mapA, a.mapB, a.ctx.padBy)) - topY(groupForPath(right, a.mapA, a.mapB, a.ctx.padBy)),
+  );
+  return [...groups.filter((group) => !exposed.includes(group)), merged];
 }
 
 export type RenderedGroup = { md: string[]; json: Record<string, unknown>; findingCount: number };
@@ -470,12 +528,13 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const shownSet = new Set(findings);
   const foldedSet = new Set(folded);
 
-  const changes = (shown: Finding[]): string[] =>
+  const changes = (shown: Finding[], elementPaths?: string[]): string[] =>
     renderCropChanges(
       shown.filter((f) => shownSet.has(f)),
       ctx.foldDetailsAt,
       describeCtx,
       shown.filter((f) => foldedSet.has(f)),
+      elementPaths,
     );
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const domRoots = findings.filter((finding) => finding.kind === 'dom').map((finding) => finding.path);
@@ -512,7 +571,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       md: [
         // The heading also ends the Action's PR comment summary (#952).
         '',
-        `### ${regionHeading(changedPaths, findings)}`,
+        `### ${regionHeading(outermost(changedPaths), findings)}`,
         '',
         surfaceList,
         '',
@@ -531,11 +590,16 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       findingCount,
     };
   }
-  const groups = sectionGroups(changedPaths, findings, mapA, mapB, ctx.padBy);
+  let groups = sectionGroups(changedPaths, findings, mapA, mapB, ctx.padBy);
+  for (const group of groups)
+    group.paths.sort(
+      (left, right) =>
+        topY(groupForPath(left, mapA, mapB, ctx.padBy)) - topY(groupForPath(right, mapA, mapB, ctx.padBy)),
+    );
+  groups = limitCropGroups(groups, { ctx, cg, mapA, mapB, pngs });
   groups.sort((l, r) => topY(l) - topY(r));
   const claimed = new Set<SiblingSpacingChange>();
-  const rendered = groups.map((g, index) => {
-    if (index >= ctx.maxCrops) g.cropOmitted = true;
+  const rendered = groups.map((g) => {
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(spacing, g.paths, claimed);
 

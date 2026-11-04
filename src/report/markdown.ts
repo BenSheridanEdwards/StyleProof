@@ -173,13 +173,14 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
 }
 
 /** Each changed element once, identical siblings collapsed into one `×N` block. */
-function renderElements(findings: Finding[], maxElements = 40, folded = false): string[] {
+function renderElements(findings: Finding[], maxElements = 40, folded = false, tails?: Map<string, string>): string[] {
   const bySig = new Map<string, { head: string; body: string[]; count: number; rows: number }>();
-  for (const identical of groupByElementChange(findings)) {
+  for (const identical of folded ? groupByPath(findings) : groupByElementChange(findings)) {
     const elements = groupByPath(identical);
     const group = elements[0];
     const el = renderOneElement(group);
     if (!el) continue;
+    if (folded) el.head += ` · ${codeValue(tails?.get(group[0].path) ?? group[0].path)}`;
     const sig = `${el.head}\n${el.body.join('\n')}`;
     const seen = bySig.get(sig);
 
@@ -188,7 +189,14 @@ function renderElements(findings: Finding[], maxElements = 40, folded = false): 
       seen.rows += derivedLonghandCount(identical);
     } else bySig.set(sig, { ...el, count: elements.length, rows: derivedLonghandCount(identical) });
   }
-  const blocks = [...bySig.values()];
+  return renderElementBlocks([...bySig.values()], maxElements, folded);
+}
+
+function renderElementBlocks(
+  blocks: { head: string; body: string[]; count: number; rows: number }[],
+  maxElements: number,
+  folded: boolean,
+): string[] {
   const out: string[] = [];
   for (const [i, b] of blocks.entries()) {
     if (i >= maxElements) {
@@ -203,6 +211,22 @@ function renderElements(findings: Finding[], maxElements = 40, folded = false): 
     out.push('', b.count > 1 ? `${b.head} ×${b.count}` : b.head, ...b.body);
   }
   return out;
+}
+
+/** Shortest readable suffix that distinguishes each path in this section. */
+export function elementPathTails(paths: string[]): Map<string, string> {
+  const unique = [...new Set(paths)];
+  const parts = unique.map((elementPath) => elementPath.split(' > '));
+  return new Map(
+    unique.map((elementPath, index) => {
+      for (let length = 1; length < parts[index].length; length++) {
+        const tail = parts[index].slice(-length).join(' > ');
+        if (!parts.some((other, otherIndex) => otherIndex !== index && other.slice(-length).join(' > ') === tail))
+          return [elementPath, tail];
+      }
+      return [elementPath, elementPath];
+    }),
+  );
 }
 
 /** Paths that are one-sided DOM adds/removes: their rows are inventories, not restyles. */
@@ -270,6 +294,7 @@ export function renderCropChanges(
   foldAt: number,
   ctx: DescribeCtx,
   folded: Finding[] = [],
+  elementPaths = [...new Set([...findings, ...folded].map((finding) => finding.path))],
 ): string[] {
   const tables = renderElements(findings);
 
@@ -278,7 +303,11 @@ export function renderCropChanges(
   const foldedCount = derivedLonghandCount(folded);
 
   if (rows < foldAt && !foldedCount) return tables;
-  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded, 40, true)] : [];
+  const tails = elementPathTails([...elementPaths, ...folded.map((finding) => finding.path)]);
+  for (const [elementPath, tail] of elementPathTails(elementPaths)) tails.set(elementPath, tail);
+  const foldedTables = foldedCount
+    ? ['', 'Folded size/position rows:', ...renderElements(folded, 40, true, tails)]
+    : [];
   const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
 
