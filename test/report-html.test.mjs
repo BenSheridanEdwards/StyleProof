@@ -103,7 +103,24 @@ test('report.html only accepts exact trailing paragraph breaks and escapes other
   assert.match(html, /<p>other &lt;strong&gt;markup&lt;\/strong&gt;<br><\/p>/);
   assert.match(html, /<p>near matches &lt;br\/&gt; &lt;BR&gt; &lt;br&gt; <\/p>/);
   assert.match(html, /<p>ordinary paragraph lines<\/p>/);
-  assert.doesNotMatch(html, /<script>|<strong>markup/);
+  assert.doesNotMatch(html, /<script\b|<strong\b/i);
+});
+
+test('report.html stacks a generated multi-property glance line with real line breaks', async () => {
+  const { propertyGlanceLine } = await import('../dist/report/markdown.js');
+  const md = propertyGlanceLine([
+    {
+      kind: 'style',
+      path: 'h2',
+      props: [
+        { prop: 'border-color', before: '#1e3c78', after: '#961e3c' },
+        { prop: 'color', before: '#1e3c78', after: '#961e3c' },
+      ],
+    },
+  ]);
+  const html = renderReportHtml(md);
+  assert.doesNotMatch(html, /&lt;br&gt;/);
+  assert.match(html, /<code>#961e3c<\/code><br> <code>color<\/code>/);
 });
 
 test('report.html never interprets untrusted text as markup (#698)', () => {
