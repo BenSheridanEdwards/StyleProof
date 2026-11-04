@@ -38,7 +38,7 @@ export type RuleReachStatus = 'reached' | 'never-rendered' | 'unmeasured' | 'bli
 export type RuleReach = {
   /** The ledger key: at-rule chain and prelude (`@media (prefers-color-scheme: dark) > .panel`). */
   key: string;
-  /** Optional exact source provenance; served-rule ledgers do not currently supply it. */
+  /** Corroboration conservatively matches the changed-token range. Served-rule ledgers do not currently supply source provenance. */
   sourceRange?: Omit<SourceCorroboration, 'join' | 'status'>;
   change: 'added' | 'removed' | 'changed';
   status: RuleReachStatus;

@@ -55,11 +55,12 @@ test('a changed main operand ran even when the nullish fallback on the same line
   assert.equal(units[0].why, 'value; rendering not proved');
 });
 
-test('executed evidence supplies only a start point while mixed and unexecuted evidence supply spans', () => {
+test('only evidence starting inside the changed range judges that expression', () => {
   const head = [capture([[1, 0, 10]], [], { mixed: [[1, 6, 10]] })];
   const units = classify([change(4, 5), change(8, 9)], [capture()], head).units;
   assert.equal(units[0].execution, 'unmeasured');
-  assert.equal(units[1].execution, 'partly-ran');
+  assert.equal(units[1].execution, 'unmeasured');
+  assert.equal(classify([change(6, 7)], [capture()], head).units[0].execution, 'partly-ran');
 });
 
 test('each changed expression can be witnessed across captures without importing unrelated branches', () => {
@@ -146,4 +147,43 @@ test('ordering is by source code point, side, then numeric range and independent
   const a = classify(changes);
   const b = classify([...changes].reverse());
   assert.deepEqual(a, b);
+});
+
+test('an enclosing mixed or idle expression does not flag its evaluated operand', () => {
+  for (const kind of ['mixed', 'unexecuted']) {
+    const head = [capture([[1, 4, 4]], [], { [kind]: [[1, 0, 10]] })];
+    assert.equal(classify([change()], undefined, head).units[0].execution, 'ran');
+  }
+});
+
+test('column-zero line maps fall back to line evidence when the changed token has no anchor', () => {
+  const unit = classify([change()], undefined, [capture([[1, 0, 0]], [])]).units[0];
+  assert.equal(unit.execution, 'ran');
+  assert.equal(unit.status, 'unknown');
+  assert.equal(unit.executionScope, 'line');
+});
+
+test('six thousand changed lines index each source once instead of rescanning anchors per unit', () => {
+  const executed = Array.from({ length: 6000 }, (_, index) => [index + 1, 4, 4]);
+  let reads = 0;
+  const map = capture([], []);
+  Object.defineProperty(map.scriptReach.scripts[0].files[0], 'executed', {
+    get() {
+      assert.ok(++reads <= 2, 'execution anchors must be indexed once per side and source');
+
+      return executed;
+    },
+  });
+
+  const changes = executed.map(([line]) =>
+    change(4, 5, { range: { start: { line, column: 4 }, end: { line, column: 5 } } }),
+  );
+
+  assert.equal(classifyScriptReach([], [map], changes).units.length, 6000);
+});
+
+test('missing coverage on some captures is unmeasured rather than evidence that a file was not loaded', () => {
+  const unit = classify([change()], undefined, [{}, capture([], [], { sourceKey: 'another.ts' })]).units[0];
+  assert.equal(unit.execution, 'unmeasured');
+  assert.match(unit.why, /coverage missing/);
 });

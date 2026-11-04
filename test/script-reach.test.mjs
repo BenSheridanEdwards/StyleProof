@@ -36,16 +36,16 @@ test('coverage maps executed and unexecuted branches to original lines and hashe
   assert.equal(file.unexecuted[0].start.line, 2);
 });
 
-test('a V8 boundary inside one mapped segment is mixed, not fully executed', () => {
+test('a V8 boundary after a mapping start does not erase its block-entry evidence', () => {
   const [file] = mapScriptCoverage(
     entry,
     '123456789012345',
     { ...sourceMap, mappings: 'AAAA' },
     'https://example.test/app.js.map',
   );
-  assert.deepEqual(file.executed, []);
+  assert.deepEqual(file.executed, [{ start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }]);
   assert.deepEqual(file.unexecuted, []);
-  assert.deepEqual(file.mixed, [{ start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }]);
+  assert.deepEqual(file.mixed, []);
 });
 
 test('missing original content leaves hash absent; vendored sources are excluded', () => {

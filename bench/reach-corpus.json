@@ -33,7 +33,7 @@
   },
   "expectations": {
     "today": "shown = today's diffStyleMaps puts a finding on the marker element (with an expected prop); missed = it does not",
-    "reach": "src/ J1 CSS and J2 source-range joins; J3 class-list prototype retained for the three class-token scenarios",
+    "reach": "src/ J1 CSS and J2 source-range statuses only; token-name J3-prototype results are a separate field and never corroborate J2 (#1001 re-judges per-occurrence provenance)",
     "edit": "the seeded change: each `from` must occur exactly once in the base file; the head side is base plus every case edit"
   },
   "cases": [
@@ -303,8 +303,7 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           }
         },
         "complete": {
@@ -335,11 +334,13 @@
           "reach": "never-rendered",
           "joins": {
             "J2": "never-ran"
-          }
+          },
+          "prototypeJ3": "never-rendered"
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown",
+          "prototypeJ3": "reached"
         }
       }
     },
@@ -362,15 +363,16 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "never-rendered"
-          }
+            "J2": "ran"
+          },
+          "prototypeJ3": "never-rendered"
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown",
+          "prototypeJ3": "reached"
         }
       }
     },
@@ -393,15 +395,16 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "never-rendered"
-          }
+            "J2": "ran"
+          },
+          "prototypeJ3": "never-rendered"
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown",
+          "prototypeJ3": "reached"
         }
       }
     },
@@ -456,16 +459,14 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           }
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           }
         }
       }
@@ -490,16 +491,14 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           }
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           }
         }
       }

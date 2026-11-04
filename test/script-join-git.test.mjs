@@ -28,14 +28,45 @@ function fixture(t) {
   const beforeDir = path.join(cwd, 'before');
   const afterDir = path.join(cwd, 'after');
 
+  const baseMaps = [],
+    headMaps = [];
+
   const stamp = (base, head) => {
+    for (const [maps, sha] of [
+      [baseMaps, base],
+      [headMaps, head],
+    ]) {
+      maps.length = 0;
+
+      const files = git('ls-tree', '-r', '--name-only', sha)
+        .split('\n')
+        .filter((file) => file.startsWith('packages/app/'))
+        .map((file) => ({
+          source: file.slice(13),
+          sourceKey: file.slice(13),
+          executed: [],
+          mixed: [],
+          unexecuted: [],
+        }));
+
+      maps.push({
+        scriptReach: {
+          version: 1,
+          window: 'navigation',
+          status: 'measured',
+          projectRootPrefix: 'packages/app',
+          scripts: [{ url: '/app.js', status: 'mapped', files }],
+        },
+      });
+    }
+
     fs.mkdirSync(beforeDir, { recursive: true });
     fs.mkdirSync(afterDir, { recursive: true });
     stampCertifyingFixture(beforeDir, base);
     stampCertifyingFixture(afterDir, head);
   };
 
-  return { cwd, projectRoot, write, commit, beforeDir, afterDir, stamp };
+  return { cwd, projectRoot, write, commit, beforeDir, afterDir, stamp, baseMaps, headMaps };
 }
 
 test('git joins use the actual ancestor map SHA and preserve config-relative paths on both sides', (t) => {
@@ -83,11 +114,18 @@ test('changed string values include their mapping anchor without widening to an 
 
 test('missing manifests and unavailable git produce named run gaps instead of an empty success', (t) => {
   const f = fixture(t);
-  assert.match(readScriptChanges(f.beforeDir, f.afterDir, f).gaps[0].reason, /base.*SHA/);
+  assert.deepEqual(readScriptChanges(f.beforeDir, f.afterDir, f), { changes: [], gaps: [] });
+
+  const missing = readScriptChanges(f.beforeDir, f.afterDir, {
+    baseMaps: [{ scriptReach: { version: 1, scripts: [] } }],
+    headMaps: [{ scriptReach: { version: 1, scripts: [] } }],
+  });
+
+  assert.match(missing.gaps[0].reason, /base.*SHA/);
   f.write('app.ts', 'const x = 1;\n');
   const sha = f.commit();
   f.stamp(sha, sha);
-  const result = readScriptChanges(f.beforeDir, f.afterDir, { cwd: path.dirname(f.cwd), projectRoot: f.projectRoot });
+  const result = readScriptChanges(f.beforeDir, f.afterDir, { ...f, cwd: path.dirname(f.cwd) });
   assert.match(result.gaps[0].reason, /git.*unavailable/);
   assert.equal(result.changes.length, 0);
 });
@@ -132,6 +170,7 @@ test('reports retain J2 source ranges and grouped reasons in JSON, Markdown and 
       version: 1,
       window: 'navigation',
       status: 'measured',
+      projectRootPrefix: 'packages/app',
       scripts: [
         {
           url: '/app.js',
@@ -190,8 +229,7 @@ test('reports retain J2 source ranges and grouped reasons in JSON, Markdown and 
   }
 });
 
-test('git blob hashes retain original bytes rather than hashing a lossy UTF-8 decode', async (t) => {
-  const { sha256 } = await import('../dist/node-util.js');
+test('invalid UTF-8 blobs remain named unmeasured rather than hashing a lossy decode', async (t) => {
   const f = fixture(t);
   const bytes = Buffer.from([47, 47, 32, 255, 10]);
   f.write('app.ts', bytes);
@@ -200,5 +238,6 @@ test('git blob hashes retain original bytes rather than hashing a lossy UTF-8 de
   const head = f.commit();
   f.stamp(base, head);
   const result = readScriptChanges(f.beforeDir, f.afterDir, f);
-  assert.equal(result.changes.find((change) => change.side === 'base').contentHash, sha256(bytes));
+  assert.equal(result.changes.length, 0);
+  assert.match(result.gaps.map((gap) => gap.reason).join('\n'), /not valid UTF-8/);
 });

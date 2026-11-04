@@ -34,6 +34,8 @@ export type ScriptReachEntry<Span = CompactSourceSpan> = {
 export type ScriptReach = {
   version: 1;
   window: 'navigation';
+  /** Config/project root relative to git top level; empty means repository root. Never an absolute path. */
+  projectRootPrefix?: string;
   status: 'measured' | 'unknown' | 'unmeasured';
   reason?: string;
   /** V8 block-coverage residuals; consumers must retain these limits. */
@@ -270,18 +272,10 @@ function segmentExecutions(segments: Segment[], runs: ExecutionRun[]): Execution
   let index = 0;
   return segments.map((segment) => {
     while (index < runs.length && runs[index].end <= segment.offset) index++;
-    let any = false,
-      all = true,
-      covered = segment.offset;
-    for (let i = index; i < runs.length && runs[i].start < segment.end; i++) {
-      const run = runs[i];
-      if (run.start > covered) all = false;
-      any ||= run.kind === 'executed';
-      all &&= run.kind === 'executed';
-      covered = Math.max(covered, run.end);
-    }
-    all &&= covered >= segment.end;
-    return all ? 'executed' : any ? 'mixed' : 'unexecuted';
+    const run = runs[index];
+    // Source-map starts are anchors. Following generated punctuation or branches
+    // cannot change whether the block containing this start was entered.
+    return run && run.start <= segment.offset && segment.offset < run.end ? run.kind : 'unexecuted';
   });
 }
 
@@ -341,7 +335,7 @@ function ensureSourceFile(
 
 /**
  * Each generated segment contributes one original start anchor. No original extent is inferred.
- * A split segment or conflicting states at a repeated original start contribute mixed evidence.
+ * Conflicting states at a repeated original start contribute mixed evidence; segment ends supply no entry evidence.
  */
 export function mapScriptCoverage(
   entry: BinaryScriptCoverage,

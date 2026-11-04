@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-04T08:32:09.769Z",
+  "generated": "2026-11-04T10:03:34.221Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "totals": {
@@ -228,8 +228,7 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
             "app.jsx:40: unknown (value; rendering not proved)"
@@ -240,8 +239,7 @@
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
             ".css-11ycpj1: reached (matched in a captured state)",
@@ -261,24 +259,24 @@
           "today": "missed",
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran",
-            "J3": "never-rendered"
+            "J2": "never-ran"
           },
           "units": [
-            "app.jsx:51: never-rendered (J3 prototype; per-occurrence provenance is not implemented)"
+            "app.jsx:51: never-rendered (changed expression never ran); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
           ],
+          "prototypeJ3": "never-rendered",
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "reached"
+            "J2": "ran"
           },
           "units": [
-            "app.jsx:51: reached (J3 prototype; per-occurrence provenance is not implemented)"
+            "app.jsx:51: unknown (value; rendering not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
           ],
+          "prototypeJ3": "reached",
           "ok": true
         }
       }
@@ -290,26 +288,26 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "never-rendered"
+            "J2": "ran"
           },
           "units": [
-            "app.jsx:8: never-rendered (J3 prototype; per-occurrence provenance is not implemented)"
+            "app.jsx:8: unknown (value; rendering not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
           ],
+          "prototypeJ3": "never-rendered",
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "reached"
+            "J2": "ran"
           },
           "units": [
-            "app.jsx:8: reached (J3 prototype; per-occurrence provenance is not implemented)"
+            "app.jsx:8: unknown (value; rendering not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
           ],
+          "prototypeJ3": "reached",
           "ok": true
         }
       }
@@ -321,26 +319,26 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "never-rendered"
+            "J2": "ran"
           },
           "units": [
-            "app.jsx:9: never-rendered (J3 prototype; per-occurrence provenance is not implemented)"
+            "app.jsx:9: unknown (value; rendering not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
           ],
+          "prototypeJ3": "never-rendered",
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "reached"
+            "J2": "ran"
           },
           "units": [
-            "app.jsx:9: reached (J3 prototype; per-occurrence provenance is not implemented)"
+            "app.jsx:9: unknown (value; rendering not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
           ],
+          "prototypeJ3": "reached",
           "ok": true
         }
       }
@@ -353,8 +351,7 @@
         "declared": {
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran",
-            "J3": "n/a"
+            "J2": "never-ran"
           },
           "units": [
             "app.jsx:63: never-rendered (changed expression never ran)"
@@ -364,8 +361,7 @@
         "complete": {
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran",
-            "J3": "n/a"
+            "J2": "never-ran"
           },
           "units": [
             "app.jsx:63: never-rendered (changed expression never ran)"
@@ -383,8 +379,7 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
             "app.jsx:67: unknown (value; rendering not proved)"
@@ -395,8 +390,7 @@
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
             "app.jsx:67: unknown (value; rendering not proved)"
@@ -414,8 +408,7 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
             "app.jsx:68: unknown (value; rendering not proved)"
@@ -426,8 +419,7 @@
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
             "app.jsx:68: unknown (value; rendering not proved)"

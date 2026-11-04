@@ -1,82 +1,72 @@
 # Reach corpus: method and results
 
-This fixture measures whether a restyle confined to an unopened state is visible
-in the computed-style diff, and whether the reach joins name the missing proof.
-The receipt is `bench/reach-corpus.results.json`; `pnpm run bench:reach:check` is
-the CI oracle.
+The fixture measures whether unopened-state restyles appear in the computed-style
+diff and whether reach names missing evidence. `bench/reach-corpus.results.json`
+is the measured receipt; `pnpm run bench:reach:check` is the CI oracle.
 
 ## Method
 
-- `bench/fixtures/reach/` supplies the base app. The head applies every case's
-  unique `edit` from `bench/reach-corpus.json`: 16 changes, 15 visual and one
-  non-visual error-handler change.
-- The declared scenario captures only `home`. The complete scenario captures
-  home, fault overlay, status=bad, dark mode and the 1440px band. “Complete” here
-  names the fixture's five-state spec, not a reach-complete certification.
-- esbuild bundles each side with source maps. Chromium runs the real
-  `trackScriptReach`/`captureStyleMap` path, including `captureReach`, and
-  `diffStyleMaps` compares both sides.
-- J1 uses `src/rule-reach.ts`. J2 uses `changedScriptRanges` from
-  `src/script-join-git.ts` and `classifyScriptReach` from `src/script-join.ts` on
-  stored `scriptReach` evidence. The benchmark supplies its seeded file diff;
-  unit/report tests independently verify the manifest-SHA git adapter.
-- J3 remains the `classReach` prototype in `bench/reach-joins.mjs` for
-  branch-class, module-constant and colliding-constant. These three scenarios
-  still use its token delta, without per-occurrence provenance. Their reached
-  results do **not** claim production J3 correctness; #1001 replaces it.
-- Healthy base captures must self-diff to zero and have identical J1 and script
-  evidence. Every changed unit must belong to exactly one case, and incomplete
-  J1 ledgers abort scoring.
+There are 16 seeded changes (15 visual and one non-visual error handler). The
+**declared** scenario captures home only; **complete** captures all five fixture
+states. “Complete” names that spec, not reach-complete certification. esbuild
+source maps, real Chromium, `trackScriptReach`, `captureStyleMap`, and
+`diffStyleMaps` supply the evidence. Healthy repeated captures must have identical
+style and reach evidence. Every changed unit must have exactly one case owner.
 
-## Before and after
+J1 uses `src/rule-reach.ts`. J2 uses `changedScriptRanges` and
+`classifyScriptReach` from `src/` on stored capture evidence. Git/manifest adapter
+and real-browser regression tests independently check comparison SHAs, capture
+roots, source hashes and expression starts.
 
-| Measurement                                    | Before (14 cases) | After (16 cases) |
-| ---------------------------------------------- | ----------------- | ---------------- |
-| Declared: visual changes shown                 | 1/13              | 1/15             |
-| Complete: visual changes shown                 | 12/13             | 14/15            |
-| Declared: misses named by a non-reached status | 11/12             | 14/14            |
-| Declared: unknown cases                        | 0                 | 3                |
-| Complete: unknown cases                        | 0                 | 3                |
-| Error handler, both scenarios                  | never-rendered    | never-rendered   |
+**J3-prototype is separate evidence.** The token-name `classReach` prototype is
+retained for branch-class, module-constant and colliding-constant, but never
+overrides or corroborates the src J2 status. Results have a separate
+`prototypeJ3` field and printed J3-prototype label. #1001 re-judges these cases
+under ADR 0009 per-occurrence provenance. A token delta is not that provenance.
 
-**One existing case moved to unknown:** runtime-css-in-js, in both scenarios
-(two result cells). Two new cases are unknown in both scenarios (four new result
-cells). Unknown therefore rises from zero to three cases per scenario; there
-are six unknown result cells in the new receipt. No other existing expectation
-changed.
+## Results and correction
 
-| Case               | Declared before → after         | Complete before → after         |
-| ------------------ | ------------------------------- | ------------------------------- |
-| runtime-css-in-js  | reached → unknown               | reached → unknown               |
-| render-scope-value | new → unknown                   | new → unknown                   |
-| eager-jsx-element  | new → unknown                   | new → unknown                   |
-| error-handler      | never-rendered → never-rendered | never-rendered → never-rendered |
+| Measurement                                  | Original prototype (14 cases) | Rejected join head (16 cases) | Corrected join (16 cases) |
+| -------------------------------------------- | ----------------------------- | ----------------------------- | ------------------------- |
+| Declared: visual changes shown               | 1/13                          | 1/15                          | 1/15                      |
+| Complete: visual changes shown               | 12/13                         | 14/15                         | 14/15                     |
+| Declared: unknown cases                      | 0                             | 3                             | 5                         |
+| Complete: unknown cases                      | 0                             | 3                             | 6                         |
+| Declared: misses named by non-reached status | 11/12                         | 14/14                         | 14/14                     |
+| Error handler, both scenarios                | never-rendered                | never-rendered                | never-rendered            |
 
-The render-scope case computes `faultStyle` in the component body but applies it
-only in the fault overlay. The JSX case eagerly builds `banner` and mounts it
-only under the fault branch. Both definitions execute on healthy captures, yet
-their values are absent from that page. Even the five-state spec leaves them
-unknown: execution and visual findings do not provide the exact source-range
-J1/J3 corroboration required by ADR 0009.
+The correction moves **five result cells** to unknown: module-constant and
+colliding-constant in both scenarios, and branch-class in complete. This is
+**three existing cases**, not five cases. Compared with the original prototype,
+the existing runtime-css-in-js case also moved to unknown in both scenarios;
+the render-scope-value and eager-jsx-element cases were newly added. The corrected
+receipt contains eleven unknown cells: five declared and six complete.
+
+| Case               | Src J2 declared | Src J2 complete | J3-prototype declared / complete |
+| ------------------ | --------------- | --------------- | -------------------------------- |
+| branch-class       | never-rendered  | unknown         | never-rendered / reached         |
+| module-constant    | unknown         | unknown         | never-rendered / reached         |
+| colliding-constant | unknown         | unknown         | never-rendered / reached         |
+| runtime-css-in-js  | unknown         | unknown         | n/a                              |
+| render-scope-value | unknown         | unknown         | n/a                              |
+| eager-jsx-element  | unknown         | unknown         | n/a                              |
+| error-handler      | never-rendered  | never-rendered  | n/a                              |
+
+The value definitions execute without proving their values rendered. Even a
+computed-style finding on the complete spec does not supply exact-range
+corroboration. Thus those src J2 units stay unknown. The healthy page never enters
+the fault badge branch, so branch-class remains never-rendered there.
 
 ## Limits
 
-This proves behavior on a synthetic, deterministic fixture, not a consumer noise
-rate. J2's error-handler finding remains advisory noise. Source-mapped block
-entry does not prove every expression evaluated: default parameter values,
-destructuring defaults, logical assignment RHS, later optional-chain links and
-code after a throwing expression remain named limits. Missing maps, mismatched
-source hashes and unloaded scripts are unmeasured. J2 never changes a verdict
-under either changeReach level.
-
-The complete spec still misses the keyframes change because computed styles
-cannot hold animation bodies. J1 names that blind channel. All three value
-cases remain unknown, and J3 is still a prototype. These results never establish
-reach-complete.
-
-## Reproduce
+This is a synthetic fixture, not a consumer noise-rate measurement. Block entry
+still cannot prove default parameter values, destructuring defaults, logical
+assignment RHS, later optional-chain links or code after a throwing expression.
+J2 findings remain advisory under both levels. The error handler remains named
+noise. The keyframes change remains a J1 blind channel. J3 per-occurrence
+provenance is not built, and these results never establish reach-complete.
 
 ```sh
 pnpm run bench:reach        # write receipt
-pnpm run bench:reach:check  # fail on any violated expectation
+pnpm run bench:reach:check  # check every expectation
 ```

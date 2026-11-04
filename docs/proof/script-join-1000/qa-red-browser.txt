@@ -1,0 +1,86 @@
+Already up to date
+Done in 44ms using pnpm v11.7.0
+
+Running 3 tests using 1 worker
+
+(node:66581) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/script-join-qa.e2e.spec.ts:12:3 › J2 judges the evaluated nullish operand from real source-mapped Chromium evidence (670ms)
+(node:66636) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [chromium] › test/script-join-qa.e2e.spec.ts:12:3 › J2 judges the selected ternary arm from real source-mapped Chromium evidence (447ms)
+  ✘  3 [chromium] › test/script-join-qa.e2e.spec.ts:12:3 › J2 judges the unopened nullish fallback from real source-mapped Chromium evidence (280ms)
+
+
+  1) [chromium] › test/script-join-qa.e2e.spec.ts:12:3 › J2 judges the evaluated nullish operand from real source-mapped Chromium evidence
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Array [
+        Array [
+          "base",
+    -     "ran",
+    -     "unknown",
+    +     "partly-ran",
+    +     "never-rendered",
+        ],
+        Array [
+          "head",
+    -     "ran",
+    -     "unknown",
+    +     "partly-ran",
+    +     "never-rendered",
+        ],
+      ]
+
+      32 |     const changes = changedScriptRanges('@@ -1 +1 @@', texts, 'app.js');
+      33 |     const result = classifyScriptReach([captures[0]], [captures[1]], changes);
+    > 34 |     expect(result.units.map((unit) => [unit.side, unit.execution, unit.status])).toEqual([
+         |                                                                                  ^
+      35 |       ['base', execution, status], ['head', execution, status],
+      36 |     ]);
+      37 |   });
+        at <checkout>/test/script-join-qa.e2e.spec.ts:34:82
+
+    Error Context: test-results/test-script-join-qa.e2e-J2-8ad53-ce-mapped-Chromium-evidence-chromium/error-context.md
+
+  2) [chromium] › test/script-join-qa.e2e.spec.ts:12:3 › J2 judges the unopened nullish fallback from real source-mapped Chromium evidence
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+        Array [
+          "base",
+    -     "never-ran",
+    +     "partly-ran",
+          "never-rendered",
+        ],
+        Array [
+          "head",
+    -     "never-ran",
+    +     "partly-ran",
+          "never-rendered",
+        ],
+      ]
+
+      32 |     const changes = changedScriptRanges('@@ -1 +1 @@', texts, 'app.js');
+      33 |     const result = classifyScriptReach([captures[0]], [captures[1]], changes);
+    > 34 |     expect(result.units.map((unit) => [unit.side, unit.execution, unit.status])).toEqual([
+         |                                                                                  ^
+      35 |       ['base', execution, status], ['head', execution, status],
+      36 |     ]);
+      37 |   });
+        at <checkout>/test/script-join-qa.e2e.spec.ts:34:82
+
+    Error Context: test-results/test-script-join-qa.e2e-J2-e1cf0-ce-mapped-Chromium-evidence-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-qa.e2e.spec.ts:12:3 › J2 judges the evaluated nullish operand from real source-mapped Chromium evidence
+    [chromium] › test/script-join-qa.e2e.spec.ts:12:3 › J2 judges the unopened nullish fallback from real source-mapped Chromium evidence
+  1 passed (3.9s)

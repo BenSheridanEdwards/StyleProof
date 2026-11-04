@@ -39,7 +39,10 @@ export function compactScriptEvidence(script: ScriptReachEntry<SourceSpan | Comp
 }
 
 /** Collisions invalidate every involved script, even when hashes happen to agree. */
-export function storedScriptEvidence(scripts: ScriptReachEntry<SourceSpan | CompactSourceSpan>[]): ScriptReach {
+export function storedScriptEvidence(
+  scripts: ScriptReachEntry<SourceSpan | CompactSourceSpan>[],
+  projectRootPrefix?: string,
+): ScriptReach {
   const entries = scripts.map((script) => ({ ...script }));
   const owners = new Map<string, ScriptReachEntry<SourceSpan | CompactSourceSpan>>();
   const collisions = new Set<ScriptReachEntry<SourceSpan | CompactSourceSpan>>();
@@ -66,6 +69,7 @@ export function storedScriptEvidence(scripts: ScriptReachEntry<SourceSpan | Comp
     ],
     scripts: entries.map(compactScriptEvidence),
   };
+  if (projectRootPrefix !== undefined) evidence.projectRootPrefix = projectRootPrefix;
   return Buffer.byteLength(JSON.stringify(evidence)) > MAX_CAPTURE_EVIDENCE_BYTES
     ? {
         version: 1,

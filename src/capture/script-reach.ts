@@ -9,7 +9,7 @@ import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-r
 import { applyMediaState } from '../media-states.js';
 import { storedScriptUrl } from '../script-reach-identity.js';
 import { STYLEPROOF_SCRIPT_URL } from './script-evaluation.js';
-import { resolveScriptProjectRoot } from './script-project-root.js';
+import { resolveScriptProjectRoot, scriptProjectRootPrefix } from './script-project-root.js';
 import { MAX_GENERATED_LENGTH, MAX_SCRIPTS, MAX_SCRIPT_IDENTIFICATIONS } from '../script-reach-limits.js';
 import { storedScriptEvidence } from '../script-reach-storage.js';
 import { performance } from 'node:perf_hooks';
@@ -311,6 +311,7 @@ export async function trackScriptReach(
     };
   }
   const projectRoot = options.projectRoot ?? resolveScriptProjectRoot();
+  const projectRootPrefix = scriptProjectRootPrefix(projectRoot);
   const marker = scriptCoverageMarker(page);
   let client: CDPSession | undefined;
   let reason: string | undefined;
@@ -393,47 +394,52 @@ export async function trackScriptReach(
       if (result && ownership !== 'exclusive') result = unmeasuredScriptReach(ownershipReason(ownership));
     }
   };
+  const read = async (): Promise<ScriptReach> => {
+    if (result) return result;
+    try {
+      if (reason || !client || disposed)
+        return (result = unmeasuredScriptReach(reason ?? 'script coverage tracker disposed'));
+      if (scriptCoverageMarker(page) !== marker)
+        return (result = unmeasuredScriptReach('page.coverage used during capture'));
+      const beforeRead = foreignCoverage(page);
+      if (beforeRead) return (result = beforeRead);
+      if (!navigated) return (result = unmeasuredScriptReach('navigation not observed after tracker start'));
+      await client.send('Debugger.enable');
+      await client.send('Debugger.setSkipAllPauses', { skip: true });
+      const coverageResult = await client.send('Profiler.takePreciseCoverage');
+      if (reason) return (result = unmeasuredScriptReach(reason));
+      const afterRead = foreignCoverage(page);
+      if (afterRead) return (result = afterRead);
+      if (
+        !coverageResult.result.length ||
+        coverageResult.result.some((entry: CollectedScript) =>
+          entry.functions.some((f) => f.ranges.some((r) => r.count > 1)),
+        )
+      )
+        return (result = unmeasuredScriptReach('V8 precise coverage ownership changed'));
+      await client.send('Profiler.stopPreciseCoverage');
+      const entries = await resolveScripts({ page, client, scripts, headers, projectRoot }, coverageResult.result);
+      result = reason ? unmeasuredScriptReach(reason) : storedScriptEvidence(entries, projectRootPrefix);
+    } catch {
+      result = {
+        version: 1,
+        window: 'navigation',
+        status: 'unknown',
+        reason: 'script coverage could not be read',
+        scripts: [],
+      };
+    } finally {
+      await dispose();
+    }
+    return result;
+  };
   return {
     dispose,
     beginMapRead: restoreCache,
     stop: async () => {
-      if (result) return result;
-      try {
-        if (reason || !client || disposed)
-          return (result = unmeasuredScriptReach(reason ?? 'script coverage tracker disposed'));
-        if (scriptCoverageMarker(page) !== marker)
-          return (result = unmeasuredScriptReach('page.coverage used during capture'));
-        const beforeRead = foreignCoverage(page);
-        if (beforeRead) return (result = beforeRead);
-        if (!navigated) return (result = unmeasuredScriptReach('navigation not observed after tracker start'));
-        await client.send('Debugger.enable');
-        await client.send('Debugger.setSkipAllPauses', { skip: true });
-        const coverageResult = await client.send('Profiler.takePreciseCoverage');
-        if (reason) return (result = unmeasuredScriptReach(reason));
-        const afterRead = foreignCoverage(page);
-        if (afterRead) return (result = afterRead);
-        if (
-          !coverageResult.result.length ||
-          coverageResult.result.some((entry: CollectedScript) =>
-            entry.functions.some((f) => f.ranges.some((r) => r.count > 1)),
-          )
-        )
-          return (result = unmeasuredScriptReach('V8 precise coverage ownership changed'));
-        await client.send('Profiler.stopPreciseCoverage');
-        const entries = await resolveScripts({ page, client, scripts, headers, projectRoot }, coverageResult.result);
-        result = reason ? unmeasuredScriptReach(reason) : storedScriptEvidence(entries);
-      } catch {
-        result = {
-          version: 1,
-          window: 'navigation',
-          status: 'unknown',
-          reason: 'script coverage could not be read',
-          scripts: [],
-        };
-      } finally {
-        await dispose();
-      }
-      return result;
+      const evidence = await read();
+      if (projectRootPrefix !== undefined) evidence.projectRootPrefix = projectRootPrefix;
+      return evidence;
     },
   };
 }

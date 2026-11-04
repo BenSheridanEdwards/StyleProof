@@ -242,6 +242,7 @@ test('evidence over 1 MiB becomes unknown without partial sources', async () => 
     version: 1,
     window: 'navigation',
     status: 'measured',
+    projectRootPrefix: '',
     scripts: [{ url: 'https://app.test/0.js', status: 'unknown', reason: 'script evidence exceeds 1 MiB' }],
   });
 });

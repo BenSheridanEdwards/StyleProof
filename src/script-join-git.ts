@@ -1,236 +1,230 @@
-/** Git/manifest adapter for J2. Classification remains in the pure script-join module. */
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
+/** Manifest/git adapter for J2. Capture provenance, never report cwd, anchors source keys. */
 import path from 'node:path';
 import { readMapManifest } from './map-store/manifest.js';
 import { runGit, sha256 } from './node-util.js';
-import { resolveScriptProjectRoot } from './capture/script-project-root.js';
-import { compareScriptRanges, scriptJoinGap, type ScriptChange, type ScriptJoinGap } from './script-join.js';
+import type { StyleMap } from './capture.js';
+import { changedScriptRanges } from './script-join-ranges.js';
+import { readScriptGitDiff, readScriptGitBlobs, type ScriptGitFile, type ScriptBlob } from './script-join-git-read.js';
+import {
+  compareScriptRanges,
+  compareSourceKeys,
+  scriptJoinGap,
+  type ScriptChange,
+  type ScriptJoinGap,
+} from './script-join.js';
+
+export { changedScriptRanges } from './script-join-ranges.js';
 
 export type ScriptChanges = { changes: ScriptChange[]; gaps: ScriptJoinGap[] };
 
-const sourceLines = (text: string): string[] => text.split(/\r\n|[\n\r\u2028\u2029]/);
+type Side = 'base' | 'head';
 
-/** Include the lexical token's mapping start without pulling in another expression on the line. */
-function tokenRange(line: string, start: number, end: number): [number, number] {
-  // Unknown/multiline syntax retains line scope and therefore remains an uncorroborated value.
-  const tokens =
-    /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|[\p{ID_Start}_$][\p{ID_Continue}$]*|\d+(?:\.\d+)?/gu;
+type CaptureRoot = { prefix?: string; keys: Set<string>; gap?: ScriptJoinGap };
 
-  let from = start,
-    to = end;
+type ReadOptions = { cwd?: string; baseMaps?: readonly StyleMap[]; headMaps?: readonly StyleMap[] };
 
-  for (const token of line.matchAll(tokens)) {
-    const right = token.index + token[0].length;
-
-    if ((token.index < end && start < right) || (start === end && token.index <= start && start < right)) {
-      from = Math.min(from, token.index);
-      to = Math.max(to, right);
-    }
-  }
-
-  return [from, to];
+function sourceKey(prefix: string, gitPath: string): string {
+  return path.posix.relative(prefix || '.', gitPath);
 }
 
-function changedColumns(before: string, after: string) {
-  let start = 0;
-
-  while (start < Math.min(before.length, after.length) && before[start] === after[start]) start++;
-
-  let baseEnd = before.length,
-    headEnd = after.length;
-
-  while (baseEnd > start && headEnd > start && before[baseEnd - 1] === after[headEnd - 1]) {
-    baseEnd--;
-    headEnd--;
-  }
-
-  return { base: tokenRange(before, start, baseEnd), head: tokenRange(after, start, headEnd) };
-}
-
-type SourceTexts = { base: string; head: string };
-
-type PreparedSource = { lines: { base: string[]; head: string[] }; hashes: SourceTexts };
-
-function hunkChanges(hunk: RegExpMatchArray, { lines, hashes }: PreparedSource, sourceKey: string): ScriptChange[] {
-  const starts = { base: +hunk[1], head: +hunk[3] };
-  const counts = { base: hunk[2] === undefined ? 1 : +hunk[2], head: hunk[4] === undefined ? 1 : +hunk[4] };
-
-  return Array.from({ length: Math.max(counts.base, counts.head) }, (_, index) => index).flatMap((index) => {
-    const columns =
-      counts.base === counts.head
-        ? changedColumns(lines.base[starts.base + index - 1] ?? '', lines.head[starts.head + index - 1] ?? '')
-        : undefined;
-
-    return (['base', 'head'] as const).flatMap((side) => {
-      if (index >= counts[side]) return [];
-      const line = starts[side] + index;
-      const text = lines[side][line - 1] ?? '';
-      const [start, end] = columns?.[side] ?? [0, text.length];
-
-      return {
-        sourceKey,
-        side,
-        range: { start: { line, column: start }, end: { line, column: end } },
-        contentHash: hashes[side],
-        text,
-      };
-    });
-  });
-}
-
-export function changedScriptRanges(patch: string, texts: SourceTexts, sourceKey: string): ScriptChange[] {
-  const prepared = {
-    lines: { base: sourceLines(texts.base), head: sourceLines(texts.head) },
-    hashes: { base: sha256(texts.base), head: sha256(texts.head) },
-  };
-
-  return [...patch.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm)].flatMap((hunk) =>
-    hunkChanges(hunk, prepared, sourceKey),
+function validPrefix(prefix: unknown): prefix is string {
+  return (
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Untrusted capture metadata is parsed here before path APIs; the rest of this guard validates its canonical path contract.
+    typeof prefix === 'string' &&
+    (prefix === '' ||
+      (path.posix.normalize(prefix) === prefix &&
+        !/^(?:\/|\.\.(?:\/|$)|[a-z]:)/i.test(prefix) &&
+        !prefix.includes('\\')))
   );
 }
 
-function manifestSha(dir: string, side: 'base' | 'head'): string {
-  const manifest = readMapManifest(dir);
+function captureRoot(maps: readonly StyleMap[], side: Side, paths: string[]): CaptureRoot {
+  const evidence = maps.flatMap((map) => (map.scriptReach ? [map.scriptReach] : []));
 
-  if (!manifest || manifest.dirty || !/^[0-9a-f]{7,40}$/i.test(manifest.sha))
-    throw new Error(`${side} map SHA unavailable or dirty`);
+  const keys = new Set(
+    evidence.flatMap((reach) =>
+      reach.scripts.flatMap((script) =>
+        script.status === 'mapped'
+          ? (script.files ?? []).flatMap((file) => (file.sourceKey ? [file.sourceKey] : []))
+          : [],
+      ),
+    ),
+  );
 
-  return manifest.sha;
+  if (!evidence.length) return { keys };
+  const prefixes = new Set(evidence.map((reach) => reach.projectRootPrefix));
+  const prefix = evidence[0].projectRootPrefix;
+
+  if (prefixes.size !== 1 || !validPrefix(prefix))
+    return {
+      keys,
+      gap: scriptJoinGap(
+        `${side} capture project-root prefix missing, invalid or conflicting; recapture scriptReach`,
+        side,
+      ),
+    };
+
+  if (keys.size && paths.length && !paths.some((file) => keys.has(sourceKey(prefix, file))))
+    return {
+      keys,
+      gap: scriptJoinGap(
+        `captured source keys on ${side} match no changed path; project-root join cannot be verified`,
+        side,
+      ),
+    };
+
+  return { prefix, keys };
 }
 
-/** Recorded map SHAs, never a PR merge base. No worktree contents are used as source evidence. */
-export function readScriptChanges(
-  beforeDir: string,
-  afterDir: string,
-  options: { cwd?: string; projectRoot?: string; sourceKeys?: readonly string[] } = {},
-): ScriptChanges {
-  const changes: ScriptChange[] = [];
-  const gaps: ScriptJoinGap[] = [];
-  let base: string, head: string;
+type ScriptComparison = { shas: { base: string; head: string }; gaps: ScriptJoinGap[] };
 
-  try {
-    base = manifestSha(beforeDir, 'base');
-  } catch {
-    gaps.push(scriptJoinGap('base map SHA unavailable or dirty; changed source ranges cannot be listed', 'base'));
-  }
+function comparisonShas(beforeDir: string, afterDir: string): ScriptComparison {
+  const shas = { base: '', head: '' },
+    gaps: ScriptJoinGap[] = [];
 
-  try {
-    head = manifestSha(afterDir, 'head');
-  } catch {
-    gaps.push(scriptJoinGap('head map SHA unavailable or dirty; changed source ranges cannot be listed', 'head'));
-  }
+  for (const [side, dir] of [
+    ['base', beforeDir],
+    ['head', afterDir],
+  ] as const) {
+    try {
+      const manifest = readMapManifest(dir);
 
-  if (gaps.length) return { changes, gaps };
-  const cwd = options.cwd ?? process.cwd();
-  let gitDirectory = cwd;
-
-  const git = (args: string[]): string => {
-    const result = runGit(gitDirectory, args, { timeout: 10_000 });
-
-    if (result.status !== 0)
-      throw new Error('git source diff unavailable; retain both captured revisions in the checkout');
-
-    return result.stdout;
-  };
-
-  try {
-    const repository = fs.realpathSync(git(['rev-parse', '--show-toplevel']).trim());
-    gitDirectory = repository;
-    const project = fs.realpathSync(options.projectRoot ?? resolveScriptProjectRoot(cwd));
-    const prefix = path.relative(repository, project).replaceAll('\\', '/');
-
-    if (prefix === '..' || prefix.startsWith('../') || path.isAbsolute(prefix))
-      throw new Error('project root is outside git; source keys cannot be joined');
-
-    const paths = git(['diff', '--no-ext-diff', '--no-renames', '--name-only', '-z', base!, head!, '--'])
-      .split('\0')
-      .filter(Boolean)
-      .sort();
-
-    const scriptPaths = paths.filter(
-      (gitPath) =>
-        /\.(?:[cm]?[jt]sx?|vue|svelte|astro)$/i.test(gitPath) ||
-        options.sourceKeys?.includes(path.posix.relative(prefix || '.', gitPath)),
-    );
-
-    for (const gitPath of scriptPaths) {
-      const result = changesForPath(gitPath, repository, prefix, git, { base: base!, head: head! });
-      changes.push(...result.changes);
-      gaps.push(...result.gaps);
+      if (!manifest || manifest.dirty || !/^[0-9a-f]{7,40}$/i.test(manifest.sha)) throw new Error('SHA unavailable');
+      shas[side] = manifest.sha;
+    } catch {
+      gaps.push(scriptJoinGap(`${side} map SHA unavailable or dirty; changed source ranges cannot be listed`, side));
     }
-  } catch {
-    return {
-      changes: [],
-      gaps: [
-        scriptJoinGap(
-          'git source diff unavailable; retain both captured revisions and a project root inside the checkout',
+  }
+
+  return { shas, gaps };
+}
+
+function isCandidate(file: ScriptGitFile, roots: Record<Side, CaptureRoot>): boolean {
+  return (
+    /\.(?:[cm]?[jt]sx?|vue|svelte|astro)$/i.test(file.path) ||
+    (['base', 'head'] as const).some(
+      (side) => roots[side].prefix !== undefined && roots[side].keys.has(sourceKey(roots[side].prefix!, file.path)),
+    )
+  );
+}
+
+function hasBlob(file: ScriptGitFile, side: Side): boolean {
+  return !/^0+$/.test(file[side]) && file[`${side}Mode`] !== '160000';
+}
+
+function changesForFile(
+  file: ScriptGitFile,
+  roots: Record<Side, CaptureRoot>,
+  blobs: Map<string, ScriptBlob>,
+): ScriptChanges {
+  const texts = { base: '', head: '' },
+    hashes = { base: '', head: '' };
+
+  const available = new Set<Side>();
+  const gaps: ScriptJoinGap[] = [];
+
+  for (const side of ['base', 'head'] as const) {
+    if (roots[side].prefix === undefined || !hasBlob(file, side)) continue;
+    const blob = blobs.get(file[side]);
+
+    if (!blob?.content) {
+      gaps.push(scriptJoinGap(`${file.path}: ${blob?.reason ?? 'git blob unavailable'}`, side));
+      continue;
+    }
+
+    const text = blob.content.toString('utf8');
+
+    if (!Buffer.from(text).equals(blob.content)) {
+      gaps.push(scriptJoinGap(`${file.path}: git blob is not valid UTF-8; source ranges unmeasured`, side));
+      continue;
+    }
+
+    texts[side] = text;
+    hashes[side] = sha256(blob.content);
+    available.add(side);
+  }
+
+  const changes = changedScriptRanges(file.patch, texts, file.path)
+    .filter((change) => available.has(change.side))
+    .map((change) => ({
+      ...change,
+      sourceKey: sourceKey(roots[change.side].prefix!, file.path),
+      contentHash: hashes[change.side],
+    }));
+
+  return { changes, gaps };
+}
+
+function joinFiles(
+  repository: string,
+  files: ScriptGitFile[],
+  maps: { base: readonly StyleMap[]; head: readonly StyleMap[] },
+): ScriptChanges {
+  const paths = files.map((file) => file.path);
+  const roots = { base: captureRoot(maps.base, 'base', paths), head: captureRoot(maps.head, 'head', paths) };
+  const gaps = (['base', 'head'] as const).flatMap((side) => (roots[side].gap ? [roots[side].gap!] : []));
+
+  const candidates = files.filter(
+    (file) =>
+      isCandidate(file, roots) && ![file.baseMode, file.headMode].includes('160000') && /^@@ /m.test(file.patch),
+  );
+
+  const ids = [
+    ...new Set(
+      candidates.flatMap((file) =>
+        (['base', 'head'] as const).flatMap((side) =>
+          roots[side].prefix !== undefined && hasBlob(file, side) ? [file[side]] : [],
         ),
-      ],
-    };
+      ),
+    ),
+  ].sort();
+
+  const blobs = readScriptGitBlobs(repository, ids);
+
+  const changes: ScriptChange[] = [],
+    unjudged = new Set(paths);
+
+  for (const file of candidates) {
+    const result = changesForFile(file, roots, blobs);
+    changes.push(...result.changes);
+    gaps.push(...result.gaps);
+
+    if (result.changes.length && !result.gaps.length) unjudged.delete(file.path);
+  }
+
+  if (unjudged.size) {
+    const paths = [...unjudged].sort(compareSourceKeys);
+    gaps.push({ ...scriptJoinGap(`changed files J2 does not judge: ${paths.join(', ')}`), paths });
   }
 
   return { changes: changes.sort(compareScriptRanges), gaps };
 }
 
-type GitReader = (args: string[]) => string;
+/** No git or manifest reads when J2 was never recorded. The existing J1 opt-in behavior is unchanged. */
+export function readScriptChanges(beforeDir: string, afterDir: string, options: ReadOptions = {}): ScriptChanges {
+  const maps = { base: options.baseMaps ?? [], head: options.headMaps ?? [] };
 
-function textsAtPath(gitPath: string, repository: string, git: GitReader, shas: SourceTexts) {
-  const texts = { base: '', head: '' };
-  const hashes = { base: sha256(''), head: sha256('') };
+  if (![...maps.base, ...maps.head].some((map) => map.scriptReach)) return { changes: [], gaps: [] };
+  const { shas, gaps } = comparisonShas(beforeDir, afterDir);
 
-  for (const side of ['base', 'head'] as const) {
-    if (!git(['ls-tree', '-z', shas[side], '--', `:(literal)${gitPath}`])) continue;
+  if (gaps.length) return { changes: [], gaps };
+  const cwd = options.cwd ?? process.cwd();
+  const root = runGit(cwd, ['rev-parse', '--show-toplevel'], { timeout: 10_000 });
 
-    const blob = spawnSync('git', ['show', `${shas[side]}:${gitPath}`], {
-      cwd: repository,
-      timeout: 10_000,
-      maxBuffer: 1 << 28,
-    });
-
-    if (blob.status !== 0) throw new Error('git blob unavailable');
-    texts[side] = blob.stdout.toString('utf8');
-    hashes[side] = sha256(blob.stdout);
-  }
-
-  return { texts, hashes };
-}
-
-function changesForPath(
-  gitPath: string,
-  repository: string,
-  prefix: string,
-  git: GitReader,
-  shas: SourceTexts,
-): ScriptChanges {
-  const sourceKey = path.posix.relative(prefix || '.', gitPath);
-
-  const patch = git([
-    'diff',
-    '--no-ext-diff',
-    '--no-textconv',
-    '--no-renames',
-    '--no-color',
-    '--diff-algorithm=myers',
-    '--no-indent-heuristic',
-    '--unified=0',
-    shas.base,
-    shas.head,
-    '--',
-    `:(literal)${gitPath}`,
-  ]);
-
-  if (!/^@@ /m.test(patch))
+  if (root.status !== 0)
     return {
       changes: [],
-      gaps: [scriptJoinGap(`${sourceKey}: changed script has no text hunks; execution cannot be attributed`)],
+      gaps: [scriptJoinGap('git source diff unavailable; retain both captured revisions in the checkout')],
     };
-  const { texts, hashes } = textsAtPath(gitPath, repository, git, shas);
 
-  const changes = changedScriptRanges(patch, texts, sourceKey).map((change) => ({
-    ...change,
-    contentHash: hashes[change.side],
-  }));
+  try {
+    const repository = root.stdout.trim();
 
-  return { changes, gaps: [] };
+    return joinFiles(repository, readScriptGitDiff(repository, shas.base, shas.head), maps);
+  } catch {
+    return {
+      changes: [],
+      gaps: [scriptJoinGap('git source diff unavailable; retain both captured revisions in the checkout')],
+    };
+  }
 }

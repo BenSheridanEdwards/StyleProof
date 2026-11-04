@@ -1,5 +1,11 @@
 import { readScriptChanges, type ScriptChanges } from '../script-join-git.js';
-import { classifyScriptReach, scriptJoinGap, type ScriptJoinGap, type ScriptUnit } from '../script-join.js';
+import {
+  classifyScriptReach,
+  scriptJoinGap,
+  compareScriptRanges,
+  type ScriptJoinGap,
+  type ScriptUnit,
+} from '../script-join.js';
 import { captureKeysIn, type StyleMap } from '../capture.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import type { ChangeReachLevel } from '../config.js';
@@ -36,25 +42,19 @@ export type ReportReach = {
 
 function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
   const gaps: ReachGap[] = [];
-
   const add = (reason: string, remedy: string) =>
     gaps.push({ join: 'J1', status: 'unknown', side, kind: 'ledger', reason, remedy });
-
   if (maps.length === 0) {
     add(`no ${side} captures; changed rules cannot be listed`, 'capture both sides with `captureReach`');
   }
-
   const missing = maps.filter((m) => m.reach?.version !== 2 || m.reach.scope !== 'compared').length;
-
   if (missing) {
     add(
       `missing ${side} ledger on ${missing} capture(s); changed rules cannot be listed`,
       'recapture with `captureReach`',
     );
   }
-
   const reasons = [...new Set(maps.flatMap((map) => (map.reach?.unknown ? [map.reach.unknown] : [])))].sort();
-
   for (const reason of reasons) {
     const count = maps.filter((map) => map.reach?.unknown === reason).length;
     add(
@@ -62,16 +62,13 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
       'simplify or remove the CSS shape named, then recapture',
     );
   }
-
   const unreadable = maps.reduce((sum, m) => sum + (m.reach?.unreadable ?? 0), 0);
-
   if (unreadable > 0) {
     add(
       `${unreadable} unreadable stylesheet(s) on ${side}; changed rules there cannot be listed`,
       'make the stylesheets readable (same-origin or CORS) and recapture',
     );
   }
-
   return gaps;
 }
 
@@ -80,32 +77,30 @@ export function assessReachMaps(
   base: StyleMap[],
   head: StyleMap[],
   level: ChangeReachLevel,
-  sourceDiff: ScriptChanges = {
-    changes: [],
-    gaps: [
-      scriptJoinGap('base map SHA unavailable or dirty; changed source ranges cannot be listed', 'base'),
-      scriptJoinGap('head map SHA unavailable or dirty; changed source ranges cannot be listed', 'head'),
-    ],
-  },
+  sourceDiff?: ScriptChanges,
 ): ReportReach | undefined {
   if (level === 'warn' && ![...base, ...head].some((map) => map.reach || map.scriptReach)) return undefined;
   const result = classifyRuleReach(base, head);
+  const diff = sourceDiff ?? {
+    changes: [],
+    gaps: [...base, ...head].some((map) => map.scriptReach)
+      ? [
+          scriptJoinGap('base map SHA unavailable or dirty; changed source ranges cannot be listed', 'base'),
+          scriptJoinGap('head map SHA unavailable or dirty; changed source ranges cannot be listed', 'head'),
+        ]
+      : [],
+  };
 
   const script = classifyScriptReach(
     base,
     head,
-    sourceDiff.changes,
+    diff.changes,
     result.rules.flatMap((rule) =>
       rule.sourceRange ? [{ ...rule.sourceRange, join: 'J1' as const, status: rule.status }] : [],
     ),
   );
 
-  const gaps: ReachGap[] = [
-    ...ledgerGaps(base, 'base'),
-    ...ledgerGaps(head, 'head'),
-    ...script.gaps,
-    ...sourceDiff.gaps,
-  ];
+  const gaps: ReachGap[] = [...ledgerGaps(base, 'base'), ...ledgerGaps(head, 'head'), ...script.gaps, ...diff.gaps];
 
   if (result.ledger !== 'complete' && gaps.length === 0) {
     gaps.push({
@@ -116,7 +111,6 @@ export function assessReachMaps(
       remedy: 'recapture with `captureReach`',
     });
   }
-
   const remedy = 'none yet: a later Change Reach phase (#934) adds it';
   gaps.push(
     {
@@ -130,7 +124,6 @@ export function assessReachMaps(
     { join: 'J3', status: 'unmeasured', kind: 'not-built', reason: 'class-list deltas are not recorded yet', remedy },
   );
   const counts: ReportReach['counts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 };
-
   for (const rule of result.rules) counts[rule.status]++;
   const scriptCounts: ReportReach['scriptCounts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, unknown: 0 };
 
@@ -148,7 +141,6 @@ export function assessReachMaps(
         counts['blind-channel'] +
         gaps.filter((gap) => gap.kind === 'ledger').length
       : 0;
-
   return {
     level,
     blocking,
@@ -174,18 +166,12 @@ export function assessReach(
 
   if (level === 'warn' && ![...base, ...head].some((map) => map.reach || map.scriptReach)) return undefined;
 
-  const sourceKeys = [
-    ...new Set(
-      [...base, ...head].flatMap(
-        (map) =>
-          map.scriptReach?.scripts.flatMap(
-            (script) => script.files?.flatMap((file) => (file.sourceKey ? [file.sourceKey] : [])) ?? [],
-          ) ?? [],
-      ),
-    ),
-  ].sort();
-
-  return assessReachMaps(base, head, level, readScriptChanges(ctx.beforeDir, ctx.afterDir, { sourceKeys }));
+  return assessReachMaps(
+    base,
+    head,
+    level,
+    readScriptChanges(ctx.beforeDir, ctx.afterDir, { baseMaps: base, headMaps: head }),
+  );
 }
 
 export function assessReachDirs(beforeDir: string, afterDir: string, level: ChangeReachLevel): ReportReach | undefined {
@@ -211,12 +197,10 @@ export function reachStripLines(reach: ReportReach): string[] {
   const unchecked =
     "Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS) and class-list deltas." +
     (reach.level === 'gate' ? " These are not held by `changeReach: 'gate'`." : '');
-
   const never = reach.counts['never-rendered'];
   const unmeasured = reach.counts.unmeasured;
   const blind = reach.counts['blind-channel'];
   const ledger = reach.gaps.filter((gap) => gap.kind === 'ledger');
-
   if (!never && !unmeasured && !blind && ledger.length === 0) {
     return [
       '',
@@ -224,30 +208,24 @@ export function reachStripLines(reach: ReportReach): string[] {
       ...scriptStrip,
     ];
   }
-
   const parts: string[] = [];
   const remedies: string[] = [];
-
   if (never) {
     parts.push(`${never} changed CSS rule(s) never matched`);
     remedies.push('add a surface or state that matches each rule under **Changed but never matched**');
   }
-
   if (unmeasured) {
     parts.push(`${unmeasured} changed CSS rule(s) unmeasured`);
     remedies.push(
       'review the changes under **Changed but unmeasured** and capture them on compared elements where possible',
     );
   }
-
   if (blind) {
     parts.push(`${blind} changed in a channel computed styles cannot hold`);
     remedies.push('review the changes under **Changed in a channel computed styles cannot hold**');
   }
-
   parts.push(...ledger.map(gapReason));
   remedies.push(...ledger.map((gap) => gap.remedy));
-
   return [
     '',
     `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. ${reach.blocking > 0 ? unchecked.replace(" These are not held by `changeReach: 'gate'`.", " The findings above are held by `changeReach: 'gate'`; the unchecked items are not.") : unchecked}`,
@@ -353,10 +331,14 @@ function scriptSectionLines(reach: ReportReach): string[] {
     '_Warn-only under both changeReach levels. Execution is navigation-window block entry, including transient loading code; value rendering requires exact-range J1/J3 corroboration._',
   ];
 
+  let budget = 100;
   for (const status of ['never-rendered', 'unmeasured', 'unknown', 'reached'] as const) {
-    const group = units.filter((unit) => unit.status === status);
+    const ranges = scriptTableRanges(units.filter((unit) => unit.status === status));
+    const group = ranges.slice(0, budget);
+    budget -= group.length;
+    const hidden = ranges.slice(group.length);
 
-    if (!group.length) continue;
+    if (!ranges.length) continue;
     lines.push(
       '',
       `**${status}**`,
@@ -365,9 +347,14 @@ function scriptSectionLines(reach: ReportReach): string[] {
       '| --- | --- | --- | --- |',
       ...group.map(
         (unit) =>
-          `| ${codeValue(`${unit.sourceKey}:${unit.range.start.line}:${unit.range.start.column}-${unit.range.end.line}:${unit.range.end.column}`)} | ${unit.side} | ${unit.execution} | ${escapeInlineMarkdown(unit.why)} |`,
+          `| ${codeValue(`${unit.sourceKey}:${unit.range.start.line}:${unit.range.start.column}-${unit.range.end.line}:${unit.range.end.column}${unit.count > 1 ? ` (${unit.count} units)` : ''}`)} | ${unit.side} | ${unit.execution} | ${escapeInlineMarkdown(unit.why)} |`,
       ),
     );
+    if (hidden.length)
+      lines.push(
+        '',
+        `+${hidden.length} more changed range(s), ${hidden.reduce((sum, range) => sum + range.count, 0)} unit(s); full list in report.json under \`reach.scripts\`.`,
+      );
   }
 
   if (gaps.length)
@@ -379,4 +366,28 @@ function scriptSectionLines(reach: ReportReach): string[] {
     );
 
   return lines;
+}
+
+type ScriptTableRange = ScriptUnit & { count: number };
+function adjacentScriptUnits(previous: ScriptTableRange, next: ScriptUnit): boolean {
+  return (
+    previous.sourceKey === next.sourceKey &&
+    previous.side === next.side &&
+    previous.status === next.status &&
+    previous.why === next.why &&
+    previous.execution === next.execution &&
+    previous.executionScope === next.executionScope &&
+    previous.range.end.line + 1 === next.range.start.line
+  );
+}
+function scriptTableRanges(units: ScriptUnit[]): ScriptTableRange[] {
+  const ranges: ScriptTableRange[] = [];
+  for (const unit of [...units].sort(compareScriptRanges)) {
+    const previous = ranges.at(-1);
+    if (previous && adjacentScriptUnits(previous, unit)) {
+      previous.range.end = { ...unit.range.end };
+      previous.count++;
+    } else ranges.push({ ...unit, range: { start: { ...unit.range.start }, end: { ...unit.range.end } }, count: 1 });
+  }
+  return ranges;
 }

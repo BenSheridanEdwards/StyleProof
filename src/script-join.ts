@@ -1,6 +1,7 @@
 /** J2: pure changed-source-range × navigation-window execution join. */
+import { executionIn, indexScriptSources, type ScriptExecutionIndex } from './script-join-index.js';
 import type { StyleMap } from './capture.js';
-import type { CompactSourceSpan, ScriptSourceReach, SourcePosition, SourceSpan } from './script-reach.js';
+import type { ScriptSourceReach, SourcePosition, SourceSpan } from './script-reach.js';
 
 export type ScriptChange = {
   sourceKey: string;
@@ -19,6 +20,8 @@ export type ScriptUnit = Omit<ScriptChange, 'text' | 'contentHash'> & {
   status: 'reached' | 'never-rendered' | 'unmeasured' | 'unknown';
   why: string;
   level: 'warn';
+  /** Line-only maps cannot locate an expression more precisely. */
+  executionScope?: 'line';
 };
 
 export type ScriptJoinGap = {
@@ -28,6 +31,7 @@ export type ScriptJoinGap = {
   side?: 'base' | 'head';
   reason: string;
   remedy: string;
+  paths?: string[];
 };
 
 /** A later J3 can supply the same contract; token names and hunk membership are never proof. */
@@ -56,7 +60,17 @@ export function scriptJoinGap(reason: string, side?: 'base' | 'head'): ScriptJoi
   return gap;
 }
 
-const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+export function compareSourceKeys(a: string, b: string): number {
+  if (a === b) return 0;
+
+  const left = Array.from(a),
+    right = Array.from(b);
+
+  const index = left.findIndex((character, i) => character !== right[i]);
+
+  return index < 0 ? left.length - right.length : left[index].codePointAt(0)! - (right[index]?.codePointAt(0) ?? -1);
+}
+
 const comparePosition = (a: SourcePosition, b: SourcePosition): number => a.line - b.line || a.column - b.column;
 const equalPosition = (a: SourcePosition, b: SourcePosition): boolean => comparePosition(a, b) === 0;
 
@@ -65,28 +79,19 @@ export function compareScriptRanges(
   b: Pick<ScriptChange, 'sourceKey' | 'side' | 'range'>,
 ): number {
   return (
-    compareText(a.sourceKey, b.sourceKey) ||
-    compareText(a.side, b.side) ||
+    compareSourceKeys(a.sourceKey, b.sourceKey) ||
+    compareSourceKeys(a.side, b.side) ||
     comparePosition(a.range.start, b.range.start) ||
     comparePosition(a.range.end, b.range.end)
   );
 }
 
-function spanOf(tuple: CompactSourceSpan): SourceSpan {
-  return { start: { line: tuple[0], column: tuple[1] }, end: { line: tuple[0], column: tuple[2] } };
-}
-
-function containsPoint(range: SourceSpan, point: SourcePosition): boolean {
-  return comparePosition(range.start, point) <= 0 && comparePosition(point, range.end) < 0;
-}
-
-function overlaps(range: SourceSpan, span: SourceSpan): boolean {
-  return equalPosition(span.start, span.end)
-    ? containsPoint(range, span.start)
-    : comparePosition(range.start, span.end) < 0 && comparePosition(span.start, range.end) < 0;
-}
-
-type EvidenceSide = { files: Map<string, ScriptSourceReach[]>; reasons: string[]; gaps: ScriptJoinGap[] };
+type EvidenceSide = {
+  files: Map<string, ScriptExecutionIndex>;
+  reasons: string[];
+  gaps: ScriptJoinGap[];
+  missing: number;
+};
 
 function mappedFiles(
   reach: NonNullable<StyleMap['scriptReach']>,
@@ -112,7 +117,9 @@ function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): Evidenc
   const gaps: ScriptJoinGap[] = [];
   const missing = maps.filter((map) => map.scriptReach?.version !== 1).length;
 
-  if (!maps.length || missing)
+  const absent = !maps.length ? 1 : missing;
+
+  if (absent)
     gaps.push(
       scriptJoinGap(
         `missing ${side} scriptReach coverage on ${missing || 'all'} capture(s); enable captureScriptReach`,
@@ -137,23 +144,12 @@ function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): Evidenc
 
   for (const reason of sortedReasons) gaps.push(scriptJoinGap(`${side} script evidence: ${reason}`, side));
 
-  return { files, reasons: sortedReasons, gaps };
-}
-
-/** Executed extents are deliberately discarded. Negative/mixed extents remain spans. */
-function executionIn(range: SourceSpan, files: ScriptSourceReach[]): ScriptExecution {
-  const positive = files.flatMap((file) => file.executed.map(spanOf).map((span) => span.start));
-  const ran = positive.some((point) => containsPoint(range, point));
-  const negatives = files.flatMap((file) => [...file.unexecuted, ...file.mixed].map(spanOf));
-
-  // Across surfaces, entry of this same original start witnesses a formerly idle block.
-  const idle = negatives.some(
-    (span) => overlaps(range, span) && !positive.some((point) => equalPosition(point, span.start)),
-  );
-
-  const mixed = files.some((file) => file.mixed.some((tuple) => overlaps(range, spanOf(tuple))));
-
-  return idle || mixed ? (ran || mixed ? 'partly-ran' : 'never-ran') : ran ? 'ran' : 'unmeasured';
+  return {
+    files: new Map([...files].map(([key, sources]) => [key, indexScriptSources(sources)])),
+    reasons: sortedReasons,
+    gaps,
+    missing: absent,
+  };
 }
 
 /** Detection only names limits; absence of these spellings never supplies rendering proof. */
@@ -170,30 +166,40 @@ function residuals(text: string): string[] {
 function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonly SourceCorroboration[]): ScriptUnit {
   const { text, contentHash, ...identity } = change;
 
-  const unit = (execution: ScriptExecution, status: ScriptUnit['status'], why: string): ScriptUnit => ({
-    ...identity,
-    execution,
-    status,
-    why,
-    level: 'warn',
-  });
+  let scope: 'range' | 'line' = 'range';
 
-  const files = side.files.get(change.sourceKey) ?? [];
+  const unit = (execution: ScriptExecution, status: ScriptUnit['status'], why: string): ScriptUnit => {
+    const entry: ScriptUnit = { ...identity, execution, status, why, level: 'warn' };
 
-  if (!files.length)
+    if (scope === 'line') {
+      entry.executionScope = 'line';
+      entry.why += '; line-scope evidence (column-zero source map)';
+    }
+
+    return entry;
+  };
+
+  const file = side.files.get(change.sourceKey);
+
+  if (!file) {
+    if (side.missing) return unit('unmeasured', 'unmeasured', 'unmeasured: script coverage missing on this side');
+
     return side.reasons.length
       ? unit('unmeasured', 'unmeasured', side.reasons.join('; '))
       : unit('not-loaded', 'unmeasured', 'not loaded: changed file is in no capture source on this side');
+  }
 
-  if (files.some((file) => !file.contentHash))
+  if (file.hashes.has(undefined))
     return unit('unmeasured', 'unmeasured', 'captured sourcesContent content hash absent');
 
-  if (files.some((file) => file.contentHash !== contentHash))
+  if (file.hashes.size !== 1 || !file.hashes.has(contentHash))
     return unit('unmeasured', 'unmeasured', 'content-hash mismatch between git blob and captured sourcesContent');
-  const execution = executionIn(change.range, files);
+  const measured = executionIn(change.range, file);
+  const execution = measured.execution;
+  scope = measured.scope;
 
   if (execution === 'unmeasured')
-    return unit(execution, 'unmeasured', 'no mapped execution anchor or span inside the changed range');
+    return unit(execution, 'unmeasured', 'no mapped execution anchor starts inside the changed range');
 
   if (execution === 'never-ran' || execution === 'partly-ran')
     return unit(
@@ -233,7 +239,10 @@ export function classifyScriptReach(
   const sides = { base: evidenceSide(base, 'base'), head: evidenceSide(head, 'head') };
 
   return {
-    units: [...changes].sort(compareScriptRanges).map((change) => classifyRange(change, sides[change.side], proofs)),
+    units: changes
+      .filter((change) => comparePosition(change.range.start, change.range.end) < 0)
+      .sort(compareScriptRanges)
+      .map((change) => classifyRange(change, sides[change.side], proofs)),
     gaps: [...sides.base.gaps, ...sides.head.gaps],
   };
 }

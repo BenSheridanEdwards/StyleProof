@@ -141,7 +141,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- J2 joins changed script ranges from the compared maps' recorded SHAs to source-mapped execution, validating project-relative paths and source-content hashes. Reports retain base/head ranges, execution and reasons; executed values remain unknown without exact-range rendering proof, and all J2 findings stay warn-only. Missing evidence prevents reach-complete. The corpus now uses the source join, reclassifies runtime CSS-in-JS as unknown and adds two unknown value scenarios (#1000).
+- J2 joins changed script ranges from the compared maps' SHAs using captured root prefixes and source-content hashes. Start-anchor evidence separates evaluated operands from unopened fallbacks; line-only maps retain an explicit fallback and git/JavaScript line numbers are reconciled. Unjudged paths and per-file blob failures remain named gaps. Reports group and cap table rows without losing JSON units; J2 stays warn-only. Corpus J3 token-name prototypes are labeled separately and never corroborate J2 (#1000).
 
 - Opt-in `captureScriptReach` stores navigation-window V8 block evidence at original-source anchors, content hashes and project-relative keys. Missing maps/shared coverage stay unmeasured; read failures and self-check drift become unknown. Evidence notes name expression-evaluation and throwing-expression residuals. Absolute bundler paths are root-validated/redacted, app-only mapping and script counts have deterministic caps, and Playwright injected scripts are excluded; no git-diff join or verdict change is included (#999).
 
