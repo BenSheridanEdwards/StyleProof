@@ -8,11 +8,11 @@ import { renderArtifactHtml, renderReportHtml } from '../dist/report/html.js';
 import { writeReportArtifacts } from '../dist/report/sections.js';
 import { createCropBudget } from '../dist/report/crop-budget.js';
 import { assessReachMaps, reachSectionLines } from '../dist/report/reach.js';
-import { makeMap } from './helpers.mjs';
+import { makeMap, solidPng } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-test('every HTML table is a named keyboard scroll container with CSS overflow cues', () => {
+test('HTML tables keep semantics without repeated property labels or explicit tab stops', () => {
   const tables = [
     '| Property | Before | After |\n| --- | --- | --- |\n| `color` | `red` | `blue` |',
     '| Property | Value |\n| --- | --- |\n| `color` | `red` |',
@@ -22,27 +22,45 @@ test('every HTML table is a named keyboard scroll container with CSS overflow cu
   ];
   const html = renderReportHtml(tables.join('\n\n'));
   assert.equal((html.match(/<table\b/g) ?? []).length, tables.length);
-  assert.equal(
-    (html.match(/<table class="table-scroll" role="table" tabindex="0" aria-label="[^"]+">/g) ?? []).length,
-    tables.length,
-  );
-  assert.match(html, /aria-label="Property, Before, After"/);
-  assert.match(html, /aria-label="State, Property, Before → After"/);
+  assert.equal((html.match(/<table class="table-scroll" role="table"/g) ?? []).length, tables.length);
+  assert.doesNotMatch(html, /tabindex=/);
+  assert.doesNotMatch(html, /aria-label="(?:Property|State),/);
   assert.match(html, /aria-label="Rule, Change, Gated by, Source, Why"/);
-  assert.match(html, /\.table-scroll\s*\{[^}]*max-inline-size: 100%;[^}]*overflow-x: auto;/s);
-  assert.match(html, /background-attachment: local, local, scroll, scroll/);
-  assert.match(html, /\.table-scroll:focus-visible\s*\{[^}]*outline:/);
+  const repeated = renderReportHtml(Array(100).fill(tables[0]).join('\n\n'));
+  assert.equal((repeated.match(/aria-label=/g) ?? []).length, 0);
 });
 
-test('HTML table labels escape header text and only long code values receive a wrap limit', () => {
-  const longValue = '/assets/' + 'selector'.repeat(30) + '.css';
-  const html = renderReportHtml(`| " onfocus="alert(1) | Before |\n| --- | --- |\n| \`${longValue}\` | \`red\` |`);
-  assert.match(html, /aria-label="&quot; onfocus=&quot;alert\(1\), Before"/);
+test('wide table labels escape header text without rewriting cell HTML', () => {
+  const html = renderReportHtml(
+    '| " onfocus="alert(1) | Change | Source | Why |\n| --- | --- | --- | --- |\n| `red` | changed | — | example |',
+  );
+  assert.match(html, /aria-label="&quot; onfocus=&quot;alert\(1\), Change, Source, Why"/);
   assert.doesNotMatch(html, / onfocus="/);
-  assert.ok(html.includes(`<code class="long-code">${longValue}</code>`));
   assert.match(html, /<code>red<\/code>/);
-  assert.match(html, /\.table-scroll code\s*\{\s*white-space: nowrap;/);
-  assert.match(html, /\.table-scroll \.long-code\s*\{[^}]*max-inline-size: 40ch;[^}]*overflow-wrap: anywhere;/s);
+});
+
+test('long code-like link targets do not acquire markup attributes', () => {
+  const value = 'a'.repeat(70);
+  const html = renderReportHtml(`| Property | Value |\n| --- | --- |\n| link | [x](\`${value}\`) |`);
+  assert.ok(html.includes(`<a href="<code>${value}</code>">x</a>`));
+});
+
+test('long code-like image alt text still participates in the HTML image budget', (t) => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-table-alt-'));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(outDir, 'crops'));
+  const png = solidPng(1, 1);
+  fs.writeFileSync(path.join(outDir, 'crops/a.png'), png);
+  const value = 'a'.repeat(70);
+  const markdown = `| Property | Value |\n| --- | --- |\n| image | ![\`${value}\`](crops/a.png) |`;
+  const html = renderReportHtml(markdown, { outDir });
+  assert.ok(
+    html.includes(
+      `<img src="data:image/png;base64,${png.toString('base64')}" alt="<code>${value}</code>" loading="lazy">`,
+    ),
+  );
+  fs.unlinkSync(path.join(outDir, 'crops/a.png'));
+  assert.match(renderReportHtml(markdown, { outDir }), /1 image omitted/);
 });
 
 test('script reach input currently emits CSS reach gaps, not a script reach table', () => {
@@ -66,10 +84,7 @@ test('script reach input currently emits CSS reach gaps, not a script reach tabl
   assert.match(reach.gaps.find((gap) => gap.join === 'J2').reason, /script execution is not joined/);
   assert.doesNotMatch(markdown, /Script change reach/);
   const html = renderReportHtml(markdown);
-  assert.match(
-    html,
-    /<table class="table-scroll" role="table" tabindex="0" aria-label="Rule, Change, Gated by, Source, Why">/,
-  );
+  assert.match(html, /<table class="table-scroll" role="table" aria-label="Rule, Change, Gated by, Source, Why">/);
 });
 
 test('report.html covers the report Markdown grammar (#698)', () => {
