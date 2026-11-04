@@ -7,8 +7,70 @@ import test from 'node:test';
 import { renderArtifactHtml, renderReportHtml } from '../dist/report/html.js';
 import { writeReportArtifacts } from '../dist/report/sections.js';
 import { createCropBudget } from '../dist/report/crop-budget.js';
+import { assessReachMaps, reachSectionLines } from '../dist/report/reach.js';
+import { makeMap } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+test('every HTML table is a named keyboard scroll container with CSS overflow cues', () => {
+  const tables = [
+    '| Property | Before | After |\n| --- | --- | --- |\n| `color` | `red` | `blue` |',
+    '| Property | Value |\n| --- | --- |\n| `color` | `red` |',
+    '| State | Property | Before → After |\n| --- | --- | --- |\n| `:hover` | `color` | `red` → `blue` |',
+    '| State | Property | Value |\n| --- | --- | --- |\n| `:hover` | `color` | `red` |',
+    '| Rule | Change | Gated by | Source | Why |\n| --- | --- | --- | --- | --- |\n| `.overlay` | changed | — | `/styles.css` | never matched |',
+  ];
+  const html = renderReportHtml(tables.join('\n\n'));
+  assert.equal((html.match(/<table\b/g) ?? []).length, tables.length);
+  assert.equal(
+    (html.match(/<table class="table-scroll" role="table" tabindex="0" aria-label="[^"]+">/g) ?? []).length,
+    tables.length,
+  );
+  assert.match(html, /aria-label="Property, Before, After"/);
+  assert.match(html, /aria-label="State, Property, Before → After"/);
+  assert.match(html, /aria-label="Rule, Change, Gated by, Source, Why"/);
+  assert.match(html, /\.table-scroll\s*\{[^}]*max-inline-size: 100%;[^}]*overflow-x: auto;/s);
+  assert.match(html, /background-attachment: local, local, scroll, scroll/);
+  assert.match(html, /\.table-scroll:focus-visible\s*\{[^}]*outline:/);
+});
+
+test('HTML table labels escape header text and only long code values receive a wrap limit', () => {
+  const longValue = '/assets/' + 'selector'.repeat(30) + '.css';
+  const html = renderReportHtml(`| " onfocus="alert(1) | Before |\n| --- | --- |\n| \`${longValue}\` | \`red\` |`);
+  assert.match(html, /aria-label="&quot; onfocus=&quot;alert\(1\), Before"/);
+  assert.doesNotMatch(html, / onfocus="/);
+  assert.ok(html.includes(`<code class="long-code">${longValue}</code>`));
+  assert.match(html, /<code>red<\/code>/);
+  assert.match(html, /\.table-scroll code\s*\{\s*white-space: nowrap;/);
+  assert.match(html, /\.table-scroll \.long-code\s*\{[^}]*max-inline-size: 40ch;[^}]*overflow-wrap: anywhere;/s);
+});
+
+test('script reach input currently emits CSS reach gaps, not a script reach table', () => {
+  const capture = {
+    ...makeMap(),
+    scriptReach: {
+      version: 1,
+      window: 'navigation',
+      status: 'measured',
+      scripts: [
+        {
+          url: '/assets/app.js',
+          status: 'mapped',
+          files: [{ source: '/src/app.ts', executed: [[1, 0, 20]], mixed: [], unexecuted: [[2, 0, 20]] }],
+        },
+      ],
+    },
+  };
+  const reach = assessReachMaps([capture], [capture], 'warn');
+  const markdown = reachSectionLines(reach).join('\n');
+  assert.match(reach.gaps.find((gap) => gap.join === 'J2').reason, /script execution is not joined/);
+  assert.doesNotMatch(markdown, /Script change reach/);
+  const html = renderReportHtml(markdown);
+  assert.match(
+    html,
+    /<table class="table-scroll" role="table" tabindex="0" aria-label="Rule, Change, Gated by, Source, Why">/,
+  );
+});
 
 test('report.html covers the report Markdown grammar (#698)', () => {
   const html = renderReportHtml(

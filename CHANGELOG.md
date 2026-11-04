@@ -148,6 +148,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   edits the live comment's existing approval controls without full-body environment values.
   The residual read-to-write window remains because GitHub has no compare-and-set (#1296).
 
+- HTML report tables scroll in their own keyboard-accessible boxes on narrow screens, with scroll-edge shadows and bounded long code values.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
