@@ -12,7 +12,20 @@
   h2 { border-bottom: 1px solid #d1d9e0; padding-bottom: 6px; }
   h3 { margin-top: 28px; }
   img { max-width: 100%; height: auto; border: 1px solid #d1d9e0; border-radius: 6px; }
-  table { border-collapse: collapse; margin: 8px 0 16px; }
+  .table-scroll { display: block; inline-size: max-content; max-inline-size: 100%; overflow-x: auto;
+    margin-block: 8px 16px;
+    background:
+      linear-gradient(to right, oklch(1 0 none) 50%, oklch(1 0 none / 0)) left / 40px 100%,
+      linear-gradient(to left, oklch(1 0 none) 50%, oklch(1 0 none / 0)) right / 40px 100%,
+      radial-gradient(farthest-side at 0 50%, oklch(0 0 none / 0.2), oklch(0 0 none / 0)) left / 14px 100%,
+      radial-gradient(farthest-side at 100% 50%, oklch(0 0 none / 0.2), oklch(0 0 none / 0)) right / 14px 100%;
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll; }
+  .table-scroll:focus-visible { outline: 2px solid oklch(0.55 0.18 255); outline-offset: 2px; }
+  .table-scroll code { white-space: nowrap; }
+  .table-scroll .long-code { display: inline-block; inline-size: max-content;
+    max-inline-size: 40ch; overflow-wrap: anywhere; white-space: normal; }
+  table { border-collapse: collapse; }
   th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
   th { background: #f6f8fa; }
   code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
@@ -58,7 +71,7 @@
 <summary>Show the property change</summary>
 <p><strong>Caret</strong> <code>span.caret</code></p>
 <p>Style:</p>
-<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>color</code></td><td><code>#9ca3af</code></td><td><code>#2563eb</code></td></tr></tbody></table>
+<table class="table-scroll" role="table" tabindex="0" aria-label="Property, Before, After"><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>color</code></td><td><code>#9ca3af</code></td><td><code>#2563eb</code></td></tr></tbody></table>
 </details>
 <h3><strong>Cta</strong> <code>button.cta</code> · 1 element restyled</h3>
 <p><em>home @ 900</em></p>
@@ -75,7 +88,7 @@
 <summary>Show the property change</summary>
 <p><strong>Cta</strong> <code>button.cta</code></p>
 <p>Style:</p>
-<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>background-color</code></td><td><code>#2563eb</code></td><td><code>#dc2626</code></td></tr></tbody></table>
+<table class="table-scroll" role="table" tabindex="0" aria-label="Property, Before, After"><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>background-color</code></td><td><code>#2563eb</code></td><td><code>#dc2626</code></td></tr></tbody></table>
 </details>
 <h3><strong>Off canvas status</strong> <code>aside.off-canvas-status</code> · 1 element restyled</h3>
 <p><em>home @ 900</em></p>
@@ -86,7 +99,7 @@
 <summary>Show the property change</summary>
 <p><strong>Off canvas status</strong> <code>aside.off-canvas-status</code></p>
 <p>Style:</p>
-<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>opacity</code></td><td><code>0.85</code></td><td><code>1</code></td></tr></tbody></table>
+<table class="table-scroll" role="table" tabindex="0" aria-label="Property, Before, After"><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>opacity</code></td><td><code>0.85</code></td><td><code>1</code></td></tr></tbody></table>
 </details>
 <hr>
 <h2>📝 Content and structure changes</h2>
