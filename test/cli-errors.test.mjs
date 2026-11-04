@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nonLinuxUploadWarning } from '../dist/cli-errors.js';
+import { nonLinuxUploadWarning, missingSpecMessage } from '../dist/cli-errors.js';
 
 test('nonLinuxUploadWarning warns on a non-Linux platform', () => {
   const darwin = nonLinuxUploadWarning('darwin');
@@ -17,4 +17,16 @@ test('nonLinuxUploadWarning is silent on Linux — a Linux capture matches Linux
 test('nonLinuxUploadWarning honours the suppression flag on any platform', () => {
   assert.equal(nonLinuxUploadWarning('darwin', true), null);
   assert.equal(nonLinuxUploadWarning('linux', true), null);
+});
+
+test('missingSpecMessage names a skipped config without claiming none was found', () => {
+  const message = missingSpecMessage(
+    'e2e/styleproof.spec.ts',
+    ['nested/styleproof.config.ts'],
+    undefined,
+    undefined,
+    'styleproof.config.mjs',
+  );
+  assert.match(message, /styleproof\.config\.mjs.*not loaded/);
+  assert.doesNotMatch(message, /no styleproof\.config/);
 });
