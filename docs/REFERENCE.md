@@ -1777,7 +1777,6 @@ Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `stylep
 import { defineConfig } from 'styleproof';
 
 export default defineConfig({
-  blocking: true,
   requireApproval: true,
   spec: 'e2e/styleproof.spec.ts',
   roots: ['hud'],
@@ -1806,7 +1805,6 @@ Example for a protected app:
 
 ```json
 {
-  "blocking": true,
   "crawl": {
     "baseUrl": "http://127.0.0.1:3000",
     "routes": ["/", "account=/account"],

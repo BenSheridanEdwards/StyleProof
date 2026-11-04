@@ -1392,6 +1392,11 @@ test('styleproof-init: scaffolds styleproof.config.ts with blocking: advisory by
     assert.match(configContent, /export default defineConfig\(\{/);
     assert.match(configContent, /blocking: 'advisory'/);
     assert.match(configContent, /requireApproval: true/);
+    // The scaffold's advice must name the steps that turn on the gate, not a no-op setting.
+    assert.match(configContent, /remove blocking: 'advisory'/);
+    assert.match(configContent, /--upgrade --mode review-gate/);
+    assert.match(configContent, /require-approval input/);
+    assert.doesNotMatch(configContent, /set blocking: true/);
     assert.match(res.stdout, /created styleproof\.config\.ts \(typed config with defineConfig\(\)\)/);
     assert.equal(fs.existsSync(path.join(root, 'styleproof.config.json')), false);
   } finally {
