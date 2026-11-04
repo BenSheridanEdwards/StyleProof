@@ -79,8 +79,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Report summaries count distinct elements across widths and groups, with one plain-English sentence per change and matching headline counts.
 - Report summaries use one plain-English sentence per distinct element change and combine the verdict and counts on one line.
-- Group identical element changes into one report section with representative state crops, an element list, and counted glance entries.
-
+- Group identical element changes into one report section with representative state crops, unique element paths, and counted glance entries; `report.json` regions now represent sections, retain all covered `paths`, and add `representativePath`, `cropPaths`, and per-element bounds.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).

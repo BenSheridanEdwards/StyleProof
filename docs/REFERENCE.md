@@ -75,6 +75,34 @@ headline counts all distinct changed sentences and one-sided surface rows,
 including those beyond the ten-line display cap.
 The `digest` key is present only when there is at least one row.
 
+### Grouped report sections and JSON regions
+
+Identical changes to elements with the same displayed label, kind, pseudo/state
+target and summarized before/after values share one section. Its element list
+uses the shortest unique path tails, remains open through five elements, and
+folds longer lists (ten paths plus a remaining count). One top-most crop frame is
+shown per state. An existing overlap frame stays intact when its elements share
+the change; an overlap frame containing different changes keeps the existing
+combined layout. Folded size/position rows remain available for every element,
+even when their values differ from the representative's.
+
+In `report.json`, `surfaces[].regions[]` now describes report sections, so three
+identical element regions can become one region. Consumers must not treat region
+count as element count. `regions[].paths` includes **every element covered by the
+section**. Existing `before`, `after` and `images` fields describe its crop frame.
+Grouped sections additionally expose:
+
+- `representativePath`: the first element used for the shared property table.
+- `cropPaths`: the elements shown in the representative crop frame (several for
+  an existing overlap frame).
+- `elements`: all section elements as `{ paths, before, after }`, retaining their
+  individual padded bounds.
+
+Use `paths` or `elements` to enumerate affected elements; use `cropPaths` to
+identify the visible example. These optional fields do not change finding counts
+or remove the surface's existing `findings`. Mixed-change overlap regions retain
+their previous JSON shape.
+
 ### A safety policy blocks
 
 [![A real StyleProof GitHub comment blocking an unacknowledged navigation removal](readme/check-blocked.png)](https://github.com/BenSheridanEdwards/StyleProof/pull/284#issuecomment-4984031529)

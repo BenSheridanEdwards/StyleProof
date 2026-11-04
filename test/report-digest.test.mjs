@@ -265,7 +265,7 @@ test('surface names appear only for several changed product bases, not extra wid
       writeCapture(dirs.afterDir, surface, { ...pageMap({ button: { color: 'blue' } }), metadata });
     }
     const { slice } = report(dirs);
-    assert.match(slice, new RegExp(`^- ${expected.replace(/[()]/g, '\\$&')}$`, 'm'));
+    assertSentence(slice, expected);
   }
 });
 
@@ -386,4 +386,15 @@ test('the headline counts sentences omitted by the ten-line cap', () => {
   assert.match(slice, /\*\*12 changes need review\*\* · 12 distinct changes on 1 surface/);
   assert.equal(slice.split('\n').filter((line) => line.startsWith('- ')).length, 11);
   assert.match(slice, /^- …and 2 more changes$/m);
+});
+
+function assertSentence(slice, expected) {
+  assert.ok(slice.split('\n').includes(`- ${expected}`));
+}
+
+test('sentence assertions compare literal punctuation without interpreting regex syntax', () => {
+  const sentence = 'Nav links [primary]+ changed colour (2 elements).';
+  assert.doesNotThrow(() => assertSentence(`- ${sentence}\n`, sentence));
+  assert.throws(() => assertSentence('- Button changed colour (1 button)!', 'Button changed colour (1 button).'));
+
 });

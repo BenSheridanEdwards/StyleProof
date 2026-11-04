@@ -16,19 +16,30 @@ const change = (index, extra = {}) => ({
   ...extra,
 });
 
-function render({ count = 3, different = false, overlap = false, states = false, maxCropFiles } = {}) {
+function render({
+  count = 3,
+  different = false,
+  overlap = false,
+  overlapCount = 0,
+  states = false,
+  maxCropFiles,
+  heights,
+  pathOf = elementPath,
+  targetOf,
+} = {}) {
   const map = (after) =>
     makeMap({
       elements: Object.fromEntries(
         Array.from({ length: count }, (_, offset) => {
           const index = offset + 1;
           return [
-            elementPath(index),
+            pathOf(index),
             {
               tag: 'h2',
               cls: 'card-title',
-              rect: [20, overlap ? 20 : index * 90, 180, 20],
+              rect: [20, overlap || index <= overlapCount ? 20 : index * 90, 180, 20],
               style: {
+                ...(heights ? { height: `${after ? heights[offset] : 20}px` } : {}),
                 color:
                   after && !states
                     ? different && index === 3
@@ -43,11 +54,12 @@ function render({ count = 3, different = false, overlap = false, states = false,
       states: states
         ? Object.fromEntries(
             Array.from({ length: count }, (_, offset) => {
-              const owner = elementPath(offset + 1);
+              const owner = pathOf(offset + 1);
+              const target = targetOf ? targetOf(owner, offset + 1) : owner;
               return [
                 owner,
                 {
-                  hover: { [owner]: { 'background-color': after ? 'rgb(255, 0, 0)' : 'rgb(0, 0, 255)' } },
+                  hover: { [target]: { 'background-color': after ? 'rgb(255, 0, 0)' : 'rgb(0, 0, 255)' } },
                   focus: { [owner]: { 'outline-width': after ? '3px' : '1px' } },
                 },
               ];
@@ -55,10 +67,19 @@ function render({ count = 3, different = false, overlap = false, states = false,
           )
         : {},
     });
+  const captureMap = (after) => {
+    const result = map(after);
+    if (targetOf)
+      for (let index = 1; index <= count; index++) {
+        const target = targetOf(pathOf(index), index);
+        result.elements[target] = { tag: 'span', cls: '', rect: [20, index * 90, 20, 20], style: {} };
+      }
+    return result;
+  };
   const dirs = pairFixture({
     surface: 'cards@390',
-    before: map(false),
-    after: map(true),
+    before: captureMap(false),
+    after: captureMap(true),
     beforePng: solidPng(390, 1200),
     afterPng: solidPng(390, 1200, [150, 30, 60]),
   });
@@ -85,13 +106,14 @@ test('identical separated elements have one representative section, element list
   const { md, json } = render();
   assert.equal(sections(md).length, 1);
   assert.match(md, /### \*\*Card title\*\* `h2.card-title` · 3 elements restyled/);
-  assert.match(md, /Showing 1 of 3 elements; the other 2 changed identically\./);
+  assert.match(md, /Showing 1 of 3 elements for the grouped change above\./);
   assert.match(md, /- `article:nth-child\(1\) > h2` \(shown\)/);
   assert.match(md, /- `article:nth-child\(3\) > h2`/);
   assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1);
   const regions = json.surfaces[0].regions;
   assert.equal(regions.length, 1);
-  assert.deepEqual(regions[0].paths, [elementPath(1)]);
+  assert.deepEqual(regions[0].paths, [1, 2, 3].map(elementPath));
+  assert.equal(regions[0].representativePath, elementPath(1));
   assert.equal(regions[0].elements.length, 3);
   assert.deepEqual(json.counts, { dom: 0, style: 3, state: 0 });
 });
@@ -167,7 +189,7 @@ test('element identity ignores paths and property ordering but retains labels, k
       state(1, { sub: `${elementPath(1)} > span:nth-child(1)` }),
       state(2, { sub: `${elementPath(2)} > span:nth-child(2)` }),
     ]),
-    1,
+    2,
   );
   assert.equal(signatureCount([state(1), state(2, { state: 'focus' })]), 2);
   assert.equal(signatureCount([state(1), state(2, { sub: `${elementPath(2)} > span` })]), 2);
@@ -187,4 +209,61 @@ test('a representative region preserves the existing crop budget omission field'
   const { json } = render({ maxCropFiles: 0 });
   assert.equal(json.surfaces[0].regions[0].cropOmitted, 'budget');
   assert.equal(json.surfaces[0].regions[0].elements.length, 3);
+});
+
+test('folded height rows survive for every grouped element, including non-representatives', () => {
+  for (const heights of [
+    [20, 22, 20],
+    [21, 22, 23],
+  ]) {
+    const { md } = render({ heights });
+    assert.equal(sections(md).filter(() => true).length, 2);
+    assert.match(md, /Folded size\/position rows outside the crops/);
+    assert.equal((md.match(/\| `height` \|/g) ?? []).length, heights.filter((height) => height !== 20).length);
+    for (const height of heights.filter((height) => height !== 20))
+      assert.ok(md.includes(`| \`20px\` | \`${height}px\` |`));
+    assert.doesNotMatch(md, /the other 2 changed identically/);
+  }
+});
+
+test('different relative state targets stay separate even with the same tag and values', () => {
+  const { md } = render({ count: 2, states: true, targetOf: (owner, index) => `${owner} > span:nth-child(${index})` });
+  assert.equal(sections(md).length, 4);
+});
+
+test('identical overlapping and separated regions share one counted section and element list', () => {
+  for (const states of [false, true])
+    for (const options of [{ overlap: true }, { overlapCount: 2 }]) {
+      const { md, json } = render({ states, ...options });
+      assert.equal(sections(md).length, 1);
+      assert.match(md, /### .* · 3 elements restyled/);
+      assert.equal((md.match(/^- `article:nth-child/gm) ?? []).length, 3);
+      assert.equal(json.surfaces[0].regions[0].paths.length, 3);
+      assert.equal(json.surfaces[0].regions[0].elements.length, 3);
+      assert.equal((md.match(/\(shown\)/g) ?? []).length, options.overlap ? 3 : 2);
+      if (states) assert.deepEqual(Object.keys(json.surfaces[0].regions[0].stateImages), ['hover', 'focus']);
+    }
+});
+
+test('mixed-change overlap regions retain the existing section behavior', () => {
+  const { md, json } = render({ overlap: true, different: true });
+  assert.equal(sections(md).length, 1);
+  assert.equal(json.surfaces[0].regions[0].paths.length, 3);
+  assert.equal(json.surfaces[0].regions[0].elements, undefined);
+});
+
+test('path tails are the shortest unique suffix across the whole element list', () => {
+  const pathOf = (index) => `html > body > section:nth-child(${index}) > article > h2`;
+  const { md } = render({ pathOf });
+  for (let index = 1; index <= 3; index++) assert.ok(md.includes(`- \`section:nth-child(${index}) > article > h2\``));
+  assert.doesNotMatch(md, /- `html/);
+  const long = render({ count: 12, pathOf }).md;
+  assert.ok(long.includes('- `section:nth-child(10) > article > h2`'));
+  assert.match(long, /… and 2 more/);
+});
+
+test('JSON paths retain every covered element and identify the representative separately', () => {
+  const { json } = render();
+  assert.deepEqual(json.surfaces[0].regions[0].paths, [1, 2, 3].map(elementPath));
+  assert.equal(json.surfaces[0].regions[0].representativePath, elementPath(1));
 });
