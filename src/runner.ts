@@ -1,9 +1,9 @@
 // Spec-facing capture definitions. Public entry; the machinery lives under src/runner/.
-import { validateMediaStates } from './media-states.js';
 import { test, expect, type Page } from '@playwright/test';
 import { loadStyleProofConfigWithLocation } from './config.js';
 import { coverageGaps, coverageKeys, mergeCoverageConfig } from './coverage.js';
 import { requireLiveTextCapture, validateLiveText } from './live-text.js';
+import { validateMediaStates } from './media-states.js';
 import { captureTestBudgetMs } from './surface-progress.js';
 import { withSurfaceFailureTolerance } from './runner/self-check.js';
 import { resolveSettings } from './runner/settings.js';

@@ -641,18 +641,22 @@ network-fixture, and discovered popup states. To cover one of those states under
 media emulation, model it as an explicit variant or a separate base surface.
 
 Emulation starts before navigation and persists through breakpoint detection,
-settling, self-check, and screenshots. Shared crawl pages reset media before the
-next surface. Saved `metadata.mediaState` records the declared features; media
-copies reuse `variantKind: 'variant'`, so reports need no renderer changes.
+settling, self-check, and screenshots. Omitted features retain the page’s
+starting media settings, including browser-context settings. Shared crawl pages
+restore those starting settings before the next base surface. Saved
+`metadata.mediaState` records the declared features; media copies reuse
+`variantKind: 'variant'`, so reports need no renderer changes.
 
 Nothing expands by default. When readable loaded stylesheets use
-`prefers-color-scheme`, `print`, `forced-colors`, or `prefers-contrast` and no media
-states are declared for the surface, one capture-time warning names the detected
-features and points at `mediaStates`. This is discovery advice, not a completeness
-claim: unreadable sheets and JavaScript-only media queries are not inspected.
-`prefers-contrast` is not emulated by this option; forced colors is a separate
-browser feature. The ad-hoc `styleproof-capture` CLI currently needs a spec for
-these media environments.
+`prefers-color-scheme`, `print`, `forced-colors`, or `prefers-contrast` and no
+media states are declared for the surface, one capture-time warning per runner
+process names the detected features and points at `mediaStates`. This is
+discovery advice, not a completeness claim. Public `captureStyleMap`,
+`styleproof-capture`, and variant-crawler calls do not emit this advice because
+they have no `mediaStates` declaration option. Unreadable sheets and
+JavaScript-only media queries are not inspected. `prefers-contrast` is not
+emulated by this option; forced colors is a separate browser feature. The ad-hoc
+`styleproof-capture` CLI currently needs a spec for these media environments.
 
 ### Harvest one-step variants
 

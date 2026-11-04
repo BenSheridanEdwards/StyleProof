@@ -111,10 +111,11 @@ the file or the maps). A failed non-`optional` step aborts loudly.
 
 `mediaStates` declarations are required to cover dark-theme, print, and
 forced-colors rules. Loaded stylesheet conditions produce one advisory warning
-when undeclared, including `prefers-contrast` (detected only, not emulated).
-Surface lists override global lists; `[]` opts out. Live states, recipes, and
-popup discovery are not multiplied; declare an explicit variant or separate
-surface for those combinations. See the reference's media environments section.
+per runner process when undeclared, including `prefers-contrast` (detected only,
+not emulated). Surface lists override global lists; `[]` opts out. Live states,
+recipes, and popup discovery are not multiplied; declare an explicit variant or
+separate surface for those combinations. See the reference's media environments
+section.
 
 ## Gotchas from a real 100%-coverage push
 

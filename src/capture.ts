@@ -1,10 +1,10 @@
-import { restoreDeclaredMediaState, warnUndeclaredMediaStates } from './media-states.js';
 // Computed-style capture: the browser's final resolved value for every CSS longhand
 // on every element, keyed by DOM structure (never class names) so a class rewrite
 // stays comparable. Public entry; the machinery lives under src/capture/.
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { restoreDeclaredMediaState } from './media-states.js';
 import { GENERATED_ID_SOURCES } from './generated-id.js';
 import { realNow } from './spec-clock.js';
 import { PSEUDO_REFERENCES } from './pseudo-references.js';
@@ -471,8 +471,6 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     options.stabilize ?? true,
     options.pendingRequests,
   );
-
-  await warnUndeclaredMediaStates(page, options);
 
   options.onPhase?.('capture');
   await assertRequiredVisibleState(page, options.requiredVisibleState);

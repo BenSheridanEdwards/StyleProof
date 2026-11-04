@@ -1,11 +1,11 @@
 import path from 'node:path';
-import { validateMediaStates } from '../media-states.js';
 import { resolveScriptProjectRoot } from '../capture/script-project-root.js';
 import { resolveForcedStateLimits } from '../capture/forced-states.js';
 import { warn } from '../capture/shared.js';
 import type { ServedRuleTracker } from '../capture/reach.js';
 import type { CaptureOptions } from '../capture/types.js';
 import { requireLiveTextCapture, validateLiveText } from '../live-text.js';
+import { validateMediaStates } from '../media-states.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, restoreRealSpecClock } from '../spec-clock.js';
 import { resolveNavigateTimeoutMs, resolveSurfaceTimeoutMs } from '../surface-progress.js';
 import type {

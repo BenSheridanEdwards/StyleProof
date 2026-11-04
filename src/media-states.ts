@@ -1,8 +1,4 @@
 import type { Page } from '@playwright/test';
-import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, openSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { collectMediaTexts } from './breakpoints.js';
 import { warn } from './capture/shared.js';
 import type { CaptureMetadata, CaptureOptions, MediaState } from './capture/types.js';
@@ -33,8 +29,13 @@ export function validateMediaStates(input: MediaState[] | undefined): MediaState
     for (const [feature, value] of Object.entries(declaration)) {
       if (feature === 'key') continue;
 
-      if (!allowedValues.get(feature)?.includes(value)) {
-        throw new Error(`styleproof: invalid mediaStates feature '${feature}' (motion stays reduced)`);
+      const values = allowedValues.get(feature);
+      if (!values) {
+        const motionNote = feature === 'reducedMotion' ? '; motion stays reduced for determinism' : '';
+        throw new Error(`styleproof: unknown mediaStates feature '${feature}'${motionNote}`);
+      }
+      if (!values.includes(value)) {
+        throw new Error(`styleproof: invalid mediaStates value for '${feature}'; allowed values: ${values.join(', ')}`);
       }
     }
 
@@ -47,6 +48,8 @@ export function validateMediaStates(input: MediaState[] | undefined): MediaState
 }
 
 const pagesWithDeclaredMedia = new WeakSet<Page>();
+type StartingMedia = Required<Pick<MediaState, 'colorScheme' | 'media' | 'forcedColors'>>;
+const startingPageMedia = new WeakMap<Page, StartingMedia>();
 
 /** Establish this capture's complete media environment before navigation, clearing prior crawl states. */
 export async function applyMediaState(page: Page, declaration?: MediaState): Promise<void> {
@@ -56,10 +59,20 @@ export async function applyMediaState(page: Page, declaration?: MediaState): Pro
     return;
   }
 
+  let startingMedia = startingPageMedia.get(page);
+  if (!startingMedia) {
+    startingMedia = await page.evaluate(() => ({
+      colorScheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+      media: matchMedia('print').matches ? 'print' : 'screen',
+      forcedColors: matchMedia('(forced-colors: active)').matches ? 'active' : 'none',
+    }));
+    startingPageMedia.set(page, startingMedia);
+  }
+
   await page.emulateMedia({
-    colorScheme: declaration?.colorScheme ?? null,
-    media: declaration?.media ?? null,
-    forcedColors: declaration?.forcedColors ?? null,
+    colorScheme: declaration?.colorScheme ?? startingMedia.colorScheme,
+    media: declaration?.media ?? startingMedia.media,
+    forcedColors: declaration?.forcedColors ?? startingMedia.forcedColors,
     reducedMotion: 'reduce',
   });
 
@@ -83,36 +96,26 @@ export function mediaStateFeatures(mediaTexts: string[]): string[] {
   );
 }
 
-// Test collection runs in the parent before Playwright starts workers. Inheriting this identifier
-// lets an atomic temporary-file claim deduplicate warnings across workers, retries and widths.
-const mediaWarningRun = (process.env.STYLEPROOF_MEDIA_WARNING_RUN ??= randomUUID());
 const warnedMediaScopes = new Set<string>();
+const inspectedMediaSurfaces = new Set<string>();
 
-/** One advisory warning per run. Unreadable sheets remain the breakpoint detector's responsibility. */
+/** One advisory warning per runner scope in this process. Unreadable sheets remain the breakpoint detector's responsibility. */
 export async function warnUndeclaredMediaStates(
   page: Page,
   options: Pick<CaptureOptions, 'mediaStatesDeclared' | 'mediaWarningScope' | 'metadata'> = {},
 ): Promise<void> {
-  const scope = options.mediaWarningScope ?? 'capture';
+  const scope = options.mediaWarningScope;
   const declared = options.mediaStatesDeclared || !!options.metadata?.mediaState;
 
-  if (declared || warnedMediaScopes.has(scope)) return;
+  if (!scope || declared || warnedMediaScopes.has(scope)) return;
+  const surface = JSON.stringify([scope, options.metadata?.surfaceKey]);
+  if (inspectedMediaSurfaces.has(surface)) return;
+  inspectedMediaSurfaces.add(surface);
   const { mediaTexts } = await page.evaluate(collectMediaTexts);
   const features = mediaStateFeatures(mediaTexts);
 
   if (!features.length) return;
   warnedMediaScopes.add(scope);
-  // Only the identifier enters the filename; a consumer-provided output path never does.
-  const warningIdentifier = createHash('sha256').update(mediaWarningRun).update(scope).digest('hex');
-  const warningFile = path.join(tmpdir(), `styleproof-media-warning-${warningIdentifier}`);
-
-  try {
-    closeSync(openSync(warningFile, 'wx'));
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return;
-    throw error;
-  }
-
   warn(
     `styleproof: loaded stylesheets use ${features.join(', ')}; these media environments are not captured by default. ` +
       'Declare mediaStates on defineStyleMapCapture, defineCrawlCapture, or a surface to capture them. ' +

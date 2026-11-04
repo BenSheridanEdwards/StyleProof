@@ -245,7 +245,7 @@ export type CaptureOptions = {
   requiredVisibleState?: { selector: string; stateKey: string };
   /** Internal: suppress media discovery advice when the surface declares media captures. */
   mediaStatesDeclared?: boolean;
-  /** Internal: shared warning scope for all widths and workers of a capture run. */
+  /** Internal: runner output scope for in-process warning de-duplication across surfaces and widths. */
   mediaWarningScope?: string;
   /** Internal: metadata persisted with the capture. */
   metadata?: CaptureMetadata;

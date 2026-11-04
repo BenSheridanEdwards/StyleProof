@@ -59,7 +59,7 @@ caught as `style` findings when the surface declares `mediaStates`, for example
 `[{ key: 'dark', colorScheme: 'dark' }]`, `[{ key: 'print', media: 'print' }]`, or
 `[{ key: 'contrast', forcedColors: 'active' }]`. Emulation starts before navigation
 and remains active through screenshots. No media environments are added by
-default; capture warns once when readable stylesheets contain undeclared media
+default; runners warn once per process when readable stylesheets contain undeclared media
 features. `prefers-contrast` is detected as advice but is not emulated.
 
 The [state-type coverage matrix](../test/state-type-coverage.e2e.spec.ts) also proves

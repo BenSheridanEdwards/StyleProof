@@ -1,4 +1,3 @@
-import { applyMediaState, restoreDeclaredMediaState } from '../media-states.js';
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { trackScriptReach } from '../capture/script-reach.js';
@@ -23,6 +22,7 @@ import {
   writeBrowserBuildSidecar,
   writeCaptureManifest,
 } from '../map-store.js';
+import { applyMediaState, restoreDeclaredMediaState, warnUndeclaredMediaStates } from '../media-states.js';
 import { realNow } from '../spec-clock.js';
 import { formatSurfaceHeartbeat, runWithSurfaceTimeout, type CapturePhase } from '../surface-progress.js';
 import { captureArtifactStem } from '../surface-keys.js';
@@ -224,6 +224,11 @@ export async function captureSurface(
         } finally {
           await scriptReach?.dispose();
         }
+
+        await warnUndeclaredMediaStates(page, {
+          ...captureOptionsFor(surface, s, requests.pending, servedRules),
+          metadata: surface.metadata,
+        });
 
         if (s.selfCheck) {
           phase = 'self-check';

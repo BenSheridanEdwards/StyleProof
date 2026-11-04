@@ -8,7 +8,12 @@ import {
 } from './helpers.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateMediaStates, mediaStateFeatures, applyMediaState } from '../dist/media-states.js';
+import {
+  validateMediaStates,
+  mediaStateFeatures,
+  applyMediaState,
+  warnUndeclaredMediaStates,
+} from '../dist/media-states.js';
 import { expandSurfaceVariants, assertUniqueExpandedKeys } from '../dist/runner.js';
 import { captureOptionsFor, resolveSettings } from '../dist/runner/settings.js';
 
@@ -73,9 +78,12 @@ test('mediaStates adds base and explicit variant copies with provenance, excludi
   assert.deepEqual(mediaCapture.widths, [800]);
   assert.deepEqual(mediaCapture.ignore, ['.clock']);
   assert.equal(mediaCapture.popups, false);
-  await mediaCapture.go({ emulateMedia: async (features) => calls.push(features) });
+  await mediaCapture.go({
+    evaluate: async () => ({ colorScheme: 'light', media: 'screen', forcedColors: 'none' }),
+    emulateMedia: async (features) => calls.push(features),
+  });
   assert.deepEqual(calls, [
-    { colorScheme: 'dark', media: null, forcedColors: null, reducedMotion: 'reduce' },
+    { colorScheme: 'dark', media: 'screen', forcedColors: 'none', reducedMotion: 'reduce' },
     'setup',
     'navigate',
     'open',
@@ -116,20 +124,28 @@ test('media expansion detects duplicate, ambiguous and case-folded capture keys'
           variants: [{ key: 'dark' }],
         }),
       ),
-    /capture key/,
+    /media state 'dark'.*rename one surface, variant, media state/,
   );
 });
 
-test('resetting a shared page clears declared features while ordinary captures preserve consumer media', async () => {
+test('resetting a shared page restores starting features while ordinary captures preserve consumer media', async () => {
   const calls = [];
-  const page = { emulateMedia: async (features) => calls.push(features) };
+  let reads = 0;
+  const page = {
+    evaluate: async () => {
+      reads++;
+      return { colorScheme: 'dark', media: 'screen', forcedColors: 'none' };
+    },
+    emulateMedia: async (features) => calls.push(features),
+  };
   await applyMediaState(page);
-  await applyMediaState(page, dark);
+  await applyMediaState(page, { key: 'print', media: 'print' });
   await applyMediaState(page);
+  assert.equal(reads, 1);
   assert.deepEqual(calls, [
     { reducedMotion: 'reduce' },
-    { colorScheme: 'dark', media: null, forcedColors: null, reducedMotion: 'reduce' },
-    { colorScheme: null, media: null, forcedColors: null, reducedMotion: 'reduce' },
+    { colorScheme: 'dark', media: 'print', forcedColors: 'none', reducedMotion: 'reduce' },
+    { colorScheme: 'dark', media: 'screen', forcedColors: 'none', reducedMotion: 'reduce' },
   ]);
 });
 
@@ -198,28 +214,49 @@ function listCaptureDeclarations(declarations) {
   }
 }
 
-test('media advice is emitted once across worker processes sharing a capture run', () => {
-  const directory = makeTemporaryDirectory('styleproof-media-warning-');
-
+test('media advice needs runner scope, scans each surface once, and never writes marker files', async () => {
+  const warnings = [];
+  const originalWarning = console.warn;
+  console.warn = (message) => warnings.push(message);
+  let reads = 0;
+  let mediaTexts = [];
+  const page = {
+    evaluate: async () => {
+      reads++;
+      return { mediaTexts };
+    },
+  };
+  const options = { mediaWarningScope: 'warning-test', metadata: { surfaceKey: 'home' } };
   try {
-    const moduleLocation = pathToFileURL(path.resolve('dist/media-states.js')).href;
-
-    const source = `import { warnUndeclaredMediaStates } from ${JSON.stringify(moduleLocation)};
-      await warnUndeclaredMediaStates({ evaluate: async () => ({ mediaTexts: ['print', '(prefers-color-scheme: dark)'] }) }, { mediaWarningScope: ${JSON.stringify(directory)} });`;
-
-    const warnings = [0, 1].map(() => {
-      const result = spawnSynchronouslyToCompletion(process.execPath, ['--input-type=module', '--eval', source], {
-        encoding: 'utf8',
-      });
-
-      assert.equal(result.status, 0, result.stderr || result.stdout);
-
-      return result.stderr;
-    });
-
+    await warnUndeclaredMediaStates(page);
+    assert.equal(reads, 0);
+    await warnUndeclaredMediaStates(page, options);
+    await warnUndeclaredMediaStates(page, options);
+    assert.equal(reads, 1);
+    mediaTexts = ['print', '(prefers-color-scheme: dark)'];
+    await warnUndeclaredMediaStates(page, { ...options, metadata: { surfaceKey: 'settings' } });
+    await warnUndeclaredMediaStates(page, { ...options, metadata: { surfaceKey: 'account' } });
+    assert.equal(reads, 2);
+    assert.equal(warnings.length, 1);
     assert.match(warnings[0], /prefers-color-scheme, print.*mediaStates/);
-    assert.equal(warnings[1], '');
   } finally {
-    removeTemporaryDirectory(directory);
+    console.warn = originalWarning;
   }
+});
+
+test('media validation distinguishes unknown features, invalid values and the motion constraint', () => {
+  assert.throws(
+    () => validateMediaStates([{ key: 'example', contrast: 'more' }]),
+    /unknown mediaStates feature 'contrast'$/,
+  );
+  assert.throws(
+    () => validateMediaStates([{ key: 'example', colorScheme: 'blue' }]),
+    /invalid mediaStates value for 'colorScheme'; allowed values: light, dark/,
+  );
+  assert.throws(() => validateMediaStates([{ key: 'example', media: 'speech' }]), /allowed values: screen, print/);
+  assert.throws(() => validateMediaStates([{ key: 'example', forcedColors: 'more' }]), /allowed values: active, none/);
+  assert.throws(
+    () => validateMediaStates([{ key: 'example', reducedMotion: 'reduce' }]),
+    /unknown.*reducedMotion.*motion stays reduced/,
+  );
 });

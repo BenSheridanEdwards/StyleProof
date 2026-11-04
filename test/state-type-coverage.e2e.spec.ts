@@ -1,9 +1,17 @@
 /* eslint-disable no-console -- capture warning assertions spy on the shared warning channel */
 import { test, expect, type Page } from '@playwright/test';
 import fileSystem from 'node:fs';
+import { tmpdir as temporaryDirectory } from 'node:os';
 import path from 'node:path';
 import { PNG as PortableNetworkGraphic } from 'pngjs';
-import { captureStyleMap, diffStyleMaps, loadStyleMap, type StyleMap, type MediaState } from '../dist/index.js';
+import {
+  captureStyleMap,
+  diffStyleMaps,
+  loadStyleMap,
+  type StyleMap,
+  type MediaState,
+  defineCrawlCapture,
+} from '../dist/index.js';
 import { expandSurfaceVariants } from '../dist/runner.js';
 import { captureSurface, detectSurfaceWidths } from '../dist/runner/surface-capture.js';
 import { resolveSettings } from '../dist/runner/settings.js';
@@ -224,6 +232,8 @@ test('dark-only change is NOT CAUGHT without mediaStates; warning fires once and
   const scope = test.info().outputPath('undeclared');
 
   try {
+    await captureDocument(page, '@media(prefers-color-scheme:dark){.subject{border:2px solid}}');
+    expect(warnings).toEqual([]);
     const captureUndeclared = async (thickness: number): Promise<StyleMap> => {
       await page.setContent(
         documentMarkup(
@@ -232,7 +242,9 @@ test('dark-only change is NOT CAUGHT without mediaStates; warning fires once and
         ),
       );
 
-      return captureStyleMap(page, { mediaWarningScope: scope });
+      const settings = resolveSettings({ dir: scope, freezeClock: false, selfCheck: false, screenshots: false });
+      await captureSurface(page, { key: 'home', go: async () => {} }, 1280, settings, { index: 1, total: 1 });
+      return loadStyleMap(path.join(scope, 'home@1280.json.gz'));
     };
 
     const base = await captureUndeclared(2);
@@ -245,26 +257,108 @@ test('dark-only change is NOT CAUGHT without mediaStates; warning fires once and
   }
 });
 
-test('a shared crawl page resets media before its next base navigation', async ({ page }) => {
-  const directory = test.info().outputPath('reset');
-  const settings = resolveSettings({ dir: directory, freezeClock: false, selfCheck: false, screenshots: false });
+test('a print copy preserves a dark browser context and restores it before the next base navigation', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ colorScheme: 'dark' });
+  const page = await context.newPage();
+  try {
+    const directory = test.info().outputPath('reset');
+    const settings = resolveSettings({ dir: directory, freezeClock: false, selfCheck: false, screenshots: false });
 
-  const captures = expandSurfaceVariants({
-    key: 'home',
-    mediaStates: [{ key: 'print', media: 'print', colorScheme: 'dark', forcedColors: 'active' }],
-    go: async (capturePage) => {
-      await capturePage.setContent(documentMarkup(''));
-    },
-  });
+    const captures = expandSurfaceVariants({
+      key: 'home',
+      mediaStates: [{ key: 'print', media: 'print' }],
+      go: async (capturePage) => {
+        await capturePage.setContent(documentMarkup(''));
+      },
+    });
 
-  await captureSurface(page, captures[1], 1280, settings, { index: 1, total: 2 });
-  await captureSurface(page, captures[0], 1280, settings, { index: 2, total: 2 });
-  expect(
-    await page.evaluate(() => [
-      matchMedia('print').matches,
-      matchMedia('(prefers-color-scheme:dark)').matches,
-      matchMedia('(forced-colors:active)').matches,
-      matchMedia('(prefers-reduced-motion:reduce)').matches,
-    ]),
-  ).toEqual([false, false, false, true]);
+    await captureSurface(page, captures[1], 1280, settings, { index: 1, total: 2 });
+    expect(
+      await page.evaluate(() => [matchMedia('print').matches, matchMedia('(prefers-color-scheme:dark)').matches]),
+    ).toEqual([true, true]);
+    await captureSurface(page, captures[0], 1280, settings, { index: 2, total: 2 });
+    expect(
+      await page.evaluate(() => [
+        matchMedia('print').matches,
+        matchMedia('(prefers-color-scheme:dark)').matches,
+        matchMedia('(forced-colors:active)').matches,
+        matchMedia('(prefers-reduced-motion:reduce)').matches,
+      ]),
+    ).toEqual([false, true, false, true]);
+  } finally {
+    await context.close();
+  }
 });
+
+test('an explicit variant receives its media copy before setup and keeps its variant state', async ({ page }) => {
+  const directory = test.info().outputPath('variant');
+  const settings = resolveSettings({ dir: directory, freezeClock: false, selfCheck: false, screenshots: false });
+  const capture = expandSurfaceVariants({
+    key: 'home',
+    mediaStates: [{ key: 'dark', colorScheme: 'dark' }],
+    go: async (capturePage) => {
+      await capturePage.setContent(documentMarkup('@media(prefers-color-scheme:dark){.subject{border:7px solid}}'));
+    },
+    variants: [
+      {
+        key: 'open',
+        setup: async (capturePage) => {
+          expect(await capturePage.evaluate(() => matchMedia('(prefers-color-scheme:dark)').matches)).toBe(true);
+        },
+        go: async (capturePage) => {
+          await capturePage.locator('button').evaluate((element) => element.setAttribute('data-open', 'true'));
+        },
+      },
+    ],
+  }).find((surface) => surface.key === 'home-open-dark')!;
+  await captureSurface(page, capture, 1280, settings, { index: 1, total: 1 });
+  const map = loadStyleMap(path.join(directory, 'home-open-dark@1280.json.gz'));
+  expect(map.metadata?.variantKey).toBe('open-dark');
+  expect(map.metadata?.mediaState).toEqual({ key: 'dark', colorScheme: 'dark' });
+  expect(await page.locator('button').getAttribute('data-open')).toBe('true');
+  expect(await page.locator('button').evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('7px');
+});
+
+const crawlDirectory = fileSystem.mkdtempSync(path.join(temporaryDirectory(), 'styleproof-media-crawl-'));
+test.describe.serial('declared crawl media', () => {
+  test.use({ colorScheme: 'dark', baseURL: 'http://media-crawl.test' });
+  test.beforeEach(async ({ page }) => {
+    await page.route('http://media-crawl.test/**', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: documentMarkup(
+          '@media print{.subject{border:7px solid}}@media(prefers-color-scheme:dark){.subject{padding:9px}}',
+          '<nav><a href="/alpha">Example</a></nav><button class="subject">Example</button>',
+        ),
+      }),
+    );
+  });
+  defineCrawlCapture({
+    from: 'http://media-crawl.test/',
+    match: '/alpha',
+    dir: crawlDirectory,
+    widths: [800],
+    mediaStates: [{ key: 'print', media: 'print' }],
+    screenshots: false,
+    selfCheck: false,
+    freezeClock: false,
+    observeNavigation: false,
+  });
+  test('crawl emits base and print maps with dark context styles', () => {
+    const base = loadStyleMap(path.join(crawlDirectory, 'alpha@800.json.gz'));
+    const print = loadStyleMap(path.join(crawlDirectory, 'alpha-print@800.json.gz'));
+    expect(print.metadata?.mediaState).toEqual({ key: 'print', media: 'print' });
+    expect(
+      diffStyleMaps(base, print).some(
+        (finding) => finding.kind === 'style' && finding.props.some((property) => property.prop === 'border-top-width'),
+      ),
+    ).toBe(true);
+    for (const map of [base, print]) {
+      const button = Object.entries(map.elements).find(([elementPath]) => elementPath.includes('button'))?.[1];
+      expect(button?.style['padding-top']).toBe('9px');
+    }
+  });
+});
+test.afterAll(() => fileSystem.rmSync(crawlDirectory, { recursive: true, force: true }));

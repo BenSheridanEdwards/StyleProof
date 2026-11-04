@@ -54,7 +54,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `defineCrawlCapture` for dark/light color schemes, print/screen media, and forced
   colors. Base surfaces and explicit variants gain separate captures; live states,
   recipes, and popup discovery are not multiplied. Capture metadata records the
-  emulated features. Undeclared media conditions emit one advisory warning per run,
+  emulated features. Omitted features and shared-page resets preserve starting
+  browser-context media settings. Undeclared media conditions emit one advisory
+  warning per runner process without writing temporary markers,
   including `prefers-contrast` (which is not emulated). Default capture keys and
   counts stay unchanged.
 

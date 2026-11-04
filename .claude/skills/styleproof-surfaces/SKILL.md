@@ -65,7 +65,7 @@ recipes, and discovered popups are not multiplied, keeping capture costs bounded
 use an explicit variant or separate surface when those combinations matter.
 Motion stays reduced. Metadata records media features; reports reuse variant labels.
 Without declarations, stylesheet media features trigger one advisory warning per
-run. `prefers-contrast` is detected but is not emulated by forced colors.
+runner process. Omitted features preserve starting browser-context media settings. `prefers-contrast` is detected but is not emulated by forced colors.
 
 ## The coverage guard — `expected` + `exclude`
 
