@@ -7,6 +7,13 @@ const printWarning = process.listeners('warning').find((listener) => listener.na
 if (printWarning) {
   process.off('warning', printWarning);
   process.on('warning', (warning) => {
+    if (
+      warning.code === 'MODULE_TYPELESS_PACKAGE_JSON' &&
+      /^Module type of file:.*\/(?:styleproof|playwright\.styleproof)\.config\.ts is not specified and it doesn't parse as CommonJS\./.test(
+        warning.message,
+      )
+    )
+      return;
     if (!warning.code) {
       if (
         warning.name === 'ExperimentalWarning' &&
