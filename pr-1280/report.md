@@ -1,32 +1,24 @@
 ## 🗺️ StyleProof report
 
-**1 change needs review**
+**1 visible element addition/removal needs review**
 
-⚠️ **1 baseline capture failure(s)**: these named surface(s) failed on the base SHA and were omitted from the baseline bundle: `about@auto` at `983602a394718a8a96894b6d3e44de2675cbfe01`. The base bundle was produced (`base-capture-failed=false`); this is not a base recapture failure. Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.
-⚠️ **1 head surface(s)** have no base map because a named baseline surface capture failed (not first adoption, not a base recapture failure): `about @ 320`.
+_Approve all changes clears STYLE_REVIEW_REQUIRED for these structure elevations (with other reviewable changes)._
 
-**What changed**
+🧱 **1 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
 
-- `about @ 320` — ⚠️ baseline repair needed
+---
 
-### Baseline capture failure receipt
+## 📝 Content and structure changes
 
-- `about@auto` · `capture_failed` · `983602a394718a8a96894b6d3e44de2675cbfe01`
+_1 content/structure change(s). **Visible element additions/removals (1) are reviewable** and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
 
-_Named surface+SHA above. This is not a base recapture failure (`base-capture-failed=false`)._
+### `home@320` · 1 content/structure change(s)
 
+**`button.action`**
 
-## One-sided pages, states, or surfaces — review first
+- element added
 
-### `about@320` · baseline repair needed ⚠️
-
-_about @ 320_
-
-![baseline repair needed — after](crops/about-320-1-new.png)
-
-<sub>after · about @ 320</sub>
-
-_The matching baseline surface capture failed. This is **baseline repair needed**, not first adoption and not a base recapture failure; repair `about@320` on the named SHA in the receipt above._
+_No distinct before/after crop for this element added (the cropped region matches on both screenshots). The element itself was added — this is not a claim that the change has no visible effect._
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
@@ -36,4 +28,4 @@ _The matching baseline surface capture failed. This is **baseline repair needed*
 
 </details>
 
-<!-- styleproof-receipt head-sha:48d66008c07cda3226d008315d4c9daf2f5dce44 run-id:41811623548 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:122c32431ee597ae2864b4b93f4f0ef4bac12b57 run-id:41811836146 run-attempt:1 -->
