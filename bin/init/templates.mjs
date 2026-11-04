@@ -257,7 +257,7 @@ export function playwrightConfigTemplate({ specPath, baseUrl, command }) {
     command: ${JSON.stringify(command)},
     url: process.env.BASE_URL || ${JSON.stringify(baseUrl)},
     env: { PORT: ${JSON.stringify(portFromBaseUrl(baseUrl))} },
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 600_000, // a cold production build can take a few minutes
   },
 `;

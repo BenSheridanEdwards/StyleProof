@@ -113,6 +113,9 @@ test('head map CLI capturing a cold checkout passes and logs the default worker 
   const cpus = os.availableParallelism();
   const workers = defaultCaptureWorkers(cpus);
   const argv = fs.readFileSync(path.join(fixture.root, 'capture-argv'), 'utf8').trim().split('\n');
-  assert.deepEqual(argv.slice(3), ['--config', fixture.configFile, `--workers=${workers}`]);
+  assert.deepEqual(argv.slice(3, 6), ['--config', fixture.configFile, '--config']);
+  assert.match(path.basename(argv[6]), /^\.styleproof-capture-/);
+  assert.equal(fs.existsSync(argv[6]), false, 'the wrapper is removed after capture');
+  assert.deepEqual(argv.slice(7), [`--workers=${workers}`]);
   assert.ok(result.stderr.includes(`styleproof-map: workers=${workers} (default: ${cpus} cpus)\n`), result.stderr);
 });
