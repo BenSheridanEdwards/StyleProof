@@ -35,27 +35,27 @@
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
-    "unprovenSurfaces": 1,
-    "requiredUnprovenSurfaces": 1,
+    "unprovenSurfaces": 0,
+    "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "unproven",
+    "status": "comparable",
     "requireStateIdentity": false,
-    "blocksCertification": true,
+    "blocksCertification": false,
     "counts": {
-      "comparable": 0,
+      "comparable": 1,
       "incomparable": 0,
-      "unproven": 1,
+      "unproven": 0,
       "notRequired": 0,
-      "requiredUnproven": 1,
+      "requiredUnproven": 0,
       "globalRequiredUnproven": 0
     }
   },
   "comparability": [
     {
       "surface": "home@320",
-      "status": "unproven",
+      "status": "comparable",
       "required": true,
-      "reason": "state-identity-missing"
+      "reason": "explicit-state-match"
     }
   ],
   "reportConsistency": {
@@ -73,22 +73,18 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 0,
+      "unproven-determinism": 1,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 1
+      "captured": 0
     },
-    "completeness": "complete"
+    "completeness": "limited"
   },
   "legacyPairs": {
     "armed": true,
-    "legacyPairs": [
-      "home@320"
-    ],
+    "legacyPairs": [],
     "declared": [],
-    "undeclared": [
-      "home@320"
-    ],
+    "undeclared": [],
     "staleAcknowledgements": []
   },
   "sourceBinding": {
@@ -109,17 +105,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "47c86b87bb641dfb73bbe15ebdb161fe68d4c7f4676b7badc825ad89904ae0df",
+      "digest": "1642dbd87e27e5e12f194b68a8a8fdfdc3599951f2f0d33f257ad3183cae7f40",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1482
+      "byteCount": 1638
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "3c71ed2d4fec8d702c2e1464b59a8e8a477caf1539b627799f851193c18be82e",
+      "digest": "29c32abe9e511f0a6646604da39fa4d762eb895de1c73f3357f7d5a19f1be5c9",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1482
+      "byteCount": 1638
     }
   },
   "actionTrustState": "CERTIFICATION_FAILED",
