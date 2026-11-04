@@ -229,7 +229,7 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
     background-repeat: no-repeat;
     background-attachment: local, local, scroll, scroll; }
   .table-scroll:focus-visible { outline: 2px solid oklch(0.55 0.18 255); outline-offset: 2px; }
-  .table-scroll code { overflow-wrap: anywhere; }
+  .table-scroll code { overflow-wrap: break-word; }
   table { border-collapse: collapse; }
   th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
   th { background: #f6f8fa; }
