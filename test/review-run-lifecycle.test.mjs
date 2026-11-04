@@ -66,6 +66,7 @@ async function program(
     },
   };
   const defaults = {
+    'steps.context.outcome': 'success',
     'steps.context.outputs.head-sha': A,
     'steps.context.outputs.pr-number': '7',
     'inputs.status-context': 'StyleProof',

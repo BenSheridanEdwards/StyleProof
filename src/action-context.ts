@@ -152,6 +152,8 @@ async function resolveMergeBase(
   return data.merge_base_commit.sha;
 }
 
+// Keep status destination rules aligned with scripts/action-setup-failure.mjs,
+// which resolves trusted head identity when this compiled context step fails.
 export async function resolveActionContext({
   comparisonBase = 'pull-request-base',
   eventName,
