@@ -1509,7 +1509,8 @@ are evidence gaps, never capture failures. URLs omit credentials, queries,
 fragments and machine paths. Missing maps are unmeasured; blobs retain `blob:`.
 Unsupported/eval/anonymous URLs and missing metadata remain named unmeasured with
 `unsupported script URL`. Recognition of Playwright utility, injected, binding, clock and evaluation scripts
-is verified on Playwright 1.61.x (tested 1.61.1), including direct evaluations with stack traces.
+is verified on Playwright 1.61.x (tested 1.61.1), including init wrappers and direct evaluations carrying stack traces.
+Init scripts injected into frames created by capture or by app code carry that caller's stack.
 On other versions, unrecognised injected scripts stay listed as named unmeasured entries.
 StyleProof marks its own init scripts
 and CDP evaluations and function reads so they are excluded too.

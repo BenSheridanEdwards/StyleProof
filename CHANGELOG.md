@@ -11,7 +11,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   terminal failure status requesting a re-run, even when the runtime could not be built (#1284).
 - Script reach keeps anonymous app scripts that contain a StyleProof sourceURL marker as string data.
 - Script reach excludes Playwright bindings, clock scripts and StyleProof init scripts and reads.
-  App anonymous and eval scripts remain named unmeasured.
+  App anonymous and eval scripts, including ones containing a sourceURL marker as string data,
+  stay named unmeasured.
   Discarded copies of recognised injected sources no longer create timing-dependent self-check gaps.
 - **BREAKING — ships in 10.0.0 (#1283):** Completed review-gate, migration, and
   `require-approval: true` runs no longer fail the job on unapproved changes.

@@ -675,7 +675,8 @@ on nested scrollers under strict style CSP, so its temporary expansion does not 
 `captureScriptReach: true` separately opts into J2 script evidence (off by default):
 `defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true })`. Each
 capture recognises Playwright bindings and clock scripts on Playwright 1.61.x
-(verified with 1.61.1), including direct evaluations with stack traces.
+(verified with 1.61.1), including init wrappers and direct evaluations carrying stack traces.
+Init scripts injected into frames created by capture or by app code carry that caller's stack.
 On other versions, unrecognised injected scripts stay listed as named unmeasured entries.
 StyleProof init scripts and reads are excluded by their source URL.
 App anonymous and eval scripts stay named unmeasured. Each

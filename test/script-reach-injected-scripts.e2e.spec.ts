@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -7,7 +8,7 @@ import path from 'node:path';
 import { defineStyleMapCapture, loadStyleMap } from '../dist/index.js';
 import { NAV_OBSERVER_FN, NAV_OBSERVER_SNIPPET } from '../dist/runner/browser.js';
 
-const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-injected-scripts-'));
+const directory = path.join(os.tmpdir(), `styleproof-injected-scripts-${randomUUID()}`);
 
 const server = http.createServer((request, response) => {
   if (request.url === '/app.js') {
@@ -29,7 +30,13 @@ await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 // SAFETY: listen(0, '127.0.0.1') has completed, so the address is a TCP AddressInfo.
 const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-test.afterAll(() => server.close());
+test.afterAll(async () => {
+  try {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 // Exercise the crawl's binding/init script too, while using the declarative surface runner.
 test.beforeEach(async ({ page }) => {

@@ -174,7 +174,10 @@ function injectedScriptKind(scriptSource: string): 'utility' | 'internal' | unde
   return undefined;
 }
 
-/** 1.61 omits the historical sourceURL marker, including on direct evaluations with stacks. */
+/**
+ * 1.61 omits the historical sourceURL marker on init wrappers and direct evaluations with stacks.
+ * Init scripts in frames created by capture or app code carry that caller's stack.
+ */
 async function playwrightScripts(input: ScriptRead): Promise<Set<string>> {
   const internal = new Set<string>();
   const utilities = new Set<string>();
