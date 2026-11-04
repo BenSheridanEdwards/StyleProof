@@ -78,16 +78,10 @@ export async function applyMediaState(page: Page, declaration?: MediaState, sess
   await page.emulateMedia(media);
   if (declaration) pagesWithDeclaredMedia.add(page);
   else pagesWithDeclaredMedia.delete(page);
-  // Chromium reapplies each attached session's media state on a process swap. An empty
-  // tracker session can otherwise overwrite Playwright's print override during navigation.
-  await session?.send('Emulation.setEmulatedMedia', {
-    media: media.media,
-    features: [
-      { name: 'prefers-color-scheme', value: media.colorScheme },
-      { name: 'forced-colors', value: media.forcedColors },
-      { name: 'prefers-reduced-motion', value: media.reducedMotion },
-    ],
-  });
+  // Chromium reapplies each attached session's media type on a process swap, so an empty tracker
+  // session would overwrite Playwright's print override during navigation. Send the media type only:
+  // features set on a session are all cleared page-wide when that session detaches.
+  await session?.send('Emulation.setEmulatedMedia', { media: media.media });
 }
 
 /** Restore declarations after Chromium detaches a CDP capture session and clears print media. */

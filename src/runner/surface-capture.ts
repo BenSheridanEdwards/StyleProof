@@ -181,7 +181,13 @@ export async function captureSurface(
   const requests = trackInflightRequests(page);
   const residue = trackDataResidue(page, s.replayUrl, declared.metadata?.surfaceKey ?? declared.key, baseURL);
   // Change Reach: Chromium keeps linked stylesheets' text only when this is armed before they load.
-  const servedRules = s.captureReach ? await trackServedRules(page) : undefined;
+  const declaredMedia = declared.metadata?.mediaState;
+  // Armed before navigation, the tracker session must carry the declared media type across process swaps.
+  const servedRules = s.captureReach
+    ? await trackServedRules(page, {
+        prepareSession: declaredMedia ? (session) => applyMediaState(page, declaredMedia, session) : undefined,
+      })
+    : undefined;
   const captureKey = `${declared.key}@${width}`;
   const startedAtMs = realNow(); // realNow: the spec-process clock may be frozen
   let phase: CapturePhase = 'navigate';

@@ -364,8 +364,13 @@ test.describe.serial('declared crawl media', () => {
 });
 test.afterAll(() => fileSystem.rmSync(crawlDirectory, { recursive: true, force: true }));
 
-for (const navigationKind of ['data', 'cross-origin']) {
-  test.describe.serial(`script reach print navigation: ${navigationKind}`, () => {
+for (const [tracker, navigationKind] of [
+  ['script', 'data'],
+  ['script', 'cross-origin'],
+  ['rule', 'data'],
+  ['rule', 'cross-origin'],
+] as const) {
+  test.describe.serial(`${tracker} reach print navigation: ${navigationKind}`, () => {
     const directory = fileSystem.mkdtempSync(path.join(temporaryDirectory(), 'styleproof-print-navigation-'));
     const navigationMedia: string[] = [];
     const markup =
@@ -385,34 +390,70 @@ for (const navigationKind of ['data', 'cross-origin']) {
       parallel: false,
       dir: directory,
       freezeClock: false,
-      selfCheck: true,
+      // Rule reach evidence is not stable across a self-check's cross-origin swap; one load proves media.
+      selfCheck: tracker === 'script',
       screenshots: false,
-      captureScriptReach: true,
+      captureScriptReach: tracker === 'script',
+      captureReach: tracker === 'rule',
       mediaStates: [{ key: 'print', media: 'print' }],
       surfaces: [
         {
           key: 'home',
           widths: [640],
           go: async (page) => {
-            const destination =
-              navigationKind === 'data'
-                ? `data:text/html,${encodeURIComponent(markup)}`
-                : page.url().startsWith('http://first.test/')
-                  ? 'http://second.test/'
-                  : 'http://first.test/';
-            await page.goto(destination);
+            // Each load swaps process (data: URL, or first.test then second.test) yet ends on one stable URL.
+            if (navigationKind === 'data') await page.goto(`data:text/html,${encodeURIComponent(markup)}`);
+            else {
+              await page.goto('http://first.test/');
+              await page.goto('http://second.test/');
+            }
             navigationMedia.push((await page.locator('button').getAttribute('data-print-at-load'))!);
           },
         },
       ],
     });
-    test('both print loads and saved styles retain print with script reach and self-check enabled', () => {
-      expect(navigationMedia).toEqual(['false', 'false', 'true', 'true']);
+    test(`print loads and saved styles retain print with ${tracker} reach armed before navigation`, () => {
+      expect(navigationMedia).toEqual(tracker === 'script' ? ['false', 'false', 'true', 'true'] : ['false', 'true']);
       const print = loadStyleMap(path.join(directory, 'home-print@640.json.gz'));
       const button = Object.entries(print.elements).find(([elementPath]) => elementPath.includes('button'))?.[1];
       expect(button?.style['outline-width']).toBe('7px');
-      expect(print.scriptReach).toBeDefined();
+      if (tracker === 'script') expect(print.scriptReach).toBeDefined();
+      else expect(print.reach).toBeDefined();
     });
     test.afterAll(() => fileSystem.rmSync(directory, { recursive: true, force: true }));
   });
 }
+
+test.describe.serial('script reach detach keeps dark screenshots', () => {
+  const directory = fileSystem.mkdtempSync(path.join(temporaryDirectory(), 'styleproof-dark-screenshot-'));
+  const markup =
+    '<!doctype html><html><head><style>body{margin:0;background:rgb(255,255,255)}' +
+    '@media (prefers-color-scheme: dark){body{background:rgb(0,0,0)}}</style></head><body><p>Example</p></body></html>';
+  defineStyleMapCapture({
+    parallel: false,
+    dir: directory,
+    freezeClock: false,
+    selfCheck: true,
+    screenshots: true,
+    captureScriptReach: true,
+    mediaStates: [{ key: 'dark', colorScheme: 'dark' }],
+    surfaces: [
+      {
+        key: 'home',
+        widths: [640],
+        go: async (page) => {
+          await page.goto(`data:text/html,${encodeURIComponent(markup)}`);
+        },
+      },
+    ],
+  });
+  test('the dark copy screenshot stays dark after the script tracker detaches', () => {
+    const corner = (file: string): number[] => {
+      const picture = PortableNetworkGraphic.sync.read(fileSystem.readFileSync(path.join(directory, file)));
+      return Array.from(picture.data.subarray(0, 3));
+    };
+    expect(corner('home@640.png')).toEqual([255, 255, 255]);
+    expect(corner('home-dark@640.png'), 'tracker detach must not clear dark before screenshots').toEqual([0, 0, 0]);
+  });
+  test.afterAll(() => fileSystem.rmSync(directory, { recursive: true, force: true }));
+});

@@ -980,7 +980,10 @@ async function resolveFontVars(
  * rule usage, only when the CSS domain was enabled before the sheet loaded. A tracker
  * armed later still reads inline and constructed sheets and counts the rest unreadable.
  */
-export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
+export async function trackServedRules(
+  page: Page,
+  options: { prepareSession?: (session: CDPSession) => Promise<void> } = {},
+): Promise<ServedRuleTracker> {
   const client = registerStyleProofSession(await page.context().newCDPSession(page));
   const sheets = new Map<string, SheetHeader>();
   client.on('CSS.styleSheetAdded', ({ header }) => sheets.set(header.styleSheetId, header));
@@ -989,6 +992,8 @@ export async function trackServedRules(page: Page): Promise<ServedRuleTracker> {
   try {
     await client.send('DOM.enable');
     await client.send('CSS.enable');
+    // Armed before navigation, a caller may need this session to carry state across process swaps.
+    await options.prepareSession?.(client);
   } catch (error) {
     await dispose();
     throw error;
