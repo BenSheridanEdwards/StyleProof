@@ -18,6 +18,9 @@ jobs:
   capture:
     # Capture on open/update only.
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    concurrency:
+      group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       contents: read

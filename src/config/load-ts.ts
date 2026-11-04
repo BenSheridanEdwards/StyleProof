@@ -7,7 +7,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitOutput } from '../node-util.js';
 import { errorMessage } from '../util.js';
 import { plainObject, StyleProofConfigError } from './schema.js';
@@ -202,7 +202,8 @@ function spawnConfigModuleEval(
     process.execPath,
     [
       ...extraNodeArgs,
-      '--no-warnings',
+      '--require',
+      fileURLToPath(new URL('../../bin/config-warnings.cjs', import.meta.url)),
       '--input-type=module',
       '-e',
       // The config is imported dynamically so the listeners exist before it runs. Policy is released

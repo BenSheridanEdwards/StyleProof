@@ -104,6 +104,7 @@ async function executeActionComment({
       }
     },
     rest: {
+      pulls: { get: async () => ({ data: { head: { sha: 'c'.repeat(40) } } }) },
       issues: {
         listComments,
         createComment: async (input) => {

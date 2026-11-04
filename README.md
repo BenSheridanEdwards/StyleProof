@@ -299,7 +299,7 @@ after upgrading.
 
 StyleProof requires Node 22.13 or later, locally and in CI.
 
-Capture and CI browser installation use the project's `@playwright/test/cli` when PATH has no runnable Playwright executable. On Windows, batch shims cannot be spawned directly, so the project CLI runs with Node.
+Capture and CI browser installation run the project's `@playwright/test/cli` with Node when it resolves from the project directory. They fall back to Playwright on PATH only when the project CLI cannot be resolved. On Windows that fallback cannot run batch shims, so install `@playwright/test` in the project.
 
 ### Upgrading to 8.0.0
 
@@ -388,6 +388,17 @@ Opt-in flags reproduce the heavier architectures:
   diff; certify approves nothing, so a fork PR's status stays `pending`.
   `split + branch + review-gate` reproduces the pre-v7 scaffold exactly.
 
+Generated workflows cancel superseded capture/report jobs for the same PR or head
+repository and branch. Failed captures and cancelled runs end with a failure
+status requesting a re-run, without rewriting the report comment. Late reports
+preserve the comment for the current PR head and a proven later run's status on
+the same commit. Run `npx styleproof-init --upgrade` to adopt this scheduling and
+capture-failure handling in existing workflows. Failed captures write a status
+only while the PR is open at the captured head. Captures awaiting workflow
+approval report that approval is needed before a re-run. Cross-run comment
+receipts must come from `github-actions[bot]`; same-run attempt receipts retain
+their existing bot or verified writer checks.
+
 Existing scaffolds keep their architecture: a marker in the generated workflow
 records the chosen mode, and `styleproof-init --check` / `--upgrade` verify
 that mode's file set instead of rewriting it. To switch an existing scaffold,
@@ -414,6 +425,12 @@ The map CLI evaluates JavaScript and TypeScript config in a separate process, so
 cold-base npm checkouts can use their own Playwright installation without
 conflicting with the head CLI. JSON config loads without an extra process. Config
 errors retain concise messages without a Node stack trace.
+For CommonJS projects, config-loading children suppress Node's module-type warnings
+for the generated configs and its type-stripping warning. The filter travels in
+`NODE_OPTIONS`, so it also reaches the Playwright run and any `webServer` command it
+starts; there it hides the type-stripping warning and, on early Node 22.x, Node's
+file-less "To load an ES module" hint. Other warnings and your `NODE_OPTIONS` remain
+in effect, and a config's own warnings now print instead of being hidden.
 
 JavaScript config (`styleproof.config.mjs` or `.js`) also supplies coverage and
 product-state policy to capture specs, diff, and report. It takes precedence over
@@ -423,7 +440,7 @@ working directory.
 
 ### Configuration
 
-Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `styleproof.config.js`, then `styleproof.config.json`, nearest first. The start folder and its config are always accepted. Trusted parent folders on POSIX are owned by you or root and are not world-writable. Group-write is allowed, so members of that group can plant a config. The first unsafe ancestor ends discovery; if a config exists there or above it, a stat-only notice names the skipped config, folder and reason once per process without evaluating it. Any `.git` file or directory in an accepted folder ends discovery. macOS ACLs are not considered. On Windows, discovery within a repository stops at its git root; outside a repository only the start folder is searched, with a notice if a parent config is skipped. A planted parent `.git` (for example `D:\.git`) still counts as being inside a repository on Windows. Run from the folder that holds the config to preserve loading in Windows non-git projects, root container jobs below runner-owned checkouts, world-writable checkouts, or parents owned by another non-root user.
+Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `styleproof.config.js`, then `styleproof.config.json`, nearest first. The start folder and its config are always accepted. Trusted parent folders on POSIX are owned by you or root and are not world-writable; a parent whose metadata cannot be read is also unsafe. Group-write is allowed, so members of that group can plant a config. The first unsafe ancestor ends discovery; if a config exists there or above it, a stat-only `styleproof: warning:` names the skipped config, unsafe folder and reason once per process without reading or evaluating the file. It says the file was not loaded, built-in defaults apply, and to run from the folder that holds the config; on POSIX, alternatively fix ownership or remove world-write permission. Any `.git` file or directory in an accepted folder ends discovery. macOS ACLs are not considered. On Windows, discovery within a repository stops at its git root; outside a repository only the start folder is searched, with the same warning if a parent config is skipped, naming the Windows rule. Missing-config and missing-spec errors name the skipped file instead of claiming no config was found. A planted parent `.git` (for example `D:\.git`) still counts as being inside a repository on Windows. Run from the folder that holds the config to preserve loading in Windows non-git projects, root container jobs below runner-owned checkouts, world-writable checkouts, or parents owned by another non-root user.
 
 See the [config key table](docs/REFERENCE.md) for project defaults.
 
@@ -524,7 +541,12 @@ baseline once merged.
 
 In both the reusable and example approval workflows, re-running an approve run
 by anyone other than the original ticker is refused;
-tick the approval box again.
+tick the approval box again. A StyleProof re-run carries approval forward only
+for the same commit, reviewable diff and trust state. Approvals recorded before
+upgrading do not carry forward; tick again once. Repositories that copied `example/styleproof-approve.yml` or pin the reusable approve workflow separately from the Action must update it with the Action, or re-runs after a tick will not keep the approval.
+
+Unticking preserves existing failure diagnostics. During an in-flight StyleProof
+re-run, it writes a withdrawn status so the old approval receipt cannot carry forward.
 
 **Certify mode** (`fail-on-diff: true`) proves a change touched _nothing_
 visual: any difference at all fails the job. It's the job StyleProof was born
@@ -541,6 +563,9 @@ Approval uses it to select the matching comment and report artifact.
 There's also a third, spec-less use — pointing the one-shot capture at a design
 mockup and diffing your build against it until the number hits zero. See
 [Match a design pixel-for-pixel](docs/REFERENCE.md#match-a-design-pixel-for-pixel).
+A mixed spec/ad-hoc pair is an unverified diagnostic; its JSON records
+`sourceBinding.compatibility: "runtime-only"` (see
+[Match a design pixel-for-pixel](docs/REFERENCE.md#match-a-design-pixel-for-pixel)).
 
 ## What a green certifies
 
@@ -636,7 +661,21 @@ Rules matched only outside compared elements stay `unmeasured` and also hold
 the opt-in gate. Global state and pseudo-element probes exclude the head subtree and
 framework-ignored elements, including the hover sink. Full-page capture preserves inline style attributes, including
 on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
-Render-code reach (J2/J3) remains a bench prototype; the
+`captureScriptReach: true` separately opts into J2 script evidence (off by default):
+`defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true })`. Each
+surface@width stores original-source executed, mixed and unexecuted anchors plus
+content hashes and stable source keys in `StyleMap.scriptReach`. An executed anchor means its block was entered; code after any expression that threw in that block is not proved.
+It does not prove every expression evaluated. J2 residuals are default parameter values,
+destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`), and later links
+of short-circuited optional chains. Evidence notes name these gaps; 2.2 must treat
+these expressions as unknown. Unmapped code supplies no execution proof. Project-root-relative source keys preserve package directories (config directory, then git root);
+outside-root sources and collisions read unknown. Any script-evidence drift during a
+self-check records script reach unknown, including storage-dependent first and repeat visits.
+Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
+build; missing maps read `unmeasured`. The window runs from navigation through
+the map read, so transient loading branches count as executed. Execution alone
+does not prove a value rendered. The git-diff join and J3 class-list deltas
+remain unbuilt. See [script evidence](docs/REFERENCE.md#script-execution-evidence-j2). The
 [Change Reach 0.2 receipt](bench/REACH-0.2.md) records capture cost and a limited
 six-PR noise replay, with its exclusions and labelling limits.
 

@@ -240,7 +240,8 @@ test('fully reached changed served rules add no section but still disclose the t
       join: 'J2',
       status: 'unmeasured',
       kind: 'not-built',
-      reason: 'render-code coverage is not recorded yet',
+      reason:
+        'script execution is not joined to changed lines yet; navigation-window coverage includes transient loading code',
       remedy: 'none yet: a later Change Reach phase (#934) adds it',
     },
     {
@@ -496,7 +497,8 @@ test('the reach strip names completeness without percentages and rejects any evi
         join: 'J2',
         status: 'unmeasured',
         kind: 'not-built',
-        reason: 'render-code coverage is not recorded yet',
+        reason:
+          'script execution is not joined to changed lines yet; navigation-window coverage includes transient loading code',
         remedy: 'none yet: a later Change Reach phase (#934) adds it',
       },
     ],
@@ -627,3 +629,16 @@ for (const changeReach of ['gate', 'warn']) {
     } else assert.equal(reach.blocking, 0);
   });
 }
+
+test('script-only captures expose the navigation-window limit without claiming a built J2 join', async () => {
+  const { assessReachMaps } = await import('../dist/report/reach.js');
+  const capture = {
+    ...withoutReach(map()),
+    scriptReach: { version: 1, window: 'navigation', status: 'measured', scripts: [] },
+  };
+  const reach = assessReachMaps([capture], [capture], 'warn');
+  assert.equal(reach?.blocking, 0);
+  assert.equal(reach?.complete, false);
+  assert.match(reach?.gaps.find((gap) => gap.join === 'J2')?.reason ?? '', /not joined.*navigation-window.*transient/);
+  assert.equal(assessReachMaps([withoutReach(map())], [withoutReach(map())], 'warn'), undefined);
+});

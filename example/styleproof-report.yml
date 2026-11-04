@@ -24,10 +24,15 @@ jobs:
   report:
     if: >-
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion != 'skipped'
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
       - name: Download captured style maps
+        id: download
+        if: github.event.workflow_run.conclusion == 'success'
         uses: actions/download-artifact@v6
         with:
           name: styleproof-stylemaps
@@ -35,6 +40,7 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
       - id: capture-meta
+        if: github.event.workflow_run.conclusion == 'success'
         name: Read capture-stage outputs sidecar
         shell: bash
         run: |
@@ -46,10 +52,12 @@ jobs:
             failed=false
           fi
           echo "base-capture-failed=$failed" >> "$GITHUB_OUTPUT"
-      - uses: BenSheridanEdwards/StyleProof@v9
+      - if: always()
+        uses: BenSheridanEdwards/StyleProof@v9
         with:
           baseline-dir: ${{ runner.temp }}/styleproof-maps/base
           fresh-dir: ${{ runner.temp }}/styleproof-maps/head
           base-capture-failed: ${{ steps.capture-meta.outputs.base-capture-failed }}
+          capture-outcome: ${{ github.event.workflow_run.conclusion != 'success' && github.event.workflow_run.conclusion || steps.download.outcome }}
           report-storage: artifact
           require-approval: true

@@ -410,11 +410,13 @@ const gateInput = ({ scaffold }) =>
 
 // The Action's report-storage input follows the maps' storage axis: artifact keeps
 // the report out of git history; branch publishes it to the styleproof-reports branch.
-const actionStep = (ctx, failedOutput) => `      - uses: BenSheridanEdwards/StyleProof@v9
+const actionStep = (ctx, failedOutput, captureOutcome = 'steps.maps.outcome') => `      - if: always()
+        uses: BenSheridanEdwards/StyleProof@v9
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
           base-capture-failed: \${{ ${failedOutput} }}
+          capture-outcome: \${{ ${captureOutcome} }}
           report-storage: ${ctx.scaffold.storage}
           ${gateInput(ctx)}`;
 
@@ -498,6 +500,9 @@ jobs:
   capture:
     # Capture on open/update only.${closedNote(ctx, 'Closed and scheduled events are handled below.')}
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    concurrency:
+      group: \${{ github.workflow }}-pr-\${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -545,6 +550,9 @@ jobs:
   styleproof:
     # Capture, diff, and report on open/update only.${closedNote(ctx, 'Closed and scheduled events are handled by the jobs below.')}
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    concurrency:
+      group: \${{ github.workflow }}-pr-\${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       ${reportPermission(ctx)}
@@ -605,10 +613,15 @@ jobs:
   report:
     if: >-
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion != 'skipped'
+    concurrency:
+      group: \${{ github.workflow }}-\${{ github.event.workflow_run.head_repository.full_name }}-\${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
       - name: Download captured style maps
+        id: download
+        if: github.event.workflow_run.conclusion == 'success'
         uses: actions/download-artifact@v6
         with:
           name: styleproof-stylemaps
@@ -616,6 +629,7 @@ jobs:
           run-id: \${{ github.event.workflow_run.id }}
           github-token: \${{ github.token }}
       - id: capture-meta
+        if: github.event.workflow_run.conclusion == 'success'
         name: Read capture-stage outputs sidecar
         shell: bash
         run: |
@@ -627,7 +641,7 @@ jobs:
             failed=false
           fi
           echo "base-capture-failed=$failed" >> "$GITHUB_OUTPUT"
-${actionStep(ctx, 'steps.capture-meta.outputs.base-capture-failed')}
+${actionStep(ctx, 'steps.capture-meta.outputs.base-capture-failed', "github.event.workflow_run.conclusion != 'success' && github.event.workflow_run.conclusion || steps.download.outcome")}
 `;
 
 // Thin caller of the upstream reusable approval workflow (issue_comment runs only

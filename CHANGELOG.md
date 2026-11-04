@@ -7,16 +7,47 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
+- Config-loading children suppress Node's generated-config module-type and type-stripping
+  warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
+  The TypeScript policy loader no longer runs with `--no-warnings`, so a config's own
+  warnings now reach stderr.
+- Failed or skipped captures now reach the Action and set a terminal failure status without
+  changing the PR comment; cancelled and timed-out runs request a re-run instead of leaving
+  pending or an earlier green/red verdict standing (#1263, #1264, #1265). The optional
+  `capture-outcome` Action input defaults to `success` for existing callers.
+- Generated workflows cancel superseded PR capture/report jobs without cancelling branch
+  storage publication or pruning. Late deliveries preserve a newer report comment, and
+  failed runs preserve a proven later run's status on the same commit (#1266).
+  Every comment and status delivery honours review pending's supersession result.
+  Cross-run comment receipts trust only `github-actions[bot]`; same-run attempt
+  receipts still accept bots or verified repository writers. With a personal-access
+  or App token, cross-run ordering relies on the status receipt. Failed captures skip
+  status writes only when the PR is proven closed or its head moved; PR lookup errors
+  warn and still write failure. Captures awaiting workflow
+  approval get a distinct unapprovable failure description.
+  Run `npx styleproof-init --upgrade` to refresh existing single and split scaffolds.
+
 ### Migration
 
 1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
    subfolder are affected when the parent holding the config is world-writable,
    owned by another non-root user, or a runner-owned checkout above a root
    container job. Windows non-git projects run from a subfolder are also affected.
-   A `styleproof: skipping ...` notice on stderr names the skipped config, and
-   it no longer loads. Run StyleProof from the folder that holds the
-   config; on POSIX, alternatively fix ownership or remove world-write permission.
+   A `styleproof: warning:` on stderr names the skipped config and the reason,
+   says the file was not loaded and built-in defaults apply, and gives the next
+   step (#1274). Missing-config and missing-spec errors also name the skipped file.
+   Run StyleProof from the folder that holds the config; on POSIX, alternatively
+   fix ownership or remove world-write permission.
    There is no config-path option or environment variable.
+2. **JSON compatibility gains `"runtime-only"` (#1273).** Update consumers of
+   `sourceBinding.compatibility` in `styleproof-diff` and `styleproof-report`
+   JSON to handle `"matched" | "runtime-only" | "not-applicable"`. Mixed
+   spec/ad-hoc pairs now report `"runtime-only"` instead of `"matched"`; they
+   remain unverified diagnostics. Two spec or two ad-hoc captures keep
+   `"matched"`, and a missing capture side keeps `"not-applicable"`. Action
+   receipts never carry `"runtime-only"`: the Action binds trusted SHAs, and a
+   mixed pair with trusted SHAs is refused.
 
 ### Changed
 
@@ -24,12 +55,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Opt-in `captureScriptReach` stores navigation-window V8 block evidence at original-source anchors, content hashes and project-relative keys. Missing maps/shared coverage stay unmeasured; read failures and self-check drift become unknown. Evidence notes name expression-evaluation and throwing-expression residuals. Absolute bundler paths are root-validated/redacted, app-only mapping and script counts have deterministic caps, and Playwright injected scripts are excluded; no git-diff join or verdict change is included (#999).
+
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
 
 - Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).
   During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. Compare-only SIGTERM is ignored, so container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or crashes can leave `<repo>/.worktrees/styleproof-base-*`; the next `--capture-base` removes only hour-old, current-user scratch dirs with confirmed dead owners. The nested base checkout can inherit head root files through Node module resolution, postcss/browserslist config or pnpm workspace detection when the base lacks its own. The flag rejects two explicit directories.
 
 ### Fixed
+
+- Bind carried-forward approvals to the reviewed diff and trust state (#1262). Approvals recorded before upgrading do not carry forward to a re-run; tick again once. Repositories that copied `example/styleproof-approve.yml` or pin the reusable approve workflow separately from the Action must update it with the Action, or re-runs after a tick will not keep the approval.
+
+- Keep failed or unfinished StyleProof runs blocked when the approval box is unticked and ticked again, preserving existing failure diagnostics while revoking old receipts during in-flight re-runs (#1261).
 
 - Load TypeScript config in CommonJS projects as ESM (#1248). On Node 22.13.0,
   a config whose own body starts running and then throws is evaluated only once,
@@ -95,7 +132,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Miss stored-base restores when the colocated harness changes, without changing base/head comparability; existing stored bases miss once (#1135).
 - Honour `comment-marker` in approval workflows, including selection of the matching report artifact (#1148).
 - Review runs set the status pending before processing, so a failing re-run cannot keep an
-  earlier success; errors before a verdict set failure and cancelled re-runs stay pending (#1146).
+  earlier success; errors before a verdict set failure. Cancelled re-runs now set failure
+  with a re-run description (#1146, #1264, #1265).
 - Later-attempt receipts need a bot or repository write permission, so read-only members and
   collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
 

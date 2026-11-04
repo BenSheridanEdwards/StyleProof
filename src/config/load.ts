@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { errorMessage } from '../util.js';
 import {
   evaluateTypeScriptConfigSync,
@@ -34,6 +34,8 @@ export type StyleProofConfigDiscovery = {
   location?: StyleProofConfigLocation;
   /** Every `styleproof.config.*` candidate probed, nearest first. */
   searched: string[];
+  /** Config found beyond a trust boundary; never read or evaluated. */
+  skippedConfig?: string;
 };
 
 export type StyleProofConfigLoad = {
@@ -42,6 +44,8 @@ export type StyleProofConfigLoad = {
   configDir: string;
   configFile?: string;
   searched: string[];
+  /** Config found beyond a trust boundary; never read or evaluated. */
+  skippedConfig?: string;
 };
 
 /** Read + parse the legacy JSON config; undefined when it does not exist. */
@@ -154,17 +158,20 @@ function isConfigFile(configPath: string): boolean {
 }
 
 /** Probe existence only; never read or evaluate a skipped config. */
-function reportDiscoveryRefusal(dir: string, reason: string): void {
+function reportDiscoveryRefusal(dir: string, reason: string): string | undefined {
+  const remedy =
+    'Next: run StyleProof from the folder that holds the config' +
+    (process.platform === 'win32' ? '.' : '; on POSIX, fix ownership or remove world-write permission.');
   let candidate = dir;
   for (;;) {
     for (const filename of CONFIG_FILENAMES) {
       const configPath = path.join(candidate, filename);
       if (!isConfigFile(configPath)) continue;
-      const notice = `styleproof: skipping ${reason}: ${configPath}.\n`;
-      if (reportedDiscoveryRefusals.has(notice)) return;
+      const notice = `styleproof: warning: ${configPath} was not loaded (${reason}); built-in defaults apply. ${remedy}\n`;
+      if (reportedDiscoveryRefusals.has(notice)) return configPath;
       reportedDiscoveryRefusals.add(notice);
       process.stderr.write(notice);
-      return;
+      return configPath;
     }
     if (fs.existsSync(path.join(candidate, '.git'))) return;
     const parent = path.dirname(candidate);
@@ -184,15 +191,19 @@ export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofCo
   for (;;) {
     const reason = discoveryFolderRejection(dir, start);
     if (reason) {
-      reportDiscoveryRefusal(dir, `unsafe folder ${dir}: ${reason}`);
-      break;
+      const skippedConfig = reportDiscoveryRefusal(dir, `unsafe folder ${dir}: ${reason}`);
+      return { searched, skippedConfig };
     }
     searched.push(...CONFIG_FILENAMES.map((filename) => path.join(dir, filename)));
     const location = locationAt(dir);
     if (location) return { location, searched };
     if (endsDiscovery(dir, windowsBoundary)) {
       if (process.platform === 'win32' && !windowsBoundary && path.dirname(dir) !== dir) {
-        reportDiscoveryRefusal(path.dirname(dir), 'parent config outside a repository on Windows');
+        const skippedConfig = reportDiscoveryRefusal(
+          path.dirname(dir),
+          'parent config outside a repository on Windows',
+        );
+        return { searched, skippedConfig };
       }
       break;
     }
@@ -249,6 +260,7 @@ function loadJavaScriptConfigSync(found: StyleProofConfigLocation, asyncLoad = f
   const result = spawnSync(
     process.execPath,
     [
+      ...(asyncLoad ? ['--require', fileURLToPath(new URL('../../bin/config-warnings.cjs', import.meta.url))] : []),
       '--input-type=module',
       '-e',
       `import { writeFileSync } from 'node:fs';
@@ -313,6 +325,7 @@ function located(
     configDir: discovery.location?.dir ?? startDir,
     configFile: discovery.location?.filename,
     searched: discovery.searched,
+    skippedConfig: discovery.skippedConfig,
   };
 }
 

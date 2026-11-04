@@ -822,7 +822,7 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
 
       const workflow = fs.readFileSync(path.join(repo, '.github', 'workflows', 'styleproof.yml'), 'utf8');
       const generatedMapScript = workflow
-        .match(/- id: maps[\s\S]*?run: \|\n([\s\S]*?)\n {6}- uses:/)?.[1]
+        .match(/- id: maps[\s\S]*?run: \|\n([\s\S]*?)\n {6}- (?:uses|if):/)?.[1]
         ?.split('\n')
         .map((line) => line.replace(/^ {10}/, ''))
         .join('\n')

@@ -1,0 +1,53 @@
+{
+  "level": "warn",
+  "blocking": 0,
+  "complete": false,
+  "ledger": "missing",
+  "counts": {
+    "reached": 0,
+    "never-rendered": 0,
+    "unmeasured": 0,
+    "blind-channel": 0
+  },
+  "rules": [],
+  "unreadableSheets": 0,
+  "gaps": [
+    {
+      "join": "J1",
+      "status": "unknown",
+      "side": "base",
+      "kind": "ledger",
+      "reason": "missing base ledger on 1 capture(s); changed rules cannot be listed",
+      "remedy": "recapture with `captureReach`"
+    },
+    {
+      "join": "J1",
+      "status": "unknown",
+      "side": "head",
+      "kind": "ledger",
+      "reason": "missing head ledger on 1 capture(s); changed rules cannot be listed",
+      "remedy": "recapture with `captureReach`"
+    },
+    {
+      "join": "J1",
+      "status": "unknown",
+      "kind": "not-built",
+      "reason": "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+      "remedy": "add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join"
+    },
+    {
+      "join": "J2",
+      "status": "unmeasured",
+      "kind": "not-built",
+      "reason": "script execution is not joined to changed lines yet; navigation-window coverage includes transient loading code",
+      "remedy": "none yet: a later Change Reach phase (#934) adds it"
+    },
+    {
+      "join": "J3",
+      "status": "unmeasured",
+      "kind": "not-built",
+      "reason": "class-list deltas are not recorded yet",
+      "remedy": "none yet: a later Change Reach phase (#934) adds it"
+    }
+  ]
+}

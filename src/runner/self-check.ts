@@ -1,7 +1,9 @@
 import type { Page } from '@playwright/test';
 import { isDeepStrictEqual } from 'node:util';
+import { scriptExecutionProjection } from '../script-reach.js';
 import { captureStyleMap } from '../capture.js';
 import type { ServedRuleTracker } from '../capture/reach.js';
+import { trackScriptReach } from '../capture/script-reach.js';
 import { warn } from '../capture/shared.js';
 import type { LiveRegionCandidate, StyleMap } from '../capture/types.js';
 import { diffStyleMaps, type Finding } from '../diff.js';
@@ -129,6 +131,65 @@ export function assertDeterministicReach(first: StyleMap, again: StyleMap, surfa
   }
 }
 
+/** Compare mapped app-source evidence, never V8 script IDs, function names or counters. */
+export function assertDeterministicScriptReach(first: StyleMap, again: StyleMap, surfaceKey: string): void {
+  const left = first.scriptReach ? scriptExecutionProjection(first.scriptReach) : [];
+  const right = again.scriptReach ? scriptExecutionProjection(again.scriptReach) : [];
+  const residual = (map: StyleMap): unknown => [
+    map.scriptReach?.status,
+    map.scriptReach?.reason,
+    map.scriptReach?.scripts.filter((script) => script.status !== 'mapped'),
+  ];
+  if (isDeepStrictEqual(left, right) && isDeepStrictEqual(residual(first), residual(again))) return;
+  const rightByKey = new Map(right.map((file) => [file.sourceKey, file]));
+  const changed = left.find(
+    (file) => rightByKey.has(file.sourceKey) && !isDeepStrictEqual(file, rightByKey.get(file.sourceKey)),
+  );
+  const location = changed
+    ? `: ${changed.sourceKey}:${firstScriptDifference(changed, rightByKey.get(changed.sourceKey)!)}`
+    : '';
+  first.scriptReach = {
+    version: 1,
+    window: 'navigation',
+    status: 'unknown',
+    reason: `script evidence not reproducible${location}`,
+    scripts: isDeepStrictEqual(left, right)
+      ? (first.scriptReach?.scripts ?? []).map((script) =>
+          script.status === 'mapped'
+            ? {
+                url: script.url,
+                status: 'unknown' as const,
+                reason: `script evidence not reproducible (${surfaceKey})`,
+              }
+            : script,
+        )
+      : [],
+  };
+}
+
+function scriptLines(file: ReturnType<typeof scriptExecutionProjection>[number]): Map<number, unknown[]> {
+  const lines = new Map<number, unknown[]>();
+  for (const kind of ['executed', 'mixed', 'unexecuted'] as const)
+    for (const span of file[kind]) {
+      const row = lines.get(span.start.line) ?? [];
+      row.push([kind, span]);
+      lines.set(span.start.line, row);
+    }
+  return lines;
+}
+function firstScriptDifference(
+  file: ReturnType<typeof scriptExecutionProjection>[number],
+  other: ReturnType<typeof scriptExecutionProjection>[number],
+): number {
+  const lines = scriptLines(file),
+    otherLines = scriptLines(other);
+  return (
+    [...new Set([...lines.keys(), ...otherLines.keys()])]
+      .sort((a, b) => a - b)
+      .find((line) => !isDeepStrictEqual(lines.get(line), otherLines.get(line))) ?? 1
+  );
+}
+
 /** Capture the surface again and throw if computed styles or enabled reach evidence drifted. */
 export async function assertDeterministic(
   page: Page,
@@ -138,12 +199,22 @@ export async function assertDeterministic(
   pending: () => number,
   servedRules?: ServedRuleTracker,
 ): Promise<void> {
-  await surface.go(page);
-  const again = await captureStyleMap(page, {
-    ...captureOptionsFor(surface, settings, pending, servedRules),
-    requiredVisibleState: surface.requiredVisibleState,
-    metadata: surface.metadata,
-  });
+  const scriptReach = settings.captureScriptReach
+    ? await trackScriptReach(page, { projectRoot: settings.projectRoot })
+    : undefined;
+  let again: StyleMap;
+  try {
+    await surface.go(page);
+    again = await captureStyleMap(page, {
+      scriptReach,
+      ...captureOptionsFor(surface, settings, pending, servedRules),
+      requiredVisibleState: surface.requiredVisibleState,
+      metadata: surface.metadata,
+    });
+  } finally {
+    await scriptReach?.dispose();
+  }
+  if (settings.captureScriptReach) assertDeterministicScriptReach(first, again, surface.key);
   if (settings.captureReach) assertDeterministicReach(first, again, surface.key);
   const drift = diffStyleMaps(first, again);
   if (drift.length) {

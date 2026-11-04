@@ -134,6 +134,7 @@ export {
   loadStyleMap,
   trackInflightRequests,
   trackServedRules,
+  trackScriptReach,
   validateProductStateIdentity,
   ProductStateIdentityError,
 } from './capture.js';
@@ -152,6 +153,13 @@ export type {
   ServedRule,
   ServedRules,
   ServedRuleTracker,
+  ScriptReachTracker,
+  ScriptReach,
+  ScriptReachEntry,
+  ScriptSourceReach,
+  SourceSpan,
+  CompactSourceSpan,
+  SourcePosition,
 } from './capture.js';
 
 export { diffStyleMaps, diffStyleMapDirs } from './diff.js';

@@ -20,7 +20,8 @@ for (const stepId of ['comment', 'review-pending']) {
           .replaceAll('${{ toJSON(inputs.comment-marker) }}', JSON.stringify('<!-- styleproof-report -->'))
           .replaceAll('${{ github.run_id }}', '4242')
           .replaceAll('${{ github.run_attempt }}', '1')
-          .replaceAll('${{ steps.context.outputs.pr-number }}', '7');
+          .replaceAll('${{ steps.context.outputs.pr-number }}', '7')
+          .replaceAll('${{ steps.context.outputs.head-sha }}', 'a'.repeat(40));
         const comments = [
           {
             user: { type: 'User', login: 'reviewer' },
@@ -31,6 +32,7 @@ for (const stepId of ['comment', 'review-pending']) {
         const github = {
           paginate: async () => comments,
           rest: {
+            pulls: { get: async () => ({ data: { head: { sha: 'a'.repeat(40) } } }) },
             issues: { listComments: async () => ({ data: comments }) },
             repos: {
               getCollaboratorPermissionLevel: async (request) => {

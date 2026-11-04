@@ -46,9 +46,10 @@ export function missingSpecMessage(
   searched?: readonly string[],
   configFile?: string,
   specDeclared?: string,
+  skippedConfig?: string,
 ): string {
   return [
-    `styleproof-map: ${missingStyleProofSpecMessage({ spec, specDeclared, configFile, searched })}`,
+    `styleproof-map: ${missingStyleProofSpecMessage({ spec, specDeclared, configFile, searched, skippedConfig })}`,
     'Next: run styleproof-init to scaffold the spec, or pass --spec <path> if your capture spec lives elsewhere.',
   ].join('\n');
 }

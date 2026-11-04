@@ -18,6 +18,7 @@ const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const nativeRequire = createRequire(import.meta.url);
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const HEAD_SHA = 'c'.repeat(40);
+const REVIEW_DIGEST = 'e'.repeat(64);
 const REPOSITORY = 'acme/app';
 const ARTIFACT_URL = `https://github.com/${REPOSITORY}/actions/runs/9001/artifacts/77`;
 const UNTRUSTED_DESCRIPTION = 'Fork PR — maps captured in an untrusted job; maintainer approval required';
@@ -58,7 +59,8 @@ function stepRuns(stepName, scenario) {
   const expression = condition
     .replace(/always\(\)/g, 'true')
     .replace(/failure\(\)/g, String(scenario.failed === true))
-    .replace(/success\(\)/g, String(!scenario.failed))
+    .replace(/cancelled\(\)/g, String(scenario.cancelled === true))
+    .replace(/success\(\)/g, String(!scenario.failed && !scenario.cancelled))
     .replace(/'([^']*)'|([a-z_]+(?:\.[\w-]+)+)/g, (_, literal, name) => {
       if (literal !== undefined) return JSON.stringify(literal);
       assert.ok(Object.hasOwn(given, name), `no test value for ${name} in the ${stepName} if:`);
@@ -86,9 +88,13 @@ function values({
   statusOutcome = '',
   trust,
   failed = false,
-  runSucceeded = !failed,
+  cancelled = false,
+  captureOutcome = 'success',
+  runSucceeded = !failed && !cancelled,
 }) {
   return {
+    'inputs.capture-outcome': captureOutcome,
+    'steps.run-cancelled.outputs.cancelled': cancelled ? 'true' : '',
     'steps.certify-success.outputs.succeeded': runSucceeded ? 'true' : '',
     'github.event_name': event,
     'inputs.allow-self-approval': 'false',
@@ -107,6 +113,7 @@ function values({
     'steps.gate.outputs.approved': approved ? 'true' : 'false',
     'steps.gate.outputs.approver': approved ? approver : '',
     'steps.verdict.outputs.state': trustState,
+    'steps.verdict.outputs.diff-digest': REVIEW_DIGEST,
     'steps.config.outputs.blocking': 'true',
     'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': ARTIFACT_URL,
     'steps.report-artifact.outputs.artifact-digest': 'd'.repeat(64),
@@ -162,9 +169,10 @@ async function run(stepName, scenario, prior = [], thread = []) {
   const github = {
     paginate: async (route, params) => (await route(params)).data,
     rest: {
+      pulls: { get: async () => ({ data: { head: { sha: HEAD_SHA } } }) },
       actions: {
         listWorkflowRunArtifacts: async () => ({
-          data: { artifacts: [{ name: `styleproof-approval-42-${HEAD_SHA}`, expired: false }] },
+          data: { artifacts: [{ name: `styleproof-approval-42-${HEAD_SHA}-${REVIEW_DIGEST}`, expired: false }] },
         }),
         getWorkflowRun: async () => ({
           data: {
@@ -874,7 +882,7 @@ test('the verdict step records the trusted untrusted-capture flag and the gate r
   assert.match(verdictStep, /STYLEPROOF_UNTRUSTED_CAPTURE: \$\{\{ steps\.context\.outputs\.untrusted-capture \}\}/);
   assert.match(verdictStep, /report\.untrustedCapture = process\.env\.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';/);
   const gateStep = actionYml.match(/- id: gate[\s\S]*?(?=\n {4}#|\n {4}- id:|\n {4}- name:)/)[0];
-  assert.match(gateStep, /if \(changed \|\| untrustedCapture\)/);
+  assert.match(gateStep, /if \(\(changed \|\| untrustedCapture\) &&/);
   assert.match(gateStep, /inputs\.mode == 'advisory'/);
   const contextStep = actionYml.match(/- id: context[\s\S]*?(?=\n {4}#|\n {4}- id:)/)[0];
   assert.match(contextStep, /core\.setOutput\('untrusted-capture', resolved && untrustedCapture \? 'true' : 'false'\)/);
@@ -916,9 +924,10 @@ test('a stale review delivery leaves the newer status untouched before processin
   assert.deepEqual(result.statuses, []);
 });
 
-test('review failure status runs only for real failures, never deliberate stale skips', () => {
+test('review failure status runs for failures and cancellation, never deliberate stale skips', () => {
   for (const mode of ['review-gate', 'migration', 'advisory']) {
     assert.equal(stepRuns('Set review failure status', { mode, failed: true }), true);
+    assert.equal(stepRuns('Set review failure status', { mode, cancelled: true }), true);
     assert.equal(stepRuns('Set review failure status', { mode, failed: false }), false);
     assert.equal(stepRuns('Set review failure status', { mode, failed: true, staleDelivery: 'true' }), false);
     assert.equal(stepRuns('Set review failure status', { mode, failed: true, reviewStale: 'true' }), false);

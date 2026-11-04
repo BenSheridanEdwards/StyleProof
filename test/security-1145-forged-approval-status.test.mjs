@@ -20,9 +20,12 @@ test('1145: a bot status without an approve-workflow run cannot carry approval f
   const source = action.runs.steps
     .find((step) => step.id === 'gate')
     .with.script.replaceAll('${{ steps.diff.outputs.changed }}', 'true')
+    .replaceAll('${{ steps.verdict.outputs.diff-digest }}', 'd'.repeat(64))
+    .replaceAll('${{ steps.context.outputs.pr-number }}', '42')
     .replaceAll('${{ steps.context.outputs.head-sha }}', 'a'.repeat(40))
     .replaceAll('${{ steps.context.outputs.untrusted-capture }}', 'false');
 
+  assert.doesNotMatch(source, /\$\{\{/);
   const previousPrior = process.env.STYLEPROOF_PRIOR_STATUS;
   process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(status);
 

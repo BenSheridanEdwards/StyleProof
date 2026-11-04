@@ -3253,6 +3253,48 @@ test('styleproof-map keeps a local capture local unless upload is requested', ()
   }
 });
 
+for (const [pair, beforeAdHoc, afterAdHoc, compatibility] of [
+  ['two spec captures', false, false, 'matched'],
+  ['two ad-hoc captures', true, true, 'matched'],
+  ['ad-hoc before and spec after', true, false, 'runtime-only'],
+  ['spec before and ad-hoc after', false, true, 'runtime-only'],
+  ['missing baseline', null, false, 'not-applicable'],
+]) {
+  for (const script of [DIFF, REPORT]) {
+    test(`${path.basename(script)} JSON source compatibility for ${pair}`, (t) => {
+      const { root, A, B } = differingPair();
+      t.after(() => rmTmp(root));
+      let before = A;
+      if (beforeAdHoc === null) {
+        before = path.join(root, 'empty');
+        fs.mkdirSync(before);
+      }
+      for (const [dir, adHoc] of [
+        [A, beforeAdHoc],
+        [B, afterAdHoc],
+      ]) {
+        if (!adHoc) continue;
+        const file = path.join(dir, MAP_MANIFEST);
+        const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+        manifest.spec = MAP_MANIFEST;
+        manifest.compatibilityKey = fixtureCompatibilityKey('adhoc-design');
+        fs.writeFileSync(file, JSON.stringify(manifest));
+      }
+      const output = path.join(root, script === DIFF ? 'diff.json' : 'report');
+      const result = run(script, [
+        before,
+        B,
+        ...(script === DIFF ? ['--allow-unasserted', '--json'] : ['--out']),
+        output,
+      ]);
+      assert.equal(result.status, script === DIFF && beforeAdHoc === null ? 3 : 1, result.stderr + result.stdout);
+      const receipt = JSON.parse(fs.readFileSync(script === DIFF ? output : path.join(output, 'report.json'), 'utf8'));
+      assert.equal(receipt.sourceBinding.status, 'unverified');
+      assert.equal(receipt.sourceBinding.compatibility, compatibility);
+    });
+  }
+}
+
 for (const changed of [false, true]) {
   test(`design-vs-build diagnostic reports ${changed ? 'real differences' : 'identical styles'}`, () => {
     const { root, A, B } = differingPair();

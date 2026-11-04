@@ -168,6 +168,13 @@ the evidence adds to a capture on a GitHub runner:
    likewise produces a run-level `unmeasured` row naming the missing evidence.
    Those rows stay at `'warn'` under either level and prevent reach-complete.
 5. **Named residuals.** These stay documented, not hidden:
+   - **J2 block entry.** An executed anchor means its block was entered; code
+     after any expression that threw in that block is not proved. Default parameter
+     values, destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`),
+     and later links of short-circuited optional chains can still be unevaluated.
+     V8 does not give every potentially throwing expression its own continuation
+     counter. Capture notes name these residuals; the 2.2 join must keep such code unknown rather than infer
+     reached from block execution.
    - value-producing lines at any lexical scope: module, component or render
      body, hook, helper or memo. A value here is anything a line computes that
      can reach the page. Examples, not an exhaustive list: style objects,

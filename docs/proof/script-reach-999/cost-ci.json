@@ -1,0 +1,49 @@
+{
+  "source": "https://github.com/BenSheridanEdwards/StyleProof/actions/runs/41755453348",
+  "workflow": ".github/workflows/reach-cost.yml (workflow_dispatch)",
+  "headSha": "9673d9d5c4f6f00d22b00734485417fd3fefe00f",
+  "runner": "ubuntu-latest (GitHub-hosted), Node 22",
+  "browser": "chromium 149.0.7827.55",
+  "runsPerMode": 7,
+  "hostLoadAverage": { "start": [1.7, 0.5, 0.2], "end": [1.3, 1.2, 0.9] },
+  "thresholds": { "J1": "<= 5%", "J1+J2": "<= 15%" },
+  "verdict": { "J1": "within threshold", "J1+J2": "within threshold" },
+  "targets": [
+    {
+      "id": "detection-fixture",
+      "desc": "static, CSS-rich",
+      "medianMs": { "off": 1374.1, "J1": 1386.4, "J1+J2": 1464 },
+      "overhead": { "J1": "0.9%", "J1+J2": "6.5%" },
+      "receipt0_2": { "J1": "1.2%", "J1+J2": "6.5%" }
+    },
+    {
+      "id": "example-demo",
+      "desc": "static dogfood surface",
+      "medianMs": { "off": 971.4, "J1": 1007, "J1+J2": 1023 },
+      "overhead": { "J1": "3.7%", "J1+J2": "5.3%" },
+      "receipt0_2": { "J1": "2.6%", "J1+J2": "3.8%" }
+    },
+    {
+      "id": "react-table",
+      "desc": "React, 300 rows",
+      "medianMs": { "off": 13783.9, "J1": 13790.4, "J1+J2": 14562.4 },
+      "overhead": { "J1": "0%", "J1+J2": "5.6%" },
+      "receipt0_2": { "J1": "0.1%", "J1+J2": "5.3%" }
+    },
+    {
+      "id": "react-catalogue-large",
+      "desc": "React + ReactDOM, 7000 records, 1841203-byte single bundle (new)",
+      "medianMs": { "off": 1067.7, "J1": 1066.2, "J1+J2": 1227.6 },
+      "overhead": { "J1": "-0.1%", "J1+J2": "15%" },
+      "receipt0_2": null,
+      "note": "At the 15% J1+J2 threshold. J2 source-map resolution dominates on a large single bundle; captureScriptReach stays opt-in, and ADR 0009 item 7 requires a consumer-app re-measure before any default-on."
+    },
+    {
+      "id": "react-table-repeat",
+      "desc": "React, 300 rows, mean of 3 cacheable navigations on one page (new)",
+      "medianMs": { "off": 7494.9, "J1": 7492.8, "J1+J2": 8037.8 },
+      "overhead": { "J1": "0%", "J1+J2": "7.2%" },
+      "receipt0_2": null
+    }
+  ]
+}

@@ -25,6 +25,7 @@ const PUBLICATION_SHA = 'c'.repeat(40);
 const RUN_ID = '9001';
 const RUN_ATTEMPT = '2';
 const REPORT_URL = `https://github.com/acme/app/blob/${PUBLICATION_SHA}/pr-7/report.md`;
+const WITHDRAWN = 'Approval withdrawn by @a-reviewer — re-run StyleProof for a verdict';
 const AUTHOR = 'pr-author';
 const REVIEWER = 'a-reviewer';
 const GRANT_LEVELS = { none: 0, read: 1, write: 2 };
@@ -135,6 +136,7 @@ async function runApprove({
   headSha = REPORT_SHA,
   allowSelfApproval,
   existingComments = [],
+  latestStatuses,
   grants = CALLER_GRANTS,
   program = approveScript(),
   reportJson = '{"surfaces":[],"actionTrustState":"STYLE_REVIEW_REQUIRED"}',
@@ -195,7 +197,7 @@ async function runApprove({
         listCommitStatusesForRef: async () => {
           need('statuses', 'read');
           return {
-            data: [
+            data: latestStatuses ?? [
               {
                 context: 'StyleProof',
                 state: 'failure',
@@ -265,6 +267,247 @@ async function runApprove({
   }
 
   return { statuses, created, updated, outputs: context.approvalOutputs };
+}
+
+for (const [file, workflowYml] of [
+  ['reusable', reusableApproveYml],
+  ['example', approveYml],
+]) {
+  for (const [state, description] of [
+    ['failure', 'StyleProof run failed — see the run'],
+    ['failure', 'StyleProof evidence failed'],
+    ['failure', 'CERTIFICATION_FAILED'],
+    ['failure', 'StyleProof partial-baseline'],
+    ['failure', 'StyleProof run cancelled'],
+    ['failure', 'StyleProof capture failed'],
+    ['pending', 'StyleProof evidence pending'],
+    ['pending', 'StyleProof report running — no verdict yet'],
+  ]) {
+    test(`${file}: tick → untick → tick cannot clear ${description} (#1261)`, async () => {
+      const latestStatuses = [
+        {
+          context: 'StyleProof',
+          state,
+          description,
+          creator: { login: 'github-actions[bot]', type: 'Bot' },
+        },
+      ];
+      const results = [];
+      for (const ticked of [true, false, true]) {
+        const result = await runApprove({
+          actor: REVIEWER,
+          body: reportComment({ ticked, suffix: ' — _approved by @a-reviewer_' }),
+          latestStatuses,
+          program: reusableApproveScript({ workflowYml }),
+        });
+        latestStatuses.unshift(
+          ...result.statuses.map((status) => ({
+            ...status,
+            creator: { login: 'github-actions[bot]', type: 'Bot' },
+          })),
+        );
+        results.push(result);
+      }
+      assert.notEqual(latestStatuses[0].state, 'success');
+      assert.deepEqual(results[0].statuses, [], 'the first tick refuses the unfinished or failed run');
+      assert.deepEqual(
+        results[1].statuses.map(({ state, description, target_url }) => ({ state, description, target_url })),
+        description === 'StyleProof report running — no verdict yet'
+          ? [{ state: 'failure', description: WITHDRAWN, target_url: REPORT_URL }]
+          : [],
+        'untick preserves diagnostics and revokes receipts during the in-flight pending',
+      );
+      assert.deepEqual(results[2].statuses, [], 'the following tick refuses the newest status');
+      assert.deepEqual(
+        results.flatMap((result) => result.created),
+        [],
+        'no new reply wording',
+      );
+      assert.equal(results[1].updated[0].body, reportComment());
+    });
+  }
+  test(`${file}: approve → re-run pending → untick revokes the receipt in the Action gate (#1261)`, async () => {
+    const digest = 'd'.repeat(64);
+    const canonical = { login: 'github-actions[bot]', type: 'Bot' };
+    const approval = await runApprove({
+      actor: REVIEWER,
+      program: reusableApproveScript({ workflowYml }),
+      reportJson: JSON.stringify({ actionTrustState: 'STYLE_REVIEW_REQUIRED', reviewDigest: digest }),
+    });
+    const prior = { ...approval.statuses[0], creator: canonical, created_at: '2026-10-20T10:00:30Z' };
+    const pending = {
+      context: 'StyleProof',
+      state: 'pending',
+      description: 'StyleProof report running — no verdict yet',
+      creator: canonical,
+    };
+    const statuses = [pending, prior];
+    const gateStep = yaml.load(actionYml).runs.steps.find((step) => step.id === 'gate');
+    const script = gateStep.with.script
+      .replaceAll('${{ steps.verdict.outputs.diff-digest }}', digest)
+      .replaceAll('${{ steps.context.outputs.pr-number }}', '7')
+      .replaceAll('${{ steps.context.outputs.head-sha }}', REPORT_SHA)
+      .replaceAll('${{ steps.diff.outputs.changed }}', 'true')
+      .replaceAll('${{ steps.context.outputs.untrusted-capture }}', 'false');
+    assert.doesNotMatch(script, /\$\{\{/);
+    const outputs = {};
+    const github = {
+      rest: {
+        actions: {
+          getWorkflowRun: async () => ({
+            data: {
+              status: 'completed',
+              conclusion: 'success',
+              event: 'issue_comment',
+              head_branch: 'main',
+              triggering_actor: { login: REVIEWER },
+              run_started_at: '2026-10-20T10:00:00Z',
+              updated_at: '2026-10-20T10:01:00Z',
+            },
+          }),
+          listWorkflowRunArtifacts: async () => ({
+            data: { artifacts: [{ name: approval.outputs['approval-artifact'], expired: false }] },
+          }),
+        },
+        repos: { listCommitStatusesForRef: async () => ({ data: statuses }) },
+      },
+    };
+    const gate = new AsyncFunction('github', 'context', 'core', script);
+    const context = { repo: { owner: 'acme', repo: 'app' }, payload: { repository: { default_branch: 'main' } } };
+    const core = {
+      setOutput: (key, value) => {
+        outputs[key] = value;
+      },
+    };
+    const saved = process.env.STYLEPROOF_PRIOR_STATUS;
+    process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(prior);
+    try {
+      await gate(github, context, core);
+      assert.equal(outputs.approved, 'true', 'the receipt carries forward before the untick');
+      const withdrawal = await runApprove({
+        actor: REVIEWER,
+        body: reportComment({ suffix: ' — _approved by @a-reviewer_' }),
+        latestStatuses: statuses,
+        program: reusableApproveScript({ workflowYml }),
+      });
+      assert.deepEqual(
+        withdrawal.statuses.map(({ state, description }) => ({ state, description })),
+        [{ state: 'failure', description: WITHDRAWN }],
+      );
+      statuses.unshift(...withdrawal.statuses.map((status) => ({ ...status, creator: canonical })));
+      await gate(github, context, core);
+      assert.equal(outputs.approved, 'false', 'untick during the re-run revokes the old receipt');
+      assert.equal(outputs.approver, '');
+      assert.deepEqual(withdrawal.created, []);
+      assert.equal(withdrawal.updated[0].body, reportComment());
+    } finally {
+      if (saved === undefined) delete process.env.STYLEPROOF_PRIOR_STATUS;
+      else process.env.STYLEPROOF_PRIOR_STATUS = saved;
+    }
+  });
+  test(`${file}: tick refuses the withdrawn description (#1261)`, async () => {
+    const result = await runApprove({
+      actor: REVIEWER,
+      latestStatuses: [
+        {
+          context: 'StyleProof',
+          state: 'failure',
+          description: WITHDRAWN,
+          target_url: REPORT_URL,
+          creator: { login: 'github-actions[bot]', type: 'Bot' },
+        },
+      ],
+      program: reusableApproveScript({ workflowYml }),
+    });
+    assert.deepEqual(result.statuses, []);
+    assert.deepEqual(result.outputs, {});
+  });
+  test(`${file}: untick without a report URL still revokes approval (#1261)`, async () => {
+    const body = reportComment({ suffix: ' — _approved by @a-reviewer_' }).replace(REPORT_URL, '');
+    const result = await runApprove({
+      actor: REVIEWER,
+      body,
+      latestStatuses: [],
+      program: reusableApproveScript({ workflowYml }),
+    });
+    assert.equal(result.statuses[0]?.state, 'failure');
+    assert.equal(result.statuses[0]?.description, WITHDRAWN);
+    assert.ok(!Object.hasOwn(result.statuses[0], 'target_url'));
+    assert.deepEqual(result.created, []);
+    assert.equal(result.updated[0].body, reportComment().replace(REPORT_URL, ''));
+  });
+  test(`${file}: untick preserves diagnostics and only writes a withdrawal when needed (#1261)`, async () => {
+    const canonical = { login: 'github-actions[bot]', type: 'Bot' };
+    for (const [latest, allowed, withdrawn = false] of [
+      [{ state: 'success', description: 'Approved by @a-reviewer (run 123)' }, true],
+      [{ state: 'failure', description: 'Tick "Approve all changes" to sign off', target_url: REPORT_URL }, true],
+      [
+        {
+          state: 'pending',
+          description: 'Fork PR — maps captured in an untrusted job; maintainer approval required',
+          target_url: REPORT_URL,
+        },
+        true,
+      ],
+      [{ state: 'success', description: 'No reviewable style changes' }, false],
+      [{ state: 'failure', description: 'StyleProof evidence failed' }, false],
+      [{ state: 'failure', description: 'StyleProof run cancelled' }, false],
+      [{ state: 'pending', description: 'StyleProof report running — no verdict yet' }, false, true],
+      [{ state: 'pending', description: 'StyleProof evidence pending' }, false],
+      [
+        {
+          state: 'failure',
+          description: 'Tick "Approve all changes" to sign off',
+          target_url: 'https://example.com/stale',
+        },
+        false,
+      ],
+      [
+        { state: 'success', description: 'Approved by @a-reviewer', creator: { login: 'other[bot]', type: 'Bot' } },
+        false,
+        true,
+      ],
+      [
+        {
+          state: 'success',
+          description: 'Approved by @a-reviewer',
+          creator: { login: 'github-actions[bot]', type: 'User' },
+        },
+        false,
+        true,
+      ],
+      [null, false, true],
+    ]) {
+      const result = await runApprove({
+        actor: AUTHOR,
+        body: reportComment({ suffix: ' — _approved by @a-reviewer_' }),
+        latestStatuses: latest
+          ? [
+              { context: 'unrelated', state: 'success' },
+              { context: 'StyleProof', creator: canonical, ...latest },
+            ]
+          : [],
+        program: reusableApproveScript({ workflowYml }),
+      });
+      assert.deepEqual(
+        result.statuses.map(({ state, description, target_url }) => ({ state, description, target_url })),
+        allowed || withdrawn
+          ? [
+              {
+                state: 'failure',
+                description: allowed
+                  ? 'Tick "Approve all changes" to sign off'
+                  : `Approval withdrawn by @${AUTHOR} — re-run StyleProof for a verdict`,
+                target_url: REPORT_URL,
+              },
+            ]
+          : [],
+        JSON.stringify(latest),
+      );
+      assert.deepEqual(result.created, []);
+      assert.equal(result.updated[0].body, reportComment());
+    }
+  });
 }
 
 test('a write-access reviewer who is not the author still signs off (#477)', async () => {
@@ -854,23 +1097,31 @@ test('a token without pull-requests: write names the missing permission, not a b
   }
 });
 
-test('approved runs upload a receipt bound to the PR and SHA', () => {
-  for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'example/styleproof-approve.yml']) {
-    const workflow = yaml.load(fs.readFileSync(path.join(root, file), 'utf8'));
-    const steps = workflow.jobs.approve.steps;
-    const approval = steps.find((step) => step.id === 'approval');
-    const upload = steps.find((step) => step.uses === 'actions/upload-artifact@v6');
+test('approval receipt names bind the published reviewDigest, with legacy fallback (#1262)', async () => {
+  for (const workflowYml of [reusableApproveYml, approveYml]) {
+    const upload = yaml.load(workflowYml).jobs.approve.steps.find((step) => step.uses === 'actions/upload-artifact@v6');
     assert.equal(upload.if, "steps.approval.outputs.approved-sha != ''");
-    assert.deepEqual(upload.with, {
-      name: 'styleproof-approval-${{ steps.approval.outputs.approved-pr }}-${{ steps.approval.outputs.approved-sha }}',
-      path: 'styleproof-approval.txt',
-      'retention-days': '${{ github.retention_days }}',
-      'if-no-files-found': 'error',
-    });
-    assert.match(
-      approval.with.script,
-      /if \(approved\) \{\s+core.setOutput\('approved-pr', String\(context.payload.issue.number\)\);\s+core.setOutput\('approved-sha', headSha\);\s+require\('node:fs'\).writeFileSync\('styleproof-approval.txt', headSha\);\s+\}/,
-    );
+    assert.equal(upload.with.path, 'styleproof-approval.txt');
+    assert.equal(upload.with['retention-days'], '${{ github.retention_days }}');
+    assert.equal(upload.with['if-no-files-found'], 'error');
+    assert.equal(upload.with.name, '${{ steps.approval.outputs.approval-artifact }}');
+    for (const reviewDigest of ['d'.repeat(64), undefined, '', 'D'.repeat(64), 'd'.repeat(63), 123]) {
+      const result = await runApprove({
+        actor: REVIEWER,
+        program: reusableApproveScript({ workflowYml }),
+        reportJson: JSON.stringify({ actionTrustState: 'STYLE_REVIEW_REQUIRED', reviewDigest }),
+      });
+      const digest = typeof reviewDigest === 'string' && /^[0-9a-f]{64}$/.test(reviewDigest) ? reviewDigest : '';
+      assert.equal(result.statuses[0].state, 'success', 'legacy reports still approve');
+      assert.equal(result.outputs['approved-pr'], '7');
+      assert.equal(result.outputs['approved-sha'], REPORT_SHA);
+      assert.equal(result.outputs['review-digest'], undefined);
+      assert.ok(result.outputs['approval-artifact'].length < 256);
+      assert.equal(
+        result.outputs['approval-artifact'],
+        `styleproof-approval-7-${REPORT_SHA}${digest ? `-${digest}` : ''}`,
+      );
+    }
   }
 });
 
