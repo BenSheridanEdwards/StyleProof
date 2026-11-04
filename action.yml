@@ -536,6 +536,8 @@ runs:
           if (!validBoundSide(value.before, process.env.STYLEPROOF_EXPECTED_BASE_SHA, evidence.before)) return false;
           if (!validBoundSide(value.after, process.env.STYLEPROOF_EXPECTED_HEAD_SHA, evidence.after)) return false;
           const bothObserved = value.before.observed !== null && value.after.observed !== null;
+          // Bound receipts never carry 'runtime-only': the CLI refuses mixed spec/ad-hoc pairs when
+          // trusted SHAs are supplied, and this Action always supplies them.
           return value.compatibility === (bothObserved ? 'matched' : 'not-applicable');
         };
         if (!validSourceBinding(diff.sourceBinding, diff.evidenceBinding) ||

@@ -1013,6 +1013,12 @@ styleproof-diff design .styleproof/maps/current --allow-unasserted   # design vs
 ```
 
 Mixed spec/ad-hoc design comparisons check runtime identity and are diagnostic, never certification.
+Diff and report JSON set `sourceBinding.compatibility` to `"runtime-only"` when
+both manifests are present and exactly one has `spec: "styleproof-manifest.json"`
+(the ad-hoc marker), `"matched"` for two spec or two ad-hoc captures, and
+`"not-applicable"` when either manifest is absent. Mixed-pair trusted-SHA
+certification remains refused, so bound Action receipts never carry
+`"runtime-only"` and the Action's receipt validator rejects it.
 `--allow-unasserted` permits unasserted completeness and unknown determinism: exit 0
 means no reviewable differences, 1 means differences or other evidence blockers,
 and 2 means incompatible runtimes or a capture/usage error. Match surface keys and
