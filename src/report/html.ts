@@ -170,7 +170,8 @@ const blockReaders: BlockReader[] = [
   oneLine(IMAGE_LINE.test.bind(IMAGE_LINE), (line) => `<p class="shot">${inline(line)}</p>`),
   (lines, i) => {
     const { taken, next } = takeWhile(lines, i, (l) => !startsBlock(l));
-    return { html: `<p>${taken.map(inline).join(' ')}</p>`, next };
+    const paragraph = taken.map((line) => (line.endsWith('<br>') ? `${inline(line.slice(0, -4))}<br>` : inline(line)));
+    return { html: `<p>${paragraph.join(' ')}</p>`, next };
   },
 ];
 
