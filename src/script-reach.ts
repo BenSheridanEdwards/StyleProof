@@ -138,13 +138,16 @@ function pushAppSegment(segments: Segment[], segment: Segment | undefined): void
   segments.push(segment);
 }
 
-function mappedSegments(map: SourceMap, generated: string, deadline: number): Segment[] {
+function mappedSegments(
+  map: SourceMap,
+  generated: string,
+  deadline: number,
+  identities: (string | undefined)[],
+): Segment[] {
   validateMap(map);
   checkMappingBudget(generated, map.mappings, deadline);
   const { lines, starts } = generatedLines(generated);
-  const appSources = map.sources.map(
-    (source) => source !== null && isAppScriptSource((map.sourceRoot ?? '') + '/' + source),
-  );
+  const appSources = identities.map((identity) => identity !== undefined);
   const originalLines = map.sourcesContent?.map((content, index) =>
     appSources[index] && typeof content === 'string' ? generatedLines(content).lines : undefined,
   );
@@ -281,11 +284,6 @@ function segmentExecutions(segments: Segment[], runs: ExecutionRun[]): Execution
   });
 }
 
-/** No dependency source, including webpack URLs, contributes app execution evidence. */
-export function isAppScriptSource(source: string): boolean {
-  return !/(^|[\\/])node_modules[\\/]/.test(source);
-}
-
 type AnchorStates = Map<number, Map<number, number>>;
 const EXECUTION_KINDS = ['executed', 'mixed', 'unexecuted'] as const;
 
@@ -352,14 +350,16 @@ export function mapScriptCoverage(
   options: { deadline?: number; projectRoot?: string } = {},
 ): ScriptSourceReach<SourceSpan>[] {
   const deadline = options.deadline ?? Infinity;
-  const segments = mappedSegments(map, generated, deadline);
+  validateMap(map);
+  checkMappingBudget(generated, map.mappings, deadline);
+  const identities = sourceIdentities(map, mapUrl, options.projectRoot);
+  const segments = mappedSegments(map, generated, deadline, identities);
   checkMappingBudget(generated, map.mappings, deadline);
   if (entry.functions.reduce((sum, f) => sum + f.ranges.length, 0) > MAX_COVERAGE_RANGES)
     throw new ScriptEvidenceError('source mapping coverage range limit exceeded');
   const files = new Map<string, ScriptSourceReach<SourceSpan>>();
   const executions = segmentExecutions(segments, executionRuns(entry));
   const states = new Map<string, AnchorStates>();
-  const identities = sourceIdentities(map, mapUrl, options.projectRoot);
   const originals = map.sources.map((_, index) => originalSource(map, index, identities));
   segments.forEach((segment, index) => {
     if (segment.source === undefined || segment.offset >= segment.end) return;

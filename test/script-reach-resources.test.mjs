@@ -167,6 +167,7 @@ function fakePage({ fallback, maps = {}, count = 1 } = {}) {
     },
   };
   const page = {
+    _routes: [],
     _connection: {
       _objects: new Map(),
       toImpl: () => ({ _delegate: { _coverage: { _jsCoverage: { _enabled: false } } } }),
@@ -181,6 +182,7 @@ function fakePage({ fallback, maps = {}, count = 1 } = {}) {
       },
     },
     context: () => ({
+      _routes: [],
       browser: () => ({ browserType: () => ({ name: () => 'chromium' }) }),
       newCDPSession: async () => client,
     }),

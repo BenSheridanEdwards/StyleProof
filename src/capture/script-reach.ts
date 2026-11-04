@@ -7,7 +7,7 @@ import {
 /** Navigation-window script coverage. Reader failures are evidence gaps, never capture failures. */
 import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-resources.js';
 import { storedScriptUrl } from '../script-reach-identity.js';
-import { MAX_GENERATED_LENGTH } from '../script-reach-limits.js';
+import { MAX_GENERATED_LENGTH, MAX_SCRIPTS } from '../script-reach-limits.js';
 import { storedScriptEvidence } from '../script-reach-storage.js';
 import { performance } from 'node:perf_hooks';
 import type { CaptureOptions, StyleMap } from './types.js';
@@ -116,8 +116,11 @@ async function playwrightScripts(input: ScriptRead): Promise<Set<string>> {
       .send('Debugger.getScriptSource', { scriptId: script.scriptId })
       .catch(() => ({ scriptSource: '' }));
     if (
-      scriptSource.includes('return new (module.exports.UtilityScript())(globalThis,') &&
-      scriptSource.includes('var UtilityScript = class {')
+      ['UtilityScript', 'InjectedScript'].some(
+        (kind) =>
+          scriptSource.includes(`return new (module.exports.${kind}())(globalThis,`) &&
+          scriptSource.includes(`var ${kind} = class {`),
+      )
     ) {
       utilities.add(script.scriptId);
       internal.add(script.scriptId);
@@ -130,37 +133,34 @@ async function playwrightScripts(input: ScriptRead): Promise<Set<string>> {
 }
 
 async function resolveScripts(input: ScriptRead, coverage: CollectedScript[]): Promise<ScriptReachEntry<SourceSpan>[]> {
+  if (coverage.length > MAX_SCRIPTS || input.scripts.size > MAX_SCRIPTS)
+    return [{ url: '<script limit>', status: 'unknown', reason: `script count exceeds ${MAX_SCRIPTS}` }];
   const deadline = performance.now() + MAP_READ_BUDGET_MS;
   const entries: ScriptReachEntry<SourceSpan>[] = [];
   const internal = await beforeDeadline(playwrightScripts(input), deadline);
   for (const entry of coverage) {
     const script = input.scripts.get(entry.scriptId);
     if (internal.has(entry.scriptId) || (script?.url ?? entry.url) === '__playwright_evaluation_script__') continue;
-    if (!script || !/^(https?|file|webpack|blob):/.test(script.url)) {
-      entries.push({
-        url: storedScriptUrl(script?.url ?? entry.url ?? '', input.projectRoot),
-        status: 'unmeasured',
-        reason: 'unsupported script URL',
-      });
-      continue;
-    }
-    if (script.url.startsWith('blob:'))
-      entries.push({ url: 'blob:', status: 'unmeasured', reason: 'blob script has no stable source map' });
-    else if (entry.functions.some((f) => f.isBlockCoverage === false && f.ranges.some((r) => r.count > 0)))
-      entries.push({
-        url: storedScriptUrl(script.url, input.projectRoot),
-        status: 'unknown',
-        reason: 'best-effort coverage',
-      });
-    else if (performance.now() >= deadline)
-      entries.push({
-        url: storedScriptUrl(script.url, input.projectRoot),
-        status: 'unknown',
-        reason: 'script map-read budget exhausted',
-      });
-    else entries.push(await boundedResolve(input, script, entry, deadline));
+    entries.push(await resolveCoverageEntry(input, script, entry, deadline));
   }
   return entries.sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
+}
+
+async function resolveCoverageEntry(
+  input: ScriptRead,
+  script: ParsedScript | undefined,
+  entry: CollectedScript,
+  deadline: number,
+): Promise<ScriptReachEntry<SourceSpan>> {
+  const url = storedScriptUrl(script?.url ?? entry.url ?? '', input.projectRoot);
+  if (!script || !/^(https?|file|webpack|blob):/.test(script.url))
+    return { url, status: 'unmeasured', reason: 'unsupported script URL' };
+  if (script.url.startsWith('blob:'))
+    return { url, status: 'unmeasured', reason: 'blob script has no stable source map' };
+  if (entry.functions.some((f) => f.isBlockCoverage === false && f.ranges.some((r) => r.count > 0)))
+    return { url, status: 'unknown', reason: 'best-effort coverage' };
+  if (performance.now() >= deadline) return { url, status: 'unknown', reason: 'script map-read budget exhausted' };
+  return boundedResolve(input, script, entry, deadline);
 }
 
 async function boundedResolve(

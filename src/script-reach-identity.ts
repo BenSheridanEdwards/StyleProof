@@ -7,6 +7,7 @@ const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\)/i;
 const SCHEME = /^[a-z][a-z\d+.-]*:/i;
 
 function filesystemKey(filename: string, projectRoot: string): string {
+  filename = filename.replace(/^\/@fs(?=\/)/, '');
   const paths = WINDOWS_PATH.test(filename) ? path.win32 : path;
   const relative = paths.relative(paths.resolve(projectRoot), filename).replaceAll('\\', '/');
   if (!relative || relative === '..' || relative.startsWith('../') || paths.isAbsolute(relative))
@@ -14,8 +15,22 @@ function filesystemKey(filename: string, projectRoot: string): string {
   return relative;
 }
 
-function bundlerPath(address: string): string {
-  return new URL(address).pathname.replace(/^\//, '');
+/** URL parsing erases /./ and /../, so classify empty-host bundler paths first. */
+function absoluteBundlerPath(address: string): string | undefined {
+  if (!BUNDLER.test(address)) return undefined;
+  const raw = address.match(/^[a-z][a-z\d+.-]*:\/\/\/([^?#]*)/i)?.[1];
+  if (!raw || raw.startsWith('./') || raw.startsWith('../')) return undefined;
+  const filename = decodeURIComponent(raw).replaceAll('\\', '/');
+  return WINDOWS_PATH.test(filename) ? filename : '/' + filename;
+}
+
+/** Only explicit filesystem server URLs qualify; relative app URL paths do not. */
+function filesystemUrlPath(pathname: string): string | undefined {
+  const decoded = decodeURIComponent(pathname).replaceAll('\\', '/');
+  if (decoded.startsWith('/@fs/')) return decoded.slice(4);
+  if (/^\/(?:Users|home|root|tmp)(?:\/|$)/.test(decoded) || /^\/?[a-z]:\//i.test(decoded))
+    return decoded.replace(/^\/(?=[a-z]:\/)/i, '');
+  return undefined;
 }
 
 function sourceDirectory(root: string | undefined, mapUrl: string): URL {
@@ -29,20 +44,31 @@ function sourceDirectory(root: string | undefined, mapUrl: string): URL {
   return url;
 }
 
+function filesystemReference(address: string): string | undefined {
+  const absolute = absoluteBundlerPath(address);
+  if (absolute) return absolute;
+  return WINDOWS_PATH.test(address) || path.posix.isAbsolute(address) ? address : undefined;
+}
+
+function resolvedFilesystemPath(source: string, resolved: URL): string | undefined {
+  if (resolved.protocol === 'file:') return fileURLToPath(resolved);
+  const pathname = decodeURIComponent(resolved.pathname).replaceAll('\\', '/');
+  if (pathname.startsWith('/@fs/')) return pathname.slice(4);
+  return /^https?:/i.test(source) ? filesystemUrlPath(resolved.pathname) : undefined;
+}
+
 function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string | undefined {
-  if (WINDOWS_PATH.test(source) || path.posix.isAbsolute(source)) return filesystemKey(source, projectRoot);
-  if (root && (WINDOWS_PATH.test(root) || path.posix.isAbsolute(root)) && !SCHEME.test(source))
-    return filesystemKey((WINDOWS_PATH.test(root) ? path.win32 : path).resolve(root, source), projectRoot);
+  const filename = filesystemReference(source);
+  if (filename) return filesystemKey(filename, projectRoot);
+  const rootPath = root && filesystemReference(root);
+  if (rootPath && !SCHEME.test(source))
+    return filesystemKey((WINDOWS_PATH.test(rootPath) ? path.win32 : path).resolve(rootPath, source), projectRoot);
   const resolved = SCHEME.test(source)
     ? new URL(source)
     : new URL(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl));
-  if (resolved.protocol === 'file:') return filesystemKey(fileURLToPath(resolved), projectRoot);
-  const pathname = decodeURIComponent(resolved.pathname).replaceAll('\\', '/');
-  if (BUNDLER.test(resolved.href) && !pathname.replaceAll('/', '')) return undefined;
-  const viteFile = pathname.startsWith('/@fs/');
-  const filename = viteFile ? pathname.slice(4) : pathname;
-  if (viteFile || /^\/(?:Users|home|root|tmp)(?:\/|$)/.test(filename) || /^\/?[a-z]:\//i.test(filename))
-    return filesystemKey(filename.replace(/^\/(?=[a-z]:\/)/i, ''), projectRoot);
+  const resolvedFile = resolvedFilesystemPath(source, resolved);
+  if (resolvedFile) return filesystemKey(resolvedFile, projectRoot);
+  if (BUNDLER.test(resolved.href) && !resolved.pathname.replaceAll('/', '')) return undefined;
   return projectKey(resolved.pathname.replace(/^\//, ''), projectRoot);
 }
 
@@ -68,6 +94,21 @@ export function sourceIdentities(map: SourceMap, mapUrl: string, projectRoot = p
   });
 }
 
+function storedFilesystemKey(filename: string, projectRoot: string): string | undefined {
+  try {
+    return filesystemKey(filename, projectRoot);
+  } catch {
+    return undefined;
+  }
+}
+
+function storedBundlerUrl(address: string, url: URL, projectRoot: string): string {
+  const filename = absoluteBundlerPath(address);
+  if (!filename) return url.protocol + url.pathname.replace(/^\/\.\//, '/');
+  const key = storedFilesystemKey(filename, projectRoot);
+  return key ? url.protocol + '/' + key : url.protocol + '<outside root>';
+}
+
 /** Preserve names without credentials, signed queries, code payloads or machine paths. */
 export function storedScriptUrl(address: string, projectRoot = process.cwd()): string {
   if (!address) return '<anonymous>';
@@ -79,25 +120,16 @@ export function storedScriptUrl(address: string, projectRoot = process.cwd()): s
     url.username = '';
     url.password = '';
     if (url.protocol === 'file:') {
-      try {
-        return 'file:/' + filesystemKey(fileURLToPath(url), projectRoot);
-      } catch {
-        return 'file:';
-      }
+      const key = storedFilesystemKey(fileURLToPath(url), projectRoot);
+      return key ? 'file:/' + key : 'file:';
     }
-    if (BUNDLER.test(address)) return url.protocol + '/' + bundlerPath(url.href).replace(/^\.\//, '');
+    if (BUNDLER.test(address)) return storedBundlerUrl(address, url, projectRoot);
     if (!/^https?:$/.test(url.protocol)) return url.protocol;
-    const filename = decodeURIComponent(url.pathname).replace(/^\/@fs/, '');
-    if (
-      url.pathname.startsWith('/@fs/') ||
-      /^\/(?:Users|home|root|tmp)(?:\/|$)/.test(filename) ||
-      /^\/?[a-z]:\//i.test(filename)
-    ) {
-      try {
-        url.pathname = '/' + filesystemKey(filename.replace(/^\/(?=[a-z]:\/)/i, ''), projectRoot);
-      } catch {
-        return url.origin + '/';
-      }
+    const filename = filesystemUrlPath(url.pathname);
+    if (filename) {
+      const key = storedFilesystemKey(filename, projectRoot);
+      if (!key) return url.origin + '/';
+      url.pathname = '/' + key;
     }
     return url.href;
   } catch {

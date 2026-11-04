@@ -7,3 +7,5 @@ export const MAX_APP_SEGMENTS = 100_000;
 export const MAX_COVERAGE_RANGES = 200_000;
 export const MAX_SCRIPT_EVIDENCE_BYTES = 1024 * 1024;
 export const MAX_CAPTURE_EVIDENCE_BYTES = 4 * 1024 * 1024;
+
+export const MAX_SCRIPTS = 1000;

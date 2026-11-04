@@ -655,8 +655,8 @@ on nested scrollers under strict style CSP, so its temporary expansion does not 
 `captureScriptReach: true` separately opts into J2 script evidence (off by default):
 `defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true })`. Each
 surface@width stores original-source executed, mixed and unexecuted anchors plus
-content hashes and stable source keys in `StyleMap.scriptReach`. An executed anchor means the innermost V8 block containing that generated segment ran;
-it does not prove every expression evaluated. J2 residuals are default parameter values,
+content hashes and stable source keys in `StyleMap.scriptReach`. An executed anchor means its block was entered; code after a call that threw in that block is not proved.
+It does not prove every expression evaluated. J2 residuals are default parameter values,
 destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`), and later links
 of short-circuited optional chains. Evidence notes name these gaps; 2.2 must treat
 these expressions as unknown. Unmapped code supplies no execution proof. Project-root-relative source keys preserve package directories;

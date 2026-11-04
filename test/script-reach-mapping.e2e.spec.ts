@@ -208,3 +208,43 @@ test('capture excludes Playwright evaluations and preserves page anonymous eval'
     await host.close();
   }
 });
+
+test('V8 block entry cannot prove code after a throwing call', async ({ page }) => {
+  const { transform } = await import('esbuild');
+  const original = [
+    'window.afterCall=false;',
+    'function fetchFault(){throw new Error("fixture");}',
+    'try {',
+    '  fetchFault();',
+    '  window.afterCall=true;',
+    '} catch {}',
+  ].join('\n');
+  const built = await transform(original, { sourcefile: 'src/throwing-call.js', sourcemap: 'external', minify: true });
+  const host = await serve(built.code + '\n//# sourceMappingURL=app.js.map', JSON.parse(built.map));
+  try {
+    const tracker = await trackScriptReach(page);
+    await page.goto(host.url);
+    const evidence = await tracker.stop();
+    expect(await page.evaluate(() => (window as unknown as { afterCall: boolean }).afterCall)).toBe(false);
+    const file = evidence.scripts.find((s) => s.url.endsWith('/app.js'))?.files?.[0];
+    // 2.2 must keep this unknown: V8 counts entry to the block, not continuation after calls.
+    expect(file?.executed.some((span) => span[0] === 5)).toBe(true);
+    expect(evidence.notes?.join(' ')).toMatch(
+      /block was entered; code after a call that threw in that block is not proved/,
+    );
+  } finally {
+    await host.close();
+  }
+});
+
+test('a no-script page with locator textContent leaves zero script entries', async ({ page }) => {
+  await page.route('https://injected.test/**', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<div>Ready</div>' }),
+  );
+  const tracker = await trackScriptReach(page);
+  await page.goto('https://injected.test/');
+  expect(await page.locator('div').textContent()).toBe('Ready');
+  const evidence = await tracker.stop();
+  expect(evidence.status).toBe('measured');
+  expect(evidence.scripts).toEqual([]);
+});

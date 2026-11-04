@@ -293,3 +293,46 @@ test('compaction preserves distinct point anchors even inside another range', ()
     file.executed,
   );
 });
+
+for (const directory of ['opt', 'builds', 'var', 'app'])
+  test(`absolute empty-host bundler sources validate the ${directory} checkout root`, () => {
+    const projectRoot = path.join(path.parse(root).root, directory, 'build', 'repo');
+    const source = 'webpack://' + path.join(projectRoot, 'src/a.ts');
+    assert.deepEqual(sourceIdentities(map('AAAA', [source]), 'https://app.test/a.map', projectRoot), ['src/a.ts']);
+    assert.throws(
+      () => sourceIdentities(map('AAAA', [source]), 'https://app.test/a.map', root),
+      /outside project root/,
+    );
+    assert.deepEqual(
+      sourceIdentities(
+        { ...map('AAAA', ['a.ts']), sourceRoot: 'webpack://' + path.join(projectRoot, 'src') },
+        'https://app.test/a.map',
+        projectRoot,
+      ),
+      ['src/a.ts'],
+    );
+  });
+
+test('explicit dot-relative bundler sources and parent home directories stay project-relative', () => {
+  assert.deepEqual(sourceIdentities(map('AAAA', ['webpack:///./src/a.ts']), 'https://app.test/a.map', root), [
+    'src/a.ts',
+  ]);
+  assert.deepEqual(sourceIdentities(map('AAAA', ['webpack:///../home/Home.tsx']), 'https://app.test/a.map', root), [
+    'home/Home.tsx',
+  ]);
+  assert.deepEqual(sourceIdentities(map('AAAA', ['../home/Home.tsx']), 'https://app.test/assets/a.map', root), [
+    'home/Home.tsx',
+  ]);
+});
+
+test('ignored webpack mappings cannot consume the app segment budget', () => {
+  const count = 100_001;
+  const text = 'x'.repeat(count);
+  const sourceMap = map('AAAA,' + 'CAAA,'.repeat(count - 2) + 'CCAA', ['webpack://_N_E/?3c5f', 'src/a.ts']);
+  const files = mapScriptCoverage(coverage(text), text, sourceMap, 'https://app.test/a.map');
+  assert.deepEqual(
+    files.map((file) => file.sourceKey),
+    ['src/a.ts'],
+  );
+  assert.deepEqual(files[0].executed, [span(1, 0)]);
+});

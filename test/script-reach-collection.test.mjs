@@ -203,3 +203,70 @@ test('early script metadata collection resumes debugger pauses while arming', as
   assert.ok(f.calls.some(([method]) => method === 'Debugger.resume'));
   await tracker.dispose();
 });
+
+test('stored capture JSON redacts absolute bundler script paths and relativises app files', async () => {
+  const { join, parse } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const projectRoot = join(tmpdir(), 'reach-checkout');
+  const outside = join(parse(projectRoot).root, 'Users', 'other', 'private.js');
+  const inside = join(projectRoot, 'src/app.ts');
+  const urls = ['webpack-internal://' + outside, 'webpack://' + inside];
+  const f = scriptReachFixture({
+    entries: urls.map((url, i) => ({
+      scriptId: String(i),
+      url,
+      functions: [{ ranges: [{ startOffset: 0, endOffset: 1, count: 1 }] }],
+    })),
+    maps: [{}, { version: 3, sources: ['webpack://' + inside], sourcesContent: ['x'], mappings: 'AAAA' }],
+  });
+  const t = await trackScriptReach(f.page, { projectRoot });
+  f.navigate();
+  const evidence = await t.stop();
+  const json = JSON.stringify(evidence);
+  for (const forbidden of [
+    outside,
+    projectRoot,
+    outside.replace(/^\//, ''),
+    projectRoot.replace(/^\//, ''),
+    encodeURI(outside),
+    encodeURI(projectRoot),
+  ])
+    assert.ok(!json.includes(forbidden), 'stored evidence must omit filesystem paths');
+  assert.ok(evidence.scripts.some((s) => s.url === 'webpack-internal:<outside root>'));
+  assert.ok(evidence.scripts.some((s) => s.files?.[0]?.sourceKey === 'src/app.ts'));
+});
+
+for (const owner of ['page', 'context'])
+  for (const value of [undefined, {}, 'unavailable'])
+    test(`unknown ${owner} routing metadata cannot use the CDP loader: ${typeof value}`, async () => {
+      const f = scriptReachFixture();
+      f[owner]._routes = value;
+      const result = await capture(f);
+      assert.equal(result.scripts[0].status, 'mapped');
+      assert.ok(!f.calls.some(([method]) => method === 'Network.loadNetworkResource'));
+    });
+
+test('script count has a deterministic named cap before source or map reads', async () => {
+  const limits = await import('../dist/script-reach-limits.js');
+  const count = (limits.MAX_SCRIPTS ?? 1000) + 1;
+  const f = scriptReachFixture({
+    entries: Array.from({ length: count }, (_, i) => ({
+      scriptId: String(i),
+      url: `https://app.test/${i}.js`,
+      functions: [{ ranges: [{ startOffset: 0, endOffset: 1, count: 1 }] }],
+    })),
+  });
+  const result = await capture(f);
+  assert.deepEqual(result.scripts, [
+    { url: '<script limit>', status: 'unknown', reason: `script count exceeds ${count - 1}` },
+  ]);
+  assert.ok(!f.calls.some(([method]) => ['Debugger.getScriptSource', 'Network.loadNetworkResource'].includes(method)));
+});
+
+test('evidence names the post-throwing-call V8 residual', async () => {
+  const evidence = await capture(scriptReachFixture());
+  assert.match(
+    evidence.notes?.join(' ') ?? '',
+    /block was entered; code after a call that threw in that block is not proved/,
+  );
+});

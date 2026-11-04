@@ -23,10 +23,12 @@ export async function readFileSourceMap(url: string, scriptUrl: string, signal: 
 function routingActive(page: Page, url: string): boolean {
   // Playwright 1.61 routeFromHAR also registers RouteHandlers in _routes.
   // Reuse its matcher so glob, RegExp, predicate and baseURL semantics agree.
-  type Routing = { _routes?: { matches: (url: string) => boolean }[] };
-  return [page, page.context()].some((owner) =>
-    (owner as unknown as Routing)._routes?.some((route) => route.matches(url)),
-  );
+  type Routing = { _routes?: unknown };
+  return [page, page.context()].some((owner) => {
+    const routes = (owner as unknown as Routing)._routes;
+    if (!Array.isArray(routes)) return true;
+    return routes.some((route) => typeof route?.matches !== 'function' || route.matches(url));
+  });
 }
 export const MAP_READ_BUDGET_MS = 30_000;
 const RESOURCE_TIMEOUT_MS = 10_000;

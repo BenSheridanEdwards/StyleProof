@@ -153,9 +153,18 @@ export function assertDeterministicScriptReach(first: StyleMap, again: StyleMap,
     window: 'navigation',
     status: 'unknown',
     reason: `script evidence not reproducible${location}`,
-    scripts: isDeepStrictEqual(left, right) ? (first.scriptReach?.scripts ?? []) : [],
+    scripts: isDeepStrictEqual(left, right)
+      ? (first.scriptReach?.scripts ?? []).map((script) =>
+          script.status === 'mapped'
+            ? {
+                url: script.url,
+                status: 'unknown' as const,
+                reason: `script evidence not reproducible (${surfaceKey})`,
+              }
+            : script,
+        )
+      : [],
   };
-  void surfaceKey;
 }
 
 function scriptLines(file: ReturnType<typeof scriptExecutionProjection>[number]): Map<number, unknown[]> {

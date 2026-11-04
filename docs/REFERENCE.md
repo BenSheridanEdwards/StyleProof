@@ -1434,7 +1434,10 @@ hold `source`, `sourceKey`, optional SHA-256 `contentHash`, and
 `[line, startColumn, endColumn]`: 1-based lines, 0-based UTF-16 columns, exclusive
 ends.
 **Readers may trust only the start column of executed evidence:** the innermost V8
-block containing that generated segment ran, not necessarily every expression in it.
+block containing that generated segment was entered, not necessarily every expression in it.
+A fifth J2 residual is code after a throwing call: **an executed anchor means its block
+was entered; code after a call that threw in that block is not proved**. V8 adds no
+continuation counter after an ordinary call. The 2.2 join must keep that code unknown.
 All states store anchors, never interpolated extents; split segments or conflicting
 states at one start are mixed. Named J2 residuals, also stored in `notes`, are default
 parameter values, destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`),
@@ -1450,25 +1453,33 @@ POSIX paths relative to the project root (process cwd; direct trackers may pass
 without its leading slash. All directories, including nested `src` and monorepo
 packages, survive. Vite `/@fs/` and decoded filesystem URL paths use the same
 project-root validation. Empty/query-only webpack ignored modules are non-app. Outside-root paths or any collision invalidate involved scripts;
-never merge. `node_modules` is excluded before app indexing/counting. Hashes come
+never merge. Raw empty-host bundler sources such as `webpack:///opt/build/...`
+are filesystem paths, validated before URL parsing; explicit `/./` and `/../`
+bundler paths stay relative. Relative HTTP sources such as `../home/Home.tsx`
+retain URL-path semantics. Stored absolute bundler script URLs become root-relative
+or `<outside root>`. Only identities classified as app sources count toward the
+segment budget; vendor, null and ignored webpack module sources do not. Hashes come
 only from `sourcesContent`; missing/null content has no hash. Original files are
 never fetched. No raw V8 output, maps or source content is stored.
 
 Maps support inline data, `sourceMappingURL`, and `SourceMap`/`X-SourceMap` headers.
 Credentialed CDP reads bypass page JS, fetch patches and request listeners, even
 when unrelated runner replay routes exist. Only a route/HAR matcher that matches
-the map URL requires credentialed page fetch, with no CDP fallback.
+the map URL requires credentialed page fetch, with no CDP fallback. Missing or
+malformed routing metadata also requires page fetch; it never enables CDP.
 Disk reads require a file page and file script, regular file under the input cap,
 and AbortSignal; spoofed HTTP `sourceURL` cannot grant disk access.
 
 Deterministic limits: 4 MiB generated UTF-8, 2 MiB mappings, 8 MiB map input,
 100,000 **app** segments, 200,000 V8 ranges, 1 MiB evidence/script and 4 MiB/map.
+More than 1,000 parsed or covered scripts replaces the window’s scripts with one
+named `<script limit>` unknown entry before source/map reads.
 Script excess preserves siblings; total excess produces unknown with no scripts.
 Generous backstops are 30 seconds overall and 10 seconds/resource. Reader failures
 are evidence gaps, never capture failures. URLs omit credentials, queries,
 fragments and machine paths. Missing maps are unmeasured; blobs retain `blob:`.
 Unsupported/eval/anonymous URLs and missing metadata remain named unmeasured with
-`unsupported script URL`. Playwright utility/evaluation scripts are excluded;
+`unsupported script URL`. Playwright utility, injected and evaluation scripts are excluded;
 the page’s own anonymous/eval scripts stay named unmeasured.
 
 Cache is disabled until navigation load completes, or map reading starts for a
@@ -1487,7 +1498,8 @@ fresh tracker/navigation each time; otherwise evidence is unmeasured. Legacy map
 without the setting have absent evidence. Self-checks compare mapped app anchors/hashes,
 excluding generated IDs/URLs/counters. Execution drift becomes unknown with
 `script evidence not reproducible: <sourceKey>:<line>`; gap/availability drift uses
-`script evidence not reproducible`. Script drift never throws, including storage branches.
+`script evidence not reproducible`. Retained mapped scripts also become unknown
+and lose their file execution evidence. Script drift never throws, including storage branches.
 
 ## Optional: selective remap (advisory + CI opt-in)
 

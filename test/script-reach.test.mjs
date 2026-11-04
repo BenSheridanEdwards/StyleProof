@@ -331,3 +331,29 @@ test('a map-fetch failure on one run becomes unknown instead of a self-check fai
   assert.doesNotThrow(() => assertDeterministicScriptReach(first, again, 'home'));
   assert.equal(first.scriptReach.reason, 'script evidence not reproducible');
 });
+
+test('self-check availability drift downgrades retained mapped scripts and removes anchors', async () => {
+  const { assertDeterministicScriptReach } = await import('../dist/runner/self-check.js');
+  const first = {
+    scriptReach: {
+      version: 1,
+      window: 'navigation',
+      status: 'measured',
+      scripts: [
+        {
+          url: 'https://app.test/app.js',
+          status: 'mapped',
+          files: [{ source: 'src/a.ts', sourceKey: 'src/a.ts', executed: [[1, 0, 0]], mixed: [], unexecuted: [] }],
+        },
+        { url: 'https://app.test/extra.js', status: 'unmeasured', reason: 'source map absent' },
+      ],
+    },
+  };
+  const again = structuredClone(first);
+  again.scriptReach.scripts.pop();
+  assertDeterministicScriptReach(first, again, 'home');
+  assert.equal(first.scriptReach.status, 'unknown');
+  assert.equal(first.scriptReach.scripts[0].status, 'unknown');
+  assert.equal(first.scriptReach.scripts[0].files, undefined);
+  assert.match(first.scriptReach.scripts[0].reason, /home/);
+});
