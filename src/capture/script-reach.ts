@@ -12,6 +12,7 @@ import { resolveScriptProjectRoot } from './script-project-root.js';
 import { MAX_GENERATED_LENGTH, MAX_SCRIPTS, MAX_SCRIPT_IDENTIFICATIONS } from '../script-reach-limits.js';
 import { storedScriptEvidence } from '../script-reach-storage.js';
 import { performance } from 'node:perf_hooks';
+import { createHash } from 'node:crypto';
 import type { CaptureOptions, StyleMap } from './types.js';
 import type { CDPSession, Page, Response } from '@playwright/test';
 import {
@@ -27,6 +28,7 @@ type ParsedScript = {
   scriptId: string;
   url: string;
   sourceMapURL?: string;
+  hash?: string;
   length?: number;
   stackTrace?: { callFrames: { scriptId: string }[] };
 };
@@ -108,29 +110,117 @@ type ScriptRead = {
   projectRoot: string;
 };
 
-/** 1.61 omits the historical sourceURL marker; identify its utility and direct evaluations. */
+const PLAYWRIGHT_INIT_PREFIX = '(() => {\n      ';
+const PLAYWRIGHT_INIT_SUFFIX = '\n    })();';
+
+/** Clock installation evaluates this expression directly and as an init-script body. */
+function playwrightClockSource(source: string): string | undefined {
+  const body =
+    source.startsWith(PLAYWRIGHT_INIT_PREFIX + '(() => {') && source.endsWith(PLAYWRIGHT_INIT_SUFFIX)
+      ? source.slice(PLAYWRIGHT_INIT_PREFIX.length, -PLAYWRIGHT_INIT_SUFFIX.length)
+      : source;
+
+  return body.startsWith('(() => {\n      const module = {};\n      \nvar __commonJS =') &&
+    body.includes('var ClockController = class {') &&
+    body.endsWith(
+      '\n      if (!globalThis.__pwClock)\n        globalThis.__pwClock = (module.exports.inject())(globalThis, "chromium");\n    })();',
+    )
+    ? body
+    : undefined;
+}
+
+/** Match 1.61's complete init wrappers, never an arbitrary app init/eval body. */
+function playwrightInitScript(source: string): boolean {
+  if (!source.startsWith(PLAYWRIGHT_INIT_PREFIX) || !source.endsWith(PLAYWRIGHT_INIT_SUFFIX)) return false;
+  const body = source.slice(PLAYWRIGHT_INIT_PREFIX.length, -PLAYWRIGHT_INIT_SUFFIX.length);
+
+  if (/^globalThis\['__playwright__binding__controller__'\]\.addBinding\("(?:[^"\\\r\n]|\\.)*"\)$/.test(body))
+    return true;
+
+  if (
+    /^globalThis\.__pwClock\.controller\.log\('(install|setFixedTime|setSystemTime|pauseAt|runFor|fastForward)', -?\d+(?:\.\d+)?(?:e[+-]?\d+)?, -?\d+(?:\.\d+)?(?:e[+-]?\d+)?\)$/.test(
+      body,
+    ) ||
+    /^globalThis\.__pwClock\.controller\.log\('resume', -?\d+(?:\.\d+)?(?:e[+-]?\d+)?\)$/.test(body)
+  )
+    return true;
+
+  return (
+    body.startsWith('\n      (() => {\n        const module = {};\n        \nvar __commonJS =') &&
+    body.includes('var BindingsController = class {') &&
+    body.endsWith(
+      "\n        const property = '__playwright__binding__controller__';\n        if (!globalThis[property])\n          globalThis[property] = new (module.exports.BindingsController())(globalThis, '__playwright__binding__');\n      })();\n    ",
+    )
+  );
+}
+
+function injectedScriptKind(scriptSource: string): 'utility' | 'internal' | undefined {
+  if (
+    ['UtilityScript', 'InjectedScript'].some(
+      (kind) =>
+        scriptSource.includes(`return new (module.exports.${kind}())(globalThis,`) &&
+        scriptSource.includes(`var ${kind} = class {`),
+    )
+  )
+    return 'utility';
+
+  if (
+    scriptSource === '((utilityScript, ...args) => utilityScript.evaluate(...args))' ||
+    playwrightClockSource(scriptSource) !== undefined ||
+    playwrightInitScript(scriptSource) ||
+    scriptSource.split('\n').some((line) => line === `//# sourceURL=${STYLEPROOF_SCRIPT_URL}`)
+  )
+    return 'internal';
+
+  return undefined;
+}
+
+/** 1.61 omits the historical sourceURL marker, including on init scripts with stacks. */
 async function playwrightScripts(input: ScriptRead): Promise<Set<string>> {
   const internal = new Set<string>();
   const utilities = new Set<string>();
+  const knownSources = new Map<string, 'utility' | 'internal'>();
+
   for (const script of input.scripts.values()) {
-    if (script.url || script.stackTrace || (script.length ?? 0) > MAX_GENERATED_LENGTH) continue;
+    if (script.url || (script.length ?? 0) > MAX_GENERATED_LENGTH) continue;
+
     const { scriptSource } = await input.client
       .send('Debugger.getScriptSource', { scriptId: script.scriptId })
       .catch(() => ({ scriptSource: '' }));
-    if (
-      ['UtilityScript', 'InjectedScript'].some(
-        (kind) =>
-          scriptSource.includes(`return new (module.exports.${kind}())(globalThis,`) &&
-          scriptSource.includes(`var ${kind} = class {`),
-      )
-    ) {
-      utilities.add(script.scriptId);
-      internal.add(script.scriptId);
-    } else if (scriptSource === '((utilityScript, ...args) => utilityScript.evaluate(...args))')
-      internal.add(script.scriptId);
+
+    const kind = injectedScriptKind(scriptSource);
+
+    if (!kind) continue;
+    internal.add(script.scriptId);
+
+    if (kind === 'utility') utilities.add(script.scriptId);
+
+    if (script.hash) knownSources.set(script.hash, kind);
+
+    const clockSource = playwrightClockSource(scriptSource);
+
+    if (clockSource) {
+      knownSources.set(createHash('sha256').update(clockSource).digest('hex'), 'internal');
+      knownSources.set(
+        createHash('sha256').update(`${PLAYWRIGHT_INIT_PREFIX}${clockSource}${PLAYWRIGHT_INIT_SUFFIX}`).digest('hex'),
+        'internal',
+      );
+    }
   }
-  for (const script of input.scripts.values())
+
+  // Discarded contexts can leave timer coverage after getScriptSource stops working.
+  // Clock hashes cover its exact direct and init forms; app hashes are never learned.
+  input.scripts.forEach((script) => {
+    if (script.url || !script.hash || !knownSources.has(script.hash)) return;
+    internal.add(script.scriptId);
+
+    if (knownSources.get(script.hash) === 'utility') utilities.add(script.scriptId);
+  });
+
+  input.scripts.forEach((script) => {
     if (!script.url && utilities.has(script.stackTrace?.callFrames[0]?.scriptId ?? '')) internal.add(script.scriptId);
+  });
+
   return internal;
 }
 

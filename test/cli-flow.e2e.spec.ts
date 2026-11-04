@@ -35,7 +35,10 @@ const PLAYWRIGHT_BIN = path.join(root, 'node_modules/.bin');
 // any outgoing connection or listen(0) before the child server binds it (#798).
 const EPHEMERAL_PORT_FLOOR = 32768;
 const PORTS_PER_WORKER = 200;
-const WORKER_PORT_BASE = 20000 + Number(process.env.TEST_PARALLEL_INDEX ?? 0) * PORTS_PER_WORKER;
+// Concurrent worktrees can select separate blocks without changing the fixtures.
+const WORKER_PORT_BASE =
+  Number(process.env.STYLEPROOF_E2E_PORT_BASE ?? 20000) +
+  Number(process.env.TEST_PARALLEL_INDEX ?? 0) * PORTS_PER_WORKER;
 let nextPortOffset = 0;
 async function freePort(): Promise<number> {
   if (WORKER_PORT_BASE + PORTS_PER_WORKER > EPHEMERAL_PORT_FLOOR) {

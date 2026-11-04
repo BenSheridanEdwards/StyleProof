@@ -1,4 +1,5 @@
 // Functions and snippets serialized into the page. Each must stay self-contained.
+import { captureExpression } from '../capture/script-evaluation.js';
 
 /** A trigger enumerated once per surface: `index` names the capture (`popup-XX`); `path` +
  *  `label` are the identity every reopen re-binds to (never the index — the trigger set can
@@ -166,7 +167,7 @@ export function popupDomSnapshot({
 // `popstate` for a fragment jump, so popstate reports only a new path/query or a
 // hash-router fragment (`#/route`, `#!/route`).
 export const NAV_OBSERVER_FN = '__styleproofObservedNav';
-export const NAV_OBSERVER_SNIPPET = `(() => {
+export const NAV_OBSERVER_SNIPPET = captureExpression(`(() => {
   let lastRoute = location.pathname + location.search;
   const report = () => {
     lastRoute = location.pathname + location.search;
@@ -183,4 +184,4 @@ export const NAV_OBSERVER_SNIPPET = `(() => {
   addEventListener('popstate', () => {
     if (location.pathname + location.search !== lastRoute || /^#!?\\//.test(location.hash)) report();
   });
-})();`;
+})();`);

@@ -1,6 +1,7 @@
 // Node-side page driving for the surface crawl: navigation, settling, setup steps,
 // in-place actions, verified resets, and capture.
 import type { Locator, Page, Response } from '@playwright/test';
+import { captureExpression } from '../capture/script-evaluation.js';
 import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from '../capture.js';
 import { realNow } from '../spec-clock.js';
 import { sha256 } from '../node-util.js';
@@ -231,7 +232,7 @@ const armed = new WeakSet<Page>();
 export async function armResetStorage(page: Page): Promise<void> {
   if (armed.has(page)) return;
   armed.add(page);
-  await page.addInitScript((keep) => {
+  const reset = (keep: string): void => {
     // An about:blank frame (the capture's UA-defaults probe) shares the page's storage but is no load.
     if (location.protocol === 'about:') return;
     try {
@@ -241,7 +242,8 @@ export async function armResetStorage(page: Page): Promise<void> {
     } catch {
       /* storage unavailable (e.g. file://) */
     }
-  }, KEEP_STORAGE);
+  };
+  await page.addInitScript(captureExpression(`(${reset.toString()})(${JSON.stringify(KEEP_STORAGE)});`));
 }
 
 /** Let loads on `url`'s host keep their storage until dropKeepStorage, so a session the setup steps

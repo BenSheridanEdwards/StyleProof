@@ -4,6 +4,7 @@
 // stylesheet text names the rules. Stylesheets StyleProof injects never enter it.
 import { createHash } from 'node:crypto';
 import { registerStyleProofSession } from './script-coverage-ownership.js';
+import { captureExpression } from './script-evaluation.js';
 import type { CDPSession, Page } from '@playwright/test';
 import type { ServedRule, ServedRules } from './types.js';
 import { GENERATED_PSEUDOS } from '../pseudo-references.js';
@@ -676,7 +677,7 @@ async function inlineStyles(client: CDPSession, root: DocumentNode): Promise<Inl
       if (!object.objectId) unknown('inline root object unavailable');
       const response = await client.send('Runtime.callFunctionOn', {
         objectId: object.objectId,
-        functionDeclaration: parsedInlineStyles.toString(),
+        functionDeclaration: captureExpression(parsedInlineStyles.toString()),
         returnByValue: true,
       });
       if (response.exceptionDetails || response.result.objectId) unknown('inline styles evaluation failed');
@@ -925,7 +926,7 @@ async function documentSheet(
     if (!object.objectId) return false;
     const { result } = await client.send('Runtime.callFunctionOn', {
       objectId: object.objectId,
-      functionDeclaration: 'function () { return this.getRootNode() === document; }',
+      functionDeclaration: captureExpression('function () { return this.getRootNode() === document; }'),
       returnByValue: true,
     });
     return result.value === true;
