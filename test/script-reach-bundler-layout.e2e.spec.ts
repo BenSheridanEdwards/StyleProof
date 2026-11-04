@@ -1,13 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, realpath } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { captureStyleMap, trackScriptReach } from '../dist/capture.js';
 
-for (const bundlePath of ['app.js', 'assets/app.js']) {
-  test(`HTTP production bundle maps above-root sources: /${bundlePath}`, async ({ page }, testInfo) => {
+for (const [bundlePath, outOfTree] of [
+  ['app.js', false],
+  ['assets/app.js', false],
+  ['app.js', true],
+] as const) {
+  test(`HTTP production bundle maps above-root sources: /${bundlePath}${outOfTree ? ' (out-of-tree output)' : ''}`, async ({
+    page,
+  }, testInfo) => {
     const app = testInfo.outputPath('app');
     const sources = {
       'src/app.ts': `import { css } from ${JSON.stringify('./css')};\ndocument.body.className = css();\n`,
@@ -15,10 +21,14 @@ for (const bundlePath of ['app.js', 'assets/app.js']) {
     };
     await mkdir(path.join(app, 'src'), { recursive: true });
     for (const [filename, content] of Object.entries(sources)) await writeFile(path.join(app, filename), content);
+    const projectRoot = await realpath(app);
+    const outfile = outOfTree
+      ? path.join(path.parse(projectRoot).root, 'styleproof-out', 'public', bundlePath)
+      : path.join(projectRoot, 'public', bundlePath);
     const built = await build({
-      absWorkingDir: app,
+      absWorkingDir: projectRoot,
       entryPoints: ['src/app.ts'],
-      outfile: `public/${bundlePath}`,
+      outfile,
       bundle: true,
       sourcemap: true,
       format: 'iife',
@@ -26,8 +36,11 @@ for (const bundlePath of ['app.js', 'assets/app.js']) {
     });
     const script = built.outputFiles.find((file) => file.path.endsWith('.js'))!;
     const sourceMap = built.outputFiles.find((file) => file.path.endsWith('.map'))!;
-    const parents = bundlePath.includes('/') ? '../../' : '../';
-    expect(JSON.parse(sourceMap.text).sources.sort()).toEqual([`${parents}src/app.ts`, `${parents}src/css.ts`]);
+    expect(JSON.parse(sourceMap.text).sources.sort()).toEqual(
+      Object.keys(sources)
+        .map((filename) => path.relative(path.dirname(outfile), path.join(projectRoot, filename)).replaceAll('\\', '/'))
+        .sort(),
+    );
     const server = http.createServer((request, response) => {
       const body =
         request.url === `/${bundlePath}`
@@ -46,7 +59,7 @@ for (const bundlePath of ['app.js', 'assets/app.js']) {
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('HTTP fixture has no TCP address');
     const url = `http://127.0.0.1:${address.port}`;
-    const tracker = await trackScriptReach(page);
+    const tracker = await trackScriptReach(page, { projectRoot });
     try {
       await page.goto(url);
       await expect(page.locator('body')).toHaveClass('ready');

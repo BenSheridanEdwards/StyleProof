@@ -1464,9 +1464,15 @@ project-root validation. Empty/query-only webpack ignored modules are non-app. O
 never merge. Empty-host source URIs such as `webpack:///opt/build/...`, including
 unknown schemes, are filesystem paths validated before URL parsing. Explicit `/./`
 and `/../` paths stay relative. Relative sources that climb above the URL root drop
-only the escaping `..` segments when their own `sourcesContent` entry is present.
+only the escaping `..` segments when their own `sourcesContent` entry is present
+and `sourceRoot` is absent or relative. A scheme-prefixed or absolute `sourceRoot`
+cannot authorize clipping. Only `sources[i]` may climb above the URL root;
+`sourceRoot` itself must resolve without clipping.
 For example, `../src/app.ts` from `/app.js.map` becomes `src/app.ts` with a content
-hash. Missing content or scheme-prefixed traversal still reads unknown. Clipped
+hash. Clipped paths starting with machine-root directories (`Users`, `home`, `root`,
+`tmp`, `var`, `private`, `Volumes`, `opt`) or a drive letter must pass project-root
+validation and are stored relative to that root; paths outside it read unknown.
+Missing content or scheme-prefixed traversal still reads unknown. Clipped
 keys follow the same collision rule. Relative HTTP sources such as `../home/Home.tsx`
 retain URL-path semantics. Stored absolute bundler script URLs become root-relative
 or `<outside root>`. Only identities classified as app sources count toward the

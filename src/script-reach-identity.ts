@@ -28,14 +28,14 @@ function absoluteBundlerPath(address: string): string | undefined {
 function filesystemUrlPath(pathname: string): string | undefined {
   const decoded = decodeURIComponent(pathname).replaceAll('\\', '/');
   if (decoded.startsWith('/@fs/')) return decoded.slice(4);
-  if (/^\/(?:Users|home|root|tmp)(?:\/|$)/.test(decoded) || /^\/?[a-z]:\//i.test(decoded))
+  if (/^\/(?:Users|home|root|tmp|var|private|Volumes|opt)(?:\/|$)/.test(decoded) || /^\/?[a-z]:\//i.test(decoded))
     return decoded.replace(/^\/(?=[a-z]:\/)/i, '');
   return undefined;
 }
 
 function sourceDirectory(root: string | undefined, mapUrl: string): URL {
   if (!root) return new URL(mapUrl);
-  let url = resolveSourceUrl(root, mapUrl);
+  let url = resolveSourceUrl(root, mapUrl).url;
   // Vite's opaque scheme becomes a hierarchical URL so relative sources resolve normally.
   if (!url.pathname.startsWith('/') && BUNDLER.test(url.href)) url = new URL(`${url.protocol}/${url.pathname}`);
   url.pathname = url.pathname.replace(/\/?$/, '/');
@@ -70,9 +70,11 @@ function sourceKey(
   const rootPath = root && filesystemReference(root);
   if (rootPath && !SCHEME.test(source))
     return filesystemKey((WINDOWS_PATH.test(rootPath) ? path.win32 : path).resolve(rootPath, source), projectRoot);
-  const resolved =
-    absoluteUrl ?? resolveSourceUrl(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl), hasSourceContent);
-  const resolvedFile = resolvedFilesystemPath(source, resolved);
+  const allowClipping = hasSourceContent && !(root && (SCHEME.test(root) || root.startsWith('/')));
+  const { url: resolved, clipped } =
+    absoluteUrl ?? resolveSourceUrl(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl), allowClipping);
+  const resolvedFile =
+    resolvedFilesystemPath(source, resolved) ?? (clipped ? filesystemUrlPath(resolved.pathname) : undefined);
   if (resolvedFile) return filesystemKey(resolvedFile, projectRoot);
   if (BUNDLER.test(resolved.href) && !resolved.pathname.replaceAll('/', '')) return undefined;
   return projectKey(resolved.pathname.replace(/^\//, ''), projectRoot);

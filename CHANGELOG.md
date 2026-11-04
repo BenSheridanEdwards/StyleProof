@@ -16,8 +16,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   or a ruleset to block merges; approval turns that status green without a job re-run.
   Boolean `blocking` values remain accepted and no longer affect the job conclusion.
 - Script reach maps relative sources above the URL root in production bundles when
-  each source includes `sourcesContent`. Only escaping `..` segments are dropped.
-  Missing content, scheme-prefixed traversal and colliding keys still read unknown.
+  each source includes its own `sourcesContent` entry and `sourceRoot` is absent or
+  relative. Only escaping `..` segments are dropped; `sourceRoot` itself cannot clip.
+  Clipped machine paths are validated against the project root and stored relative
+  to it. Missing content, scheme-prefixed traversal, outside-root paths and colliding
+  keys still read unknown.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
