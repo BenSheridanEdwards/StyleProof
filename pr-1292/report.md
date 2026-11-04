@@ -28,4 +28,4 @@ _No distinct before/after crop for this element added (the cropped region matche
 
 </details>
 
-<!-- styleproof-receipt head-sha:40ffaf19e7ebf61397ebc7f4b981216ca63dc304 run-id:41910164333 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:834f07308d5384a146d2331ba8ddfbfa6ceabe5c run-id:41928519907 run-attempt:1 -->
