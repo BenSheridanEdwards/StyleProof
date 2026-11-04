@@ -396,5 +396,4 @@ test('sentence assertions compare literal punctuation without interpreting regex
   const sentence = 'Nav links [primary]+ changed colour (2 elements).';
   assert.doesNotThrow(() => assertSentence(`- ${sentence}\n`, sentence));
   assert.throws(() => assertSentence('- Button changed colour (1 button)!', 'Button changed colour (1 button).'));
-
 });
