@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { errorMessage } from '../util.js';
 import {
   evaluateTypeScriptConfigSync,
@@ -260,6 +260,7 @@ function loadJavaScriptConfigSync(found: StyleProofConfigLocation, asyncLoad = f
   const result = spawnSync(
     process.execPath,
     [
+      ...(asyncLoad ? ['--require', fileURLToPath(new URL('../../bin/config-warnings.cjs', import.meta.url))] : []),
       '--input-type=module',
       '-e',
       `import { writeFileSync } from 'node:fs';
