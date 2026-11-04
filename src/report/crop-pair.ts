@@ -47,6 +47,11 @@ function zoomPlan(rectsA: Rect[], rectsB: Rect[], zoomBelow: number): { box: Box
 const MAX_CROP_W = 1280;
 const MAX_CROP_AREA = 1_024_000;
 
+/** Whether the crop limits can show the whole requested frame without clipping. */
+export function cropFits(ctx: RenderCtx, box: Box): boolean {
+  return box.w <= MAX_CROP_W && box.h <= ctx.maxHeight && Math.max(ctx.minWidth, box.w) * box.h <= MAX_CROP_AREA;
+}
+
 function omittedCrop(ctx: RenderCtx) {
   ctx.crops.omitted++;
 

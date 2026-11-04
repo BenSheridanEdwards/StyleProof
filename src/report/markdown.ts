@@ -1,5 +1,5 @@
 import type { Finding, PropChange } from '../diff.js';
-import { derivedLonghandCount } from '../findings-clean.js';
+import { derivedLonghandCount, groupByElementChange } from '../findings-clean.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import { describeChange, toHex, type DescribeCtx, type ElementChange } from '../describe.js';
 import {
@@ -90,7 +90,7 @@ export function propertyGlanceLine(findings: Finding[]): string {
       }
     }
   }
-  return parts.join('<br>\n');
+  return [...new Set(parts)].join('<br>\n');
 }
 
 function propRows(rows: SummarizedProp[], added: boolean): string[][] {
@@ -175,16 +175,18 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
 /** Each changed element once, identical siblings collapsed into one `×N` block. */
 function renderElements(findings: Finding[], maxElements = 40, folded = false): string[] {
   const bySig = new Map<string, { head: string; body: string[]; count: number; rows: number }>();
-  for (const group of groupByPath(findings)) {
+  for (const identical of groupByElementChange(findings)) {
+    const elements = groupByPath(identical);
+    const group = elements[0];
     const el = renderOneElement(group);
     if (!el) continue;
     const sig = `${el.head}\n${el.body.join('\n')}`;
     const seen = bySig.get(sig);
 
     if (seen) {
-      seen.count++;
-      seen.rows += derivedLonghandCount(group);
-    } else bySig.set(sig, { ...el, count: 1, rows: derivedLonghandCount(group) });
+      seen.count += elements.length;
+      seen.rows += derivedLonghandCount(identical);
+    } else bySig.set(sig, { ...el, count: elements.length, rows: derivedLonghandCount(identical) });
   }
   const blocks = [...bySig.values()];
   const out: string[] = [];

@@ -264,6 +264,12 @@ wrapper (Next `layout`/`_app`, SPA `App`/`main`, Remix `root`, SvelteKit
 surface also re-capture everything. SPA page changes stay selective, and test, story,
 script, or undeclared-route importers alone do not force a full re-capture.
 
+Identical element changes share a counted report section and a combined crop, with each changed
+element marked in the highlight overlay. A folded list names the elements. Interactive states
+share a section with one crop per state. When a combined frame is too large to read or fit the
+crop limits, the caption identifies the top-most example instead. Overlapping regions with
+different changes keep the existing mixed-region layout.
+
 StyleProof is not a screenshot diff. Screenshots appear in the report so humans
 can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced

@@ -130,7 +130,7 @@ export type ReportOptions = {
   maxHeight?: number;
   /** Changed-element footprint (px) at or below which a magnified zoom crop is added (default 64; 0 disables). */
   zoomBelow?: number;
-  /** Max crop regions per surface before collapsing into one union crop (default 8). */
+  /** Max sections with crops per surface; later sections retain their values (default 8). */
   maxCrops?: number;
   /** Whole-report crop ceilings (default 60 files / 900_000 bytes). Zero disables crops. */
   maxCropFiles?: number;
