@@ -25,7 +25,7 @@ sourceURL footer while preserving their reset-barrier and snapshot assertions. T
 are restored byte-for-byte to main; the repository formatter does not require
 re-padding those documentation tables.
 
-CI cost receipt: cost-ci.json
+CI cost receipt: [cost-ci.json](cost-ci.json) (GitHub runner, run 41755453348). J1 0–3.7%, J1+J2 5.3–7.2% on the 0.2 targets and the cached-repeat target; the new 1.8 MB single-bundle target sits at the 15% J1+J2 threshold.
 
 Focused checks: 123 script-reach unit tests and 47 browser scenarios passed.
 
