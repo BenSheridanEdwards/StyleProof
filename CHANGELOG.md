@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Action runtime installation and context lookup failures now replace earlier approval with a
+  terminal failure status requesting a re-run, even when the runtime could not be built (#1284).
 - Script reach excludes Playwright bindings, clock scripts and StyleProof init scripts and reads.
   App anonymous and eval scripts remain named unmeasured.
   Discarded copies of recognised injected sources no longer create timing-dependent self-check gaps.
@@ -44,8 +46,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `stateLayerOmissions`; one-sided layers and drift/read failures remain uncertified.
   An unavailable shared baseline skips the form sweep, and isolated form Typed OM
   proof cannot erase legacy evidence. Invalid input types follow the browser's text fallback.
-- Action runtime installation and context lookup failures now replace earlier approval with a
-  terminal failure status requesting a re-run, even when the runtime could not be built.
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

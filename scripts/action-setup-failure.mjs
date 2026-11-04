@@ -7,7 +7,7 @@ export async function resolveSetupFailureContext({ eventName, payload, repositor
   let headCommit;
   const hasFullHeadCommit = () =>
     typeof headCommit === 'string' && headCommit.length === 40 && /^[0-9a-f]{40}$/i.test(headCommit);
-  if (['pull_request', 'pull_request_target'].includes(eventName)) {
+  if (eventName !== 'workflow_run') {
     pullRequestNumber = payload.pull_request?.number;
     headCommit = payload.pull_request?.head?.sha;
   } else if (eventName === 'workflow_run') {
@@ -43,6 +43,35 @@ export async function resolveSetupFailureContext({ eventName, payload, repositor
   return Number.isSafeInteger(pullRequestNumber) && pullRequestNumber > 0 && hasFullHeadCommit()
     ? { pullRequestNumber, headCommit }
     : undefined;
+}
+
+async function setupFailureStatusSuperseded({ github, context, headCommit, statusContext, runAttempt }) {
+  const response = await github.rest.repos.listCommitStatusesForRef({
+    ...context.repo,
+    ref: headCommit,
+    per_page: 100,
+  });
+  const latest = response.data.find((status) => status.context === statusContext);
+  const target = new URL(latest?.target_url || 'about:blank');
+  const runPrefix = `/${context.repo.owner}/${context.repo.repo}/actions/runs/`;
+  const receipt = target.pathname.startsWith(runPrefix)
+    ? target.pathname.slice(runPrefix.length).match(/^(\d+)(?:\/(artifacts|attempts)\/(\d+))?\/?$/)
+    : null;
+  if (
+    target.origin !== 'https://github.com' ||
+    target.search ||
+    target.hash ||
+    !receipt ||
+    !/^\d+$/.test(String(context.runId))
+  )
+    return false;
+  const laterRun = BigInt(receipt[1]) > BigInt(context.runId);
+  const laterAttempt =
+    receipt[1] === String(context.runId) &&
+    receipt[2] === 'attempts' &&
+    /^\d+$/.test(runAttempt ?? '') &&
+    BigInt(receipt[3]) > BigInt(runAttempt);
+  return laterRun || laterAttempt;
 }
 
 export async function setSetupFailureStatus({
@@ -84,6 +113,14 @@ export async function setSetupFailureStatus({
       return;
     }
   } catch (error) {
+    try {
+      if (await setupFailureStatusSuperseded({ github, context, headCommit, statusContext, runAttempt })) {
+        core.info('StyleProof: a later status run or attempt took over this commit — status unchanged.');
+        return;
+      }
+    } catch (statusError) {
+      core.warning(`StyleProof: setup failure status receipts unavailable: ${statusError.message}`);
+    }
     core.warning(`StyleProof: setup failure run order could not be proven; failing closed: ${error.message}`);
   }
   await github.rest.repos.createCommitStatus({

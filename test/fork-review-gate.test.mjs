@@ -106,6 +106,7 @@ function values({
     'steps.status.outputs.state': statusState,
     'steps.status.outcome': statusOutcome,
     'steps.trust.outputs.state': trust ?? trustState,
+    'steps.context.outcome': 'success',
     'steps.context.outputs.pr-number': '42',
     'steps.context.outputs.head-sha': HEAD_SHA,
     'steps.context.outputs.untrusted-capture': untrusted ? 'true' : 'false',

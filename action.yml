@@ -1424,7 +1424,7 @@ runs:
       id: certify-failure
       if: >-
         always() &&
-        (steps.context.outputs.pr-number != '' || failure()) &&
+        (steps.context.outputs.pr-number != '' || (failure() && steps.context.outcome != 'success')) &&
         inputs.mode == 'certify' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' &&
         github.event_name == 'workflow_run' &&
         steps.review-pending.outputs.stale-delivery != 'true' &&
@@ -1435,6 +1435,7 @@ runs:
         (failure() || steps.trust.outputs.state != 'NO_REVIEWABLE_STYLE_CHANGES' || steps.status.outputs.state == 'success')
       uses: actions/github-script@v9
       env:
+        STYLEPROOF_CONTEXT_OUTCOME: ${{ steps.context.outcome }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
         STYLEPROOF_CAPTURE_OUTCOME: ${{ inputs.capture-outcome }}
@@ -1444,7 +1445,7 @@ runs:
         retries: 3
         script: |
           // Setup can fail before the context step emits any outputs or dist exists.
-          if ('${{ steps.context.outputs.pr-number }}' === '') {
+          if (process.env.STYLEPROOF_CONTEXT_OUTCOME !== 'success') {
             const { setSetupFailureStatus } = await import(`${process.env.GITHUB_ACTION_PATH}/scripts/action-setup-failure.mjs`);
             await setSetupFailureStatus({
               github, context, core, actionPath: process.env.GITHUB_ACTION_PATH,
@@ -1510,11 +1511,12 @@ runs:
     - name: Set review failure status
       if: >-
         (failure() || cancelled()) && steps.status.outcome != 'success' &&
-        (steps.context.outputs.pr-number != '' || failure()) && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
+        (steps.context.outputs.pr-number != '' || (failure() && steps.context.outcome != 'success')) && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
         steps.review-pending.outputs.stale-delivery != 'true' &&
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       env:
+        STYLEPROOF_CONTEXT_OUTCOME: ${{ steps.context.outcome }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
         STYLEPROOF_CAPTURE_OUTCOME: ${{ inputs.capture-outcome }}
@@ -1524,7 +1526,7 @@ runs:
         retries: 3
         script: |
           // Setup can fail before the context step emits any outputs or dist exists.
-          if ('${{ steps.context.outputs.pr-number }}' === '') {
+          if (process.env.STYLEPROOF_CONTEXT_OUTCOME !== 'success') {
             const { setSetupFailureStatus } = await import(`${process.env.GITHUB_ACTION_PATH}/scripts/action-setup-failure.mjs`);
             await setSetupFailureStatus({
               github, context, core, actionPath: process.env.GITHUB_ACTION_PATH,

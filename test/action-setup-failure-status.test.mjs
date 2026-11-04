@@ -119,13 +119,23 @@ function stepRuns(entry, values, compositeStatus) {
   return Boolean(Function(`return (${resolved})`)());
 }
 
-async function failedSetup({ failingStep, eventName, mode, requireApproval, approved, runtimeDirectory }) {
-  const store = statusStore(approved ? [approvedStatus()] : []);
+async function runComposite({
+  failingStep,
+  eventName,
+  mode,
+  requireApproval,
+  approved,
+  runtimeDirectory,
+  captureOutcome = 'success',
+  context = eventContext(eventName),
+  store = statusStore(approved ? [approvedStatus()] : []),
+}) {
   const values = {
     'inputs.mode': mode,
     'inputs.require-approval': requireApproval ? 'true' : 'false',
     'inputs.fail-on-diff': 'true',
-    'inputs.capture-outcome': 'success',
+    'inputs.comparison-base': 'pull-request-base',
+    'inputs.capture-outcome': captureOutcome,
     'inputs.status-context': 'StyleProof',
     'inputs.comment-marker': '<!-- styleproof-report -->',
     'github.event_name': eventName,
@@ -148,17 +158,19 @@ async function failedSetup({ failingStep, eventName, mode, requireApproval, appr
     }
     if (
       [
+        'context',
         'Set review failure status',
         'Set certify failure status',
         'Set review status',
         'Mark review status pending',
       ].includes(name)
     ) {
-      await executeStep(entry, values, store, eventContext(eventName), runtimeDirectory);
+      const outputs = await executeStep(entry, values, store, context, runtimeDirectory);
+      for (const [name, value] of Object.entries(outputs)) values[`steps.${entry.id}.outputs.${name}`] = value;
     }
     if (entry.id) values[`steps.${entry.id}.outcome`] = 'success';
   }
-  return { ...store, compositeStatus, executedSteps };
+  return { ...store, compositeStatus, executedSteps, values };
 }
 
 for (const [mode, requireApproval] of [
@@ -175,7 +187,7 @@ for (const [mode, requireApproval] of [
       for (const approved of [false, true]) {
         test(`${mode}, require approval ${requireApproval}, ${eventName}: ${failingStep} fails on ${approved ? 'approved rerun' : 'first run'}`, async () => {
           const runtimeDirectory = failingStep === 'context' ? actionDirectory : missingRuntimeDirectory;
-          const result = await failedSetup({
+          const result = await runComposite({
             failingStep,
             eventName,
             mode,
@@ -207,7 +219,7 @@ for (const [mode, requireApproval] of [
 }
 
 test('a setup failure revokes carry-forward even when a later rerun presents the original approval receipt', async () => {
-  const result = await failedSetup({
+  const result = await runComposite({
     failingStep: 'context',
     eventName: 'pull_request',
     mode: 'review-gate',
@@ -265,7 +277,7 @@ test('the approve workflow refuses to tick-approve the setup failure description
 
 test('failure identity matches the normal resolver for trusted associations and exact-head fork lookup', async () => {
   const { resolveSetupFailureContext } = await import('../scripts/action-setup-failure.mjs');
-  for (const eventName of ['pull_request', 'pull_request_target', 'workflow_run']) {
+  for (const eventName of ['pull_request', 'pull_request_target', 'pull_request_review', 'workflow_run']) {
     for (const embedded of [true, false]) {
       const context = eventContext(eventName);
       const store = statusStore();
@@ -286,7 +298,7 @@ test('failure identity matches the normal resolver for trusted associations and 
   }
 });
 
-test('failure identity rejects moved heads, closed lookup results, other repositories and artifact identities', async () => {
+test('failure identity rejects moved heads, closed lookup results and other repositories', async () => {
   const { resolveSetupFailureContext } = await import('../scripts/action-setup-failure.mjs');
   const otherRepository = { id: 1, full_name: 'owner/repo' };
   for (const candidate of [
@@ -297,7 +309,6 @@ test('failure identity rejects moved heads, closed lookup results, other reposit
   ]) {
     const context = eventContext('workflow_run');
     context.payload.workflow_run.pull_requests[0].head.repo = otherRepository;
-    context.payload.workflow_run.artifact = { prNumber: 999, headSha: headCommit };
     const store = statusStore();
     store.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => ({
       data: [{ number: 7, ...candidate }],
@@ -309,7 +320,7 @@ test('failure identity rejects moved heads, closed lookup results, other reposit
 
 test('setup failure uses payload-only head proof without requiring a base or an available lookup API', async () => {
   const { resolveSetupFailureContext, setSetupFailureStatus } = await import('../scripts/action-setup-failure.mjs');
-  for (const eventName of ['pull_request', 'pull_request_target', 'workflow_run']) {
+  for (const eventName of ['pull_request', 'pull_request_target', 'pull_request_review', 'workflow_run']) {
     const context = eventContext(eventName);
     const pullRequest = context.payload.pull_request ?? context.payload.workflow_run.pull_requests[0];
     delete pullRequest.base;
@@ -374,4 +385,208 @@ test('available supersession helpers preserve a proven newer verdict after setup
   });
   assert.equal(store.writes.length, 0);
   assert.ok(store.messages.some((message) => /later run/.test(message)));
+});
+
+for (const [mode, requireApproval] of [
+  ['review-gate', false],
+  ['migration', false],
+  ['advisory', false],
+  ['certify', true],
+  ['certify', false],
+]) {
+  for (const eventName of ['workflow_run', 'push', 'issue_comment']) {
+    test(`${mode}, require approval ${requireApproval}, ${eventName}: successful context without a pull request stays unresolved after a later failure`, async () => {
+      const context = eventContext(eventName);
+      delete context.payload.pull_request;
+      if (context.payload.workflow_run) context.payload.workflow_run.pull_requests = [];
+      const store = statusStore();
+      let lookupCount = 0;
+      store.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => ({
+        data:
+          ++lookupCount === 1
+            ? []
+            : [
+                {
+                  state: 'open',
+                  number: 7,
+                  base: { sha: baseCommit },
+                  head: { sha: headCommit, repo: forkRepository },
+                },
+              ],
+      });
+      const result = await runComposite({
+        mode,
+        requireApproval,
+        eventName,
+        context,
+        store,
+        failingStep: 'Check capture outcome',
+        captureOutcome: 'failure',
+      });
+      assert.equal(result.compositeStatus, 'failure');
+      assert.equal(result.values['steps.context.outcome'], 'success');
+      assert.equal(result.values['steps.context.outputs.pr-number'], '');
+      assert.equal(result.writes.length, 0, 'successful unresolved context must not acquire a new status destination');
+      assert.equal(result.warnings.length, 0, 'successful setup must not produce a setup-failed warning');
+      assert.equal(
+        lookupCount,
+        eventName === 'workflow_run' ? 1 : 0,
+        'no failure-path PR lookup after context success',
+      );
+    });
+  }
+}
+
+for (const name of ['Set review failure status', 'Set certify failure status']) {
+  test(`${name}: setup cancellation without composite failure writes no status`, () => {
+    assert.equal(
+      stepRuns(
+        stepNamed(name),
+        {
+          'inputs.mode': name === 'Set review failure status' ? 'review-gate' : 'certify',
+          'inputs.fail-on-diff': 'true',
+          'inputs.require-approval': 'false',
+          'github.event_name': 'workflow_run',
+          'steps.context.outcome': 'skipped',
+        },
+        'cancelled',
+      ),
+      false,
+    );
+  });
+}
+
+for (const eventName of ['push', 'issue_comment']) {
+  test(`${eventName}: failed context without a pull request warns without writing a status`, async () => {
+    const context = eventContext(eventName);
+    delete context.payload.pull_request;
+    const result = await runComposite({
+      mode: 'review-gate',
+      eventName,
+      context,
+      failingStep: 'context',
+      runtimeDirectory: missingRuntimeDirectory,
+    });
+    assert.equal(result.writes.length, 0);
+    assert.ok(result.warnings.some((message) => /no trusted PR head/.test(message)));
+  });
+}
+
+for (const [targetAddress, superseded] of [
+  ['https://github.com/owner/repo/actions/runs/1000', true],
+  ['https://github.com/owner/repo/actions/runs/1000/artifacts/3', true],
+  ['https://github.com/owner/repo/actions/runs/900/attempts/3', true],
+  ['https://github.com/owner/repo/actions/runs/900/attempts/2', false],
+  ['https://github.com/owner/repo/actions/runs/900', false],
+  ['https://github.com/owner/repo/actions/runs/900/artifacts/999', false],
+  ['https://github.com/owner/repo/actions/runs/899/attempts/3', false],
+  [runAddress.replace('/owner/', '/other/').replace('/900', '/1000'), false],
+  ['https://example.test/owner/repo/actions/runs/1000', false],
+]) {
+  test(`missing runtime status receipt ${targetAddress} supersedes setup failure: ${superseded}`, async () => {
+    const { setSetupFailureStatus } = await import('../scripts/action-setup-failure.mjs');
+    const store = statusStore([
+      { ...approvedStatus(), context: 'Other status', target_url: 'https://github.com/owner/repo/actions/runs/9999' },
+      { ...approvedStatus(), target_url: targetAddress },
+    ]);
+    await setSetupFailureStatus({
+      ...store,
+      context: eventContext('pull_request'),
+      actionPath: missingRuntimeDirectory,
+      statusContext: 'StyleProof',
+      commentMarker: '<!-- styleproof-report -->',
+      runAttempt: '2',
+    });
+    assert.equal(store.writes.length, superseded ? 0 : 1);
+    if (superseded) assert.ok(store.messages.some((message) => /later.*run|later.*attempt/.test(message)));
+    else assert.equal(store.statuses[0].state, 'failure');
+  });
+}
+
+test('missing runtime checks only the newest matching status and fails closed on an unavailable status API', async () => {
+  const { setSetupFailureStatus } = await import('../scripts/action-setup-failure.mjs');
+  for (const unavailable of [false, true]) {
+    const store = statusStore([
+      { ...approvedStatus(), target_url: runAddress },
+      { ...approvedStatus(), target_url: 'https://github.com/owner/repo/actions/runs/1000' },
+    ]);
+    if (unavailable)
+      store.github.rest.repos.listCommitStatusesForRef = async () => {
+        throw new Error('offline');
+      };
+    await setSetupFailureStatus({
+      ...store,
+      context: eventContext('pull_request'),
+      actionPath: missingRuntimeDirectory,
+      statusContext: 'StyleProof',
+      commentMarker: '<!-- styleproof-report -->',
+      runAttempt: '2',
+    });
+    assert.equal(store.writes.length, 1);
+    assert.equal(store.statuses[0].state, 'failure');
+    assert.ok(store.warnings.some((message) => /failing closed/.test(message)));
+  }
+});
+
+test('failure identity replays the existing action context identity fixtures through both resolvers', async (suite) => {
+  const { resolveSetupFailureContext } = await import('../scripts/action-setup-failure.mjs');
+  const source = filesystem
+    .readFileSync(new URL('./action-context.test.mjs', import.meta.url), 'utf8')
+    .replace(/^import .*;\n/gm, '');
+  const cases = [];
+  const execute = Object.getPrototypeOf(async function () {}).constructor;
+  const compareResolvers = async (input) => {
+    let lookupResponse;
+    let lookupParameters;
+    const normalClient = {
+      rest: {
+        repos: {
+          listPullRequestsAssociatedWithCommit: async (parameters) => {
+            lookupParameters = parameters;
+            lookupResponse = await input.github.rest.repos.listPullRequestsAssociatedWithCommit(parameters);
+            return lookupResponse;
+          },
+        },
+      },
+    };
+    const normal = await resolveActionContext({ ...input, github: normalClient });
+    const fallbackClient = {
+      rest: {
+        repos: {
+          listPullRequestsAssociatedWithCommit: async (parameters) => {
+            assert.ok(lookupResponse, 'fallback lookup must also be required by the normal fixture');
+            assert.deepEqual(parameters, lookupParameters);
+            return lookupResponse;
+          },
+        },
+      },
+    };
+    const recovered = await resolveSetupFailureContext({
+      ...input,
+      repository: input.repo,
+      github: fallbackClient,
+      core: { warning() {} },
+    });
+    // A missing/invalid base intentionally prevents a verdict, but not a failure status on a proven head.
+    const direct = input.eventName !== 'workflow_run' ? input.payload.pull_request : undefined;
+    const headOnly =
+      direct?.number > 0 && typeof direct.head?.sha === 'string' && /^[0-9a-f]{40}$/i.test(direct.head.sha);
+    const expected = normal.prNumber
+      ? { pullRequestNumber: Number(normal.prNumber), headCommit: normal.headSha }
+      : headOnly
+        ? { pullRequestNumber: direct.number, headCommit: direct.head.sha }
+        : undefined;
+    assert.deepEqual(recovered, expected);
+    return normal;
+  };
+  await new execute('assert', 'test', 'resolveActionContext', 'reviewStatus', source)(
+    assert,
+    (name, callback) => {
+      if (name.startsWith('resolveActionContext')) cases.push({ name, callback });
+    },
+    compareResolvers,
+    {},
+  );
+  assert.ok(cases.length >= 8);
+  for (const { name, callback } of cases) await suite.test(name, callback);
 });
