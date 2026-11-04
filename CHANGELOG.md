@@ -65,7 +65,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Review-gate runs revalidate approval before comment and status writes, then check again
   after ticked comments and approval-dependent success statuses. Withdrawals restore the
   unticked report and sign-off-required verdict (pending for forks); fresh digest-bound
-  approvals retain their current attribution across re-runs.
+  approvals retain their current attribution across re-runs. Final comment unticking
+  preserves restored approvals, successful statuses and newer report deliveries.
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

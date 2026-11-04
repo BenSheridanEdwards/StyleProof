@@ -155,7 +155,7 @@ function reviewRun({
             encoding: 'base64',
             content: Buffer.from(
               path.endsWith('report.md')
-                ? `<!-- styleproof-receipt head-sha:${headCommit} run-id:900 run-attempt:1 -->`
+                ? `<!-- styleproof-receipt head-sha:${headCommit} run-id:${values['github.run_id']} run-attempt:${values['github.run_attempt']} -->`
                 : JSON.stringify({ actionTrustState: 'STYLE_REVIEW_REQUIRED', reviewDigest }),
             ).toString('base64'),
           },
@@ -195,7 +195,7 @@ function reviewRun({
       github,
       {
         repo: { owner: 'owner', repo: 'repo' },
-        runId: 900,
+        runId: Number(values['github.run_id']),
         eventName: 'pull_request',
         payload: { repository: { default_branch: 'main', private: false } },
       },
@@ -272,6 +272,23 @@ function reviewRun({
     assert.equal((await runStep('gate')).approved, 'true', 'original receipt must survive pending and carry-forward');
   }
 
+  async function deliverNewerReport({ runIdentifier = '901', runAttempt = '1' } = {}) {
+    const priorValues = { ...values };
+    values['github.run_id'] = runIdentifier;
+    values['github.run_attempt'] = runAttempt;
+    values['steps.publish.outputs.sha'] = 'e'.repeat(40);
+    values['steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url'] =
+      `https://github.com/owner/repo/blob/${'e'.repeat(40)}/pr-7/report.md`;
+    await runStep('review-pending');
+    await runStep('gate');
+    await runStep('comment');
+    await runStep('status');
+    const deliveryValues = { ...values };
+    Object.assign(values, priorValues);
+
+    return deliveryValues;
+  }
+
   function assertSignOffRequired() {
     assert.equal(statuses[0].state, 'failure', 'withdrawn approval must never leave a green status');
     assert.equal(statuses[0].description, signOffDescription);
@@ -288,6 +305,7 @@ function reviewRun({
     runStep,
     reconcileComment,
     editReviewCheckbox,
+    deliverNewerReport,
     advanceClock: () => {
       clock += 60000;
     },
@@ -618,4 +636,113 @@ test('withdrawal finishes red, the real approval workflow accepts a later re-tic
   assert.equal(run.statuses[0].description, 'Approved by @reviewer (run 556)');
   assert.equal(run.stepEnabled('Block on unapproved changes'), false);
   assert.match(run.comments[0].body, /- \[x\] \*\*Approve all changes\*\* — _approved by @reviewer_/);
+});
+
+test('reconciliation preserves a fresh approval accepted by the real approval workflow', async () => {
+  const run = reviewRun({ reportStorage: 'branch' });
+  await run.start();
+  await run.runStep('comment');
+  await run.editReviewCheckbox(false);
+  await run.runStep('status');
+  assert.equal(run.statuses[0].state, 'failure');
+  const approval = await run.editReviewCheckbox(true);
+  assert.equal(approval['approved-sha'], headCommit);
+  assert.equal(run.statuses[0].description, 'Approved by @reviewer (run 556)');
+  const approvedBody = run.comments[0].body;
+  const writesBeforeReconciliation = run.commentWrites.length;
+  await run.reconcileComment();
+  assert.equal(run.comments[0].body, approvedBody);
+  assert.equal(run.commentWrites.length, writesBeforeReconciliation);
+  assert.match(run.comments[0].body, /- \[x\] \*\*Approve all changes\*\* — _approved by @reviewer_/);
+});
+
+for (const description of ['No reviewable computed-style changes', 'Approved by @reviewer (run 557)']) {
+  test(`reconciliation preserves the comment when the newest review status succeeds: ${description}`, async () => {
+    const run = reviewRun();
+    await run.start();
+    await run.runStep('comment');
+    run.withdraw();
+    await run.runStep('status');
+    run.addStatus({ state: 'success', description });
+    const previousBody = run.comments[0].body;
+    const writesBeforeReconciliation = run.commentWrites.length;
+    await run.reconcileComment();
+    assert.equal(run.comments[0].body, previousBody);
+    assert.equal(run.commentWrites.length, writesBeforeReconciliation);
+  });
+}
+
+for (const [delivery, runIdentifier, runAttempt] of [
+  ['newer run', '901', '1'],
+  ['later attempt', '900', '2'],
+]) {
+  test(`reconciliation preserves a ${delivery} report delivered by the real comment step`, async () => {
+    const run = reviewRun({ reportStorage: 'branch' });
+    await run.start();
+    await run.runStep('comment');
+    run.withdraw();
+    await run.runStep('status');
+    const deliveryValues = await run.deliverNewerReport({ runIdentifier, runAttempt });
+    const newerBody = run.comments[0].body;
+    const writesBeforeReconciliation = run.commentWrites.length;
+    assert.match(newerBody, new RegExp(`styleproof-run-id:${runIdentifier} run-attempt:${runAttempt}`));
+    await run.reconcileComment();
+    assert.equal(run.comments[0].body, newerBody);
+    assert.equal(run.commentWrites.length, writesBeforeReconciliation);
+    Object.assign(run.values, deliveryValues);
+    assert.equal(
+      (await run.editReviewCheckbox(true))['approved-sha'],
+      headCommit,
+      'the current report remains approvable',
+    );
+  });
+}
+
+for (const receipt of ['', '<!-- styleproof-run-id:899 run-attempt:1 -->']) {
+  test(`reconciliation skips a comment without this run receipt: ${receipt || 'missing receipt'}`, async () => {
+    const run = reviewRun();
+    await run.start();
+    await run.runStep('comment');
+    run.withdraw();
+    await run.runStep('status');
+    run.comments[0].body = run.comments[0].body.replace(/<!-- styleproof-run-id:\d+ run-attempt:\d+ -->/, receipt);
+    const currentBody = run.comments[0].body;
+    const writesBeforeReconciliation = run.commentWrites.length;
+    await run.reconcileComment();
+    assert.equal(run.comments[0].body, currentBody);
+    assert.equal(run.commentWrites.length, writesBeforeReconciliation);
+  });
+}
+
+test('reconciliation checks the live receipt after approval revalidation delivers a newer report', async () => {
+  const run = reviewRun({ reportStorage: 'branch' });
+  await run.start();
+  await run.runStep('comment');
+  run.withdraw();
+  await run.runStep('status');
+  let reads = 0;
+  let newerBody;
+  run.callbacks.beforeStatusRead = async () => {
+    reads += 1;
+
+    if (reads !== 2) return;
+    delete run.callbacks.beforeStatusRead;
+    await run.deliverNewerReport();
+    newerBody = run.comments[0].body;
+  };
+
+  await run.reconcileComment();
+  assert.ok(newerBody, 'the newer report must arrive during reconciliation');
+  assert.equal(run.comments[0].body, newerBody);
+});
+
+test('an unrelated successful status does not prevent unticking a red review report', async () => {
+  const run = reviewRun();
+  await run.start();
+  await run.runStep('comment');
+  run.withdraw();
+  await run.runStep('status');
+  run.addStatus({ context: 'Another check', state: 'success', description: 'Passed' });
+  await run.reconcileComment();
+  assert.match(run.comments[0].body, /- \[ \] \*\*Approve all changes\*\*/);
 });

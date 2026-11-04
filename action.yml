@@ -1323,16 +1323,55 @@ runs:
       env:
         STYLEPROOF_COMMENT_IDENTIFIER: ${{ steps.comment.outputs.comment-identifier }}
         STYLEPROOF_UNTICKED_COMMENT: ${{ steps.comment.outputs.unticked-body }}
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+        STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
-          const { data: currentPullRequest } = await github.rest.pulls.get({
-            ...context.repo, pull_number: Number('${{ steps.context.outputs.pr-number }}'),
+          const { readReviewApproval } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-approval.js`);
+          const { reviewRunSuperseded, findLaterAttemptReceipt, formatRunAttemptReceiptMarker } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
+          const headCommit = '${{ steps.context.outputs.head-sha }}';
+          const pullRequestNumber = Number('${{ steps.context.outputs.pr-number }}');
+          const runIdentifier = '${{ github.run_id }}';
+          const runAttempt = '${{ github.run_attempt }}';
+          const statusContext = process.env.STYLEPROOF_STATUS_CONTEXT;
+          const commentMarker = process.env.STYLEPROOF_COMMENT_MARKER;
+          if (await reviewRunSuperseded({
+            github, repo: context.repo, headSha: headCommit, prNumber: pullRequestNumber,
+            runId: runIdentifier, runAttempt, statusContext, commentMarker,
+          })) return;
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            ...context.repo, issue_number: pullRequestNumber, per_page: 100,
           });
-          if (currentPullRequest.head.sha !== '${{ steps.context.outputs.head-sha }}') return;
+          if (await findLaterAttemptReceipt({
+            github, repo: context.repo, comments: comments.filter((comment) => comment.body?.includes(commentMarker)),
+            runId: runIdentifier, runAttempt, headSha: headCommit,
+          })) return;
+          const approval = await readReviewApproval({
+            github, repository: context.repo, headCommit, pullRequestNumber, statusContext,
+            defaultBranch: context.payload.repository.default_branch,
+            reviewDigest: '${{ steps.verdict.outputs.diff-digest }}',
+          });
+          if (approval.approved) return;
+          const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+            ...context.repo, ref: headCommit, per_page: 100,
+          });
+          if (statuses.find((status) => status.context === statusContext)?.state === 'success') return;
+          const commentIdentifier = Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER);
+          const { data: currentComment } = await github.rest.issues.getComment({
+            ...context.repo, comment_id: commentIdentifier,
+          });
+          if (!currentComment.body?.includes(commentMarker) || !currentComment.body.includes(
+            formatRunAttemptReceiptMarker({ runId: runIdentifier, runAttempt }),
+          )) return;
+          const { data: currentPullRequest } = await github.rest.pulls.get({
+            ...context.repo, pull_number: pullRequestNumber,
+          });
+          if (currentPullRequest.head.sha !== headCommit) return;
           await github.rest.issues.updateComment({
-            ...context.repo, comment_id: Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER),
+            ...context.repo, comment_id: commentIdentifier,
             body: process.env.STYLEPROOF_UNTICKED_COMMENT,
           });
 
