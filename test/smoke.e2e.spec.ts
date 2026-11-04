@@ -189,7 +189,7 @@ test('waits for every forced pseudo-state transition before reading computed sty
     );
   const first = await capture();
   const replay = await capture();
-  expect(transitions).toBe(16); // two targets × (three forces + one reset) × two captures
+  expect(transitions).toBe(24); // two targets × (four legacy transitions + disabled force/reset) × two captures
   expect(diffStyleMaps(first, replay), 'independent forced-state sweeps are byte-equivalent').toEqual([]);
   for (const [path] of Object.entries(first.elements).filter(([, entry]) => entry.tag === 'button')) {
     expect(first.states[path]?.hover, `${path} captured :hover`).toBeTruthy();
@@ -617,6 +617,7 @@ test('state-layer batches preserve sequential PNG bytes and reset every target',
         hover: [255, 0, 0],
         focus: [0, 255, 0],
         active: [0, 0, 255],
+        disabled: [255, 255, 255],
       })) {
         const bytes = fs.readFileSync(testInfo.outputPath(`${mode}.${state}.png`));
         expect(bytes).not.toEqual(restPng);
@@ -634,7 +635,7 @@ test('state-layer batches preserve sequential PNG bytes and reset every target',
   }
   expect(counts.batched).toEqual(counts.sequential);
   expect(counts.batched['DOM.querySelectorAll']).toBe(count);
-  expect(counts.batched['CSS.forcePseudoState:[]']).toBe(count * 3);
+  expect(counts.batched['CSS.forcePseudoState:[]']).toBe(count * 4);
   for (const phase of ['DOM.querySelectorAll', 'CSS.forcePseudoState:[]']) {
     expect(peaks[phase], `${phase} sends independent commands together`).toBe(count);
   }
@@ -642,10 +643,11 @@ test('state-layer batches preserve sequential PNG bytes and reset every target',
     'CSS.forcePseudoState:["hover"]',
     'CSS.forcePseudoState:["focus","focus-visible"]',
     'CSS.forcePseudoState:["active"]',
+    'CSS.forcePseudoState:["disabled"]',
   ]) {
     expect(peaks[phase], `${phase} sends independent commands together`).toBe(count);
   }
-  for (const state of ['hover', 'focus', 'active']) {
+  for (const state of ['hover', 'focus', 'active', 'disabled']) {
     expect(fs.readFileSync(testInfo.outputPath(`batched.${state}.png`))).toEqual(
       fs.readFileSync(testInfo.outputPath(`sequential.${state}.png`)),
     );
@@ -659,6 +661,7 @@ test('state-layer screenshots recover a uniquely marked replacement before forci
     .target:hover { background: rgb(10, 20, 30); }
     .target:focus-visible { background: rgb(40, 50, 60); }
     .target:active { background: rgb(70, 80, 90); }
+    .target:disabled { background: rgb(100, 110, 120); }
   </style></head><body><button class="target">target</button></body></html>`;
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-forced-state-shot-'));
   const stem = path.join(output, 'surface');
@@ -671,7 +674,7 @@ test('state-layer screenshots recover a uniquely marked replacement before forci
         replacesMarkedNodeAfterResolution(page, 'unique'),
         () => captureStateLayerScreenshots(page, stem),
       );
-      expect(written).toEqual([`${stem}.hover.png`, `${stem}.focus.png`, `${stem}.active.png`]);
+      expect(written).toEqual([`${stem}.hover.png`, `${stem}.focus.png`, `${stem}.active.png`, `${stem}.disabled.png`]);
       expect(probe.detachCount, 'the screenshot CDP session detached').toBe(1);
       expect(await page.locator('[data-styleproof-state-id]').count(), 'temporary identity marks were cleared').toBe(0);
     });
@@ -689,6 +692,9 @@ test('state-layer screenshots recover a uniquely marked replacement before forci
     ]);
     expect(pixelAt(`${stem}.active.png`), 'replacement is forced to :active in its state layer').toEqual([
       70, 80, 90, 255,
+    ]);
+    expect(pixelAt(`${stem}.disabled.png`), 'replacement is forced to :disabled in its state layer').toEqual([
+      100, 110, 120, 255,
     ]);
   } finally {
     fs.rmSync(output, { recursive: true, force: true });

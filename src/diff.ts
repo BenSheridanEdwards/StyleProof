@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isUnder, validateProductStateIdentity, type StyleMap } from './capture.js';
 import { loadSharedStyleMap } from './capture/map-io.js';
+import { LEGACY_STATE_LAYER_NAMES, STATE_LAYER_NAMES } from './capture/forced-states.js';
 import { type ProductStateComparabilityStatus } from './comparability-status.js';
 export {
   isProductStateComparabilityStatus,
@@ -445,16 +446,30 @@ function stateTargetFindings(
   return autoMarginEchoDropped ? findings.map((f) => ({ ...f, autoMarginEchoDropped: true as const })) : findings;
 }
 
-/** Forced-state deltas (`:hover`/`:focus`/`:active`) for one owner element. */
+function capturedStateLayers(map: StyleMap): readonly string[] {
+  return map.stateLayers ?? LEGACY_STATE_LAYER_NAMES;
+}
+
+function uncomparedStateLayers(before: StyleMap, after: StyleMap): string[] {
+  const beforeLayers = capturedStateLayers(before);
+  const afterLayers = capturedStateLayers(after);
+
+  return [...new Set([...beforeLayers, ...afterLayers])].filter(
+    (state) => beforeLayers.includes(state) !== afterLayers.includes(state),
+  );
+}
+
+/** Forced-state deltas for one owner element, restricted to mutually captured layers. */
 function stateFindings(p: string, ctx: DiffCtx): Finding[] {
   const { a, b, includeStructure } = ctx;
   if (!includeStructure && !pairedSameTag(ctx, p)) return [];
   const sa = a.states?.[p] ?? {};
   const sb = b.states?.[p] ?? {};
   const cls = (a.elements[p] ?? b.elements[p])?.cls ?? '';
-  return unionKeys(sa, sb).flatMap((state) =>
-    stateTargetFindings(ctx, { path: p, cls, state }, sa[state] ?? {}, sb[state] ?? {}),
-  );
+
+  return unionKeys(sa, sb)
+    .filter((state) => capturedStateLayers(a).includes(state) && capturedStateLayers(b).includes(state))
+    .flatMap((state) => stateTargetFindings(ctx, { path: p, cls, state }, sa[state] ?? {}, sb[state] ?? {}));
 }
 
 function elementFindings(p: string, { a, b, includeStructure }: DiffCtx): Finding[] {
@@ -469,24 +484,33 @@ function elementFindings(p: string, { a, b, includeStructure }: DiffCtx): Findin
 
 /** A forced-state layer skipped on exactly one side was not fully compared — flag it rather than letting {} vs {} read as "identical". */
 function skippedLayerFindings(a: StyleMap, b: StyleMap): Finding[] {
-  if (!!a.statesSkipped === !!b.statesSkipped) return [];
   const captured = (skipped?: boolean) => (skipped ? 'not fully captured' : 'captured');
-  return [
-    {
-      kind: 'state',
-      path: '(surface)',
-      cls: '',
-      state: 'forced-state capture',
-      sub: '(surface)',
-      props: [
+
+  const propertyChanges: PropChange[] = uncomparedStateLayers(a, b).map((state) => ({
+    prop: `forced :${state} layer`,
+    before: capturedStateLayers(a).includes(state) ? 'captured' : 'not captured; not compared',
+    after: capturedStateLayers(b).includes(state) ? 'captured' : 'not captured; not compared',
+  }));
+
+  if (!!a.statesSkipped !== !!b.statesSkipped)
+    propertyChanges.unshift({
+      prop: 'forced :hover/:focus/:active layer',
+      before: captured(a.statesSkipped),
+      after: captured(b.statesSkipped),
+    });
+
+  return propertyChanges.length
+    ? [
         {
-          prop: 'forced :hover/:focus/:active layer',
-          before: captured(a.statesSkipped),
-          after: captured(b.statesSkipped),
+          kind: 'state',
+          path: '(surface)',
+          cls: '',
+          state: 'forced-state capture',
+          sub: '(surface)',
+          props: propertyChanges,
         },
-      ],
-    },
-  ];
+      ]
+    : [];
 }
 
 /** Diff two style maps of the same surface. */
@@ -664,7 +688,13 @@ type StyleMapWithStateEvidence = StyleMap & {
 };
 
 function forcedStateEvidenceIncomplete(map: StyleMap): boolean {
-  return map.statesSkipped === true || (map as StyleMapWithStateEvidence).statesCaptured === false;
+  const stateLayers = map.stateLayers;
+
+  return (
+    map.statesSkipped === true ||
+    (map as StyleMapWithStateEvidence).statesCaptured === false ||
+    (stateLayers !== undefined && STATE_LAYER_NAMES.some((state) => !stateLayers.includes(state)))
+  );
 }
 
 type UncomparedTally = {
@@ -706,7 +736,13 @@ function diffSurfacePair(
   const mapA = loadSharedStyleMap(fileA);
   const mapB = loadSharedStyleMap(fileB);
   uncompared.volatile += volatilePaths(mapA, mapB).length;
-  if (forcedStateEvidenceIncomplete(mapA) || forcedStateEvidenceIncomplete(mapB)) uncompared.statesUncertified++;
+
+  if (
+    forcedStateEvidenceIncomplete(mapA) ||
+    forcedStateEvidenceIncomplete(mapB) ||
+    uncomparedStateLayers(mapA, mapB).length
+  )
+    uncompared.statesUncertified++;
   // Certification excludes structure, so a moved element must be paired back onto
   // its head path first or a real restyle on it vanishes with the advisory remove+add.
   const comparableBase = options.includeStructure === false ? correspondBeforeMap(mapA, mapB) : mapA;

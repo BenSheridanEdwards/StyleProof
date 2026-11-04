@@ -114,7 +114,7 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
     expect(map.statesSkipped).toBeFalsy();
     expect(Object.keys(map.states)).toHaveLength(TARGETS);
     for (const states of Object.values(map.states)) {
-      expect(Object.keys(states)).toEqual(['hover', 'focus', 'active']);
+      expect(Object.keys(states)).toEqual(['hover', 'focus', 'active', 'disabled']);
       expect(Object.values(states.hover).some((props) => props.color === 'rgb(100, 110, 120)')).toBe(true);
       expect(Object.values(states.hover).some((props) => props.color === 'rgb(120, 130, 140)')).toBe(true);
       expect(Object.values(states.focus).some((props) => props['outline-color'] === 'rgb(60, 70, 80)')).toBe(true);
@@ -129,9 +129,10 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
     }
     // One installed snapshot, four evaluations per target (baseline and three
     // states), one final reset barrier, plus shared save/check for document reads.
+    // Disabled adds one baseline, forced read and reset barrier per applicable button.
 
     const sharedBaseline = mode !== 'stylesheet';
-    expect(evaluates).toBe(1 + TARGETS * 4 + 1 + (sharedBaseline ? 2 : 0));
+    expect(evaluates).toBe(1 + TARGETS * 4 + 1 + (sharedBaseline ? 2 : 0) + TARGETS * 3);
     expect(commands.map(({ method }) => method)).toEqual([
       'DOM.enable',
       'CSS.enable',
@@ -151,11 +152,20 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
       ]).flat(),
       'Runtime.evaluate',
       ...(sharedBaseline ? ['Runtime.evaluate'] : []),
+      ...Array.from({ length: TARGETS }, () => [
+        'DOM.querySelectorAll',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+      ]).flat(),
       'detach',
     ]);
-    expect(forces.map(({ params }) => params?.forcedPseudoClasses)).toEqual(
-      Array.from({ length: TARGETS }, () => [['hover'], ['focus', 'focus-visible'], ['active'], []]).flat(),
-    );
+    expect(forces.map(({ params }) => params?.forcedPseudoClasses)).toEqual([
+      ...Array.from({ length: TARGETS }, () => [['hover'], ['focus', 'focus-visible'], ['active'], []]).flat(),
+      ...Array.from({ length: TARGETS }, () => [['disabled'], []]).flat(),
+    ]);
     await expectClean(page, commands);
     expect(after).toEqual(rest);
     await originals.dispose();
@@ -219,6 +229,23 @@ test('subtree scope shares one resting baseline: call sequence', async ({ page }
             },
           },
           active: { [button]: { 'background-color': 'rgb(90, 100, 110)' } },
+          disabled: {
+            [button]: {
+              'background-color': 'rgba(239, 239, 239, 0.3)',
+              ...Object.fromEntries(
+                [
+                  'border-block-end-color',
+                  'border-block-start-color',
+                  'border-bottom-color',
+                  'border-inline-end-color',
+                  'border-inline-start-color',
+                  'border-left-color',
+                  'border-right-color',
+                  'border-top-color',
+                ].map((property) => [property, 'rgba(118, 118, 118, 0.3)']),
+              ),
+            },
+          },
         },
       ]),
     );
@@ -248,13 +275,24 @@ test('subtree scope shares one resting baseline: call sequence', async ({ page }
       ]).flat(),
       'Runtime.evaluate',
       'Runtime.evaluate',
+      ...Array.from({ length: buttons.length }, () => [
+        'DOM.querySelectorAll',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+        'CSS.forcePseudoState',
+        'Runtime.evaluate',
+      ]).flat(),
       'detach',
     ]);
     expect(
       commands.flatMap(({ method, params }) =>
         method === 'CSS.forcePseudoState' ? [params?.forcedPseudoClasses] : [],
       ),
-    ).toEqual(Array.from({ length: TARGETS }, () => [['hover'], ['focus', 'focus-visible'], ['active'], []]).flat());
+    ).toEqual([
+      ...Array.from({ length: TARGETS }, () => [['hover'], ['focus', 'focus-visible'], ['active'], []]).flat(),
+      ...Array.from({ length: buttons.length }, () => [['disabled'], []]).flat(),
+    ]);
     expect(await restingStyles(page, originals)).toEqual(rest);
     await expectClean(page, commands);
   } finally {

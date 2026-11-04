@@ -321,7 +321,7 @@ test('reset detachment preserves serialized deltas and warning order before a bu
   ]);
   assert.equal(
     JSON.stringify(result),
-    '{"states":{"body > section:nth-child(1) > button:nth-child(1)":{"hover":{"body > section:nth-child(1) > button:nth-child(1)":{"color":"hover-0"},"body > section:nth-child(1) > button:nth-child(1)::before":{"content":"\\"state\\""},"body > section:nth-child(1) > button:nth-child(1) > span":{"color":"hover-0"},"body > section:nth-child(1) > button:nth-child(1) > span::before":{"content":"\\"state\\""}},"focus":{"body > section:nth-child(1) > button:nth-child(1)":{"color":"focus-0"},"body > section:nth-child(1) > button:nth-child(1)::before":{"content":"\\"state\\""},"body > section:nth-child(1) > button:nth-child(1) > span":{"color":"focus-0"},"body > section:nth-child(1) > button:nth-child(1) > span::before":{"content":"\\"state\\""}}}},"skipped":true}',
+    '{"states":{"body > section:nth-child(1) > button:nth-child(1)":{"hover":{"body > section:nth-child(1) > button:nth-child(1)":{"color":"hover-0"},"body > section:nth-child(1) > button:nth-child(1)::before":{"content":"\\"state\\""},"body > section:nth-child(1) > button:nth-child(1) > span":{"color":"hover-0"},"body > section:nth-child(1) > button:nth-child(1) > span::before":{"content":"\\"state\\""}},"focus":{"body > section:nth-child(1) > button:nth-child(1)":{"color":"focus-0"},"body > section:nth-child(1) > button:nth-child(1)::before":{"content":"\\"state\\""},"body > section:nth-child(1) > button:nth-child(1) > span":{"color":"focus-0"},"body > section:nth-child(1) > button:nth-child(1) > span::before":{"content":"\\"state\\""}}}},"stateLayers":["hover","focus","active"],"skipped":true}',
   );
 });
 

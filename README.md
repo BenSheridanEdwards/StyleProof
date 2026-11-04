@@ -227,7 +227,8 @@ It catches:
 - a button recoloured by a token, utility class, CSS module, inline style, or
   design-system change;
 - a layout shift at one breakpoint but not another;
-- a dropped `:hover`, `:focus`, or `:active` style;
+- a dropped `:hover`, `:focus`, or `:active` style, plus `:checked`, `:disabled`,
+  and `:placeholder-shown` changes on applicable form controls;
 - a modal, menu, listbox, popover, sheet, or toast whose open state changed;
 - a supposedly no-op refactor, such as CSS-to-Tailwind, that changed rendered
   output;

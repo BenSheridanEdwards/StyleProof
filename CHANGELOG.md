@@ -26,6 +26,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   handling stays unchanged. Tab, LF and CR no longer hide URL traversal.
   Source and sourceRoot also trim edge ASCII controls and spaces and normalize
   backslashes before classification, so padded absolute paths resolve project-relative.
+- Force `:checked`, `:disabled`, and `:placeholder-shown` on applicable form controls,
+  including sibling and ancestor effects. Captures record `stateLayers`; layers missing
+  on either side are uncompared rather than element changes, including legacy baselines.
+  Form layers use the remaining shared snapshot budget after hover/focus/active; an
+  unfinished form layer is uncertified without newly setting `statesSkipped`.
+
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).

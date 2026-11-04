@@ -109,6 +109,9 @@ export type StyleMap = {
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;
+  /** Captured forced layers, including empty deltas. Absent means hover/focus/active only.
+   * New form layers omitted after budget truncation are uncertified, even on both sides. */
+  stateLayers?: string[];
   /**
    * CSS Typed OM computed values of the four horizontal margins (`margin-left`/`-right`,
    * `margin-inline-start`/`-end`) of forced-state targets, keyed like `states` (owner → state →

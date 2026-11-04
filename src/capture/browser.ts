@@ -567,8 +567,10 @@ export type ForcedStateScopeAnalysis = { scope: ForcedStateReadScope; reason: st
  * The UA stylesheet's state rules only restyle the control itself. Serialized into the page.
  */
 // fallow-ignore-next-line complexity
-export function analyzeForcedStateScope(): ForcedStateScopeAnalysis {
-  const state = /:(?:hover|focus|focus-visible|active)(?![\w-])/i;
+export function analyzeForcedStateScope(includeFormStates = true): ForcedStateScopeAnalysis {
+  const state = includeFormStates
+    ? /:(?:hover|focus|focus-visible|active|checked|disabled|placeholder-shown)(?![\w-])/i
+    : /:(?:hover|focus|focus-visible|active)(?![\w-])/i;
   const focusWithin = /:focus-within(?![\w-])/i;
   const rank: Record<ForcedStateReadScope, number> = { subtree: 0, parent: 1, document: 2 };
   const result: ForcedStateScopeAnalysis = {
@@ -862,7 +864,8 @@ export function clearStateBaseline(baselineKey: string): void {
 }
 
 export type MarkArgs = { selector: string; skipSel: string; attr: string };
-export type MarkedInteractive = { id: string; path: string };
+
+export type MarkedInteractive = { id: string; path: string; formStateLayers?: string[] };
 
 /**
  * Mark interactive elements once so CDP and page.evaluate address the same node
@@ -878,7 +881,23 @@ export function markInteractiveElements({ selector, skipSel, attr }: MarkArgs): 
     if (skipSel && el.matches(skipSel)) return [];
     const id = `sp-${i++}`;
     el.setAttribute(attr, id);
-    return [{ id, path: pathOf(el) }];
+    const formStateLayers: string[] = [];
+
+    if (el.matches('input[type="checkbox"], input[type="radio"]') && !el.matches(':checked'))
+      formStateLayers.push('checked');
+
+    if (el.matches('button, input, select, textarea') && !el.matches(':disabled')) formStateLayers.push('disabled');
+    // SAFETY: the selector guard restricts value access to input and textarea elements.
+
+    if (
+      el.matches('input, textarea') &&
+      el.getAttribute('placeholder') &&
+      (el as HTMLInputElement | HTMLTextAreaElement).value.length > 0 &&
+      !el.matches(':placeholder-shown')
+    )
+      formStateLayers.push('placeholder-shown');
+
+    return [{ id, path: pathOf(el), formStateLayers }];
   });
 }
 
