@@ -10,7 +10,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Script reach excludes Playwright bindings, clock scripts and StyleProof init scripts and reads.
   App anonymous and eval scripts remain named unmeasured.
   Discarded copies of recognised injected sources no longer create timing-dependent self-check gaps.
-- **BREAKING — ships in 10.0.0:** Completed review-gate, migration, and
+- **BREAKING — ships in 10.0.0 (#1283):** Completed review-gate, migration, and
   `require-approval: true` runs no longer fail the job on unapproved changes.
   Require the `StyleProof` status check (`status-context`) in branch protection
   or a ruleset to block merges; approval turns that status green without a job re-run.
@@ -57,7 +57,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    receipts never carry `"runtime-only"`: the Action binds trusted SHAs, and a
    mixed pair with trusted SHAs is refused.
 
-3. **Require the review status check (10.0.0).** The job no longer fails on
+3. **Require the review status check (10.0.0) (#1283).** The job no longer fails on
    unapproved changes under review-gate, migration, or `require-approval: true`.
    Require the `StyleProof` status check (or your `status-context` name) in branch
    protection or a ruleset for review approval to block merges. Repositories without

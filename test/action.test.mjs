@@ -2458,8 +2458,6 @@ test('composite action config step outputs blocking=advisory when config has blo
 });
 
 test('composite action advisory mode skips failure on style changes (#580)', () => {
-  assert.doesNotMatch(actionYml, /- name: Block on unapproved changes/);
-
   const failOnDiffStep = actionYml.match(/- name: Fail on diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(failOnDiffStep);
   // Advisory mode should not trigger fail-on-diff

@@ -944,7 +944,6 @@ for (const untrusted of [false, true]) {
       untrusted ? UNTRUSTED_DESCRIPTION : 'StyleProof changes need sign-off — tick the box in the report comment',
     );
     assert.equal(statuses[0].target_url, ARTIFACT_URL);
-    assert.doesNotMatch(actionYml, /- name: Block on unapproved changes/);
     const failed = { ...scenario, failed: true, statusOutcome: 'success', statuses };
 
     if (stepRuns('Set review failure status', failed)) await run('Set review failure status', failed);

@@ -216,8 +216,9 @@ export const styleproofConfigTemplate = (
  */
 export default defineConfig({
   // Advisory mode: posts comments and artifacts without holding style findings.
-  // Trust is earned, not assumed — observe the signal quality for a release cycle,
-  // then set blocking: true and require the StyleProof status check in branch protection.
+  // To require approval, remove blocking: 'advisory', then run
+  // styleproof-init --upgrade --mode review-gate and require the StyleProof
+  // status check in branch protection or a ruleset.
   blocking: 'advisory',
 
   // Boolean blocking values do not fail the job on unapproved changes (from 10.0.0).
