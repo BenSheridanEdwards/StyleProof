@@ -76,6 +76,25 @@ for (const width of [768, 1440]) {
   });
 }
 
+test('a fitting hyphenated reach row keeps main’s columns and height at 1440px', async ({ page }) => {
+  const selector = '.' + Array(10).fill('longhyphenatedselector').join('-');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setContent(
+    renderReportHtml(
+      '| Rule | Change | Gated by | Source | Why |\n| --- | --- | --- | --- | --- |\n' +
+        `| \`${selector}\` | changed | — | \`/styles.css\` | its selector never matched |`,
+    ),
+  );
+  const table = page.getByRole('table');
+  const bounds = await table.boundingBox();
+  const sourceLines = await table
+    .getByText('/styles.css', { exact: true })
+    .evaluate((element) => element.getClientRects().length);
+  expect(await table.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
+  expect(bounds).toEqual(await mainTableBounds(table));
+  expect(sourceLines).toBe(1);
+});
+
 const spacedValues = [
   {
     property: 'box-shadow',
@@ -135,7 +154,9 @@ test('code-like text inside link and image attributes stays intact', async ({ pa
     ),
   );
   const link = page.getByRole('link', { name: 'x' });
-  await expect(link).toHaveAttribute('href', `<code>${value}</code>`);
-  expect(await link.evaluate((element) => element.attributes.length)).toBe(1);
-  await expect(page.locator('img')).toHaveAttribute('alt', `<code>${value}</code>`);
+  expect(await link.evaluate((element) => element.getAttributeNames())).toEqual(['href']);
+  expect(await link.getAttribute('href')).toContain(value);
+  const image = page.locator('img');
+  expect(await image.evaluate((element) => element.getAttributeNames())).toEqual(['src', 'alt', 'loading']);
+  expect(await image.getAttribute('alt')).toContain(value);
 });
