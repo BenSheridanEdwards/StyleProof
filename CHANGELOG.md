@@ -7,6 +7,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
+  on compared elements when the capture recorded the layer and a compared owner.
+  Omitted form layers do not establish forced reach; unlisted pseudo-classes stay outside.
 - Action runtime installation and context lookup failures now replace earlier approval with a
   terminal failure status requesting a re-run, even when the runtime could not be built (#1284).
 - Script reach keeps anonymous app scripts that contain a StyleProof sourceURL marker as string data.

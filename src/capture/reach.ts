@@ -1,12 +1,12 @@
 // Served-rule ledger for Change Reach (#991): every CSS leaf rule the page serves,
 // and whether it matched a compared element while the map was read. Chromium's rule usage
-// tracking reports the matched ranges, forced :hover/:focus/:active included; the
+// tracking reports the matched ranges, captured forced states included; the
 // stylesheet text names the rules. Stylesheets StyleProof injects never enter it.
 import { createHash } from 'node:crypto';
 import { registerStyleProofSession } from './script-coverage-ownership.js';
 import { captureExpression } from './script-evaluation.js';
 import type { CDPSession, Page } from '@playwright/test';
-import type { ServedRule, ServedRules } from './types.js';
+import type { ServedRule, ServedRules, StyleMap } from './types.js';
 import { GENERATED_PSEUDOS } from '../pseudo-references.js';
 
 type UsedRange = { startOffset: number; endOffset: number };
@@ -28,6 +28,7 @@ const CAPTURED_PSEUDO_ELEMENTS = new Set(['::before', '::after', '::marker', '::
 // Mirrors the pseudo-elements browser.ts snapSubtree reads under a forced state (serialized, so not importable).
 // ::marker is left out: forced reads skip it on fields.
 const FORCED_PSEUDO_ELEMENTS = new Set(['::before', '::after', '::placeholder']);
+const FORM_STATE_PSEUDO_CLASSES = ['checked', 'disabled', 'placeholder-shown'] as const;
 // Pseudo-classes whose matching depends only on what comparedSnapshot fingerprints. Any other state
 // (validity, open, defined, direction, design mode, visited, future pseudo-classes) is never attributed.
 const FINGERPRINTED_PSEUDO_CLASSES = new Set([
@@ -716,11 +717,20 @@ function pseudoElementEnd(prelude: string, start: number): { end: number; name: 
   return CAPTURED_PSEUDO_ELEMENTS.has(name) ? { end: start + element.length, name } : undefined;
 }
 
-/** End of a forced action state, including any balanced arguments. */
-function forcedStateEnd(prelude: string, start: number): number {
-  const removed = /^:(?:hover|focus-visible|focus-within|focus|active)(?![\w-])/i.exec(prelude.slice(start));
+/** End of a forced state the capture read, including any balanced arguments. */
+function forcedStateEnd(prelude: string, start: number, formStates: readonly string[]): number {
+  const removed = /^:(hover|focus-visible|focus-within|focus|active|checked|disabled|placeholder-shown)(?![\w-])/i.exec(
+    prelude.slice(start),
+  );
+
   if (!removed) return start;
+
+  const state = removed[1].toLowerCase();
+
+  if (FORM_STATE_PSEUDO_CLASSES.some((name) => name === state) && !formStates.includes(state)) return start;
+
   const end = start + removed[0].length;
+
   return prelude[end] === '(' ? delimiter(prelude, end + 1, ')') + 1 : end;
 }
 
@@ -728,6 +738,7 @@ function forcedStateEnd(prelude: string, start: number): number {
 function selectorPseudo(
   prelude: string,
   start: number,
+  formStates: readonly string[],
 ): { end: number; elements: string[]; forced: boolean } | undefined {
   const rest = prelude.slice(start);
   if (unattributablePseudo(rest)) return undefined;
@@ -738,14 +749,20 @@ function selectorPseudo(
     if (next < prelude.length && prelude[next] !== ',') return undefined;
     return { end: element.end, elements: [element.name], forced: false };
   }
-  const forcedEnd = forcedStateEnd(prelude, start);
+
+  const forcedEnd = forcedStateEnd(prelude, start, formStates);
+
   if (forcedEnd > start) return { end: forcedEnd, elements: [], forced: true };
   const pseudoClass = /^:([\w-]+)/.exec(rest);
   if (pseudoClass && !FINGERPRINTED_PSEUDO_CLASSES.has(pseudoClass[1].toLowerCase())) return undefined;
   return { end: start, elements: [], forced: false };
 }
 
-function selectorProbe(prelude: string, chain: readonly string[]): SelectorProbe | undefined {
+function selectorProbe(
+  prelude: string,
+  chain: readonly string[],
+  formStates: readonly string[] = [],
+): SelectorProbe | undefined {
   if (prelude.startsWith('@') || chain.some((part) => /^@(scope|container)\b/i.test(part))) return undefined;
   let probe = '';
   let standalone = true;
@@ -769,7 +786,7 @@ function selectorProbe(prelude: string, chain: readonly string[]): SelectorProbe
       i = opaque;
       continue;
     }
-    const pseudo = selectorPseudo(prelude, i);
+    const pseudo = selectorPseudo(prelude, i, formStates);
     if (!pseudo) return undefined;
     if (pseudo.end > i) {
       forced ||= pseudo.forced;
@@ -842,9 +859,13 @@ export type ServedRuleTracker = {
   start: () => Promise<void>;
   /**
    * Scope matches to `compared` paths, omitting `ownCss`. A DOM change makes all matches outside, and selectors
-   * that depend on state outside the DOM fingerprint are never attributed. Can start again.
+   * that depend on state outside the DOM fingerprint or recorded forced layers are never attributed. Can start again.
    */
-  stop: (ownCss: readonly string[], compared: readonly string[]) => Promise<ServedRules>;
+  stop: (
+    ownCss: readonly string[],
+    compared: readonly string[],
+    captured?: Pick<StyleMap, 'stateLayers' | 'stateTargets'>,
+  ) => Promise<ServedRules>;
   /** Release the CDP session. Safe after a failed capture and safe to repeat. */
   dispose: () => Promise<void>;
 };
@@ -1003,8 +1024,18 @@ export async function trackServedRules(
     await client.send('CSS.startRuleUsageTracking');
     started = digest((await page.evaluate(comparedSnapshot, undefined)).fingerprint);
   };
-  const stop = async (ownCss: readonly string[], compared: readonly string[]): Promise<ServedRules> => {
+  const stop: ServedRuleTracker['stop'] = async (ownCss, compared, captured) => {
     const { ruleUsage } = await client.send('CSS.stopRuleUsageTracking');
+    const comparedPaths = new Set(compared);
+
+    // Form forcing is optional and can be omitted after a partial read. Only relax
+    // layers recorded with an applicable owner the diff compares; legacy callers stay exact.
+    const formStates = FORM_STATE_PSEUDO_CLASSES.filter(
+      (state) =>
+        captured?.stateLayers?.includes(state) &&
+        captured.stateTargets?.[state]?.some((owner) => comparedPaths.has(owner)),
+    );
+
     const readLedger = async (): Promise<ServedRules> => {
       const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
       const { read, unreadable } = await readSheets(client, [...sheets.values()], ownCss, userAgentOwned(root));
@@ -1024,7 +1055,7 @@ export async function trackServedRules(
       for (const [index, sheet] of read.entries()) {
         const inDocument = await documentSheet(client, sheet.header, frameTree.frame.id, shadow);
         for (const { rule, chain, prelude } of entries[index]) {
-          const probe = rule.used && inDocument ? selectorProbe(prelude, chain) : undefined;
+          const probe = rule.used && inDocument ? selectorProbe(prelude, chain, formStates) : undefined;
           // Removing a state inside :not(), for example, need not preserve the original candidates.
           probes.push(probe && !probe.nested ? probe.selector : null);
           exclusive.push(probe?.relaxed ?? false);

@@ -516,7 +516,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
       map.metadata = { ...map.metadata, settleTimedOutWithRequestsInFlight: inFlightAtTimeout };
     }
     // Matches outside the compared elements do not count as reached (#993).
-    const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements)) } : map;
+    const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements), map) } : map;
     await attachScriptReach(result, options);
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
     await page.evaluate(unfreezeMotion, true);
