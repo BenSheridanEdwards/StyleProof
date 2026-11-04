@@ -193,6 +193,7 @@ if (!fs.existsSync(spec)) {
       loadedConfig.searched,
       loadedConfig.configFile ? path.join(loadedConfig.configDir, loadedConfig.configFile) : undefined,
       specFromFlag ? undefined : (projectConfig.spec ?? specFromEnv ?? DEFAULT_STYLEPROOF_SPEC),
+      loadedConfig.skippedConfig,
     ),
   );
   process.exit(2);

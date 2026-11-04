@@ -1113,7 +1113,7 @@ for (const mode of [0o777, 0o1777]) {
             { cwd: nested, encoding: 'utf8', timeout: 15000 },
           );
           assert.equal(fs.existsSync(marker), false, 'capture must not evaluate unsafe ancestor');
-          assert.match(capture.stderr, /skipping unsafe folder .*world-writable/i);
+          assert.match(capture.stderr, /styleproof: warning: .*world-writable/i);
         } finally {
           fs.chmodSync(root, 0o700);
           rmTmp(root);
@@ -1164,8 +1164,8 @@ test(
       fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
       await loadStyleProofConfigAsync(nested);
       await loadStyleProofConfigAsync(nested);
-      assert.match(output, /skipping unsafe folder .*world-writable/);
-      assert.equal(output.split('skipping unsafe folder').length - 1, 1);
+      assert.match(output, /styleproof: warning: .*world-writable/);
+      assert.equal(output.split('styleproof: warning:').length - 1, 1);
     } finally {
       process.stderr.write = originalWrite;
       fs.chmodSync(root, 0o700);
@@ -1198,6 +1198,105 @@ test('refusal notice stops at the git boundary', { skip: process.platform === 'w
   } finally {
     process.stderr.write = originalWrite;
     fs.chmodSync(path.join(root, 'repo', 'unsafe'), 0o700);
+    rmTmp(root);
+  }
+});
+
+for (const reason of ['world-writable', 'owned by another user', 'cannot stat folder', 'Windows']) {
+  test(`skipped config warning: ${reason}, defaults, remedy and stat-only dedup`, async (t) => {
+    const root = mkTmp();
+    const nested = path.join(root, 'nested');
+    const configPath = path.join(root, 'styleproof.config.mjs');
+    fs.mkdirSync(nested);
+    fs.writeFileSync(configPath, 'throw new Error("must not execute");');
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+    t.after(() => {
+      Object.defineProperty(process, 'platform', platform);
+      t.mock.restoreAll();
+      rmTmp(root);
+    });
+    Object.defineProperty(process, 'platform', { value: reason === 'Windows' ? 'win32' : 'linux' });
+    const statSync = fs.statSync;
+    t.mock.method(fs, 'statSync', (candidate, ...args) => {
+      if (candidate !== root) return statSync(candidate, ...args);
+      if (reason === 'cannot stat folder') throw new Error('stat denied');
+      const stat = statSync(candidate, ...args);
+      return {
+        ...stat,
+        uid: reason === 'owned by another user' ? 12345 : 0,
+        mode: reason === 'world-writable' ? 0o777 : 0o700,
+      };
+    });
+    const readFileSync = fs.readFileSync;
+    t.mock.method(fs, 'readFileSync', (candidate, ...args) => {
+      assert.notEqual(String(candidate), configPath, 'skipped config must never be read');
+      return readFileSync(candidate, ...args);
+    });
+    let output = '';
+    t.mock.method(process.stderr, 'write', (chunk) => {
+      output += chunk;
+      return true;
+    });
+    assert.deepEqual(loadStyleProofConfig(nested), {});
+    assert.deepEqual(await loadStyleProofConfigAsync(nested), {});
+    const discovery = discoverStyleProofConfig(nested);
+    assert.match(output, /^styleproof: warning:/);
+    assert.ok(output.includes(configPath), output);
+    assert.match(output, /not loaded.*built-in defaults/);
+    assert.match(output, /run.*folder that holds the config/i);
+    if (reason === 'Windows') {
+      assert.match(output, /parent config outside a repository on Windows/);
+    } else {
+      assert.ok(output.includes(`unsafe folder ${root}: ${reason}`), output);
+      assert.match(output, /fix ownership or remove world-write permission/);
+    }
+    assert.equal(output.trim().split('\n').length, 1, output);
+    assert.equal(discovery.skippedConfig, configPath, 'dedup must retain the skipped path');
+  });
+}
+
+test('missing spec and required config errors name the skipped config', { skip: process.platform === 'win32' }, () => {
+  const root = mkTmp();
+  const nested = path.join(root, 'nested');
+  const configPath = path.join(root, 'styleproof.config.mjs');
+  try {
+    fs.mkdirSync(nested);
+    fs.writeFileSync(configPath, 'throw new Error("must not execute");');
+    fs.chmodSync(root, 0o1777);
+    for (const requireConfig of [false, true]) {
+      assert.throws(
+        () => resolveProjectSpec({ startDir: nested, requireConfig }),
+        (error) => {
+          assert.ok(error.message.includes(configPath), error.message);
+          assert.match(error.message, /not loaded/);
+          assert.doesNotMatch(error.message, /no styleproof\.config/);
+          return true;
+        },
+      );
+    }
+  } finally {
+    fs.chmodSync(root, 0o700);
+    rmTmp(root);
+  }
+});
+
+test('capture missing-spec error names the skipped config', { skip: process.platform === 'win32' }, () => {
+  const root = mkTmp();
+  const nested = path.join(root, 'nested');
+  const configPath = path.join(root, 'styleproof.config.mjs');
+  try {
+    fs.mkdirSync(nested);
+    fs.writeFileSync(configPath, 'throw new Error("must not execute");');
+    fs.chmodSync(root, 0o1777);
+    const result = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8', timeout: 30000 });
+    assert.equal(result.status, 2, result.stderr);
+    const missingSpec = result.stderr.slice(result.stderr.indexOf('styleproof-map:'));
+    assert.ok(missingSpec.includes(configPath), missingSpec);
+    assert.match(missingSpec, /not loaded/);
+    assert.doesNotMatch(missingSpec, /no styleproof\.config/);
+    assert.equal(result.stderr.split('styleproof: warning:').length - 1, 1, result.stderr);
+  } finally {
+    fs.chmodSync(root, 0o700);
     rmTmp(root);
   }
 });

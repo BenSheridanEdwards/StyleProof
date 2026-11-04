@@ -24,8 +24,10 @@ export type ResolveProjectSpecOptions = {
   requireSpec?: boolean;
 };
 
-const searchedLines = (searched: readonly string[], indent: string): string[] => [
-  `${indent}no styleproof.config.ts / .mjs / .js / .json found; searched:`,
+const searchedLines = (searched: readonly string[], indent: string, skippedConfig?: string): string[] => [
+  skippedConfig
+    ? `${indent}${skippedConfig} was not loaded; searched:`
+    : `${indent}no styleproof.config.ts / .mjs / .js / .json found; searched:`,
   ...searched.map((candidate) => `${indent}  ${candidate}`),
 ];
 
@@ -34,14 +36,15 @@ export function missingStyleProofSpecMessage(options: {
   specDeclared?: string;
   configFile?: string;
   searched?: readonly string[];
+  skippedConfig?: string;
 }): string {
   const lines = [`no StyleProof spec at ${options.spec}`];
   if (options.configFile && options.specDeclared) {
     lines.push(`  declared as "${options.specDeclared}" in ${options.configFile}`);
   } else if (options.configFile) {
     lines.push(`  declared in ${options.configFile}`);
-  } else if (options.searched?.length) {
-    lines.push(...searchedLines(options.searched, '  '));
+  } else if (options.skippedConfig || options.searched?.length) {
+    lines.push(...searchedLines(options.searched ?? [], '  ', options.skippedConfig));
   }
   return lines.join('\n');
 }
@@ -61,7 +64,7 @@ export function resolveProjectSpec(options: ResolveProjectSpecOptions = {}): Res
   const startDir = path.resolve(options.startDir ?? process.cwd());
   const loaded = loadStyleProofConfigWithLocation(startDir);
   if (options.requireConfig && !loaded.configFile) {
-    throw new StyleProofConfigError(searchedLines(loaded.searched, '').join('\n'));
+    throw new StyleProofConfigError(searchedLines(loaded.searched, '', loaded.skippedConfig).join('\n'));
   }
   // The default applies only after a successful load: an unloadable `.ts` threw above.
   const specDeclared = options.spec ?? loaded.config.spec ?? DEFAULT_STYLEPROOF_SPEC;
@@ -73,8 +76,15 @@ export function resolveProjectSpec(options: ResolveProjectSpecOptions = {}): Res
         specDeclared,
         configFile: loaded.configFile ? path.join(loaded.configDir, loaded.configFile) : undefined,
         searched: loaded.searched,
+        skippedConfig: loaded.skippedConfig,
       }),
     );
   }
-  return { spec, specDeclared, configDir: loaded.configDir, configFile: loaded.configFile, searched: loaded.searched };
+  return {
+    spec,
+    specDeclared,
+    configDir: loaded.configDir,
+    configFile: loaded.configFile,
+    searched: loaded.searched,
+  };
 }

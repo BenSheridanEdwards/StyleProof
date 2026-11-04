@@ -29,9 +29,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    subfolder are affected when the parent holding the config is world-writable,
    owned by another non-root user, or a runner-owned checkout above a root
    container job. Windows non-git projects run from a subfolder are also affected.
-   A `styleproof: skipping ...` notice on stderr names the skipped config, and
-   it no longer loads. Run StyleProof from the folder that holds the
-   config; on POSIX, alternatively fix ownership or remove world-write permission.
+   A `styleproof: warning:` on stderr names the skipped config and the reason,
+   says the file was not loaded and built-in defaults apply, and gives the next
+   step (#1274). Missing-config and missing-spec errors also name the skipped file.
+   Run StyleProof from the folder that holds the config; on POSIX, alternatively
+   fix ownership or remove world-write permission.
    There is no config-path option or environment variable.
 
 ### Changed
