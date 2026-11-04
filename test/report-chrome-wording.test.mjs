@@ -89,7 +89,7 @@ test('#1150 different restyles on every hosting base do not claim identical chan
     const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
     const md = fs.readFileSync(result.reportMdPath, 'utf8');
     const banner = md.slice(md.indexOf('## 🧱 Global chrome'));
-    const digest = md.split('\n').find((line) => line.startsWith('- ') && line.includes('global chrome'));
+    const digest = md.split('\n').find((line) => line.startsWith('- ') && line.includes('changed colour on'));
     stampCertifyingFixture(beforeDir, '1'.repeat(40));
     stampCertifyingFixture(afterDir, '2'.repeat(40));
 
@@ -104,7 +104,11 @@ test('#1150 different restyles on every hosting base do not claim identical chan
       ['digest', digest],
       ['CLI', cli.stdout],
     ]) {
-      assert.match(text, /changed on every surface base that renders it/, surface);
+      assert.match(
+        text,
+        surface === 'digest' ? /changed colour on/ : /changed on every surface base that renders it/,
+        surface,
+      );
       assert.doesNotMatch(text, /identically/, surface);
     }
 

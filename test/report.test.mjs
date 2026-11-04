@@ -287,8 +287,8 @@ test('end-to-end: header counts the collapsed total, not the longhand explosion'
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // Zero counts are dropped from the headline; only the real one shows.
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
-  assert.doesNotMatch(md, /0 DOM change\(s\)/);
+  assert.match(md, /^\*\*1 change needs review\*\* · 1 distinct change on 1 surface \(1 computed-style difference\)$/m);
+  assert.doesNotMatch(md, /\b0 DOM changes?\b/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
   rmTmp(root);
@@ -344,7 +344,7 @@ test('an identical change across surfaces collapses into one grouped section', (
   }
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /1 changed surface base \(2 variants\) with an existing baseline/);
+  assert.match(md, /1 distinct change on 1 surface \(2 variants, 1 computed-style difference\)/);
   assert.match(md, /Identical across 2 surfaces/);
   assert.equal(
     (md.match(/\*\*`div\.box`\*\* — /g) || []).length,
@@ -713,9 +713,10 @@ test('new surface details render before existing-surface change groups', () => {
   assert.ok(changedIdx > 0, 'changed-surface section is present');
   assert.ok(newIdx < changedIdx, 'new page evidence leads before existing-surface churn');
   const commentSummary = md.slice(0, md.indexOf('\n### '));
+  const newSurfaceIndex = commentSummary.indexOf('🆕 **1 new surface(s)**');
   assert.ok(
-    commentSummary.indexOf('🆕 **1 new surface(s)**') < commentSummary.indexOf('**1 distinct change**'),
-    'comment summary leads with the named new surface before aggregate existing-surface churn',
+    newSurfaceIndex > 0 && newSurfaceIndex < commentSummary.indexOf('**What changed**'),
+    'comment summary names the new surface before the What changed list',
   );
   assert.match(commentSummary, /`workspace @ 900`/);
   rmTmp(root);
@@ -852,7 +853,7 @@ test('add-only: headline counts DOM only — head-side inventory is not a restyl
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   // Presentation counts: DOM add only. Style/state rows are inventory on the new node.
   assert.deepEqual(json.counts, { dom: 1, style: 0, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 DOM change\(s\)\)/);
+  assert.match(md, /^\*\*1 change needs review\*\* · 1 distinct change on 1 surface \(1 DOM change\)$/m);
   assert.doesNotMatch(md, /computed-style difference/);
   assert.doesNotMatch(md, /state-delta difference/);
   assert.match(md, /Style inventory \(head-side — no baseline\)/);
@@ -889,7 +890,7 @@ test('matched-path restyle still counts as a computed-style difference (not inve
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
+  assert.match(md, /^\*\*1 change needs review\*\* · 1 distinct change on 1 surface \(1 computed-style difference\)$/m);
   assert.match(md, /1 element restyled/);
   assert.match(md, /\| Property \| Before \| After \|/);
   assert.doesNotMatch(md, /Style inventory \(head-side/);
@@ -1422,7 +1423,7 @@ test('end-to-end: a surface missing on one side renders by DIRECTION — head-on
   assert.match(md, /### `about@1280` · REMOVED surface 🗑️/);
   assert.match(md, /1 REMOVED surface\(s\)/);
   assert.doesNotMatch(md, /about@1280` · new surface/);
-  assert.doesNotMatch(md, /0 DOM change\(s\)/); // no contradictory "0 changes" headline
+  assert.doesNotMatch(md, /\b0 DOM changes?\b/); // no contradictory "0 changes" headline
   rmTmp(root);
 });
 
