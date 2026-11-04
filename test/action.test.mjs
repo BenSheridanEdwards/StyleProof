@@ -213,8 +213,9 @@ function certifyingVerdictReceipt(overrides = {}) {
   };
 }
 
-test('Action source-binding validator accepts runtime-only only with both sides observed', () => {
+test('Action source-binding validator rejects runtime-only in bound receipts', () => {
   const program = actionReportMergeScript();
+  // Slice the validators out of the inline Action script; update these markers if they are renamed.
   const validators = program.slice(
     program.indexOf('const exactKeys ='),
     program.indexOf('if (!validSourceBinding(diff.sourceBinding'),
@@ -268,9 +269,7 @@ test('Action source-binding validator accepts runtime-only only with both sides 
     for (const compatibility of ['matched', 'runtime-only', 'not-applicable', 'unknown']) {
       assert.equal(
         validate({ ...binding, compatibility }, evidence),
-        missing === null
-          ? compatibility === 'matched' || compatibility === 'runtime-only'
-          : compatibility === 'not-applicable',
+        compatibility === (missing === null ? 'matched' : 'not-applicable'),
         `${compatibility}, missing=${missing}`,
       );
     }

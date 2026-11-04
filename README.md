@@ -557,10 +557,9 @@ Approval uses it to select the matching comment and report artifact.
 There's also a third, spec-less use — pointing the one-shot capture at a design
 mockup and diffing your build against it until the number hits zero. See
 [Match a design pixel-for-pixel](docs/REFERENCE.md#match-a-design-pixel-for-pixel).
-Diff and report JSON record `sourceBinding.compatibility: "runtime-only"` for
-mixed spec/ad-hoc diagnostic pairs, `"matched"` for two spec or two ad-hoc
-captures, and `"not-applicable"` when a capture side is absent. JSON consumers
-must handle all three values; mixed pairs remain unverified diagnostics.
+A mixed spec/ad-hoc pair is an unverified diagnostic; its JSON records
+`sourceBinding.compatibility: "runtime-only"` (see
+[Match a design pixel-for-pixel](docs/REFERENCE.md#match-a-design-pixel-for-pixel)).
 
 ## What a green certifies
 
