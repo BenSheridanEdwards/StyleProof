@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { validateMediaStates } from '../media-states.js';
 import { resolveScriptProjectRoot } from '../capture/script-project-root.js';
 import { resolveForcedStateLimits } from '../capture/forced-states.js';
 import { warn } from '../capture/shared.js';
@@ -149,6 +150,7 @@ export function resolveSettings(c: CaptureConfig, projectRoot?: string): Setting
   const navigateTimeoutMs = resolveNavigateTimeoutMs(c.navigateTimeoutMs, surfaceTimeoutMs);
   return {
     ...resolveForcedStateLimits(c),
+    mediaStates: validateMediaStates(c.mediaStates),
     dir,
     baseDir,
     outDir: resolveOutputDir(baseDir, dir),
@@ -191,6 +193,8 @@ export function captureOptionsFor(
       forcedStateScope: surface.forcedStateScope === undefined ? s.forcedStateScope : surface.forcedStateScope,
     }),
     ignore: surface.ignore ?? [],
+    mediaStatesDeclared: (surface.mediaStates ?? s.mediaStates).length > 0,
+    mediaWarningScope: s.outDir,
     captureText: s.captureText,
     captureReach: s.captureReach,
     captureScriptReach: s.captureScriptReach,

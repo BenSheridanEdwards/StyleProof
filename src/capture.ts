@@ -1,3 +1,4 @@
+import { restoreDeclaredMediaState, warnUndeclaredMediaStates } from './media-states.js';
 // Computed-style capture: the browser's final resolved value for every CSS longhand
 // on every element, keyed by DOM structure (never class names) so a class rewrite
 // stays comparable. Public entry; the machinery lives under src/capture/.
@@ -394,6 +395,8 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
 
   const { states, stateLayers, stateLayerOmissions, stateTargets, statesSkipped, stateComputedValueStyle } =
     await captureStateLayer(page, options, read.limits, read.ignore, volatile);
+  // Chromium clears print emulation when the forced-state reader detaches its CDP session.
+  await restoreDeclaredMediaState(page, options.metadata);
   const tokens = await page.evaluate(capturePageTokens);
   const inventory: NavigableItem[] = options.inventory
     ? classifyInventory(await page.evaluate(collectNavAffordances))
@@ -469,6 +472,8 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     options.pendingRequests,
   );
 
+  await warnUndeclaredMediaStates(page, options);
+
   options.onPhase?.('capture');
   await assertRequiredVisibleState(page, options.requiredVisibleState);
   // Live-region candidates are diagnostics only: stable status/alert UI is still captured.
@@ -520,6 +525,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   } finally {
     // A caller-armed tracker outlives this capture (self-check, popups); one armed here does not.
     if (reach && !options.servedRules) await reach.dispose();
+    await restoreDeclaredMediaState(page, options.metadata);
     // Best-effort: the page may already be closing on a throw path.
     await page.evaluate(unfreezeMotion, false).catch(() => {});
   }

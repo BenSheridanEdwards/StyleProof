@@ -9,7 +9,7 @@ import { warn } from './capture/shared.js';
  */
 
 /** Serialized into the browser by page.evaluate; cannot call module helpers. */
-function collectMediaTexts(): { mediaTexts: string[]; unreadable: string[] } {
+export function collectMediaTexts(): { mediaTexts: string[]; unreadable: string[] } {
   const mediaTexts: string[] = [];
   const unreadable: string[] = [];
   const readSheet = (sheet: CSSStyleSheet, viaImport = false): void => {

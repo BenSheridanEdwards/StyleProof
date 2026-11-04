@@ -100,6 +100,7 @@ still owns the verdict contract.
 | Loading / error data states            | crawl — automatic data-states (`--no-data-states` to skip) |
 | Login / unlock / typed input           | `--setup <file>`                                           |
 | `:hover`/`:focus`/`:active`            | forced-state layer of every capture                        |
+| Dark theme / print / forced colors     | spec `mediaStates` on base surfaces and explicit variants; no default expansion |
 | Empty/partial/streaming data           | spec `liveStates`/`variants` with fixtures                 |
 | Destructive-gated, drag-drop, keyboard | a spec driving them explicitly                             |
 | Unmounted components                   | a component catalog page                                   |
@@ -107,6 +108,13 @@ still owns the verdict contract.
 `--setup` runs after **every** fresh navigation so each reset re-establishes the
 gate; `${ENV_VAR}` in values is interpolated at load time (credentials never hit
 the file or the maps). A failed non-`optional` step aborts loudly.
+
+`mediaStates` declarations are required to cover dark-theme, print, and
+forced-colors rules. Loaded stylesheet conditions produce one advisory warning
+when undeclared, including `prefers-contrast` (detected only, not emulated).
+Surface lists override global lists; `[]` opts out. Live states, recipes, and
+popup discovery are not multiplied; declare an explicit variant or separate
+surface for those combinations. See the reference's media environments section.
 
 ## Gotchas from a real 100%-coverage push
 

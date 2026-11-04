@@ -52,6 +52,26 @@ complete`, `✗ coverage INCOMPLETE`, or `✗ completeness NOT asserted` (no reg
   nondeterministic reads could just be luck. A green now certifies both _"I looked
   everywhere"_ and _"my look was stable."_
 
+### Media styles when declared
+
+Dark-theme-only, print-only, and forced-colors-only computed-style changes are
+caught as `style` findings when the surface declares `mediaStates`, for example
+`[{ key: 'dark', colorScheme: 'dark' }]`, `[{ key: 'print', media: 'print' }]`, or
+`[{ key: 'contrast', forcedColors: 'active' }]`. Emulation starts before navigation
+and remains active through screenshots. No media environments are added by
+default; capture warns once when readable stylesheets contain undeclared media
+features. `prefers-contrast` is detected as advice but is not emulated.
+
+The [state-type coverage matrix](../test/state-type-coverage.e2e.spec.ts) also proves
+`:focus-visible` (in the `focus` layer), ancestor `:focus-within`, resting
+`:checked` / `:disabled` / `:placeholder-shown`, width-specific media rules detected
+from stylesheets, and content below the fold inside inner scrollers. It proves
+zero findings for identical captures in each declared media environment, and the
+uncaptured dark-only change without a declaration.
+
+See [media environments](REFERENCE.md#media-environments) for expansion costs,
+surface overrides, and the boundary around live states, recipes, and popups.
+
 ## The boundary (stated plainly)
 
 StyleProof surfaces 100% of the change classes above **on the surfaces it captures**. It

@@ -1,3 +1,4 @@
+import { applyMediaState, restoreDeclaredMediaState } from '../media-states.js';
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { trackScriptReach } from '../capture/script-reach.js';
@@ -110,7 +111,7 @@ export async function detectSurfaceWidths(
     );
   }
   // Base and head load with the same viewport, reduced motion, pinned data and frozen clock.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await applyMediaState(page, surface.metadata?.mediaState);
   if (viewport) await page.setViewportSize(viewport);
   // Drop routes an earlier surface left on a shared crawl page before pinning this detection load.
   await page.unroute(s.replayUrl);
@@ -172,7 +173,7 @@ export async function captureSurface(
   options: { pageIsShared?: boolean } = {},
 ): Promise<void> {
   // Declared BEFORE go(): JS animation libraries read prefers-reduced-motion at mount.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await applyMediaState(page, declared.metadata?.mediaState);
   const height = viewportHeight(declared, width);
   await page.setViewportSize({ width, height });
   // Both trackers are armed BEFORE go() so the surface's own load requests are seen. Residue
@@ -253,6 +254,8 @@ export async function captureSurface(
     requests.dispose();
     residue.dispose();
     await servedRules?.dispose();
+    // Screenshot and rule-tracking CDP sessions can clear Chromium's print emulation on detach.
+    await restoreDeclaredMediaState(page, declared.metadata);
     await stop();
     await page.unroute(s.replayUrl);
   }

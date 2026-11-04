@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import type { CaptureMetadata, ForcedStateLimits, ProductStateIdentity } from '../capture/types.js';
+import type { CaptureMetadata, ForcedStateLimits, MediaState, ProductStateIdentity } from '../capture/types.js';
 import type { LiveTextDeclaration, LiveTextInput } from '../live-text.js';
 import type { LinkMatch } from '../crawl.js';
 import type { StateRecipe } from '../state-recipes.js';
@@ -20,6 +20,8 @@ export type Surface = ForcedStateLimits & {
   height?: number | ((width: number) => number);
   /** Deterministic states of this surface, each its own capture (`<surface>-<variant>@<width>`). */
   variants?: SurfaceVariant[];
+  /** Extra media captures of the base and explicit variants; overrides the run's declarations. */
+  mediaStates?: MediaState[];
   /** Live product states (loading, loaded, empty, …); the bare base is dropped in favour of these. */
   liveStates?: SurfaceLiveState[];
   /** Independent interaction recipes, each its own capture after the parent `go`. Validated at expansion. */
@@ -60,6 +62,8 @@ export type ResolvedPopupCaptureOptions = Required<PopupCaptureOptions>;
 
 export type DefineOptions = ForcedStateLimits & {
   surfaces: Surface[];
+  /** Opt-in media environments for base surfaces and explicit variants, before navigation. */
+  mediaStates?: MediaState[];
   /** Every surface key the app knows it has; a coverage-guard test (in the NORMAL suite) fails on any uncovered key. */
   expected?: string[];
   /** Expected keys deliberately not captured, each with a reason; a stale entry also fails the guard. */

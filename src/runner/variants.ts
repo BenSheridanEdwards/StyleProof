@@ -1,3 +1,4 @@
+import { applyMediaState, validateMediaStates } from '../media-states.js';
 import { validateProductStateIdentity } from '../capture.js';
 import type { CaptureMetadata } from '../capture/types.js';
 import {
@@ -24,6 +25,7 @@ function inherited(surface: Surface, variant?: SurfaceVariant): Omit<ExpandedSur
     widths: v.widths ?? surface.widths,
     height: v.height ?? surface.height,
     popups: surface.popups,
+    mediaStates: surface.mediaStates,
     maxForcedStateElements:
       v.maxForcedStateElements === undefined ? surface.maxForcedStateElements : v.maxForcedStateElements,
     maxForcedStateScanWork:
@@ -116,12 +118,34 @@ export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
     ...base,
     metadata: { surfaceKey: surface.key, ...(productState ? { productState } : {}) },
   };
-  // liveStates drop the bare base (fuzzy live UI); variants and recipes still expand.
+  const mediaStates = validateMediaStates(surface.mediaStates);
+  const explicitVariants = variants.map((variant) => expandOne(surface, variant, 'variant'));
+  // liveStates drop the bare base. Only the remaining base and explicit variants get media copies:
+  // automatically multiplying recipes, live fixtures and popup discovery would hide capture costs.
+  const mediaParents = [...(liveStates.length ? [] : [baseSurface]), ...explicitVariants];
+  const mediaSurfaces = mediaParents.flatMap((parent) =>
+    mediaStates.map((mediaState): ExpandedSurface => ({
+      ...parent,
+      key: `${parent.key}-${mediaState.key}`,
+      popups: false,
+      go: async (page) => {
+        await applyMediaState(page, mediaState);
+        await parent.go(page);
+      },
+      metadata: {
+        ...parent.metadata,
+        variantKey: parent.metadata?.variantKey ? `${parent.metadata.variantKey}-${mediaState.key}` : mediaState.key,
+        variantKind: 'variant',
+        mediaState,
+      },
+    })),
+  );
   return [
     ...(liveStates.length ? [] : [baseSurface]),
-    ...variants.map((variant) => expandOne(surface, variant, 'variant')),
+    ...explicitVariants,
     ...liveStates.map((state) => expandOne(surface, state, 'live-state')),
     ...recipes.map((recipe) => expandStateRecipe(surface, recipe)),
+    ...mediaSurfaces,
   ];
 }
 

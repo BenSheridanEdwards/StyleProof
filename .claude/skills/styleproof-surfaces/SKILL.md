@@ -46,6 +46,27 @@ defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
 - **`popups: true`** — auto-click visible safe triggers, capture each opened
   dialog/menu/listbox/popover/toast as `<surface>-popup-XX`.
 
+## Declare media environments
+
+Use `mediaStates` globally on `defineStyleMapCapture` / `defineCrawlCapture`, or
+on a surface to replace the global list (`[]` opts out):
+
+```ts
+mediaStates: [
+  { key: 'dark', colorScheme: 'dark' },
+  { key: 'print', media: 'print' },
+  { key: 'contrast', forcedColors: 'active' },
+];
+```
+
+Each entry requires a safe key and at least one feature. Base surfaces and explicit
+variants gain media copies (`home-dark`, `home-dialog-open-dark`). Live states,
+recipes, and discovered popups are not multiplied, keeping capture costs bounded;
+use an explicit variant or separate surface when those combinations matter.
+Motion stays reduced. Metadata records media features; reports reuse variant labels.
+Without declarations, stylesheet media features trigger one advisory warning per
+run. `prefers-contrast` is detected but is not emulated by forced colors.
+
 ## The coverage guard — `expected` + `exclude`
 
 Declare your route/view/component universe so a **new uncaptured page fails

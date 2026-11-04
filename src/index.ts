@@ -22,6 +22,7 @@ export type {
   Surface,
   SurfaceLiveState,
   SurfaceVariant,
+  MediaState,
   PopupCaptureOptions,
   DefineOptions,
   CrawlOptions,

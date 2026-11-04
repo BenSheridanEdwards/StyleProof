@@ -199,7 +199,8 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
 
 The check compares the browser's computed CSS, not pixels. The crops are there so a person can see the change. The
 pass or fail decision runs on the exact values in the table. Surface-key vocabulary (`@width`, live-state and popup
-variants) is in [docs/REFERENCE.md](docs/REFERENCE.md).
+variants) is in [docs/REFERENCE.md](docs/REFERENCE.md). Declare `mediaStates` to add dark-theme,
+print, or forced-colors captures; see [media environments](docs/REFERENCE.md#media-environments).
 
 **Where the report lives.** On a pull request, the PR comment is the same linked summary for public and private repositories.
 Reports publish as workflow artifacts by default. The comment links the artifact on the run, and nothing is written to
