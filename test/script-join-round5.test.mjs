@@ -106,7 +106,7 @@ for (const [kind, left, right, leftRange, rightRange] of joins) {
 
 for (const reverse of [false, true]) {
   for (const adapter of [false, true]) {
-    test(`a true ${reverse ? 'insertion' : 'deletion'} retains a line unit for the opposite changed side${adapter ? ' through git' : ''}`, (t) => {
+    test(`a true ${reverse ? 'insertion' : 'deletion'} retains a touching token on the opposite side${adapter ? ' through git' : ''}`, (t) => {
       const pair = ['const label = value ?? fallbackLabel;', 'const label = fallbackLabel;'];
       const texts = reverse ? pair.toReversed() : pair;
       const spans = texts.map((text) => text.indexOf('fallbackLabel'));
@@ -118,9 +118,10 @@ for (const reverse of [false, true]) {
       );
       const side = reverse ? 'base' : 'head',
         unit = units.find((unit) => unit.side === side);
-      assert.equal(unit.changeScope, 'line');
-      assert.equal(unit.range.start.column, 0);
-      assert.equal(unit.range.end.column, texts[reverse ? 0 : 1].length);
+      const position = texts[reverse ? 0 : 1].indexOf('fallbackLabel');
+      assert.equal(unit.changeScope, undefined);
+      assert.equal(unit.range.start.column, position);
+      assert.equal(unit.range.end.column, position + 'fallbackLabel'.length);
       assert.equal(unit.execution, reverse ? 'ran' : 'never-ran');
       assert.equal(unit.status, reverse ? 'unknown' : 'never-rendered');
     });

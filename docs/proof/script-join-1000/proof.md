@@ -291,3 +291,48 @@ stronger evidence. Corpus case statuses remain unchanged. Rebased targeted check
 pass **330/330 units** and **45/45 browser cases**, including the new upstream
 capture and HTML tests. Rebased full verification passes **4,936/4,936**, with
 zero failures, cancellations or skips. Corpus and demo checks also pass again.
+
+## Round 6: uninstrumented text uses preceding evidence
+
+The branch is rebased onto `47f41b41b`; the REFERENCE conflict keeps upstream's
+10.0.0 job-conclusion documentation and the J2 guidance. The retained
+[unit red](round6-red-unit.txt) has **31 failures** and the
+[Chromium red](round6-red-browser.txt) has **two failures**. Final targeted checks
+pass **355/355 units** and **47/47 browser cases**.
+
+| Item | Red → green |
+| --- | --- |
+| 1 | Real esbuild starts cover CSS templates, multiline/single-line JSX, numeric forms, regex literals and private names, on unopened and executed overlay paths. An anchor-free range now uses the nearest preceding start in its own source, labels `executionScope: 'preceding-anchor'` and names it in the reason. No future anchor or other source can supply this evidence. Numeric/private/regex/JSX tokens retain complete starts; division and quoted JSX-like strings stay distinct. |
+| 2 | Appending a property or call retains the evaluated token, excluding the idle nullish fallback. Empty points select a touching token, preferring the left neighbour. The additional [right-touch red](round6-red-right-touch.txt) caught an unchanged suffix being imported into the opposite deletion; the right-only token now stays local to its side. Earlier empty-side assertions require precise touching tokens where available. |
+| 3 | A fully executed start clears mixed evidence only from the same script URL. Other chunks retain mixed evidence, including when two scripts occur in one capture; reversing capture order changes nothing. |
+
+Nearest-start lookup and anchor-range queries use the existing sorted indexes.
+Mixed preceding evidence still produces partly-ran/never-rendered for an idle
+nullish fallback; an operand with its own executed start remains ran/unknown.
+Coarse column-zero evidence still carries its existing line-scope label. The JSX
+scanner advances through a line, and the 6,000-line indexing regression stays green.
+
+The new browser regressions run esbuild, real Chromium, both Git revisions and
+`readScriptChanges`: unopened CSS-template and JSX-text changes are never-rendered;
+the opened controls remain unknown without rendering corroboration.
+The [report JSON](round6-report.json), [Markdown](round6-report.md) and screenshot
+below come from real unopened-overlay captures with source hashes and map SHAs.
+All four base/head units are never-rendered, J2 remains warn-only, and reach stays
+incomplete. The report retains the product-state identity warning and the absence
+of computed-style changes; this is diagnostic execution proof, not a certified
+same-state comparison. Every visible label in the screenshot was inspected.
+
+![The unopened overlay is named with preceding-anchor evidence and its warnings](round6-report-top.png)
+
+Corpus and demo checks pass. No corpus case changed status: unknown counts stay
+five declared and six complete, J3 prototype labels remain separate, and the
+corpus still asserts zero J2 run-level gaps. Full gate tails and publication
+status are in the handoff.
+
+Final full verification passes **5,021/5,021**, with zero failures, cancellations
+or skips. No test or hook configuration changed.
+
+The push uses the CLI fixture's existing concurrent-worktree setting,
+`STYLEPROOF_E2E_PORT_BASE=28000`, for a separately checked port block. The fixture
+documents this setting in `test/cli-flow.e2e.spec.ts`; all hook tests, assertions
+and timeout bounds still run unchanged.

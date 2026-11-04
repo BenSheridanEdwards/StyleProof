@@ -1,0 +1,72 @@
+
+Running 2 tests using 1 worker
+
+(node:53504) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/script-join-round6.e2e.spec.ts:13:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (3.8s)
+(node:58638) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/script-join-round6.e2e.spec.ts:13:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (3.0s)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:13:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Array [
+    -   "never-rendered",
+    -   "never-rendered",
+    -   "never-rendered",
+    -   "never-rendered",
+    +   "unmeasured",
+    +   "unmeasured",
+    +   "unmeasured",
+    +   "unmeasured",
+      ]
+
+      72 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      73 |     expect(units).toHaveLength(4);
+    > 74 |     expect(units.map((unit) => unit.status)).toEqual(Array(4).fill(rendered ? 'unknown' : 'never-rendered'));
+         |                                              ^
+      75 |     expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      76 |     expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+      77 |   });
+        at <checkout>/test/script-join-round6.e2e.spec.ts:74:46
+
+    Error Context: test-results/test-script-join-round6.e2-bc8e2-omium-execution-through-git-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:13:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Array [
+    -   "unknown",
+    -   "unknown",
+    -   "unknown",
+    -   "unknown",
+    +   "unmeasured",
+    +   "unmeasured",
+    +   "unmeasured",
+    +   "unmeasured",
+      ]
+
+      72 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      73 |     expect(units).toHaveLength(4);
+    > 74 |     expect(units.map((unit) => unit.status)).toEqual(Array(4).fill(rendered ? 'unknown' : 'never-rendered'));
+         |                                              ^
+      75 |     expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      76 |     expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+      77 |   });
+        at <checkout>/test/script-join-round6.e2e.spec.ts:74:46
+
+    Error Context: test-results/test-script-join-round6.e2-e0771-omium-execution-through-git-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:13:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git
+    [chromium] › test/script-join-round6.e2e.spec.ts:13:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git

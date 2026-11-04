@@ -1,7 +1,12 @@
 /** J2: pure changed-source-range × navigation-window execution join. */
-import { executionIn, indexScriptSources, type ScriptExecutionIndex } from './script-join-index.js';
+import {
+  executionIn,
+  indexScriptSources,
+  type ScriptExecutionIndex,
+  type ScriptSourceEvidence,
+} from './script-join-index.js';
 import type { StyleMap } from './capture.js';
-import type { ScriptSourceReach, SourcePosition, SourceSpan } from './script-reach.js';
+import type { SourcePosition, SourceSpan } from './script-reach.js';
 
 export type ScriptChange = {
   sourceKey: string;
@@ -24,8 +29,8 @@ export type ScriptUnit = Omit<ScriptChange, 'text' | 'contentHash' | 'unmeasured
   status: 'reached' | 'never-rendered' | 'unmeasured' | 'unknown';
   why: string;
   level: 'warn';
-  /** Line-only maps cannot locate an expression more precisely. */
-  executionScope?: 'line';
+  /** Names broader evidence when a changed token has no execution start of its own. */
+  executionScope?: 'line' | 'preceding-anchor';
 };
 
 export type ScriptJoinGap = {
@@ -101,7 +106,7 @@ type EvidenceSide = {
 
 function mappedFiles(
   reach: NonNullable<StyleMap['scriptReach']>,
-  files: Map<string, ScriptSourceReach[]>,
+  files: Map<string, ScriptSourceEvidence[]>,
   reasons: string[],
 ): void {
   for (const script of reach.scripts) {
@@ -112,13 +117,13 @@ function mappedFiles(
 
     for (const file of script.files ?? []) {
       if (!file.sourceKey) reasons.push('project-relative sourceKey absent');
-      else files.set(file.sourceKey, [...(files.get(file.sourceKey) ?? []), file]);
+      else files.set(file.sourceKey, [...(files.get(file.sourceKey) ?? []), { ...file, scriptUrl: script.url }]);
     }
   }
 }
 
 function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): EvidenceSide {
-  const files = new Map<string, ScriptSourceReach[]>();
+  const files = new Map<string, ScriptSourceEvidence[]>();
   const reasons: string[] = [];
   const gaps: ScriptJoinGap[] = [];
   const missing = maps.filter((map) => map.scriptReach?.version !== 1).length;
@@ -189,7 +194,7 @@ function contentHashIssue(file: ScriptExecutionIndex, contentHash: string): stri
 function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonly SourceCorroboration[]): ScriptUnit {
   const { text, contentHash, unmeasuredReason, ...identity } = change;
 
-  let scope: 'range' | 'line' = 'range';
+  let scope: 'range' | 'line' | 'preceding-anchor' = 'range';
 
   const unit = (execution: ScriptExecution, status: ScriptUnit['status'], why: string): ScriptUnit => {
     const entry: ScriptUnit = { ...identity, execution, status, why, level: 'warn' };
@@ -197,6 +202,10 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
     if (scope === 'line') {
       entry.executionScope = 'line';
       entry.why += '; line-scope evidence (column-zero source map)';
+    }
+    if (scope === 'preceding-anchor') {
+      entry.executionScope = scope;
+      entry.why += '; preceding-anchor evidence (nearest mapped start at or before the changed range)';
     }
 
     return entry;
@@ -222,7 +231,7 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
   scope = measured.scope;
 
   if (execution === 'unmeasured')
-    return unit(execution, 'unmeasured', 'no mapped execution anchor starts inside the changed range');
+    return unit(execution, 'unmeasured', 'no mapped execution anchor inside or at or before the changed range');
 
   if (execution === 'never-ran' || execution === 'partly-ran')
     return unit(

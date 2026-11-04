@@ -1,0 +1,989 @@
+✖ CSS template line on an unopened overlay is never-rendered (44.858917ms)
+✖ CSS template line on an executed overlay is unknown (2.356041ms)
+✖ multiline JSX text on an unopened overlay is never-rendered (1.498208ms)
+✖ multiline JSX text on an executed overlay is unknown (2.376292ms)
+✖ single-line JSX text on an unopened overlay is never-rendered (2.407375ms)
+✖ single-line JSX text on an executed overlay is unknown (1.671416ms)
+✖ hexadecimal on an unopened overlay is never-rendered (0.957917ms)
+✖ hexadecimal on an executed overlay is unknown (2.00925ms)
+✖ exponent on an unopened overlay is never-rendered (1.589708ms)
+✖ exponent on an executed overlay is unknown (2.029416ms)
+✖ separator on an unopened overlay is never-rendered (1.150625ms)
+✖ separator on an executed overlay is unknown (1.135958ms)
+✖ leading decimal on an unopened overlay is never-rendered (1.14225ms)
+✖ leading decimal on an executed overlay is unknown (1.850375ms)
+✖ binary on an unopened overlay is never-rendered (1.576667ms)
+✖ binary on an executed overlay is unknown (1.113042ms)
+✖ octal on an unopened overlay is never-rendered (1.930542ms)
+✖ octal on an executed overlay is unknown (0.59825ms)
+✖ bigint on an unopened overlay is never-rendered (1.34325ms)
+✖ bigint on an executed overlay is unknown (1.157041ms)
+✖ signed exponent on an unopened overlay is never-rendered (0.9705ms)
+✖ signed exponent on an executed overlay is unknown (3.845ms)
+✖ regex literal on an unopened overlay is never-rendered (1.305041ms)
+✖ regex literal on an executed overlay is unknown (1.578917ms)
+✖ private name on an unopened overlay is never-rendered (2.240417ms)
+✖ private name on an executed overlay is unknown (2.360916ms)
+✖ a mixed preceding anchor keeps an unopened nullish fallback flagged (0.625375ms)
+✔ preceding lookup never takes a future anchor or another source (0.2005ms)
+✖ appending a property preserves the evaluated base operand (0.159667ms)
+✖ appending a call preserves the evaluated base operand (0.3305ms)
+✖ different-chunk executed evidence cannot clear a mixed start (0.7715ms)
+✔ same-script executed evidence can clear a mixed start (0.246959ms)
+✔ division is not widened to a regex literal (0.1275ms)
+✔ a changed main operand ran even when the nullish fallback on the same line did not (2.439166ms)
+✖ an expression without its own anchor uses the nearest preceding start (0.593ms)
+✔ each changed expression can be witnessed across captures without importing unrelated branches (0.278042ms)
+✔ removed ranges use base evidence and added ranges use head evidence (0.171542ms)
+✔ an exact source range is required for rendering corroboration including on the same line (0.291375ms)
+✔ missing capture coverage stays a named run gap even with no changed units (0.113417ms)
+✔ not loaded, missing source maps and mismatched source content cannot prove execution (0.173125ms)
+✔ J2 names all five block-entry residuals and never treats their anchors as rendering proof (0.701209ms)
+✔ ordering is by source code point, side, then numeric range and independent of capture order (0.940875ms)
+✔ an enclosing mixed or idle expression does not flag its evaluated operand (0.6545ms)
+✔ column-zero line maps fall back to line evidence when the changed token has no anchor (0.385542ms)
+✔ six thousand changed lines index each source once instead of rescanning anchors per unit (20.004167ms)
+✔ missing coverage on some captures is unmeasured rather than evidence that a file was not loaded (0.164792ms)
+ℹ tests 46
+ℹ suites 0
+ℹ pass 15
+ℹ fail 31
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 254.4855
+
+✖ failing tests:
+
+test at test/script-join-round6.test.mjs:23:5
+✖ CSS template line on an unopened overlay is never-rendered (44.858917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ CSS template line on an executed overlay is unknown (2.356041ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ multiline JSX text on an unopened overlay is never-rendered (1.498208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ multiline JSX text on an executed overlay is unknown (2.376292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ single-line JSX text on an unopened overlay is never-rendered (2.407375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ single-line JSX text on an executed overlay is unknown (1.671416ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ hexadecimal on an unopened overlay is never-rendered (0.957917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ hexadecimal on an executed overlay is unknown (2.00925ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ exponent on an unopened overlay is never-rendered (1.589708ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ exponent on an executed overlay is unknown (2.029416ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ separator on an unopened overlay is never-rendered (1.150625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ separator on an executed overlay is unknown (1.135958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ leading decimal on an unopened overlay is never-rendered (1.14225ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ leading decimal on an executed overlay is unknown (1.850375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ binary on an unopened overlay is never-rendered (1.576667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ binary on an executed overlay is unknown (1.113042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ octal on an unopened overlay is never-rendered (1.930542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ octal on an executed overlay is unknown (0.59825ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ bigint on an unopened overlay is never-rendered (1.34325ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ bigint on an executed overlay is unknown (1.157041ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ signed exponent on an unopened overlay is never-rendered (0.9705ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ signed exponent on an executed overlay is unknown (3.845ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ regex literal on an unopened overlay is never-rendered (1.305041ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ regex literal on an executed overlay is unknown (1.578917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ private name on an unopened overlay is never-rendered (2.240417ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'never-rendered'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:23:5
+✖ private name on an executed overlay is unknown (2.360916ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:28:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'unmeasured' ], [ 'head', 'unmeasured' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:49:1
+✖ a mixed preceding anchor keeps an unopened nullish fallback flagged (0.625375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'ran',
+        'unknown'
+      ],
+      [
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'partly-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:52:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'ran', 'unknown' ], [ 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'ran', 'unknown' ], [ 'partly-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:66:3
+✖ appending a property preserves the evaluated base operand (0.159667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  +     'partly-ran',
+  +     'never-rendered'
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'ran',
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:71:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'partly-ran', 'never-rendered' ], [ 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'ran', 'unknown' ], [ 'ran', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:66:3
+✖ appending a call preserves the evaluated base operand (0.3305ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  +     'partly-ran',
+  +     'never-rendered'
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+  +     'partly-ran',
+  +     'never-rendered'
+  -     'ran',
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:71:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'partly-ran', 'never-rendered' ], [ 'partly-ran', 'never-rendered' ] ],
+    expected: [ [ 'ran', 'unknown' ], [ 'ran', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round6.test.mjs:79:3
+✖ different-chunk executed evidence cannot clear a mixed start (0.7715ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'ran'
+  - 'partly-ran'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:84:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ran',
+    expected: 'partly-ran',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join.test.mjs:58:1
+✖ an expression without its own anchor uses the nearest preceding start (0.593ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'unmeasured'
+  - 'ran'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join.test.mjs:61:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'unmeasured',
+    expected: 'ran',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -100,7 +100,7 @@ test('git line three maps to JavaScript line four after an earlier Unicode line 
   }
 });
 
-test('unrelated equal-count hunks and empty token sides retain line scope', () => {
+test('unrelated hunks retain line scope and empty token sides retain a touching token', () => {
   const units = changedScriptRanges(
     '@@ -1,2 +1,2 @@\n-const oldName = 1;\n-oldFunction();\n+const newName = 2;\n+newFunction();\n',
     { base: 'const oldName = 1;\noldFunction();\n', head: 'const newName = 2;\nnewFunction();\n' },
@@ -117,8 +117,8 @@ test('unrelated equal-count hunks and empty token sides retain line scope', () =
 
   assert.equal(inserted.length, 2);
   assert.equal(inserted[0].side, 'base');
-  assert.equal(inserted[0].changeScope, 'line');
-  assert.deepEqual(inserted[0].range, { start: { line: 1, column: 0 }, end: { line: 1, column: 18 } });
+  assert.equal(inserted[0].changeScope, undefined);
+  assert.deepEqual(inserted[0].range, { start: { line: 1, column: 16 }, end: { line: 1, column: 17 } });
   assert.equal(inserted[1].side, 'head');
 });
 

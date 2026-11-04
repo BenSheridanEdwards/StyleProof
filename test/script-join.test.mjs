@@ -55,15 +55,16 @@ test('a changed main operand ran even when the nullish fallback on the same line
   assert.equal(units[0].why, 'value; rendering not proved');
 });
 
-test('only evidence starting inside the changed range judges that expression', () => {
+test('an expression without its own anchor uses the nearest preceding start', () => {
   const head = [capture([[1, 0, 10]], [], { mixed: [[1, 6, 10]] })];
   const units = classify([change(4, 5), change(8, 9)], [capture()], head).units;
-  assert.equal(units[0].execution, 'unmeasured');
-  assert.equal(units[1].execution, 'unmeasured');
+  assert.equal(units[0].execution, 'ran');
+  assert.equal(units[1].execution, 'partly-ran');
   assert.deepEqual(
     units.map((unit) => unit.status),
-    ['unmeasured', 'unmeasured'],
+    ['unknown', 'never-rendered'],
   );
+  assert.ok(units.every((unit) => unit.executionScope === 'preceding-anchor'));
   const mixed = classify([change(6, 7)], [capture()], head).units[0];
   assert.equal(mixed.execution, 'partly-ran');
   assert.equal(mixed.status, 'never-rendered');

@@ -107,7 +107,7 @@ for (const [kind, long, short, longToken, shortToken] of edits) {
 }
 
 for (const reverse of [false, true]) {
-  test(`a true expression ${reverse ? 'deletion' : 'insertion'} keeps the opposite changed line`, (t) => {
+  test(`a true expression ${reverse ? 'deletion' : 'insertion'} keeps the opposite touching token`, (t) => {
     const before = reverse ? 'const value = a ?? b ?? c;' : 'const value = a ?? b;',
       after = reverse ? 'const value = a ?? b;' : 'const value = a ?? b ?? c;';
     const result = revisions(t, before, after)([capture(before, 'a')], [capture(after, 'a')]);
@@ -116,9 +116,10 @@ for (const reverse of [false, true]) {
       ['base', 'head'],
     );
     const fallback = result.changes.find((change) => change.side === (reverse ? 'head' : 'base'));
-    assert.equal(fallback.changeScope, 'line');
-    assert.equal(fallback.range.start.column, 0);
-    assert.equal(fallback.range.end.column, (reverse ? after : before).length);
+    const position = (reverse ? after : before).lastIndexOf('b');
+    assert.equal(fallback.changeScope, undefined);
+    assert.equal(fallback.range.start.column, position);
+    assert.equal(fallback.range.end.column, position + 1);
     assert.ok(result.changes.every((c) => c.range.end.column > c.range.start.column));
   });
 }

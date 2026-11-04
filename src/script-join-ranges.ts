@@ -2,11 +2,9 @@
 import { sha256 } from './node-util.js';
 import type { ScriptChange } from './script-join.js';
 import type { SourcePosition } from './script-reach.js';
+import { scriptTokens, type ScriptToken } from './script-join-tokens.js';
 
 export type ScriptTexts = { base: string; head: string };
-
-const TOKEN =
-  /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|[\p{ID_Start}_$][\p{ID_Continue}$]*|\d+(?:\.\d+)?/gu;
 
 type Source = {
   text: string;
@@ -45,14 +43,18 @@ function positionAt(source: Source, offset: number): SourcePosition {
   return { line: low + 1, column: offset - source.jsStarts[low] };
 }
 
-function tokenRange(line: string, start: number, end: number): [number, number] {
+function tokenRange(tokens: ScriptToken[], start: number, end: number): [number, number] {
+  if (start === end) {
+    const touching = tokens.find((token) => token.index <= start && start <= token.end);
+    return touching ? [touching.index, touching.end] : [start, end];
+  }
   let from = start,
     to = end;
 
-  for (const token of line.matchAll(TOKEN)) {
-    const right = token.index + token[0].length;
+  for (const token of tokens) {
+    const right = token.end;
 
-    if (start === end ? token.index < start && start < right : token.index < end && start < right) {
+    if (token.index < end && start < right) {
       from = Math.min(from, token.index);
       to = Math.max(to, right);
     }
@@ -61,15 +63,15 @@ function tokenRange(line: string, start: number, end: number): [number, number] 
   return [from, to];
 }
 
-function singleToken(text: string): boolean {
-  const tokens = [...text.matchAll(TOKEN)];
-
-  return tokens.length === 1 && tokens[0].index === 0 && tokens[0][0].length === text.length;
+function singleToken(tokens: ScriptToken[], range: [number, number]): boolean {
+  return tokens.some((token) => token.index === range[0] && token.end === range[1]);
 }
 
-/** Trim only a single related line pair; multi-line replacements have no positional pairing. */
-function changedColumns(before: string, after: string): { base: [number, number]; head: [number, number] } | undefined {
-  if (before === after) return undefined;
+function hasToken(tokens: ScriptToken[], range: [number, number]): boolean {
+  return range[0] === range[1] || tokens.some((token) => token.index < range[1] && range[0] < token.end);
+}
+
+function differingColumns(before: string, after: string): { start: number; baseEnd: number; headEnd: number } {
   let start = 0;
 
   while (start < Math.min(before.length, after.length) && before[start] === after[start]) start++;
@@ -81,25 +83,35 @@ function changedColumns(before: string, after: string): { base: [number, number]
     baseEnd--;
     headEnd--;
   }
+  return { start, baseEnd, headEnd };
+}
+
+/** Trim only a single related line pair; multi-line replacements have no positional pairing. */
+function changedColumns(before: string, after: string): { base: [number, number]; head: [number, number] } | undefined {
+  if (before === after) return undefined;
+  const { start, baseEnd, headEnd } = differingColumns(before, after);
 
   if (!before.slice(0, start).trim()) return undefined;
 
-  const [baseFrom, baseTo] = tokenRange(before, start, baseEnd),
-    [headFrom, headTo] = tokenRange(after, start, headEnd);
+  const baseTokens = scriptTokens(before),
+    headTokens = scriptTokens(after);
+  const [baseFrom, baseTo] = tokenRange(baseTokens, start, baseEnd),
+    [headFrom, headTo] = tokenRange(headTokens, start, headEnd);
   const from = Math.min(baseFrom, headFrom),
     tail = Math.min(before.length - baseTo, after.length - headTo);
   const base: [number, number] = [from, before.length - tail],
     head: [number, number] = [from, after.length - tail];
 
+  // A token touched only on its left edge belongs to that side; its unchanged
+  // suffix must not widen the opposite deletion/insertion into an idle operand.
+  if (start === baseEnd && baseFrom === start && headEnd > start) head[1] = headTo;
+  if (start === headEnd && headFrom === start && baseEnd > start) base[1] = baseTo;
+
   const insertion = start === baseEnd || start === headEnd;
 
-  if (
-    (base[0] < base[1] && !before.slice(...base).match(TOKEN)) ||
-    (head[0] < head[1] && !after.slice(...head).match(TOKEN))
-  )
-    return undefined;
+  if (!hasToken(baseTokens, base) || !hasToken(headTokens, head)) return undefined;
 
-  if (!insertion && (!singleToken(before.slice(...base)) || !singleToken(after.slice(...head)))) return undefined;
+  if (!insertion && (!singleToken(baseTokens, base) || !singleToken(headTokens, head))) return undefined;
 
   return { base, head };
 }
