@@ -28,5 +28,16 @@ export function elementChangeSignature(findings: Finding[]): string {
             ),
     )
     .sort();
-  return JSON.stringify([signatureOf(normalized), trackValues]);
+  const domIdentity = normalized
+    .filter((finding) => finding.kind === 'dom')
+    .map((finding) =>
+      JSON.stringify([
+        finding.path,
+        finding.detail ?? null,
+        finding.component?.name ?? null,
+        Object.entries(finding.component?.props ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+      ]),
+    )
+    .sort();
+  return JSON.stringify([signatureOf(normalized), trackValues, domIdentity]);
 }

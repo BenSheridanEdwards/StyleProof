@@ -86,22 +86,30 @@ the change; an overlap frame containing different changes keeps the existing
 combined layout. Folded size/position rows remain available for every element,
 even when their values differ from the representative's.
 
-In `report.json`, `surfaces[].regions[]` now describes report sections, so three
-identical element regions can become one region. Consumers must not treat region
-count as element count. `regions[].paths` includes **every element covered by the
-section**. Existing `before`, `after` and `images` fields describe its crop frame.
-Grouped sections additionally expose:
+The JSON grouping is additive. `report.json` retains `surfaces[].regions[]`
+with main's original overlap/crop-cap region count, `paths`, and `before`/`after`
+boxes. Those boxes continue to enclose their paths. Existing image/evidence
+fields still describe each region's own frame. Matching section crops are reused;
+other region crops remain available to JSON consumers, subject to the existing
+image budgets. Only the representative crops appear in the report body.
 
-- `representativePath`: the first element used for the shared property table.
-- `cropPaths`: the elements shown in the representative crop frame (several for
-  an existing overlap frame).
-- `elements`: all section elements as `{ paths, before, after }`, retaining their
-  individual padded bounds.
+The new optional `surfaces[].sections[]` describes the report layout:
 
-Use `paths` or `elements` to enumerate affected elements; use `cropPaths` to
-identify the visible example (`[]` when no crop was rendered). These optional fields do not change finding counts
-or remove the surface's existing `findings`. Mixed-change overlap regions retain
-their previous JSON shape.
+- `paths`: all elements covered by the section.
+- `regionIndexes`: zero-based indexes into the unchanged legacy `regions` list.
+  A crop-cap union can be referenced by more than one section.
+- `representativePath`, `cropPaths`, `before`, `after`, `images`, and optional
+  `stateImages`: the representative example and its crop frame, not a box
+  enclosing every section member. `cropPaths` is empty when no image rendered.
+- `elements`: members as `{ paths, before, after }`, with individual padded bounds.
+
+Folded size/position rows stay in their owning section's property details. Each
+member's rows are labelled by the same unique path tail as its element-list
+entry. Glance lines deduplicate identical property descriptions without a count;
+the section heading carries the element count. DOM identity includes retag detail
+and advisory React component names/props, so neither disappears through grouping.
+Legacy findings and counts are unchanged. Mixed-change overlap regions keep
+main's combined layout.
 
 ### A safety policy blocks
 

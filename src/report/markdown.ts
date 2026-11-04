@@ -90,9 +90,7 @@ export function propertyGlanceLine(findings: Finding[]): string {
       }
     }
   }
-  const counts = new Map<string, number>();
-  for (const part of parts) counts.set(part, (counts.get(part) ?? 0) + 1);
-  return [...counts].map(([part, count]) => (count > 1 ? `${part} ×${count}` : part)).join('<br>\n');
+  return [...new Set(parts)].join('<br>\n');
 }
 
 function propRows(rows: SummarizedProp[], added: boolean): string[][] {
@@ -263,6 +261,15 @@ export function foldedGeometryFindings(raw: Finding[], shown: Finding[]): Findin
   });
 }
 
+function foldedElementTables(findings: Finding[], labels?: ReadonlyMap<string, string>): string[] {
+  if (!labels) return renderElements(findings, 40, true);
+  return groupByPath(findings).flatMap((group) => [
+    '',
+    `**${codeValue(labels.get(group[0].path) ?? group[0].path)}**`,
+    ...renderElements(group, 40, true),
+  ]);
+}
+
 /** A crop's changes: property tables, folded under plain-English bullets once they
  *  reach `foldAt` rows (≤ 0 folds always, Infinity never), or contain folded geometry. */
 export function renderCropChanges(
@@ -270,6 +277,7 @@ export function renderCropChanges(
   foldAt: number,
   ctx: DescribeCtx,
   folded: Finding[] = [],
+  foldedLabels?: ReadonlyMap<string, string>,
 ): string[] {
   const tables = renderElements(findings);
 
@@ -278,7 +286,9 @@ export function renderCropChanges(
   const foldedCount = derivedLonghandCount(folded);
 
   if (rows < foldAt && !foldedCount) return tables;
-  const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded, 40, true)] : [];
+  const foldedTables = foldedCount
+    ? ['', 'Folded size/position rows:', ...foldedElementTables(folded, foldedLabels)]
+    : [];
   const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
 

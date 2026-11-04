@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport, generateStructuralStyleMapReportForTesting } from '../dist/report.js';
 import { elementChangeSignature } from '../dist/report/identical-elements.js';
 import { propertyGlanceLine } from '../dist/report/markdown.js';
 import { makeMap, pairFixture, rmTmp, solidPng } from './helpers.mjs';
@@ -23,6 +23,7 @@ function render({
   overlapCount = 0,
   states = false,
   maxCropFiles,
+  maxCrops = 30,
   heights,
   pathOf = elementPath,
   targetOf,
@@ -89,7 +90,7 @@ function render({
         fs.writeFileSync(`${directory}/cards@390.${state}.png`, solidPng(390, 1200));
       }
   try {
-    const result = generateStyleMapReport({ ...dirs, maxCrops: 30, maxCropFiles });
+    const result = generateStyleMapReport({ ...dirs, maxCrops, maxCropFiles });
     return {
       md: fs.readFileSync(result.reportMdPath, 'utf8'),
       json: JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')),
@@ -111,10 +112,10 @@ test('identical separated elements have one representative section, element list
   assert.match(md, /- `article:nth-child\(3\) > h2`/);
   assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1);
   const regions = json.surfaces[0].regions;
-  assert.equal(regions.length, 1);
-  assert.deepEqual(regions[0].paths, [1, 2, 3].map(elementPath));
-  assert.equal(regions[0].representativePath, elementPath(1));
-  assert.equal(regions[0].elements.length, 3);
+  assert.equal(regions.length, 3);
+  assert.deepEqual(regions[0].paths, [elementPath(1)]);
+  assert.equal(json.surfaces[0].sections[0].representativePath, elementPath(1));
+  assert.equal(json.surfaces[0].sections[0].elements.length, 3);
   assert.deepEqual(json.counts, { dom: 0, style: 3, state: 0 });
 });
 
@@ -148,11 +149,12 @@ test('element lists stay open through five, fold after five and truncate after t
   assert.match(md, /… and 2 more/);
 });
 
-test('overlap regions keep their crop and collapse identical glance lines with a count', () => {
+test('overlap regions keep their crop and collapse identical glance lines without a multiplier', () => {
   const { md, json } = render({ overlap: true });
   assert.equal(sections(md).length, 1);
   assert.equal(json.surfaces[0].regions[0].paths.length, 3);
-  assert.match(md, /`color` `#1e3c78` → `#961e3c` ×3/);
+  assert.match(md, /`color` `#1e3c78` → `#961e3c`/);
+  assert.doesNotMatch(md, /×3/);
 });
 
 test('glance collapse preserves different values and pseudo/state prefixes', () => {
@@ -165,7 +167,7 @@ test('glance collapse preserves different values and pseudo/state prefixes', () 
     }),
   ];
   assert.equal(propertyGlanceLine(findings).split('<br>\n').length, 3);
-  assert.match(propertyGlanceLine(findings), /×2/);
+  assert.doesNotMatch(propertyGlanceLine(findings), /×2/);
 });
 
 test('element identity ignores paths and property ordering but retains labels, kinds, pseudo and state targets', () => {
@@ -208,7 +210,7 @@ test('equal grid track counts with different summarized values stay separate', (
 test('a representative region preserves the existing crop budget omission field', () => {
   const { json } = render({ maxCropFiles: 0 });
   assert.equal(json.surfaces[0].regions[0].cropOmitted, 'budget');
-  assert.equal(json.surfaces[0].regions[0].elements.length, 3);
+  assert.equal(json.surfaces[0].sections[0].elements.length, 3);
 });
 
 test('folded height rows survive for every grouped element, including non-representatives', () => {
@@ -217,8 +219,8 @@ test('folded height rows survive for every grouped element, including non-repres
     [21, 22, 23],
   ]) {
     const { md } = render({ heights });
-    assert.equal(sections(md).length, 2);
-    assert.match(md, /Folded size\/position rows outside the crops/);
+    assert.equal(sections(md).length, 1);
+    assert.doesNotMatch(md, /Folded size\/position rows outside the crops/);
     assert.equal((md.match(/\| `height` \|/g) ?? []).length, heights.filter((height) => height !== 20).length);
     for (const height of heights.filter((height) => height !== 20))
       assert.ok(md.includes(`| \`20px\` | \`${height}px\` |`));
@@ -238,8 +240,8 @@ test('identical overlapping and separated regions share one counted section and 
       assert.equal(sections(md).length, 1);
       assert.match(md, /### .* · 3 elements restyled/);
       assert.equal((md.match(/^- `article:nth-child/gm) ?? []).length, 3);
-      assert.equal(json.surfaces[0].regions[0].paths.length, 3);
-      assert.equal(json.surfaces[0].regions[0].elements.length, 3);
+      assert.equal(json.surfaces[0].sections[0].paths.length, 3);
+      assert.equal(json.surfaces[0].sections[0].elements.length, 3);
       assert.equal((md.match(/\(shown\)/g) ?? []).length, options.overlap ? 3 : 2);
       if (states) assert.deepEqual(Object.keys(json.surfaces[0].regions[0].stateImages), ['hover', 'focus']);
     }
@@ -262,14 +264,120 @@ test('path tails are the shortest unique suffix across the whole element list', 
   assert.match(long, /… and 2 more/);
 });
 
-test('JSON paths retain every covered element and identify the representative separately', () => {
+test('JSON sections retain every covered element and identify the representative separately', () => {
   const { json } = render();
-  assert.deepEqual(json.surfaces[0].regions[0].paths, [1, 2, 3].map(elementPath));
-  assert.equal(json.surfaces[0].regions[0].representativePath, elementPath(1));
+  assert.deepEqual(json.surfaces[0].sections[0].paths, [1, 2, 3].map(elementPath));
+  assert.equal(json.surfaces[0].sections[0].representativePath, elementPath(1));
 });
 
 test('omitted representative crops never mark elements as shown', () => {
   const { md, json } = render({ maxCropFiles: 0 });
   assert.doesNotMatch(md, /\(shown\)|<sub>Showing/);
-  assert.deepEqual(json.surfaces[0].regions[0].cropPaths, []);
+  assert.deepEqual(json.surfaces[0].sections[0].cropPaths, []);
+});
+
+test('grouped folded rows stay inside their section and identify each element by its list tail', () => {
+  const { md } = render({ heights: [21, 22, 23] });
+  assert.equal(sections(md).length, 1);
+  assert.doesNotMatch(md, /Folded size\/position rows outside the crops/);
+  for (let index = 1; index <= 3; index++) {
+    const label = `**\`article:nth-child(${index}) > h2\`**`;
+    const start = md.indexOf(label);
+    assert.ok(start >= 0, label);
+    const end = md.indexOf('**`article:nth-child(', start + label.length);
+    const element = md.slice(start, end < 0 ? undefined : end);
+    assert.ok(element.includes(`| \`20px\` | \`${20 + index}px\` |`));
+    for (const other of [21, 22, 23].filter((height) => height !== 20 + index))
+      assert.ok(!element.includes(`| \`${other}px\` |`));
+  }
+});
+
+test('DOM grouping retains retag detail and React component identity independently', () => {
+  const dom = (index, extra = {}) => ({
+    kind: 'dom',
+    path: elementPath(index),
+    cls: 'label',
+    change: 'retagged',
+    detail: 'div → span',
+    component: { name: 'PromoLabel', props: { size: 'small' } },
+    ...extra,
+  });
+  assert.equal(signatureCount([dom(1), dom(2, { detail: 'p → span' })]), 2);
+  assert.equal(signatureCount([dom(1), dom(2, { component: { name: 'AdLabel', props: { size: 'small' } } })]), 2);
+  assert.equal(signatureCount([dom(1), dom(2, { component: { name: 'PromoLabel', props: { size: 'large' } } })]), 2);
+  assert.equal(signatureCount([dom(1), dom(2)]), 1);
+});
+
+test('legacy JSON region membership and boxes remain per original region with additive sections', () => {
+  const { json } = render();
+  const surface = json.surfaces[0];
+  assert.equal(surface.regions.length, 3);
+  for (let index = 0; index < 3; index++) {
+    assert.deepEqual(surface.regions[index].paths, [elementPath(index + 1)]);
+    assert.equal(surface.regions[index].before.y, (index + 1) * 90 - 12);
+    assert.deepEqual(surface.regions[index].before, surface.regions[index].after);
+    assert.ok(surface.regions[index].images.composite);
+    assert.match(surface.regions[index].images.composite, new RegExp(`-${index + 1}-composite`));
+  }
+  assert.equal(surface.sections.length, 1);
+  assert.deepEqual(surface.sections[0].regionIndexes, [0, 1, 2]);
+  assert.deepEqual(surface.sections[0].paths, [1, 2, 3].map(elementPath));
+});
+
+test('glance lines use no element multiplier for either separated or overlapping sections', () => {
+  const single = propertyGlanceLine([change(1)]);
+  assert.equal(propertyGlanceLine([change(1), change(2), change(3)]), single);
+  for (const overlap of [false, true]) {
+    const { md } = render({ overlap });
+    assert.doesNotMatch(md.split('Showing')[0], /×3/);
+    assert.match(md, /3 elements restyled/);
+  }
+});
+
+test('JSON retains the original crop-cap union even when a section uses a smaller representative frame', () => {
+  const { json } = render({ maxCrops: 2 });
+  const surface = json.surfaces[0];
+  assert.equal(surface.regions.length, 1);
+  assert.deepEqual(surface.regions[0].paths, [1, 2, 3].map(elementPath));
+  assert.deepEqual(surface.regions[0].before, { x: 8, y: 78, w: 204, h: 224 });
+  assert.ok(surface.regions[0].images.composite);
+  assert.deepEqual(surface.sections[0].before, { x: 8, y: 78, w: 204, h: 44 });
+  assert.deepEqual(surface.sections[0].regionIndexes, [0]);
+});
+
+test('retagged elements keep both source tags and both React components in the rendered report', () => {
+  const paths = [1, 2].map((index) => `html > body > section:nth-child(${index}) > span`);
+  const map = (after) =>
+    makeMap({
+      elements: Object.fromEntries(
+        paths.map((path, index) => [
+          path,
+          {
+            tag: after ? 'span' : index === 0 ? 'div' : 'p',
+            cls: 'label',
+            rect: [20, 100 + index * 200, 100, 20],
+            style: {},
+            ...(after ? { component: { name: index === 0 ? 'PromoLabel' : 'AdLabel' } } : {}),
+          },
+        ]),
+      ),
+    });
+  const dirs = pairFixture({
+    surface: 'labels@390',
+    before: map(false),
+    after: map(true),
+    beforePng: solidPng(390, 800),
+    afterPng: solidPng(390, 800),
+  });
+  try {
+    const result = generateStructuralStyleMapReportForTesting(dirs);
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.equal(sections(md).length, 2);
+    assert.ok(md.includes('&lt;div&gt; → &lt;span&gt;'));
+    assert.ok(md.includes('&lt;p&gt; → &lt;span&gt;'));
+    assert.ok(md.includes('React component: `PromoLabel`'));
+    assert.ok(md.includes('React component: `AdLabel`'));
+  } finally {
+    rmTmp(dirs.root);
+  }
 });
