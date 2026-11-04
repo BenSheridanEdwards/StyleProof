@@ -368,7 +368,7 @@ test('generated UTF-8 size is measured once during a large mapping', () => {
   assert.equal(measurements, 1);
 });
 
-test('a mapping start keeps its entered or idle block when the generated segment crosses a branch boundary', () => {
+test('an entered operand keeps its state while an idle operand with an unanchored continuation stays mixed', () => {
   const text = 'a ?? b;';
   const [file] = mapScriptCoverage(
     coverage(text, [{ startOffset: 2, endOffset: 6, count: 0 }]),
@@ -377,6 +377,28 @@ test('a mapping start keeps its entered or idle block when the generated segment
     'https://app.test/a.map',
   );
   assert.deepEqual(file.executed, [span(1, 0)]);
-  assert.deepEqual(file.unexecuted, [span(1, 5)]);
-  assert.deepEqual(file.mixed, []);
+  assert.deepEqual(file.unexecuted, []);
+  assert.deepEqual(file.mixed, [span(1, 5)]);
+});
+
+test('a distant same-counter anchor cannot clear an unanchored resumed interval', () => {
+  const text = '0123456789';
+  const [file] = mapScriptCoverage(
+    {
+      functions: [
+        {
+          ranges: [
+            { startOffset: 0, endOffset: 10, count: 0 },
+            { startOffset: 2, endOffset: 4, count: 1 },
+          ],
+        },
+      ],
+    },
+    text,
+    map('AAAA,EAAE', undefined, [text]),
+    'https://app.test/a.map',
+  );
+  assert.deepEqual(file.executed, []);
+  assert.deepEqual(file.unexecuted, [span(1, 0)]);
+  assert.deepEqual(file.mixed, [span(1, 2)]);
 });

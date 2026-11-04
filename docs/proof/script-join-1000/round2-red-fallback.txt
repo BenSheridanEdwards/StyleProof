@@ -1,0 +1,36 @@
+  1) [chromium] › test/script-join-qa.e2e.spec.ts:16:3 › J2 judges the unopened nullish fallback from real source-mapped Chromium evidence
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+        Array [
+          "base",
+    -     "never-ran",
+    +     "partly-ran",
+          "never-rendered",
+        ],
+        Array [
+          "head",
+    -     "never-ran",
+    +     "partly-ran",
+          "never-rendered",
+        ],
+      ]
+
+      60 |     const changes = changedScriptRanges(`@@ -1 +1 @@\n-${texts.base}\n+${texts.head}\n`, texts, 'app.js');
+      61 |     const result = classifyScriptReach([captures[0]], [captures[1]], changes);
+    > 62 |     expect(result.units.map((unit) => [unit.side, unit.execution, unit.status])).toEqual([
+         |                                                                                  ^
+      63 |       ['base', execution, status],
+      64 |       ['head', execution, status],
+      65 |     ]);
+        at <checkout>/test/script-join-qa.e2e.spec.ts:62:82
+
+    Error Context: test-results/test-script-join-qa.e2e-J2-e1cf0-ce-mapped-Chromium-evidence-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/script-join-qa.e2e.spec.ts:16:3 › J2 judges the unopened nullish fallback from real source-mapped Chromium evidence
+  33 passed (35.8s)

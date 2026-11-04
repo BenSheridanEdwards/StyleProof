@@ -129,7 +129,9 @@ function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
   const line = headLine ?? baseLine;
 
   const changes = changedScriptRanges(
-    `@@ -${baseLine ?? 0},${baseLine ? 1 : 0} +${headLine ?? 0},${headLine ? 1 : 0} @@`,
+    `@@ -${baseLine ?? 0},${baseLine ? 1 : 0} +${headLine ?? 0},${headLine ? 1 : 0} @@\n` +
+      (baseLine ? `-${sourceLines.base[baseLine - 1]}\n` : '') +
+      (headLine ? `+${sourceLines.head[headLine - 1]}\n` : ''),
     { base: sourceLines.base.join('\n'), head: sourceLines.head.join('\n') },
     'app.jsx',
   );

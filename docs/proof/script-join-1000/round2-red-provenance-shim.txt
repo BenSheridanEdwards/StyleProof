@@ -1,0 +1,22 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: test/script-join-round2.e2e.spec.ts >> one runner resolves provenance once across surfaces and their self-check pages
+- Location: test/script-join-round2.e2e.spec.ts:63:1
+
+# Error details
+
+```
+Error: ENOENT: no such file or directory, open '<checkout>/test-results/test-script-join-round2.e2-ef0ba--and-their-self-check-pages-chromium/repository/calls.jsonl'
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]: healthy
+```

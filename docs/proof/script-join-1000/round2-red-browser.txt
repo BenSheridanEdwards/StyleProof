@@ -1,0 +1,73 @@
+Already up to date
+Done in 39ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:29816) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/script-join-round2.e2e.spec.ts:12:1 › Chromium cheap maps retain an unanchored ternary branch for whole-line and token changes (186ms)
+(node:29832) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: surface 1/1 (first@800) captured in 2.5s (self-check 0.7s)
+styleproof: surface 1/1 (second@800) captured in 1.9s (self-check 1.0s)
+  ✘  2 [chromium] › test/script-join-round2.e2e.spec.ts:30:1 › one runner resolves provenance once across surfaces and their self-check pages (4.5s)
+
+
+  1) [chromium] › test/script-join-round2.e2e.spec.ts:12:1 › Chromium cheap maps retain an unanchored ternary branch for whole-line and token changes
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 5
+
+      Array [
+        Array [
+    -     "partly-ran",
+    -     "never-rendered",
+    -     "line",
+    +     "ran",
+    +     "unknown",
+    +     undefined,
+        ],
+        Array [
+    -     "partly-ran",
+    -     "never-rendered",
+    +     "ran",
+    +     "unknown",
+          "line",
+        ],
+      ]
+
+      24 |     const start = text.indexOf("'red'");
+      25 |     const changes = [[0, text.length], [start, start + 5]].map(([from, to]) => ({ sourceKey: 'app.js', side: 'head' as const, range: { start: { line: 1, column: from }, end: { line: 1, column: to } }, contentHash: sha256(text), text }));
+    > 26 |     expect(classifyScriptReach([captured], [captured], changes).units.map((unit) => [unit.execution, unit.status, unit.executionScope])).toEqual([['partly-ran', 'never-rendered', 'line'], ['partly-ran', 'never-rendered', 'line']]);
+         |                                                                                                                                          ^
+      27 |   } finally { await tracker.dispose(); }
+      28 | });
+      29 |
+        at <checkout>/test/script-join-round2.e2e.spec.ts:26:138
+
+    Error Context: test-results/test-script-join-round2.e2-94b39-hole-line-and-token-changes-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round2.e2e.spec.ts:30:1 › one runner resolves provenance once across surfaces and their self-check pages
+
+    Error: expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 3
+    Received array:  [["rev-parse", "--show-toplevel"], ["rev-parse", "--show-toplevel"], ["rev-parse", "--show-toplevel"]]
+
+      47 |     for (const key of ['first', 'second']) await captureSurface(page, { key, go: async () => { await page.goto('https://root.test/'); } }, 800, settings, { index: 1, total: 1 });
+      48 |     const calls = fs.readFileSync(log, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+    > 49 |     expect(calls.filter((args) => args.join(' ') === 'rev-parse --show-toplevel')).toHaveLength(1);
+         |                                                                                    ^
+      50 |   } finally { process.env.PATH = previous; }
+      51 | });
+      52 |
+        at <checkout>/test/script-join-round2.e2e.spec.ts:49:84
+
+    Error Context: test-results/test-script-join-round2.e2-ef0ba--and-their-self-check-pages-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-round2.e2e.spec.ts:12:1 › Chromium cheap maps retain an unanchored ternary branch for whole-line and token changes
+    [chromium] › test/script-join-round2.e2e.spec.ts:30:1 › one runner resolves provenance once across surfaces and their self-check pages

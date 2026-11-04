@@ -1,0 +1,311 @@
+Already up to date
+Done in 154ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/script-reach-anchors.test.mjs
+TAP version 13
+# Subtest: nonmonotonic mappings can never interpolate executed extents
+ok 1 - nonmonotonic mappings can never interpolate executed extents
+  ---
+  duration_ms: 13.911041
+  type: 'test'
+  ...
+# Subtest: minifier-removed DEBUG branch has no executed extent
+ok 2 - minifier-removed DEBUG branch has no executed extent
+  ---
+  duration_ms: 13.055834
+  type: 'test'
+  ...
+# Subtest: repeated original starts aggregate states: AAAA,KAAA
+ok 3 - repeated original starts aggregate states: AAAA,KAAA
+  ---
+  duration_ms: 0.271709
+  type: 'test'
+  ...
+# Subtest: repeated original starts aggregate states: AAAA,KAAK,KAAL
+ok 4 - repeated original starts aggregate states: AAAA,KAAK,KAAL
+  ---
+  duration_ms: 0.140375
+  type: 'test'
+  ...
+# Subtest: repeated original starts aggregate states: AAAA,KAAK,KAAL,KAAM
+ok 5 - repeated original starts aggregate states: AAAA,KAAK,KAAL,KAAM
+  ---
+  duration_ms: 0.145958
+  type: 'test'
+  ...
+# Subtest: compact storage preserves three distinct same-kind anchors
+ok 6 - compact storage preserves three distinct same-kind anchors
+  ---
+  duration_ms: 0.140375
+  type: 'test'
+  ...
+# Subtest: monorepo and nested src keys retain their complete project paths
+ok 7 - monorepo and nested src keys retain their complete project paths
+  ---
+  duration_ms: 0.175
+  type: 'test'
+  ...
+# Subtest: file sources and sourceRoot resolve relative to each capture project root
+ok 8 - file sources and sourceRoot resolve relative to each capture project root
+  ---
+  duration_ms: 0.337666
+  type: 'test'
+  ...
+# Subtest: relative HTTP sources retain the resolved pathname
+ok 9 - relative HTTP sources retain the resolved pathname
+  ---
+  duration_ms: 0.259084
+  type: 'test'
+  ...
+# Subtest: sources outside the capture project are refused
+ok 10 - sources outside the capture project are refused
+  ---
+  duration_ms: 0.4115
+  type: 'test'
+  ...
+# Subtest: colliding source identities are refused rather than merged
+ok 11 - colliding source identities are refused rather than merged
+  ---
+  duration_ms: 0.1025
+  type: 'test'
+  ...
+# Subtest: the file-spoof regression is privacy-clean once tracked
+ok 12 - the file-spoof regression is privacy-clean once tracked
+  ---
+  duration_ms: 0.371917
+  type: 'test'
+  ...
+# Subtest: vendor mappings do not consume the app segment cap
+ok 13 - vendor mappings do not consume the app segment cap
+  ---
+  duration_ms: 78.675166
+  type: 'test'
+  ...
+# Subtest: generated line separator "\\r\\n" preserves V8 offsets
+ok 14 - generated line separator "\\r\\n" preserves V8 offsets
+  ---
+  duration_ms: 0.282667
+  type: 'test'
+  ...
+# Subtest: generated line separator "
+" preserves V8 offsets
+ok 15 - generated line separator "
+" preserves V8 offsets
+  ---
+  duration_ms: 0.128375
+  type: 'test'
+  ...
+# Subtest: generated line separator "
+" preserves V8 offsets
+ok 16 - generated line separator "
+" preserves V8 offsets
+  ---
+  duration_ms: 0.13025
+  type: 'test'
+  ...
+# Subtest: generated line separator "\\r" preserves V8 offsets
+ok 17 - generated line separator "\\r" preserves V8 offsets
+  ---
+  duration_ms: 0.105167
+  type: 'test'
+  ...
+# Subtest: collision detection precedes per-script compaction limits
+ok 18 - collision detection precedes per-script compaction limits
+  ---
+  duration_ms: 11.992542
+  type: 'test'
+  ...
+# Subtest: bundler URLs contribute paths without query or fragment
+ok 19 - bundler URLs contribute paths without query or fragment
+  ---
+  duration_ms: 0.14725
+  type: 'test'
+  ...
+# Subtest: URL paths decode once and agree with filesystem source keys
+ok 20 - URL paths decode once and agree with filesystem source keys
+  ---
+  duration_ms: 0.12825
+  type: 'test'
+  ...
+# Subtest: sourceRoot and relative sources resolve together before extracting URI paths
+ok 21 - sourceRoot and relative sources resolve together before extracting URI paths
+  ---
+  duration_ms: 2.761084
+  type: 'test'
+  ...
+# Subtest: fragment-only source references resolve against the map URL itself
+ok 22 - fragment-only source references resolve against the map URL itself
+  ---
+  duration_ms: 0.095333
+  type: 'test'
+  ...
+# Subtest: rooted Windows paths cannot become relative HTTP source keys
+ok 23 - rooted Windows paths cannot become relative HTTP source keys
+  ---
+  duration_ms: 0.262667
+  type: 'test'
+  ...
+# Subtest: filesystem URL sources validate the capture root: http://dev.test/@fs
+ok 24 - filesystem URL sources validate the capture root: http://dev.test/@fs
+  ---
+  duration_ms: 0.121584
+  type: 'test'
+  ...
+# Subtest: filesystem URL sources validate the capture root: http://dev.test
+ok 25 - filesystem URL sources validate the capture root: http://dev.test
+  ---
+  duration_ms: 0.121167
+  type: 'test'
+  ...
+# Subtest: Vite filesystem sources have the same keys in two checkouts
+ok 26 - Vite filesystem sources have the same keys in two checkouts
+  ---
+  duration_ms: 0.105
+  type: 'test'
+  ...
+# Subtest: webpack ignored module sources are non-app
+ok 27 - webpack ignored module sources are non-app
+  ---
+  duration_ms: 0.041792
+  type: 'test'
+  ...
+# Subtest: compaction preserves distinct point anchors even inside another range
+ok 28 - compaction preserves distinct point anchors even inside another range
+  ---
+  duration_ms: 0.053542
+  type: 'test'
+  ...
+# Subtest: absolute empty-host bundler sources validate the opt checkout root
+ok 29 - absolute empty-host bundler sources validate the opt checkout root
+  ---
+  duration_ms: 0.104291
+  type: 'test'
+  ...
+# Subtest: absolute empty-host bundler sources validate the builds checkout root
+ok 30 - absolute empty-host bundler sources validate the builds checkout root
+  ---
+  duration_ms: 0.142959
+  type: 'test'
+  ...
+# Subtest: absolute empty-host bundler sources validate the var checkout root
+ok 31 - absolute empty-host bundler sources validate the var checkout root
+  ---
+  duration_ms: 0.117709
+  type: 'test'
+  ...
+# Subtest: absolute empty-host bundler sources validate the app checkout root
+ok 32 - absolute empty-host bundler sources validate the app checkout root
+  ---
+  duration_ms: 0.085459
+  type: 'test'
+  ...
+# Subtest: explicit dot-relative bundler sources and parent home directories stay project-relative
+ok 33 - explicit dot-relative bundler sources and parent home directories stay project-relative
+  ---
+  duration_ms: 0.060458
+  type: 'test'
+  ...
+# Subtest: ignored webpack mappings cannot consume the app segment budget
+ok 34 - ignored webpack mappings cannot consume the app segment budget
+  ---
+  duration_ms: 97.71675
+  type: 'test'
+  ...
+# Subtest: empty-host foo source paths validate the filesystem project root
+ok 35 - empty-host foo source paths validate the filesystem project root
+  ---
+  duration_ms: 1.290916
+  type: 'test'
+  ...
+# Subtest: empty-host turbopack source paths validate the filesystem project root
+ok 36 - empty-host turbopack source paths validate the filesystem project root
+  ---
+  duration_ms: 0.069958
+  type: 'test'
+  ...
+# Subtest: source URL traversal cannot be clipped above its root: webpack://_N_E/../shared/x.ts
+ok 37 - source URL traversal cannot be clipped above its root: webpack://_N_E/../shared/x.ts
+  ---
+  duration_ms: 0.077292
+  type: 'test'
+  ...
+# Subtest: source URL traversal cannot be clipped above its root: webpack:///../home/Home.tsx
+ok 38 - source URL traversal cannot be clipped above its root: webpack:///../home/Home.tsx
+  ---
+  duration_ms: 0.032417
+  type: 'test'
+  ...
+# Subtest: source URL traversal cannot be clipped above its root: ../../../../shared/x.ts
+ok 39 - source URL traversal cannot be clipped above its root: ../../../../shared/x.ts
+  ---
+  duration_ms: 0.065375
+  type: 'test'
+  ...
+# Subtest: generated UTF-8 size is measured once during a large mapping
+ok 40 - generated UTF-8 size is measured once during a large mapping
+  ---
+  duration_ms: 36.178792
+  type: 'test'
+  ...
+# Subtest: a mapping start keeps its entered or idle block when the generated segment crosses a branch boundary
+ok 41 - a mapping start keeps its entered or idle block when the generated segment crosses a branch boundary
+  ---
+  duration_ms: 0.240541
+  type: 'test'
+  ...
+# Subtest: a distant same-counter anchor cannot clear an unanchored resumed interval
+not ok 42 - a distant same-counter anchor cannot clear an unanchored resumed interval
+  ---
+  duration_ms: 4.5655
+  type: 'test'
+  location: '<checkout>/test/script-reach-anchors.test.mjs:385:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+    + [
+    +   {
+    +     end: {
+    +       column: 2,
+    +       line: 1
+    +     },
+    +     start: {
+    +       column: 2,
+    +       line: 1
+    +     }
+    +   }
+    + ]
+    - []
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      start:
+        line: 1
+        column: 2
+      end:
+        line: 1
+        column: 2
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-reach-anchors.test.mjs:393:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..42
+# tests 42
+# suites 0
+# pass 41
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 527.005917
+[ELIFECYCLE] Command failed with exit code 1.

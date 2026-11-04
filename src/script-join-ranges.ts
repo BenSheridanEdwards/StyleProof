@@ -96,7 +96,7 @@ function changedLine(
   const text = source.lines[gitLine - 1] ?? '';
   const [start, end] = columns ?? [0, text.length];
 
-  if (start === end) return [];
+  if (columns && start === end) return [];
   const offset = source.gitStarts[gitLine - 1];
 
   return [
@@ -106,34 +106,49 @@ function changedLine(
       range: { start: positionAt(source, offset + start), end: positionAt(source, offset + end) },
       contentHash: source.hash,
       text,
+      ...(columns ? {} : { changeScope: 'line' as const }),
     },
   ];
 }
 
-function hunkChanges(
-  hunk: RegExpMatchArray,
-  sources: { base: Source; head: Source },
-  sourceKey: string,
-): ScriptChange[] {
-  const starts = { base: +hunk[1], head: +hunk[3] };
-  const counts = { base: hunk[2] === undefined ? 1 : +hunk[2], head: hunk[4] === undefined ? 1 : +hunk[4] };
+type ChangedLines = { base: number[]; head: number[] };
 
+function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source }, sourceKey: string): ScriptChange[] {
   const columns =
-    counts.base === 1 && counts.head === 1
-      ? changedColumns(sources.base.lines[starts.base - 1] ?? '', sources.head.lines[starts.head - 1] ?? '')
+    lines.base.length === 1 && lines.head.length === 1
+      ? changedColumns(sources.base.lines[lines.base[0] - 1] ?? '', sources.head.lines[lines.head[0] - 1] ?? '')
       : undefined;
-
   return (['base', 'head'] as const).flatMap((side) =>
-    Array.from({ length: counts[side] }, (_, index) => starts[side] + index).flatMap((line) =>
-      changedLine(sources[side], line, columns?.[side], sourceKey, side),
-    ),
+    lines[side].flatMap((line) => changedLine(sources[side], line, columns?.[side], sourceKey, side)),
   );
 }
 
+/** Read +/- body lines. Header counts include context and never grant attribution themselves. */
 export function changedScriptRanges(patch: string, texts: ScriptTexts, sourceKey: string): ScriptChange[] {
   const sources = { base: sourceOf(texts.base), head: sourceOf(texts.head) };
-
-  return [...patch.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm)].flatMap((hunk) =>
-    hunkChanges(hunk, sources, sourceKey),
-  );
+  const changes: ScriptChange[] = [];
+  let position: { base: number; head: number } | undefined;
+  let block: ChangedLines = { base: [], head: [] };
+  const flush = () => {
+    changes.push(...blockChanges(block, sources, sourceKey));
+    block = { base: [], head: [] };
+  };
+  for (const line of patch.split('\n')) {
+    const header = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (header) {
+      flush();
+      position = { base: +header[1], head: +header[2] };
+    } else if (position && line.startsWith('-')) block.base.push(position.base++);
+    else if (position && line.startsWith('+')) block.head.push(position.head++);
+    else if (position && line.startsWith(' ')) {
+      flush();
+      position.base++;
+      position.head++;
+    } else if (!line.startsWith('\\')) {
+      flush();
+      position = undefined;
+    }
+  }
+  flush();
+  return changes;
 }

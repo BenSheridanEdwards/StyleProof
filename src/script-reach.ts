@@ -269,13 +269,22 @@ function popRange(heap: number[], less: (a: number, b: number) => boolean): void
 }
 
 function segmentExecutions(segments: Segment[], runs: ExecutionRun[]): ExecutionKind[] {
+  const anchored = new Set<number>();
   let index = 0;
+  for (const segment of segments) {
+    while (index < runs.length && runs[index].end <= segment.offset) index++;
+    if (index < runs.length && runs[index].start <= segment.offset) anchored.add(index);
+  }
+  index = 0;
   return segments.map((segment) => {
     while (index < runs.length && runs[index].end <= segment.offset) index++;
     const run = runs[index];
-    // Source-map starts are anchors. Following generated punctuation or branches
-    // cannot change whether the block containing this start was entered.
-    return run && run.start <= segment.offset && segment.offset < run.end ? run.kind : 'unexecuted';
+    const kind = run && run.start <= segment.offset ? run.kind : 'unexecuted';
+    // Keep entry state when another mapping start represents the other run
+    // (a ?? b). A hidden run with no start makes a coarse mapping mixed.
+    for (let cursor = index; cursor < runs.length && runs[cursor].start < segment.end; cursor++)
+      if (runs[cursor].kind !== kind && !anchored.has(cursor)) return 'mixed';
+    return kind;
   });
 }
 
@@ -335,7 +344,7 @@ function ensureSourceFile(
 
 /**
  * Each generated segment contributes one original start anchor. No original extent is inferred.
- * Conflicting states at a repeated original start contribute mixed evidence; segment ends supply no entry evidence.
+ * Unanchored state changes inside a generated extent, or conflicting states at repeated original starts, are mixed.
  */
 export function mapScriptCoverage(
   entry: BinaryScriptCoverage,

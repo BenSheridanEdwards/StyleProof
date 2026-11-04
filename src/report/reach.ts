@@ -1,8 +1,9 @@
+import { scriptUnitRanges } from './script-units.js';
 import { readScriptChanges, type ScriptChanges } from '../script-join-git.js';
 import {
   classifyScriptReach,
   scriptJoinGap,
-  compareScriptRanges,
+  compareSourceKeys,
   type ScriptJoinGap,
   type ScriptUnit,
 } from '../script-join.js';
@@ -35,7 +36,7 @@ export type ReportReach = {
   rules: RuleReach[];
   unreadableSheets: number;
   /** J2 findings always stay warn-only, independently of J1 counts and blocking. */
-  scripts: ScriptUnit[];
+  scripts: (ScriptUnit & { count?: number })[];
   scriptCounts: Record<ScriptUnit['status'], number>;
   gaps: ReachGap[];
 };
@@ -54,7 +55,9 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
       'recapture with `captureReach`',
     );
   }
-  const reasons = [...new Set(maps.flatMap((map) => (map.reach?.unknown ? [map.reach.unknown] : [])))].sort();
+  const reasons = [...new Set(maps.flatMap((map) => (map.reach?.unknown ? [map.reach.unknown] : [])))].sort(
+    compareSourceKeys,
+  );
   for (const reason of reasons) {
     const count = maps.filter((map) => map.reach?.unknown === reason).length;
     add(
@@ -102,7 +105,7 @@ export function assessReachMaps(
 
   const gaps: ReachGap[] = [...ledgerGaps(base, 'base'), ...ledgerGaps(head, 'head'), ...script.gaps, ...diff.gaps];
 
-  if (result.ledger !== 'complete' && gaps.length === 0) {
+  if (result.ledger !== 'complete' && !gaps.some((gap) => gap.kind === 'ledger')) {
     gaps.push({
       join: 'J1',
       status: 'unknown',
@@ -308,7 +311,7 @@ function scriptSummary(reach: ReportReach): string {
   const gaps = reach.gaps.filter((gap) => gap.join === 'J2').length;
   const statuses = ['reached', 'never-rendered', 'unmeasured', 'unknown'] as const;
 
-  return `; J2: ${statuses.map((status) => `${scripts.filter((unit) => unit.status === status).length} ${status}`).join(', ')}, ${gaps} run-level gap(s) (warn-only)`;
+  return `; J2: ${statuses.map((status) => `${reach.scriptCounts?.[status] ?? scripts.filter((unit) => unit.status === status).reduce((sum, unit) => sum + (unit.count ?? 1), 0)} ${status}`).join(', ')}, ${gaps} run-level gap(s) (warn-only)`;
 }
 
 function scriptStripLines(reach: ReportReach): string[] {
@@ -333,7 +336,7 @@ function scriptSectionLines(reach: ReportReach): string[] {
 
   let budget = 100;
   for (const status of ['never-rendered', 'unmeasured', 'unknown', 'reached'] as const) {
-    const ranges = scriptTableRanges(units.filter((unit) => unit.status === status));
+    const ranges = scriptUnitRanges(units.filter((unit) => unit.status === status));
     const group = ranges.slice(0, budget);
     budget -= group.length;
     const hidden = ranges.slice(group.length);
@@ -353,7 +356,7 @@ function scriptSectionLines(reach: ReportReach): string[] {
     if (hidden.length)
       lines.push(
         '',
-        `+${hidden.length} more changed range(s), ${hidden.reduce((sum, range) => sum + range.count, 0)} unit(s); full list in report.json under \`reach.scripts\`.`,
+        `+${hidden.length} more changed range(s), ${hidden.reduce((sum, range) => sum + range.count, 0)} unit(s); report.json retains bounded J2 detail and full status counts.`,
       );
   }
 
@@ -366,28 +369,4 @@ function scriptSectionLines(reach: ReportReach): string[] {
     );
 
   return lines;
-}
-
-type ScriptTableRange = ScriptUnit & { count: number };
-function adjacentScriptUnits(previous: ScriptTableRange, next: ScriptUnit): boolean {
-  return (
-    previous.sourceKey === next.sourceKey &&
-    previous.side === next.side &&
-    previous.status === next.status &&
-    previous.why === next.why &&
-    previous.execution === next.execution &&
-    previous.executionScope === next.executionScope &&
-    previous.range.end.line + 1 === next.range.start.line
-  );
-}
-function scriptTableRanges(units: ScriptUnit[]): ScriptTableRange[] {
-  const ranges: ScriptTableRange[] = [];
-  for (const unit of [...units].sort(compareScriptRanges)) {
-    const previous = ranges.at(-1);
-    if (previous && adjacentScriptUnits(previous, unit)) {
-      previous.range.end = { ...unit.range.end };
-      previous.count++;
-    } else ranges.push({ ...unit, range: { start: { ...unit.range.start }, end: { ...unit.range.end } }, count: 1 });
-  }
-  return ranges;
 }

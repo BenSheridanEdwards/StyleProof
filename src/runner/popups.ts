@@ -138,7 +138,7 @@ async function assertPopupDeterministic(
   first: StyleMap,
 ): Promise<string[] | undefined> {
   const scriptReach = run.s.captureScriptReach
-    ? await trackScriptReach(run.page, { projectRoot: run.s.projectRoot })
+    ? await trackScriptReach(run.page, { projectRoot: run.s.projectRoot, projectRootPrefix: run.s.projectRootPrefix })
     : undefined;
   try {
     const reopened = await openPopupCandidate(
@@ -178,7 +178,9 @@ async function capturePopupCandidate(run: PopupRun, candidate: PopupCandidate): 
   const skip = (reason: string): void => {
     warn(`styleproof: skipped ${surface.key}-${popupId}@${run.viewport.width} — ${reason}`);
   };
-  const scriptReach = s.captureScriptReach ? await trackScriptReach(page, { projectRoot: s.projectRoot }) : undefined;
+  const scriptReach = s.captureScriptReach
+    ? await trackScriptReach(page, { projectRoot: s.projectRoot, projectRootPrefix: s.projectRootPrefix })
+    : undefined;
   try {
     const opened = await openPopupCandidate(
       page,

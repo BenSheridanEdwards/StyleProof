@@ -712,9 +712,9 @@ build; missing maps read `unmeasured`. The window runs from navigation through
 the map read, so transient loading branches count as executed. Execution alone
 does not prove a value rendered. J2 joins changed script ranges against the actual base
 and head map manifests' SHAs, including a reused ancestor baseline. Removed ranges
-use base evidence; added ranges use head evidence. The report names execution, source file, line, side and reason under `reach.scripts`. Markdown and HTML merge adjacent equal findings and show at most 100 table rows, retaining the full source units in JSON. Executed values stay `unknown` without exact-range J1/J3 rendering proof;
+use base evidence; added ranges use head evidence. The report names execution, source file, line, side and reason under `reach.scripts`. Markdown and HTML merge only adjacent whole-line findings and show at most 100 table rows. JSON retains bounded J2 detail with full status counts. Executed values stay `unknown` without exact-range J1/J3 rendering proof;
 never/partly run expressions are `never-rendered`. Missing maps, hashes, git or SHAs
-stay `unmeasured`. J2 is always warn-only, including under `changeReach: 'gate'`,
+stay `unmeasured`. Coarse mappings retain mixed evidence for hidden branch states; empty changed lines stay unmeasured. JSON gives style findings priority, compacts only whole-line units and names any J2 detail truncation. J2 is always warn-only, including under `changeReach: 'gate'`,
 and its unresolved units or gaps prevent reach-complete. Every changed path J2 does not judge is listed as a run-level gap, including unsupported templates and files without text hunks. Comparison uses the root prefix recorded by capture; missing or mismatched provenance stays unmeasured. J3 class-list deltas remain unbuilt. See [script evidence](docs/REFERENCE.md#script-execution-evidence-j2). The
 [Change Reach 0.2 receipt](bench/REACH-0.2.md) records capture cost and a limited
 six-PR noise replay, with its exclusions and labelling limits.

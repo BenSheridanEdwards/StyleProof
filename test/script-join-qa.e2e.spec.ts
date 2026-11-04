@@ -11,7 +11,8 @@ for (const [name, expression, from, to, execution, status] of [
   ['evaluated nullish operand', 'a ?? b', 'a ?? b', 'c ?? b', 'ran', 'unknown'],
   ['selected ternary arm', 'a ? a : b', '? a', '? c', 'ran', 'unknown'],
   ['selected ternary alternative', 'window.input ? b : a', ': a', ': c', 'ran', 'unknown'],
-  ['unopened nullish fallback', 'a ?? b', '?? b', '?? c', 'never-ran', 'never-rendered'],
+  // Its generated extent includes an executed continuation without a mapping start.
+  ['unopened nullish fallback', 'a ?? b', '?? b', '?? c', 'partly-ran', 'never-rendered'],
 ] as const) {
   test(`J2 judges the ${name} from real source-mapped Chromium evidence`, async ({ context }, testInfo) => {
     const repository = testInfo.outputPath('repository');
@@ -57,7 +58,7 @@ for (const [name, expression, from, to, execution, status] of [
     }
 
     expect(captures.map((capture) => capture.scriptReach?.projectRootPrefix)).toEqual(['packages/app', 'packages/app']);
-    const changes = changedScriptRanges('@@ -1 +1 @@', texts, 'app.js');
+    const changes = changedScriptRanges(`@@ -1 +1 @@\n-${texts.base}\n+${texts.head}\n`, texts, 'app.js');
     const result = classifyScriptReach([captures[0]], [captures[1]], changes);
     expect(result.units.map((unit) => [unit.side, unit.execution, unit.status])).toEqual([
       ['base', execution, status],

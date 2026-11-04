@@ -1,0 +1,3043 @@
+{
+  "gateMode": "certify",
+  "counts": {
+    "dom": 0,
+    "style": 20,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 20,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 20,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 20,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 20,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 1,
+    "reviewableChangedSurfaces": 1,
+    "hasReviewableEvidence": true,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "liveTextFreezeViolated": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 1,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "unproven",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 0,
+      "incomparable": 0,
+      "unproven": 1,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@1280",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "baselineFailures": [],
+  "partialBaseline": false,
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [
+    {
+      "surfaces": [
+        "home@1280"
+      ],
+      "representative": "home@1280",
+      "regions": [
+        {
+          "paths": [
+            "body > div:nth-child(1)",
+            "body > div:nth-child(2)",
+            "body > div:nth-child(3)",
+            "body > div:nth-child(4)",
+            "body > div:nth-child(5)",
+            "body > div:nth-child(6)",
+            "body > div:nth-child(7)",
+            "body > div:nth-child(10)",
+            "body > div:nth-child(11)",
+            "body > div:nth-child(12)",
+            "body > div:nth-child(13)",
+            "body > div:nth-child(14)",
+            "body > div:nth-child(15)",
+            "body > div:nth-child(16)",
+            "body > div:nth-child(17)",
+            "body > div:nth-child(18)",
+            "body > div:nth-child(19)",
+            "body > div:nth-child(20)",
+            "body > div:nth-child(8)",
+            "body > div:nth-child(9)"
+          ],
+          "before": {
+            "x": -12,
+            "y": -12,
+            "w": 34,
+            "h": 224
+          },
+          "after": {
+            "x": -12,
+            "y": -12,
+            "w": 34,
+            "h": 224
+          },
+          "images": {}
+        }
+      ],
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(1)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(10)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(11)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(12)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(13)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(14)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(15)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(16)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(17)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(18)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(19)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(2)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(20)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(3)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(5)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(6)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(7)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(8)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(9)",
+          "cls": "",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "red",
+              "after": "blue"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        }
+      ],
+      "classification": "changed"
+    }
+  ],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 1
+    },
+    "completeness": "complete"
+  },
+  "digest": [
+    {
+      "surface": "home@1280",
+      "status": "changed",
+      "elements": [
+        {
+          "name": "div",
+          "phrase": "text red → blue"
+        },
+        {
+          "name": "div",
+          "phrase": "text red → blue"
+        },
+        {
+          "name": "div",
+          "phrase": "text red → blue"
+        }
+      ],
+      "more": 17
+    }
+  ],
+  "reach": {
+    "level": "warn",
+    "blocking": 0,
+    "complete": false,
+    "ledger": "complete",
+    "counts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 0,
+      "blind-channel": 0
+    },
+    "rules": [],
+    "unreadableSheets": 0,
+    "scripts": [
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 15
+          },
+          "end": {
+            "line": 1,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 3,
+            "column": 15
+          },
+          "end": {
+            "line": 3,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 5,
+            "column": 15
+          },
+          "end": {
+            "line": 5,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 7,
+            "column": 15
+          },
+          "end": {
+            "line": 7,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 9,
+            "column": 15
+          },
+          "end": {
+            "line": 9,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 11,
+            "column": 15
+          },
+          "end": {
+            "line": 11,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 13,
+            "column": 15
+          },
+          "end": {
+            "line": 13,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 15,
+            "column": 15
+          },
+          "end": {
+            "line": 15,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 17,
+            "column": 15
+          },
+          "end": {
+            "line": 17,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 19,
+            "column": 15
+          },
+          "end": {
+            "line": 19,
+            "column": 16
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 21,
+            "column": 16
+          },
+          "end": {
+            "line": 21,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 23,
+            "column": 16
+          },
+          "end": {
+            "line": 23,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 25,
+            "column": 16
+          },
+          "end": {
+            "line": 25,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 27,
+            "column": 16
+          },
+          "end": {
+            "line": 27,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 29,
+            "column": 16
+          },
+          "end": {
+            "line": 29,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 31,
+            "column": 16
+          },
+          "end": {
+            "line": 31,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 33,
+            "column": 16
+          },
+          "end": {
+            "line": 33,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 35,
+            "column": 16
+          },
+          "end": {
+            "line": 35,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 37,
+            "column": 16
+          },
+          "end": {
+            "line": 37,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 39,
+            "column": 16
+          },
+          "end": {
+            "line": 39,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 41,
+            "column": 16
+          },
+          "end": {
+            "line": 41,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 43,
+            "column": 16
+          },
+          "end": {
+            "line": 43,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 45,
+            "column": 16
+          },
+          "end": {
+            "line": 45,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 47,
+            "column": 16
+          },
+          "end": {
+            "line": 47,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 49,
+            "column": 16
+          },
+          "end": {
+            "line": 49,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 51,
+            "column": 16
+          },
+          "end": {
+            "line": 51,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 53,
+            "column": 16
+          },
+          "end": {
+            "line": 53,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 55,
+            "column": 16
+          },
+          "end": {
+            "line": 55,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 57,
+            "column": 16
+          },
+          "end": {
+            "line": 57,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 59,
+            "column": 16
+          },
+          "end": {
+            "line": 59,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 61,
+            "column": 16
+          },
+          "end": {
+            "line": 61,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 63,
+            "column": 16
+          },
+          "end": {
+            "line": 63,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 65,
+            "column": 16
+          },
+          "end": {
+            "line": 65,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 67,
+            "column": 16
+          },
+          "end": {
+            "line": 67,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 69,
+            "column": 16
+          },
+          "end": {
+            "line": 69,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 71,
+            "column": 16
+          },
+          "end": {
+            "line": 71,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 73,
+            "column": 16
+          },
+          "end": {
+            "line": 73,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 75,
+            "column": 16
+          },
+          "end": {
+            "line": 75,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 77,
+            "column": 16
+          },
+          "end": {
+            "line": 77,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 79,
+            "column": 16
+          },
+          "end": {
+            "line": 79,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 81,
+            "column": 16
+          },
+          "end": {
+            "line": 81,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 83,
+            "column": 16
+          },
+          "end": {
+            "line": 83,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 85,
+            "column": 16
+          },
+          "end": {
+            "line": 85,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 87,
+            "column": 16
+          },
+          "end": {
+            "line": 87,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 89,
+            "column": 16
+          },
+          "end": {
+            "line": 89,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 91,
+            "column": 16
+          },
+          "end": {
+            "line": 91,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 93,
+            "column": 16
+          },
+          "end": {
+            "line": 93,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 95,
+            "column": 16
+          },
+          "end": {
+            "line": 95,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 97,
+            "column": 16
+          },
+          "end": {
+            "line": 97,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 99,
+            "column": 16
+          },
+          "end": {
+            "line": 99,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 101,
+            "column": 16
+          },
+          "end": {
+            "line": 101,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 103,
+            "column": 16
+          },
+          "end": {
+            "line": 103,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 105,
+            "column": 16
+          },
+          "end": {
+            "line": 105,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 107,
+            "column": 16
+          },
+          "end": {
+            "line": 107,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 109,
+            "column": 16
+          },
+          "end": {
+            "line": 109,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 111,
+            "column": 16
+          },
+          "end": {
+            "line": 111,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 113,
+            "column": 16
+          },
+          "end": {
+            "line": 113,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 115,
+            "column": 16
+          },
+          "end": {
+            "line": 115,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 117,
+            "column": 16
+          },
+          "end": {
+            "line": 117,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 119,
+            "column": 16
+          },
+          "end": {
+            "line": 119,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 121,
+            "column": 16
+          },
+          "end": {
+            "line": 121,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 123,
+            "column": 16
+          },
+          "end": {
+            "line": 123,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 125,
+            "column": 16
+          },
+          "end": {
+            "line": 125,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 127,
+            "column": 16
+          },
+          "end": {
+            "line": 127,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 129,
+            "column": 16
+          },
+          "end": {
+            "line": 129,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 131,
+            "column": 16
+          },
+          "end": {
+            "line": 131,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 133,
+            "column": 16
+          },
+          "end": {
+            "line": 133,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 135,
+            "column": 16
+          },
+          "end": {
+            "line": 135,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 137,
+            "column": 16
+          },
+          "end": {
+            "line": 137,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 139,
+            "column": 16
+          },
+          "end": {
+            "line": 139,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 141,
+            "column": 16
+          },
+          "end": {
+            "line": 141,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 143,
+            "column": 16
+          },
+          "end": {
+            "line": 143,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 145,
+            "column": 16
+          },
+          "end": {
+            "line": 145,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 147,
+            "column": 16
+          },
+          "end": {
+            "line": 147,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 149,
+            "column": 16
+          },
+          "end": {
+            "line": 149,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 151,
+            "column": 16
+          },
+          "end": {
+            "line": 151,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 153,
+            "column": 16
+          },
+          "end": {
+            "line": 153,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 155,
+            "column": 16
+          },
+          "end": {
+            "line": 155,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 157,
+            "column": 16
+          },
+          "end": {
+            "line": 157,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 159,
+            "column": 16
+          },
+          "end": {
+            "line": 159,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 161,
+            "column": 16
+          },
+          "end": {
+            "line": 161,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 163,
+            "column": 16
+          },
+          "end": {
+            "line": 163,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 165,
+            "column": 16
+          },
+          "end": {
+            "line": 165,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 167,
+            "column": 16
+          },
+          "end": {
+            "line": 167,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 169,
+            "column": 16
+          },
+          "end": {
+            "line": 169,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 171,
+            "column": 16
+          },
+          "end": {
+            "line": 171,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 173,
+            "column": 16
+          },
+          "end": {
+            "line": 173,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 175,
+            "column": 16
+          },
+          "end": {
+            "line": 175,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 177,
+            "column": 16
+          },
+          "end": {
+            "line": 177,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 179,
+            "column": 16
+          },
+          "end": {
+            "line": 179,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 181,
+            "column": 16
+          },
+          "end": {
+            "line": 181,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 183,
+            "column": 16
+          },
+          "end": {
+            "line": 183,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 185,
+            "column": 16
+          },
+          "end": {
+            "line": 185,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 187,
+            "column": 16
+          },
+          "end": {
+            "line": 187,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 189,
+            "column": 16
+          },
+          "end": {
+            "line": 189,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 191,
+            "column": 16
+          },
+          "end": {
+            "line": 191,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 193,
+            "column": 16
+          },
+          "end": {
+            "line": 193,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 195,
+            "column": 16
+          },
+          "end": {
+            "line": 195,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 197,
+            "column": 16
+          },
+          "end": {
+            "line": 197,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 199,
+            "column": 16
+          },
+          "end": {
+            "line": 199,
+            "column": 17
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 201,
+            "column": 17
+          },
+          "end": {
+            "line": 201,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 203,
+            "column": 17
+          },
+          "end": {
+            "line": 203,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 205,
+            "column": 17
+          },
+          "end": {
+            "line": 205,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 207,
+            "column": 17
+          },
+          "end": {
+            "line": 207,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 209,
+            "column": 17
+          },
+          "end": {
+            "line": 209,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 211,
+            "column": 17
+          },
+          "end": {
+            "line": 211,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 213,
+            "column": 17
+          },
+          "end": {
+            "line": 213,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 215,
+            "column": 17
+          },
+          "end": {
+            "line": 215,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 217,
+            "column": 17
+          },
+          "end": {
+            "line": 217,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 219,
+            "column": 17
+          },
+          "end": {
+            "line": 219,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 221,
+            "column": 17
+          },
+          "end": {
+            "line": 221,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 223,
+            "column": 17
+          },
+          "end": {
+            "line": 223,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 225,
+            "column": 17
+          },
+          "end": {
+            "line": 225,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 227,
+            "column": 17
+          },
+          "end": {
+            "line": 227,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 229,
+            "column": 17
+          },
+          "end": {
+            "line": 229,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 231,
+            "column": 17
+          },
+          "end": {
+            "line": 231,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 233,
+            "column": 17
+          },
+          "end": {
+            "line": 233,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 235,
+            "column": 17
+          },
+          "end": {
+            "line": 235,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 237,
+            "column": 17
+          },
+          "end": {
+            "line": 237,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 239,
+            "column": 17
+          },
+          "end": {
+            "line": 239,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 241,
+            "column": 17
+          },
+          "end": {
+            "line": 241,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 243,
+            "column": 17
+          },
+          "end": {
+            "line": 243,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 245,
+            "column": 17
+          },
+          "end": {
+            "line": 245,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 247,
+            "column": 17
+          },
+          "end": {
+            "line": 247,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 249,
+            "column": 17
+          },
+          "end": {
+            "line": 249,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 251,
+            "column": 17
+          },
+          "end": {
+            "line": 251,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 253,
+            "column": 17
+          },
+          "end": {
+            "line": 253,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 255,
+            "column": 17
+          },
+          "end": {
+            "line": 255,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 257,
+            "column": 17
+          },
+          "end": {
+            "line": 257,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 259,
+            "column": 17
+          },
+          "end": {
+            "line": 259,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 261,
+            "column": 17
+          },
+          "end": {
+            "line": 261,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 263,
+            "column": 17
+          },
+          "end": {
+            "line": 263,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 265,
+            "column": 17
+          },
+          "end": {
+            "line": 265,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 267,
+            "column": 17
+          },
+          "end": {
+            "line": 267,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 269,
+            "column": 17
+          },
+          "end": {
+            "line": 269,
+            "column": 18
+          }
+        },
+        "execution": "ran",
+        "status": "unknown",
+        "why": "value; rendering not proved; line-scope evidence (column-zero source map)",
+        "level": "warn",
+        "executionScope": "line"
+      }
+    ],
+    "scriptCounts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 0,
+      "unknown": 3000
+    },
+    "gaps": [
+      {
+        "join": "J1",
+        "status": "unknown",
+        "kind": "not-built",
+        "reason": "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+        "remedy": "add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join"
+      },
+      {
+        "join": "J3",
+        "status": "unmeasured",
+        "kind": "not-built",
+        "reason": "class-list deltas are not recorded yet",
+        "remedy": "none yet: a later Change Reach phase (#934) adds it"
+      },
+      {
+        "join": "J2",
+        "status": "unmeasured",
+        "kind": "execution",
+        "reason": "J2 units truncated: 2865 more in report.json; full status counts retained",
+        "remedy": "review the remaining changed source ranges; J2 JSON detail is capped at 64 KB after style findings"
+      }
+    ]
+  }
+}

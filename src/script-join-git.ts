@@ -66,9 +66,10 @@ function captureRoot(maps: readonly StyleMap[], side: Side, paths: string[]): Ca
 
   if (keys.size && paths.length && !paths.some((file) => keys.has(sourceKey(prefix, file))))
     return {
+      prefix,
       keys,
       gap: scriptJoinGap(
-        `captured source keys on ${side} match no changed path; project-root join cannot be verified`,
+        `captured source keys on ${side} match no changed path; using the recorded project-root prefix; changed files may be not loaded`,
         side,
       ),
     };
@@ -124,7 +125,7 @@ function changesForFile(
   const gaps: ScriptJoinGap[] = [];
 
   for (const side of ['base', 'head'] as const) {
-    if (roots[side].prefix === undefined || !hasBlob(file, side)) continue;
+    if (!hasBlob(file, side)) continue;
     const blob = blobs.get(file[side]);
 
     if (!blob?.content) {
@@ -145,10 +146,10 @@ function changesForFile(
   }
 
   const changes = changedScriptRanges(file.patch, texts, file.path)
-    .filter((change) => available.has(change.side))
+    .filter((change) => available.has(change.side) && roots[change.side].prefix !== undefined)
     .map((change) => ({
       ...change,
-      sourceKey: sourceKey(roots[change.side].prefix!, file.path),
+      sourceKey: sourceKey(roots[change.side].prefix ?? '', file.path),
       contentHash: hashes[change.side],
     }));
 
@@ -162,19 +163,32 @@ function joinFiles(
 ): ScriptChanges {
   const paths = files.map((file) => file.path);
   const roots = { base: captureRoot(maps.base, 'base', paths), head: captureRoot(maps.head, 'head', paths) };
+  // A side without coverage still has changed lines. Borrow only the other side's
+  // validated root identity; execution remains unmeasured on the missing side.
+  if (!maps.base.some((map) => map.scriptReach)) roots.base.prefix = roots.head.prefix;
+  if (!maps.head.some((map) => map.scriptReach)) roots.head.prefix = roots.base.prefix;
   const gaps = (['base', 'head'] as const).flatMap((side) => (roots[side].gap ? [roots[side].gap!] : []));
+
+  for (const file of files)
+    if (file.reason)
+      gaps.push({
+        ...scriptJoinGap(`${file.path}: ${file.reason}`),
+        paths: [file.path],
+        remedy: 'retain both captured revisions and make this file’s git text diff readable',
+      });
 
   const candidates = files.filter(
     (file) =>
-      isCandidate(file, roots) && ![file.baseMode, file.headMode].includes('160000') && /^@@ /m.test(file.patch),
+      isCandidate(file, roots) &&
+      !file.reason &&
+      ![file.baseMode, file.headMode].includes('160000') &&
+      /^@@ /m.test(file.patch),
   );
 
   const ids = [
     ...new Set(
       candidates.flatMap((file) =>
-        (['base', 'head'] as const).flatMap((side) =>
-          roots[side].prefix !== undefined && hasBlob(file, side) ? [file[side]] : [],
-        ),
+        (['base', 'head'] as const).flatMap((side) => (hasBlob(file, side) ? [file[side]] : [])),
       ),
     ),
   ].sort();

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { resolveScriptProjectRoot } from '../capture/script-project-root.js';
+import { resolveScriptProjectRoot, scriptProjectRootPrefix } from '../capture/script-project-root.js';
 import { resolveForcedStateLimits } from '../capture/forced-states.js';
 import { warn } from '../capture/shared.js';
 import type { ServedRuleTracker } from '../capture/reach.js';
@@ -135,6 +135,15 @@ function reconcileSpecClock(freezeClock: boolean, clockTime: string | number | D
   }
 }
 
+function scriptProjectSettings(
+  enabled: boolean | undefined,
+  projectRoot?: string,
+): Pick<Settings, 'projectRoot' | 'projectRootPrefix'> {
+  if (!enabled) return {};
+  const root = projectRoot ?? resolveScriptProjectRoot();
+  return { projectRoot: root, projectRootPrefix: scriptProjectRootPrefix(root) ?? null };
+}
+
 /** Apply the capture defaults once, so explicit-surface and crawl capture cannot drift. */
 export function resolveSettings(c: CaptureConfig, projectRoot?: string): Settings {
   const env = process.env;
@@ -169,7 +178,7 @@ export function resolveSettings(c: CaptureConfig, projectRoot?: string): Setting
     inventory: c.inventory ?? false,
     captureReach: c.captureReach ?? false,
     captureScriptReach: c.captureScriptReach ?? false,
-    ...(c.captureScriptReach ? { projectRoot: projectRoot ?? resolveScriptProjectRoot() } : {}),
+    ...scriptProjectSettings(c.captureScriptReach, projectRoot),
     liveText,
     tolerateSurfaceFailures: envFlag(env.STYLEPROOF_TOLERATE_SURFACE_FAILURES),
   };

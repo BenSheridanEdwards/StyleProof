@@ -74,8 +74,22 @@ function rowEvidence(row: Anchor[], start: number, end: number): number {
 
 type RangeExecution = { execution: ScriptExecution; scope: 'range' | 'line' };
 
+function lineOnly(row: Anchor[] | undefined): row is Anchor[] {
+  return row?.length === 1 && row[0].column === 0;
+}
+
+function rangeRowEvidence(row: Anchor[], line: number, range: SourceSpan): number {
+  return rowEvidence(
+    row,
+    line === range.start.line ? range.start.column : 0,
+    line === range.end.line ? range.end.column : Infinity,
+  );
+}
+
 export function executionIn(range: SourceSpan, index: ScriptExecutionIndex): RangeExecution {
-  let bits = 0;
+  let bits = 0,
+    lineBits = 0;
+  let scope: 'range' | 'line' = 'range';
 
   for (
     let cursor = firstAtOrAfter(index.lines, range.start.line, (line) => line);
@@ -83,20 +97,16 @@ export function executionIn(range: SourceSpan, index: ScriptExecutionIndex): Ran
     cursor++
   ) {
     const line = index.lines[cursor];
-    bits |= rowEvidence(
-      index.rows.get(line)!,
-      line === range.start.line ? range.start.column : 0,
-      line === range.end.line ? range.end.column : Infinity,
-    );
+    if (line === range.end.line && range.end.column === 0) break;
+    const row = index.rows.get(line)!;
+    if (lineOnly(row)) {
+      scope = 'line';
+      lineBits |= rowEvidence(row, 0, Infinity);
+    }
+    bits |= rangeRowEvidence(row, line, range);
   }
 
-  let scope: 'range' | 'line' = 'range';
-  const row = index.rows.get(range.start.line);
-
-  if (!bits && range.start.line === range.end.line && row?.length === 1 && row[0].column === 0) {
-    bits = rowEvidence(row, 0, Infinity);
-    scope = 'line';
-  }
+  if (!bits) bits = lineBits;
 
   return { execution: bits === 3 ? 'partly-ran' : bits === 2 ? 'never-ran' : bits === 1 ? 'ran' : 'unmeasured', scope };
 }

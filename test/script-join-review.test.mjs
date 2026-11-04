@@ -94,7 +94,7 @@ test('git line three maps to JavaScript line four after an earlier Unicode line 
       head: `const text = 'x${separator}y';\nconst unchanged = 1;\nconst oldValue = 2;\n`,
     };
 
-    const units = changedScriptRanges('@@ -3 +3 @@', texts, 'app.ts');
+    const units = changedScriptRanges('@@ -3 +3 @@\n-const oldValue = 1;\n+const oldValue = 2;\n', texts, 'app.ts');
     assert.ok(units.every((unit) => unit.range.start.line === 4));
     assert.ok(units.every((unit) => unit.text.includes('const oldValue')));
   }
@@ -102,7 +102,7 @@ test('git line three maps to JavaScript line four after an earlier Unicode line 
 
 test('unrelated equal-count hunks use line scope and pure token insertions omit empty base units', () => {
   const units = changedScriptRanges(
-    '@@ -1,2 +1,2 @@',
+    '@@ -1,2 +1,2 @@\n-const oldName = 1;\n-oldFunction();\n+const newName = 2;\n+newFunction();\n',
     { base: 'const oldName = 1;\noldFunction();\n', head: 'const newName = 2;\nnewFunction();\n' },
     'app.ts',
   );
@@ -110,7 +110,7 @@ test('unrelated equal-count hunks use line scope and pure token insertions omit 
   assert.ok(units.every((unit) => unit.range.start.column === 0));
 
   const inserted = changedScriptRanges(
-    '@@ -1 +1 @@',
+    '@@ -1 +1 @@\n-window.result = a;\n+window.result = a ?? b;\n',
     { base: 'window.result = a;', head: 'window.result = a ?? b;' },
     'app.ts',
   );
@@ -149,6 +149,7 @@ test('three thousand adjacent findings render as ranges and a long fragmented ta
   const unit = (line, why = 'value; rendering not proved') => ({
     sourceKey: 'app.ts',
     side: 'head',
+    changeScope: 'line',
     range: { start: { line, column: 0 }, end: { line, column: 20 } },
     execution: 'ran',
     status: 'unknown',
@@ -207,7 +208,7 @@ test('git uses one all-path diff and one blob batch, retaining healthy files aft
   }
 
   const calls = fs.readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(calls.filter((args) => args[0] === 'diff').length, 1);
+  assert.equal(calls.filter((args) => args.includes('diff')).length, 1);
   assert.equal(calls.filter((args) => args[0] === 'cat-file' && args.includes('--batch')).length, 1);
   assert.ok(calls.length <= 3, 'git process count must not grow with changed-file count');
   assert.ok(result.changes.some((change) => change.sourceKey === 'file-39.ts'));

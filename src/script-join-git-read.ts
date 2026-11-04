@@ -1,5 +1,7 @@
 /** One raw+patch diff and one binary-safe cat-file batch, independent of path count. */
 import { spawnSync } from 'node:child_process';
+import { devNull } from 'node:os';
+import { compareSourceKeys } from './script-join.js';
 
 export type ScriptGitFile = {
   path: string;
@@ -8,6 +10,7 @@ export type ScriptGitFile = {
   baseMode: string;
   headMode: string;
   patch: string;
+  reason?: string;
 };
 
 export type ScriptBlob = { content?: Buffer; reason?: string };
@@ -18,6 +21,8 @@ export function readScriptGitDiff(repository: string, base: string, head: string
   const result = spawnSync(
     'git',
     [
+      '-c',
+      'core.quotePath=true',
       'diff',
       '--raw',
       '--patch',
@@ -31,6 +36,17 @@ export function readScriptGitDiff(repository: string, base: string, head: string
       '--diff-algorithm=myers',
       '--no-indent-heuristic',
       '--unified=0',
+      '--inter-hunk-context=0',
+      '--no-relative',
+      '--src-prefix=a/',
+      '--dst-prefix=b/',
+      '--line-prefix=',
+      '--output-indicator-new=+',
+      '--output-indicator-old=-',
+      '--output-indicator-context= ',
+      '--word-diff=none',
+      '-O',
+      devNull,
       '-z',
       base,
       head,
@@ -54,15 +70,60 @@ export function readScriptGitDiff(repository: string, base: string, head: string
     cursor = pathEnd + 1;
   }
 
-  const patches = text
-    .slice(cursor)
-    .replace(/^\0/, '')
-    .split(/(?=^diff --git )/m)
-    .filter(Boolean);
+  return pairScriptPatches(files, text.slice(cursor).replace(/^\0/, '')).sort((a, b) =>
+    compareSourceKeys(a.path, b.path),
+  );
+}
 
-  if (patches.length !== files.length) throw new Error('git patch paths cannot be paired with raw records');
+/** Match Git's C-quoted header spelling without decoding or splitting paths on spaces. */
+function quotedGitPath(value: string): string {
+  const escapes: Record<number, string> = {
+    7: '\\a',
+    8: '\\b',
+    9: '\\t',
+    10: '\\n',
+    11: '\\v',
+    12: '\\f',
+    13: '\\r',
+    34: '\\"',
+    92: '\\\\',
+  };
+  let quoted = false;
+  const text = [...Buffer.from(value)]
+    .map((byte) => {
+      if (escapes[byte]) {
+        quoted = true;
+        return escapes[byte];
+      }
+      if (byte < 32 || byte >= 127) {
+        quoted = true;
+        return '\\' + byte.toString(8).padStart(3, '0');
+      }
+      return String.fromCharCode(byte);
+    })
+    .join('');
+  return quoted ? '"' + text + '"' : text;
+}
 
-  return files.map((file, index) => ({ ...file, patch: patches[index] }));
+/** Type changes have two sections for one raw path. CR in source text is never a line boundary here. */
+function pairScriptPatches(files: ScriptGitFile[], patch: string): ScriptGitFile[] {
+  const byHeader = new Map(
+    files.map((file) => [`diff --git ${quotedGitPath('a/' + file.path)} ${quotedGitPath('b/' + file.path)}`, file]),
+  );
+  const sections = new Map<ScriptGitFile, string[]>();
+  let current: ScriptGitFile | undefined;
+  for (const line of patch.split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      current = byHeader.get(line);
+      if (current && !sections.has(current)) sections.set(current, []);
+    }
+    if (current) sections.get(current)!.push(line);
+  }
+  return files.map((file) =>
+    sections.has(file)
+      ? { ...file, patch: sections.get(file)!.join('\n') }
+      : { ...file, reason: 'git patch unavailable for this changed path; source ranges unmeasured' },
+  );
 }
 
 /** A missing/truncated object affects only its consumers, never already-read siblings. */

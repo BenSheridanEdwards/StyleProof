@@ -13,6 +13,7 @@ import { oneSidedStatus, type OneSidedStatus } from './headline.js';
 import { renderArtifactHtml } from './html.js';
 import type { DigestRow } from './digest.js';
 import type { ReportReach } from './reach.js';
+import { reserveScriptNotice, budgetScriptReach, jsonBytes } from './script-units.js';
 import { renderChangeGroup } from './regions.js';
 import { formatSurfaceWithContext, type ChangeGroup, type PreparedSurface, type RenderCtx } from './shared.js';
 
@@ -224,8 +225,11 @@ export class ReportMarkdown {
   }
 
   /** Queue full detail and the one-line summary that replaces it past the budget. */
-  detail(detail: string[], summary: string): void {
-    if (detail.length > 0) this.blocks.push({ full: detail, summary });
+  detail(detail: string[], summary: string): Block | undefined {
+    if (!detail.length) return undefined;
+    const block = { full: detail, summary };
+    this.blocks.push(block);
+    return block;
   }
 
   /** Drop trailing lines until the headline itself fits the budget. */
@@ -459,7 +463,7 @@ export function buildReportJson(a: ReportArtifacts) {
     // Additive (#831), only when non-empty, so a clean report's bytes are unchanged.
     ...(a.digest.length ? { digest: a.digest } : {}),
     // Additive (#996), only when a capture carries a reach ledger, so other reports keep their bytes.
-    ...(a.reach ? { reach: a.reach } : {}),
+    ...(a.reach ? { reach: reserveScriptNotice(a.reach) } : {}),
   };
 
   if (a.crops.omitted) {
@@ -474,10 +478,17 @@ export function buildReportJson(a: ReportArtifacts) {
     });
   }
 
-  return capFindings(json, a.maxJsonBytes ?? DEFAULT_MAX_JSON_BYTES);
+  const maxBytes = a.maxJsonBytes ?? DEFAULT_MAX_JSON_BYTES;
+  const capped = capFindings(json, maxBytes);
+  const script = budgetScriptReach(a.reach, capped.json.reach, maxBytes - jsonBytes(capped.json));
+  return {
+    ...capped,
+    json: { ...capped.json, ...(script.reach ? { reach: script.reach } : {}) },
+    scriptUnitsOmitted: script.omitted,
+  };
 }
 
-function capFindings(json: Pick<ReportArtifacts, 'surfaces'>, maxBytes: number) {
+function capFindings<T extends Pick<ReportArtifacts, 'surfaces'>>(json: T, maxBytes: number) {
   const unchanged = { json, findingsOmitted: { rows: 0, groups: 0 } };
 
   if (Buffer.byteLength(JSON.stringify(json, null, 2)) <= maxBytes) return unchanged;

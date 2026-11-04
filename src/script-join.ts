@@ -11,6 +11,8 @@ export type ScriptChange = {
   contentHash: string;
   /** Changed source lines, used only to name conservative residuals. Never persisted by the join. */
   text: string;
+  /** The entire changed line, rather than a trimmed token range. */
+  changeScope?: 'line';
 };
 
 export type ScriptExecution = 'ran' | 'never-ran' | 'partly-ran' | 'not-loaded' | 'unmeasured';
@@ -140,7 +142,7 @@ function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): Evidenc
     mappedFiles(reach, files, reasons);
   }
 
-  const sortedReasons = [...new Set(reasons)].sort();
+  const sortedReasons = [...new Set(reasons)].sort(compareSourceKeys);
 
   for (const reason of sortedReasons) gaps.push(scriptJoinGap(`${side} script evidence: ${reason}`, side));
 
@@ -163,6 +165,16 @@ function residuals(text: string): string[] {
   ];
 }
 
+function residualReason(text: string): string {
+  if (text.length > 2048) return '; J2 residual naming skipped for source lines over 2048 UTF-16 code units';
+  const limits = residuals(text);
+  return limits.length ? `; J2 block-entry residual: ${limits.join('; ')}` : '';
+}
+
+function emptyLine(change: ScriptChange): boolean {
+  return change.changeScope === 'line' && change.text.length === 0;
+}
+
 function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonly SourceCorroboration[]): ScriptUnit {
   const { text, contentHash, ...identity } = change;
 
@@ -180,6 +192,8 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
   };
 
   const file = side.files.get(change.sourceKey);
+
+  if (emptyLine(change)) return unit('unmeasured', 'unmeasured', 'no anchors on an empty line');
 
   if (!file) {
     if (side.missing) return unit('unmeasured', 'unmeasured', 'unmeasured: script coverage missing on this side');
@@ -220,13 +234,7 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
 
   if (corroborated)
     return unit(execution, 'reached', 'rendering corroborated by a reached J1/J3 unit from this exact source range');
-  const limits = residuals(text);
-
-  return unit(
-    execution,
-    'unknown',
-    `value; rendering not proved${limits.length ? `; J2 block-entry residual: ${limits.join('; ')}` : ''}`,
-  );
+  return unit(execution, 'unknown', `value; rendering not proved${residualReason(text)}`);
 }
 
 /** All findings are advisory at either changeReach level; this join never edits another gate. */
@@ -240,7 +248,7 @@ export function classifyScriptReach(
 
   return {
     units: changes
-      .filter((change) => comparePosition(change.range.start, change.range.end) < 0)
+      .filter((change) => comparePosition(change.range.start, change.range.end) < 0 || emptyLine(change))
       .sort(compareScriptRanges)
       .map((change) => classifyRange(change, sides[change.side], proofs)),
     gaps: [...sides.base.gaps, ...sides.head.gaps],

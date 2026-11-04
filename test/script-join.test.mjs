@@ -60,7 +60,13 @@ test('only evidence starting inside the changed range judges that expression', (
   const units = classify([change(4, 5), change(8, 9)], [capture()], head).units;
   assert.equal(units[0].execution, 'unmeasured');
   assert.equal(units[1].execution, 'unmeasured');
-  assert.equal(classify([change(6, 7)], [capture()], head).units[0].execution, 'partly-ran');
+  assert.deepEqual(
+    units.map((unit) => unit.status),
+    ['unmeasured', 'unmeasured'],
+  );
+  const mixed = classify([change(6, 7)], [capture()], head).units[0];
+  assert.equal(mixed.execution, 'partly-ran');
+  assert.equal(mixed.status, 'never-rendered');
 });
 
 test('each changed expression can be witnessed across captures without importing unrelated branches', () => {

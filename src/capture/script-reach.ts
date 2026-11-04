@@ -298,7 +298,7 @@ async function releaseClient(page: Page, client: CDPSession): Promise<ReturnType
 /** Arm BEFORE go()/navigation. Each capture/self-check needs a fresh tracker. */
 export async function trackScriptReach(
   page: Page,
-  options: { projectRoot?: string; mediaState?: MediaState } = {},
+  options: { projectRoot?: string; projectRootPrefix?: string | null; mediaState?: MediaState } = {},
 ): Promise<ScriptReachTracker> {
   if (page.context().browser()?.browserType().name() !== 'chromium') {
     return { stop: async () => unmeasuredScriptReach('script coverage requires Chromium'), dispose: async () => {} };
@@ -311,7 +311,10 @@ export async function trackScriptReach(
     };
   }
   const projectRoot = options.projectRoot ?? resolveScriptProjectRoot();
-  const projectRootPrefix = scriptProjectRootPrefix(projectRoot);
+  const projectRootPrefix =
+    options.projectRootPrefix === undefined
+      ? scriptProjectRootPrefix(projectRoot)
+      : (options.projectRootPrefix ?? undefined);
   const marker = scriptCoverageMarker(page);
   let client: CDPSession | undefined;
   let reason: string | undefined;

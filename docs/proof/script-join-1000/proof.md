@@ -7,8 +7,9 @@ removed ranges use base. Complete blob-byte hashes must match sourcesContent.
 
 The QA correction judges execution starts inside the changed-token range. An
 enclosing mixed or idle span cannot flag an evaluated child operand. Mapping
-starts retain their innermost V8 entry state even when the following generated
-segment crosses a block boundary. Column-zero maps fall back explicitly to line
+starts retain their innermost V8 entry state when the other state interval has a mapping
+start. An unrepresented state interval inside a generated extent stays mixed, retaining
+coarse-map uncertainty. A distant same-counter anchor cannot clear a resumed interval. Column-zero maps fall back explicitly to line
 scope. Git LF line numbers are converted through blob offsets to JavaScript
 terminator line numbers. Execution alone leaves values unknown; only exact
 source/side/changed-token-range J1/J3 provenance can corroborate them.
@@ -80,3 +81,77 @@ preserved: this is diagnostic evidence, not a certified same-state comparison.
 
 Final verification and the enforced pre-push browser suite are reported with
 actual command tails in the implementation handoff. No hook or gate is bypassed.
+
+## Round 2: coarse maps, JSON priority and complete changed-line attribution
+
+Rebased onto main (67b7521da). Before implementation, the retained
+[round-two unit run](round2-red-unit.txt) failed **14 tests**, with 24 passing;
+the [real-browser run](round2-red-browser.txt) failed both cases. The root-counter
+browser fixture records one git-prefix lookup across two surfaces and their
+self-checks after the fix. Targeted units subsequently passed **205/205** and
+capture/J2 browser scenarios **34/34**.
+
+| Item | Red → green                                                                                                                                                                                                                                                                                                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | The column-zero ternary read ran/unknown for whole-line and red-token changes; both now read partly-ran/never-rendered with line scope. The original mapper mixed-boundary test is restored. Existing nullish operands, both ternary arms and the unopened fallback stay green.                                                                                                |
+| 2    | The 1,500-line fixture lost all 20 style findings; both whole-line and token-range variants now retain 20/20 within 450 KB. A tighter configured budget also keeps all style findings. Only equal whole-line units merge with counts; token units use remaining bytes up to a 64 KB cap. Omitted source units get an exact named gap, full counts and a visible report notice. |
+| 3    | A blank line added inside css template text vanished; added and deleted blank lines now remain zero-width unmeasured units with the no-anchors reason. Empty opposite-side token ranges still disappear.                                                                                                                                                                       |
+| 4    | A type change and CR followed by diff-header-like content killed all paths; sections now pair by their Git-quoted header paths, including two sections for one type change. Malformed sections leave per-file gaps while healthy siblings survive.                                                                                                                             |
+| 5    | An unloaded-only change vanished on a key mismatch; valid recorded prefixes now remain usable and produce not-loaded units plus the warning.                                                                                                                                                                                                                                   |
+| 6    | Configured inter-hunk context attributed unchanged lines; fixed diff options and walking actual +/- body lines keep only changed lines.                                                                                                                                                                                                                                        |
+| 7    | The long unbalanced residual input entered expensive regexes; lines above 2048 UTF-16 code units skip naming explicitly and remain unknown.                                                                                                                                                                                                                                    |
+| 8    | Root provenance was absent from settings and the browser fixture counted three Git lookups; settings now resolve it once and pass it to surfaces, self-checks and popups.                                                                                                                                                                                                      |
+| 9    | A J2 gap suppressed the incomplete J1 fallback; only existing ledger-kind gaps now suppress that fallback. Gate still holds the J1 gap.                                                                                                                                                                                                                                        |
+| 10   | Adjacent token columns were merged, a missing-evidence side lost its lines, and Unicode reasons sorted as UTF-16; exact token/status assertions, per-side unmeasured units and explicit code-point ordering now pass.                                                                                                                                                          |
+
+A follow-up [interval regression](round2-red-interval.txt) first failed against
+the counter-sharing guard. The corrected producer checks each flat V8 interval
+independently. In the tiny `a ?? b;` two-anchor fixture, the idle operand remains
+mixed when its extent contains an unrepresented executed semicolon; it is still
+never-rendered. The real esbuild operand assertions remain ran/unknown. Its fallback’s generated
+extent also contains an unanchored executed continuation, so the [exact raw-state
+assertion](round2-red-fallback.txt) now requires partly-ran; both base and head
+must still be never-rendered. The separate fine-anchor nullish test still requires
+ran for the main operand and never-ran for the fallback.
+
+The corpus still has **5 declared / 6 complete unknown cases**. No scenario moved
+status in round two; all J3-prototype labels remain separate. The original and
+rejected-head comparisons above still apply.
+
+The generated [budget summary](round2-budget-summary.json) and
+[report JSON](round2-report.json) record **20/20 findings listed, zero omitted,
+75,427 JSON bytes within 450,000**, 3,000 unknown source units, 135 detailed units
+retained and **2,865 explicitly truncated**. Human tables independently stop at
+100 rows. The screenshots retain the product-state warning, advisory reach status
+and the fixture's lack of captured screenshots. They prove diagnostic reporting
+and budgeting, not a certified same-state comparison.
+
+![All twenty style findings survive advisory J2 detail](round2-style-findings.png)
+
+![The omitted J2 detail is explicitly counted and named](round2-truncation-gap.png)
+
+The first full verify attempt cancelled `test/ci-cli.test.mjs` at its unchanged
+300,000 ms file timeout (4,741 passed, one cancellation, zero assertion failures).
+The CI file passed 81/81 separately; a full verify before the final multiline
+scope regressions passed 4,823/4,823, with zero cancellations or skips. No gate or timeout configuration was changed.
+
+The first full browser run reported 706 passed, one skipped and one failure in
+the provenance counter fixture. Its Node-based Git shim exceeded the resolver's
+one-second startup deadline under load, before writing a counter record. The
+[retained failure](round2-red-provenance-shim.txt) is instrumentation timing, not
+permission to relax the resolver deadline or the one-lookup assertion. A plain
+POSIX shell shim now records the same calls and delegates to Git without another
+Node startup. The root path includes spaces and an apostrophe to check quoting;
+both round-two browser cases pass with that shim. Product code is unchanged.
+
+A final [scope regression](round2-red-scope.txt) exposed a missing line-scope
+label when a changed range spans JavaScript terminator lines. Both the label
+and multiline fallback failed before the fix; the exclusive-ending-line control passed. The join now marks coarse
+rows across the whole selected range and ignores an anchor exactly on the
+excluded ending line. The same binary-search index remains in use.
+
+The final targeted unit run passes **208/208**, including all three multiline
+scope tests. Final `pnpm run verify` passes **4,826/4,826**, with zero failures,
+cancellations or skips. `bench:reach:check` passes all 32 scenario cells and
+`demo:check` confirms the generated demo is current. Browser gate tails and the
+published SHA are reported in the handoff.
