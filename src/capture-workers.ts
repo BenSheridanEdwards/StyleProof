@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Leave two CPUs for the app server, while retaining at least Playwright's half-CPU default. */
 export function defaultCaptureWorkers(cpus: number): number {
@@ -37,6 +38,8 @@ async function configChoosesWorkers(args: readonly string[], cwd: string): Promi
       process.execPath,
       [
         '--experimental-strip-types',
+        '--require',
+        fileURLToPath(new URL('../bin/config-warnings.cjs', import.meta.url)),
         '--input-type=module',
         '-e',
         `import { writeFileSync } from 'node:fs';

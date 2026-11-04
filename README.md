@@ -425,6 +425,9 @@ The map CLI evaluates JavaScript and TypeScript config in a separate process, so
 cold-base npm checkouts can use their own Playwright installation without
 conflicting with the head CLI. JSON config loads without an extra process. Config
 errors retain concise messages without a Node stack trace.
+For CommonJS projects, config-loading children suppress Node's module-type warnings
+for the generated configs and its type-stripping warning. Other warnings and your
+`NODE_OPTIONS` remain in effect.
 
 JavaScript config (`styleproof.config.mjs` or `.js`) also supplies coverage and
 product-state policy to capture specs, diff, and report. It takes precedence over

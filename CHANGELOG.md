@@ -8,6 +8,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
+- Config-loading children suppress Node's generated-config module-type and type-stripping
+  warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
 - Failed or skipped captures now reach the Action and set a terminal failure status without
   changing the PR comment; cancelled and timed-out runs request a re-run instead of leaving
   pending or an earlier green/red verdict standing (#1263, #1264, #1265). The optional
