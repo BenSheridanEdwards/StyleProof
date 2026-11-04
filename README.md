@@ -680,7 +680,10 @@ It does not prove every expression evaluated. J2 residuals are default parameter
 destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`), and later links
 of short-circuited optional chains. Evidence notes name these gaps; 2.2 must treat
 these expressions as unknown. Unmapped code supplies no execution proof. Project-root-relative source keys preserve package directories (config directory, then git root);
-outside-root sources and collisions read unknown. Any script-evidence drift during a
+outside-root sources and collisions read unknown. Relative map sources that climb above
+the URL root drop only the escaping `..` segments if their own `sourcesContent` entry
+is present, yielding a content hash. Without that content, or with scheme-prefixed
+traversal, they stay unknown. Clipped keys still invalidate on collision. Any script-evidence drift during a
 self-check records script reach unknown, including storage-dependent first and repeat visits.
 Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
 build; missing maps read `unmeasured`. The window runs from navigation through

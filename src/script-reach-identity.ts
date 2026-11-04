@@ -57,14 +57,21 @@ function resolvedFilesystemPath(source: string, resolved: URL): string | undefin
   return /^https?:/i.test(source) ? filesystemUrlPath(resolved.pathname) : undefined;
 }
 
-function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string | undefined {
+function sourceKey(
+  source: string,
+  root: string | undefined,
+  mapUrl: string,
+  projectRoot: string,
+  hasSourceContent: boolean,
+): string | undefined {
   const absoluteUrl = SCHEME.test(source) ? resolveSourceUrl(source, mapUrl) : undefined;
   const filename = filesystemReference(source);
   if (filename) return filesystemKey(filename, projectRoot);
   const rootPath = root && filesystemReference(root);
   if (rootPath && !SCHEME.test(source))
     return filesystemKey((WINDOWS_PATH.test(rootPath) ? path.win32 : path).resolve(rootPath, source), projectRoot);
-  const resolved = absoluteUrl ?? resolveSourceUrl(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl));
+  const resolved =
+    absoluteUrl ?? resolveSourceUrl(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl), hasSourceContent);
   const resolvedFile = resolvedFilesystemPath(source, resolved);
   if (resolvedFile) return filesystemKey(resolvedFile, projectRoot);
   if (BUNDLER.test(resolved.href) && !resolved.pathname.replaceAll('/', '')) return undefined;
@@ -83,9 +90,9 @@ function projectKey(value: string, projectRoot: string): string {
 /** File paths are relative to a known project root; URL paths retain every project directory. */
 export function sourceIdentities(map: SourceMap, mapUrl: string, projectRoot = process.cwd()): (string | undefined)[] {
   const seen = new Set<string>();
-  return map.sources.map((source) => {
+  return map.sources.map((source, index) => {
     if (source === null || /(^|[\\/])node_modules[\\/]/.test((map.sourceRoot ?? '') + '/' + source)) return undefined;
-    const key = sourceKey(source, map.sourceRoot, mapUrl, projectRoot);
+    const key = sourceKey(source, map.sourceRoot, mapUrl, projectRoot, typeof map.sourcesContent?.[index] === 'string');
     if (!key || /(^|\/)node_modules\//.test(key)) return undefined;
     if (seen.has(key)) throw new ScriptEvidenceError('source key collision');
     seen.add(key);

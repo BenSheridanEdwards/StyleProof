@@ -1463,8 +1463,11 @@ packages, survive. Vite `/@fs/` and decoded filesystem URL paths use the same
 project-root validation. Empty/query-only webpack ignored modules are non-app. Outside-root paths or any collision invalidate involved scripts;
 never merge. Empty-host source URIs such as `webpack:///opt/build/...`, including
 unknown schemes, are filesystem paths validated before URL parsing. Explicit `/./`
-and `/../` paths stay relative; traversal above the URL root reads unknown instead
-of being clipped. Relative HTTP sources such as `../home/Home.tsx`
+and `/../` paths stay relative. Relative sources that climb above the URL root drop
+only the escaping `..` segments when their own `sourcesContent` entry is present.
+For example, `../src/app.ts` from `/app.js.map` becomes `src/app.ts` with a content
+hash. Missing content or scheme-prefixed traversal still reads unknown. Clipped
+keys follow the same collision rule. Relative HTTP sources such as `../home/Home.tsx`
 retain URL-path semantics. Stored absolute bundler script URLs become root-relative
 or `<outside root>`. Only identities classified as app sources count toward the
 segment budget; vendor, null and ignored webpack module sources do not. Hashes come

@@ -15,6 +15,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Require the `StyleProof` status check (`status-context`) in branch protection
   or a ruleset to block merges; approval turns that status green without a job re-run.
   Boolean `blocking` values remain accepted and no longer affect the job conclusion.
+- Script reach maps relative sources above the URL root in production bundles when
+  each source includes `sourcesContent`. Only escaping `..` segments are dropped.
+  Missing content, scheme-prefixed traversal and colliding keys still read unknown.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
