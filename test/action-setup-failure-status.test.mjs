@@ -6,6 +6,7 @@ import test, { after } from 'node:test';
 import configurationParser from 'js-yaml';
 import { resolveActionContext } from '../dist/action-context.js';
 import { mkTmp as createTemporaryDirectory, rmTmp as removeTemporaryDirectory } from './helpers.mjs';
+import { reviewRun } from './review-gate-test-harness.mjs';
 
 const actionDirectory = new URL('../', import.meta.url).pathname;
 const steps = configurationParser.load(filesystem.readFileSync(path.join(actionDirectory, 'action.yml'), 'utf8')).runs
@@ -219,27 +220,38 @@ for (const [mode, requireApproval] of [
 }
 
 test('a setup failure revokes carry-forward even when a later rerun presents the original approval receipt', async () => {
+  const run = reviewRun();
+  const originalApproval = run.statuses.at(-1);
+  await run.start();
+  assert.equal(run.values['steps.gate.outputs.approved'], 'true');
+  await run.runStep('comment');
+  await run.runStep('status');
+  assert.match(run.comments[0].body, /- \[x\] \*\*Approve all changes\*\*/);
+  assert.equal(run.statuses[0].state, 'success');
+  assert.equal(run.statuses[0].description, originalApproval.description);
+
   const result = await runComposite({
     failingStep: 'context',
     eventName: 'pull_request',
     mode: 'review-gate',
-    approved: true,
+    store: { github: run.github, core: { info() {}, warning() {} } },
   });
-  const values = {
-    'steps.diff.outputs.changed': 'true',
-    'steps.verdict.outputs.diff-digest': reviewDigest,
-    'steps.context.outputs.pr-number': '7',
-    'steps.context.outputs.head-sha': headCommit,
-    'steps.review-pending.outputs.prior-status': JSON.stringify(approvedStatus()),
-  };
-  const context = eventContext('pull_request');
-  assert.equal(
-    (await executeStep(stepNamed('gate'), values, statusStore([approvedStatus()]), context)).approved,
-    'true',
-  );
-  assert.equal((await executeStep(stepNamed('gate'), values, result, context)).approved, 'false');
-  values['steps.review-pending.outputs.prior-status'] = JSON.stringify(result.statuses[0]);
-  assert.equal((await executeStep(stepNamed('gate'), values, result, context)).approved, 'false');
+
+  assert.equal(result.compositeStatus, 'failure');
+  assert.equal(run.statuses[0].state, 'failure');
+  assert.equal(run.statuses[0].description, 'StyleProof setup failed — re-run for a verdict');
+  assert.equal(run.statuses[0].target_url, runAddress);
+  assert.ok(run.statuses.includes(originalApproval), 'the original valid receipt remains in live history');
+
+  run.advanceClock();
+  run.values['github.run_attempt'] = '3';
+  await run.runStep('review-pending');
+  assert.equal((await run.runStep('gate')).approved, 'false');
+  await run.runStep('comment');
+  await run.runStep('status');
+  assert.match(run.comments[0].body, /- \[ \] \*\*Approve all changes\*\*/);
+  assert.doesNotMatch(run.comments[0].body, /approved by|Signed off/);
+  run.assertSignOffRequired();
 });
 
 test('the approve workflow refuses to tick-approve the setup failure description', async () => {
