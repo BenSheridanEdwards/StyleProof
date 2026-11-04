@@ -75,7 +75,7 @@ export type ProductStateConfig = {
 export type ChangeReachLevel = 'warn' | 'gate';
 
 export type StyleProofConfig = {
-  /** Review-gate failures block the Action unless explicitly false or 'advisory'. */
+  /** 'advisory' keeps style findings advisory; boolean values do not change the job conclusion (10.0.0). */
   blocking?: boolean | 'advisory';
   /** Require explicit reviewer approval for visual changes (Action input). */
   requireApproval?: boolean;

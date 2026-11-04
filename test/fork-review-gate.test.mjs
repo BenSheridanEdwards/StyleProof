@@ -935,7 +935,7 @@ test('review failure status runs for failures and cancellation, never deliberate
 });
 
 for (const untrusted of [false, true]) {
-  test(`a deliberate unapproved-diff block preserves the approvable status (fork: ${untrusted})`, async () => {
+  test(`a completed unapproved review preserves the approvable status (fork: ${untrusted})`, async () => {
     const scenario = { untrusted, changed: true, trustState: 'STYLE_REVIEW_REQUIRED' };
     const { statuses } = await run('Set review status', scenario);
     assert.equal(statuses[0].state, untrusted ? 'pending' : 'failure');
@@ -944,9 +944,6 @@ for (const untrusted of [false, true]) {
       untrusted ? UNTRUSTED_DESCRIPTION : 'StyleProof changes need sign-off — tick the box in the report comment',
     );
     assert.equal(statuses[0].target_url, ARTIFACT_URL);
-    assert.equal(stepRuns('Block on unapproved changes', scenario), true);
-    const block = actionYml.match(/- name: Block on unapproved changes\n[\s\S]*?run: \|\n([\s\S]*?exit 1)/)[1];
-    assert.equal(nativeRequire('node:child_process').spawnSync('bash', ['-c', block]).status, 1);
     const failed = { ...scenario, failed: true, statusOutcome: 'success', statuses };
 
     if (stepRuns('Set review failure status', failed)) await run('Set review failure status', failed);

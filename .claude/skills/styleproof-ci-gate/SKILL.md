@@ -1,6 +1,6 @@
 ---
 name: styleproof-ci-gate
-description: Use when wiring StyleProof as a PR gate in CI — the BenSheridanEdwards/StyleProof@v9 Action, review-gate vs certify (fail-on-diff) mode, the approve-checkbox workflow, blocking without branch protection, and the fork/Dependabot capture/report split.
+description: Use when wiring StyleProof as a PR gate in CI — the BenSheridanEdwards/StyleProof@v9 Action, review-gate vs certify (fail-on-diff) mode, the approve-checkbox workflow, required status checks in branch protection, and the fork/Dependabot capture/report split.
 ---
 
 # StyleProof — wire the CI PR gate
@@ -63,13 +63,18 @@ The reusable workflow accepts `status-context`, `allow-self-approval`, and
 `token` inputs. Self-approval is refused by default; solo repos can opt in with
 `allow-self-approval: true`.
 
-## Blocking without branch protection
+## Require the review status check
 
-A status only _blocks a merge_ where a branch-protection rule requires it (needs
-GitHub Pro / public repo). On a free private repo, set `{"blocking": true}` in
-`styleproof.config.json` to also **fail** the job on unapproved changes → a red
-check regardless. It's async: tick **Approve all changes**, then **re-run** the
-job so it sees the sign-off.
+Starting in **10.0.0**, a completed review-gate, migration, or
+`require-approval: true` run passes the job while unapproved changes keep the
+`StyleProof` commit status red. Require that status check (the `status-context`
+name) in branch protection or a ruleset to block merges. Tick **Approve all
+changes** to turn the status green without re-running the job.
+
+Repositories without branch protection, including free private plans, no longer
+get a red job for unapproved changes. Config `blocking: true` and `false` remain
+accepted and no longer change the job conclusion; `blocking: 'advisory'` keeps
+its existing meaning. Capture/setup failures and evidence gates still fail the job.
 
 ## Fork & Dependabot — split capture from report
 

@@ -1900,9 +1900,8 @@ test('composite action classifies report-time correspondence collapse before app
   assert.doesNotMatch(publish[0], /styleproof-report\.mjs/, 'publication must not regenerate a second report');
 });
 
-test('composite action blocks unapproved changes by default (opt out with "blocking": false)', () => {
-  // The policy default flipped in v4: absent/blank config → blocking ON, so the config
-  // step emits 'true' unless the file explicitly sets "blocking": false.
+test('composite action accepts boolean blocking policy without failing unapproved review', () => {
+  // Boolean policy values remain accepted for compatibility.
   const configStep = actionYml.match(/- id: config[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:)/);
 
   assert.ok(configStep, 'action.yml should include a config step');
@@ -1913,22 +1912,10 @@ test('composite action blocks unapproved changes by default (opt out with "block
   assert.match(
     configStep[0],
     /core\.setOutput\('blocking', cfg\.blocking === 'advisory' \? 'advisory' : cfg\.blocking === false \? 'false' : 'true'\);/,
-    'blocking must default to true — only an explicit false or advisory opts out',
+    'blocking must keep accepting true, false, and advisory',
   );
 
-  // The block step fails the job on UNAPPROVED review-gate changes, so a repo without a
-  // branch-protection rule still gets a red check out of the box.
-  const blockStep = actionYml.match(/- name: Block on unapproved changes[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
-  assert.ok(blockStep, 'action.yml should include the unapproved-changes block step');
-  assert.match(blockStep[0], /inputs\.require-approval == 'true'/);
-  assert.match(blockStep[0], /steps\.config\.outputs\.blocking == 'true'/);
-  assert.match(blockStep[0], /steps\.verdict\.outputs\.state == 'STYLE_REVIEW_REQUIRED'/);
-  assert.match(blockStep[0], /steps\.gate\.outputs\.approved != 'true'/);
-  assert.match(blockStep[0], /exit 1/);
-
-  // An APPROVED change must NOT hit the block step (approved != 'true' guards it), and
-  // certify mode is untouched — the block step is review-gate only.
-  assert.doesNotMatch(blockStep[0], /fail-on-diff/);
+  assert.doesNotMatch(actionYml, /- name: Block on unapproved changes/);
 });
 
 test('composite action requires approval for new-surface-only reports', () => {
@@ -2419,14 +2406,6 @@ test('composite action skips fail-on-diff step when mode is not certify', () => 
   assert.match(failOnDiffStep[0], /inputs\.mode == 'certify'/);
 });
 
-test('composite action blocks on unapproved changes for review-gate and migration modes', () => {
-  const blockStep = actionYml.match(/- name: Block on unapproved changes[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
-  assert.ok(blockStep, 'action.yml should include the block step');
-  assert.match(blockStep[0], /inputs\.require-approval == 'true'/);
-  assert.match(blockStep[0], /inputs\.mode == 'review-gate'/);
-  assert.match(blockStep[0], /inputs\.mode == 'migration'/);
-});
-
 test('composite action comment step handles migration mode with approval box', () => {
   const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(commentStep, 'action.yml should include the comment step');
@@ -2478,17 +2457,7 @@ test('composite action config step outputs blocking=advisory when config has blo
   assert.match(configStep[0], /setOutput\('blocking'.*'advisory'/);
 });
 
-test('composite action advisory mode skips all blocking steps (#580)', () => {
-  // Advisory mode should never fail the job, so it must skip:
-  // 1. Block on unapproved changes
-  // 2. Fail on diff
-  // 3. Block on unapprovable certification failures (this one may still run)
-
-  const blockUnapprovedStep = actionYml.match(/- name: Block on unapproved changes[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
-  assert.ok(blockUnapprovedStep);
-  // Advisory mode should be excluded from the blocking step condition
-  assert.match(blockUnapprovedStep[0], /inputs\.mode != 'advisory'|steps\.config\.outputs\.blocking != 'advisory'/);
-
+test('composite action advisory mode skips failure on style changes (#580)', () => {
   const failOnDiffStep = actionYml.match(/- name: Fail on diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(failOnDiffStep);
   // Advisory mode should not trigger fail-on-diff

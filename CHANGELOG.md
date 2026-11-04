@@ -10,6 +10,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Script reach excludes Playwright bindings, clock scripts and StyleProof init scripts and reads.
   App anonymous and eval scripts remain named unmeasured.
   Discarded copies of recognised injected sources no longer create timing-dependent self-check gaps.
+- **BREAKING — ships in 10.0.0 (#1283):** Completed review-gate, migration, and
+  `require-approval: true` runs no longer fail the job on unapproved changes.
+  Require the `StyleProof` status check (`status-context`) in branch protection
+  or a ruleset to block merges; approval turns that status green without a job re-run.
+  Boolean `blocking` values remain accepted and no longer affect the job conclusion.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
@@ -51,6 +56,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    `"matched"`, and a missing capture side keeps `"not-applicable"`. Action
    receipts never carry `"runtime-only"`: the Action binds trusted SHAs, and a
    mixed pair with trusted SHAs is refused.
+
+3. **Require the review status check (10.0.0) (#1283).** The job no longer fails on
+   unapproved changes under review-gate, migration, or `require-approval: true`.
+   Require the `StyleProof` status check (or your `status-context` name) in branch
+   protection or a ruleset for review approval to block merges. Repositories without
+   branch protection, including free private plans, no longer get a red job for
+   unapproved changes. Config `blocking: true` and `blocking: false` remain
+   accepted but no longer affect the job conclusion; `'advisory'` keeps its meaning.
+   Capture/setup failures and evidence gates still fail the job.
 
 ### Changed
 
