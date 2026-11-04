@@ -320,13 +320,61 @@ test('case-insensitive filesystem aliases cannot create alternate source keys', 
   assert.equal(duplicate.files, undefined);
 });
 
-test('a post-read realpath change invalidates the source proof', async (t) => {
+test('canonical source spelling is required regardless of filesystem case sensitivity', async (t) => {
+  const projectRoot = projectFixture(t, { 'src/App.ts': 'x' });
+  const keyPath = path.join(projectRoot, 'src/app.ts');
+  const realFile = path.join(projectRoot, 'src/App.ts');
+  const original = fs.realpathSync.native;
+  t.mock.method(fs.realpathSync, 'native', (filename, ...args) =>
+    filename === keyPath ? realFile : original(filename, ...args),
+  );
+  const script = await capture(['../src/app.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+});
+
+test('a post-read key path change invalidates the absolute candidate proof', async (t) => {
   const projectRoot = projectFixture(t);
   const keyPath = path.join(projectRoot, 'src/app.ts');
+  const alias = '/@fs' + keyPath.replaceAll('\\', '/');
   const original = fs.realpathSync.native;
   let calls = 0;
   t.mock.method(fs.realpathSync, 'native', (filename, ...args) => {
+    if (filename === alias) return original(keyPath, ...args);
     if (filename === keyPath && ++calls === 2) return path.join(projectRoot, 'changed.ts');
+    return original(filename, ...args);
+  });
+  const read = t.mock.method(fs, 'readSync');
+  const script = await capture(['../../' + alias.slice(1)], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+  assert.equal(calls, 2);
+  assert.ok(read.mock.callCount() > 0);
+});
+
+test('a post-read filename change invalidates the absolute candidate proof', async (t) => {
+  const projectRoot = projectFixture(t);
+  const alias = '/@fs' + path.join(projectRoot, 'src/app.ts').replaceAll('\\', '/');
+  const original = fs.realpathSync.native;
+  let calls = 0;
+  t.mock.method(fs.realpathSync, 'native', (filename, ...args) => {
+    if (filename === alias) {
+      calls++;
+      return path.join(projectRoot, 'changed.ts');
+    }
+    return original(filename, ...args);
+  });
+  const read = t.mock.method(fs, 'readSync');
+  const script = await capture(['../../' + alias.slice(1)], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+  assert.equal(calls, 1);
+  assert.ok(read.mock.callCount() > 0);
+});
+
+test('a post-read project root change invalidates the source proof', async (t) => {
+  const projectRoot = projectFixture(t);
+  const original = fs.realpathSync.native;
+  let calls = 0;
+  t.mock.method(fs.realpathSync, 'native', (filename, ...args) => {
+    if (filename === projectRoot && ++calls === 2) return projectRoot + '-changed';
     return original(filename, ...args);
   });
   const read = t.mock.method(fs, 'readSync');
