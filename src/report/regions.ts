@@ -309,6 +309,12 @@ function elementList(elements: Group[], cropPaths: string[]): string[] {
     : ['', '<details>', `<summary>Elements (${elements.length})</summary>`, '', ...lines, '', '</details>'];
 }
 
+function representativeCaption(shownPaths: string[], elementCount: number): string[] {
+  if (!shownPaths.length) return [];
+  const count = shownPaths.length === elementCount ? `all ${elementCount}` : `${shownPaths.length} of ${elementCount}`;
+  return ['', `<sub>Showing ${count} elements for the grouped change above.</sub>`];
+}
+
 /** One section and property bundle, with the top-most crop for each changed layer. */
 function representativeSection(section: RegionArgs) {
   const elements = section.g.elements!;
@@ -346,21 +352,22 @@ function representativeSection(section: RegionArgs) {
     md.push(...packed.md);
     if (packed.images.composite) stateImages[state] = packed.images;
   }
+  const images: CropImages = [resting.images, ...Object.values(stateImages)].find((image) => image.composite) ?? {};
+  const shownPaths = images.composite ? cropPaths : [];
   md.push(
-    '',
-    `<sub>Showing ${cropPaths.length === elements.length ? `all ${elements.length}` : `${cropPaths.length} of ${elements.length}`} elements for the grouped change above.</sub>`,
-    ...elementList(elements, cropPaths),
+    ...representativeCaption(shownPaths, elements.length),
+    ...elementList(elements, shownPaths),
+    ...section.changes(representative),
   );
-  md.push(...section.changes(representative));
   return {
     md,
     regionJson: {
       paths: section.g.paths,
       representativePath: cropPaths[0],
-      cropPaths,
+      cropPaths: shownPaths,
       before: section.g.before,
       after: section.g.after,
-      images: resting.images.composite ? resting.images : (Object.values(stateImages)[0] ?? {}),
+      images,
       ...(Object.keys(stateImages).length ? { stateImages } : {}),
       ...(resting.visualEvidence ? { visualEvidence: resting.visualEvidence, reason: resting.reason } : {}),
       ...(resting.omitted ? { cropOmitted: 'budget' } : {}),

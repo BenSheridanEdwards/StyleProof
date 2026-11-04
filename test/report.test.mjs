@@ -294,9 +294,9 @@ test('end-to-end: header counts the collapsed total, not the longhand explosion'
   rmTmp(root);
 });
 
-test('end-to-end: identical siblings in one region collapse to a single block x N', () => {
+test('end-to-end: identical siblings in one region share a counted section and complete list', () => {
   // Three siblings with the SAME overlapping rect so groupRegions merges them
-  // into one region; identical findings then collapse to one `card` block x3.
+  // into one region; one counted section retains all three element paths.
   function card(i, color) {
     return [
       `body > ul:nth-child(1) > li:nth-child(${i})`,
@@ -321,7 +321,10 @@ test('end-to-end: identical siblings in one region collapse to a single block x 
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /\*\*`li\.card`\*\* ×3/);
+  assert.match(md, /### \*\*Card\*\* `li.card` · 3 elements restyled/);
+  assert.equal((md.match(/^- `li:nth-child/gm) ?? []).length, 3);
+  assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1);
+  assert.doesNotMatch(md, /\(shown\)|<sub>Showing/);
   rmTmp(root);
 });
 

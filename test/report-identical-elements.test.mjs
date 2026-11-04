@@ -217,7 +217,7 @@ test('folded height rows survive for every grouped element, including non-repres
     [21, 22, 23],
   ]) {
     const { md } = render({ heights });
-    assert.equal(sections(md).filter(() => true).length, 2);
+    assert.equal(sections(md).length, 2);
     assert.match(md, /Folded size\/position rows outside the crops/);
     assert.equal((md.match(/\| `height` \|/g) ?? []).length, heights.filter((height) => height !== 20).length);
     for (const height of heights.filter((height) => height !== 20))
@@ -266,4 +266,10 @@ test('JSON paths retain every covered element and identify the representative se
   const { json } = render();
   assert.deepEqual(json.surfaces[0].regions[0].paths, [1, 2, 3].map(elementPath));
   assert.equal(json.surfaces[0].regions[0].representativePath, elementPath(1));
+});
+
+test('omitted representative crops never mark elements as shown', () => {
+  const { md, json } = render({ maxCropFiles: 0 });
+  assert.doesNotMatch(md, /\(shown\)|<sub>Showing/);
+  assert.deepEqual(json.surfaces[0].regions[0].cropPaths, []);
 });

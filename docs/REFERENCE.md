@@ -99,7 +99,7 @@ Grouped sections additionally expose:
   individual padded bounds.
 
 Use `paths` or `elements` to enumerate affected elements; use `cropPaths` to
-identify the visible example. These optional fields do not change finding counts
+identify the visible example (`[]` when no crop was rendered). These optional fields do not change finding counts
 or remove the surface's existing `findings`. Mixed-change overlap regions retain
 their previous JSON shape.
 
