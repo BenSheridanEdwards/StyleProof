@@ -151,7 +151,19 @@ async function run(stepName, scenario, prior = [], thread = []) {
 
   const { environment, program } = stepProgram(stepName, inputs);
   const statuses = scenario.statuses ?? [];
-  const storedStatuses = prior.map((status) => ({ created_at: '2026-10-20T10:00:30Z', ...status }));
+  // Approval-dependent writes now read the live receipt rather than the gate's cached output.
+  const approvalReceipts =
+    prior.length || !scenario.approved
+      ? prior
+      : [
+          {
+            context: 'StyleProof',
+            state: 'success',
+            creator: BOT,
+            description: `Approved by @${scenario.approver || 'maintainer'} (run 123)`,
+          },
+        ];
+  const storedStatuses = approvalReceipts.map((status) => ({ created_at: '2026-10-20T10:00:30Z', ...status }));
   const comments = [];
   const updated = [];
   const outputs = {};
@@ -181,7 +193,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
             conclusion: 'success',
             event: 'issue_comment',
             head_branch: 'main',
-            triggering_actor: { login: prior[0]?.description?.match(/@([A-Za-z0-9_-]+)/)?.[1] },
+            triggering_actor: { login: approvalReceipts[0]?.description?.match(/@([A-Za-z0-9_-]+)/)?.[1] },
             run_started_at: '2026-10-20T10:00:00Z',
             updated_at: '2026-10-20T10:01:00Z',
           },
@@ -201,7 +213,14 @@ async function run(stepName, scenario, prior = [], thread = []) {
         createCommitStatus: async (input) => {
           await scenario.beforeStatusWrite?.(input);
           statuses.push(input);
-          storedStatuses.unshift({ ...input, creator: { login: 'github-actions[bot]', type: 'Bot' } });
+          const writtenStatus = {
+            ...input,
+            id: 1000 + statuses.length,
+            created_at: '2026-10-20T11:00:00Z',
+            creator: { login: 'github-actions[bot]', type: 'Bot' },
+          };
+          storedStatuses.unshift(writtenStatus);
+          return { data: writtenStatus };
         },
         listCommitStatusesForRef: async () => ({ data: storedStatuses }),
       },

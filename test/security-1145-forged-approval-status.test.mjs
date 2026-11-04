@@ -26,19 +26,12 @@ test('1145: a bot status without an approve-workflow run cannot carry approval f
     .replaceAll('${{ steps.context.outputs.untrusted-capture }}', 'false');
 
   assert.doesNotMatch(source, /\$\{\{/);
-  const previousPrior = process.env.STYLEPROOF_PRIOR_STATUS;
-  process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(status);
-
-  try {
-    await new AsyncFunction('github', 'context', 'core', source)(
-      {},
-      { repo: { owner: 'owner', repo: 'repo' } },
-      { setOutput: (key, value) => Object.assign(outputs, { [key]: value }) },
-    );
-  } finally {
-    if (previousPrior === undefined) delete process.env.STYLEPROOF_PRIOR_STATUS;
-    else process.env.STYLEPROOF_PRIOR_STATUS = previousPrior;
-  }
+  await new AsyncFunction('github', 'context', 'core', 'process', source)(
+    { rest: { repos: { listCommitStatusesForRef: async () => ({ data: [status] }) } } },
+    { repo: { owner: 'owner', repo: 'repo' }, payload: { repository: { default_branch: 'main' } } },
+    { setOutput: (key, value) => Object.assign(outputs, { [key]: value }) },
+    { env: { GITHUB_ACTION_PATH: new URL('../', import.meta.url).pathname, STYLEPROOF_STATUS_CONTEXT: 'StyleProof' } },
+  );
 
   assert.deepEqual(outputs, { approved: 'false', approver: '' });
 });

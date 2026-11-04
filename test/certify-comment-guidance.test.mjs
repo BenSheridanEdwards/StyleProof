@@ -61,6 +61,7 @@ async function commentBody({
     'steps.gate.outputs.approved': 'false',
     'steps.gate.outputs.approver': '',
     'steps.verdict.outputs.state': trustState,
+    'steps.verdict.outputs.diff-digest': 'd'.repeat(64),
     'steps.config.outputs.blocking': blocking,
     'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': ARTIFACT_URL,
     'steps.report-artifact.outputs.artifact-digest': 'd'.repeat(64),

@@ -49,6 +49,7 @@ function actionCommentScript({
     ['inputs.status-context', 'StyleProof'],
     ['toJSON(inputs.comment-marker)', JSON.stringify('<!-- styleproof-report -->')],
     ['steps.verdict.outputs.state', 'STYLE_REVIEW_REQUIRED'],
+    ['steps.verdict.outputs.diff-digest', 'd'.repeat(64)],
     ['steps.context.outputs.head-sha', 'c'.repeat(40)],
     ['inputs.include-content', 'false'],
     ['steps.report.outputs.content-changes', '0'],
