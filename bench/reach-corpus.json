@@ -33,7 +33,7 @@
   },
   "expectations": {
     "today": "shown = today's diffStyleMaps puts a finding on the marker element (with an expected prop); missed = it does not",
-    "reach": "reached / never-rendered / blind-channel: the src/ J1 join for CSS units and prototype J2/J3 joins for JS units",
+    "reach": "src/ J1 CSS and J2 source-range joins; J3 class-list prototype retained for the three class-token scenarios",
     "edit": "the seeded change: each `from` must occur exactly once in the base file; the head side is base plus every case edit"
   },
   "cases": [
@@ -297,11 +297,11 @@
       },
       "sel": ".sp-probe",
       "props": ["color"],
-      "residual": "The definition runs at load (J2 ran), the rule is injected only on render (J1 sees nothing), and the changed value is no class token (J3 has no signal). Pinned as the named residual: a fix must update this expectation on purpose.",
+      "residual": "J2 proves execution of the definition, not rendering of the value. No exact-range J1/J3 corroboration is recorded, even when the full spec renders the rule.",
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
             "J3": "n/a"
@@ -309,7 +309,7 @@
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown"
         }
       }
     },
@@ -419,7 +419,7 @@
       "unit": {
         "js": "console.warn("
       },
-      "noise": "Changed code that never runs during capture and has no visual effect. Flagged by J2 today; the client-bundle filter (#1000) and acknowledgements (#1006) address it.",
+      "noise": "Changed client code that never runs during capture and has no visual effect. J2 keeps this advisory noise; acknowledgements (#1006) are a later remedy.",
       "expect": {
         "declared": {
           "reach": "never-rendered",
@@ -431,6 +431,75 @@
           "reach": "never-rendered",
           "joins": {
             "J2": "never-ran"
+          }
+        }
+      }
+    },
+    {
+      "id": "render-scope-value",
+      "category": "residual",
+      "desc": "component-body style object used only in the fault overlay",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const faultStyle = { color: 'green' };",
+          "to": "const faultStyle = { color: 'red' };"
+        }
+      ],
+      "unit": {
+        "js": "const faultStyle"
+      },
+      "sel": ".sp-fault-style",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          }
+        }
+      }
+    },
+    {
+      "id": "eager-jsx-element",
+      "category": "residual",
+      "desc": "eagerly built JSX element shown only in the fault overlay",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const banner = <span className=\"sp-banner\">Down</span>;",
+          "to": "const banner = <strong className=\"sp-banner\">Down</strong>;"
+        }
+      ],
+      "unit": {
+        "js": "const banner"
+      },
+      "sel": ".sp-banner",
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
           }
         }
       }

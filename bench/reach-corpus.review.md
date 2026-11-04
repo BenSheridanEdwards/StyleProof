@@ -1,107 +1,82 @@
 # Reach corpus: method and results
 
-Buyer-legible answer to: _when a pull request restyles a state the capture spec
-never opens, does today's gate see it, and can reach evidence name it?_ This is
-Phase 0 of Change Reach ([#934](https://github.com/BenSheridanEdwards/StyleProof/issues/934),
-ticket [#988](https://github.com/BenSheridanEdwards/StyleProof/issues/988)).
+This fixture measures whether a restyle confined to an unopened state is visible
+in the computed-style diff, and whether the reach joins name the missing proof.
+The receipt is `bench/reach-corpus.results.json`; `pnpm run bench:reach:check` is
+the CI oracle.
 
 ## Method
 
-- `bench/fixtures/reach/` is one small app: the base side of a PR. Each case in
-  the corpus declares its seeded `edit`, and the head side is the base plus every
-  edit. There are 14 edits. 13 are visual and one is not.
-- `bench/reach-corpus.json` is the only source of truth. It lists five surfaces
-  (home, fault overlay, `status=bad`, dark mode, the 1440px band) and two
-  scenarios. **declared** opens only `home`, as a typical spec does.
-  **complete** opens all five.
-- `bench/reach-corpus.mjs` runs the real product path. esbuild bundles each
-  side with source maps. Chromium renders every surface on both sides.
-  `captureStyleMap` captures each one with `captureReach` and V8 JS coverage, and
-  `diffStyleMaps` compares base with head.
-- `src/rule-reach.ts` supplies J1 through `classifyRuleReach` on the
-  `captureReach` ledger. `bench/reach-joins.mjs` holds the J2/J3 prototypes.
-  - **J1:** a changed served CSS rule must match an element. Changed custom
-    properties follow `aliases`, need every consumer to match, and require a
-    read outside a custom-property declaration. Unread and alias-only tokens
-    are never matched. `@keyframes`, `@font-face` and `@property` resolve
-    through matched references; `@property` also resolves through declarations;
-    alias-only reads do not count.
-  - **J2:** a changed line of render code must run. This uses V8 block coverage
-    resolved through the bundle's source map.
-  - **J3:** a changed class token must land on a captured element. Some paired
-    element's class list must gain or lose it between base and head.
-- Before any case runs, the healthy base is captured twice. The two captures
-  must self-diff to zero and record identical reach ledgers and execution.
-  Missing ledgers or any drift abort the run. Each scenario also fails if its
-  J1 ledger is not complete, because CSS reach is then unknown.
-- Every changed unit, meaning each changed served rule or changed source line,
-  must belong to exactly one case. A unit no case claims fails the run.
+- `bench/fixtures/reach/` supplies the base app. The head applies every case's
+  unique `edit` from `bench/reach-corpus.json`: 16 changes, 15 visual and one
+  non-visual error-handler change.
+- The declared scenario captures only `home`. The complete scenario captures
+  home, fault overlay, status=bad, dark mode and the 1440px band. “Complete” here
+  names the fixture's five-state spec, not a reach-complete certification.
+- esbuild bundles each side with source maps. Chromium runs the real
+  `trackScriptReach`/`captureStyleMap` path, including `captureReach`, and
+  `diffStyleMaps` compares both sides.
+- J1 uses `src/rule-reach.ts`. J2 uses `changedScriptRanges` from
+  `src/script-join-git.ts` and `classifyScriptReach` from `src/script-join.ts` on
+  stored `scriptReach` evidence. The benchmark supplies its seeded file diff;
+  unit/report tests independently verify the manifest-SHA git adapter.
+- J3 remains the `classReach` prototype in `bench/reach-joins.mjs` for
+  branch-class, module-constant and colliding-constant. These three scenarios
+  still use its token delta, without per-occurrence provenance. Their reached
+  results do **not** claim production J3 correctness; #1001 replaces it.
+- Healthy base captures must self-diff to zero and have identical J1 and script
+  evidence. Every changed unit must belong to exactly one case, and incomplete
+  J1 ledgers abort scoring.
 
-## Results (receipt: `bench/reach-corpus.results.json`)
+## Before and after
 
-The migrated runner (J1 from `src/rule-reach.ts`) reproduces these totals in
-Chromium: CI's `node bench/reach-corpus.mjs --check` passed every case on commit
-`b8ebaf468` (run 40170871007). The committed receipt file's timestamp and CSS
-unit strings still come from the earlier prototype run; `npm run bench:reach`
-refreshes them.
+| Measurement                                    | Before (14 cases) | After (16 cases) |
+| ---------------------------------------------- | ----------------- | ---------------- |
+| Declared: visual changes shown                 | 1/13              | 1/15             |
+| Complete: visual changes shown                 | 12/13             | 14/15            |
+| Declared: misses named by a non-reached status | 11/12             | 14/14            |
+| Declared: unknown cases                        | 0                 | 3                |
+| Complete: unknown cases                        | 0                 | 3                |
+| Error handler, both scenarios                  | never-rendered    | never-rendered   |
 
-| Scenario                | Today's diff shows      | Reach joins                                        |
-| ----------------------- | ----------------------- | -------------------------------------------------- |
-| declared (`home` only)  | 1 of 13 visual changes  | name 11 of the 12 misses; 1 is the pinned residual |
-| complete (all 5 states) | 12 of 13 visual changes | mark every rendered change reached                 |
+**One existing case moved to unknown:** runtime-css-in-js, in both scenarios
+(two result cells). Two new cases are unknown in both scenarios (four new result
+cells). Unknown therefore rises from zero to three cases per scenario; there
+are six unknown result cells in the new receipt. No other existing expectation
+changed.
 
-What each kind of change does in the declared scenario:
+| Case               | Declared before → after         | Complete before → after         |
+| ------------------ | ------------------------------- | ------------------------------- |
+| runtime-css-in-js  | reached → unknown               | reached → unknown               |
+| render-scope-value | new → unknown                   | new → unknown                   |
+| eager-jsx-element  | new → unknown                   | new → unknown                   |
+| error-handler      | never-rendered → never-rendered | never-rendered → never-rendered |
 
-| Change                                                         | Today  | Reach                                        |
-| -------------------------------------------------------------- | ------ | -------------------------------------------- |
-| `:hover` colour                                                | shown  | reached (forced `:hover` matches)            |
-| Fault-overlay rule, removed rule, CSS Module rule, ternary arm | missed | never matched (J1)                           |
-| Token used only by the fault badge                             | missed | never matched (J1 consumer closure)          |
-| Dark-mode and 1440px `@media` rules                            | missed | never matched, with the gating `@media`      |
-| `@keyframes` body                                              | missed | blind channel (a matched rule references it) |
-| Class added inside the fault overlay                           | missed | never rendered (J2 never ran)                |
-| Module-scope class constants (incl. one that collides)         | missed | never rendered (J3; J2 alone says "ran")     |
-| Runtime CSS-in-JS style string                                 | missed | **reached: the pinned residual**             |
-| `console.warn` text in an error handler                        | n/a    | never rendered (**noise**)                   |
+The render-scope case computes `faultStyle` in the component body but applies it
+only in the fault overlay. The JSX case eagerly builds `banner` and mounts it
+only under the fault branch. Both definitions execute on healthy captures, yet
+their values are absent from that page. Even the five-state spec leaves them
+unknown: execution and visual findings do not provide the exact source-range
+J1/J3 corroboration required by ADR 0009.
 
-## What this proves, and what it doesn't
+## Limits
 
-**Proven:** on a deterministic fixture, a restyle confined to a state the spec
-never opens is invisible to today's diff, and that holds for a CSS rule, a
-token, a media query, a CSS Module, a markup class, and a module-scope constant.
-Reach evidence from a real browser names each of those misses with the changed
-rule or line. Capturing the missing states turns each one into an ordinary
-finding.
+This proves behavior on a synthetic, deterministic fixture, not a consumer noise
+rate. J2's error-handler finding remains advisory noise. Source-mapped block
+entry does not prove every expression evaluated: default parameter values,
+destructuring defaults, logical assignment RHS, later optional-chain links and
+code after a throwing expression remain named limits. Missing maps, mismatched
+source hashes and unloaded scripts are unmeasured. J2 never changes a verdict
+under either changeReach level.
 
-**Named limits, pinned so they cannot drift silently:**
-
-- **Runtime CSS-in-JS** (`runtime-css-in-js`). The style string runs at load,
-  so J2 says it ran. The rule is injected only on render, so J1 sees nothing.
-  The value is not a class token, so J3 has no signal. Today it reads as
-  reached, which is a false clearance. Zero-runtime CSS-in-JS compiles to CSS,
-  and J1 covers that exactly.
-- **Noise** (`error-handler`). Changed code that never runs during capture and
-  has no visual effect is still flagged. The client-bundle filter
-  ([#1000](https://github.com/BenSheridanEdwards/StyleProof/issues/1000)) and
-  acknowledgements ([#1006](https://github.com/BenSheridanEdwards/StyleProof/issues/1006))
-  are where that gets addressed.
-- **Blind channel** (`keyframes`). It is reached but computed styles cannot
-  hold it, so it is named rather than counted as clean.
-
-**Not proven:** the cost of recording reach evidence and the noise rate on a real
-app's PRs ([#989](https://github.com/BenSheridanEdwards/StyleProof/issues/989)).
-J2/J3 remain bench prototypes; J3 pairs changed lines by position inside each diff
-hunk. Unsupported CSS parsing fails with unknown reach. The fixture is synthetic,
-and its rates say nothing about a particular consumer app.
+The complete spec still misses the keyframes change because computed styles
+cannot hold animation bodies. J1 names that blind channel. All three value
+cases remain unknown, and J3 is still a prototype. These results never establish
+reach-complete.
 
 ## Reproduce
 
 ```sh
-npm run bench:reach         # measure + write the receipt
-npm run bench:reach:check   # fail on any violated expectation
+pnpm run bench:reach        # write receipt
+pnpm run bench:reach:check  # fail on any violated expectation
 ```
-
-Adding a case: add it to `reach-corpus.json` with its `edit`, its `unit`
-matcher, and its expectations, then rerun. Each edit's `from` must occur exactly
-once in the base file. A changed unit that no case's matcher claims fails the
-run.

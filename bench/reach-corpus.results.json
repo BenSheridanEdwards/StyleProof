@@ -1,16 +1,14 @@
 {
-  "generated": "2026-10-21T12:04:03.702Z",
+  "generated": "2026-11-04T08:32:09.769Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "totals": {
-    "cases": 14,
-    "visual": 13,
-    "todayShownDeclared": "1/13",
-    "todayShownComplete": "12/13",
-    "missesNamedByReach": "11/12",
-    "residual": [
-      "runtime-css-in-js"
-    ],
+    "cases": 16,
+    "visual": 15,
+    "todayShownDeclared": "1/15",
+    "todayShownComplete": "14/15",
+    "missesNamedByReach": "14/14",
+    "residual": [],
     "failed": []
   },
   "cases": [
@@ -46,7 +44,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".panel--fault .indicator: never-rendered (selector never matched)"
+            ".panel--fault .indicator: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -69,7 +67,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ":root: never-rendered (consumer of --warn never matched: .fault-badge)"
+            ":root: never-rendered (--warn changed, and its consumer .fault-badge never matched)"
           ],
           "ok": true
         },
@@ -92,7 +90,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".badge--bad: never-rendered (selector never matched)"
+            ".badge--bad: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -115,7 +113,7 @@
           "today": "missed",
           "reach": "blind-channel",
           "units": [
-            "@keyframes pulse: blind-channel (referenced by .badge)"
+            "@keyframes pulse: blind-channel (referenced by .badge, which matched a captured element)"
           ],
           "ok": true
         },
@@ -123,7 +121,7 @@
           "today": "missed",
           "reach": "blind-channel",
           "units": [
-            "@keyframes pulse: blind-channel (referenced by .badge)"
+            "@keyframes pulse: blind-channel (referenced by .badge, which matched a captured element)"
           ],
           "ok": true
         }
@@ -138,7 +136,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            "@media (prefers-color-scheme: dark) > .panel: never-rendered (gated by @media (prefers-color-scheme: dark))"
+            "@media (prefers-color-scheme: dark) > .panel: never-rendered (never matched while @media (prefers-color-scheme: dark) applied)"
           ],
           "ok": true
         },
@@ -161,7 +159,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            "@media (min-width: 1440px) > .panel: never-rendered (gated by @media (min-width: 1440px))"
+            "@media (min-width: 1440px) > .panel: never-rendered (never matched while @media (min-width: 1440px) applied)"
           ],
           "ok": true
         },
@@ -184,7 +182,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".panel--fault: never-rendered (selector never matched)"
+            ".panel--fault: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -207,7 +205,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".card_alert: never-rendered (selector never matched)"
+            ".card_alert: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -228,25 +226,27 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
             "J3": "n/a"
           },
           "units": [
-            "app.jsx:40: reached"
+            "app.jsx:40: unknown (value; rendering not proved)"
           ],
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
             "J3": "n/a"
           },
           "units": [
-            "app.jsx:40: reached"
+            ".css-11ycpj1: reached (matched in a captured state)",
+            ".css-xgzlw4: reached (matched in a captured state)",
+            "app.jsx:40: unknown (value; rendering not proved)"
           ],
           "ok": true
         }
@@ -265,7 +265,7 @@
             "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:51: never-rendered"
+            "app.jsx:51: never-rendered (J3 prototype; per-occurrence provenance is not implemented)"
           ],
           "ok": true
         },
@@ -277,7 +277,7 @@
             "J3": "reached"
           },
           "units": [
-            "app.jsx:51: reached"
+            "app.jsx:51: reached (J3 prototype; per-occurrence provenance is not implemented)"
           ],
           "ok": true
         }
@@ -296,7 +296,7 @@
             "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:8: never-rendered"
+            "app.jsx:8: never-rendered (J3 prototype; per-occurrence provenance is not implemented)"
           ],
           "ok": true
         },
@@ -308,7 +308,7 @@
             "J3": "reached"
           },
           "units": [
-            "app.jsx:8: reached"
+            "app.jsx:8: reached (J3 prototype; per-occurrence provenance is not implemented)"
           ],
           "ok": true
         }
@@ -327,7 +327,7 @@
             "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:9: never-rendered"
+            "app.jsx:9: never-rendered (J3 prototype; per-occurrence provenance is not implemented)"
           ],
           "ok": true
         },
@@ -339,7 +339,7 @@
             "J3": "reached"
           },
           "units": [
-            "app.jsx:9: reached"
+            "app.jsx:9: reached (J3 prototype; per-occurrence provenance is not implemented)"
           ],
           "ok": true
         }
@@ -357,7 +357,7 @@
             "J3": "n/a"
           },
           "units": [
-            "app.jsx:63: never-rendered"
+            "app.jsx:63: never-rendered (changed expression never ran)"
           ],
           "ok": true
         },
@@ -368,7 +368,69 @@
             "J3": "n/a"
           },
           "units": [
-            "app.jsx:63: never-rendered"
+            "app.jsx:63: never-rendered (changed expression never ran)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "render-scope-value",
+      "category": "residual",
+      "desc": "component-body style object used only in the fault overlay",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:67: unknown (value; rendering not proved)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:67: unknown (value; rendering not proved)"
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "eager-jsx-element",
+      "category": "residual",
+      "desc": "eagerly built JSX element shown only in the fault overlay",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:68: unknown (value; rendering not proved)"
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "n/a"
+          },
+          "units": [
+            "app.jsx:68: unknown (value; rendering not proved)"
           ],
           "ok": true
         }

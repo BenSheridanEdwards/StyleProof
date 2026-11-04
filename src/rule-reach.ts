@@ -30,6 +30,7 @@
  * `ledger: 'missing'`. Unreadable stylesheets give `ledger: 'partial'`;
  * only readable rules are classified, so a partial ledger is never proof of reach.
  */
+import type { SourceCorroboration } from './script-join.js';
 import type { ServedRule, StyleMap } from './capture/types.js';
 
 export type RuleReachStatus = 'reached' | 'never-rendered' | 'unmeasured' | 'blind-channel';
@@ -37,6 +38,8 @@ export type RuleReachStatus = 'reached' | 'never-rendered' | 'unmeasured' | 'bli
 export type RuleReach = {
   /** The ledger key: at-rule chain and prelude (`@media (prefers-color-scheme: dark) > .panel`). */
   key: string;
+  /** Optional exact source provenance; served-rule ledgers do not currently supply it. */
+  sourceRange?: Omit<SourceCorroboration, 'join' | 'status'>;
   change: 'added' | 'removed' | 'changed';
   status: RuleReachStatus;
   /** Plain-language reason for the status. */

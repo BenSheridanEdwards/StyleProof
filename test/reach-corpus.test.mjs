@@ -11,7 +11,10 @@ async function corpusProbe(mode, rootUrl) {
   const joins = await import(new URL('bench/reach-joins.mjs', rootUrl));
   const findingMatch = await import(new URL('bench/finding-match.mjs', rootUrl));
   const classifier = await import(new URL('dist/rule-reach.js', rootUrl));
+  const scriptClassifier = await import(new URL('dist/script-join.js', rootUrl));
+  const sourceRanges = await import(new URL('dist/script-join-git.js', rootUrl));
   const source = new URL('bench/reach-corpus.mjs', rootUrl);
+
   const corpus = {
     fixture: 'fixture',
     surfaces: { home: { width: 800, query: '', colorScheme: 'light' } },
@@ -29,11 +32,13 @@ async function corpusProbe(mode, rootUrl) {
       },
     ],
   };
+
   let captures = 0;
   let receipt;
   const stdout = [];
   const stderr = [];
   const options = [];
+
   const browser = {
     version: () => 'unit-fixture',
     close: async () => {},
@@ -48,14 +53,18 @@ async function corpusProbe(mode, rootUrl) {
           stopJSCoverage: async () => [{ url: pathToFileURL('/capture/app.js').href }],
         },
       };
+
       return page;
     },
   };
+
   const capture = {
+    trackScriptReach: async () => ({ dispose: async () => {} }),
     trackServedRules: async () => ({ dispose: async () => {} }),
     captureStyleMap: async (page, settings) => {
       options.push(settings?.captureReach === true && Boolean(settings.servedRules));
       captures++;
+
       const reach = {
         version: 2,
         scope: 'compared',
@@ -63,14 +72,19 @@ async function corpusProbe(mode, rootUrl) {
         rules: [{ sheet: 0, key: '.probe', hash: page.side, used: true }],
         ...(mode === 'partial' ? { unreadable: 1 } : {}),
       };
+
       if (mode === 'drift' && captures === 2) reach.rules[0].hash = 'drift';
+
       return {
         elements: {},
+        scriptReach: { version: 1, window: 'navigation', status: 'measured', scripts: [] },
         ...(mode === 'missing-preflight' || (mode === 'missing-scenario' && captures > 2) ? {} : { reach }),
       };
     },
   };
+
   const fakeFs = {
+    realpathSync: (file) => file,
     mkdtempSync: () => '/capture',
     cpSync: () => {},
     rmSync: () => {},
@@ -79,19 +93,24 @@ async function corpusProbe(mode, rootUrl) {
       if (String(file).endsWith('reach-corpus.results.json')) receipt = JSON.parse(text);
     },
   };
+
   const mocks = {
     '@playwright/test': { chromium: { launch: async () => browser } },
     esbuild: { default: { build: async () => {} } },
     'node:fs': { default: fakeFs },
     '../dist/capture.js': capture,
     '../dist/rule-reach.js': classifier,
+    '../dist/script-join.js': scriptClassifier,
+    '../dist/script-join-git.js': sourceRanges,
     '../dist/diff.js': { diffStyleMaps: () => [] },
     './reach-joins.mjs': { ...joins, diffHunks: () => [], lineExecution: () => new Map() },
     './finding-match.mjs': findingMatch,
   };
+
   if (mode === 'unmocked-import') delete mocks['./finding-match.mjs'];
   const sentinel = new Error('corpus exit');
   let exitCode = 0;
+
   const context = (await import('node:vm')).createContext({
     console: { log: (text) => stdout.push(text), error: (text) => stderr.push(text) },
     process: {
@@ -102,6 +121,7 @@ async function corpusProbe(mode, rootUrl) {
       },
     },
   });
+
   const module = new SourceTextModule(readFileSync(source, 'utf8'), {
     context,
     identifier: source.href,
@@ -109,10 +129,12 @@ async function corpusProbe(mode, rootUrl) {
       meta.url = source.href;
     },
   });
+
   await module.link(async (specifier) => {
     if (!(specifier in mocks) && !specifier.startsWith('node:'))
       throw new Error(`corpus probe: unmocked import ${specifier}`);
     const exports = mocks[specifier] ?? (await import(specifier));
+
     return new SyntheticModule(
       Object.keys(exports),
       function () {
@@ -121,16 +143,19 @@ async function corpusProbe(mode, rootUrl) {
       { context },
     );
   });
+
   try {
     await module.evaluate();
   } catch (error) {
     if (error !== sentinel) throw error;
   }
+
   console.log(JSON.stringify({ exitCode, stdout, stderr, receipt, options }));
 }
 
 function runCorpusProbe(mode) {
   const rootUrl = new URL('../', import.meta.url).href;
+
   const child = spawnSync(
     process.execPath,
     [
@@ -141,7 +166,9 @@ function runCorpusProbe(mode) {
     ],
     { encoding: 'utf8' },
   );
+
   assert.equal(child.status, 0, child.stderr);
+
   return JSON.parse(child.stdout);
 }
 

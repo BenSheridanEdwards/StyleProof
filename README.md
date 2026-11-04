@@ -696,8 +696,7 @@ surface@width stores original-source executed, mixed and unexecuted anchors plus
 content hashes and stable source keys in `StyleMap.scriptReach`. An executed anchor means its block was entered; code after any expression that threw in that block is not proved.
 It does not prove every expression evaluated. J2 residuals are default parameter values,
 destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`), and later links
-of short-circuited optional chains. Evidence notes name these gaps; 2.2 must treat
-these expressions as unknown. Unmapped code supplies no execution proof. Project-root-relative source keys preserve package directories (config directory, then git root);
+of short-circuited optional chains. The J2 join keeps these limits visible as unknown when execution is the only proof. Unmapped code supplies no execution proof. Project-root-relative source keys preserve package directories (config directory, then git root);
 outside-root sources and collisions read unknown. Relative map sources that climb above
 the URL root drop only the escaping `..` segments if their own `sourcesContent` entry
 is present and `sourceRoot` is absent or relative, yielding a content hash.
@@ -711,8 +710,14 @@ self-check records script reach unknown, including storage-dependent first and r
 Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
 build; missing maps read `unmeasured`. The window runs from navigation through
 the map read, so transient loading branches count as executed. Execution alone
-does not prove a value rendered. The git-diff join and J3 class-list deltas
-remain unbuilt. See [script evidence](docs/REFERENCE.md#script-execution-evidence-j2). The
+does not prove a value rendered. J2 joins changed script ranges against the actual base
+and head map manifests' SHAs, including a reused ancestor baseline. Removed ranges
+use base evidence; added ranges use head evidence. The report names execution,
+source file, line, side and reason under `reach.scripts`, grouped by status in Markdown
+and HTML. Executed values stay `unknown` without exact-range J1/J3 rendering proof;
+never/partly run expressions are `never-rendered`. Missing maps, hashes, git or SHAs
+stay `unmeasured`. J2 is always warn-only, including under `changeReach: 'gate'`,
+and its unresolved units or gaps prevent reach-complete. J3 class-list deltas remain unbuilt. See [script evidence](docs/REFERENCE.md#script-execution-evidence-j2). The
 [Change Reach 0.2 receipt](bench/REACH-0.2.md) records capture cost and a limited
 six-PR noise replay, with its exclusions and labelling limits.
 

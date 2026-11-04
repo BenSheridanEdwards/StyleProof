@@ -1,5 +1,6 @@
-// Prototype J2/J3 reach joins for the reach corpus (#988). J1 now lives in
-// src/rule-reach.ts (#995); J2/J3 stay here until Change Reach phase 2 (#934).
+// J3 prototype for the reach corpus (#988); #1001 replaces it.
+// J1 and corpus J2 use src/. The historical J2 helpers below remain for the
+// separately pinned reach-noise replay; the corpus does not call them.
 // Each join answers one question about a changed unit of the PR, from evidence
 // a real browser recorded during capture:
 //
