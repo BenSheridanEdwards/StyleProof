@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { markInteractiveElements, analyzeForcedStateScope } from '../dist/capture/browser.js';
+import { markInteractiveElements, analyzeForcedStateScope, snapSessionBaseline } from '../dist/capture/browser.js';
 import { diffStyleMaps, diffStyleMapDirs } from '../dist/index.js';
 import { remapBeforeStyleMap } from '../dist/path-correspondence.js';
 import { captureOptionsFor } from '../dist/runner/settings.js';
@@ -70,6 +70,7 @@ test('interactive discovery records only meaningful form states that are false a
     { selectors: ['a'], expected: [] },
   ].map((control) => ({
     ...control,
+    type: control.type ?? 'text',
     matches(selector) {
       return selector.split(',').some((part) => control.selectors.includes(part.trim()));
     },
@@ -160,5 +161,104 @@ test('runner form allowance inherits defaults and honours the surface override',
   assert.equal(
     captureOptionsFor({ ...surface, maxFormStateScanWork: 60000 }, settings, () => 0).maxFormStateScanWork,
     60000,
+  );
+});
+
+for (const reason of ['form-scan-work', 'shared-baseline-unavailable']) {
+  test(`matching optional form omissions (${reason}) preserve certification but one-sided layers do not`, () => {
+    const directory = createTemporaryDirectory();
+    try {
+      const beforeDirectory = `${directory}/before`;
+      const afterDirectory = `${directory}/after`;
+      const omitted = {
+        ...createStyleMap({}),
+        stateLayers: ['hover', 'focus', 'active'],
+        stateLayerOmissions: Object.fromEntries(
+          ['checked', 'disabled', 'placeholder-shown'].map((stateName) => [stateName, reason]),
+        ),
+      };
+      writeCapture(beforeDirectory, 'form@1280', omitted, null);
+      writeCapture(afterDirectory, 'form@1280', omitted, null);
+      assert.equal(diffStyleMapDirs(beforeDirectory, afterDirectory).statesUncertified, 0);
+      assert.deepEqual(diffStyleMaps(omitted, omitted), []);
+      const legacy = createStyleMap({});
+      for (const [before, after] of [
+        [legacy, omitted],
+        [omitted, legacy],
+      ]) {
+        writeCapture(beforeDirectory, 'form@1280', before, null);
+        writeCapture(afterDirectory, 'form@1280', after, null);
+        assert.equal(diffStyleMapDirs(beforeDirectory, afterDirectory).statesUncertified, 0);
+      }
+      writeCapture(beforeDirectory, 'form@1280', omitted, null);
+      for (const other of [
+        { ...omitted, stateLayers: [...STATE_LAYER_NAMES] },
+        { ...omitted, stateLayerOmissions: undefined },
+        { ...omitted, statesSkipped: true },
+        { ...omitted, statesCaptured: false },
+        { ...omitted, stateLayers: ['hover', 'focus'] },
+      ]) {
+        writeCapture(afterDirectory, 'form@1280', other, null);
+        assert.equal(diffStyleMapDirs(beforeDirectory, afterDirectory).statesUncertified, 1);
+      }
+    } finally {
+      removeTemporaryDirectory(directory);
+    }
+  });
+}
+
+for (const typedAvailability of [
+  [false, true],
+  [true, false],
+])
+  test(`a form baseline with mixed Typed OM (${typedAvailability}) stays unproven`, (context) => {
+    const target = {};
+    globalThis.window = {};
+    globalThis.document = { querySelector: () => target };
+    globalThis.getComputedStyle = () => ({ getPropertyValue: () => 'block' });
+    context.after(() => {
+      delete globalThis.window;
+      delete globalThis.document;
+      delete globalThis.getComputedStyle;
+    });
+    let baselineReads = 0;
+    const snapshot = (argumentsValue) => {
+      if (!argumentsValue.countOnly) {
+        globalThis.window.baseline = { control: { color: 'red' } };
+        globalThis.window['baseline-typed-margins'] = typedAvailability[baselineReads++]
+          ? { control: { 'margin-left': 'auto' } }
+          : undefined;
+      }
+      return { scanned: 1, truncated: false, delta: {} };
+    };
+    assert.deepEqual(
+      snapSessionBaseline(
+        { selector: 'input,textarea', scope: 'subtree', baselineKey: 'baseline', maxElements: 32 },
+        10,
+        false,
+        snapshot,
+        true,
+      ),
+      [1, 1],
+    );
+    assert.equal(globalThis.window['baseline-typed-margins'], undefined);
+  });
+
+test('legacy Typed OM evidence cannot stand in for unavailable form-state proof', () => {
+  const computedMargins = { 'margin-left': 'auto', 'margin-right': 'auto' };
+  const before = {
+    ...createStyleMap({ elements: { control: { tag: 'input', computedValueStyle: computedMargins } } }),
+    stateLayers: [...STATE_LAYER_NAMES],
+    stateComputedValueStyle: { control: { hover: { control: computedMargins } } },
+    states: { control: { checked: { control: { 'margin-left': '10px', 'margin-right': '10px' } } } },
+  };
+  const after = {
+    ...before,
+    states: { control: { checked: { control: { 'margin-left': '20px', 'margin-right': '20px' } } } },
+  };
+  assert.ok(
+    diffStyleMaps(before, after).some(
+      (finding) => finding.state === 'checked' && finding.props.some((property) => property.prop === 'margin-left'),
+    ),
   );
 });

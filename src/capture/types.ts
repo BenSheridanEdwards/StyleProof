@@ -109,9 +109,10 @@ export type StyleMap = {
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;
-  /** Captured forced layers, including empty deltas. Absent means hover/focus/active only.
-   * New form layers omitted after budget truncation are uncertified, even on both sides. */
+  /** Captured forced layers, including empty deltas. Absent means hover/focus/active only. */
   stateLayers?: string[];
+  /** Optional form layers omitted for resource reasons. Matching omissions on both maps retain legacy certification. */
+  stateLayerOmissions?: Record<string, 'form-scan-work' | 'shared-baseline-unavailable'>;
   /** Resting-applicable owners per form layer, including layers with zero qualifying controls. */
   stateTargets?: Record<string, string[]>;
   /**

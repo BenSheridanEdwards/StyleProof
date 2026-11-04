@@ -2,6 +2,7 @@
 // parent-state descendant rules still apply.
 import { captureExpression } from './script-evaluation.js';
 import type { CDPSession, Page } from '@playwright/test';
+import filesystem from 'node:fs';
 import {
   analyzeForcedStateScope,
   clearInteractiveMarks,
@@ -27,7 +28,7 @@ const MAX_FORCED_STATE_SCAN_WORK = 32_000;
 const FORCED_STATE_SCOPES: readonly ForcedStateScope[] = ['document', 'stylesheet'];
 
 export const LEGACY_STATE_LAYER_NAMES = ['hover', 'focus', 'active'] as const;
-const FORM_STATE_LAYER_NAMES = ['checked', 'disabled', 'placeholder-shown'] as const;
+export const FORM_STATE_LAYER_NAMES = ['checked', 'disabled', 'placeholder-shown'] as const;
 export const STATE_LAYER_NAMES = [...LEGACY_STATE_LAYER_NAMES, ...FORM_STATE_LAYER_NAMES] as const;
 const STATE_SETS: Record<(typeof STATE_LAYER_NAMES)[number], string[]> = {
   hover: ['hover'],
@@ -211,6 +212,7 @@ type PendingSettle = {
 type ForcedStateCaptureContext = {
   session: ForcedStateSession;
   states: StyleMap['states'];
+  stateLayerOmissions?: StyleMap['stateLayerOmissions'];
   /** Typed OM margin proof per owner/state; dropped (undefined) once any read lacked Typed OM. */
   stateComputedValueStyle: StyleMap['stateComputedValueStyle'];
   baselineKey: string;
@@ -481,6 +483,14 @@ function discardFormStateLayer(context: ForcedStateCaptureContext, stateName: st
   for (const variations of Object.values(context.stateComputedValueStyle ?? {})) delete variations[stateName];
 }
 
+function omitFormStateLayers(
+  context: ForcedStateCaptureContext,
+  reason: 'form-scan-work' | 'shared-baseline-unavailable',
+): string[] {
+  context.stateLayerOmissions = Object.fromEntries(FORM_STATE_LAYER_NAMES.map((stateName) => [stateName, reason]));
+  return [...LEGACY_STATE_LAYER_NAMES];
+}
+
 /** At most two form variations plus one baseline per control, with an independent allowance. */
 async function captureFormStateLayers(
   context: ForcedStateCaptureContext,
@@ -493,6 +503,7 @@ async function captureFormStateLayers(
 
   const formContext: ForcedStateCaptureContext = {
     ...context,
+    stateComputedValueStyle: {},
     incomplete: false,
     pendingSettle: undefined,
     scanWorkRemaining: context.limits.maxFormStateScanWork,
@@ -507,6 +518,14 @@ async function captureFormStateLayers(
     formContext.restingCounts = Array.isArray(shared) ? shared : undefined;
   }
 
+  if (!formContext.sharedBaseline) {
+    context.warnings.push(
+      'styleproof: no shared resting baseline for form-state reads; the form sweep was skipped. ' +
+        'Raise maxFormStateScanWork or maxForcedStateElements to cover this scope.',
+    );
+    return omitFormStateLayers(context, 'shared-baseline-unavailable');
+  }
+
   for (const [index, marked] of targets.entries()) {
     if (formContext.incomplete) break;
     await captureFormStateTarget(formContext, marked, resolved[index], formContext.restingCounts?.[index]);
@@ -515,21 +534,32 @@ async function captureFormStateLayers(
   return finishFormStateLayers(context, formContext, targets);
 }
 
+async function resetFormStateTargets(formContext: ForcedStateCaptureContext): Promise<void> {
+  for (const target of [...formContext.session.applied]) {
+    await resetForcedStateTarget(formContext, target);
+
+    if (!(await settleForcedState(formContext.session.client, target.selector))) {
+      formContext.incomplete = true;
+      formContext.warnings.push(
+        `styleproof: forced-state target ${target.selector} detached while resetting form state.`,
+      );
+    }
+  }
+}
+
+function mergeFormStateProof(context: ForcedStateCaptureContext, formContext: ForcedStateCaptureContext): void {
+  if (!context.stateComputedValueStyle || !formContext.stateComputedValueStyle) return;
+  for (const [owner, variations] of Object.entries(formContext.stateComputedValueStyle))
+    Object.assign((context.stateComputedValueStyle[owner] ??= {}), variations);
+}
+
 async function finishFormStateLayers(
   context: ForcedStateCaptureContext,
   formContext: ForcedStateCaptureContext,
   targets: MarkedInteractive[],
 ): Promise<string[]> {
   await flushPendingSettle(formContext);
-
-  for (const target of [...context.session.applied]) {
-    await resetForcedStateTarget(formContext, target);
-
-    if (!(await settleForcedState(context.session.client, target.selector))) {
-      formContext.incomplete = true;
-      context.warnings.push(`styleproof: forced-state target ${target.selector} detached while resetting form state.`);
-    }
-  }
+  await resetFormStateTargets(formContext);
 
   const checked = formContext.sharedBaseline ? await sessionBaseline(formContext, targets, true, true) : false;
 
@@ -542,20 +572,24 @@ async function finishFormStateLayers(
     formContext.warnings.push(
       'styleproof: resting styles changed after form-state capture; all form layers are not compared.',
     );
-  context.stateComputedValueStyle = formContext.stateComputedValueStyle;
+  if (!formContext.incomplete && !drifted) {
+    mergeFormStateProof(context, formContext);
+    return [...STATE_LAYER_NAMES];
+  }
 
-  if (!formContext.incomplete && !drifted && formContext.sharedBaseline) return [...STATE_LAYER_NAMES];
-
-  for (const stateName of FORM_STATE_LAYER_NAMES) discardFormStateLayer(context, stateName);
+  for (const stateName of FORM_STATE_LAYER_NAMES) discardFormStateLayer(formContext, stateName);
 
   if (formContext.scanWorkRemaining === 0)
     context.warnings.push(
-      `styleproof: form-state scan exhausted maxFormStateScanWork=${context.limits.maxFormStateScanWork}; all form layers are not compared.`,
+      `styleproof: form-state scan exhausted maxFormStateScanWork=${context.limits.maxFormStateScanWork}; ` +
+        'all form layers are not compared. Raise maxFormStateScanWork to capture them.',
     );
   else if (!drifted)
     context.warnings.push('styleproof: form-state capture was incomplete; all form layers are not compared.');
 
-  return [...LEGACY_STATE_LAYER_NAMES];
+  return formContext.scanWorkRemaining === 0 && !drifted
+    ? omitFormStateLayers(context, 'form-scan-work')
+    : [...LEGACY_STATE_LAYER_NAMES];
 }
 
 function formStateTargets(targets: MarkedInteractive[]): NonNullable<StyleMap['stateTargets']> {
@@ -603,9 +637,10 @@ async function resolveReadScope(
 ): Promise<{ legacy: ForcedStateReadScope; form: ForcedStateReadScope }> {
   if (limits.forcedStateScope !== 'stylesheet') return { legacy: 'document', form: 'document' };
   const analysis = await page.evaluate(analyzeForcedStateScope, includeFormStates);
+  const readKind = analysis.legacy && analysis.legacy.scope !== 'document' ? 'form-state' : 'forced-state';
   if (analysis.scope === 'document')
     warn(
-      `styleproof: forcedStateScope 'stylesheet' fell back to whole-document forced-state reads: ${analysis.reason}.`,
+      `styleproof: forcedStateScope 'stylesheet' fell back to whole-document ${readKind} reads: ${analysis.reason}.`,
     );
 
   return { legacy: analysis.legacy?.scope ?? analysis.scope, form: analysis.scope };
@@ -630,6 +665,7 @@ export async function captureForcedStates(
 ): Promise<{
   states: StyleMap['states'];
   stateLayers: string[];
+  stateLayerOmissions?: StyleMap['stateLayerOmissions'];
   stateTargets: NonNullable<StyleMap['stateTargets']>;
   skipped: boolean;
   stateComputedValueStyle?: StyleMap['stateComputedValueStyle'];
@@ -639,7 +675,7 @@ export async function captureForcedStates(
   const snapshotKey = `${baselineKey}-snapshot`;
   let skipped = true;
 
-  const { states, stateLayers, stateTargets, stateComputedValueStyle } = await withForcedStateSession(
+  const captured = await withForcedStateSession(
     page,
     skipSel,
     async (session) => {
@@ -733,8 +769,9 @@ export async function captureForcedStates(
         return {
           states: context.states,
           stateLayers,
+          ...(context.stateLayerOmissions ? { stateLayerOmissions: context.stateLayerOmissions } : {}),
           stateTargets,
-          stateComputedValueStyle: context.stateComputedValueStyle ? stateComputedValueStyle : undefined,
+          stateComputedValueStyle,
         };
       } finally {
         warnForcedStateCapture(context);
@@ -746,9 +783,12 @@ export async function captureForcedStates(
     },
   );
 
+  const { states, stateLayers, stateLayerOmissions, stateTargets, stateComputedValueStyle } = captured;
+
   return {
     states,
     stateLayers,
+    ...(stateLayerOmissions ? { stateLayerOmissions } : {}),
     stateTargets,
     skipped,
     ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
@@ -781,7 +821,16 @@ export async function captureStateLayerScreenshots(
 
       await stateBatch(applicable.map((target) => forcePseudoState(session, target, forcedPseudoClasses)));
       const dest = stateLayerScreenshotPath(stem, stateName);
-      await captureFullPageScreenshot(page, dest);
+      if (
+        FORM_STATE_LAYER_NAMES.some((state) => state === stateName) &&
+        !session.marked
+          .slice(0, targets.length)
+          .some((marked) => marked.formStateLayers?.some((state) => state === stateName))
+      ) {
+        const restingPath = `${stem}.png`;
+        if (!filesystem.existsSync(restingPath)) await captureFullPageScreenshot(page, restingPath);
+        filesystem.copyFileSync(restingPath, dest);
+      } else await captureFullPageScreenshot(page, dest);
       written.push(dest);
       await stateBatch([...session.applied].map((target) => forcePseudoState(session, target, [])));
     }

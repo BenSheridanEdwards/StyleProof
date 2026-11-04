@@ -1623,10 +1623,13 @@ The capture-the-subset step stays yours (it depends on your map layout), but the
 Forced hover, focus and active capture reads the whole unignored document for
 each control, including sibling and ancestor effects. It defaults to 2,000
 elements per read and 32,000 legacy element reads. Form states have their own
-32,000-read allowance; they never spend the legacy allowance. A static page with `E` elements
+32,000-read allowance; they never spend the legacy allowance. In document scope, a static page with `E` elements
 and `T` controls needs `4 * E * T` reads: one resting read and three forced reads
-per control. Going over either allowance persists `statesSkipped: true` and
-prevents state certification.
+per control. Legacy truncation persists `statesSkipped: true` and prevents state
+certification. Form allowance/shared-baseline omissions are recorded in
+`stateLayerOmissions`: matching omissions on both sides preserve legacy certification.
+One-sided layers, read failures, and resting drift remain uncertified. See
+[forced-state capture](forced-state-capture.md) for the full contract.
 
 Set `maxForcedStateElements`, `maxForcedStateScanWork`, and `maxFormStateScanWork` on
 `captureStyleMap`, `defineStyleMapCapture`, or `defineCrawlCapture` to choose an

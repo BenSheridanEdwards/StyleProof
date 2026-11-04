@@ -17,6 +17,7 @@ import {
 } from '../dist/selective-remap.js';
 import { extractColdReasonFromLog, isColdReason } from '../dist/map-hit-observability.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+import { STATE_LAYER_NAMES } from '../dist/capture/forced-states.js';
 
 const ALL = ['dashboard', 'home', 'pricing'];
 
@@ -312,6 +313,10 @@ test('surfaceKeyFromArtifactName: strips @width and extensions', () => {
   assert.equal(surfaceKeyFromArtifactName('home@1280.json.gz'), 'home');
   assert.equal(surfaceKeyFromArtifactName('dashboard-loading@768.png'), 'dashboard-loading');
   assert.equal(surfaceKeyFromArtifactName('pricing@1024.hover.png'), 'pricing');
+  for (const stateName of STATE_LAYER_NAMES)
+    assert.equal(surfaceKeyFromArtifactName(`home@1280.${stateName}.png`), 'home');
+  assert.equal(surfaceKeyFromArtifactName('home@1280.unknown.png'), null);
+  assert.equal(surfaceKeyFromArtifactName('home@1280.checked.extra.png'), null);
 });
 
 test('surfaceMatchesOnlySet: exact key and variant prefix match', () => {
@@ -336,6 +341,8 @@ test('copyReuseSurfaceArtifacts: copies reuse maps and skips recapture keys', ()
     fs.writeFileSync(path.join(base, 'pricing@1280.json.gz'), 'pricing-bytes');
     fs.writeFileSync(path.join(base, 'dashboard@1280.json.gz'), 'dashboard-bytes');
     fs.writeFileSync(path.join(base, 'home@1280.png'), 'home-png');
+    for (const stateName of STATE_LAYER_NAMES)
+      fs.writeFileSync(path.join(base, `home@1280.${stateName}.png`), stateName);
     fs.writeFileSync(path.join(base, 'manifest.json'), 'not-a-map'); // reserved-ish name without @
 
     const result = copyReuseSurfaceArtifacts({
@@ -343,7 +350,9 @@ test('copyReuseSurfaceArtifacts: copies reuse maps and skips recapture keys', ()
       toDir: head,
       reuseKeys: ['home', 'pricing'],
     });
-    assert.equal(result.copied, 3); // home json + png + pricing json
+    assert.equal(result.copied, 3 + STATE_LAYER_NAMES.length);
+    for (const stateName of STATE_LAYER_NAMES)
+      assert.equal(fs.readFileSync(path.join(head, `home@1280.${stateName}.png`), 'utf8'), stateName);
     assert.equal(fs.readFileSync(path.join(head, 'home@1280.json.gz'), 'utf8'), 'home-bytes');
     assert.equal(fs.readFileSync(path.join(head, 'pricing@1280.json.gz'), 'utf8'), 'pricing-bytes');
     assert.equal(fs.existsSync(path.join(head, 'dashboard@1280.json.gz')), false);

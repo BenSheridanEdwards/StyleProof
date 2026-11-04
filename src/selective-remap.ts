@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { captureKeyFromMapFile, loadStyleMap } from './capture/map-io.js';
+import { STATE_LAYER_NAMES } from './capture/forced-states.js';
 import { affectedSurfaces, classifyStyleChange, type AffectedSurfaces } from './affected-surfaces.js';
 import { resolveStyleProofConfigPath } from './config.js';
 import { isMapFile } from './map-store.js';
@@ -176,9 +177,13 @@ export function formatSelectiveRemapPlan(plan: SelectiveRemapPlan): string {
   return lines.join('\n');
 }
 
+const CAPTURE_ARTIFACT_PATTERN = new RegExp(
+  `^(.*)@\\d+\\.(?:json(?:\\.gz)?|png|(?:${STATE_LAYER_NAMES.map((stateName) => stateName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\.png)$`,
+);
+
 /** Surface key from a capture artifact name (`home@1280.json.gz` → `home`). */
 export function surfaceKeyFromArtifactName(name: string): string | null {
-  const m = /^(.*)@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/.exec(name);
+  const m = CAPTURE_ARTIFACT_PATTERN.exec(name);
   return m ? m[1] : null;
 }
 

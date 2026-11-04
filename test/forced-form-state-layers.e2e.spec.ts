@@ -15,6 +15,42 @@ import filesystem from 'node:fs';
 import path from 'node:path';
 import { captureStateLayerScreenshots, captureSurfaceScreenshots } from '../dist/capture/forced-states.js';
 
+type StateProtocolParameters = { expression?: string; forcedPseudoClasses?: string[] };
+
+function interceptStateProtocol(
+  page: Page,
+  observer: (method: string, parameters: StateProtocolParameters, forward: () => Promise<unknown>) => Promise<unknown>,
+): () => void {
+  const context = page.context();
+  const createSession = context.newCDPSession.bind(context);
+  const sessionObserver = mock.method(
+    context,
+    'newCDPSession',
+    async (...argumentsList: Parameters<typeof createSession>) => {
+      const session = await createSession(...argumentsList);
+      const send = session.send.bind(session);
+      // SAFETY: the observer forwards the capture driver's protocol method and unchanged parameter object.
+      session.send = (async (method: string, parameters: StateProtocolParameters = {}) =>
+        // SAFETY: the protocol method originates from the typed capture driver.
+        observer(method, parameters, () =>
+          send(method as Parameters<typeof send>[0], parameters),
+        )) as CDPSession['send'];
+      return session;
+    },
+  );
+  return () => sessionObserver.mock.restore();
+}
+
+function isFormBaselineRead(method: string, parameters: StateProtocolParameters): boolean {
+  const expression = parameters.expression?.split('\n//# sourceURL=')[0];
+  return (
+    method === 'Runtime.evaluate' &&
+    !!expression?.startsWith('(function snapSessionBaseline(') &&
+    expression.includes(', false, window[') &&
+    expression.endsWith(', true)')
+  );
+}
+
 async function captureForm(page: Page, selector: string, color: string, body: string): Promise<StyleMap> {
   await page.setContent(`<!doctype html><style>${selector}{color:${color}}</style>${body}`);
 
@@ -275,7 +311,7 @@ for (const [state, selector, beforeBody, afterBody] of [
 }
 
 test('placeholder applicability excludes impossible input types and all hidden inputs', async ({ page }) => {
-  const supported = ['', 'text', 'search', 'url', 'tel', 'email', 'password', 'number'];
+  const supported = ['', 'text', 'search', 'url', 'tel', 'email', 'password', 'number', 'invalid-type'];
 
   const unsupported = [
     'checkbox',
@@ -408,9 +444,124 @@ test('stylesheet scope is analysed once and emits one fallback warning', async (
     await captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
     expect(analyses).toBe(1);
     expect(warnings.filter((warning) => warning.includes('fell back to whole-document'))).toHaveLength(1);
+    expect(warnings.some((warning) => warning.includes('whole-document form-state reads'))).toBe(true);
   } finally {
     evaluationSpy.mock.restore();
     warningSpy.mock.restore();
+  }
+});
+
+test('a stylesheet-widened 1500-element twelve-checkbox page retains main certification', async ({
+  page,
+}, testInformation) => {
+  await page.setContent(`<!doctype html><style>label:has(input:checked){color:red}</style>
+    ${'<label><input type="checkbox">Choice</label>'.repeat(12)}${'<span>Context</span>'.repeat(1474)}`);
+  const warnings: string[] = [];
+  const warningSpy = mock.method(console, 'warn', (message: unknown) => warnings.push(String(message)));
+  try {
+    const before = await captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
+    const after = await captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
+    expect(Object.keys(before.elements).length).toBeGreaterThanOrEqual(1500);
+    expect(before.statesSkipped).toBeFalsy();
+    expect(before.stateLayers).not.toContain('checked');
+    expect(before.stateLayerOmissions?.checked).toBe('form-scan-work');
+    expect(warnings.some((warning) => warning.includes('Raise maxFormStateScanWork'))).toBe(true);
+    const beforeDirectory = testInformation.outputPath('before');
+    const afterDirectory = testInformation.outputPath('after');
+    saveStyleMap(path.join(afterDirectory, 'form@1280.json'), after);
+    const legacy = { ...before };
+    delete legacy.stateLayers;
+    delete legacy.stateLayerOmissions;
+    delete legacy.stateTargets;
+    for (const beforeMap of [before, legacy]) {
+      saveStyleMap(path.join(beforeDirectory, 'form@1280.json'), beforeMap);
+      const comparison = diffStyleMapDirs(beforeDirectory, afterDirectory);
+      expect(comparison.statesUncertified).toBe(0);
+      expect(comparison.counts).toEqual({ dom: 0, style: 0, state: 0 });
+      expect(
+        assessCertificationEvidence({
+          sourceBinding: { status: 'bound' },
+          coverage: { basis: 'complete' },
+          determinism: { status: 'proven' },
+          statesUncertified: comparison.statesUncertified,
+        }).certifies,
+      ).toBe(true);
+    }
+  } finally {
+    warningSpy.mock.restore();
+  }
+});
+
+test('a missing shared form baseline skips every form force and retains legacy proof', async ({ page }) => {
+  await page.setContent(`<!doctype html><style>input:hover{margin-left:30px}label:has(input:checked){color:red}</style>
+    ${'<label><input type="checkbox">Choice</label>'.repeat(3)}`);
+  const warnings: string[] = [];
+  const warningSpy = mock.method(console, 'warn', (message: unknown) => warnings.push(String(message)));
+  let formForces = 0;
+  const restore = interceptStateProtocol(page, async (method, parameters, forward) => {
+    if (isFormBaselineRead(method, parameters)) return { result: { value: false } };
+    if (
+      method === 'CSS.forcePseudoState' &&
+      parameters.forcedPseudoClasses?.some((stateName) =>
+        ['checked', 'disabled', 'placeholder-shown'].includes(stateName),
+      )
+    )
+      formForces++;
+    return forward();
+  });
+  try {
+    const captured = await captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
+    expect(formForces).toBe(0);
+    expect(captured.stateLayerOmissions?.checked).toBe('shared-baseline-unavailable');
+    expect(captured.stateLayers).toEqual(['hover', 'focus', 'active']);
+    expect(warnings.some((warning) => warning.includes('no shared resting baseline for form-state reads'))).toBe(true);
+    expect(Object.values(captured.stateComputedValueStyle ?? {}).some((variations) => variations.hover)).toBe(true);
+  } finally {
+    restore();
+    warningSpy.mock.restore();
+  }
+});
+
+test('unavailable form Typed OM never erases legacy proof or invents form proof', async ({ page }) => {
+  await page.setContent(`<!doctype html><style>input:hover{margin-left:30px}label:has(input:checked){margin-left:40px}</style>
+    ${'<label><input type="checkbox">Choice</label>'.repeat(3)}`);
+  const restore = interceptStateProtocol(page, async (method, parameters, forward) => {
+    if (isFormBaselineRead(method, parameters))
+      await page.evaluate(() => {
+        Object.defineProperty(Element.prototype, 'computedStyleMap', { value: undefined, configurable: true });
+      });
+    return forward();
+  });
+  try {
+    const captured = await captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
+    expect(captured.stateLayers).toContain('checked');
+    expect(Object.values(captured.states).some((variations) => variations.checked)).toBe(true);
+    expect(Object.values(captured.stateComputedValueStyle ?? {}).some((variations) => variations.hover)).toBe(true);
+    expect(
+      Object.values(captured.stateComputedValueStyle ?? {}).every(
+        (variations) => !variations.checked && !variations.disabled,
+      ),
+    ).toBe(true);
+  } finally {
+    restore();
+  }
+});
+
+test('inapplicable form screenshot layers copy the resting PNG without more screenshots', async ({
+  page,
+}, testInformation) => {
+  await page.setContent('<!doctype html><a href="#">Continue</a>');
+  const screenshotSpy = mock.method(page, 'screenshot', page.screenshot.bind(page));
+  const stem = testInformation.outputPath('form@1280');
+  try {
+    await captureSurfaceScreenshots(page, stem);
+    expect(screenshotSpy.mock.callCount()).toBe(4);
+    for (const stateName of ['checked', 'disabled', 'placeholder-shown'])
+      expect(filesystem.readFileSync(`${stem}.${stateName}.png`).equals(filesystem.readFileSync(`${stem}.png`))).toBe(
+        true,
+      );
+  } finally {
+    screenshotSpy.mock.restore();
   }
 });
 

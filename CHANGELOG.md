@@ -38,6 +38,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   add three layers (`checked`, `disabled`, `placeholder-shown`) even when a layer has no
   qualifying control, keeping pixel comparisons paired. Resting drift discards form
   evidence rather than certifying it. Placeholder forcing is limited to supported types.
+- Forced form screenshots participate in selective reuse and stale capture cleanup.
+  Empty form layers copy the resting PNG. Matching form allowance/shared-baseline
+  omissions on both sides preserve legacy certification through explicit
+  `stateLayerOmissions`; one-sided layers and drift/read failures remain uncertified.
+  An unavailable shared baseline skips the form sweep, and isolated form Typed OM
+  proof cannot erase legacy evidence. Invalid input types follow the browser's text fallback.
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

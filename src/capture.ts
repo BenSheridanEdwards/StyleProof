@@ -337,7 +337,9 @@ async function captureStateLayer(
   ignore: string[],
   volatile: string[],
 ): Promise<
-  Pick<StyleMap, 'states' | 'stateLayers' | 'stateTargets' | 'stateComputedValueStyle'> & { statesSkipped: boolean }
+  Pick<StyleMap, 'states' | 'stateLayers' | 'stateLayerOmissions' | 'stateTargets' | 'stateComputedValueStyle'> & {
+    statesSkipped: boolean;
+  }
 > {
   if (options.captureStates === false) return { states: {}, stateLayers: [], statesSkipped: true };
   const browserName = page.context().browser()?.browserType().name();
@@ -353,6 +355,7 @@ async function captureStateLayer(
   return {
     states: forced.states,
     stateLayers: forced.stateLayers,
+    ...(forced.stateLayerOmissions ? { stateLayerOmissions: forced.stateLayerOmissions } : {}),
     stateTargets: forced.stateTargets,
     statesSkipped: forced.skipped,
     ...(proof ? { stateComputedValueStyle: proof } : {}),
@@ -389,13 +392,8 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, read.motion);
 
-  const { states, stateLayers, stateTargets, statesSkipped, stateComputedValueStyle } = await captureStateLayer(
-    page,
-    options,
-    read.limits,
-    read.ignore,
-    volatile,
-  );
+  const { states, stateLayers, stateLayerOmissions, stateTargets, statesSkipped, stateComputedValueStyle } =
+    await captureStateLayer(page, options, read.limits, read.ignore, volatile);
   const tokens = await page.evaluate(capturePageTokens);
   const inventory: NavigableItem[] = options.inventory
     ? classifyInventory(await page.evaluate(collectNavAffordances))
@@ -418,6 +416,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     elements: base.elements,
     states,
     stateLayers,
+    ...(stateLayerOmissions ? { stateLayerOmissions } : {}),
     ...(stateTargets ? { stateTargets } : {}),
     ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
     ...(statesSkipped ? { statesSkipped: true } : {}),

@@ -18,6 +18,7 @@ import {
   FATAL_CAPTURE_MARKER,
   manifestlessError,
   manifestlessSide,
+  isOwnedCaptureArtifact,
   MAP_MANIFEST,
   MAX_CAPTURE_EVIDENCE_TOTAL_BYTES,
   MapStoreError,
@@ -37,7 +38,14 @@ import {
   writeMapManifest,
 } from '../dist/map-store.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { STATE_LAYER_NAMES } from '../dist/capture/forced-states.js';
 import { makeMap, mkNonGitTmp, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+
+test('every forced screenshot layer is an owned capture artifact', () => {
+  for (const stateName of STATE_LAYER_NAMES) assert.equal(isOwnedCaptureArtifact(`home@1280.${stateName}.png`), true);
+  assert.equal(isOwnedCaptureArtifact('home@1280.unknown.png'), false);
+  assert.equal(isOwnedCaptureArtifact('home@1280.checked.extra.png'), false);
+});
 
 test('clearCaptureOutput removes complete generated bundle state without following symlinks', () => {
   const dir = mkNonGitTmp('styleproof-clear-capture-');
@@ -52,6 +60,7 @@ test('clearCaptureOutput removes complete generated bundle state without followi
       FATAL_CAPTURE_MARKER,
       'base@800.json',
       'base@800.png',
+      ...STATE_LAYER_NAMES.map((stateName) => `base@800.${stateName}.png`),
     ])
       fs.writeFileSync(path.join(dir, name), 'generated');
     fs.mkdirSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR));

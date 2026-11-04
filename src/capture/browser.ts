@@ -818,6 +818,12 @@ export function snapSessionBaseline(
     return (formSweep || targetCount > 2) && bounded && total * (formSweep ? 3 : 4) <= args.maxElements;
   };
 
+  // Once any scope lacks Typed OM, later scopes cannot restore proof for the whole baseline.
+  const mergeTypedBaseline = (
+    current: Record<string, Props> | undefined,
+    incoming: unknown,
+  ): Record<string, Props> | undefined => (current && incoming ? Object.assign(current, incoming) : undefined);
+
   // Keep the subtree planner local: this function is serialized over CDP.
   const subtreeBaseline = (): number[] | false => {
     const selectors = args.selector.split(',');
@@ -833,8 +839,8 @@ export function snapSessionBaseline(
 
     if (!sharedCountsFit(counts, selectors.length)) return false;
 
-    const baseline = {},
-      typed = {};
+    const baseline = {};
+    let typed: Record<string, Props> | undefined = {};
 
     if (!check) snap.restingTargets = targets;
 
@@ -849,7 +855,7 @@ export function snapSessionBaseline(
       if (!formSweep && !stateWindow[typedKey]) return false;
 
       Object.assign(baseline, stateWindow[args.baselineKey]);
-      Object.assign(typed, stateWindow[typedKey]);
+      typed = mergeTypedBaseline(typed, stateWindow[typedKey]);
     }
 
     stateWindow[args.baselineKey] = baseline;
@@ -913,11 +919,14 @@ export function markInteractiveElements({ selector, skipSel, attr }: MarkArgs): 
       formStateLayers.push('checked');
 
     if (el.matches('button, input, select, textarea') && !el.matches(':disabled')) formStateLayers.push('disabled');
-    // SAFETY: the selector guard restricts value access to placeholder-supporting controls.
+    const supportsPlaceholder =
+      el.matches('textarea') ||
+      (el.matches('input') &&
+        // SAFETY: the input guard makes type the browser-normalized input type, including invalid values as text.
+        ['text', 'search', 'url', 'tel', 'email', 'password', 'number'].includes((el as HTMLInputElement).type));
+    // SAFETY: supportsPlaceholder restricts value access to placeholder-supporting controls.
     if (
-      el.matches(
-        'textarea, input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="tel"], input[type="email"], input[type="password"], input[type="number"]',
-      ) &&
+      supportsPlaceholder &&
       el.getAttribute('placeholder') &&
       (el as HTMLInputElement | HTMLTextAreaElement).value.length > 0 &&
       !el.matches(':placeholder-shown')

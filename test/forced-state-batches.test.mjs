@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { captureStateLayerScreenshots } from '../dist/capture/forced-states.js';
+import filesystem from 'node:fs';
+import path from 'node:path';
+import { mkTmp as createTemporaryDirectory, rmTmp as removeTemporaryDirectory } from './helpers.mjs';
 
 function stateLayerHarness(intercept = async () => {}) {
   const states = new Map();
@@ -64,24 +67,34 @@ function stateLayerHarness(intercept = async () => {}) {
   return { page, states, shots, events, peaks };
 }
 
-test('state layers capture every target in each state and leave all targets at rest', async () => {
+test('state layers batch legacy targets and copy resting pixels for inapplicable form layers', async (context) => {
   const harness = stateLayerHarness();
-  const paths = await captureStateLayerScreenshots(harness.page, 'surface');
+  const directory = createTemporaryDirectory();
+  context.after(() => removeTemporaryDirectory(directory));
+  const stem = path.join(directory, 'surface');
+  const screenshot = harness.page.screenshot.bind(harness.page);
+  harness.page.screenshot = async (options) => {
+    await screenshot(options);
+    filesystem.writeFileSync(options.path, JSON.stringify([...harness.states]));
+  };
+  const paths = await captureStateLayerScreenshots(harness.page, stem);
   assert.deepEqual(paths, [
-    'surface.hover.png',
-    'surface.focus.png',
-    'surface.active.png',
-    'surface.checked.png',
-    'surface.disabled.png',
-    'surface.placeholder-shown.png',
+    `${stem}.hover.png`,
+    `${stem}.focus.png`,
+    `${stem}.active.png`,
+    `${stem}.checked.png`,
+    `${stem}.disabled.png`,
+    `${stem}.placeholder-shown.png`,
   ]);
   assert.deepEqual(
     harness.shots,
-    [['hover'], ['focus', 'focus-visible'], ['active'], [], [], []].map((classes, index) => ({
-      path: paths[index],
+    [['hover'], ['focus', 'focus-visible'], ['active'], []].map((classes, index) => ({
+      path: index === 3 ? `${stem}.png` : paths[index],
       states: classes.length ? [1, 2, 3].map((id) => [id, classes]) : [],
     })),
   );
+  for (const screenshotPath of paths.slice(3))
+    assert.deepEqual(filesystem.readFileSync(screenshotPath), filesystem.readFileSync(`${stem}.png`));
   assert.equal(harness.states.size, 0);
   assert.deepEqual(harness.events, ['marks cleared', 'detached']);
   assert.equal(harness.peaks['DOM.querySelectorAll'], 3);
