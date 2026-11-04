@@ -496,16 +496,17 @@ test('composite action wires the rerun ordering guard into the comment and statu
   assert.ok(commentStep, 'action.yml should include a PR comment step');
   // The step consumes the SAME compiled guard the unit tests exercise.
   assert.match(commentStep[0], /dist\/comment-supersession\.js/);
-  assert.match(commentStep[0], /findLaterAttemptReceipt/);
+  assert.match(commentStep[0], /dist\/review-write-guard\.js/);
+  assert.match(commentStep[0], /guardReviewWrite/);
   assert.match(commentStep[0], /formatRunAttemptReceiptMarker/);
   // Attempt identity comes from GitHub's own run context, never from artifacts.
   assert.match(commentStep[0], /const runId = '\$\{\{ github\.run_id \}\}'/);
   assert.match(commentStep[0], /const runAttempt = '\$\{\{ github\.run_attempt \}\}'/);
   // The guard runs BEFORE the upsert and short-circuits a stale delivery.
-  const guardIndex = commentStep[0].indexOf('findLaterAttemptReceipt');
-  const upsertIndex = commentStep[0].indexOf('const upsert =');
+  const guardIndex = commentStep[0].indexOf('await guardReviewWrite');
+  const upsertIndex = commentStep[0].indexOf('github.rest.issues.updateComment');
   assert.ok(guardIndex > 0 && upsertIndex > guardIndex, 'the guard must be evaluated before the upsert');
-  assert.match(commentStep[0], /setOutput\('stale-delivery', 'true'\)/);
+  assert.match(commentStep[0], /setOutput\('stale-delivery', guarded\.headMoved \? 'false' : 'true'\)/);
   assert.match(commentStep[0], /setOutput\('stale-delivery', 'false'\)/);
   // The comment records the attempt that wrote it, so the NEXT delivery can order itself.
   assert.match(commentStep[0], /formatRunAttemptReceiptMarker\(\{ runId, runAttempt \}\)/);
@@ -514,6 +515,7 @@ test('composite action wires the rerun ordering guard into the comment and statu
   // skipped when the comment step classified this delivery as superseded.
   const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(statusStep, 'action.yml should include a review-status step');
+  assert.match(statusStep[0], /guardReviewWrite/);
   assert.match(statusStep[0], /steps\.comment\.outputs\.stale-delivery != 'true'/);
   // The status a fresh delivery sets is bound to the resolved head SHA and this
   // attempt's own verdict, so attempt 2's delivery lands attempt 2's trust state.

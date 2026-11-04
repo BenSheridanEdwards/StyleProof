@@ -1,40 +1,28 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import test from 'node:test';
 import yaml from 'js-yaml';
+import { reviewRun } from './review-gate-test-harness.mjs';
 import { ciWorkflow, PACKAGE_MANAGERS } from '../bin/init/templates.mjs';
 
-const action = yaml.load(fs.readFileSync(new URL('../action.yml', import.meta.url), 'utf8'));
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-
-test('1145: a bot status without an approve-workflow run cannot carry approval forward', async () => {
-  const outputs = {};
-
-  const status = {
-    context: 'StyleProof',
-    state: 'success',
-    description: 'Approved by @someReviewer',
-    creator: { login: 'github-actions[bot]', type: 'Bot' },
-  };
-
-  const source = action.runs.steps
-    .find((step) => step.id === 'gate')
-    .with.script.replaceAll('${{ steps.diff.outputs.changed }}', 'true')
-    .replaceAll('${{ steps.verdict.outputs.diff-digest }}', 'd'.repeat(64))
-    .replaceAll('${{ steps.context.outputs.pr-number }}', '42')
-    .replaceAll('${{ steps.context.outputs.head-sha }}', 'a'.repeat(40))
-    .replaceAll('${{ steps.context.outputs.untrusted-capture }}', 'false');
-
-  assert.doesNotMatch(source, /\$\{\{/);
-  await new AsyncFunction('github', 'context', 'core', 'process', source)(
-    { rest: { repos: { listCommitStatusesForRef: async () => ({ data: [status] }) } } },
-    { repo: { owner: 'owner', repo: 'repo' }, payload: { repository: { default_branch: 'main' } } },
-    { setOutput: (key, value) => Object.assign(outputs, { [key]: value }) },
-    { env: { GITHUB_ACTION_PATH: new URL('../', import.meta.url).pathname, STYLEPROOF_STATUS_CONTEXT: 'StyleProof' } },
-  );
-
-  assert.deepEqual(outputs, { approved: 'false', approver: '' });
-});
+for (const untrustedCapture of [false, true]) {
+  test(`1145: deciding comment and status reject forged approval for ${untrustedCapture ? 'fork' : 'same-repository'} capture`, async () => {
+    const run = reviewRun({ untrustedCapture });
+    run.statuses.length = 0;
+    run.addStatus({
+      state: 'success',
+      description: 'Approved by @someReviewer',
+      creator: { login: 'github-actions[bot]', type: 'Bot' },
+    });
+    // Diagnostic outputs cannot grant authority to either deciding step.
+    run.values['steps.gate.outputs.approved'] = 'true';
+    run.values['steps.gate.outputs.approver'] = 'someReviewer';
+    await run.runStep('comment');
+    await run.runStep('status');
+    assert.equal(run.statuses[0].state, untrustedCapture ? 'pending' : 'failure');
+    assert.match(run.comments[0].body, /- \[ \] \*\*Approve all changes\*\*/);
+    assert.doesNotMatch(run.comments[0].body, /approved by|Signed off/);
+  });
+}
 
 test('1145: generated branch-storage capture cannot use a status-writing job token', () => {
   const workflow = yaml.load(

@@ -66,7 +66,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   after ticked comments and approval-dependent success statuses. Withdrawals restore the
   unticked report and sign-off-required verdict (pending for forks); fresh digest-bound
   approvals retain their current attribution across re-runs. Final comment unticking
-  preserves restored approvals, successful statuses and newer report deliveries.
+  preserves restored approvals, successful statuses and newer report deliveries. Every
+  comment/status write checks delivery ownership; final reconciliation can restore either
+  existing checkbox state, with the residual read-to-write window GitHub cannot close.
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

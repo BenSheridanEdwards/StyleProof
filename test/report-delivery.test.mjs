@@ -226,7 +226,8 @@ test('a contributor comment that quotes the marker is never overwritten (#968)',
 
 test('the comment upsert lists the thread through github.paginate (#968)', async () => {
   const run = await executeActionComment({ repositoryPrivate: false });
-  assert.deepEqual(run.paginated, [run.listComments]);
+  assert.ok(run.paginated.length > 0);
+  assert.ok(run.paginated.every((route) => route === run.listComments));
 });
 
 test('the oldest bot report comment keeps its id, even after a later step prefixed it (#968)', async () => {

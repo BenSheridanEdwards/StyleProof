@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import yaml from 'js-yaml';
 import { mkTmp, rmTmp, spawnSyncToCompletion } from './helpers.mjs';
+import { reviewRun, headCommit } from './review-gate-test-harness.mjs';
 
 const actionDirectory = new URL('../', import.meta.url).pathname;
 const action = yaml.load(fs.readFileSync(new URL('../action.yml', import.meta.url), 'utf8'));
@@ -51,6 +52,10 @@ async function runComposite({
     fs.mkdirSync(path.join(directory, 'styleproof-report'));
     fs.writeFileSync(path.join(directory, 'styleproof-report/report.json'), '{}');
     fs.writeFileSync(path.join(directory, 'styleproof.config.json'), JSON.stringify({ blocking }));
+    const review = reviewRun({ mode });
+
+    if (approved !== 'true') review.statuses.length = 0;
+
     const values = Object.fromEntries(
       Object.entries(action.inputs).map(([name, input]) => [`inputs.${name}`, String(input.default ?? '')]),
     );
@@ -60,16 +65,18 @@ async function runComposite({
       'inputs.capture-outcome': captureOutcome,
       'inputs.base-capture-failed': baseCaptureFailed,
       'steps.context.outputs.pr-number': '7',
-      'steps.context.outputs.base-sha': 'a'.repeat(40),
-      'steps.context.outputs.head-sha': 'b'.repeat(40),
+      'steps.context.outputs.base-sha': 'b'.repeat(40),
+      'steps.context.outputs.head-sha': headCommit,
+      'steps.verdict.outputs.diff-digest': review.values['steps.verdict.outputs.diff-digest'],
+      'github.run_id': '900',
+      'github.run_attempt': '1',
       'steps.context.outputs.untrusted-capture': 'false',
       'steps.verdict.outputs.state': verdict,
       'steps.gate.outputs.approved': approved,
-      'steps.review-pending.outputs.prior-status': JSON.stringify({ description: 'Approved by @reviewer' }),
     });
     const resolve = (source) =>
       String(source).replace(/\$\{\{ (.+?) \}\}/g, (_, expression) => String(expressionValue(expression, values)));
-    const statuses = [];
+    const statuses = review.statusWrites;
     const failures = [];
     const completed = [];
     const statusIndex = steps.findIndex((entry) => entry.name === 'Set review status');
@@ -98,8 +105,13 @@ async function runComposite({
           resolve(entry.with.script),
         );
         await program(
-          { rest: { repos: { createCommitStatus: async (status) => statuses.push(status) } } },
-          { repo: { owner: 'owner', repo: 'repo' }, runId: 100, eventName: 'pull_request' },
+          review.github,
+          {
+            repo: { owner: 'owner', repo: 'repo' },
+            runId: 900,
+            eventName: 'pull_request',
+            payload: { repository: { default_branch: 'main' } },
+          },
           {
             setOutput: (key, value) => {
               outputs[key] = value;

@@ -140,15 +140,6 @@ function values({
 /** `prior` is what GitHub already holds for HEAD_SHA, newest first. */
 async function run(stepName, scenario, prior = [], thread = []) {
   const inputs = values(scenario);
-  inputs['steps.review-pending.outputs.prior-status'] = JSON.stringify(
-    prior[0] ?? { description: `Approved by @${scenario.approver || 'maintainer'} (run 123)` },
-  );
-
-  if (stepName === 'gate') {
-    const pending = await run('Mark review status pending', scenario, prior, thread);
-    inputs['steps.review-pending.outputs.prior-status'] = pending.outputs['prior-status'] ?? '';
-  }
-
   const { environment, program } = stepProgram(stepName, inputs);
   const statuses = scenario.statuses ?? [];
   // Approval-dependent writes now read the live receipt rather than the gate's cached output.
@@ -908,7 +899,7 @@ test('the verdict step records the trusted untrusted-capture flag and the gate r
   assert.match(contextStep, /core\.setOutput\('untrusted-capture', resolved && untrustedCapture \? 'true' : 'false'\)/);
 });
 
-test('an approved rerun saves sign-off before pending, then stays green with a ticked box', async () => {
+test('an approved rerun reads live sign-off through pending and stays green with a ticked box', async () => {
   const scenario = { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true };
 
   const prior = {
@@ -919,7 +910,7 @@ test('an approved rerun saves sign-off before pending, then stays green with a t
   };
   const pending = await run('Mark review status pending', scenario, [prior]);
   assert.equal(pending.statuses[0].state, 'pending');
-  assert.deepEqual(JSON.parse(pending.outputs['prior-status']), { created_at: '2026-10-20T10:00:30Z', ...prior });
+  assert.equal(Object.hasOwn(pending.outputs, 'prior-status'), false);
   const { gate, status } = await rerunWithChanges(prior);
   assert.deepEqual(gate, { approved: 'true', approver: 'maintainer' });
   assert.equal(status.state, 'success');
