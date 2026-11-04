@@ -27,10 +27,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Source and sourceRoot also trim edge ASCII controls and spaces and normalize
   backslashes before classification, so padded absolute paths resolve project-relative.
 - Force `:checked`, `:disabled`, and `:placeholder-shown` on applicable form controls,
-  including sibling and ancestor effects. Captures record `stateLayers`; layers missing
-  on either side are uncompared rather than element changes, including legacy baselines.
-  Form layers use the remaining shared snapshot budget after hover/focus/active; an
-  unfinished form layer is uncertified without newly setting `statesSkipped`.
+  including sibling and ancestor effects. Captures record `stateLayers` and applicable
+  owners in `stateTargets`; unmatched layers remain uncompared, and owners whose resting
+  applicability changed do not produce false form-state drops. Hidden inputs are excluded.
+- Form states have an independent `maxFormStateScanWork` allowance (default 32,000),
+  separate from hover/focus/active. They add at most two forced reads per qualifying
+  control plus baseline/check work, using resolved nodes, shared baselines/counts, and
+  overlapped resets. For the same targets and scope, their three charged scans per
+  control fit whenever the legacy sweep's four fit under equal allowances. Screenshots
+  add three layers (`checked`, `disabled`, `placeholder-shown`) even when a layer has no
+  qualifying control, keeping pixel comparisons paired. Resting drift discards form
+  evidence rather than certifying it. Placeholder forcing is limited to supported types.
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

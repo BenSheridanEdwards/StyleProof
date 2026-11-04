@@ -336,7 +336,9 @@ async function captureStateLayer(
   limits: Required<ForcedStateLimits>,
   ignore: string[],
   volatile: string[],
-): Promise<Pick<StyleMap, 'states' | 'stateLayers' | 'stateComputedValueStyle'> & { statesSkipped: boolean }> {
+): Promise<
+  Pick<StyleMap, 'states' | 'stateLayers' | 'stateTargets' | 'stateComputedValueStyle'> & { statesSkipped: boolean }
+> {
   if (options.captureStates === false) return { states: {}, stateLayers: [], statesSkipped: true };
   const browserName = page.context().browser()?.browserType().name();
   if (browserName !== 'chromium') {
@@ -351,6 +353,7 @@ async function captureStateLayer(
   return {
     states: forced.states,
     stateLayers: forced.stateLayers,
+    stateTargets: forced.stateTargets,
     statesSkipped: forced.skipped,
     ...(proof ? { stateComputedValueStyle: proof } : {}),
   };
@@ -385,7 +388,8 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   ).filter((o) => base.elements[o.path]);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, read.motion);
-  const { states, stateLayers, statesSkipped, stateComputedValueStyle } = await captureStateLayer(
+
+  const { states, stateLayers, stateTargets, statesSkipped, stateComputedValueStyle } = await captureStateLayer(
     page,
     options,
     read.limits,
@@ -414,6 +418,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     elements: base.elements,
     states,
     stateLayers,
+    ...(stateTargets ? { stateTargets } : {}),
     ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),

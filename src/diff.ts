@@ -468,7 +468,15 @@ function stateFindings(p: string, ctx: DiffCtx): Finding[] {
   const cls = (a.elements[p] ?? b.elements[p])?.cls ?? '';
 
   return unionKeys(sa, sb)
-    .filter((state) => capturedStateLayers(a).includes(state) && capturedStateLayers(b).includes(state))
+    .filter((state) => !uncomparedStateLayers(a, b).includes(state))
+    .filter((state) => {
+      const beforeTargets = a.stateTargets?.[state];
+      const afterTargets = b.stateTargets?.[state];
+
+      if (!beforeTargets || !afterTargets) return true;
+
+      return beforeTargets.includes(p) && afterTargets.includes(p);
+    })
     .flatMap((state) => stateTargetFindings(ctx, { path: p, cls, state }, sa[state] ?? {}, sb[state] ?? {}));
 }
 

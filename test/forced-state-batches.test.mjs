@@ -67,12 +67,19 @@ function stateLayerHarness(intercept = async () => {}) {
 test('state layers capture every target in each state and leave all targets at rest', async () => {
   const harness = stateLayerHarness();
   const paths = await captureStateLayerScreenshots(harness.page, 'surface');
-  assert.deepEqual(paths, ['surface.hover.png', 'surface.focus.png', 'surface.active.png']);
+  assert.deepEqual(paths, [
+    'surface.hover.png',
+    'surface.focus.png',
+    'surface.active.png',
+    'surface.checked.png',
+    'surface.disabled.png',
+    'surface.placeholder-shown.png',
+  ]);
   assert.deepEqual(
     harness.shots,
-    [['hover'], ['focus', 'focus-visible'], ['active']].map((classes, index) => ({
+    [['hover'], ['focus', 'focus-visible'], ['active'], [], [], []].map((classes, index) => ({
       path: paths[index],
-      states: [1, 2, 3].map((id) => [id, classes]),
+      states: classes.length ? [1, 2, 3].map((id) => [id, classes]) : [],
     })),
   );
   assert.equal(harness.states.size, 0);

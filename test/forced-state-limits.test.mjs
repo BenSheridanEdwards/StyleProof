@@ -7,11 +7,13 @@ test('forced-state resource defaults and explicit limits are resolved independen
   assert.deepEqual(resolveForcedStateLimits({}), {
     maxForcedStateElements: 2000,
     maxForcedStateScanWork: 32000,
+    maxFormStateScanWork: 32000,
     forcedStateScope: 'document',
   });
   assert.deepEqual(resolveForcedStateLimits({ maxForcedStateScanWork: 70000, forcedStateScope: 'stylesheet' }), {
     maxForcedStateElements: 2000,
     maxForcedStateScanWork: 70000,
+    maxFormStateScanWork: 32000,
     forcedStateScope: 'stylesheet',
   });
 });
@@ -33,7 +35,7 @@ for (const value of ['subtree', 'Document', '', null, 1, true]) {
   });
 }
 
-for (const name of ['maxForcedStateElements', 'maxForcedStateScanWork']) {
+for (const name of ['maxForcedStateElements', 'maxForcedStateScanWork', 'maxFormStateScanWork']) {
   for (const value of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '10', null, false]) {
     test(`${name} rejects ${String(value)} before browser access`, async () => {
       const page = new Proxy(
@@ -57,14 +59,20 @@ test('expanded variants inherit resource overrides without replacing runner defa
     key: 'example',
     go: async () => {},
     maxForcedStateElements: 100,
+    maxFormStateScanWork: 45000,
     forcedStateScope: 'stylesheet',
-    variants: [{ key: 'inherited' }, { key: 'override', maxForcedStateScanWork: 90000, forcedStateScope: 'document' }],
+    variants: [
+      { key: 'inherited' },
+      { key: 'override', maxFormStateScanWork: 55000, maxForcedStateScanWork: 90000, forcedStateScope: 'document' },
+    ],
   });
   for (const surface of [base, inherited, override]) assert.equal(surface.maxForcedStateElements, 100);
   assert.equal(inherited.forcedStateScope, 'stylesheet');
   assert.equal(override.forcedStateScope, 'document');
   assert.equal(inherited.maxForcedStateScanWork, undefined);
   assert.equal(override.maxForcedStateScanWork, 90000);
+  assert.equal(inherited.maxFormStateScanWork, 45000);
+  assert.equal(override.maxFormStateScanWork, 55000);
 });
 
 test('expanded live states and state recipes preserve resource overrides', () => {

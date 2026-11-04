@@ -129,10 +129,18 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
     }
     // One installed snapshot, four evaluations per target (baseline and three
     // states), one final reset barrier, plus shared save/check for document reads.
-    // Disabled adds one baseline, forced read and reset barrier per applicable button.
+    // Form work reuses nodes and shared counts, overlaps resets, and checks rest once after the sweep.
 
     const sharedBaseline = mode !== 'stylesheet';
-    expect(evaluates).toBe(1 + TARGETS * 4 + 1 + (sharedBaseline ? 2 : 0) + TARGETS * 3);
+    expect(evaluates).toBe(
+      1 +
+        TARGETS * 4 +
+        1 +
+        (sharedBaseline ? 2 : 0) +
+        TARGETS * (sharedBaseline ? 2 : 1) +
+        2 +
+        (sharedBaseline ? 0 : 1),
+    );
     expect(commands.map(({ method }) => method)).toEqual([
       'DOM.enable',
       'CSS.enable',
@@ -152,14 +160,15 @@ for (const mode of ['document', 'stylesheet', 'fallback'] as const) {
       ]).flat(),
       'Runtime.evaluate',
       ...(sharedBaseline ? ['Runtime.evaluate'] : []),
+      ...(sharedBaseline ? [] : ['Runtime.evaluate']),
       ...Array.from({ length: TARGETS }, () => [
-        'DOM.querySelectorAll',
-        'Runtime.evaluate',
+        ...(sharedBaseline ? ['Runtime.evaluate'] : []),
         'CSS.forcePseudoState',
         'Runtime.evaluate',
         'CSS.forcePseudoState',
-        'Runtime.evaluate',
       ]).flat(),
+      'Runtime.evaluate',
+      'Runtime.evaluate',
       'detach',
     ]);
     expect(forces.map(({ params }) => params?.forcedPseudoClasses)).toEqual([
@@ -276,13 +285,12 @@ test('subtree scope shares one resting baseline: call sequence', async ({ page }
       'Runtime.evaluate',
       'Runtime.evaluate',
       ...Array.from({ length: buttons.length }, () => [
-        'DOM.querySelectorAll',
-        'Runtime.evaluate',
         'CSS.forcePseudoState',
         'Runtime.evaluate',
         'CSS.forcePseudoState',
-        'Runtime.evaluate',
       ]).flat(),
+      'Runtime.evaluate',
+      'Runtime.evaluate',
       'detach',
     ]);
     expect(

@@ -1,13 +1,33 @@
 import { expect, test, type Page, type CDPSession } from '@playwright/test';
-import { captureStyleMap, diffStyleMaps, type StyleMap } from '../dist/index.js';
+import {
+  captureStyleMap,
+  diffStyleMaps,
+  diffStyleMapDirs,
+  hashDeterminismMap,
+  saveStyleMap,
+  type StyleMap,
+} from '../dist/index.js';
 import { markInteractiveElements, clearInteractiveMarks } from '../dist/capture/browser.js';
-import { captureStateLayerScreenshots } from '../dist/capture/forced-states.js';
+import { pixelDiffSurface } from '../dist/pixel-diff.js';
+import { assessCertificationEvidence } from '../dist/verdict.js';
+import { mock } from 'node:test';
+import filesystem from 'node:fs';
+import path from 'node:path';
+import { captureStateLayerScreenshots, captureSurfaceScreenshots } from '../dist/capture/forced-states.js';
 
 async function captureForm(page: Page, selector: string, color: string, body: string): Promise<StyleMap> {
   await page.setContent(`<!doctype html><style>${selector}{color:${color}}</style>${body}`);
 
   return captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
 }
+
+test('states-disabled captures omit absent target metadata and remain directly hashable', async ({ page }) => {
+  await page.setContent('<!doctype html><input type="checkbox">');
+  const captured = await captureStyleMap(page, { captureStates: false });
+  expect(captured.stateLayers).toEqual([]);
+  expect(captured).not.toHaveProperty('stateTargets');
+  expect(hashDeterminismMap(captured)).toMatch(/^[a-f0-9]{64}$/);
+});
 
 for (const [state, selector, body, changedTarget] of [
   ['checked', 'input:checked', '<input type="checkbox">', 'input'],
@@ -125,7 +145,12 @@ test('pages without form controls retain exactly the legacy force and read cost'
 
 test('form reads cannot make a legacy-complete budget set statesSkipped', async ({ page }) => {
   await page.setContent('<!doctype html><style>button:disabled{color:red}</style><button>Continue</button>');
-  const captured = await captureStyleMap(page, { stabilize: false, maxForcedStateScanWork: 16 });
+
+  const captured = await captureStyleMap(page, {
+    stabilize: false,
+    maxForcedStateScanWork: 16,
+    maxFormStateScanWork: 1,
+  });
   expect(captured.statesSkipped).toBeFalsy();
   expect(captured.stateLayers).not.toContain('disabled');
   expect(Object.values(captured.states).every((variations) => !('disabled' in variations))).toBe(true);
@@ -166,6 +191,7 @@ test('relational form selectors cannot widen the legacy sweep beyond its existin
     stabilize: false,
     forcedStateScope: 'stylesheet',
     maxForcedStateScanWork: 8,
+    maxFormStateScanWork: 8,
   });
 
   expect(captured.statesSkipped).toBeFalsy();
@@ -184,5 +210,225 @@ test('wider form scopes replace a shared subtree baseline before reading sibling
   for (const variations of controls) {
     expect(Object.keys(variations.checked).some((elementPath) => elementPath.includes('label'))).toBe(true);
     expect(Object.keys(variations.checked).some((elementPath) => elementPath.includes('p:nth-child'))).toBe(false);
+  }
+});
+
+test('a main-certifying seven-button 790-element page still certifies with form layers', async ({
+  page,
+}, testInformation) => {
+  await page.setContent(`<!doctype html><style>button:disabled{color:red}</style>
+    ${'<button>Continue</button>'.repeat(7)}${'<span>Context</span>'.repeat(781)}`);
+  const before = await captureStyleMap(page, { stabilize: false });
+  const after = await captureStyleMap(page, { stabilize: false });
+  expect(Object.keys(before.elements).length).toBeGreaterThanOrEqual(790);
+  expect(before.statesSkipped).toBeFalsy();
+  expect(before.stateLayers).toContain('disabled');
+  const beforeDirectory = testInformation.outputPath('before');
+  const afterDirectory = testInformation.outputPath('after');
+  saveStyleMap(path.join(beforeDirectory, 'form@1280.json'), before);
+  saveStyleMap(path.join(afterDirectory, 'form@1280.json'), after);
+  const comparison = diffStyleMapDirs(beforeDirectory, afterDirectory);
+  expect(comparison.statesUncertified).toBe(0);
+  expect(
+    assessCertificationEvidence({
+      sourceBinding: { status: 'bound' },
+      coverage: { basis: 'complete' },
+      determinism: { status: 'proven' },
+      statesUncertified: comparison.statesUncertified,
+    }).certifies,
+  ).toBe(true);
+});
+
+for (const [state, selector, beforeBody, afterBody] of [
+  ['disabled', 'button:disabled', '<button>Continue</button>', '<button disabled>Continue</button>'],
+  ['checked', 'input:checked', '<input type="checkbox">', '<input type="checkbox" checked>'],
+  [
+    'placeholder-shown',
+    'input:placeholder-shown',
+    '<input placeholder="Hint">',
+    '<input placeholder="Hint" value="Filled">',
+  ],
+] as const) {
+  test(`${state} applicability changes compare rest without false state drops or missing pixel layers`, async ({
+    page,
+  }, testInformation) => {
+    const maps: StyleMap[] = [];
+    const directories = [testInformation.outputPath('before'), testInformation.outputPath('after')];
+
+    for (const [index, body] of [beforeBody, afterBody].entries()) {
+      maps.push(await captureForm(page, selector, 'rgb(10, 20, 30)', body));
+      filesystem.mkdirSync(directories[index], { recursive: true });
+      await captureSurfaceScreenshots(page, path.join(directories[index], 'form@1280'));
+
+      for (const layer of maps[index].stateLayers ?? [])
+        expect(filesystem.existsSync(path.join(directories[index], `form@1280.${layer}.png`))).toBe(true);
+    }
+
+    expect(
+      diffStyleMaps(maps[0], maps[1]).filter((finding) => finding.kind === 'state' && finding.state === state),
+    ).toEqual([]);
+    expect(pixelDiffSurface(directories[0], directories[1], 'form@1280', maps[0], maps[1]).uncompared).toEqual([]);
+
+    if (state !== 'placeholder-shown')
+      expect(diffStyleMaps(maps[0], maps[1]).some((finding) => finding.kind === 'style')).toBe(true);
+  });
+}
+
+test('placeholder applicability excludes impossible input types and all hidden inputs', async ({ page }) => {
+  const supported = ['', 'text', 'search', 'url', 'tel', 'email', 'password', 'number'];
+
+  const unsupported = [
+    'checkbox',
+    'radio',
+    'color',
+    'date',
+    'datetime-local',
+    'month',
+    'time',
+    'week',
+    'range',
+    'file',
+    'hidden',
+  ];
+
+  const inputValues: Record<string, string> = {
+    date: '2026-01-01',
+    'datetime-local': '2026-01-01T12:00',
+    month: '2026-01',
+    week: '2026-W01',
+    time: '12:00',
+  };
+
+  await page.setContent(
+    `<!doctype html>${[...supported, ...unsupported]
+      .map(
+        (type) =>
+          `<input ${type ? `type="${type}"` : ''} placeholder="Hint" ${type === 'file' ? '' : `value="${inputValues[type] ?? '1'}"`}>`,
+      )
+      .join('')}<textarea placeholder="Hint">Filled</textarea>`,
+  );
+
+  const marked = await page.evaluate(markInteractiveElements, {
+    selector: 'input, textarea',
+    skipSel: '',
+    attr: 'data-styleproof-state-id',
+  });
+
+  expect(marked).toHaveLength(supported.length + unsupported.length);
+
+  for (const control of marked.slice(0, supported.length))
+    expect(control.formStateLayers).toContain('placeholder-shown');
+
+  for (const control of marked.slice(supported.length, -1))
+    expect(control.formStateLayers).not.toContain('placeholder-shown');
+  expect(marked.at(-1)?.formStateLayers).toContain('placeholder-shown');
+  expect(await page.locator('input[type=hidden][data-styleproof-state-id]').count()).toBe(0);
+  await page.evaluate(clearInteractiveMarks, 'data-styleproof-state-id');
+});
+
+test('a dropped form layer also drops its Typed OM margin proof', async ({ page }) => {
+  await page.setContent(
+    '<!doctype html><style>input:checked{margin-left:30px}input:disabled{margin-left:40px}</style><input type="checkbox"><input type="checkbox">',
+  );
+  const complete = await captureStyleMap(page, { stabilize: false });
+  expect(
+    Object.values(complete.stateComputedValueStyle ?? {}).some(
+      (variations) => variations.checked && variations.disabled,
+    ),
+  ).toBe(true);
+  const captured = await captureStyleMap(page, { stabilize: false, maxFormStateScanWork: 20 });
+  expect(captured.stateLayers).not.toContain('checked');
+  expect(
+    Object.values(captured.stateComputedValueStyle ?? {}).every(
+      (variations) => !variations.checked && !variations.disabled,
+    ),
+  ).toBe(true);
+  expect(Object.values(captured.states).every((variations) => !variations.checked && !variations.disabled)).toBe(true);
+});
+
+test('resting drift after form forcing discards every form layer and its proof', async ({ page }) => {
+  await page.setContent('<!doctype html><style>button:disabled{margin-left:30px}</style><button>Continue</button>');
+  const original = page.context().newCDPSession.bind(page.context());
+  const warnings: string[] = [];
+  const warningSpy = mock.method(console, 'warn', (message: unknown) => warnings.push(String(message)));
+  page.context().newCDPSession = async (...argumentsList: Parameters<typeof original>) => {
+    const session = await original(...argumentsList);
+    const send = session.send.bind(session);
+    let formForced = false;
+    // SAFETY: this observer forwards the same protocol method and parameters, then mutates a fixture style once.
+    session.send = (async (method: string, parameters: { forcedPseudoClasses?: string[] }) => {
+      // SAFETY: the unchanged protocol method was supplied by the capture driver.
+      const result = await send(method as Parameters<typeof send>[0], parameters);
+
+      if (method === 'CSS.forcePseudoState' && parameters.forcedPseudoClasses?.includes('disabled')) formForced = true;
+
+      if (method === 'CSS.forcePseudoState' && formForced && parameters.forcedPseudoClasses?.length === 0) {
+        formForced = false;
+        await page.evaluate(() => {
+          document.body.style.backgroundColor = 'rgb(1, 2, 3)';
+        });
+      }
+
+      return result;
+    }) as CDPSession['send'];
+
+    return session;
+  };
+
+  try {
+    const captured = await captureStyleMap(page, { stabilize: false });
+    expect(captured.statesSkipped).toBeFalsy();
+    expect(captured.stateLayers).toEqual(['hover', 'focus', 'active']);
+    expect(warnings.some((warning) => warning.includes('resting styles changed after form-state'))).toBe(true);
+    expect(Object.values(captured.stateComputedValueStyle ?? {}).every((variations) => !variations.disabled)).toBe(
+      true,
+    );
+  } finally {
+    page.context().newCDPSession = original;
+    warningSpy.mock.restore();
+  }
+});
+
+test('stylesheet scope is analysed once and emits one fallback warning', async ({ page }) => {
+  await page.setContent(
+    '<!doctype html><style>main:has(input:checked) label{color:red}</style><main><input type="checkbox"><label>Choice</label></main>',
+  );
+  const warnings: string[] = [];
+  const warningSpy = mock.method(console, 'warn', (message: unknown) => warnings.push(String(message)));
+  const evaluate = page.evaluate.bind(page);
+  let analyses = 0;
+
+  const evaluationSpy = mock.method(page, 'evaluate', (operation, ...parameters) => {
+    if (operation.name === 'analyzeForcedStateScope') analyses++;
+
+    return evaluate(operation, ...parameters);
+  });
+
+  try {
+    await captureStyleMap(page, { stabilize: false, forcedStateScope: 'stylesheet' });
+    expect(analyses).toBe(1);
+    expect(warnings.filter((warning) => warning.includes('fell back to whole-document'))).toHaveLength(1);
+  } finally {
+    evaluationSpy.mock.restore();
+    warningSpy.mock.restore();
+  }
+});
+
+test('a tiny form allowance clamps cached baseline charges and reports budget exhaustion', async ({ page }) => {
+  await page.setContent(`<!doctype html>${'<button><span>Continue</span></button>'.repeat(3)}`);
+  const warnings: string[] = [];
+  const warningSpy = mock.method(console, 'warn', (message: unknown) => warnings.push(String(message)));
+  try {
+    const captured = await captureStyleMap(page, {
+      stabilize: false,
+      forcedStateScope: 'stylesheet',
+      maxFormStateScanWork: 1,
+    });
+    expect(captured.statesSkipped).toBeFalsy();
+    expect(captured.stateLayers).not.toContain('disabled');
+    expect(warnings.some((warning) => warning.includes('exhausted maxFormStateScanWork=1'))).toBe(true);
+    expect(warnings.some((warning) => warning.includes('resting styles changed'))).toBe(false);
+  } finally {
+    warningSpy.mock.restore();
   }
 });

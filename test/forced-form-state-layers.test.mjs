@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { markInteractiveElements, analyzeForcedStateScope } from '../dist/capture/browser.js';
 import { diffStyleMaps, diffStyleMapDirs } from '../dist/index.js';
+import { remapBeforeStyleMap } from '../dist/path-correspondence.js';
+import { captureOptionsFor } from '../dist/runner/settings.js';
 import { STATE_LAYER_NAMES } from '../dist/capture/forced-states.js';
 import {
   makeMap as createStyleMap,
@@ -81,6 +83,7 @@ test('interactive discovery records only meaningful form states that are false a
     delete globalThis.document;
   });
   const marked = markInteractiveElements({ selector: '*', skipSel: '', attr: 'data-state' });
+  assert.ok(marked.every((control) => control.formStateLayers.length <= 2));
   assert.deepEqual(
     marked.map((control) => control.formStateLayers),
     controls.map((control) => control.expected),
@@ -116,3 +119,46 @@ for (const state of ['checked', 'disabled', 'placeholder-shown']) {
     });
   }
 }
+
+test('unknown legacy state names remain comparable without layer declarations', () => {
+  const before = createStyleMap({
+    elements: { control: { tag: 'button' } },
+    states: { control: { custom: { control: { color: 'red' } } } },
+  });
+
+  const after = { ...before, states: { control: { custom: { control: { color: 'blue' } } } } };
+  assert.ok(diffStyleMaps(before, after).some((finding) => finding.state === 'custom'));
+});
+
+for (const state of ['checked', 'disabled', 'placeholder-shown']) {
+  test(`${state} findings require mutual resting applicability for the owner`, () => {
+    const before = {
+      ...createStyleMap({ elements: { control: { tag: 'input' } } }),
+      stateLayers: [...STATE_LAYER_NAMES],
+      stateTargets: { [state]: ['control'] },
+      states: { control: { [state]: { control: { color: 'red' } } } },
+    };
+
+    const after = { ...before, stateTargets: { [state]: [] }, states: {} };
+    assert.deepEqual(diffStyleMaps(before, after), []);
+    assert.deepEqual(diffStyleMaps(after, before), []);
+    assert.ok(
+      diffStyleMaps(before, { ...after, stateTargets: before.stateTargets }).some((finding) => finding.state === state),
+    );
+  });
+}
+
+test('form owner applicability follows path correspondence', () => {
+  const before = { ...createStyleMap({ elements: { old: { tag: 'input' } } }), stateTargets: { checked: ['old'] } };
+  assert.deepEqual(remapBeforeStyleMap(before, new Map([['old', 'new']])).stateTargets, { checked: ['new'] });
+});
+
+test('runner form allowance inherits defaults and honours the surface override', () => {
+  const settings = { maxFormStateScanWork: 45000 };
+  const surface = { key: 'form', go: async () => {} };
+  assert.equal(captureOptionsFor(surface, settings, () => 0).maxFormStateScanWork, 45000);
+  assert.equal(
+    captureOptionsFor({ ...surface, maxFormStateScanWork: 60000 }, settings, () => 0).maxFormStateScanWork,
+    60000,
+  );
+});

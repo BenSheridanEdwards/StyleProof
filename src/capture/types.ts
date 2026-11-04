@@ -112,6 +112,8 @@ export type StyleMap = {
   /** Captured forced layers, including empty deltas. Absent means hover/focus/active only.
    * New form layers omitted after budget truncation are uncertified, even on both sides. */
   stateLayers?: string[];
+  /** Resting-applicable owners per form layer, including layers with zero qualifying controls. */
+  stateTargets?: Record<string, string[]>;
   /**
    * CSS Typed OM computed values of the four horizontal margins (`margin-left`/`-right`,
    * `margin-inline-start`/`-end`) of forced-state targets, keyed like `states` (owner → state →
@@ -194,8 +196,10 @@ export type CaptureOptions = {
   maxInteractive?: number;
   /** Maximum elements per forced-state document read (default 2000). Positive safe integer. */
   maxForcedStateElements?: number;
-  /** Maximum element reads across all controls/states (default 32000). Positive safe integer. */
+  /** Maximum element reads across legacy controls/states (default 32000). Positive safe integer. */
   maxForcedStateScanWork?: number;
+  /** Independent form-state element-read allowance (default 32000). Positive safe integer. */
+  maxFormStateScanWork?: number;
   /**
    * Which elements each forced-state read compares (default `'document'`: every element, target first).
    * `'stylesheet'` derives the read scope from the page's own `:hover`/`:focus`/`:focus-visible`/`:active`
@@ -236,5 +240,5 @@ export type ForcedStateScope = 'document' | 'stylesheet';
 
 export type ForcedStateLimits = Pick<
   CaptureOptions,
-  'maxForcedStateElements' | 'maxForcedStateScanWork' | 'forcedStateScope'
+  'maxForcedStateElements' | 'maxForcedStateScanWork' | 'maxFormStateScanWork' | 'forcedStateScope'
 >;

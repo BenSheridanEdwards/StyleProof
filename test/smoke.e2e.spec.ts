@@ -674,7 +674,14 @@ test('state-layer screenshots recover a uniquely marked replacement before forci
         replacesMarkedNodeAfterResolution(page, 'unique'),
         () => captureStateLayerScreenshots(page, stem),
       );
-      expect(written).toEqual([`${stem}.hover.png`, `${stem}.focus.png`, `${stem}.active.png`, `${stem}.disabled.png`]);
+      expect(written).toEqual([
+        `${stem}.hover.png`,
+        `${stem}.focus.png`,
+        `${stem}.active.png`,
+        `${stem}.checked.png`,
+        `${stem}.disabled.png`,
+        `${stem}.placeholder-shown.png`,
+      ]);
       expect(probe.detachCount, 'the screenshot CDP session detached').toBe(1);
       expect(await page.locator('[data-styleproof-state-id]').count(), 'temporary identity marks were cleared').toBe(0);
     });

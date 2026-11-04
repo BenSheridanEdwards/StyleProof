@@ -62,7 +62,9 @@ test('captures forced states that restyle siblings and :has ancestors', async ({
     'cross-element.hover.png',
     'cross-element.focus.png',
     'cross-element.active.png',
+    'cross-element.checked.png',
     'cross-element.disabled.png',
+    'cross-element.placeholder-shown.png',
   ]);
 });
 
