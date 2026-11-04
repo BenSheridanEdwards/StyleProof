@@ -132,7 +132,7 @@ jobs:
           # the trust state is surfaced. This step opts out of both gates
           # (fail-on-diff: 'false', no require-approval), so the action itself
           # succeeds — exactly as it does for the `changed` fixture above. A real
-          # repo in either certify or review-gate mode still blocks on `changed`.
+          # repo in certify mode still fails on `changed`; review-gate holds the status.
           test '${{ steps.new-surface.outputs.changed }}' = 'true'
           test '${{ steps.new-surface.outputs.trust-state }}' = 'STYLE_REVIEW_REQUIRED'
           test -n '${{ steps.new-surface.outputs.report-url }}'
