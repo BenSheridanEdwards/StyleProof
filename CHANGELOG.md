@@ -7,6 +7,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Script reach excludes Playwright bindings, clock scripts and StyleProof init scripts and reads.
+  App anonymous and eval scripts remain named unmeasured.
+  Discarded copies of recognised injected sources no longer create timing-dependent self-check gaps.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).

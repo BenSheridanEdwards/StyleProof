@@ -38,6 +38,10 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
     .replace(
       "'./script-coverage-ownership.js'",
       JSON.stringify(new URL('../dist/capture/script-coverage-ownership.js', import.meta.url).href),
+    )
+    .replace(
+      "'./script-evaluation.js'",
+      JSON.stringify(new URL('../dist/capture/script-evaluation.js', import.meta.url).href),
     );
   const reader = await import(
     `data:text/javascript;base64,${Buffer.from(source + '\nexport { leafRules, declarations };').toString('base64')}`
@@ -593,6 +597,10 @@ test('Chromium oracle agrees with non-ASCII escaped URL name boundaries', async 
     .replace(
       "'./script-coverage-ownership.js'",
       JSON.stringify(new URL('../dist/capture/script-coverage-ownership.js', import.meta.url).href),
+    )
+    .replace(
+      "'./script-evaluation.js'",
+      JSON.stringify(new URL('../dist/capture/script-evaluation.js', import.meta.url).href),
     );
   const reader = await import(
     `data:text/javascript;base64,${Buffer.from(source + '\nexport { leafRules, declarations, guardAmbiguousURLs };').toString('base64')}`
