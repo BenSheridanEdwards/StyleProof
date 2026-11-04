@@ -6,12 +6,13 @@ import http from 'node:http';
 import path from 'node:path';
 import { captureStyleMap, trackScriptReach } from '../dist/capture.js';
 
-for (const [bundlePath, outOfTree] of [
-  ['app.js', false],
-  ['assets/app.js', false],
-  ['app.js', true],
+for (const [bundlePath, outOfTree, mismatch] of [
+  ['app.js', false, false],
+  ['assets/app.js', false, false],
+  ['app.js', true, false],
+  ['app.js', false, true],
 ] as const) {
-  test(`HTTP production bundle maps above-root sources: /${bundlePath}${outOfTree ? ' (out-of-tree output)' : ''}`, async ({
+  test(`HTTP production bundle maps above-root sources: /${bundlePath}${outOfTree ? ' (out-of-tree output)' : ''}${mismatch ? ' (local hash mismatch)' : ''}`, async ({
     page,
   }, testInfo) => {
     const app = testInfo.outputPath('app');
@@ -41,6 +42,7 @@ for (const [bundlePath, outOfTree] of [
         .map((filename) => path.relative(path.dirname(outfile), path.join(projectRoot, filename)).replaceAll('\\', '/'))
         .sort(),
     );
+    if (mismatch) await writeFile(path.join(projectRoot, 'src/app.ts'), 'changed after the build');
     const server = http.createServer((request, response) => {
       const body =
         request.url === `/${bundlePath}`
@@ -71,6 +73,12 @@ for (const [bundlePath, outOfTree] of [
       });
       const bundle = map.scriptReach?.scripts.find((entry) => entry.url === `${url}/${bundlePath}`);
       process.stdout.write(`Bundler capture: ${JSON.stringify(bundle)}\n`);
+      if (mismatch) {
+        expect(bundle?.status).toBe('unknown');
+        expect(bundle?.reason).toBe('source path escapes URL root');
+        expect(bundle?.files).toBeUndefined();
+        return;
+      }
       expect(bundle?.status).toBe('mapped');
       expect(bundle?.files?.map((file) => file.sourceKey).sort()).toEqual(['src/app.ts', 'src/css.ts']);
       for (const [sourceKey, content] of Object.entries(sources)) {

@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync } from 'node:fs';
+import fs, { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync, symlinkSync, truncateSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { build } from 'esbuild';
 import { mapScriptCoverage } from '../dist/script-reach.js';
-import { storedScriptUrl } from '../dist/script-reach-identity.js';
+import { MAX_MAP_BYTES } from '../dist/script-reach-limits.js';
+import { sourceIdentities, storedScriptUrl } from '../dist/script-reach-identity.js';
 import { trackScriptReach } from '../dist/capture/script-reach.js';
 import { scriptReachFixture } from './script-reach-fixture.mjs';
 
@@ -27,12 +28,25 @@ async function capture(sources, sourcesContent, mapUrl = 'https://app.test/app.j
   }
 }
 
+function projectFixture(t, files = { 'src/app.ts': 'x', 'src/ok.ts': 'x' }, layout = 'project') {
+  const workspace = mkdtempSync(path.join(tmpdir(), 'reach-local-proof-'));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const projectRoot = path.join(realpathSync(workspace), layout);
+  mkdirSync(projectRoot, { recursive: true });
+  for (const [name, content] of Object.entries(files)) {
+    const filename = path.join(projectRoot, name);
+    mkdirSync(path.dirname(filename), { recursive: true });
+    writeFileSync(filename, content);
+  }
+  return projectRoot;
+}
+
 for (const [source, mapUrl] of [
   ['../src/app.ts', 'https://app.test/app.js.map'],
   ['../../src/app.ts', 'https://app.test/assets/app.js.map'],
 ]) {
-  test(`relative above-root source with embedded content maps: ${source}`, async () => {
-    const script = await capture([source], ['x'], mapUrl);
+  test(`relative above-root source with embedded content maps: ${source}`, async (t) => {
+    const script = await capture([source], ['x'], mapUrl, { projectRoot: projectFixture(t) });
     assert.equal(script.status, 'mapped');
     assert.equal(script.files[0].sourceKey, 'src/app.ts');
     assert.equal(script.files[0].contentHash, createHash('sha256').update('x').digest('hex'));
@@ -48,8 +62,10 @@ for (const content of [undefined, [null], []]) {
   });
 }
 
-test('clipped source keys still collide within a map', async () => {
-  const script = await capture(['../src/app.ts', '../../src/app.ts'], ['x', 'x']);
+test('clipped source keys still collide within a map', async (t) => {
+  const script = await capture(['../src/app.ts', '../../src/app.ts'], ['x', 'x'], undefined, {
+    projectRoot: projectFixture(t),
+  });
   assert.equal(script.status, 'unknown');
   assert.equal(script.reason, 'source key collision');
 });
@@ -67,16 +83,23 @@ for (const [sourceRoot, source] of [
   ['webpack:///', '../home/Home.tsx'],
   ['https://cdn.test/', '../src/app.ts'],
   ['vite:', '../src/app.ts'],
+  ['web\tpack:///', '../src/app.ts'],
+  [' webpack:///', '../src/app.ts'],
+  [String.fromCharCode(0) + 'webpack:///', '../src/app.ts'],
 ]) {
-  test(`scheme sourceRoot cannot permit relative traversal: ${sourceRoot}`, async () => {
-    const script = await capture([source], ['x'], undefined, { sourceRoot });
+  test(`scheme sourceRoot cannot permit relative traversal: ${JSON.stringify(sourceRoot)}`, async (t) => {
+    const projectRoot = projectFixture(t, { [source.slice(3)]: 'x' });
+    const script = await capture([source], ['x'], undefined, { sourceRoot, projectRoot });
     assert.equal(script.status, 'unknown');
     assert.match(script.reason, /source path escapes URL root/);
   });
 }
 
-test('a relative sourceRoot may resolve in-root while its source clips', async () => {
-  const script = await capture(['../../src/app.ts'], ['x'], undefined, { sourceRoot: 'assets/' });
+test('a relative sourceRoot may resolve in-root while its source clips', async (t) => {
+  const script = await capture(['../../src/app.ts'], ['x'], undefined, {
+    sourceRoot: 'assets/',
+    projectRoot: projectFixture(t),
+  });
   assert.equal(script.status, 'mapped');
   assert.equal(script.files[0].sourceKey, 'src/app.ts');
 });
@@ -87,18 +110,20 @@ test('sourceRoot itself cannot climb above the URL root even with content', asyn
   assert.match(script.reason, /source path escapes URL root/);
 });
 
-test('embedded content on another index cannot authorize above-root clipping', async () => {
+test('embedded content on another index cannot authorize above-root clipping', async (t) => {
   const script = await capture(['src/ok.ts', '../src/app.ts'], ['x', null], undefined, {
     source: 'xx',
+    projectRoot: projectFixture(t),
     mappings: 'AAAA,CCAA',
   });
   assert.equal(script.status, 'unknown');
   assert.match(script.reason, /source path escapes URL root/);
 });
 
-test('only the content-backed source index receives a hash', async () => {
+test('only the content-backed source index receives a hash', async (t) => {
   const script = await capture(['../src/app.ts', 'src/ok.ts'], ['x', null], undefined, {
     source: 'xx',
+    projectRoot: projectFixture(t),
     mappings: 'AAAA,CCAA',
   });
   assert.equal(script.status, 'mapped');
@@ -111,33 +136,124 @@ test('only the content-backed source index receives a hash', async () => {
   );
 });
 
-for (const directory of ['var', 'private', 'Volumes', 'opt', 'Users', 'home', 'root', 'tmp']) {
-  test(`clipped ${directory} machine paths are validated against the project root`, async () => {
-    const projectRoot = path.join(path.parse(tmpdir()).root, directory, 'capture', 'project');
-    const reference = '../../../' + path.join(projectRoot, 'src/app.ts').replaceAll('\\', '/').replace(/^\//, '');
-    const script = await capture([reference], ['x'], undefined, { projectRoot });
-    assert.equal(script.status, 'mapped');
-    assert.equal(script.files[0].sourceKey, 'src/app.ts');
-    const outside = await capture([reference], ['x'], undefined, { projectRoot: path.join(projectRoot, 'other') });
-    assert.equal(outside.status, 'unknown');
-    assert.equal(outside.reason, 'source outside project root');
-    assert.ok(!JSON.stringify(outside).includes('capture/project'));
-    assert.equal(
-      storedScriptUrl('https://app.test/' + directory + '/capture/project/app.js', projectRoot),
-      'https://app.test/app.js',
-    );
+for (const layout of ['workspaces/proj', '__w/r/r', 'usr/src/app', 'build', 'vercel/path0', 'builds/g/p']) {
+  test(`clipped ${layout} layouts require real project files for both candidates`, async (t) => {
+    const projectRoot = projectFixture(t, { 'src/app.ts': 'x' }, layout);
+    const misleading = await capture(['../../' + layout + '/src/app.ts'], ['x'], undefined, { projectRoot });
+    assert.equal(misleading.status, 'unknown');
+    assert.match(misleading.reason, /source path escapes URL root/);
+    const absoluteSource = '../../' + path.join(projectRoot, 'src/app.ts').replaceAll('\\', '/').replace(/^\//, '');
+    const verified = await capture([absoluteSource], ['x'], undefined, { projectRoot });
+    assert.equal(verified.status, 'mapped');
+    assert.equal(verified.files[0].sourceKey, 'src/app.ts');
+    assert.equal(verified.files[0].contentHash, createHash('sha256').update('x').digest('hex'));
   });
 }
 
-test('clipped drive-letter paths are validated against the project root', async () => {
-  const projectRoot = 'C:' + String.raw`\capture\project`;
-  const script = await capture(['../../../C:/capture/project/src/app.ts'], ['x'], undefined, { projectRoot });
-  assert.equal(script.status, 'mapped');
-  assert.equal(script.files[0].sourceKey, 'src/app.ts');
-  const outside = await capture(['../../../C:/other/src/app.ts'], ['x'], undefined, { projectRoot });
-  assert.equal(outside.status, 'unknown');
-  assert.equal(outside.reason, 'source outside project root');
+for (const source of [
+  '../srv/other/x.ts',
+  '../mnt/c/Users/x/lib/x.ts',
+  '../users/x/lib/x.ts',
+  '../x/proj/src/x.ts',
+  '../C:/not-a-project/src/x.ts',
+]) {
+  test(`unverified machine paths are never accepted by their spelling: ${source}`, async (t) => {
+    const script = await capture([source], ['x'], undefined, { projectRoot: projectFixture(t) });
+    assert.equal(script.status, 'unknown');
+    assert.match(script.reason, /source path escapes URL root/);
+  });
+}
+
+test('a fake absolute projectRoot without local files cannot verify a clipped key', async (t) => {
+  const projectRoot = path.join(projectFixture(t, {}), 'workspaces', 'proj');
+  const script = await capture(['../../workspaces/proj/src/app.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
 });
+
+test('a monorepo source outside packages/web cannot become a local shared key', async (t) => {
+  const projectRoot = projectFixture(t, {}, 'packages/web');
+  const shared = path.join(projectRoot, '..', '..', 'shared', 'src/util.ts');
+  mkdirSync(path.dirname(shared), { recursive: true });
+  writeFileSync(shared, 'x');
+  const script = await capture(['../../shared/src/util.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+  assert.match(script.reason, /source path escapes URL root/);
+});
+
+test('a local file whose hash differs from sourcesContent stays unknown', async (t) => {
+  const projectRoot = projectFixture(t, { 'src/app.ts': 'different' });
+  const script = await capture(['../src/app.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+  assert.match(script.reason, /source path escapes URL root/);
+});
+
+test('a symlink escaping projectRoot is rejected before reading its bytes', async (t) => {
+  const projectRoot = projectFixture(t, {});
+  const outside = path.join(projectRoot, '..', 'outside.ts');
+  writeFileSync(outside, 'x');
+  mkdirSync(path.join(projectRoot, 'src'));
+  symlinkSync(outside, path.join(projectRoot, 'src/app.ts'));
+  const read = t.mock.method(fs, 'readSync', () => {
+    throw new Error('outside source was read');
+  });
+  const script = await capture(['../src/app.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+  assert.equal(read.mock.callCount(), 0);
+});
+
+test('a directory symlink escaping projectRoot cannot supply proof', async (t) => {
+  const projectRoot = projectFixture(t, {});
+  const outside = path.join(projectRoot, '..', 'outside');
+  mkdirSync(outside);
+  writeFileSync(path.join(outside, 'app.ts'), 'x');
+  symlinkSync(outside, path.join(projectRoot, 'src'), 'junction');
+  const script = await capture(['../src/app.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+});
+
+test('clipped proof rejects non-regular and oversized project entries', async (t) => {
+  const projectRoot = projectFixture(t);
+  const filename = path.join(projectRoot, 'src/app.ts');
+  truncateSync(filename, MAX_MAP_BYTES + 1);
+  const read = t.mock.method(fs, 'readSync', () => {
+    throw new Error('oversized source was read');
+  });
+  const oversized = await capture(['../src/app.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(oversized.status, 'unknown');
+  const directory = await capture(['../src'], ['x'], undefined, { projectRoot });
+  assert.equal(directory.status, 'unknown');
+  assert.equal(read.mock.callCount(), 0);
+});
+
+for (const control of ['\t', '\n', '\r']) {
+  test(`URL-ignored controls cannot hide traversal without content: ${JSON.stringify(control)}`, async () => {
+    const source =
+      Array(3)
+        .fill('.' + control + '.')
+        .join('/') + '/workspaces/x/y.ts';
+    const script = await capture([source], undefined, 'https://app.test/assets/a.map');
+    assert.equal(script.status, 'unknown');
+    assert.match(script.reason, /source path escapes URL root/);
+  });
+}
+
+for (const directory of ['private', 'opt', 'var', 'Volumes']) {
+  test(`non-clipped ${directory} HTTP paths keep main identity and stored URL`, (t) => {
+    const read = t.mock.method(fs, 'readSync', () => {
+      throw new Error('non-clipped source was read');
+    });
+    const address = 'https://app.test/' + directory + '/x.ts';
+    assert.deepEqual(
+      sourceIdentities(
+        { version: 3, sources: [address], sourcesContent: ['x'], mappings: 'AAAA' },
+        'https://app.test/app.map',
+      ),
+      [directory + '/x.ts'],
+    );
+    assert.equal(storedScriptUrl(address), address);
+    assert.equal(read.mock.callCount(), 0);
+  });
+}
 
 test('an esbuild outfile outside the project cannot leak a machine path', async () => {
   const workspace = mkdtempSync(path.join(tmpdir(), 'reach-outfile-'));
@@ -164,4 +280,25 @@ test('an esbuild outfile outside the project cannot leak a machine path', async 
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
+});
+
+test('drive forms cannot be reinterpreted as relative colon directories', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('Windows does not allow colon-named project directories');
+    return;
+  }
+  const projectRoot = projectFixture(t, { 'C:/not-a-project/src/x.ts': 'x' });
+  const script = await capture(['../C:/not-a-project/src/x.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+});
+
+test('an absolute alias cannot prove a different returned project key', async (t) => {
+  const projectRoot = projectFixture(t, { 'src/other.ts': 'x' });
+  const alias = '/@fs' + path.join(projectRoot, 'src/app.ts').replaceAll('\\', '/');
+  const original = fs.realpathSync;
+  t.mock.method(fs, 'realpathSync', (filename, ...args) =>
+    filename === alias ? path.join(projectRoot, 'src/other.ts') : original(filename, ...args),
+  );
+  const script = await capture(['../../' + alias.slice(1)], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
 });

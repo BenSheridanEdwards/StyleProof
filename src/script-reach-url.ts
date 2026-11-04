@@ -1,6 +1,16 @@
 import { ScriptEvidenceError } from './script-reach-limits.js';
 const SCHEME = /^[a-z][a-z\d+.-]*:/i;
 
+/** Match URL parsing's ignored ASCII controls before classifying a reference. */
+export function normalizeSourceReference(reference: string): string {
+  const value = reference.replaceAll(/[\t\n\r]/g, '').replaceAll('\\', '/');
+  let start = 0;
+  let end = value.length;
+  while (start < end && value.charCodeAt(start) <= 32) start++;
+  while (end > start && value.charCodeAt(end - 1) <= 32) end--;
+  return value.slice(start, end);
+}
+
 function checkPathDepth(pathname: string, depth: number, allowClipping: boolean): boolean {
   let clipped = false;
   for (const segment of decodeURIComponent(pathname).split('/')) {
@@ -22,7 +32,7 @@ export function resolveSourceUrl(
   base: URL | string,
   allowClipping = false,
 ): { url: URL; clipped: boolean } {
-  const raw = reference.replaceAll('\\', '/');
+  const raw = normalizeSourceReference(reference);
   const path = raw
     .split(/[?#]/, 1)[0]
     .replace(SCHEME, '')

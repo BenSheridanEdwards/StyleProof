@@ -346,12 +346,8 @@ for (const scheme of ['foo', 'turbopack'])
 
 for (const source of ['webpack://_N_E/../shared/x.ts', 'webpack:///../home/Home.tsx', '../../../../shared/x.ts'])
   for (const sourcesContent of [undefined, ['x']])
-    test(`source URL traversal requires relative content above its root: ${source}, content=${!!sourcesContent}`, () => {
+    test(`source URL traversal without project files stays unknown: ${source}, content=${!!sourcesContent}`, () => {
       const sourceMap = map('AAAA', [source], sourcesContent);
-      if (sourcesContent && source.startsWith('../')) {
-        assert.deepEqual(sourceIdentities(sourceMap, 'https://app.test/assets/a.map', root), ['shared/x.ts']);
-        return;
-      }
       assert.throws(() => sourceIdentities(sourceMap, 'https://app.test/assets/a.map', root), /escapes URL root/);
     });
 

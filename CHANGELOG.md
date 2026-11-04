@@ -18,9 +18,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Script reach maps relative sources above the URL root in production bundles when
   each source includes its own `sourcesContent` entry and `sourceRoot` is absent or
   relative. Only escaping `..` segments are dropped; `sourceRoot` itself cannot clip.
-  Clipped machine paths are validated against the project root and stored relative
-  to it. Missing content, scheme-prefixed traversal, outside-root paths and colliding
-  keys still read unknown.
+  Clipped keys require a regular local project file inside the real project root
+  whose SHA-256 matches that source's embedded content. Only clipped original files
+  are read, synchronously and locally, with an 8 MiB cap. Missing project files,
+  hash mismatches, symlink escapes and colliding keys read unknown. Remote captures
+  without matching project files cannot map clipped sources. Non-clipped URL
+  handling stays unchanged. Tab, LF and CR no longer hide URL traversal.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
