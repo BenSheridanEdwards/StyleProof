@@ -186,6 +186,7 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
 
 - **The headline** says how many distinct changes need review. Here that is one change, made of 2 computed-style
   differences and 3 interaction-state differences on one page.
+- **What changed** gives one value-free sentence per distinct element change, with matching descriptions counted together. Known tag nouns use counts such as “3 buttons”; class-derived labels use “3 elements”. Counts identify each element by its path within a surface base, so widths and change groups do not multiply it. The headline counts all distinct sentences, including those beyond the ten-line display cap.
 - **Each card is one changed element.** It names the element (`button.btn`), the page and viewport width it was
   captured at (`demo-button @ 900`), and the property changes in one line.
 - **The before/after crop** shows the element on the base branch and on the pull request. Cards for `:hover`,

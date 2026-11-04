@@ -56,13 +56,24 @@ visual changes and kept the check red. A reviewer ticks **Approve all changes**
 to sign off that commit. Any later push that changes the evidence reopens the
 gate.
 
-Below the headline count, the comment lists **What changed**. Each one-sided
-surface gets a row with its status. Each change gets a row that names up to
-three elements and what happened to them, and counts the rest as
-`+N more element(s)`. After ten rows, `…and N more changes` counts what is left.
-`report.json` records the same rows under `digest`, as
-`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more }`.
-The key is present only when there is at least one row.
+Below the headline count, the comment lists **What changed**. The list uses
+one plain-English line per change: an element noun, a value-free description,
+and an element count. Surface names appear only when several changed surface
+bases need distinguishing. Matching descriptions merge into one line with
+their distinct elements counted together, including changes from separate groups or pseudo-elements.
+Each one-sided surface keeps its status row. After ten displayed lines,
+`…and N more changes` counts the remaining lines after merging.
+
+`report.json` preserves the legacy `digest` rows and their fields:
+`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more, foldedRows? }`.
+The additive `sentences` array contains the plain-English summaries on changed
+rows. Merged sentences appear on the first matching row; later matching rows
+may have an empty array. The legacy `elements` and `more` fields retain their
+existing element-list limits. Counts identify each element by its path within a
+surface base, so widths and separate change groups do not multiply it. The
+headline counts all distinct changed sentences and one-sided surface rows,
+including those beyond the ten-line display cap.
+The `digest` key is present only when there is at least one row.
 
 ### A safety policy blocks
 
