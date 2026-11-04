@@ -106,7 +106,8 @@ for (const [usePath, packageType] of [
     const result = run(cwd, source);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Total: 1 test in 1 file/);
-    // The project's own Playwright wins over a PATH copy (#1259); the filter must ride on that spawn too.
+    // The project's own Playwright wins over a PATH copy (#1259). The quiet-load assertions below
+    // guard the worker-count probe; Playwright's own config transform emits none of these warnings.
     assert.doesNotMatch(result.stderr, /PATH Playwright reached/);
     assert.doesNotMatch(result.stderr, unwanted);
     assert.match(result.stderr, /Warning: playwright advisory/);
