@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Report state headings name and count only that state's changed elements. Cross-element state changes
+  name the changed target in property tables and highlight captions, and identify the control driving the state.
 - Action runtime installation and context lookup failures now replace earlier approval with a
   terminal failure status requesting a re-run, even when the runtime could not be built (#1284).
 - Script reach keeps anonymous app scripts that contain a StyleProof sourceURL marker as string data.

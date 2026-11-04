@@ -3,7 +3,7 @@ import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '
 import type { DiffCounts, Finding } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
-import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
+import { groupBySignature as groupByWidth, prettyLabel, summarizeProps, surfaceWidth } from '../change-groups.js';
 import { annotationPaths } from './annotation-paths.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
@@ -159,6 +159,36 @@ type CropPack = {
   reason?: string;
 };
 
+/** Presentation only: state findings retain their owner paths in machine output. */
+function stateTargets(findings: Finding[], mapA: StyleMap, mapB: StyleMap): Finding[] {
+  return findings.map((f) => {
+    if (f.kind !== 'state' || f.sub === f.path) return f;
+    const target = mapB.elements[f.sub] ?? mapA.elements[f.sub];
+    return target ? { ...f, path: f.sub, cls: target.cls } : f;
+  });
+}
+
+function stateDrivers(findings: Finding[], mapA: StyleMap, mapB: StyleMap): string[] {
+  return [
+    ...new Set(
+      findings.flatMap((f) => {
+        if (f.kind !== 'state' || f.sub === f.path) return [];
+        const target = mapB.elements[f.sub] ?? mapA.elements[f.sub];
+        return target
+          ? [
+              `${codeValue(prettyLabel(f.sub, target.cls))} restyled when ${codeValue(prettyLabel(f.path, f.cls))} is ${codeValue(`:${f.state}`)}.`,
+            ]
+          : [];
+      }),
+    ),
+  ];
+}
+
+function stateHeading(findings: Finding[], mapA: StyleMap, mapB: StyleMap, foldedOnly = !findings.length): string {
+  const targets = stateTargets(findings, mapA, mapB);
+  return regionHeading([...new Set(targets.map((f) => f.path))], targets, foldedOnly);
+}
+
 /** Crop one region's pair (or explain why there is none). */
 function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, state?: string): CropPack {
   const { g, region, mapA, mapB, cg } = a;
@@ -172,7 +202,7 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
   }
   a.seq.crop++;
   // Outline the LEAF changed elements on each side, not the merged anchor container.
-  const marked = annotationPaths(findings, mapA, mapB);
+  const marked = annotationPaths(stateTargets(findings, mapA, mapB), mapA, mapB);
   const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
     paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
   const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
@@ -196,15 +226,19 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
   })!;
 }
 
-function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUsesAll: boolean) {
+function stateSections(a: RegionArgs, regionFindings: Finding[]) {
   const md: string[] = [];
   const stateImages: Record<string, CropImages> = {};
   for (const state of STATE_LAYER_NAMES) {
     const sf = regionFindings.filter((f) => f.kind === 'state' && f.state === state);
     if (!sf.length) continue;
-    const headingFindings = firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
-    const heading = headingFindings.filter((f) => a.cg.rep.findings.includes(f));
-    md.push('', `### ${regionHeading(a.g.paths, heading)} \`:${state}\``, '', a.surfaceList);
+    const heading = sf.filter((f) => a.cg.rep.findings.includes(f));
+    md.push(
+      '',
+      `### ${stateHeading(heading.length ? heading : sf, a.mapA, a.mapB, !heading.length)} \`:${state}\``,
+      '',
+      a.surfaceList,
+    );
     md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
     const glance = propertyGlanceLine(sf);
     if (glance) md.push('', glance);
@@ -233,7 +267,7 @@ type RestingSection = { md: string[]; pack: CropPack; trailing: string[] };
 function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean): RestingSection {
   if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
   const heading = cropFindings.filter((f) => a.cg.rep.findings.includes(f));
-  const md = ['', `### ${regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
+  const md = ['', `### ${regionHeading([...new Set(heading.map((f) => f.path))], heading)}`, '', a.surfaceList];
   const glance = propertyGlanceLine(cropFindings);
   if (glance) md.push('', glance);
   md.push(...spacingLines(a.spacing));
@@ -266,7 +300,7 @@ function renderRegion(a: RegionArgs) {
   const section = restingSection(a, cropFindings, !stateOnly && shownRest.length > 0);
   const resting = section.pack;
   md.push(...section.md);
-  const states = hasDom ? { md: [], stateImages: {} } : stateSections(a, regionFindings, stateOnly);
+  const states = hasDom ? { md: [], stateImages: {} } : stateSections(a, regionFindings);
   md.push(...states.md);
 
   if (stateOnly && rest.length) md.push(...a.changes(rest));
@@ -311,13 +345,23 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const shownSet = new Set(findings);
   const foldedSet = new Set(folded);
 
-  const changes = (shown: Finding[]): string[] =>
-    renderCropChanges(
-      shown.filter((f) => shownSet.has(f)),
+  const changes = (shown: Finding[]): string[] => [
+    ...stateDrivers(shown, mapA, mapB).flatMap((line) => ['', line]),
+    ...renderCropChanges(
+      stateTargets(
+        shown.filter((f) => shownSet.has(f)),
+        mapA,
+        mapB,
+      ),
       ctx.foldDetailsAt,
       describeCtx,
-      shown.filter((f) => foldedSet.has(f)),
-    );
+      stateTargets(
+        shown.filter((f) => foldedSet.has(f)),
+        mapA,
+        mapB,
+      ),
+    ),
+  ];
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
   const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);
   const findingCount = findings.length;
@@ -346,19 +390,27 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     })
   ) {
     const reason = MISLEADING_CROP_REASON;
+    const sections = new Map<string, Finding[]>();
+    for (const f of [...findings, ...folded]) {
+      const state = f.kind === 'state' ? f.state : '';
+      sections.set(state, [...(sections.get(state) ?? []), f]);
+    }
     return {
-      md: [
-        // The heading also ends the Action's PR comment summary (#952).
-        '',
-        `### ${regionHeading(changedPaths, findings)}`,
-        '',
-        surfaceList,
-        '',
-        `_${reason}_`,
-        ...spacingLines(spacing),
-        '',
-        ...changes([...findings, ...folded]),
-      ],
+      md: [...sections].flatMap(([state, section], index) => {
+        const heading = section.filter((f) => shownSet.has(f));
+        return [
+          // The heading also ends the Action's PR comment summary (#952).
+          '',
+          `### ${stateHeading(heading.length ? heading : section, mapA, mapB, !heading.length)}${state ? ` ${codeValue(`:${state}`)}` : ''}`,
+          '',
+          surfaceList,
+          '',
+          `_${reason}_`,
+          ...(index === 0 ? spacingLines(spacing) : []),
+          '',
+          ...changes(section),
+        ];
+      }),
       json: {
         ...json,
         visualEvidence: 'not-rendered',
