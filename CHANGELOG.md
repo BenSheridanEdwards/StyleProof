@@ -25,8 +25,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Clipped keys require a regular local project file inside the real project root
   whose SHA-256 matches that source's embedded content. Only clipped original files
   are read, synchronously and locally, with an 8 MiB cap. Missing project files,
-  hash mismatches, symlink escapes and colliding keys read unknown. Remote captures
-  without matching project files cannot map clipped sources. Non-clipped URL
+  hash mismatches, symlink escapes and colliding keys read unknown.
+  Clipped keys must match the file's canonical on-disk path relative to the project
+  root; case aliases and symlinked path components read unknown, even within the project.
+  Remote captures without matching project files cannot map clipped sources. Non-clipped URL
   handling stays unchanged. Tab, LF and CR no longer hide URL traversal.
   Source and sourceRoot also trim edge ASCII controls and spaces and normalize
   backslashes before classification, so padded absolute paths resolve project-relative.

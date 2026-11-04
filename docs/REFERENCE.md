@@ -1473,6 +1473,11 @@ hash. A clipped key is accepted only when a regular local project file has the
 same SHA-256 as that source's `sourcesContent` entry. The project-relative candidate
 is checked first, then the absolute-path or drive-form candidate if it lies inside
 the project root. Both require realpath containment without a symlink escape.
+Clipped keys must match the file's canonical on-disk path relative to the project
+root; case aliases and symlinked components in that path read unknown, even when
+the symlink stays inside the project.
+The absolute candidate requires the project's exact root spelling; a symlinked or
+differently-cased root alias reads unknown.
 Directory names supply no proof. Missing files, hash mismatches and outside-root
 paths read unknown. A capture without the matching project files, such as a remote
 URL capture with a different project root, records clipped sources as unknown.
