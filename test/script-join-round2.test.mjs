@@ -291,7 +291,7 @@ test('long residual candidates stay unknown without running unbounded naming reg
   const maps = [measured(text)];
   const [unit] = classifyScriptReach(maps, maps, [change(text)]).units;
   assert.equal(unit.status, 'unknown');
-  assert.match(unit.why, /residual naming skipped.*2048/);
+  assert.match(unit.why, /residual naming skipped.*128/);
 });
 
 test('capture settings resolve project-root provenance once for the whole run', (t) => {

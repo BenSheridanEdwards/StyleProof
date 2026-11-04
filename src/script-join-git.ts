@@ -52,8 +52,12 @@ function captureRoot(maps: readonly StyleMap[], side: Side, paths: string[]): Ca
   );
 
   if (!evidence.length) return { keys };
-  const prefixes = new Set(evidence.map((reach) => reach.projectRootPrefix));
-  const prefix = evidence[0].projectRootPrefix;
+  const mapped = evidence.filter((reach) =>
+    reach.scripts.some((script) => script.status === 'mapped' && !!script.files?.length),
+  );
+  const identities = mapped.length ? mapped : evidence.filter((reach) => validPrefix(reach.projectRootPrefix));
+  const prefixes = new Set(identities.map((reach) => reach.projectRootPrefix));
+  const prefix = identities[0]?.projectRootPrefix;
 
   if (prefixes.size !== 1 || !validPrefix(prefix))
     return {
@@ -146,10 +150,13 @@ function changesForFile(
   }
 
   const changes = changedScriptRanges(file.patch, texts, file.path)
-    .filter((change) => available.has(change.side) && roots[change.side].prefix !== undefined)
+    .filter((change) => available.has(change.side))
     .map((change) => ({
       ...change,
-      sourceKey: sourceKey(roots[change.side].prefix ?? '', file.path),
+      sourceKey: roots[change.side].prefix === undefined ? file.path : sourceKey(roots[change.side].prefix!, file.path),
+      ...(roots[change.side].prefix === undefined
+        ? { unmeasuredReason: `${change.side} project-root prefix unavailable; source identified by git path` }
+        : {}),
       contentHash: hashes[change.side],
     }));
 
@@ -208,7 +215,15 @@ function joinFiles(
 
   if (unjudged.size) {
     const paths = [...unjudged].sort(compareSourceKeys);
-    gaps.push({ ...scriptJoinGap(`changed files J2 does not judge: ${paths.join(', ')}`), paths });
+    const preview = paths
+      .slice(0, 3)
+      .map((file) => file.slice(0, 120))
+      .join(', ');
+    gaps.push({
+      ...scriptJoinGap(`changed files J2 does not judge: ${paths.length} path(s); first: ${preview}`),
+      paths,
+      pathCount: paths.length,
+    });
   }
 
   return { changes: changes.sort(compareScriptRanges), gaps };

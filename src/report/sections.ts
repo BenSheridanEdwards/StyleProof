@@ -485,6 +485,7 @@ export function buildReportJson(a: ReportArtifacts) {
     ...capped,
     json: { ...capped.json, ...(script.reach ? { reach: script.reach } : {}) },
     scriptUnitsOmitted: script.omitted,
+    scriptDetailsOmitted: script.detailsOmitted,
   };
 }
 

@@ -300,21 +300,30 @@ export async function trackScriptReach(
   page: Page,
   options: { projectRoot?: string; projectRootPrefix?: string | null; mediaState?: MediaState } = {},
 ): Promise<ScriptReachTracker> {
-  if (page.context().browser()?.browserType().name() !== 'chromium') {
-    return { stop: async () => unmeasuredScriptReach('script coverage requires Chromium'), dispose: async () => {} };
-  }
-  const ownership = scriptCoverageOwnership(page);
-  if (ownership !== 'exclusive') {
-    return {
-      stop: async () => unmeasuredScriptReach(ownershipReason(ownership)),
-      dispose: async () => {},
-    };
-  }
   const projectRoot = options.projectRoot ?? resolveScriptProjectRoot();
   const projectRootPrefix =
     options.projectRootPrefix === undefined
       ? scriptProjectRootPrefix(projectRoot)
       : (options.projectRootPrefix ?? undefined);
+  const withRoot = (evidence: ScriptReach): ScriptReach => ({
+    ...evidence,
+    ...(projectRootPrefix !== undefined
+      ? { projectRootPrefix }
+      : { projectRootIssue: 'project-root prefix unavailable: git lookup failed or timed out; recapture scriptReach' }),
+  });
+  if (page.context().browser()?.browserType().name() !== 'chromium') {
+    return {
+      stop: async () => withRoot(unmeasuredScriptReach('script coverage requires Chromium')),
+      dispose: async () => {},
+    };
+  }
+  const ownership = scriptCoverageOwnership(page);
+  if (ownership !== 'exclusive') {
+    return {
+      stop: async () => withRoot(unmeasuredScriptReach(ownershipReason(ownership))),
+      dispose: async () => {},
+    };
+  }
   const marker = scriptCoverageMarker(page);
   let client: CDPSession | undefined;
   let reason: string | undefined;
@@ -439,10 +448,6 @@ export async function trackScriptReach(
   return {
     dispose,
     beginMapRead: restoreCache,
-    stop: async () => {
-      const evidence = await read();
-      if (projectRootPrefix !== undefined) evidence.projectRootPrefix = projectRootPrefix;
-      return evidence;
-    },
+    stop: async () => withRoot(await read()),
   };
 }

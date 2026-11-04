@@ -663,8 +663,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reach,
   };
 
-  const { json, findingsOmitted, scriptUnitsOmitted } = buildReportJson(artifacts);
-  if (reach && scriptUnitsOmitted && json.reach) {
+  const { json, findingsOmitted, scriptDetailsOmitted } = buildReportJson(artifacts);
+  if (reach && scriptDetailsOmitted && json.reach) {
     reach.gaps = json.reach.gaps;
     reach.complete = false;
     if (reachBlock) {

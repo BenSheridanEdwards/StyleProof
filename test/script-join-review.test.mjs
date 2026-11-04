@@ -81,10 +81,10 @@ test('unloaded MDX, template, extensionless and gitlink paths remain named J2 ga
   const head = f.commit();
   f.stamp(base, head);
   const result = f.read();
-  assert.match(
-    result.gaps.map((gap) => gap.reason).join('\n'),
-    /changed files J2 does not judge: render, view.html, widget.gjs, z.mdx/,
-  );
+  const gap = result.gaps.find((gap) => gap.reason.startsWith('changed files J2 does not judge:'));
+  assert.deepEqual(gap.paths, ['render', 'view.html', 'widget.gjs', 'z.mdx']);
+  assert.equal(gap.pathCount, 4);
+  assert.match(gap.reason, /4 path\(s\); first: render, view.html, widget.gjs/);
 });
 
 test('git line three maps to JavaScript line four after an earlier Unicode line separator', () => {

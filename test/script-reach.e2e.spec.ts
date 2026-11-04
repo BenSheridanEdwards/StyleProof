@@ -157,10 +157,14 @@ for (const drift of [false, true]) {
     const capture = captureSurface(page, surface, 800, settings, { index: 1, total: 1 });
     if (drift) {
       await capture;
-      expect(loadStyleMap(testInfo.outputPath('maps/branch@800.json.gz')).scriptReach).toMatchObject({
+      const evidence = loadStyleMap(testInfo.outputPath('maps/branch@800.json.gz')).scriptReach;
+      // The if header now remains mixed when only body-line anchors represent the other state.
+      expect(evidence).toMatchObject({
         status: 'unknown',
-        reason: 'script evidence not reproducible: original.js:3',
+        reason: 'script evidence not reproducible: original.js:2',
       });
+      expect(evidence?.projectRootPrefix).toBe(settings.projectRootPrefix);
+      expect(evidence?.projectRootPrefix).not.toBeUndefined();
     } else {
       await capture;
       expect(

@@ -1,4 +1,5 @@
 import { scriptUnitRanges } from './script-units.js';
+import { scriptGapLines } from './script-gap-details.js';
 import { readScriptChanges, type ScriptChanges } from '../script-join-git.js';
 import {
   classifyScriptReach,
@@ -23,6 +24,8 @@ export type ReachGap =
       kind: 'ledger' | 'not-built';
       reason: string;
       remedy: string;
+      paths?: string[];
+      pathCount?: number;
     };
 
 export type ReportReach = {
@@ -360,13 +363,7 @@ function scriptSectionLines(reach: ReportReach): string[] {
       );
   }
 
-  if (gaps.length)
-    lines.push(
-      '',
-      '**J2 run-level gaps (unmeasured)**',
-      '',
-      ...gaps.map((gap) => `- ${escapeInlineMarkdown(gapReason(gap))} — ${gap.remedy}`),
-    );
+  if (gaps.length) lines.push('', '**J2 run-level gaps (unmeasured)**', '', ...scriptGapLines(gaps));
 
   return lines;
 }

@@ -13,11 +13,13 @@ export type ScriptChange = {
   text: string;
   /** The entire changed line, rather than a trimmed token range. */
   changeScope?: 'line';
+  /** Retain git-side lines when their captured source-key provenance is unavailable. */
+  unmeasuredReason?: string;
 };
 
 export type ScriptExecution = 'ran' | 'never-ran' | 'partly-ran' | 'not-loaded' | 'unmeasured';
 
-export type ScriptUnit = Omit<ScriptChange, 'text' | 'contentHash'> & {
+export type ScriptUnit = Omit<ScriptChange, 'text' | 'contentHash' | 'unmeasuredReason'> & {
   execution: ScriptExecution;
   status: 'reached' | 'never-rendered' | 'unmeasured' | 'unknown';
   why: string;
@@ -34,6 +36,8 @@ export type ScriptJoinGap = {
   reason: string;
   remedy: string;
   paths?: string[];
+  /** Full path count, also retained when presentation detail is truncated. */
+  pathCount?: number;
 };
 
 /** A later J3 can supply the same contract; token names and hunk membership are never proof. */
@@ -133,6 +137,7 @@ function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): Evidenc
     const reach = map.scriptReach;
 
     if (!reach) continue;
+    if (reach.projectRootIssue) reasons.push(reach.projectRootIssue);
 
     if (reach.status !== 'measured') {
       reasons.push(reach.reason ?? 'script coverage unavailable');
@@ -166,7 +171,7 @@ function residuals(text: string): string[] {
 }
 
 function residualReason(text: string): string {
-  if (text.length > 2048) return '; J2 residual naming skipped for source lines over 2048 UTF-16 code units';
+  if (text.length > 128) return '; J2 residual naming skipped for source lines over 128 UTF-16 code units';
   const limits = residuals(text);
   return limits.length ? `; J2 block-entry residual: ${limits.join('; ')}` : '';
 }
@@ -175,8 +180,14 @@ function emptyLine(change: ScriptChange): boolean {
   return change.changeScope === 'line' && change.text.length === 0;
 }
 
+function contentHashIssue(file: ScriptExecutionIndex, contentHash: string): string | undefined {
+  if (file.hashes.has(undefined)) return 'captured sourcesContent content hash absent';
+  if (file.hashes.size !== 1 || !file.hashes.has(contentHash))
+    return 'content-hash mismatch between git blob and captured sourcesContent';
+}
+
 function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonly SourceCorroboration[]): ScriptUnit {
-  const { text, contentHash, ...identity } = change;
+  const { text, contentHash, unmeasuredReason, ...identity } = change;
 
   let scope: 'range' | 'line' = 'range';
 
@@ -191,6 +202,7 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
     return entry;
   };
 
+  if (unmeasuredReason) return unit('unmeasured', 'unmeasured', unmeasuredReason);
   const file = side.files.get(change.sourceKey);
 
   if (emptyLine(change)) return unit('unmeasured', 'unmeasured', 'no anchors on an empty line');
@@ -203,11 +215,8 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
       : unit('not-loaded', 'unmeasured', 'not loaded: changed file is in no capture source on this side');
   }
 
-  if (file.hashes.has(undefined))
-    return unit('unmeasured', 'unmeasured', 'captured sourcesContent content hash absent');
-
-  if (file.hashes.size !== 1 || !file.hashes.has(contentHash))
-    return unit('unmeasured', 'unmeasured', 'content-hash mismatch between git blob and captured sourcesContent');
+  const issue = contentHashIssue(file, contentHash);
+  if (issue) return unit('unmeasured', 'unmeasured', issue);
   const measured = executionIn(change.range, file);
   const execution = measured.execution;
   scope = measured.scope;

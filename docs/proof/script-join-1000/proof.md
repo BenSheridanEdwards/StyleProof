@@ -155,3 +155,39 @@ scope tests. Final `pnpm run verify` passes **4,826/4,826**, with zero failures,
 cancellations or skips. `bench:reach:check` passes all 32 scenario cells and
 `demo:check` confirms the generated demo is current. Browser gate tails and the
 published SHA are reported in the handoff.
+
+## Round 3: bounded gaps and complete provenance
+
+The retained [unit red run](round3-red-unit.txt) has **10 expected failures**;
+the [browser red run](round3-red-browser.txt) has **2 failures and 1 passing
+real-Git control**. Final targeted checks pass **221/221 units** and **37/37
+browser cases**, including the existing evaluated operands and coarse ternary.
+
+| Item | Red → green                                                                                                                                                                                                                                                       |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | 5,000 unjudged JSON paths evicted all 20 style findings. Short reserved notices and a shared post-findings budget now keep 20/20 findings; both JSON and Markdown bound gap records and paths with named omissions.                                               |
+| 2    | A self-check rewrite or prefix-less unmapped surface removed head app.ts:1. Early returns and rewrites retain provenance, unmapped evidence cannot conflict with a measured surface, and missing-prefix sides keep unmeasured git-path units with side and lines. |
+| 3    | A never-called arrow header read ran/unknown. A different-state run now needs an anchor for the same source and original line; whole-header and tone-token changes read partly-ran/never-rendered.                                                                |
+| 4    | A 1.2-second successful lookup exceeded the old one-second deadline. Root lookup now has ten seconds; a failed cached lookup persists as projectRootIssue and a named gap. This is the generous-timeout option, not parent-process IPC.                           |
+| 5    | The unbalanced 2,046-character residual input exceeded ten milliseconds of CPU. Naming now stops above 128 UTF-16 units, explicitly; adversarial inputs at and above the boundary pass the CPU checks.                                                            |
+| 6    | Added a real Chromium → stored evidence → git adapter control with two changed lines, a recorded package prefix, configured inter-hunk context and file-to-symlink patch pairing. It passes before and after the fixes.                                           |
+
+Two further budget guards first failed: the [first omitted gap preview](round3-red-gap-records.txt)
+and [UTF-8 notice growth](round3-red-gap-growth.txt), which used 1,442 bytes against
+600 available. Both now pass; notice growth stays inside J2's post-findings budget.
+The existing drift assertion moves from original.js:3 to :2 because the if-header
+interval is now mixed; it still requires the exact location and unknown status,
+and additionally checks that the prefix survives the rewrite.
+
+The [generated summary](round3-budget-summary.json) and [report JSON](round3-report.json)
+record **20/20 style findings, zero omitted, 68,556 / 450,000 JSON bytes,
+8,934 Markdown bytes, 5,000 unjudged paths, 868 JSON path records and 4,132
+explicitly omitted paths**. Human detail independently lists at most 100 paths.
+The screenshots retain the product-state identity warning, warn-only J2 status,
+and the fixture's lack of captured screenshots. This is synthetic diagnostic
+budget proof, not a certified same-state comparison. Final gate tails and the
+publication result are reported in the handoff.
+
+![All twenty style findings remain listed](round3-findings.png)
+
+![Unjudged path count and JSON truncation remain explicit](round3-gap-detail.png)

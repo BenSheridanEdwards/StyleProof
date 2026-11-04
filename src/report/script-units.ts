@@ -1,10 +1,18 @@
 /** Bounded J2 presentation. Full classifier units and counts remain in the assessment. */
 import { compareScriptRanges, scriptJoinGap, type ScriptUnit } from '../script-join.js';
 import type { ReportReach } from './reach.js';
+import {
+  budgetScriptGaps,
+  gapRecordNotice,
+  gapPathNotice,
+  scriptGapPathCount,
+  jsonBytes,
+  takeScriptDetail,
+} from './script-gap-details.js';
+export { jsonBytes } from './script-gap-details.js';
 
 export type ScriptUnitRange = ScriptUnit & { count: number };
 const MAX_SCRIPT_JSON_BYTES = 64_000;
-export const jsonBytes = (value: unknown): number => Buffer.byteLength(JSON.stringify(value, null, 2));
 
 function adjacent(previous: ScriptUnitRange, next: ScriptUnit): boolean {
   return (
@@ -50,8 +58,14 @@ function truncationGap(omitted: number) {
 
 /** Reserve only the mandatory notice before allocating space to diff findings. */
 export function reserveScriptNotice(reach: ReportReach | undefined): ReportReach | undefined {
-  if (!reach?.scripts.length) return reach;
-  return { ...reach, scripts: [], gaps: [...reach.gaps, truncationGap(unitCount(reach.scripts))] };
+  if (!reach) return reach;
+  const gaps = reach.gaps.filter((gap) => gap.join !== 'J2');
+  const j2 = reach.gaps.length - gaps.length;
+  const paths = scriptGapPathCount(reach.gaps);
+  if (j2) gaps.push(gapRecordNotice(reach.gaps, j2));
+  if (paths) gaps.push(gapPathNotice(paths));
+  if (reach.scripts.length) gaps.push(truncationGap(unitCount(reach.scripts)));
+  return { ...reach, scripts: [], gaps };
 }
 
 /** Pretty-printed cost at the actual reach.scripts nesting depth, including array indentation. */
@@ -65,26 +79,27 @@ export function budgetScriptReach(
   reserved: ReportReach | undefined,
   available: number,
 ) {
-  if (!original?.scripts.length || !reserved) return { reach: reserved, omitted: 0 };
+  if (!original || !reserved) return { reach: reserved, omitted: 0, detailsOmitted: 0 };
   const scripts: (ScriptUnit & { count?: number })[] = [];
-  let bytes = 0,
-    listed = 0;
+  const budget = { remaining: Math.min(MAX_SCRIPT_JSON_BYTES, Math.max(0, available)) };
+  let listed = 0;
   for (const { count, ...unit } of scriptUnitRanges(original.scripts)) {
     const entry = count > 1 ? { ...unit, count } : unit;
     const cost = unitBytes(entry) - (scripts.length ? 4 : 0);
-    if (bytes + cost > Math.min(MAX_SCRIPT_JSON_BYTES, Math.max(0, available))) break;
+    if (!takeScriptDetail(budget, cost)) break;
     scripts.push(entry);
     listed += count;
-    bytes += cost;
   }
   const omitted = unitCount(original.scripts) - listed;
+  const gapDetail = budgetScriptGaps(original.gaps, budget);
   return {
     reach: {
       ...reserved,
       scripts,
-      complete: original.complete && omitted === 0,
-      gaps: [...original.gaps, ...(omitted ? [truncationGap(omitted)] : [])],
+      complete: original.complete && omitted === 0 && gapDetail.omitted === 0 && gapDetail.pathsOmitted === 0,
+      gaps: [...gapDetail.gaps, ...(omitted ? [truncationGap(omitted)] : [])],
     },
     omitted,
+    detailsOmitted: omitted + gapDetail.omitted + gapDetail.pathsOmitted,
   };
 }

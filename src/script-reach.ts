@@ -36,6 +36,8 @@ export type ScriptReach = {
   window: 'navigation';
   /** Config/project root relative to git top level; empty means repository root. Never an absolute path. */
   projectRootPrefix?: string;
+  /** Missing git provenance remains named even when coverage itself was measured. */
+  projectRootIssue?: string;
   status: 'measured' | 'unknown' | 'unmeasured';
   reason?: string;
   /** V8 block-coverage residuals; consumers must retain these limits. */
@@ -268,22 +270,31 @@ function popRange(heap: number[], less: (a: number, b: number) => boolean): void
   heap[index] = value;
 }
 
-function segmentExecutions(segments: Segment[], runs: ExecutionRun[]): ExecutionKind[] {
-  const anchored = new Set<number>();
+function segmentExecutions(
+  segments: Segment[],
+  runs: ExecutionRun[],
+  identities: (string | undefined)[],
+): ExecutionKind[] {
+  const anchored = new Map<number, Set<string>>();
+  const originalLine = (segment: Segment): string => `${identities[segment.source ?? -1]}:${segment.line}`;
   let index = 0;
   for (const segment of segments) {
     while (index < runs.length && runs[index].end <= segment.offset) index++;
-    if (index < runs.length && runs[index].start <= segment.offset) anchored.add(index);
+    if (index < runs.length && runs[index].start <= segment.offset) {
+      const lines = anchored.get(index) ?? new Set<string>();
+      lines.add(originalLine(segment));
+      anchored.set(index, lines);
+    }
   }
   index = 0;
   return segments.map((segment) => {
     while (index < runs.length && runs[index].end <= segment.offset) index++;
     const run = runs[index];
     const kind = run && run.start <= segment.offset ? run.kind : 'unexecuted';
-    // Keep entry state when another mapping start represents the other run
-    // (a ?? b). A hidden run with no start makes a coarse mapping mixed.
+    // Only a start on this source and original line represents the other run
+    // (a ?? b). A later body's line cannot clear a coarse arrow header.
     for (let cursor = index; cursor < runs.length && runs[cursor].start < segment.end; cursor++)
-      if (runs[cursor].kind !== kind && !anchored.has(cursor)) return 'mixed';
+      if (runs[cursor].kind !== kind && !anchored.get(cursor)?.has(originalLine(segment))) return 'mixed';
     return kind;
   });
 }
@@ -366,7 +377,7 @@ export function mapScriptCoverage(
   if (entry.functions.reduce((sum, f) => sum + f.ranges.length, 0) > MAX_COVERAGE_RANGES)
     throw new ScriptEvidenceError('source mapping coverage range limit exceeded');
   const files = new Map<string, ScriptSourceReach<SourceSpan>>();
-  const executions = segmentExecutions(segments, executionRuns(entry));
+  const executions = segmentExecutions(segments, executionRuns(entry), identities);
   const states = new Map<string, AnchorStates>();
   const originals = map.sources.map((_, index) => originalSource(map, index, identities));
   segments.forEach((segment, index) => {

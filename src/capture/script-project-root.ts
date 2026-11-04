@@ -11,7 +11,7 @@ export function resolveScriptProjectRoot(startDir = process.cwd()): string {
   const git = spawnSync('git', ['rev-parse', '--show-toplevel'], {
     cwd: directory,
     encoding: 'utf8',
-    timeout: 1000,
+    timeout: 10_000,
     maxBuffer: 64 * 1024,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'ignore'],
@@ -24,7 +24,7 @@ export function scriptProjectRootPrefix(projectRoot: string): string | undefined
   const git = spawnSync('git', ['rev-parse', '--show-toplevel'], {
     cwd: projectRoot,
     encoding: 'utf8',
-    timeout: 1000,
+    timeout: 10_000,
     maxBuffer: 64 * 1024,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'ignore'],

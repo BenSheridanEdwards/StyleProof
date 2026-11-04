@@ -149,6 +149,7 @@ export function assertDeterministicScriptReach(first: StyleMap, again: StyleMap,
     ? `: ${changed.sourceKey}:${firstScriptDifference(changed, rightByKey.get(changed.sourceKey)!)}`
     : '';
   first.scriptReach = {
+    ...first.scriptReach,
     version: 1,
     window: 'navigation',
     status: 'unknown',
