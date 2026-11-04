@@ -13,7 +13,7 @@ type SourceBindingSide = {
 
 export type SourceBindingReceipt = {
   status: 'bound' | 'unverified';
-  compatibility: 'matched' | 'not-applicable';
+  compatibility: 'matched' | 'runtime-only' | 'not-applicable';
   applicationDependencyProvenance?: {
     status: 'matched' | 'changed';
     before: { lockfile: string; lockfileHash: string };
@@ -97,7 +97,12 @@ function sourceBindingReceipt(
   const same = beforeLock?.lockfile === afterLock?.lockfile && beforeLock?.lockfileHash === afterLock?.lockfileHash;
   return {
     status: expected.beforeSha !== undefined && expected.afterSha !== undefined ? 'bound' : 'unverified',
-    compatibility: before && after ? 'matched' : 'not-applicable',
+    compatibility:
+      before && after
+        ? (before.spec === MAP_MANIFEST) !== (after.spec === MAP_MANIFEST)
+          ? 'runtime-only'
+          : 'matched'
+        : 'not-applicable',
     ...(beforeLock && afterLock
       ? {
           applicationDependencyProvenance: {

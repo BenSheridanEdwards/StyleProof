@@ -36,6 +36,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    Run StyleProof from the folder that holds the config; on POSIX, alternatively
    fix ownership or remove world-write permission.
    There is no config-path option or environment variable.
+2. **JSON compatibility gains `"runtime-only"` (#1273).** Update consumers of
+   `sourceBinding.compatibility` in diff JSON, report JSON and Action receipts
+   to handle `"matched" | "runtime-only" | "not-applicable"`. Mixed spec/ad-hoc
+   pairs now report `"runtime-only"` instead of `"matched"`; they remain
+   unverified diagnostics. Two spec or two ad-hoc captures keep `"matched"`,
+   and a missing capture side keeps `"not-applicable"`.
 
 ### Changed
 
