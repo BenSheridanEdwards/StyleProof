@@ -674,7 +674,10 @@ framework-ignored elements, including the hover sink. Full-page capture preserve
 on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
 `captureScriptReach: true` separately opts into J2 script evidence (off by default):
 `defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true })`. Each
-capture excludes Playwright bindings, clock scripts and StyleProof init scripts and reads.
+capture recognises Playwright bindings and clock scripts on Playwright 1.61.x
+(verified with 1.61.1), including direct evaluations with stack traces.
+On other versions, unrecognised injected scripts stay listed as named unmeasured entries.
+StyleProof init scripts and reads are excluded by their source URL.
 App anonymous and eval scripts stay named unmeasured. Each
 surface@width stores original-source executed, mixed and unexecuted anchors plus
 content hashes and stable source keys in `StyleMap.scriptReach`. An executed anchor means its block was entered; code after any expression that threw in that block is not proved.

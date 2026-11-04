@@ -61,6 +61,8 @@ for (const key of ['external', 'inline']) {
           widths: [720],
           go: async (page: Page) => {
             await page.goto(`${origin}/${key}`);
+            // Capture's UA iframe runs this new injection with capturePage on the stack.
+            await page.clock.setFixedTime(new Date('2025-01-01T00:00:01Z'));
             await settle(page);
           },
         },

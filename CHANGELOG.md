@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Action runtime installation and context lookup failures now replace earlier approval with a
   terminal failure status requesting a re-run, even when the runtime could not be built (#1284).
+- Script reach keeps anonymous app scripts that contain a StyleProof sourceURL marker as string data.
 - Script reach excludes Playwright bindings, clock scripts and StyleProof init scripts and reads.
   App anonymous and eval scripts remain named unmeasured.
   Discarded copies of recognised injected sources no longer create timing-dependent self-check gaps.

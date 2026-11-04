@@ -167,15 +167,14 @@ function injectedScriptKind(scriptSource: string): 'utility' | 'internal' | unde
   if (
     scriptSource === '((utilityScript, ...args) => utilityScript.evaluate(...args))' ||
     playwrightClockSource(scriptSource) !== undefined ||
-    playwrightInitScript(scriptSource) ||
-    scriptSource.split('\n').some((line) => line === `//# sourceURL=${STYLEPROOF_SCRIPT_URL}`)
+    playwrightInitScript(scriptSource)
   )
     return 'internal';
 
   return undefined;
 }
 
-/** 1.61 omits the historical sourceURL marker, including on init scripts with stacks. */
+/** 1.61 omits the historical sourceURL marker, including on direct evaluations with stacks. */
 async function playwrightScripts(input: ScriptRead): Promise<Set<string>> {
   const internal = new Set<string>();
   const utilities = new Set<string>();
