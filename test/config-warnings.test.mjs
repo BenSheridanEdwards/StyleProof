@@ -10,13 +10,17 @@ const playwrightUrl = new URL('../bin/project-playwright.mjs', import.meta.url).
 const workersUrl = new URL('../dist/capture-workers.js', import.meta.url).href;
 const require = createRequire(import.meta.url);
 const nodeModules = path.resolve(require.resolve('@playwright/test/package.json'), '../../..');
-const unwanted = /Failed to load the ES module|To load an ES module|Type Stripping is an experimental feature/;
+const unwanted =
+  /Failed to load the ES module|To load an ES module|MODULE_TYPELESS_PACKAGE_JSON|Type Stripping is an experimental feature/;
 
-function fixture(t) {
+function fixture(t, packageType = 'commonjs') {
   const cwd = mkTmp('styleproof-config-warnings-');
   t.after(() => rmTmp(cwd));
   fs.mkdirSync(path.join(cwd, '.git'));
-  fs.writeFileSync(path.join(cwd, 'package.json'), '{"private":true,"type":"commonjs"}');
+  fs.writeFileSync(
+    path.join(cwd, 'package.json'),
+    JSON.stringify({ private: true, ...(packageType === 'commonjs' ? { type: packageType } : {}) }),
+  );
   fs.symlinkSync(nodeModules, path.join(cwd, 'node_modules'), 'junction');
   fs.writeFileSync(path.join(cwd, 'user preload.cjs'), 'globalThis.userPreload = true;');
   return cwd;
@@ -26,13 +30,21 @@ function run(cwd, source) {
   return spawnSyncBounded(process.execPath, ['--input-type=module', '-e', source], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, NODE_OPTIONS: '--require="./user preload.cjs" --trace-warnings' },
+    env: {
+      ...process.env,
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --require="./user preload.cjs" --trace-warnings`,
+    },
   });
 }
 
-for (const isolated of [false, true]) {
-  test(`CommonJS TypeScript policy loads quietly and preserves warnings/options: isolated=${isolated}`, (t) => {
-    const cwd = fixture(t);
+for (const [isolated, packageType] of [
+  [false, 'commonjs'],
+  [true, 'commonjs'],
+  [false, 'unspecified'],
+  [true, 'unspecified'],
+]) {
+  test(`CommonJS TypeScript policy loads quietly and preserves warnings/options: isolated=${isolated}, type=${packageType}`, (t) => {
+    const cwd = fixture(t, packageType);
     fs.writeFileSync(
       path.join(cwd, 'styleproof.config.ts'),
       `if (!globalThis.userPreload) throw new Error('user preload missing');
@@ -55,9 +67,14 @@ for (const isolated of [false, true]) {
   });
 }
 
-for (const usePath of [false, true]) {
-  test(`CommonJS Playwright config loads quietly with settings and warnings: PATH=${usePath}`, (t) => {
-    const cwd = fixture(t);
+for (const [usePath, packageType] of [
+  [false, 'commonjs'],
+  [true, 'commonjs'],
+  [false, 'unspecified'],
+  [true, 'unspecified'],
+]) {
+  test(`CommonJS Playwright config loads quietly with settings and warnings: PATH=${usePath}, type=${packageType}`, (t) => {
+    const cwd = fixture(t, packageType);
     fs.writeFileSync(
       path.join(cwd, 'playwright.styleproof.config.ts'),
       `import { defineConfig } from '@playwright/test';
@@ -71,17 +88,25 @@ for (const usePath of [false, true]) {
       "import { test } from '@playwright/test'; test('selected', () => {});",
     );
     fs.writeFileSync(path.join(cwd, 'ignored.spec.ts'), "throw new Error('testMatch was ignored');");
+    const bin = path.join(cwd, 'bin');
+    fs.mkdirSync(bin);
+    fs.writeFileSync(
+      path.join(bin, 'playwright'),
+      `#!/usr/bin/env node\nprocess.stderr.write('PATH Playwright reached\\n'); require(${JSON.stringify(require.resolve('@playwright/test/cli'))});`,
+      { mode: 0o755 },
+    );
     const source = `import { projectPlaywright } from ${JSON.stringify(playwrightUrl)};
       import { selectCaptureWorkers } from ${JSON.stringify(workersUrl)};
       await selectCaptureWorkers(['--config=playwright.styleproof.config.ts'], undefined, 8, process.cwd());
       const result = projectPlaywright(['test', '--config=playwright.styleproof.config.ts', '--list'], {
-        encoding: 'utf8', env: { ...process.env, PATH: ${JSON.stringify(usePath ? path.join(nodeModules, '.bin') + path.delimiter + path.dirname(process.execPath) : '')} }
+        encoding: 'utf8', env: { ...process.env, PATH: ${JSON.stringify(usePath ? bin + path.delimiter + path.dirname(process.execPath) : '')} }
       });
       process.stdout.write(result.stdout || ''); process.stderr.write(result.stderr || '');
       process.exitCode = result.status ?? 1;`;
     const result = run(cwd, source);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Total: 1 test in 1 file/);
+    if (usePath && process.platform !== 'win32') assert.match(result.stderr, /PATH Playwright reached/);
     assert.doesNotMatch(result.stderr, unwanted);
     assert.match(result.stderr, /Warning: playwright advisory/);
     assert.match(result.stderr, /ExperimentalWarning: unrelated experiment/);
