@@ -1,0 +1,1 @@
+{"version":3,"sources":["original.js"],"sourcesContent":["function choose(flag) {\n  if (flag) {\n    document.body.dataset.branch = 'executed';\n  } else {\n    document.body.dataset.branch = 'unexecuted';\n  }\n}\nchoose(true);\n"],"names":[],"mappings":";AAAA;EACA;IACA;EACA;IACA;EACA;AACA;AACA;;"}

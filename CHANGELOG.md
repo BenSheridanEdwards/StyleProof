@@ -40,6 +40,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Opt-in `captureScriptReach` stores navigation-window V8 block evidence at original-source anchors, content hashes and project-relative keys. Missing maps/shared coverage stay unmeasured; read failures and self-check drift become unknown. Evidence notes name expression-evaluation and throwing-expression residuals. Absolute bundler paths are root-validated/redacted, app-only mapping and script counts have deterministic caps, and Playwright injected scripts are excluded; no git-diff join or verdict change is included (#999).
+
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
 
 - Opt-in `compare --capture-base` captures missing bases in temporary detached worktrees (#1152).

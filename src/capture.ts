@@ -24,6 +24,7 @@ import { captureForcedStates, resolveForcedStateLimits } from './capture/forced-
 import { alignRectsToFullPageGeometry } from './capture/full-page.js';
 import { trackInflightRequests } from './capture/network.js';
 import { trackServedRules } from './capture/reach.js';
+import { attachScriptReach } from './capture/script-reach.js';
 import { isUnder, skipSelector, warn } from './capture/shared.js';
 import type {
   CaptureOptions,
@@ -59,6 +60,15 @@ export {
 } from './capture/forced-states.js';
 export { trackDataResidue, trackInflightRequests } from './capture/network.js';
 export { trackServedRules, type ServedRuleTracker } from './capture/reach.js';
+export { trackScriptReach, type ScriptReachTracker } from './capture/script-reach.js';
+export type {
+  ScriptReach,
+  ScriptReachEntry,
+  ScriptSourceReach,
+  SourceSpan,
+  CompactSourceSpan,
+  SourcePosition,
+} from './script-reach.js';
 export { urlMatcher } from './capture/url-glob.js';
 export {
   captureKeyFromMapFile,
@@ -475,6 +485,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   try {
     await reach?.start();
 
+    await options.scriptReach?.beginMapRead?.();
     const map = await readSettledPage(page, {
       options,
       limits,
@@ -492,6 +503,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     }
     // Matches outside the compared elements do not count as reached (#993).
     const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements)) } : map;
+    await attachScriptReach(result, options);
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
     await page.evaluate(unfreezeMotion, true);
     return result;

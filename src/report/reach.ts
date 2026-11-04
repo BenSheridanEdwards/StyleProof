@@ -61,7 +61,7 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
 
 /** Opt-in reach evidence: incomplete joins can only add findings, never certify a run. */
 export function assessReachMaps(base: StyleMap[], head: StyleMap[], level: ChangeReachLevel): ReportReach | undefined {
-  if (level === 'warn' && ![...base, ...head].some((map) => map.reach)) return undefined;
+  if (level === 'warn' && ![...base, ...head].some((map) => map.reach || map.scriptReach)) return undefined;
   const result = classifyRuleReach(base, head);
   const gaps = [...ledgerGaps(base, 'base'), ...ledgerGaps(head, 'head')];
   if (result.ledger !== 'complete' && gaps.length === 0) {
@@ -83,7 +83,14 @@ export function assessReachMaps(base: StyleMap[], head: StyleMap[], level: Chang
         "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
       remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
     },
-    { join: 'J2', status: 'unmeasured', kind: 'not-built', reason: 'render-code coverage is not recorded yet', remedy },
+    {
+      join: 'J2',
+      status: 'unmeasured',
+      kind: 'not-built',
+      reason:
+        'script execution is not joined to changed lines yet; navigation-window coverage includes transient loading code',
+      remedy,
+    },
     { join: 'J3', status: 'unmeasured', kind: 'not-built', reason: 'class-list deltas are not recorded yet', remedy },
   );
   const counts: ReportReach['counts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 };

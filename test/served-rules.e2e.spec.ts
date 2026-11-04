@@ -34,9 +34,10 @@ test('Chromium oracle agrees with accepted reader declaration boundaries', async
   // Expose the existing reader only in this test module; production exports stay unchanged.
   const source = fs
     .readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8')
+    .replace("'../pseudo-references.js'", JSON.stringify(new URL('../dist/pseudo-references.js', import.meta.url).href))
     .replace(
-      "'../pseudo-references.js'",
-      JSON.stringify(new URL('../dist/pseudo-references.js', import.meta.url).href),
+      "'./script-coverage-ownership.js'",
+      JSON.stringify(new URL('../dist/capture/script-coverage-ownership.js', import.meta.url).href),
     );
   const reader = await import(
     `data:text/javascript;base64,${Buffer.from(source + '\nexport { leafRules, declarations };').toString('base64')}`
@@ -588,9 +589,10 @@ test('parsed inline closure names in a same-origin iframe fail closed', async ({
 test('Chromium oracle agrees with non-ASCII escaped URL name boundaries', async ({ page }) => {
   const source = fs
     .readFileSync(new URL('../dist/capture/reach.js', import.meta.url), 'utf8')
+    .replace("'../pseudo-references.js'", JSON.stringify(new URL('../dist/pseudo-references.js', import.meta.url).href))
     .replace(
-      "'../pseudo-references.js'",
-      JSON.stringify(new URL('../dist/pseudo-references.js', import.meta.url).href),
+      "'./script-coverage-ownership.js'",
+      JSON.stringify(new URL('../dist/capture/script-coverage-ownership.js', import.meta.url).href),
     );
   const reader = await import(
     `data:text/javascript;base64,${Buffer.from(source + '\nexport { leafRules, declarations, guardAmbiguousURLs };').toString('base64')}`

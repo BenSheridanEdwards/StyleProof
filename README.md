@@ -652,7 +652,21 @@ Rules matched only outside compared elements stay `unmeasured` and also hold
 the opt-in gate. Global state and pseudo-element probes exclude the head subtree and
 framework-ignored elements, including the hover sink. Full-page capture preserves inline style attributes, including
 on nested scrollers under strict style CSP, so its temporary expansion does not invalidate reach.
-Render-code reach (J2/J3) remains a bench prototype; the
+`captureScriptReach: true` separately opts into J2 script evidence (off by default):
+`defineStyleMapCapture({ surfaces: SURFACES, captureScriptReach: true })`. Each
+surface@width stores original-source executed, mixed and unexecuted anchors plus
+content hashes and stable source keys in `StyleMap.scriptReach`. An executed anchor means its block was entered; code after any expression that threw in that block is not proved.
+It does not prove every expression evaluated. J2 residuals are default parameter values,
+destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`), and later links
+of short-circuited optional chains. Evidence notes name these gaps; 2.2 must treat
+these expressions as unknown. Unmapped code supplies no execution proof. Project-root-relative source keys preserve package directories (config directory, then git root);
+outside-root sources and collisions read unknown. Any script-evidence drift during a
+self-check records script reach unknown, including storage-dependent first and repeat visits.
+Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
+build; missing maps read `unmeasured`. The window runs from navigation through
+the map read, so transient loading branches count as executed. Execution alone
+does not prove a value rendered. The git-diff join and J3 class-list deltas
+remain unbuilt. See [script evidence](docs/REFERENCE.md#script-execution-evidence-j2). The
 [Change Reach 0.2 receipt](bench/REACH-0.2.md) records capture cost and a limited
 six-PR noise replay, with its exclusions and labelling limits.
 
