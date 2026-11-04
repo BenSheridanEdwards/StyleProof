@@ -197,6 +197,54 @@ test('the live withdrawal is exposed for the red sign-off status, with unrelated
   });
 });
 
+test('a newer genuine receipt survives stale carry-forward from an older approval on subsequent reads', async () => {
+  const fresh = {
+    ...originalApproval,
+    id: 4,
+    description: 'Approved by @reviewer (run 556)',
+    created_at: '2026-11-04T10:01:00Z',
+  };
+
+  const stale = { ...originalApproval, id: 5, created_at: '2026-11-04T10:02:00Z' };
+  const corrected = { ...fresh, id: 6, created_at: '2026-11-04T10:03:00Z' };
+  const statuses = [corrected, stale, fresh, withdrawal, pending, originalApproval];
+  const input = approvalInput({ statuses });
+  input.github.rest.actions.getWorkflowRun = async ({ run_id }) => ({
+    data:
+      run_id === '555'
+        ? workflowRun
+        : { ...workflowRun, run_started_at: fresh.created_at, updated_at: fresh.created_at },
+  });
+  assert.equal((await readReviewApproval(input)).description, fresh.description);
+  assert.equal((await readReviewApproval({ ...input, ignoredStatusIdentifier: 6 })).description, fresh.description);
+  // Proof for an older copied description is still required; an arbitrary success
+  // above the fresh receipt cannot be silently skipped.
+  statuses[1] = { ...stale, description: 'Approved by @another-reviewer (run 557)' };
+  assert.equal((await readReviewApproval(input)).approved, false);
+});
+
+test('a carry-forward inside the workflow timestamp window cannot revive an original revoked receipt', async () => {
+  const carried = { ...originalApproval, id: 4, created_at: '2026-11-04T09:00:32Z' };
+
+  const input = approvalInput({
+    statuses: [carried, { ...withdrawal, created_at: '2026-11-04T09:00:31Z' }, originalApproval],
+  });
+
+  assert.equal((await readReviewApproval(input)).approved, false);
+});
+
+test('an unavailable older approval run cannot invalidate a newer genuine receipt', async () => {
+  const fresh = { ...originalApproval, description: 'Approved by @reviewer (run 556)' };
+  const input = approvalInput({ statuses: [fresh, originalApproval] });
+  input.github.rest.actions.getWorkflowRun = async ({ run_id }) => {
+    assert.equal(run_id, '556', 'older history cannot revoke a newer original receipt');
+
+    return { data: workflowRun };
+  };
+
+  assert.equal((await readReviewApproval(input)).description, fresh.description);
+});
+
 for (const endpoint of ['listCommitStatusesForRef', 'getWorkflowRun', 'listWorkflowRunArtifacts']) {
   test(`live approval fails closed when ${endpoint} is unavailable`, async () => {
     const input = approvalInput();
