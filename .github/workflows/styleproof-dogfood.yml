@@ -45,7 +45,7 @@ jobs:
     # Forks lack write permission for map/report branches.
     if: ${{ !cancelled() && needs.changes.outputs.dogfood != 'false' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v7
         with:

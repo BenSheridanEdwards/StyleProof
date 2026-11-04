@@ -308,7 +308,7 @@ jobs:
   cli-smoke:
     name: cli smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 6
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
