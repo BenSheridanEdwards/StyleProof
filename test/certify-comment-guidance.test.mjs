@@ -89,6 +89,7 @@ async function commentBody({
     paginate: async (route, params) => (await route(params)).data,
     rest: {
       pulls: { get: async () => ({ data: { head: { sha: 'c'.repeat(40) } } }) },
+      repos: { listCommitStatusesForRef: async () => ({ data: [] }) },
       issues: {
         listComments: async () => ({ data: [] }),
         createComment: async (input) => comments.push(input),
@@ -97,7 +98,7 @@ async function commentBody({
     },
   };
   const context = { repo: { owner: 'acme', repo: 'app' }, runId: 9001, payload: { repository: { private: false } } };
-  const core = { setOutput() {}, info() {} };
+  const core = { setOutput() {}, info() {}, warning() {} };
   const requireForScript = (specifier) => (specifier === 'fs' ? { existsSync: () => false } : nativeRequire(specifier));
   const previous = { ...process.env };
   Object.assign(process.env, environment, { GITHUB_ACTION_PATH: root });

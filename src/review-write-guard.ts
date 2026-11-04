@@ -32,15 +32,16 @@ type ReviewWriteInput = Omit<ReviewPublicationInput, 'github'> & {
         }[]
       >;
     };
-  core: { info(message: string): void };
+  core: { info(message: string): void; warning(message: string): void };
   comment?: { identifier?: number; claimExisting?: boolean };
   approvalToRemove?: Parameters<typeof readReviewApproval>[0];
+  approvalToGrant?: Parameters<typeof readReviewApproval>[0];
+  allowNonGreenStatus?: boolean;
 };
 
-/** One guard for every review publication; GitHub cannot make its last read and the write atomic. */
-export async function guardReviewWrite(
-  input: ReviewWriteInput,
-): Promise<{ allowed: boolean; approval?: ReviewApproval; headMoved?: boolean }> {
+type ReviewWriteDecision = { allowed: boolean; approval?: ReviewApproval; headMoved?: boolean };
+
+async function validateReviewWrite(input: ReviewWriteInput): Promise<ReviewWriteDecision> {
   const skip = (reason: string, headChanged = false) => {
     input.core.info(`StyleProof: ${reason} — review write skipped.`);
 
@@ -56,7 +57,14 @@ export async function guardReviewWrite(
 
   if (await headMoved()) return skip('the PR head moved', true);
 
-  if (await reviewRunSuperseded(input)) return skip('a newer delivery owns this head');
+  const ownershipInput = {
+    ...input,
+    onReadError: (): never => {
+      throw new Error('StyleProof delivery ownership is unavailable');
+    },
+  };
+
+  if (await reviewRunSuperseded(ownershipInput)) return skip('a newer delivery owns this head');
 
   const comments = await input.github.paginate(input.github.rest.issues.listComments, {
     ...input.repo,
@@ -66,7 +74,7 @@ export async function guardReviewWrite(
 
   if (
     await findLaterAttemptReceipt({
-      ...input,
+      ...ownershipInput,
       comments: comments.filter((comment) => comment.body?.includes(input.commentMarker)),
     })
   ) {
@@ -88,17 +96,33 @@ export async function guardReviewWrite(
     }
   }
 
-  if (input.approvalToRemove) {
-    const approval = await readReviewApproval(input.approvalToRemove);
+  const preservedApproval = input.approvalToRemove ? await readReviewApproval(input.approvalToRemove) : undefined;
 
-    if (approval.approved) {
-      skip('approval now stands');
+  if (preservedApproval?.approved) {
+    skip('approval now stands');
 
-      return { allowed: false, approval };
-    }
+    return { allowed: false, approval: preservedApproval };
   }
+
+  const approval = input.approvalToGrant ? await readReviewApproval(input.approvalToGrant) : undefined;
+
+  if (approval?.approved === false) return skip('approval no longer stands');
 
   if (await headMoved()) return skip('the PR head moved', true);
 
-  return { allowed: true };
+  return { allowed: true, approval };
+}
+
+/** One guard for every review publication; GitHub cannot make its last read and the write atomic. */
+export async function guardReviewWrite(input: ReviewWriteInput): Promise<ReviewWriteDecision> {
+  try {
+    return await validateReviewWrite(input);
+  } catch {
+    input.core.warning('StyleProof: delivery ownership could not be proven — approval-granting writes skipped.');
+
+    if (!input.allowNonGreenStatus || input.comment) return { allowed: false };
+    const approval = input.approvalToRemove ? await readReviewApproval(input.approvalToRemove) : undefined;
+
+    return approval?.approved ? { allowed: false, approval } : { allowed: true };
+  }
 }

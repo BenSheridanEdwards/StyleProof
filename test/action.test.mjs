@@ -131,7 +131,7 @@ async function runActionProgram(stepName, values, { files = {}, github = {} } = 
   }
   const script = step[0].split('script: |\n')[1].replace(/\$\{\{ (.+?) \}\}/g, resolve);
   const outputs = {};
-  const core = { setOutput: (name, value) => (outputs[name] = String(value)), info() {} };
+  const core = { setOutput: (name, value) => (outputs[name] = String(value)), info() {}, warning() {} };
   const require = (name) => {
     assert.equal(name, 'fs');
     return { existsSync: (file) => Object.hasOwn(files, file), readFileSync: (file) => files[file] };
@@ -939,6 +939,7 @@ for (const storage of ['artifact', 'branch']) {
           paginate: async () => [],
           rest: {
             issues: { createComment: async ({ body }) => comments.push(body) },
+            repos: { listCommitStatusesForRef: async () => ({ data: [] }) },
             pulls: { get: async () => ({ data: { head: { sha: 'a'.repeat(40) } } }) },
           },
         },

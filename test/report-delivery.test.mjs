@@ -106,6 +106,7 @@ async function executeActionComment({
     },
     rest: {
       pulls: { get: async () => ({ data: { head: { sha: 'c'.repeat(40) } } }) },
+      repos: { listCommitStatusesForRef: async () => ({ data: [] }) },
       issues: {
         listComments,
         createComment: async (input) => {
@@ -127,6 +128,7 @@ async function executeActionComment({
   const core = {
     setOutput: (name, value) => outputs.set(name, value),
     info: () => {},
+    warning: () => {},
   };
   const requireForScript = (specifier) => {
     if (specifier === 'fs') return { existsSync: () => false };

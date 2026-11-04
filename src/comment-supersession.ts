@@ -47,6 +47,7 @@ export function shouldSupersedeExistingComment(options: {
 
 /** Accept cross-run receipts only from GitHub Actions; same-run receipts also trust verified writers. */
 export async function findLaterAttemptReceipt(options: {
+  onReadError?: () => never;
   github: {
     rest: {
       repos: {
@@ -90,6 +91,8 @@ export async function findLaterAttemptReceipt(options: {
 
         permissions.set(key, ['write', 'maintain', 'admin'].includes(data.permission));
       } catch {
+        options.onReadError?.();
+
         permissions.set(key, false);
       }
     }
@@ -194,6 +197,7 @@ export async function captureRunSuperseded(options: {
 
 /** Skip a failure write only when a trusted receipt proves a later run took this head. */
 export async function reviewRunSuperseded(options: {
+  onReadError?: () => never;
   github: {
     rest: {
       repos: {
@@ -237,6 +241,8 @@ export async function reviewRunSuperseded(options: {
     const runId = runPath?.match(/^(\d+)(?:\/(?:artifacts|attempts)\/\d+)?\/?$/)?.[1];
     if (runId && BigInt(runId) > BigInt(options.runId)) return true;
   } catch {
+    options.onReadError?.();
+
     // A missing status receipt cannot prove supersession. Try the comment too.
   }
   try {
@@ -260,6 +266,8 @@ export async function reviewRunSuperseded(options: {
       );
     });
   } catch {
+    options.onReadError?.();
+
     // Unknown ordering must replace any earlier green with failure.
     return false;
   }

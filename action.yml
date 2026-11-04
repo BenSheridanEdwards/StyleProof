@@ -972,6 +972,7 @@ runs:
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
           core.setOutput('stale-delivery', 'false');
+          core.setOutput('approval-limit-reached', 'false');
           let commentIdentifier = existing?.id;
           let initialCommentWrite = true;
 
@@ -1132,7 +1133,7 @@ runs:
               ...(rendered.approvable && !rendered.ticked ? { approvalToRemove: approvalInput } : {}),
             });
             if (!guarded.allowed) {
-              if (guarded.approval) return { approval: guarded.approval, rendered: renderComment(guarded.approval) };
+              if (guarded.approval) return upsert(guarded.approval);
               core.setOutput('stale-delivery', guarded.headMoved ? 'false' : 'true');
               return;
             }
@@ -1148,11 +1149,19 @@ runs:
             : { approved: false, approver: '' };
           let publication = await upsert(approval);
           if (!publication) return;
-          while (publication.rendered.ticked) {
+          let approvalStable = false;
+          for (let approvalChecks = 0; publication.rendered.ticked && approvalChecks < 5; approvalChecks += 1) {
             const currentApproval = await readReviewApproval(approvalInput);
-            if (currentApproval.approved && currentApproval.approver === publication.approval.approver) break;
+            if (currentApproval.approved && currentApproval.approver === publication.approval.approver) {
+              approvalStable = true;
+              break;
+            }
             publication = await upsert(currentApproval);
             if (!publication) return;
+          }
+          if (publication.rendered.ticked && !approvalStable) {
+            core.warning('StyleProof: comment approval re-check limit reached — fresh sign-off required.');
+            core.setOutput('approval-limit-reached', 'true');
           }
           core.setOutput('approved', publication.rendered.ticked ? 'true' : 'false');
           core.setOutput('comment-identifier', String(commentIdentifier));
@@ -1175,6 +1184,7 @@ runs:
     # "Set certify failure status" turns any failed run red.
     # Skipped when the comment step classified this delivery as a stale earlier
     # attempt, so a late attempt-1 retry cannot clobber attempt 2's status either.
+    # A re-tick whose approve run has not completed cannot be proven and may be replaced by red sign-off, which remains re-tickable.
     - name: Set review status
       id: status
       if: >-
@@ -1253,14 +1263,34 @@ runs:
           };
           const writeStatus = async (parameters, removesApproval = false) => {
             const guarded = await guardReviewWrite({
-              ...writeGuardInput, ...(removesApproval ? { approvalToRemove: approvalInput } : {}),
+              ...writeGuardInput, allowNonGreenStatus: parameters.state !== 'success',
+              ...(removesApproval ? { approvalToRemove: approvalInput } : {}),
             });
             if (!guarded.allowed) {
-              if (guarded.approval) core.setOutput('state', 'success');
-              else core.setOutput('stale-delivery', 'true');
-              return;
+              if (!guarded.approval) {
+                core.setOutput('stale-delivery', 'true');
+                return;
+              }
+              let latest;
+              try {
+                const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                  ...context.repo, ref: sha, per_page: 100,
+                });
+                latest = statuses.find((status) => status.context === approvalInput.statusContext);
+              } catch {
+                core.warning('StyleProof: current approval status could not be read — success write skipped.');
+                core.setOutput('stale-delivery', 'true');
+                return;
+              }
+              if (latest?.state === 'success' && latest.description === guarded.approval.description) {
+                return { state: 'success', approval: guarded.approval };
+              }
+              const publication = await writeStatus({
+                ...parameters, state: 'success', description: guarded.approval.description,
+              });
+              return publication && { ...publication, approval: guarded.approval };
             }
-            return { response: await github.rest.repos.createCommitStatus(parameters) };
+            return { response: await github.rest.repos.createCommitStatus(parameters), state: parameters.state };
           };
           const approved = approval.approved;
           const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture, certify });
@@ -1274,9 +1304,10 @@ runs:
           const approvalMissing = untrustedCapture
             ? { ...signOffRequired, state: 'pending', description: UNTRUSTED_CAPTURE_STATUS_DESCRIPTION }
             : signOffRequired;
-          if (approval.withdrawn && approvalRequired && !untrustedCapture) {
-            if (!await writeStatus(signOffRequired, true)) return;
-            core.setOutput('state', 'failure');
+          // Exhaustion forces fresh sign-off; delivery ownership still guards this fail-closed write.
+          if ('${{ steps.comment.outputs.approval-limit-reached }}' === 'true') {
+            const publication = await writeStatus(approvalMissing);
+            if (publication) core.setOutput('state', publication.state);
             return;
           }
           const descriptions = {
@@ -1308,24 +1339,32 @@ runs:
           };
           let publication = await writeStatus(statusParameters, approvalRequired && !approved);
           if (!publication) return;
+          approval = publication.approval ?? approval;
           // Compare against the live history without allowing our own success to mask a withdrawal.
-          if (decision.state === 'success' && approved && approvalRequired) {
-            while (true) {
+          if (publication.state === 'success' && approval.approved && approvalRequired) {
+            let approvalStable = false;
+            for (let approvalChecks = 0; approvalChecks < 5; approvalChecks += 1) {
               const currentApproval = await readReviewApproval({
                 ...approvalInput, ignoredStatusIdentifier: publication.response?.data?.id,
               });
-              if (!currentApproval.approved) {
-                if (!await writeStatus(approvalMissing, true)) return;
-                core.setOutput('state', approvalMissing.state);
-                return;
+              if (currentApproval.approved && currentApproval.description === approval.description) {
+                approvalStable = true;
+                break;
               }
-              if (currentApproval.description === approval.description) break;
-              approval = currentApproval;
-              publication = await writeStatus({ ...statusParameters, description: approval.description });
+              publication = await writeStatus(currentApproval.approved
+                ? { ...statusParameters, state: 'success', description: currentApproval.description }
+                : approvalMissing, !currentApproval.approved);
+              if (!publication) return;
+              if (publication.state !== 'success') break;
+              approval = publication.approval ?? currentApproval;
+            }
+            if (publication.state === 'success' && !approvalStable) {
+              core.warning('StyleProof: status approval re-check limit reached — fresh sign-off required.');
+              publication = await writeStatus(approvalMissing);
               if (!publication) return;
             }
           }
-          core.setOutput('state', decision.state);
+          core.setOutput('state', publication.state);
 
     # Reconcile either existing render from the final status; API failures only warn.
     - name: Reconcile review comment
@@ -1371,13 +1410,13 @@ runs:
               runAttempt: '${{ github.run_attempt }}', statusContext: approvalInput.statusContext,
               commentMarker: process.env.STYLEPROOF_COMMENT_MARKER,
               comment: { identifier: Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER) },
-              ...(!approved ? { approvalToRemove: approvalInput } : {}),
+              ...(approved ? { approvalToGrant: approvalInput } : { approvalToRemove: approvalInput }),
             });
             if (!guarded.allowed) return;
             const [beforeApprover, afterApprover] = JSON.parse(process.env.STYLEPROOF_TICKED_COMMENT);
             await github.rest.issues.updateComment({
               ...context.repo, comment_id: Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER),
-              body: approved ? beforeApprover + approval.approver + afterApprover : process.env.STYLEPROOF_UNTICKED_COMMENT,
+              body: approved ? beforeApprover + guarded.approval.approver + afterApprover : process.env.STYLEPROOF_UNTICKED_COMMENT,
             });
           } catch (error) {
             core.warning(`StyleProof: review comment reconciliation could not complete: ${error.message}`);
