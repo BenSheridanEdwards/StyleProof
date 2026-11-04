@@ -225,10 +225,11 @@ export async function captureSurface(
           await scriptReach?.dispose();
         }
 
+        // Advisory only: a page that cannot be read again after capture must not fail the surface.
         await warnUndeclaredMediaStates(page, {
           ...captureOptionsFor(surface, s, requests.pending, servedRules),
           metadata: surface.metadata,
-        });
+        }).catch(() => undefined);
 
         if (s.selfCheck) {
           phase = 'self-check';
@@ -260,7 +261,8 @@ export async function captureSurface(
     residue.dispose();
     await servedRules?.dispose();
     // Screenshot and rule-tracking CDP sessions can clear Chromium's print emulation on detach.
-    await restoreDeclaredMediaState(page, declared.metadata);
+    // Best-effort on cleanup: a closed page must not replace the capture's own error or skip unrouting.
+    await restoreDeclaredMediaState(page, declared.metadata).catch(() => undefined);
     await stop();
     await page.unroute(s.replayUrl);
   }

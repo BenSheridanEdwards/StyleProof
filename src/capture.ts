@@ -495,6 +495,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // Rule usage starts after the settle, so a rule matched only while the page was still
   // changing is not recorded as reached; starting it records every rule the settled page matches.
   const reach = options.captureReach ? (options.servedRules ?? (await trackServedRules(page))) : undefined;
+  let captureSucceeded = false;
   try {
     await reach?.start();
 
@@ -519,11 +520,15 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     await attachScriptReach(result, options);
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
     await page.evaluate(unfreezeMotion, true);
+    captureSucceeded = true;
     return result;
   } finally {
     // A caller-armed tracker outlives this capture (self-check, popups); one armed here does not.
     if (reach && !options.servedRules) await reach.dispose();
-    await restoreDeclaredMediaState(page, options.metadata);
+    // Strict after a successful read; on a throw path the original error must surface instead.
+    await restoreDeclaredMediaState(page, options.metadata).catch((error: unknown) => {
+      if (captureSucceeded) throw error;
+    });
     // Best-effort: the page may already be closing on a throw path.
     await page.evaluate(unfreezeMotion, false).catch(() => {});
   }
