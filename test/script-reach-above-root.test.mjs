@@ -180,8 +180,8 @@ test('a monorepo source outside packages/web cannot become a local shared key', 
   assert.match(script.reason, /source path escapes URL root/);
 });
 
-test('a local file whose hash differs from sourcesContent stays unknown', async (t) => {
-  const projectRoot = projectFixture(t, { 'src/app.ts': 'different' });
+test('a same-length local file whose hash differs from sourcesContent stays unknown', async (t) => {
+  const projectRoot = projectFixture(t, { 'src/app.ts': 'y' });
   const script = await capture(['../src/app.ts'], ['x'], undefined, { projectRoot });
   assert.equal(script.status, 'unknown');
   assert.match(script.reason, /source path escapes URL root/);
@@ -295,10 +295,43 @@ test('drive forms cannot be reinterpreted as relative colon directories', async 
 test('an absolute alias cannot prove a different returned project key', async (t) => {
   const projectRoot = projectFixture(t, { 'src/other.ts': 'x' });
   const alias = '/@fs' + path.join(projectRoot, 'src/app.ts').replaceAll('\\', '/');
-  const original = fs.realpathSync;
-  t.mock.method(fs, 'realpathSync', (filename, ...args) =>
+  const original = fs.realpathSync.native;
+  t.mock.method(fs.realpathSync, 'native', (filename, ...args) =>
     filename === alias ? path.join(projectRoot, 'src/other.ts') : original(filename, ...args),
   );
   const script = await capture(['../../' + alias.slice(1)], ['x'], undefined, { projectRoot });
   assert.equal(script.status, 'unknown');
+});
+
+test('case-insensitive filesystem aliases cannot create alternate source keys', async (t) => {
+  const projectRoot = projectFixture(t);
+  if (!fs.existsSync(path.join(projectRoot, 'SRC/App.ts'))) {
+    t.skip('host filesystem is case-sensitive');
+    return;
+  }
+  const alias = await capture(['../SRC/App.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(alias.status, 'unknown');
+  const duplicate = await capture(['../src/app.ts', '../SRC/APP.ts'], ['x', 'x'], undefined, {
+    projectRoot,
+    source: 'xx',
+    mappings: 'AAAA,CCAA',
+  });
+  assert.equal(duplicate.status, 'unknown');
+  assert.equal(duplicate.files, undefined);
+});
+
+test('a post-read realpath change invalidates the source proof', async (t) => {
+  const projectRoot = projectFixture(t);
+  const keyPath = path.join(projectRoot, 'src/app.ts');
+  const original = fs.realpathSync.native;
+  let calls = 0;
+  t.mock.method(fs.realpathSync, 'native', (filename, ...args) => {
+    if (filename === keyPath && ++calls === 2) return path.join(projectRoot, 'changed.ts');
+    return original(filename, ...args);
+  });
+  const read = t.mock.method(fs, 'readSync');
+  const script = await capture(['../src/app.ts'], ['x'], undefined, { projectRoot });
+  assert.equal(script.status, 'unknown');
+  assert.equal(calls, 2);
+  assert.ok(read.mock.callCount() > 0);
 });

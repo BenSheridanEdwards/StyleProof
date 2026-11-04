@@ -24,6 +24,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   hash mismatches, symlink escapes and colliding keys read unknown. Remote captures
   without matching project files cannot map clipped sources. Non-clipped URL
   handling stays unchanged. Tab, LF and CR no longer hide URL traversal.
+  Source and sourceRoot also trim edge ASCII controls and spaces and normalize
+  backslashes before classification, so padded absolute paths resolve project-relative.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).

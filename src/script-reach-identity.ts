@@ -68,15 +68,16 @@ function verifiedFileKey(
 ): string | undefined {
   try {
     const key = filesystemKey(filename, projectRoot);
-    const realRoot = fs.realpathSync(projectRoot);
+    const realRoot = fs.realpathSync.native(projectRoot);
     const keyPath = path.join(projectRoot, key);
-    const realFile = fs.realpathSync(keyPath);
+    const realFile = fs.realpathSync.native(keyPath);
     if (!isWithinDirectory(realRoot, realFile)) return undefined;
+    if (path.relative(realRoot, realFile).replaceAll('\\', '/') !== key) return undefined;
     const bytes = readRegularFileNoFollow(realFile, maximumBytes);
     if (
-      fs.realpathSync(keyPath) !== realFile ||
-      fs.realpathSync(filename) !== realFile ||
-      fs.realpathSync(projectRoot) !== realRoot
+      fs.realpathSync.native(keyPath) !== realFile ||
+      fs.realpathSync.native(filename) !== realFile ||
+      fs.realpathSync.native(projectRoot) !== realRoot
     )
       return undefined;
     return createHash('sha256').update(bytes).digest('hex') === expectedHash ? key : undefined;

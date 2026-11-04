@@ -1486,6 +1486,8 @@ files are read for hash verification, synchronously and locally, with an 8 MiB c
 and no network reads. No other original-source files are read. Tab, LF and CR are
 removed before URL traversal checks, matching URL parsing. No raw V8 output, maps
 or source content is stored.
+Source and sourceRoot also trim edge ASCII controls and spaces and normalize backslashes
+before classification, so padded absolute paths resolve project-relative.
 
 Maps support inline data, `sourceMappingURL`, and `SourceMap`/`X-SourceMap` headers.
 Credentialed CDP reads bypass page JS, fetch patches and request listeners, even
