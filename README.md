@@ -188,6 +188,8 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
   differences and 3 interaction-state differences on one page.
 - **Each card is one changed element.** It names the element (`button.btn`), the page and viewport width it was
   captured at (`demo-button @ 900`), and the property changes in one line.
+  State sections name only the targets changed in that state; when another control drives the change,
+  the report names both the changed target and that control's state.
 - **The before/after crop** shows the element on the base branch and on the pull request. Cards for `:hover`,
   `:focus`, and `:active` show both sides in that state. A highlight overlay marking the change is one click away.
 - **The table** lists every changed computed property with its old and new value. Properties that follow
