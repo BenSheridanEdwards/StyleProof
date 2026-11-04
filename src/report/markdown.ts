@@ -90,7 +90,9 @@ export function propertyGlanceLine(findings: Finding[]): string {
       }
     }
   }
-  return parts.join('<br>\n');
+  const counts = new Map<string, number>();
+  for (const part of parts) counts.set(part, (counts.get(part) ?? 0) + 1);
+  return [...counts].map(([part, count]) => (count > 1 ? `${part} ×${count}` : part)).join('<br>\n');
 }
 
 function propRows(rows: SummarizedProp[], added: boolean): string[][] {

@@ -184,10 +184,12 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
 
 ## What the report tells you
 
+Elements with the same label and identical changes share one section, with the top-most element as the representative crop (one crop per interactive state). The section lists affected element paths.
+
 - **The headline** says how many distinct changes need review. Here that is one change, made of 2 computed-style
   differences and 3 interaction-state differences on one page.
 - **What changed** gives one value-free sentence per distinct element change, with matching descriptions counted together. Known tag nouns use counts such as “3 buttons”; class-derived labels use “3 elements”. Counts identify each element by its path within a surface base, so widths and change groups do not multiply it. The headline counts all distinct sentences, including those beyond the ten-line display cap.
-- **Each card is one changed element.** It names the element (`button.btn`), the page and viewport width it was
+- **Each card is a changed element or identical group.** It names the element (`button.btn`), the page and viewport width it was
   captured at (`demo-button @ 900`), and the property changes in one line.
 - **The before/after crop** shows the element on the base branch and on the pull request. Cards for `:hover`,
   `:focus`, and `:active` show both sides in that state. A highlight overlay marking the change is one click away.
