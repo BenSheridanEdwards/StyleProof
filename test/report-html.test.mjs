@@ -63,9 +63,9 @@ test('report.html covers the report Markdown grammar (#698)', () => {
   assert.match(html, /<ul><li><strong><code>span\.caret<\/code><\/strong> — gray → blue<\/li><\/ul>/);
   assert.match(html, /<details>/);
   assert.match(html, /<summary>Show the property change<\/summary>/);
-  assert.match(html, /<th[^>]*>Property<\/th><th[^>]*>Before<\/th><th[^>]*>After<\/th>/);
-  assert.match(html, /<td[^>]*><code>color<\/code><\/td>/);
-  assert.doesNotMatch(html, /<td[^>]*>---<\/td>/, 'table separator row must not render as cells');
+  assert.match(html, /<th>Property<\/th><th>Before<\/th><th>After<\/th>/);
+  assert.match(html, /<td><code>color<\/code><\/td>/);
+  assert.doesNotMatch(html, /<td>---<\/td>/, 'table separator row must not render as cells');
   assert.match(html, /<hr>/);
   assert.match(html, /<blockquote>\[!NOTE\]<br>Advisory content\.<\/blockquote>/);
   assert.match(html, /<a href="https:\/\/github\.com\/acme\/app\/actions\/runs\/1">View the run<\/a>/);
@@ -233,7 +233,7 @@ test('report.html keeps an escaped `\\|` inside its table cell and code span (no
   );
   assert.match(
     html,
-    /<tr[^>]*><td[^>]*><code>font-family<\/code><\/td><td[^>]*><code>serif<\/code><\/td><td[^>]*><code>&quot;\|\[Open full diff\]\(javascript:alert%28document.domain%29\)\|&quot;<\/code><\/td><\/tr>/,
+    /<tr><td><code>font-family<\/code><\/td><td><code>serif<\/code><\/td><td><code>&quot;\|\[Open full diff\]\(javascript:alert%28document.domain%29\)\|&quot;<\/code><\/td><\/tr>/,
   );
   assert.doesNotMatch(html, /href="javascript:/);
 });
@@ -285,16 +285,16 @@ test('omitted HTML images do not promise complete findings in capped JSON', () =
   assert.doesNotMatch(html, /report.json holds the full data/);
 });
 
-test('table cells carry escaped plain-text column labels', () => {
+test('wide table cells carry escaped plain-text column labels', () => {
   const html = renderReportHtml(
     [
       '| **Rule** | _Change_ | `Gated by` | [Source](https://example.com) |',
       '| --- | --- | --- | --- |',
       '| .panel | changed | — | app.css |',
       '',
-      '| **<img src=x onerror="alert(1)"> & "quoted"** |',
-      '| --- |',
-      '| value |',
+      '| **<img src=x onerror="alert(1)"> & "quoted"** | Change | Source | Why |',
+      '| --- | --- | --- | --- |',
+      '| value | changed | app.css | never matched |',
     ].join('\n'),
   );
   for (const label of ['Rule', 'Change', 'Gated by', 'Source']) {
@@ -309,7 +309,7 @@ for (const columnCount of [1, 2, 3, 4, 5]) {
     const row = (value) => '| ' + Array(columnCount).fill(value).join(' | ') + ' |';
     const html = renderReportHtml([row('Header'), row('---'), row('Value')].join('\n'));
     assert.equal(/<table[^>]*class="wide-table"/.test(html), columnCount >= 4);
-    assert.equal((html.match(/data-label="Header"/g) ?? []).length, columnCount);
+    assert.equal((html.match(/data-label="Header"/g) ?? []).length, columnCount >= 4 ? columnCount : 0);
   });
 }
 
@@ -329,4 +329,28 @@ test('generated Change Reach tables carry all five column labels', async () => {
     assert.ok(html.includes(`data-label="${label}"`));
   }
   assert.match(html, /<table[^>]*class="wide-table"/);
+});
+
+for (const rowCount of [1, 2000]) {
+  test(`a three-column table with ${rowCount} rows keeps main's exact markup and byte cost`, () => {
+    const markdown = [
+      '| Property | Before | After |',
+      '| --- | --- | --- |',
+      ...Array(rowCount).fill('| `color` | `#111` | `#222` |'),
+    ].join('\n');
+    const expected =
+      '<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody>' +
+      '<tr><td><code>color</code></td><td><code>#111</code></td><td><code>#222</code></td></tr>'.repeat(rowCount) +
+      '</tbody></table>';
+    const table = renderReportHtml(markdown).match(/<table\b[\s\S]*?<\/table>/)[0];
+    assert.equal(table, expected);
+  });
+}
+
+test('a wide header without body rows keeps ordinary visible table markup', () => {
+  const html = renderReportHtml('| Rule | Change | Source | Why |\n| --- | --- | --- | --- |');
+  assert.ok(
+    html.includes('<table><thead><tr><th>Rule</th><th>Change</th><th>Source</th><th>Why</th></tr></thead></table>'),
+  );
+  assert.doesNotMatch(html, /class="wide-table"/);
 });

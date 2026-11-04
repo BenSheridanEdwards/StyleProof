@@ -51,10 +51,7 @@ test('#1140 a width change beside a colour change is shown or counted in report.
   );
   const html = fs.readFileSync(res.reportMdPath.replace(/report\.md$/, 'report.html'), 'utf8');
   assert.match(html, /\+1 size\/position row folded/);
-  assert.match(
-    html,
-    /<td[^>]*><code>width<\/code><\/td>.*<td[^>]*><code>240px<\/code><\/td>.*<td[^>]*><code>280px<\/code><\/td>/,
-  );
+  assert.match(html, /<td><code>width<\/code><\/td>.*<td><code>240px<\/code><\/td>.*<td><code>280px<\/code><\/td>/);
 });
 
 test('folded counts match the CLI for base, pseudo and forced-state geometry', () => {
