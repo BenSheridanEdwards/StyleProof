@@ -1508,8 +1508,11 @@ Generous backstops are 30 seconds overall and 10 seconds/resource. Reader failur
 are evidence gaps, never capture failures. URLs omit credentials, queries,
 fragments and machine paths. Missing maps are unmeasured; blobs retain `blob:`.
 Unsupported/eval/anonymous URLs and missing metadata remain named unmeasured with
-`unsupported script URL`. Playwright utility, injected, binding, clock and evaluation scripts
-are excluded, including init wrappers with stack traces. StyleProof marks its own init scripts
+`unsupported script URL`. Recognition of Playwright utility, injected, binding, clock and evaluation scripts
+is verified on Playwright 1.61.x (tested 1.61.1), including init wrappers and direct evaluations carrying stack traces.
+Init scripts injected into frames created by capture or by app code carry that caller's stack.
+On other versions, unrecognised injected scripts stay listed as named unmeasured entries.
+StyleProof marks its own init scripts
 and CDP evaluations and function reads so they are excluded too.
 Discarded injected contexts can leave timer coverage after their source is unavailable.
 An unavailable source is excluded by its CDP hash only after an identical source is recognised.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { trackScriptReach } from '../dist/capture/script-reach.js';
-import { captureExpression } from '../dist/capture/script-evaluation.js';
+import { captureExpression, STYLEPROOF_SCRIPT_URL } from '../dist/capture/script-evaluation.js';
 import { NAV_OBSERVER_SNIPPET } from '../dist/runner/browser.js';
 import { scriptReachFixture } from './script-reach-fixture.mjs';
 
@@ -40,20 +40,32 @@ const injected = {
   utility: 'var UtilityScript = class { }; return new (module.exports.UtilityScript())(globalThis, false);',
   injectedUtility: 'var InjectedScript = class { }; return new (module.exports.InjectedScript())(globalThis, false);',
   directEvaluation: '((utilityScript, ...args) => utilityScript.evaluate(...args))',
+};
+
+const marked = {
   observer: wrap(NAV_OBSERVER_SNIPPET),
   documentSheet: captureExpression('function () { return this.getRootNode() === document; }'),
   inlineStyles: captureExpression('function parsedInlineStyles() { return { names: [], reader: false, count: 0 }; }'),
 };
 
-for (const [name, source] of Object.entries(injected)) {
+for (const [name, source] of Object.entries({ ...injected, ...marked })) {
   for (const trace of [undefined, stackTrace]) {
     test(`${name} is excluded with stackTrace=${!!trace}`, async () => {
-      const result = await collect(source, { stackTrace: trace });
+      const result = await collect(source, {
+        url: Object.hasOwn(marked, name) ? STYLEPROOF_SCRIPT_URL : '',
+        stackTrace: trace,
+      });
       assert.equal(result.status, 'measured');
       assert.deepEqual(result.scripts, []);
     });
   }
 }
+
+test('a sourceURL marker inside app string data stays named', async () => {
+  const source = `const s = \`\n//# sourceURL=${STYLEPROOF_SCRIPT_URL}\n\`; app();`;
+  const result = await collect(source, { stackTrace });
+  assert.deepEqual(result.scripts, [{ url: '<anonymous>', status: 'unmeasured', reason: 'unsupported script URL' }]);
+});
 
 for (const source of [
   'document.body.dataset.app = "yes";',
