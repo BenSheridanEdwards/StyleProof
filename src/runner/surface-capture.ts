@@ -202,7 +202,9 @@ export async function captureSurface(
       s.surfaceTimeoutMs,
       () => phase,
       async (surfaceRun) => {
-        const scriptReach = s.captureScriptReach ? await trackScriptReach(page) : undefined;
+        const scriptReach = s.captureScriptReach
+          ? await trackScriptReach(page, { projectRoot: s.projectRoot })
+          : undefined;
         let map: StyleMap;
         try {
           await surface.go(page);

@@ -169,11 +169,11 @@ the evidence adds to a capture on a GitHub runner:
    Those rows stay at `'warn'` under either level and prevent reach-complete.
 5. **Named residuals.** These stay documented, not hidden:
    - **J2 block entry.** An executed anchor means its block was entered; code
-     after a call that threw in that block is not proved. Default parameter
+     after any expression that threw in that block is not proved. Default parameter
      values, destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`),
      and later links of short-circuited optional chains can still be unevaluated.
-     V8 adds no continuation counter after an ordinary call. Capture notes name
-     these residuals; the 2.2 join must keep such code unknown rather than infer
+     V8 does not give every potentially throwing expression its own continuation
+     counter. Capture notes name these residuals; the 2.2 join must keep such code unknown rather than infer
      reached from block execution.
    - value-producing lines at any lexical scope: module, component or render
      body, hook, helper or memo. A value here is anything a line computes that

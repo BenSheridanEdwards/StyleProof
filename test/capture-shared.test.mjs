@@ -235,8 +235,10 @@ function forcedStateHarness({
       }
       if (method !== 'Runtime.evaluate') return {};
       const expression = params.expression;
+      assert.ok(expression.endsWith('\n//# sourceURL=styleproof://capture/forced-states\n'));
+      const body = expression.replace(/\n\/\/# sourceURL=[^\r\n]*(?:\r?\n)?$/, '');
 
-      if (expression.endsWith('getComputedStyle(element).display; return true; })()')) resetBarriers++;
+      if (body.endsWith('getComputedStyle(element).display; return true; })()')) resetBarriers++;
 
       const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
       // Force the production legacy path; all per-target reads still run unmodified.

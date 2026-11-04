@@ -317,9 +317,6 @@ test('explicit dot-relative bundler sources and parent home directories stay pro
   assert.deepEqual(sourceIdentities(map('AAAA', ['webpack:///./src/a.ts']), 'https://app.test/a.map', root), [
     'src/a.ts',
   ]);
-  assert.deepEqual(sourceIdentities(map('AAAA', ['webpack:///../home/Home.tsx']), 'https://app.test/a.map', root), [
-    'home/Home.tsx',
-  ]);
   assert.deepEqual(sourceIdentities(map('AAAA', ['../home/Home.tsx']), 'https://app.test/assets/a.map', root), [
     'home/Home.tsx',
   ]);
@@ -335,4 +332,39 @@ test('ignored webpack mappings cannot consume the app segment budget', () => {
     ['src/a.ts'],
   );
   assert.deepEqual(files[0].executed, [span(1, 0)]);
+});
+
+for (const scheme of ['foo', 'turbopack'])
+  test(`empty-host ${scheme} source paths validate the filesystem project root`, () => {
+    const address = scheme + '://' + path.join(root, 'src/a.ts');
+    assert.deepEqual(sourceIdentities(map('AAAA', [address]), 'https://app.test/a.map', root), ['src/a.ts']);
+    assert.throws(
+      () => sourceIdentities(map('AAAA', [address]), 'https://app.test/a.map', path.join(root, 'other')),
+      /outside project root/,
+    );
+  });
+
+for (const source of ['webpack://_N_E/../shared/x.ts', 'webpack:///../home/Home.tsx', '../../../../shared/x.ts'])
+  test(`source URL traversal cannot be clipped above its root: ${source}`, () => {
+    assert.throws(
+      () => sourceIdentities(map('AAAA', [source]), 'https://app.test/assets/a.map', root),
+      /escapes URL root/,
+    );
+  });
+
+test('generated UTF-8 size is measured once during a large mapping', () => {
+  const text = 'x'.repeat(20_000);
+  const sourceMap = map('AAAA,' + 'CAAC,'.repeat(19_998) + 'CAAC');
+  const original = Buffer.byteLength;
+  let measurements = 0;
+  Buffer.byteLength = function (value, ...args) {
+    if (value === text) measurements++;
+    return original(value, ...args);
+  };
+  try {
+    mapScriptCoverage(coverage(text), text, sourceMap, 'https://app.test/a.map');
+  } finally {
+    Buffer.byteLength = original;
+  }
+  assert.equal(measurements, 1);
 });

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { resolveScriptProjectRoot } from '../capture/script-project-root.js';
 import { resolveForcedStateLimits } from '../capture/forced-states.js';
 import { warn } from '../capture/shared.js';
 import type { ServedRuleTracker } from '../capture/reach.js';
@@ -134,7 +135,7 @@ function reconcileSpecClock(freezeClock: boolean, clockTime: string | number | D
 }
 
 /** Apply the capture defaults once, so explicit-surface and crawl capture cannot drift. */
-export function resolveSettings(c: CaptureConfig): Settings {
+export function resolveSettings(c: CaptureConfig, projectRoot?: string): Settings {
   const env = process.env;
   const replayFrom = c.replayFrom ?? env.STYLEPROOF_REPLAY_FROM;
   const freezeClock = c.freezeClock ?? true;
@@ -166,6 +167,7 @@ export function resolveSettings(c: CaptureConfig): Settings {
     inventory: c.inventory ?? false,
     captureReach: c.captureReach ?? false,
     captureScriptReach: c.captureScriptReach ?? false,
+    ...(c.captureScriptReach ? { projectRoot: projectRoot ?? resolveScriptProjectRoot() } : {}),
     liveText,
     tolerateSurfaceFailures: envFlag(env.STYLEPROOF_TOLERATE_SURFACE_FAILURES),
   };

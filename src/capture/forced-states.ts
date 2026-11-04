@@ -1,5 +1,6 @@
 // Forced :hover/:focus/:active via CDP: no real mouse or focus is involved, and
 // parent-state descendant rules still apply.
+import { captureExpression } from './script-evaluation.js';
 import type { CDPSession, Page } from '@playwright/test';
 import {
   analyzeForcedStateScope,
@@ -154,7 +155,9 @@ async function forcePseudoState(
 
 async function settleForcedState(client: CDPSession, selector: string): Promise<boolean> {
   const { result } = await client.send('Runtime.evaluate', {
-    expression: `(() => { const element = document.querySelector(${codeLiteral(selector)}); if (!element) return false; getComputedStyle(element).display; return true; })()`,
+    expression: captureExpression(
+      `(() => { const element = document.querySelector(${codeLiteral(selector)}); if (!element) return false; getComputedStyle(element).display; return true; })()`,
+    ),
     returnByValue: true,
   });
   return result.value === true;
@@ -181,7 +184,7 @@ async function snapStateScopeInSession(
         return { ...${snapshot}, settled };
       })()`;
   const { result, exceptionDetails } = await client.send('Runtime.evaluate', {
-    expression,
+    expression: captureExpression(expression),
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
@@ -432,7 +435,9 @@ async function sessionBaseline(
     maxElements: context.limits.maxForcedStateScanWork,
   };
   const { result, exceptionDetails } = await context.session.client.send('Runtime.evaluate', {
-    expression: `(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, window[${codeLiteral(context.snapshotKey)}])`,
+    expression: captureExpression(
+      `(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, window[${codeLiteral(context.snapshotKey)}])`,
+    ),
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
@@ -475,7 +480,7 @@ export async function captureForcedStates(
     skipSel,
     async (session) => {
       const { exceptionDetails } = await session.client.send('Runtime.evaluate', {
-        expression: `window[${codeLiteral(snapshotKey)}] = ${snapSubtree.toString()}; void 0;`,
+        expression: captureExpression(`window[${codeLiteral(snapshotKey)}] = ${snapSubtree.toString()}; void 0;`),
       });
 
       if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);

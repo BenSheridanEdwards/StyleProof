@@ -357,3 +357,28 @@ test('self-check availability drift downgrades retained mapped scripts and remov
   assert.equal(first.scriptReach.scripts[0].files, undefined);
   assert.match(first.scriptReach.scripts[0].reason, /home/);
 });
+
+test('runner freezes a config-directory root and falls back to the git top level', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const { execFileSync } = await import('node:child_process');
+  const { resolveSettings } = await import('../dist/runner/settings.js');
+  const directory = await fs.realpath(await fs.mkdtemp(path.join(tmpdir(), 'reach-root-')));
+  const cwd = process.cwd();
+  try {
+    await fs.mkdir(path.join(directory, 'config/nested'), { recursive: true });
+    await fs.writeFile(path.join(directory, 'config/styleproof.config.json'), '{}');
+    execFileSync('git', ['init', '--quiet', directory]);
+    process.chdir(path.join(directory, 'config/nested'));
+    assert.equal(
+      resolveSettings({ dir: 'maps', freezeClock: false, captureScriptReach: true }).projectRoot,
+      path.join(directory, 'config'),
+    );
+    await fs.unlink(path.join(directory, 'config/styleproof.config.json'));
+    assert.equal(resolveSettings({ dir: 'maps', freezeClock: false, captureScriptReach: true }).projectRoot, directory);
+  } finally {
+    process.chdir(cwd);
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});

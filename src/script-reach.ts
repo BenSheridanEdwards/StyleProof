@@ -53,10 +53,11 @@ export type SourceMap = {
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const DIGITS = new Int16Array(128).fill(-1);
 for (let i = 0; i < BASE64.length; i++) DIGITS[BASE64.charCodeAt(i)] = i;
-function checkMappingBudget(generated: string, mappings: string, deadline = Infinity): void {
-  if (Buffer.byteLength(generated, 'utf8') > MAX_GENERATED_LENGTH || mappings.length > MAX_MAPPING_LENGTH)
+type MappingBudget = { generatedBytes: number; mappingsLength: number; deadline: number };
+function checkMappingBudget(budget: MappingBudget): void {
+  if (budget.generatedBytes > MAX_GENERATED_LENGTH || budget.mappingsLength > MAX_MAPPING_LENGTH)
     throw new ScriptEvidenceError('source mapping size limit exceeded');
-  if (performance.now() >= deadline) throw new ScriptEvidenceError('source mapping CPU budget exhausted');
+  if (performance.now() >= budget.deadline) throw new ScriptEvidenceError('source mapping CPU budget exhausted');
 }
 
 /** Decode signed base64 VLQ values without 32-bit bitwise overflow. */
@@ -141,11 +142,11 @@ function pushAppSegment(segments: Segment[], segment: Segment | undefined): void
 function mappedSegments(
   map: SourceMap,
   generated: string,
-  deadline: number,
   identities: (string | undefined)[],
+  budget: MappingBudget,
 ): Segment[] {
   validateMap(map);
-  checkMappingBudget(generated, map.mappings, deadline);
+  checkMappingBudget(budget);
   const { lines, starts } = generatedLines(generated);
   const appSources = identities.map((identity) => identity !== undefined);
   const originalLines = map.sourcesContent?.map((content, index) =>
@@ -165,7 +166,7 @@ function mappedSegments(
       previous = undefined;
       continue;
     }
-    if (++count % 8192 === 0) checkMappingBudget(generated, map.mappings, deadline);
+    if (++count % 8192 === 0) checkMappingBudget(budget);
     const fields = decodeVlq(match[0]);
     if (![1, 4, 5].includes(fields.length)) throw new Error('invalid source-map segment');
     generatedColumn += fields[0];
@@ -349,12 +350,16 @@ export function mapScriptCoverage(
   mapUrl: string,
   options: { deadline?: number; projectRoot?: string } = {},
 ): ScriptSourceReach<SourceSpan>[] {
-  const deadline = options.deadline ?? Infinity;
   validateMap(map);
-  checkMappingBudget(generated, map.mappings, deadline);
+  const budget = {
+    generatedBytes: Buffer.byteLength(generated, 'utf8'),
+    mappingsLength: map.mappings.length,
+    deadline: options.deadline ?? Infinity,
+  };
+  checkMappingBudget(budget);
   const identities = sourceIdentities(map, mapUrl, options.projectRoot);
-  const segments = mappedSegments(map, generated, deadline, identities);
-  checkMappingBudget(generated, map.mappings, deadline);
+  const segments = mappedSegments(map, generated, identities, budget);
+  checkMappingBudget(budget);
   if (entry.functions.reduce((sum, f) => sum + f.ranges.length, 0) > MAX_COVERAGE_RANGES)
     throw new ScriptEvidenceError('source mapping coverage range limit exceeded');
   const files = new Map<string, ScriptSourceReach<SourceSpan>>();
@@ -371,9 +376,9 @@ export function mapScriptCoverage(
     states.set(file.sourceKey!, anchors);
   });
   for (const file of files.values()) {
-    checkMappingBudget(generated, map.mappings, deadline);
+    checkMappingBudget(budget);
     writeAnchors(file, states.get(file.sourceKey!)!);
-    checkMappingBudget(generated, map.mappings, deadline);
+    checkMappingBudget(budget);
   }
   return [...files.values()].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
 }

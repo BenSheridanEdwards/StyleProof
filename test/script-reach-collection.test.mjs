@@ -267,6 +267,53 @@ test('evidence names the post-throwing-call V8 residual', async () => {
   const evidence = await capture(scriptReachFixture());
   assert.match(
     evidence.notes?.join(' ') ?? '',
-    /block was entered; code after a call that threw in that block is not proved/,
+    /block was entered; code after any expression that threw in that block is not proved/,
   );
 });
+
+for (const url of ['__playwright_evaluation_script__', 'styleproof://capture/forced-states'])
+  test(`internal scripts do not consume the app-script cap: ${url}`, async () => {
+    const limits = await import('../dist/script-reach-limits.js');
+    const entries = Array.from({ length: limits.MAX_SCRIPTS + 10 }, (_, i) => ({
+      scriptId: String(i + 1),
+      url,
+      functions: [{ ranges: [{ startOffset: 0, endOffset: 1, count: 1 }] }],
+    }));
+    entries.unshift({
+      scriptId: '0',
+      url: 'https://app.test/0.js',
+      functions: [{ ranges: [{ startOffset: 0, endOffset: 1, count: 1 }] }],
+    });
+    const result = await capture(scriptReachFixture({ entries }));
+    assert.equal(result.scripts.length, 1);
+    assert.equal(result.scripts[0].status, 'mapped');
+  });
+
+test('internal script identification has its own deterministic limit', async () => {
+  const limits = await import('../dist/script-reach-limits.js');
+  const limit = limits.MAX_SCRIPT_IDENTIFICATIONS ?? 10_000;
+  const f = scriptReachFixture({
+    entries: Array.from({ length: limit + 1 }, (_, i) => ({
+      scriptId: String(i),
+      url: '__playwright_evaluation_script__',
+      functions: [{ ranges: [{ startOffset: 0, endOffset: 1, count: 1 }] }],
+    })),
+  });
+  const result = await capture(f);
+  assert.deepEqual(result.scripts, [
+    { url: '<script identification limit>', status: 'unknown', reason: `script identification count exceeds ${limit}` },
+  ]);
+  assert.ok(!f.calls.some(([method]) => method === 'Debugger.getScriptSource'));
+});
+
+for (const source of ['webpack://_N_E/../shared/x.ts', '../../../../shared/x.ts'])
+  test(`clipped source traversal records script unknown: ${source}`, async () => {
+    const result = await capture(
+      scriptReachFixture({
+        maps: [{ version: 3, sources: [source], mappings: 'AAAA' }],
+        mapUrl: 'https://app.test/assets/a.map',
+      }),
+    );
+    assert.equal(result.scripts[0].status, 'unknown');
+    assert.match(result.scripts[0].reason, /escapes URL root/);
+  });

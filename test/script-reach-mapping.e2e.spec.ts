@@ -230,7 +230,7 @@ test('V8 block entry cannot prove code after a throwing call', async ({ page }) 
     // 2.2 must keep this unknown: V8 counts entry to the block, not continuation after calls.
     expect(file?.executed.some((span) => span[0] === 5)).toBe(true);
     expect(evidence.notes?.join(' ')).toMatch(
-      /block was entered; code after a call that threw in that block is not proved/,
+      /block was entered; code after any expression that threw in that block is not proved/,
     );
   } finally {
     await host.close();
@@ -247,4 +247,103 @@ test('a no-script page with locator textContent leaves zero script entries', asy
   const evidence = await tracker.stop();
   expect(evidence.status).toBe('measured');
   expect(evidence.scripts).toEqual([]);
+});
+
+test('V8 block entry cannot prove code after a throwing property expression', async ({ page }) => {
+  const { transform } = await import('esbuild');
+  const original = ['window.after=false;', 'try {', '  null.x;', '  window.after=true;', '} catch {}'].join('\n');
+  const built = await transform(original, {
+    sourcefile: 'src/throwing-expression.js',
+    sourcemap: 'external',
+    minify: true,
+  });
+  const host = await serve(built.code + '\n//# sourceMappingURL=app.js.map', JSON.parse(built.map));
+  try {
+    const tracker = await trackScriptReach(page);
+    await page.goto(host.url);
+    const evidence = await tracker.stop();
+    expect(await page.evaluate(() => (window as unknown as { after: boolean }).after)).toBe(false);
+    // V8 counts block entry even though the property expression prevented this assignment.
+    expect(
+      evidence.scripts.find((s) => s.url.endsWith('/app.js'))?.files?.[0].executed.some((span) => span[0] === 4),
+    ).toBe(true);
+    expect(evidence.notes?.join(' ')).toMatch(/code after any expression that threw in that block is not proved/);
+  } finally {
+    await host.close();
+  }
+});
+
+test('forced-state capture excludes StyleProof Runtime.evaluate scripts', async ({ page }) => {
+  const { captureStyleMap } = await import('../dist/capture.js');
+  await page.route('https://forced-reach.test/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body:
+        '<style>button:hover{color:red}</style>' +
+        Array.from({ length: 100 }, (_, i) => `<button type="button">Item ${i}</button>`).join(''),
+    }),
+  );
+  const tracker = await trackScriptReach(page);
+  await page.goto('https://forced-reach.test/');
+  const map = await captureStyleMap(page, {
+    captureScriptReach: true,
+    scriptReach: tracker,
+    captureStates: true,
+    maxForcedStateScanWork: 100_000,
+    stabilize: false,
+  });
+  expect(map.scriptReach?.status).toBe('measured');
+  expect(map.scriptReach?.scripts.filter((s) => s.url === '<anonymous>')).toEqual([]);
+  expect(map.scriptReach?.scripts.some((s) => s.url.startsWith('styleproof:'))).toBe(false);
+});
+
+test('runner and self-check keep config-root source keys after go changes cwd', async ({ page }, testInfo) => {
+  const { mkdir, writeFile } = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+  const { captureSurface } = await import('../dist/runner/surface-capture.js');
+  const { resolveSettings } = await import('../dist/runner/settings.js');
+  const { loadStyleMap } = await import('../dist/capture.js');
+  const directory = testInfo.outputPath('project');
+  const nested = path.join(directory, 'nested');
+  const elsewhere = testInfo.outputPath('elsewhere');
+  await mkdir(nested, { recursive: true });
+  await mkdir(elsewhere, { recursive: true });
+  await writeFile(path.join(directory, 'styleproof.config.json'), '{}');
+  const source = 'window.rootReady=true;';
+  const host = await serve(source + '\n//# sourceMappingURL=app.js.map', {
+    version: 3,
+    sources: [pathToFileURL(path.join(directory, 'src/a.ts')).href],
+    sourcesContent: [source],
+    mappings: 'AAAA',
+  });
+  const cwd = process.cwd();
+  try {
+    process.chdir(nested);
+    const settings = resolveSettings({
+      dir: testInfo.outputPath('maps'),
+      captureScriptReach: true,
+      freezeClock: false,
+      selfCheck: true,
+      screenshots: false,
+    });
+    await captureSurface(
+      page,
+      {
+        key: 'root',
+        async go() {
+          await page.goto(host.url);
+          process.chdir(elsewhere);
+        },
+      },
+      800,
+      settings,
+      { index: 1, total: 1 },
+    );
+    const evidence = loadStyleMap(testInfo.outputPath('maps/root@800.json.gz')).scriptReach;
+    expect(evidence?.status).toBe('measured');
+    expect(evidence?.scripts.find((s) => s.status === 'mapped')?.files?.[0].sourceKey).toBe('src/a.ts');
+  } finally {
+    process.chdir(cwd);
+    await host.close();
+  }
 });

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { SourceMap } from './script-reach.js';
+import { resolveSourceUrl } from './script-reach-url.js';
 import { ScriptEvidenceError } from './script-reach-limits.js';
 const BUNDLER = /^(?:webpack(?:-internal)?|vite|rollup|parcel):/;
 const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\)/i;
@@ -17,7 +18,6 @@ function filesystemKey(filename: string, projectRoot: string): string {
 
 /** URL parsing erases /./ and /../, so classify empty-host bundler paths first. */
 function absoluteBundlerPath(address: string): string | undefined {
-  if (!BUNDLER.test(address)) return undefined;
   const raw = address.match(/^[a-z][a-z\d+.-]*:\/\/\/([^?#]*)/i)?.[1];
   if (!raw || raw.startsWith('./') || raw.startsWith('../')) return undefined;
   const filename = decodeURIComponent(raw).replaceAll('\\', '/');
@@ -35,7 +35,7 @@ function filesystemUrlPath(pathname: string): string | undefined {
 
 function sourceDirectory(root: string | undefined, mapUrl: string): URL {
   if (!root) return new URL(mapUrl);
-  let url = new URL(root, mapUrl);
+  let url = resolveSourceUrl(root, mapUrl);
   // Vite's opaque scheme becomes a hierarchical URL so relative sources resolve normally.
   if (!url.pathname.startsWith('/') && BUNDLER.test(url.href)) url = new URL(`${url.protocol}/${url.pathname}`);
   url.pathname = url.pathname.replace(/\/?$/, '/');
@@ -58,14 +58,13 @@ function resolvedFilesystemPath(source: string, resolved: URL): string | undefin
 }
 
 function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string | undefined {
+  const absoluteUrl = SCHEME.test(source) ? resolveSourceUrl(source, mapUrl) : undefined;
   const filename = filesystemReference(source);
   if (filename) return filesystemKey(filename, projectRoot);
   const rootPath = root && filesystemReference(root);
   if (rootPath && !SCHEME.test(source))
     return filesystemKey((WINDOWS_PATH.test(rootPath) ? path.win32 : path).resolve(rootPath, source), projectRoot);
-  const resolved = SCHEME.test(source)
-    ? new URL(source)
-    : new URL(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl));
+  const resolved = absoluteUrl ?? resolveSourceUrl(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl));
   const resolvedFile = resolvedFilesystemPath(source, resolved);
   if (resolvedFile) return filesystemKey(resolvedFile, projectRoot);
   if (BUNDLER.test(resolved.href) && !resolved.pathname.replaceAll('/', '')) return undefined;

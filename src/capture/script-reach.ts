@@ -7,7 +7,9 @@ import {
 /** Navigation-window script coverage. Reader failures are evidence gaps, never capture failures. */
 import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-resources.js';
 import { storedScriptUrl } from '../script-reach-identity.js';
-import { MAX_GENERATED_LENGTH, MAX_SCRIPTS } from '../script-reach-limits.js';
+import { STYLEPROOF_SCRIPT_URL } from './script-evaluation.js';
+import { resolveScriptProjectRoot } from './script-project-root.js';
+import { MAX_GENERATED_LENGTH, MAX_SCRIPTS, MAX_SCRIPT_IDENTIFICATIONS } from '../script-reach-limits.js';
 import { storedScriptEvidence } from '../script-reach-storage.js';
 import { performance } from 'node:perf_hooks';
 import type { CaptureOptions, StyleMap } from './types.js';
@@ -133,16 +135,25 @@ async function playwrightScripts(input: ScriptRead): Promise<Set<string>> {
 }
 
 async function resolveScripts(input: ScriptRead, coverage: CollectedScript[]): Promise<ScriptReachEntry<SourceSpan>[]> {
-  if (coverage.length > MAX_SCRIPTS || input.scripts.size > MAX_SCRIPTS)
-    return [{ url: '<script limit>', status: 'unknown', reason: `script count exceeds ${MAX_SCRIPTS}` }];
+  if (coverage.length > MAX_SCRIPT_IDENTIFICATIONS || input.scripts.size > MAX_SCRIPT_IDENTIFICATIONS)
+    return [
+      {
+        url: '<script identification limit>',
+        status: 'unknown',
+        reason: `script identification count exceeds ${MAX_SCRIPT_IDENTIFICATIONS}`,
+      },
+    ];
   const deadline = performance.now() + MAP_READ_BUDGET_MS;
   const entries: ScriptReachEntry<SourceSpan>[] = [];
   const internal = await beforeDeadline(playwrightScripts(input), deadline);
-  for (const entry of coverage) {
-    const script = input.scripts.get(entry.scriptId);
-    if (internal.has(entry.scriptId) || (script?.url ?? entry.url) === '__playwright_evaluation_script__') continue;
-    entries.push(await resolveCoverageEntry(input, script, entry, deadline));
-  }
+  const appCoverage = coverage.filter((entry) => {
+    const url = input.scripts.get(entry.scriptId)?.url ?? entry.url;
+    return !internal.has(entry.scriptId) && url !== '__playwright_evaluation_script__' && url !== STYLEPROOF_SCRIPT_URL;
+  });
+  if (appCoverage.length > MAX_SCRIPTS)
+    return [{ url: '<script limit>', status: 'unknown', reason: `script count exceeds ${MAX_SCRIPTS}` }];
+  for (const entry of appCoverage)
+    entries.push(await resolveCoverageEntry(input, input.scripts.get(entry.scriptId), entry, deadline));
   return entries.sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
 }
 
@@ -196,7 +207,6 @@ export async function trackScriptReach(
   page: Page,
   options: { projectRoot?: string } = {},
 ): Promise<ScriptReachTracker> {
-  const projectRoot = options.projectRoot ?? process.cwd();
   if (page.context().browser()?.browserType().name() !== 'chromium') {
     return { stop: async () => unmeasuredScriptReach('script coverage requires Chromium'), dispose: async () => {} };
   }
@@ -207,6 +217,7 @@ export async function trackScriptReach(
       dispose: async () => {},
     };
   }
+  const projectRoot = options.projectRoot ?? resolveScriptProjectRoot();
   const marker = scriptCoverageMarker(page);
   let client: CDPSession | undefined;
   let reason: string | undefined;

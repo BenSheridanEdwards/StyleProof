@@ -110,7 +110,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   if (!dir) return;
 
-  const settings = resolveSettings(options);
+  const settings = resolveSettings(options, loaded.configFile ? loaded.configDir : undefined);
   // Only CI's STYLEPROOF_BASE_MAPS schedules largest-first; replay alone and serial captures keep declaration order.
   const scheduledSurfaces = orderSurfacesByBaseSize(
     surfacesToCapture,

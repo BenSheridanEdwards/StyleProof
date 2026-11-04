@@ -112,6 +112,8 @@ export type Settings = Required<
   Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups' | 'parallel' | 'liveText'>
 > & {
   dir: string;
+  /** Stable config/git root for script source identities, resolved before go(). */
+  projectRoot?: string;
   /** `resolveOutputDir(baseDir, dir)`, computed once. */
   outDir: string;
   replayFrom?: string;

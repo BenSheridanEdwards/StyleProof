@@ -62,7 +62,7 @@ export function storedScriptEvidence(scripts: ScriptReachEntry<SourceSpan | Comp
     window: 'navigation',
     status: 'measured',
     notes: [
-      'An executed anchor means its block was entered; code after a call that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.',
+      'An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.',
     ],
     scripts: entries.map(compactScriptEvidence),
   };

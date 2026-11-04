@@ -199,7 +199,9 @@ export async function assertDeterministic(
   pending: () => number,
   servedRules?: ServedRuleTracker,
 ): Promise<void> {
-  const scriptReach = settings.captureScriptReach ? await trackScriptReach(page) : undefined;
+  const scriptReach = settings.captureScriptReach
+    ? await trackScriptReach(page, { projectRoot: settings.projectRoot })
+    : undefined;
   let again: StyleMap;
   try {
     await surface.go(page);
