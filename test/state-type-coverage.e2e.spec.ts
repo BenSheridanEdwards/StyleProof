@@ -2,6 +2,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import fileSystem from 'node:fs';
 import path from 'node:path';
+import { PNG as PortableNetworkGraphic } from 'pngjs';
 import { captureStyleMap, diffStyleMaps, loadStyleMap, type StyleMap, type MediaState } from '../dist/index.js';
 import { expandSurfaceVariants } from '../dist/runner.js';
 import { captureSurface, detectSurfaceWidths } from '../dist/runner/surface-capture.js';
@@ -144,6 +145,7 @@ for (const { declaration, condition } of mediaDeclarations) {
         dir: path.join(directory, label),
         freezeClock: false,
         selfCheck: true,
+        captureScriptReach: declaration.media === 'print',
         mediaStates: [declaration],
       });
 
@@ -187,6 +189,21 @@ for (const { declaration, condition } of mediaDeclarations) {
       ),
     ).toBe(true);
     expect(diffStyleMaps(head, identical)).toEqual([]);
+
+    const screenshotPixel = (label: string): number[] => {
+      const picture = PortableNetworkGraphic.sync.read(
+        fileSystem.readFileSync(path.join(directory, label, `home-${declaration.key}@1280.png`)),
+      );
+
+      // This point is inside the 2px border and on the 7px border, away from rounded corners.
+      const offset = (4 * picture.width + 20) * 4;
+
+      return Array.from(picture.data.subarray(offset, offset + 4));
+    };
+
+    expect(screenshotPixel('head'), 'the media-only border change must reach the screenshot').not.toEqual(
+      screenshotPixel('base'),
+    );
     await test.info().attach(`${declaration.key} base`, {
       path: path.join(directory, 'base', `home-${declaration.key}@1280.png`),
       contentType: 'image/png',

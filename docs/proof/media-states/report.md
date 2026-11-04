@@ -10,6 +10,8 @@
 
 - `home-contrast @ 1280` +2 more surface(s) — **`button.subject`** border 2px → 7px
 
+**Reach incomplete** — base: missing base ledger on 3 capture(s); changed rules cannot be listed; head: missing head ledger on 3 capture(s); changed rules cannot be listed. Fix: recapture with `captureReach`. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS), render-code reach and class-list deltas.
+
 ## Changes
 
 ### **Subject** `button.subject` · 1 element restyled
@@ -46,7 +48,21 @@ Style:
 
 </details>
 
-_Nothing else — no other element or inventory changes in this compare._
+## Changed but never matched
+
+_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._
+
+| Rule | Change | Gated by | Source | Why |
+| --- | --- | --- | --- | --- |
+
+**Reach evidence gaps** — changed rules here cannot be listed
+
+- base: missing base ledger on 3 capture(s); changed rules cannot be listed — recapture with `captureReach`
+- head: missing head ledger on 3 capture(s); changed rules cannot be listed — recapture with `captureReach`
+
+**Not checked**
+
+- changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here — add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join
 
 <details>
 <summary>Evidence (warnings & failures)</summary>

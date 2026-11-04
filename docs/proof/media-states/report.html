@@ -31,6 +31,7 @@
 <p><strong>1 distinct change</strong> (1 computed-style difference(s)) in 1 changed surface base (3 variants) with an existing baseline.</p>
 <p><strong>What changed</strong></p>
 <ul><li><code>home-contrast @ 1280</code> +2 more surface(s) — <strong><code>button.subject</code></strong> border 2px → 7px</li></ul>
+<p><strong>Reach incomplete</strong> — base: missing base ledger on 3 capture(s); changed rules cannot be listed; head: missing head ledger on 3 capture(s); changed rules cannot be listed. Fix: recapture with <code>captureReach</code>. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS), render-code reach and class-list deltas.</p>
 <h2>Changes</h2>
 <h3><strong>Subject</strong> <code>button.subject</code> · 1 element restyled</h3>
 <p><em>Identical across 3 surfaces: home-contrast · variant -contrast- @ 1280 · home-dark · variant -dark- @ 1280 · home-print · variant -print- @ 1280</em></p>
@@ -49,7 +50,13 @@
 <p>Style:</p>
 <table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td><code>border-width</code></td><td><code>2px</code></td><td><code>7px</code></td></tr></tbody></table>
 </details>
-<p><em>Nothing else — no other element or inventory changes in this compare.</em></p>
+<h2>Changed but never matched</h2>
+<p><em>Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict.</em></p>
+<table><thead><tr><th>Rule</th><th>Change</th><th>Gated by</th><th>Source</th><th>Why</th></tr></thead></table>
+<p><strong>Reach evidence gaps</strong> — changed rules here cannot be listed</p>
+<ul><li>base: missing base ledger on 3 capture(s); changed rules cannot be listed — recapture with <code>captureReach</code></li><li>head: missing head ledger on 3 capture(s); changed rules cannot be listed — recapture with <code>captureReach</code></li></ul>
+<p><strong>Not checked</strong></p>
+<ul><li>changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here — add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join</li></ul>
 <details>
 <summary>Evidence (warnings &amp; failures)</summary>
 <p>⚠️ <strong>Product-state comparison</strong> — unproven on 3 paired capture(s) with no product-state declared.</p>
