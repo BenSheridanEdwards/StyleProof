@@ -1777,7 +1777,6 @@ Config discovery checks `styleproof.config.ts`, `styleproof.config.mjs`, `stylep
 import { defineConfig } from 'styleproof';
 
 export default defineConfig({
-  requireApproval: true,
   spec: 'e2e/styleproof.spec.ts',
   roots: ['hud'],
 });

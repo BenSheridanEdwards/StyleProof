@@ -333,9 +333,9 @@ runs:
             target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
           });
 
-    # Policy config: an optional styleproof.config.json at the consumer repo root.
-    # Today it carries one setting — `blocking` — but it's the home for future gate
-    # policy. Boolean `blocking` values remain accepted; only "advisory" changes the status and comment.
+    # Policy config: an optional styleproof.config (.ts, .mjs, .js or .json) at the consumer
+    # repo root. The Action reads `blocking` and `gateInventoryRemovals`; it is the home for
+    # future gate policy. Boolean `blocking` values remain accepted; only "advisory" changes the status and comment.
     # Malformed policy fails loudly. Inputs stay the home for plumbing (dirs, token, mode);
     # the config file is the home for policy.
     - id: config

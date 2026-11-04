@@ -1396,7 +1396,7 @@ test('styleproof-init: scaffolds styleproof.config.ts with blocking: advisory by
     assert.match(configContent, /remove blocking: 'advisory'/);
     assert.match(configContent, /--upgrade --mode review-gate/);
     assert.match(configContent, /require-approval input/);
-    assert.doesNotMatch(configContent, /set blocking: true/);
+    assert.doesNotMatch(configContent, /Require explicit reviewer approval/);
     assert.match(res.stdout, /created styleproof\.config\.ts \(typed config with defineConfig\(\)\)/);
     assert.equal(fs.existsSync(path.join(root, 'styleproof.config.json')), false);
   } finally {

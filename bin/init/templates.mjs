@@ -222,8 +222,8 @@ export default defineConfig({
   // the gate; true and false values of blocking do not fail the job (10.0.0).
   blocking: 'advisory',
 
-  // Recorded for reference; the workflow's require-approval input or
-  // mode: review-gate is what turns on the approval gate.
+  // Not read by the Action: the workflow's require-approval input or
+  // mode: review-gate turns on the approval gate.
   requireApproval: true,
 
   // Capture spec path (default e2e/styleproof.spec.ts)
