@@ -72,6 +72,60 @@ test('report.html covers the report Markdown grammar (#698)', () => {
   assert.match(html, /<!-- styleproof-receipt head-sha:aaa run-id:1 run-attempt:1 -->/);
 });
 
+test('report.html renders trailing paragraph breaks between property glance lines', () => {
+  const html = renderReportHtml(
+    ['`color` `#1e3c78` → `#961e3c`<br>', '`border-color` `#1e3c78` → `#961e3c`'].join('\n'),
+  );
+  assert.match(
+    html,
+    /<p><code>color<\/code> <code>#1e3c78<\/code> → <code>#961e3c<\/code><br>\s*<code>border-color<\/code> <code>#1e3c78<\/code> → <code>#961e3c<\/code><\/p>/,
+  );
+  assert.doesNotMatch(html, /&lt;br&gt;/);
+});
+
+test('report.html only accepts exact trailing paragraph breaks and escapes other markup', () => {
+  const html = renderReportHtml(
+    [
+      'middle <br> stays text',
+      '',
+      'unsafe<br><script>alert(1)</script>',
+      '',
+      'other <strong>markup</strong><br>',
+      '',
+      'near matches <br/> <BR> <br> ',
+      '',
+      'escaped \\<br>',
+      '',
+      'ordinary',
+      'paragraph lines',
+    ].join('\n'),
+  );
+  assert.match(html, /<p>middle &lt;br&gt; stays text<\/p>/);
+  assert.match(html, /<p>unsafe&lt;br&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt;<\/p>/);
+  assert.match(html, /<p>other &lt;strong&gt;markup&lt;\/strong&gt;<br><\/p>/);
+  assert.match(html, /<p>near matches &lt;br\/&gt; &lt;BR&gt; &lt;br&gt; <\/p>/);
+  assert.match(html, /<p>escaped &lt;br&gt;<\/p>/, 'a Markdown-escaped <br> stays literal text, as on main');
+  assert.match(html, /<p>ordinary paragraph lines<\/p>/);
+  assert.doesNotMatch(html, /<script\b|<strong\b/i);
+});
+
+test('report.html stacks a generated multi-property glance line with real line breaks', async () => {
+  const { propertyGlanceLine } = await import('../dist/report/markdown.js');
+  const md = propertyGlanceLine([
+    {
+      kind: 'style',
+      path: 'h2',
+      props: [
+        { prop: 'border-color', before: '#1e3c78', after: '#961e3c' },
+        { prop: 'color', before: '#1e3c78', after: '#961e3c' },
+      ],
+    },
+  ]);
+  const html = renderReportHtml(md);
+  assert.doesNotMatch(html, /&lt;br&gt;/);
+  assert.match(html, /<code>#961e3c<\/code><br> <code>color<\/code>/);
+});
+
 test('report.html never interprets untrusted text as markup (#698)', () => {
   const html = renderReportHtml(
     [

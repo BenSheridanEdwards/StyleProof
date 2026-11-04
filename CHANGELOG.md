@@ -67,6 +67,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Render generated property line breaks in HTML reports instead of showing literal `<br>` text (#1286).
+
 - Bind carried-forward approvals to the reviewed diff and trust state (#1262). Approvals recorded before upgrading do not carry forward to a re-run; tick again once. Repositories that copied `example/styleproof-approve.yml` or pin the reusable approve workflow separately from the Action must update it with the Action, or re-runs after a tick will not keep the approval.
 
 - Keep failed or unfinished StyleProof runs blocked when the approval box is unticked and ticked again, preserving existing failure diagnostics while revoking old receipts during in-flight re-runs (#1261).

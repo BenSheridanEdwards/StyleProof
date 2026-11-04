@@ -99,6 +99,8 @@ const LIST_ITEM = /^- /;
 const QUOTE = /^> /;
 const IMAGE_LINE = /^!\[/;
 const TABLE_SEPARATOR_CELL = /^:?-{3,}:?$/;
+/** A line ending in `<br>` not preceded by an odd run of backslashes (which would escape its `<`). */
+const GENERATED_BREAK = /(?<!\\)(?:\\\\)*<br>$/;
 
 const startsBlock = (line: string) =>
   BLANK.test(line) ||
@@ -170,7 +172,11 @@ const blockReaders: BlockReader[] = [
   oneLine(IMAGE_LINE.test.bind(IMAGE_LINE), (line) => `<p class="shot">${inline(line)}</p>`),
   (lines, i) => {
     const { taken, next } = takeWhile(lines, i, (l) => !startsBlock(l));
-    return { html: `<p>${taken.map(inline).join(' ')}</p>`, next };
+    // The generator's trailing `<br>` (glance and spacing lines) is a line break; an escaped `\<br>` stays text.
+    const paragraph = taken.map((line) =>
+      GENERATED_BREAK.test(line) ? `${inline(line.slice(0, -4))}<br>` : inline(line),
+    );
+    return { html: `<p>${paragraph.join(' ')}</p>`, next };
   },
 ];
 
