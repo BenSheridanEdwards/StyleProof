@@ -3,6 +3,8 @@
 // Node's module-type diagnostic can bypass process.emitWarning, so filter the
 // default warning printer; user warning listeners and trace options still work.
 const process = require('node:process');
+// Relies on Node's internal default listener name; if Node renames it, the
+// warnings simply reappear.
 const printWarning = process.listeners('warning').find((listener) => listener.name === 'onWarning');
 if (printWarning) {
   process.off('warning', printWarning);
