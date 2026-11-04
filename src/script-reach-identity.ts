@@ -1,8 +1,11 @@
 import path from 'node:path';
+import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import type { SourceMap } from './script-reach.js';
-import { resolveSourceUrl } from './script-reach-url.js';
-import { ScriptEvidenceError } from './script-reach-limits.js';
+import { normalizeSourceReference, resolveSourceUrl } from './script-reach-url.js';
+import { ScriptEvidenceError, MAX_MAP_BYTES } from './script-reach-limits.js';
+import { isWithinDirectory, readRegularFileNoFollow } from './safe-filesystem.js';
 const BUNDLER = /^(?:webpack(?:-internal)?|vite|rollup|parcel):/;
 const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\)/i;
 const SCHEME = /^[a-z][a-z\d+.-]*:/i;
@@ -35,7 +38,7 @@ function filesystemUrlPath(pathname: string): string | undefined {
 
 function sourceDirectory(root: string | undefined, mapUrl: string): URL {
   if (!root) return new URL(mapUrl);
-  let url = resolveSourceUrl(root, mapUrl);
+  let url = resolveSourceUrl(root, mapUrl).url;
   // Vite's opaque scheme becomes a hierarchical URL so relative sources resolve normally.
   if (!url.pathname.startsWith('/') && BUNDLER.test(url.href)) url = new URL(`${url.protocol}/${url.pathname}`);
   url.pathname = url.pathname.replace(/\/?$/, '/');
@@ -57,14 +60,68 @@ function resolvedFilesystemPath(source: string, resolved: URL): string | undefin
   return /^https?:/i.test(source) ? filesystemUrlPath(resolved.pathname) : undefined;
 }
 
-function sourceKey(source: string, root: string | undefined, mapUrl: string, projectRoot: string): string | undefined {
+function verifiedFileKey(
+  filename: string,
+  projectRoot: string,
+  expectedHash: string,
+  maximumBytes: number,
+): string | undefined {
+  try {
+    const key = filesystemKey(filename, projectRoot);
+    const realRoot = fs.realpathSync.native(projectRoot);
+    const keyPath = path.join(projectRoot, key);
+    const realFile = fs.realpathSync.native(keyPath);
+    if (!isWithinDirectory(realRoot, realFile)) return undefined;
+    if (path.relative(realRoot, realFile).replaceAll('\\', '/') !== key) return undefined;
+    const bytes = readRegularFileNoFollow(realFile, maximumBytes);
+    if (
+      fs.realpathSync.native(keyPath) !== realFile ||
+      fs.realpathSync.native(filename) !== realFile ||
+      fs.realpathSync.native(projectRoot) !== realRoot
+    )
+      return undefined;
+    return createHash('sha256').update(bytes).digest('hex') === expectedHash ? key : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Clipping needs local byte proof, never a guess based on directory names. */
+function clippedSourceKey(pathname: string, projectRoot: string, content: string | null | undefined): string {
+  if (typeof content !== 'string' || Buffer.byteLength(content) > MAX_MAP_BYTES)
+    throw new ScriptEvidenceError('source path escapes URL root');
+  const key = decodeURIComponent(pathname).replaceAll('\\', '/').replace(/^\//, '');
+  const expectedHash = createHash('sha256').update(content).digest('hex');
+  const maximumBytes = Buffer.byteLength(content);
+  const relative = WINDOWS_PATH.test(key)
+    ? undefined
+    : verifiedFileKey(path.join(projectRoot, key), projectRoot, expectedHash, maximumBytes);
+  if (relative) return relative;
+  const absolute = WINDOWS_PATH.test(key) ? key : '/' + key;
+  const verified = verifiedFileKey(absolute, projectRoot, expectedHash, maximumBytes);
+  if (!verified) throw new ScriptEvidenceError('source path escapes URL root');
+  return verified;
+}
+
+function sourceKey(
+  source: string,
+  root: string | undefined,
+  mapUrl: string,
+  projectRoot: string,
+  content: string | null | undefined,
+): string | undefined {
+  source = normalizeSourceReference(source);
+  root = root === undefined ? undefined : normalizeSourceReference(root);
   const absoluteUrl = SCHEME.test(source) ? resolveSourceUrl(source, mapUrl) : undefined;
   const filename = filesystemReference(source);
   if (filename) return filesystemKey(filename, projectRoot);
   const rootPath = root && filesystemReference(root);
   if (rootPath && !SCHEME.test(source))
     return filesystemKey((WINDOWS_PATH.test(rootPath) ? path.win32 : path).resolve(rootPath, source), projectRoot);
-  const resolved = absoluteUrl ?? resolveSourceUrl(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl));
+  const allowClipping = typeof content === 'string' && !(root && (SCHEME.test(root) || root.startsWith('/')));
+  const { url: resolved, clipped } =
+    absoluteUrl ?? resolveSourceUrl(source.replaceAll('\\', '/'), sourceDirectory(root, mapUrl), allowClipping);
+  if (clipped) return clippedSourceKey(resolved.pathname, projectRoot, content);
   const resolvedFile = resolvedFilesystemPath(source, resolved);
   if (resolvedFile) return filesystemKey(resolvedFile, projectRoot);
   if (BUNDLER.test(resolved.href) && !resolved.pathname.replaceAll('/', '')) return undefined;
@@ -83,9 +140,9 @@ function projectKey(value: string, projectRoot: string): string {
 /** File paths are relative to a known project root; URL paths retain every project directory. */
 export function sourceIdentities(map: SourceMap, mapUrl: string, projectRoot = process.cwd()): (string | undefined)[] {
   const seen = new Set<string>();
-  return map.sources.map((source) => {
+  return map.sources.map((source, index) => {
     if (source === null || /(^|[\\/])node_modules[\\/]/.test((map.sourceRoot ?? '') + '/' + source)) return undefined;
-    const key = sourceKey(source, map.sourceRoot, mapUrl, projectRoot);
+    const key = sourceKey(source, map.sourceRoot, mapUrl, projectRoot, map.sourcesContent?.[index]);
     if (!key || /(^|\/)node_modules\//.test(key)) return undefined;
     if (seen.has(key)) throw new ScriptEvidenceError('source key collision');
     seen.add(key);

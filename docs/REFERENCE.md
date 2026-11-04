@@ -1463,13 +1463,31 @@ packages, survive. Vite `/@fs/` and decoded filesystem URL paths use the same
 project-root validation. Empty/query-only webpack ignored modules are non-app. Outside-root paths or any collision invalidate involved scripts;
 never merge. Empty-host source URIs such as `webpack:///opt/build/...`, including
 unknown schemes, are filesystem paths validated before URL parsing. Explicit `/./`
-and `/../` paths stay relative; traversal above the URL root reads unknown instead
-of being clipped. Relative HTTP sources such as `../home/Home.tsx`
+and `/../` paths stay relative. Relative sources that climb above the URL root drop
+only the escaping `..` segments when their own `sourcesContent` entry is present
+and `sourceRoot` is absent or relative. A scheme-prefixed or absolute `sourceRoot`
+cannot authorize clipping. Only `sources[i]` may climb above the URL root;
+`sourceRoot` itself must resolve without clipping.
+For example, `../src/app.ts` from `/app.js.map` can become `src/app.ts` with a content
+hash. A clipped key is accepted only when a regular local project file has the
+same SHA-256 as that source's `sourcesContent` entry. The project-relative candidate
+is checked first, then the absolute-path or drive-form candidate if it lies inside
+the project root. Both require realpath containment without a symlink escape.
+Directory names supply no proof. Missing files, hash mismatches and outside-root
+paths read unknown. A capture without the matching project files, such as a remote
+URL capture with a different project root, records clipped sources as unknown.
+Missing content or scheme-prefixed traversal still reads unknown. Clipped
+keys follow the same collision rule. Relative HTTP sources such as `../home/Home.tsx`
 retain URL-path semantics. Stored absolute bundler script URLs become root-relative
 or `<outside root>`. Only identities classified as app sources count toward the
 segment budget; vendor, null and ignored webpack module sources do not. Hashes come
-only from `sourcesContent`; missing/null content has no hash. Original files are
-never fetched. No raw V8 output, maps or source content is stored.
+only from `sourcesContent`; missing/null content has no hash. Only clipped original
+files are read for hash verification, synchronously and locally, with an 8 MiB cap
+and no network reads. No other original-source files are read. Tab, LF and CR are
+removed before URL traversal checks, matching URL parsing. No raw V8 output, maps
+or source content is stored.
+Source and sourceRoot also trim edge ASCII controls and spaces and normalize backslashes
+before classification, so padded absolute paths resolve project-relative.
 
 Maps support inline data, `sourceMappingURL`, and `SourceMap`/`X-SourceMap` headers.
 Credentialed CDP reads bypass page JS, fetch patches and request listeners, even

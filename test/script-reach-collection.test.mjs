@@ -307,13 +307,14 @@ test('internal script identification has its own deterministic limit', async () 
 });
 
 for (const source of ['webpack://_N_E/../shared/x.ts', '../../../../shared/x.ts'])
-  test(`clipped source traversal records script unknown: ${source}`, async () => {
-    const result = await capture(
-      scriptReachFixture({
-        maps: [{ version: 3, sources: [source], mappings: 'AAAA' }],
-        mapUrl: 'https://app.test/assets/a.map',
-      }),
-    );
-    assert.equal(result.scripts[0].status, 'unknown');
-    assert.match(result.scripts[0].reason, /escapes URL root/);
-  });
+  for (const sourcesContent of [undefined, ['x']])
+    test(`clipped source traversal without project files stays unknown: ${source}, content=${!!sourcesContent}`, async () => {
+      const result = await capture(
+        scriptReachFixture({
+          maps: [{ version: 3, sources: [source], sourcesContent, mappings: 'AAAA' }],
+          mapUrl: 'https://app.test/assets/a.map',
+        }),
+      );
+      assert.equal(result.scripts[0].status, 'unknown');
+      assert.match(result.scripts[0].reason, /escapes URL root/);
+    });
