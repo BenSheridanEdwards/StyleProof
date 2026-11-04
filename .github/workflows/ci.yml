@@ -256,7 +256,7 @@ jobs:
       # One shard generates the full test inventory so the evidence job can verify
       # completeness without installing Playwright again. If-condition ensures
       # only one shard produces the canonical inventory. The ~20s listing runs on
-      # shard 5, the lightest of seven, so it never lengthens the slowest shard.
+      # shard 5, a light shard that still finishes before the slowest one.
       - name: Collect test inventory
         if: matrix.shard == 5
         run: |
