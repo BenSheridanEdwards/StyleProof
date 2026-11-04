@@ -7,18 +7,21 @@
 //
 // The fixture is the base side. The head side is the base plus every case's
 // `edit`, so each seeded change belongs to the case that declares it. The real
-// product path runs end to end: esbuild bundles each side with source maps,
+// build/capture/diff path runs: esbuild bundles each side with source maps,
 // Chromium renders it, captureStyleMap captures it with captureReach and V8 JS
 // coverage, and diffStyleMaps compares base and head. Expectations live in
 // bench/reach-corpus.json; drift in either direction fails --check, so a fix for a
 // documented miss or residual must update the corpus on purpose.
+// J2 uses hand-built one-line patches and selects the head unit, not readScriptChanges.
 import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
 import esbuild from 'esbuild';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { execFileSync } from 'node:child_process';
 import { captureStyleMap, trackServedRules, trackScriptReach } from '../dist/capture.js';
 import { classifyRuleReach } from '../dist/rule-reach.js';
 import { classifyScriptReach } from '../dist/script-join.js';
@@ -37,6 +40,7 @@ const SIDES = ['base', 'head'];
 
 // ---- write both sides' sources: head = base + every case edit --------------------
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-reach-'));
+execFileSync('git', ['init', '--quiet'], { cwd: out, stdio: 'pipe' });
 const src = (side, file = '') => path.join(out, 'src', side, file);
 for (const side of SIDES) fs.cpSync(FIXTURE, src(side), { recursive: true });
 for (const c of corpus.cases)
@@ -141,6 +145,11 @@ function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
     pick('head').map((c) => c.map),
     changes,
   );
+  assert.deepEqual(
+    script.gaps.map(({ side, reason }) => ({ side, reason })),
+    SIDES.map((side) => ({ side, reason: `${side} script evidence: unsupported script URL` })),
+    'corpus J2 evidence must have only its explicitly expected unsupported-script gaps',
+  );
 
   const evidence = script.units.find((unit) => unit.side === side);
   const J2 = evidence?.execution ?? 'unmeasured';
@@ -161,6 +170,7 @@ function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
     joins: { J2 },
     prototypeJ3: J3,
     why: evidence?.why,
+    gaps: script.gaps.map(({ side, status, reason }) => ({ side, status, reason })),
   };
 }
 
@@ -195,9 +205,11 @@ const worst = (units) =>
   'reached';
 
 const failures = [];
+const scenarioGaps = {};
 const results = corpus.cases.map((c) => ({ id: c.id, category: c.category, desc: c.desc, scenarios: {} }));
 for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
   const { findings, units, ledger, unreadableSheets } = evaluate(surfaceIds);
+  scenarioGaps[scenario] = units.find((unit) => unit.kind === 'js')?.gaps ?? [];
   if (ledger !== 'complete')
     failures.push(`${scenario}: J1 ledger ${ledger} (${unreadableSheets} unreadable) — CSS reach is unknown`);
   for (const u of units) {
@@ -251,6 +263,7 @@ const lines = [
   `  declared spec (${corpus.scenarios.declared.join(', ')}): today's diff shows ${shown('declared')}/${visual.length} visual changes`,
   `  reach joins name ${named.length}/${missed.length} of the misses (${missed.length - named.length} pinned residual)`,
   `  complete spec (${corpus.scenarios.complete.length} surfaces): today's diff shows ${shown('complete')}/${visual.length}`,
+  `  J2 expected run-level gaps: unsupported script URL on base and head (asserted; not reach-complete)`,
   ``,
 ];
 for (const r of results)
@@ -266,6 +279,7 @@ const receipt = {
   generated: new Date().toISOString(),
   browser: `chromium ${browserVersion}`,
   fixture: corpus.fixture,
+  j2Gaps: scenarioGaps,
   totals: {
     cases: corpus.cases.length,
     visual: visual.length,

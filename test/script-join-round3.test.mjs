@@ -129,6 +129,7 @@ test('five thousand unjudged paths cannot evict twenty style findings or overflo
   const markdown = fs.readFileSync(output.reportMdPath, 'utf8');
   assert.ok(Buffer.byteLength(markdown) < 100_000, `${Buffer.byteLength(markdown)} Markdown bytes`);
   assert.match(markdown, /J2 gap paths truncated/);
+  assert.match(markdown, /1 run-level gap\(s\)/);
 });
 
 test('a self-check rewrite preserves root provenance and cannot drop a healthy surface head line', (t) => {

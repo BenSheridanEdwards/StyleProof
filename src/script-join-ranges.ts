@@ -8,7 +8,14 @@ export type ScriptTexts = { base: string; head: string };
 const TOKEN =
   /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|[\p{ID_Start}_$][\p{ID_Continue}$]*|\d+(?:\.\d+)?/gu;
 
-type Source = { text: string; lines: string[]; gitStarts: number[]; jsStarts: number[]; hash: string };
+type Source = {
+  text: string;
+  lines: string[];
+  endings: string[];
+  gitStarts: number[];
+  jsStarts: number[];
+  hash: string;
+};
 
 function sourceOf(text: string): Source {
   const gitStarts = [0],
@@ -17,9 +24,11 @@ function sourceOf(text: string): Source {
   for (const match of text.matchAll(/\n/g)) gitStarts.push(match.index + 1);
 
   for (const match of text.matchAll(/\r\n|[\n\r\u2028\u2029]/g)) jsStarts.push(match.index + match[0].length);
-  const lines = text.split('\n').map((line, index, all) => (index < all.length - 1 ? line.replace(/\r$/, '') : line));
+  const rawLines = text.split('\n');
+  const endings = rawLines.map((line, i) => (i < rawLines.length - 1 ? (line.endsWith('\r') ? '\r\n' : '\n') : ''));
+  const lines = rawLines.map((line, i) => (endings[i] ? line.replace(/\r$/, '') : line));
 
-  return { text, lines, gitStarts, jsStarts, hash: sha256(text) };
+  return { text, lines, endings, gitStarts, jsStarts, hash: sha256(text) };
 }
 
 function positionAt(source: Source, offset: number): SourcePosition {
@@ -62,6 +71,7 @@ function singleToken(text: string): boolean {
 
 /** Trim only a single related line pair; multi-line replacements have no positional pairing. */
 function changedColumns(before: string, after: string): { base: [number, number]; head: [number, number] } | undefined {
+  if (before === after) return undefined;
   let start = 0;
 
   while (start < Math.min(before.length, after.length) && before[start] === after[start]) start++;
@@ -76,8 +86,12 @@ function changedColumns(before: string, after: string): { base: [number, number]
 
   if (!before.slice(0, start).trim()) return undefined;
 
-  const base = tokenRange(before, start, baseEnd),
-    head = tokenRange(after, start, headEnd);
+  const [baseFrom, baseTo] = tokenRange(before, start, baseEnd),
+    [headFrom, headTo] = tokenRange(after, start, headEnd);
+  const from = Math.min(baseFrom, headFrom),
+    tail = Math.min(before.length - baseTo, after.length - headTo);
+  const base: [number, number] = [from, before.length - tail],
+    head: [number, number] = [from, after.length - tail];
 
   const insertion = start === baseEnd || start === headEnd;
 
@@ -92,6 +106,7 @@ function changedLine(
   columns: [number, number] | undefined,
   sourceKey: string,
   side: 'base' | 'head',
+  unmeasuredReason?: string,
 ): ScriptChange[] {
   const text = source.lines[gitLine - 1] ?? '';
   const [start, end] = columns ?? [0, text.length];
@@ -106,6 +121,7 @@ function changedLine(
       range: { start: positionAt(source, offset + start), end: positionAt(source, offset + end) },
       contentHash: source.hash,
       text,
+      ...(unmeasuredReason ? { unmeasuredReason } : {}),
       ...(columns ? {} : { changeScope: 'line' as const }),
     },
   ];
@@ -113,14 +129,42 @@ function changedLine(
 
 type ChangedLines = { base: number[]; head: number[] };
 
+/** Match identical changed text by content, never pair unrelated lines by their hunk position. */
+function endingIndex(source: Source, lines: number[]): Map<string, Set<string>> {
+  const endings = new Map<string, Set<string>>();
+  for (const line of lines) {
+    const text = source.lines[line - 1];
+    if (!endings.has(text)) endings.set(text, new Set());
+    endings.get(text)!.add(source.endings[line - 1]);
+  }
+  return endings;
+}
+
 function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source }, sourceKey: string): ScriptChange[] {
   const columns =
     lines.base.length === 1 && lines.head.length === 1
       ? changedColumns(sources.base.lines[lines.base[0] - 1] ?? '', sources.head.lines[lines.head[0] - 1] ?? '')
       : undefined;
-  return (['base', 'head'] as const).flatMap((side) =>
-    lines[side].flatMap((line) => changedLine(sources[side], line, columns?.[side], sourceKey, side)),
-  );
+  const endings = { base: endingIndex(sources.base, lines.base), head: endingIndex(sources.head, lines.head) };
+  return (['base', 'head'] as const).flatMap((side) => {
+    const source = sources[side],
+      other = endings[side === 'base' ? 'head' : 'base'];
+    return lines[side].flatMap((line) => {
+      const changedEnding = [...(other.get(source.lines[line - 1]) ?? [])].some(
+        (ending) => ending !== source.endings[line - 1],
+      );
+      return changedLine(
+        source,
+        line,
+        changedEnding ? undefined : columns?.[side],
+        sourceKey,
+        side,
+        changedEnding
+          ? 'line ending changed; execution anchors cannot attribute an EOF newline or CRLF/LF change'
+          : undefined,
+      );
+    });
+  });
 }
 
 /** Read +/- body lines. Header counts include context and never grant attribution themselves. */

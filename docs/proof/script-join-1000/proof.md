@@ -191,3 +191,57 @@ publication result are reported in the handoff.
 ![All twenty style findings remain listed](round3-findings.png)
 
 ![Unjudged path count and JSON truncation remain explicit](round3-gap-detail.png)
+
+## Round 4: retain both token sides
+
+The retained [red unit run](round4-red-unit.txt) on `834f57a07` has **31 failures
+and two passing insertion/deletion controls**. Twenty-four failures cover
+shortening and lengthening strings, numbers and identifiers, at their ends and
+interiors, through both `classifyScriptReach` and `readScriptChanges`. The head
+anchor is idle, so losing it hides a never-rendered finding. Symmetric token
+expansion now retains both ranges: the earlier start and smaller trailing suffix
+apply to both sides. Only a side still empty after expansion is omitted.
+
+Four red cases cover EOF-newline and CRLF/LF-only edits alongside another changed
+line. A [baseline probe](round4-red-separated-newlines.txt) additionally reproduces
+both sides disappearing in separate newline-only hunks. Both forms now retain
+line-scope unmeasured units with an explicit line-ending reason. Matching identical
+changed text by content does not positionally pair unrelated hunk lines.
+
+The remaining three red cases cover omission wording and gap counts. Truncation
+now says **more omitted from report.json** or **more omitted from this report**.
+The retained `scriptGapCount` counts actual evidence gaps before detail is capped;
+presentation notices do not inflate it. The existing 5,000-path report regression
+also asserts the displayed count after JSON/Markdown reconciliation.
+
+The [red corpus run](round4-red-corpus.txt) exposed the previously unchecked
+project-root failures. Its temporary tree is now a Git repository, so capture
+resolves `src/base` and `src/head`. The oracle asserts exactly the two remaining
+unsupported-script URL gaps, one per side, and the receipt records them in
+`j2Gaps`. The review document states that the corpus supplies hand-built one-line
+patches and judges head units; real Git adapter coverage is in unit and e2e tests.
+**Zero corpus cells moved status**, including zero moves to unknown; unknown
+counts remain five declared and six complete. The REFERENCE also names the
+different-git-top-level limitation for nested repositories and submodules.
+
+Final targeted checks pass **247/247 units** and **37/37 browser cases**. One
+earlier unit rerun passed all assertions but correctly failed the shared-dist
+guard because a concurrent demo build rewrote it. The clean rerun follows that
+build and passes the guard. No test or hook configuration changed.
+
+The first full verify run passed 4,868/4,875 tests, with seven failures in the
+corpus's mocked harness: real Git could not start in its synthetic `/capture`
+directory. The [retained failure](round4-red-corpus-harness.txt) leads to a
+child-process stub that also asserts the exact Git initialization command and
+cwd. All **nine harness tests** now pass, including incomplete-ledger and drift
+rejections. The full verification rerun passes **4,875/4,875**, with no failures,
+cancellations or skips; `bench:reach:check` passes all 32 scenario cells.
+
+The current [report JSON](round4-report.json) and [budget summary](round4-budget-summary.json)
+record **20/20 style findings**, zero omitted, **68,591 / 450,000 JSON bytes**,
+8,954 Markdown bytes, **one real J2 gap**, 5,000 unjudged paths and **4,132 paths
+omitted from JSON**. This is synthetic diagnostic proof; it retains the
+product-state identity warning and does not certify reach-complete. JSON and
+Markdown assertions verify the changed copy and counts; the round-three images
+above remain historical evidence. Full gate tails and publication status are in
+the handoff.

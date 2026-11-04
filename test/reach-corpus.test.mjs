@@ -38,6 +38,7 @@ async function corpusProbe(mode, rootUrl) {
   const stdout = [];
   const stderr = [];
   const options = [];
+  const gitSetups = [];
 
   const browser = {
     version: () => 'unit-fixture',
@@ -98,6 +99,9 @@ async function corpusProbe(mode, rootUrl) {
     '@playwright/test': { chromium: { launch: async () => browser } },
     esbuild: { default: { build: async () => {} } },
     'node:fs': { default: fakeFs },
+    'node:child_process': {
+      execFileSync: (command, args, settings) => gitSetups.push({ command, args, cwd: settings.cwd }),
+    },
     '../dist/capture.js': capture,
     '../dist/rule-reach.js': classifier,
     '../dist/script-join.js': scriptClassifier,
@@ -150,7 +154,7 @@ async function corpusProbe(mode, rootUrl) {
     if (error !== sentinel) throw error;
   }
 
-  console.log(JSON.stringify({ exitCode, stdout, stderr, receipt, options }));
+  console.log(JSON.stringify({ exitCode, stdout, stderr, receipt, options, gitSetups }));
 }
 
 function runCorpusProbe(mode) {
@@ -205,6 +209,7 @@ test('reach corpus scores CSS with source classifier keys and explanations', () 
   const result = runCorpusProbe('complete');
   assert.equal(result.exitCode, 0, result.stderr.join('\n'));
   assert.ok(result.options.every(Boolean), 'every capture records the served-rule ledger');
+  assert.deepEqual(result.gitSetups, [{ command: 'git', args: ['init', '--quiet'], cwd: '/capture' }]);
   assert.deepEqual(result.receipt.cases[0].scenarios.declared.units, ['.probe: reached (matched in a captured state)']);
 });
 

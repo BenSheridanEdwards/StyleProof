@@ -1,0 +1,1188 @@
+✖ shortening a string end retains both token units (2.719666ms)
+✖ shortening a string end retains both token units through the git adapter (1681.233584ms)
+✖ lengthening a string end retains both token units (0.358333ms)
+✖ lengthening a string end retains both token units through the git adapter (1579.350667ms)
+✖ shortening a number end retains both token units (0.936375ms)
+✖ shortening a number end retains both token units through the git adapter (1428.626917ms)
+✖ lengthening a number end retains both token units (0.378709ms)
+✖ lengthening a number end retains both token units through the git adapter (1498.761417ms)
+✖ shortening a identifier end retains both token units (0.708458ms)
+✖ shortening a identifier end retains both token units through the git adapter (2027.4565ms)
+✖ lengthening a identifier end retains both token units (0.326625ms)
+✖ lengthening a identifier end retains both token units through the git adapter (2542.804875ms)
+✖ shortening a string interior retains both token units (1.276167ms)
+✖ shortening a string interior retains both token units through the git adapter (1616.909667ms)
+✖ lengthening a string interior retains both token units (0.293ms)
+✖ lengthening a string interior retains both token units through the git adapter (1584.160917ms)
+✖ shortening a number interior retains both token units (1.372167ms)
+✖ shortening a number interior retains both token units through the git adapter (1655.55225ms)
+✖ lengthening a number interior retains both token units (0.454917ms)
+✖ lengthening a number interior retains both token units through the git adapter (1395.784125ms)
+✖ shortening a identifier interior retains both token units (0.437292ms)
+✖ shortening a identifier interior retains both token units through the git adapter (1185.389292ms)
+✖ lengthening a identifier interior retains both token units (0.242167ms)
+✖ lengthening a identifier interior retains both token units through the git adapter (1787.105917ms)
+✔ a true expression insertion omits only its empty side (1333.013125ms)
+✔ a true expression deletion omits only its empty side (1438.117125ms)
+✖ EOF newline addition keeps both changed line units when another line also changes (1335.175542ms)
+✖ EOF newline deletion keeps both changed line units when another line also changes (1242.931958ms)
+✖ CRLF to LF keeps both changed line units when another line also changes (1336.250708ms)
+✖ LF to CRLF keeps both changed line units when another line also changes (1440.99175ms)
+✖ JSON truncation says details are omitted from the artifact and preserves the real gap count (0.893958ms)
+✖ human truncation says omitted details are absent from this report (1.460583ms)
+✖ presentation notices never replace the number of actual J2 evidence gaps (0.870833ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 2
+ℹ fail 31
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 28864.888125
+
+✖ failing tests:
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a string end retains both token units (2.719666ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        30,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     27,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 30, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 30, 'ran', 'unknown' ], [ 'head', 21, 27, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a string end retains both token units through the git adapter (1681.233584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        30,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     27,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 30, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 30, 'ran', 'unknown' ], [ 'head', 21, 27, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a string end retains both token units (0.358333ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     27,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        30,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 27, 'ran', 'unknown' ], [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a string end retains both token units through the git adapter (1579.350667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     27,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        30,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 27, 'ran', 'unknown' ], [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a number end retains both token units (0.936375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        24,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     23,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 24, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 24, 'ran', 'unknown' ], [ 'head', 21, 23, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a number end retains both token units through the git adapter (1428.626917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        24,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     23,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 24, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 24, 'ran', 'unknown' ], [ 'head', 21, 23, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a number end retains both token units (0.378709ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     23,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        24,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 24, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 23, 'ran', 'unknown' ], [ 'head', 21, 24, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a number end retains both token units through the git adapter (1498.761417ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     23,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        24,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 24, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 23, 'ran', 'unknown' ], [ 'head', 21, 24, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a identifier end retains both token units (0.708458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        19,
+        21,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     19,
+  -     20,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 19, 21, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 19, 21, 'ran', 'unknown' ], [ 'head', 19, 20, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a identifier end retains both token units through the git adapter (2027.4565ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        19,
+        21,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     19,
+  -     20,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 19, 21, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 19, 21, 'ran', 'unknown' ], [ 'head', 19, 20, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a identifier end retains both token units (0.326625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     19,
+  -     20,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        19,
+        21,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 19, 21, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 19, 20, 'ran', 'unknown' ], [ 'head', 19, 21, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a identifier end retains both token units through the git adapter (2542.804875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     19,
+  -     20,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        19,
+        21,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 19, 21, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 19, 20, 'ran', 'unknown' ], [ 'head', 19, 21, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a string interior retains both token units (1.276167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        30,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     28,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 30, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 30, 'ran', 'unknown' ], [ 'head', 21, 28, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a string interior retains both token units through the git adapter (1616.909667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        30,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     28,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 30, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 30, 'ran', 'unknown' ], [ 'head', 21, 28, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a string interior retains both token units (0.293ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     28,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        30,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 28, 'ran', 'unknown' ], [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a string interior retains both token units through the git adapter (1584.160917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     28,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        30,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 28, 'ran', 'unknown' ], [ 'head', 21, 30, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a number interior retains both token units (1.372167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        25,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     24,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 25, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 25, 'ran', 'unknown' ], [ 'head', 21, 24, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a number interior retains both token units through the git adapter (1655.55225ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        21,
+        25,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     21,
+  -     24,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 21, 25, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 21, 25, 'ran', 'unknown' ], [ 'head', 21, 24, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a number interior retains both token units (0.454917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     24,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        25,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 25, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 24, 'ran', 'unknown' ], [ 'head', 21, 25, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a number interior retains both token units through the git adapter (1395.784125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     21,
+  -     24,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        21,
+        25,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 21, 25, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 21, 24, 'ran', 'unknown' ], [ 'head', 21, 25, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a identifier interior retains both token units (0.437292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        19,
+        27,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     19,
+  -     26,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 19, 27, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 19, 27, 'ran', 'unknown' ], [ 'head', 19, 26, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ shortening a identifier interior retains both token units through the git adapter (1185.389292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'base',
+        19,
+        27,
+  ...
+      ],
+  -   [
+  -     'head',
+  -     19,
+  -     26,
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 19, 27, 'ran', 'unknown' ] ],
+    expected: [ [ 'base', 19, 27, 'ran', 'unknown' ], [ 'head', 19, 26, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a identifier interior retains both token units (0.242167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     19,
+  -     26,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        19,
+        27,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 19, 27, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 19, 26, 'ran', 'unknown' ], [ 'head', 19, 27, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:73:7
+✖ lengthening a identifier interior retains both token units through the git adapter (1787.105917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     19,
+  -     26,
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+        19,
+        27,
+        'never-ran',
+        'never-rendered'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:79:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 19, 27, 'never-ran', 'never-rendered' ] ],
+    expected: [ [ 'base', 19, 26, 'ran', 'unknown' ], [ 'head', 19, 27, 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:104:3
+✖ EOF newline addition keeps both changed line units when another line also changes (1335.175542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((u) => /line ending/.test(u.why)))
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:104:3
+✖ EOF newline deletion keeps both changed line units when another line also changes (1242.931958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((u) => /line ending/.test(u.why)))
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:104:3
+✖ CRLF to LF keeps both changed line units when another line also changes (1336.250708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((u) => /line ending/.test(u.why)))
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:104:3
+✖ LF to CRLF keeps both changed line units when another line also changes (1440.99175ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((u) => /line ending/.test(u.why)))
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:115:1
+✖ JSON truncation says details are omitted from the artifact and preserves the real gap count (0.893958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(notices.every((g) => /more omitted from report.json/.test(g.reason)))
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:124:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:128:1
+✖ human truncation says omitted details are absent from this report (1.460583ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /J2 gaps truncated: 1 more omitted from this report/. Input:
+
+  '- source gap 0 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-0.mdx`\n' +
+    '- source gap 1 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-1.mdx`\n' +
+    '- source gap 2 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-2.mdx`\n' +
+    '- source gap 3 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-3.mdx`\n' +
+    '- source gap 4 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-4.mdx`\n' +
+    '- source gap 5 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-5.mdx`\n' +
+    '- source gap 6 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-6.mdx`\n' +
+    '- source gap 7 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-7.mdx`\n' +
+    '- source gap 8 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-8.mdx`\n' +
+    '- source gap 9 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-9.mdx`\n' +
+    '- source gap 10 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-10.mdx`\n' +
+    '- source gap 11 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-11.mdx`\n' +
+    '- source gap 12 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-12.mdx`\n' +
+    '- source gap 13 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-13.mdx`\n' +
+    '- source gap 14 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-14.mdx`\n' +
+    '- source gap 15 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-15.mdx`\n' +
+    '- source gap 16 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-16.mdx`\n' +
+    '- source gap 17 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-17.mdx`\n' +
+    '- source gap 18 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-18.mdx`\n' +
+    '- source gap 19 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-19.mdx`\n' +
+    '- source gap 20 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-20.mdx`\n' +
+    '- source gap 21 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-21.mdx`\n' +
+    '- source gap 22 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-22.mdx`\n' +
+    '- source gap 23 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-23.mdx`\n' +
+    '- source gap 24 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-24.mdx`\n' +
+    '- source gap 25 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-25.mdx`\n' +
+    '- source gap 26 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-26.mdx`\n' +
+    '- source gap 27 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-27.mdx`\n' +
+    '- source gap 28 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-28.mdx`\n' +
+    '- source gap 29 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-29.mdx`\n' +
+    '- source gap 30 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-30.mdx`\n' +
+    '- source gap 31 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-31.mdx`\n' +
+    '- source gap 32 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-32.mdx`\n' +
+    '- source gap 33 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-33.mdx`\n' +
+    '- source gap 34 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-34.mdx`\n' +
+    '- source gap 35 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-35.mdx`\n' +
+    '- source gap 36 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-36.mdx`\n' +
+    '- source gap 37 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-37.mdx`\n' +
+    '- source gap 38 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-38.mdx`\n' +
+    '- source gap 39 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-39.mdx`\n' +
+    '- source gap 40 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-40.mdx`\n' +
+    '- source gap 41 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-41.mdx`\n' +
+    '- source gap 42 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-42.mdx`\n' +
+    '- source gap 43 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-43.mdx`\n' +
+    '- source gap 44 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-44.mdx`\n' +
+    '- source gap 45 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-45.mdx`\n' +
+    '- source gap 46 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-46.mdx`\n' +
+    '- source gap 47 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-47.mdx`\n' +
+    '- source gap 48 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-48.mdx`\n' +
+    '- source gap 49 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-49.mdx`\n' +
+    '- source gap 50 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-50.mdx`\n' +
+    '- source gap 51 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-51.mdx`\n' +
+    '- source gap 52 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-52.mdx`\n' +
+    '- source gap 53 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-53.mdx`\n' +
+    '- source gap 54 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-54.mdx`\n' +
+    '- source gap 55 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-55.mdx`\n' +
+    '- source gap 56 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-56.mdx`\n' +
+    '- source gap 57 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-57.mdx`\n' +
+    '- source gap 58 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-58.mdx`\n' +
+    '- source gap 59 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-59.mdx`\n' +
+    '- source gap 60 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-60.mdx`\n' +
+    '- source gap 61 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-61.mdx`\n' +
+    '- source gap 62 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-62.mdx`\n' +
+    '- source gap 63 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-63.mdx`\n' +
+    '- source gap 64 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-64.mdx`\n' +
+    '- source gap 65 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-65.mdx`\n' +
+    '- source gap 66 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-66.mdx`\n' +
+    '- source gap 67 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n' +
+    '- `file-67.mdx`\n' +
+    '- source gap 68 — capture both revisions with \\`captureScriptReach\\` and source maps, retain'... 4699 more characters
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:131:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '- source gap 0 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-0.mdx`\n- source gap 1 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-1.mdx`\n- source gap 2 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-2.mdx`\n- source gap 3 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-3.mdx`\n- source gap 4 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-4.mdx`\n- source gap 5 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-5.mdx`\n- source gap 6 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-6.mdx`\n- source gap 7 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-7.mdx`\n- source gap 8 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-8.mdx`\n- source gap 9 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-9.mdx`\n- source gap 10 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-10.mdx`\n- source gap 11 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-11.mdx`\n- source gap 12 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-12.mdx`\n- source gap 13 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-13.mdx`\n- source gap 14 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-14.mdx`\n- source gap 15 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-15.mdx`\n- source gap 16 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-16.mdx`\n- source gap 17 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-17.mdx`\n- source gap 18 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-18.mdx`\n- source gap 19 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-19.mdx`\n- source gap 20 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-20.mdx`\n- source gap 21 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-21.mdx`\n- source gap 22 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-22.mdx`\n- source gap 23 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-23.mdx`\n- source gap 24 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-24.mdx`\n- source gap 25 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-25.mdx`\n- source gap 26 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-26.mdx`\n- source gap 27 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-27.mdx`\n- source gap 28 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-28.mdx`\n- source gap 29 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-29.mdx`\n- source gap 30 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-30.mdx`\n- source gap 31 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-31.mdx`\n- source gap 32 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-32.mdx`\n- source gap 33 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-33.mdx`\n- source gap 34 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-34.mdx`\n- source gap 35 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-35.mdx`\n- source gap 36 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-36.mdx`\n- source gap 37 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-37.mdx`\n- source gap 38 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-38.mdx`\n- source gap 39 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-39.mdx`\n- source gap 40 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-40.mdx`\n- source gap 41 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-41.mdx`\n- source gap 42 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-42.mdx`\n- source gap 43 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-43.mdx`\n- source gap 44 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-44.mdx`\n- source gap 45 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-45.mdx`\n- source gap 46 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-46.mdx`\n- source gap 47 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-47.mdx`\n- source gap 48 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-48.mdx`\n- source gap 49 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-49.mdx`\n- source gap 50 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-50.mdx`\n- source gap 51 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-51.mdx`\n- source gap 52 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-52.mdx`\n- source gap 53 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-53.mdx`\n- source gap 54 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-54.mdx`\n- source gap 55 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-55.mdx`\n- source gap 56 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-56.mdx`\n- source gap 57 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-57.mdx`\n- source gap 58 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-58.mdx`\n- source gap 59 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-59.mdx`\n- source gap 60 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-60.mdx`\n- source gap 61 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-61.mdx`\n- source gap 62 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-62.mdx`\n- source gap 63 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-63.mdx`\n- source gap 64 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-64.mdx`\n- source gap 65 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-65.mdx`\n- source gap 66 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-66.mdx`\n- source gap 67 — capture both revisions with \\`captureScriptReach\\` and source maps, retaining their git SHAs and sourcesContent\n- `file-67.mdx`\n- source gap 68 — capture both revisions with \\`captureScriptReach\\` and source maps, retain'... 4699 more characters,
+    expected: /J2 gaps truncated: 1 more omitted from this report/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:135:1
+✖ presentation notices never replace the number of actual J2 evidence gaps (0.870833ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /2 run-level gap\(s\)/. Input:
+
+  '- Changed but never matched: 0 rule(s), 0 unmeasured, 0 blind-channel, 2 evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under `reach`; J2: 0 reached, 0 never-rendered, 0 unmeasured, 0 unknown, 1 run-level gap(s) (warn-only)'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:141:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '- Changed but never matched: 0 rule(s), 0 unmeasured, 0 blind-channel, 2 evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under `reach`; J2: 0 reached, 0 never-rendered, 0 unmeasured, 0 unknown, 1 run-level gap(s) (warn-only)',
+    expected: /2 run-level gap\(s\)/,
+    operator: 'match',
+    diff: 'simple'
+  }

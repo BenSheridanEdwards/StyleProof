@@ -41,6 +41,8 @@ export type ReportReach = {
   /** J2 findings always stay warn-only, independently of J1 counts and blocking. */
   scripts: (ScriptUnit & { count?: number })[];
   scriptCounts: Record<ScriptUnit['status'], number>;
+  /** Actual J2 evidence gaps before presentation truncation; notices never add to this count. */
+  scriptGapCount?: number;
   gaps: ReachGap[];
 };
 
@@ -157,6 +159,7 @@ export function assessReachMaps(
     unreadableSheets: result.unreadableSheets,
     scripts: script.units,
     scriptCounts,
+    scriptGapCount: gaps.filter((gap) => gap.join === 'J2').length,
     gaps,
   };
 }
@@ -311,7 +314,9 @@ export function reachSummaryLine(reach: ReportReach): string {
 
 function scriptSummary(reach: ReportReach): string {
   const scripts = reach.scripts ?? [];
-  const gaps = reach.gaps.filter((gap) => gap.join === 'J2').length;
+  const gaps =
+    reach.scriptGapCount ??
+    reach.gaps.filter((gap) => gap.join === 'J2' && !/^J2 (?:gap paths|gaps|units) truncated:/.test(gap.reason)).length;
   const statuses = ['reached', 'never-rendered', 'unmeasured', 'unknown'] as const;
 
   return `; J2: ${statuses.map((status) => `${reach.scriptCounts?.[status] ?? scripts.filter((unit) => unit.status === status).reduce((sum, unit) => sum + (unit.count ?? 1), 0)} ${status}`).join(', ')}, ${gaps} run-level gap(s) (warn-only)`;

@@ -26,14 +26,14 @@ export function gapRecordNotice(gaps: readonly ReachGap[], omitted: number): Scr
     .map((gap) => preview(gap.reason, 120))
     .join('; ');
   return {
-    ...scriptJoinGap(`J2 gaps truncated: ${omitted} more in report.json; first: ${first}`),
+    ...scriptJoinGap(`J2 gaps truncated: ${omitted} more omitted from report.json; first: ${first}`),
     remedy: 'review the remaining J2 evidence gaps; report.json shares a 64 KB J2 detail budget after style findings',
   };
 }
 
 export function gapPathNotice(omitted: number): ScriptJoinGap {
   return {
-    ...scriptJoinGap(`J2 gap paths truncated: ${omitted} more in report.json; full path counts retained`),
+    ...scriptJoinGap(`J2 gap paths truncated: ${omitted} more omitted from report.json; full path counts retained`),
     remedy: 'review the remaining changed paths; report.json shares a 64 KB J2 detail budget after style findings',
   };
 }
@@ -106,10 +106,11 @@ export function scriptGapLines(gaps: readonly ReachGap[]): string[] {
       shownPaths++;
     }
   }
-  if (shownGaps < records.length) lines.push(`- J2 gaps truncated: ${records.length - shownGaps} more in this report.`);
+  if (shownGaps < records.length)
+    lines.push(`- J2 gaps truncated: ${records.length - shownGaps} more omitted from this report.`);
   const hiddenPaths = scriptGapPathCount(gaps) - shownPaths;
   if (hiddenPaths)
-    lines.push(`- J2 gap paths truncated: ${hiddenPaths} more in this report; full path counts retained.`);
+    lines.push(`- J2 gap paths truncated: ${hiddenPaths} more omitted from this report; full path counts retained.`);
   return lines;
 }
 

@@ -14,9 +14,17 @@ source maps, real Chromium, `trackScriptReach`, `captureStyleMap`, and
 style and reach evidence. Every changed unit must have exactly one case owner.
 
 J1 uses `src/rule-reach.ts`. J2 uses `changedScriptRanges` and
-`classifyScriptReach` from `src/` on stored capture evidence. Git/manifest adapter
-and real-browser regression tests independently check comparison SHAs, capture
-roots, source hashes and expression starts.
+`classifyScriptReach` from `src/` on stored capture evidence. The corpus constructs
+one-line patches by hand and judges the head unit (base for a removed line); it
+does not run `readScriptChanges`. Unit and e2e tests cover the real Git/manifest
+adapter, including comparison SHAs, multiline hunks, capture prefixes, patch
+pairing, source hashes and expression starts.
+
+The temporary fixture is a Git repository, so each capture resolves its actual
+`src/base` or `src/head` project-root prefix. The corpus asserts its two expected
+J2 run-level gaps: **unsupported script URL**, one per side. These unmapped-script
+gaps are recorded in the receipt's `j2Gaps`; any additional gap fails the oracle.
+Case statuses judge mapped source units; the run is not reach-complete.
 
 **J3-prototype is separate evidence.** The token-name `classReach` prototype is
 retained for branch-class, module-constant and colliding-constant, but never
@@ -41,6 +49,9 @@ colliding-constant in both scenarios, and branch-class in complete. This is
 the existing runtime-css-in-js case also moved to unknown in both scenarios;
 the render-scope-value and eager-jsx-element cases were newly added. The corrected
 receipt contains eleven unknown cells: five declared and six complete.
+Round four changes no case status: **zero cells moved to unknown**. Resolving the
+temporary Git root removes the two previously unchecked prefix gaps; the two
+unsupported-script gaps remain explicit and asserted.
 
 | Case               | Src J2 declared | Src J2 complete | J3-prototype declared / complete |
 | ------------------ | --------------- | --------------- | -------------------------------- |

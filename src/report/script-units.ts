@@ -51,7 +51,7 @@ const unitCount = (units: (ScriptUnit & { count?: number })[]): number =>
 
 function truncationGap(omitted: number) {
   return {
-    ...scriptJoinGap(`J2 units truncated: ${omitted} more in report.json; full status counts retained`),
+    ...scriptJoinGap(`J2 units truncated: ${omitted} more omitted from report.json; full status counts retained`),
     remedy: 'review the remaining changed source ranges; J2 JSON detail is capped at 64 KB after style findings',
   };
 }

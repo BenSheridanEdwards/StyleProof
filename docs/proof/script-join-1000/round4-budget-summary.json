@@ -1,0 +1,23 @@
+{
+  "findings": 20,
+  "listedFindings": 20,
+  "omittedFindings": 0,
+  "jsonBytes": 68591,
+  "jsonBudget": 450000,
+  "markdownBytes": 8954,
+  "unjudgedPathCount": 5000,
+  "listedGapPaths": 868,
+  "omittedGapPaths": 4132,
+  "gaps": [
+    {
+      "join": "J2",
+      "status": "unmeasured",
+      "kind": "execution",
+      "reason": "J2 gap paths truncated: 4132 more omitted from report.json; full path counts retained",
+      "remedy": "review the remaining changed paths; report.json shares a 64 KB J2 detail budget after style findings"
+    }
+  ],
+  "scriptGapCount": 1,
+  "blocking": 0,
+  "complete": false
+}
