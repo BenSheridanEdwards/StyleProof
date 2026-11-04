@@ -63,9 +63,9 @@ test('report.html covers the report Markdown grammar (#698)', () => {
   assert.match(html, /<ul><li><strong><code>span\.caret<\/code><\/strong> — gray → blue<\/li><\/ul>/);
   assert.match(html, /<details>/);
   assert.match(html, /<summary>Show the property change<\/summary>/);
-  assert.match(html, /<th>Property<\/th><th>Before<\/th><th>After<\/th>/);
-  assert.match(html, /<td><code>color<\/code><\/td>/);
-  assert.doesNotMatch(html, /<td>---<\/td>/, 'table separator row must not render as cells');
+  assert.match(html, /<th[^>]*>Property<\/th><th[^>]*>Before<\/th><th[^>]*>After<\/th>/);
+  assert.match(html, /<td[^>]*><code>color<\/code><\/td>/);
+  assert.doesNotMatch(html, /<td[^>]*>---<\/td>/, 'table separator row must not render as cells');
   assert.match(html, /<hr>/);
   assert.match(html, /<blockquote>\[!NOTE\]<br>Advisory content\.<\/blockquote>/);
   assert.match(html, /<a href="https:\/\/github\.com\/acme\/app\/actions\/runs\/1">View the run<\/a>/);
@@ -233,7 +233,7 @@ test('report.html keeps an escaped `\\|` inside its table cell and code span (no
   );
   assert.match(
     html,
-    /<tr><td><code>font-family<\/code><\/td><td><code>serif<\/code><\/td><td><code>&quot;\|\[Open full diff\]\(javascript:alert%28document.domain%29\)\|&quot;<\/code><\/td><\/tr>/,
+    /<tr[^>]*><td[^>]*><code>font-family<\/code><\/td><td[^>]*><code>serif<\/code><\/td><td[^>]*><code>&quot;\|\[Open full diff\]\(javascript:alert%28document.domain%29\)\|&quot;<\/code><\/td><\/tr>/,
   );
   assert.doesNotMatch(html, /href="javascript:/);
 });
@@ -283,4 +283,50 @@ test('omitted HTML images do not promise complete findings in capped JSON', () =
   const html = renderReportHtml('![Crop](crops/missing.png)', { outDir: '.', maxBytes: 10000 });
   assert.match(html, /1 image omitted/);
   assert.doesNotMatch(html, /report.json holds the full data/);
+});
+
+test('table cells carry escaped plain-text column labels', () => {
+  const html = renderReportHtml(
+    [
+      '| **Rule** | _Change_ | `Gated by` | [Source](https://example.com) |',
+      '| --- | --- | --- | --- |',
+      '| .panel | changed | — | app.css |',
+      '',
+      '| **<img src=x onerror="alert(1)"> & "quoted"** |',
+      '| --- |',
+      '| value |',
+    ].join('\n'),
+  );
+  for (const label of ['Rule', 'Change', 'Gated by', 'Source']) {
+    assert.ok(html.includes(`data-label="${label}"`));
+  }
+  assert.ok(html.includes('data-label="&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &quot;quoted&quot;"'));
+  assert.doesNotMatch(html, /data-label="<|<img src=x/);
+});
+
+for (const columnCount of [1, 2, 3, 4, 5]) {
+  test(`a ${columnCount}-column table ${columnCount >= 4 ? 'gets' : 'does not get'} the wide class`, () => {
+    const row = (value) => '| ' + Array(columnCount).fill(value).join(' | ') + ' |';
+    const html = renderReportHtml([row('Header'), row('---'), row('Value')].join('\n'));
+    assert.equal(/<table[^>]*class="wide-table"/.test(html), columnCount >= 4);
+    assert.equal((html.match(/data-label="Header"/g) ?? []).length, columnCount);
+  });
+}
+
+test('generated Change Reach tables carry all five column labels', async () => {
+  const { assessReachMaps, reachSectionLines } = await import('../dist/report/reach.js');
+  const capture = (hash) => ({
+    reach: { version: 2, scope: 'compared', sheets: ['/app.css'], rules: [{ key: '.panel', hash, sheet: 0 }] },
+    scriptReach: { version: 1, window: 'navigation', status: 'measured', scripts: [] },
+  });
+  const reach = assessReachMaps([capture('before')], [capture('after')], 'warn');
+  const markdown = reachSectionLines(reach).join('\n');
+  assert.match(markdown, /Changed but never matched/);
+  // This renderer does not yet join script execution to changed lines or emit a script table.
+  assert.ok(reach.gaps.some((gap) => gap.join === 'J2' && gap.status === 'unmeasured'));
+  const html = renderReportHtml(markdown);
+  for (const label of ['Rule', 'Change', 'Gated by', 'Source', 'Why']) {
+    assert.ok(html.includes(`data-label="${label}"`));
+  }
+  assert.match(html, /<table[^>]*class="wide-table"/);
 });

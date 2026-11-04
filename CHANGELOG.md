@@ -61,6 +61,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   counts stay unchanged (#1295). Print emulation also stays active at document load
   during script-reach self-checks across data URLs and cross-origin navigations.
 
+- Stack wide HTML report tables into labelled row cards in narrow text columns; wrap long code values in cells.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).

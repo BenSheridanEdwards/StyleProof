@@ -78,7 +78,7 @@ test('unrendered changed CSS rules are listed with their condition and source wi
   assert.deepEqual(reached.result.reportConsistency, plain.result.reportConsistency);
   assert.ok(plain.md.startsWith(reached.md.split('\n\n**Reach incomplete**')[0]), 'headline stays unchanged');
   assert.match(reached.html, /<h2[^>]*>Changed but never matched<\/h2>/);
-  assert.match(reached.html, /<td><code>\.panel--fault<\/code><\/td>/);
+  assert.match(reached.html, /<td[^>]*><code>\.panel--fault<\/code><\/td>/);
 });
 
 test('gate holds never-rendered changes without claiming a clean computed-style result', (t) => {
@@ -122,7 +122,7 @@ test('outside-only changes stay unmeasured in reports and block only the opt-in 
           `| \`.ignored\` | ${change} | — | \`/app.css\` | matched only elements StyleProof does not compare`,
         ),
       );
-      assert.match(output.html, /<td><code>\.ignored<\/code><\/td>/);
+      assert.match(output.html, /<td[^>]*><code>\.ignored<\/code><\/td>/);
       assert.doesNotMatch(output.md, /every changed served CSS rule|Reach complete/);
       if (changeReach === 'gate') {
         assert.match(output.md, /✗ \*\*Reach gate\*\*/);

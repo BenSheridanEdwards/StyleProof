@@ -128,11 +128,13 @@ function renderTable(rows: string[]): string {
   const isSeparator = (cells: string[]) => cells.length > 0 && cells.every((cell) => TABLE_SEPARATOR_CELL.test(cell));
   const [header, ...rest] = rows.map(cellsOf);
   const body = rest.filter((cells) => !isSeparator(cells));
-  const thead = `<thead><tr>${header.map((cell) => `<th>${inline(cell)}</th>`).join('')}</tr></thead>`;
+  // Strip only rendered tags: inline() has already escaped the label for an attribute.
+  const labels = header.map((cell) => inline(cell).replace(/<[^>]*>/g, ''));
+  const thead = `<thead role="rowgroup"><tr role="row">${header.map((cell) => `<th role="columnheader" scope="col">${inline(cell)}</th>`).join('')}</tr></thead>`;
   const tbody = body.length
-    ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
+    ? `<tbody role="rowgroup">${body.map((cells) => `<tr role="row">${cells.map((cell, index) => `<td role="cell" data-label="${labels[index] ?? ''}">${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
     : '';
-  return `<table>${thead}${tbody}</table>`;
+  return `<table${header.length >= 4 ? ' class="wide-table"' : ''} role="table">${thead}${tbody}</table>`;
 }
 
 type Block = { html: string; next: number };
@@ -204,6 +206,20 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   const maxBytes = options?.maxBytes ?? 2_000_000;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('HTML byte budget must be a positive integer');
   const body = renderBlocks(markdown.split('\n')).join('\n');
+  // Reports without wide tables need no card CSS, preserving room for findings under small byte caps.
+  const wideTableStyles = body.includes('class="wide-table"')
+    ? `
+  @container (max-width: 560px) {
+    .wide-table, .wide-table tbody, .wide-table tr, .wide-table td { display: block; }
+    .wide-table thead { position: absolute; inline-size: 1px; block-size: 1px;
+      overflow: clip; clip-path: inset(50%); white-space: nowrap; }
+    .wide-table tbody { display: grid; gap: 12px; }
+    .wide-table tbody tr { border: 1px solid oklch(0.881 0.014 243); border-radius: 6px; padding: 6px 0; }
+    .wide-table td { border: 0; padding: 4px 12px; }
+    .wide-table td::before { content: attr(data-label); margin-inline-end: 8px;
+      color: oklch(0.496 0.013 248); font-size: 0.8em; font-weight: 600; }
+  }`
+    : '';
   let page = `<!doctype html>
 <html lang="en">
 <head>
@@ -214,14 +230,16 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   :root { color-scheme: light; }
   body { margin: 0; color: #1f2328; background: #fff;
     font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  main { container-type: inline-size; max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
   h2 { border-bottom: 1px solid #d1d9e0; padding-bottom: 6px; }
   h3 { margin-top: 28px; }
   img { max-width: 100%; height: auto; border: 1px solid #d1d9e0; border-radius: 6px; }
   table { border-collapse: collapse; margin: 8px 0 16px; }
-  th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
+  th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; overflow-wrap: anywhere; }
   th { background: #f6f8fa; }
   code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  th code, td code { overflow-wrap: anywhere; }
+${wideTableStyles}
   details { margin: 8px 0; }
   summary { cursor: pointer; color: #0969da; }
   sub { color: #59636e; }
