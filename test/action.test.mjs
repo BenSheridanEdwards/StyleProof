@@ -4,10 +4,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import test from 'node:test';
-import { readMapManifest } from '../dist/map-store.js';
+import {
+  readMapManifest,
+  MAX_CAPTURE_EVIDENCE_FILES,
+  MAX_CAPTURE_EVIDENCE_FILE_BYTES,
+  MAX_CAPTURE_EVIDENCE_TOTAL_BYTES,
+} from '../dist/map-store.js';
 import { makeMap, writeCapture } from './helpers.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
@@ -206,6 +212,71 @@ function certifyingVerdictReceipt(overrides = {}) {
     ...overrides,
   };
 }
+
+test('Action source-binding validator accepts runtime-only only with both sides observed', () => {
+  const program = actionReportMergeScript();
+  const validators = program.slice(
+    program.indexOf('const exactKeys ='),
+    program.indexOf('if (!validSourceBinding(diff.sourceBinding'),
+  );
+  const captured = { algorithm: 'sha256', digest: 'c'.repeat(64), fileCount: 2, mapCount: 1, byteCount: 4 };
+  const empty = {
+    algorithm: 'sha256',
+    digest: 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd',
+    fileCount: 0,
+    mapCount: 0,
+    byteCount: 0,
+  };
+  for (const missing of [null, 'before', 'after', 'both']) {
+    const evidence = {
+      version: 1,
+      before: missing === 'before' || missing === 'both' ? empty : captured,
+      after: missing === 'after' || missing === 'both' ? empty : captured,
+    };
+    const receipt = { evidenceBinding: evidence };
+    const validate = new Function(
+      'isDeepStrictEqual',
+      'process',
+      'diff',
+      'generated',
+      'MAX_CAPTURE_EVIDENCE_FILES',
+      'MAX_CAPTURE_EVIDENCE_FILE_BYTES',
+      'MAX_CAPTURE_EVIDENCE_TOTAL_BYTES',
+      `${validators}\nreturn validSourceBinding;`,
+    )(
+      isDeepStrictEqual,
+      { env: { STYLEPROOF_EXPECTED_BASE_SHA: 'a'.repeat(40), STYLEPROOF_EXPECTED_HEAD_SHA: 'b'.repeat(40) } },
+      receipt,
+      receipt,
+      MAX_CAPTURE_EVIDENCE_FILES,
+      MAX_CAPTURE_EVIDENCE_FILE_BYTES,
+      MAX_CAPTURE_EVIDENCE_TOTAL_BYTES,
+    );
+    const binding = {
+      status: 'bound',
+      before: {
+        expected: 'a'.repeat(40),
+        observed: evidence.before === empty ? null : 'a'.repeat(40),
+        result: evidence.before === empty ? 'no-capture' : 'matched',
+      },
+      after: {
+        expected: 'b'.repeat(40),
+        observed: evidence.after === empty ? null : 'b'.repeat(40),
+        result: evidence.after === empty ? 'no-capture' : 'matched',
+      },
+    };
+    for (const compatibility of ['matched', 'runtime-only', 'not-applicable', 'unknown']) {
+      assert.equal(
+        validate({ ...binding, compatibility }, evidence),
+        missing === null
+          ? compatibility === 'matched' || compatibility === 'runtime-only'
+          : compatibility === 'not-applicable',
+        `${compatibility}, missing=${missing}`,
+      );
+    }
+    assert.equal(validate({ ...binding, status: 'unverified', compatibility: 'runtime-only' }, evidence), false);
+  }
+});
 
 test('production diff and report receipts pass through the exact Action merge program', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-receipts-'));
