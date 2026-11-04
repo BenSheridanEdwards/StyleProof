@@ -1,32 +1,31 @@
 ## 🗺️ StyleProof report
 
-**1 change needs review**
+**1 visible element addition/removal needs review**
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `home @ 320`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
+_Approve all changes clears STYLE_REVIEW_REQUIRED for these structure elevations (with other reviewable changes)._
 
-**What changed**
+🧱 **1 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
 
-- `home @ 320` — 🆕 new surface, no baseline
+---
 
-## One-sided pages, states, or surfaces — review first
+## 📝 Content and structure changes
 
-### `home@320` · new surface <!-- styleproof-new -->
+_1 content/structure change(s). **Visible element additions/removals (1) are reviewable** and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
 
-_home @ 320_
+### `home@320` · 1 content/structure change(s)
 
-![new surface — after](crops/home-320-1-new.png)
+**`button.action`**
 
-<sub>after · home @ 320</sub>
+- element added
 
-_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
+_No distinct before/after crop for this element added (the cropped region matches on both screenshots). The element itself was added — this is not a claim that the change has no visible effect._
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
 
 **Certification**
-- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
 
 </details>
 
-<!-- styleproof-receipt head-sha:459895a522eaa3b90cbbb9a849fc5e55791f8627 run-id:41898486532 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:4f0b0837f57fb794b24c743103bb1988bb06ffb1 run-id:41898620029 run-attempt:1 -->
