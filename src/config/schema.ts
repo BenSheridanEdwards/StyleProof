@@ -77,7 +77,7 @@ export type ChangeReachLevel = 'warn' | 'gate';
 export type StyleProofConfig = {
   /** 'advisory' keeps style findings advisory; boolean values do not change the job conclusion (10.0.0). */
   blocking?: boolean | 'advisory';
-  /** Require explicit reviewer approval for visual changes (Action input). */
+  /** Informational: the Action reads its own `require-approval` input, not this field. */
   requireApproval?: boolean;
   /** Unacknowledged inventory removals block unless explicitly false. */
   gateInventoryRemovals?: boolean;
