@@ -108,8 +108,8 @@ const cli = defineCli({
     },
   },
   notes: [
-    'Playwright uses the project @playwright/test CLI when PATH has no runnable executable.',
-    'Windows batch shims use the project CLI via Node.',
+    'Playwright runs the project @playwright/test CLI via Node when it is installed;',
+    'PATH is used only when the project has none (not on Windows, where batch shims cannot run).',
     '',
     'Config search: start folder, then trusted parents through git root. Trusted parent folders on POSIX are owned by you or root and are not world-writable. Windows outside git searches only the start folder.',
     'The nearest styleproof.config.ts (ESM in any package type) or .mjs/.js/.json supplies project defaults — "spec", "dirtyAllow",',

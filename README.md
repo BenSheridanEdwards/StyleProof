@@ -299,7 +299,7 @@ after upgrading.
 
 StyleProof requires Node 22.13 or later, locally and in CI.
 
-Capture and CI browser installation use the project's `@playwright/test/cli` when PATH has no runnable Playwright executable. On Windows, batch shims cannot be spawned directly, so the project CLI runs with Node.
+Capture and CI browser installation run the project's `@playwright/test/cli` with Node when it resolves from the project directory. They fall back to Playwright on PATH only when the project CLI cannot be resolved. On Windows that fallback cannot run batch shims, so install `@playwright/test` in the project.
 
 ### Upgrading to 8.0.0
 
