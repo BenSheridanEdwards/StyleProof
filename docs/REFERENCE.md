@@ -93,7 +93,8 @@ fields still describe each region's own frame. Matching section crops are reused
 other region crops remain available to JSON consumers, subject to the existing
 image budgets. Only the representative crops appear in the report body.
 
-The new optional `surfaces[].sections[]` describes the report layout:
+The new optional `surfaces[].sections[]` describes the report layout when
+identical elements share a section; it is omitted for unchanged layouts:
 
 - `paths`: all elements covered by the section.
 - `regionIndexes`: zero-based indexes into the unchanged legacy `regions` list.

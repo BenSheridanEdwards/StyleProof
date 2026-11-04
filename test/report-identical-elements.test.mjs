@@ -252,6 +252,7 @@ test('mixed-change overlap regions retain the existing section behavior', () => 
   assert.equal(sections(md).length, 1);
   assert.equal(json.surfaces[0].regions[0].paths.length, 3);
   assert.equal(json.surfaces[0].regions[0].elements, undefined);
+  assert.equal(json.surfaces[0].sections, undefined);
 });
 
 test('path tails are the shortest unique suffix across the whole element list', () => {

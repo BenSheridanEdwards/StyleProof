@@ -563,7 +563,13 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const unclaimed = spacing.filter((change) => !claimed.has(change));
   return {
     md: [...rendered.flatMap((r) => r.md), ...outsideMd, ...spacingLines(unclaimed)],
-    json: { ...json, regions, sections, ...spacingJson(unclaimed), classification: sd.classification },
+    json: {
+      ...json,
+      regions,
+      ...(groups.some((group) => group.elements) ? { sections } : {}),
+      ...spacingJson(unclaimed),
+      classification: sd.classification,
+    },
     findingCount,
   };
 }
