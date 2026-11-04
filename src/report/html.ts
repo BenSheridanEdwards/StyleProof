@@ -128,16 +128,12 @@ function renderTable(rows: string[]): string {
   const isSeparator = (cells: string[]) => cells.length > 0 && cells.every((cell) => TABLE_SEPARATOR_CELL.test(cell));
   const [header, ...rest] = rows.map(cellsOf);
   const body = rest.filter((cells) => !isSeparator(cells));
-  // Leave short spans inline; only long unbroken values need a bounded box to wrap within.
-  const cellHtml = (cell: string) =>
-    inline(cell).replace(/<code>([^<]*)<\/code>/g, (span, value: string) =>
-      /\S{61}/.test(value) ? `<code class="long-code">${value}</code>` : span,
-    );
   const thead = `<thead><tr>${header.map((cell) => `<th>${inline(cell)}</th>`).join('')}</tr></thead>`;
   const tbody = body.length
-    ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${cellHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
+    ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
     : '';
-  return `<table class="table-scroll" role="table" tabindex="0" aria-label="${escapeHtml(header.join(', '))}">${thead}${tbody}</table>`;
+  const label = header.length >= 4 ? ` aria-label="${escapeHtml(header.join(', '))}"` : '';
+  return `<table class="table-scroll" role="table"${label}>${thead}${tbody}</table>`;
 }
 
 type Block = { html: string; next: number };
@@ -233,9 +229,7 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
     background-repeat: no-repeat;
     background-attachment: local, local, scroll, scroll; }
   .table-scroll:focus-visible { outline: 2px solid oklch(0.55 0.18 255); outline-offset: 2px; }
-  .table-scroll code { white-space: nowrap; }
-  .table-scroll .long-code { display: inline-block; inline-size: max-content;
-    max-inline-size: 40ch; overflow-wrap: anywhere; white-space: normal; }
+  .table-scroll code { overflow-wrap: anywhere; }
   table { border-collapse: collapse; }
   th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
   th { background: #f6f8fa; }
