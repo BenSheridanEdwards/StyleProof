@@ -51,20 +51,23 @@ test('the PR comment slice names each changed element and its plain-English chan
     }),
   );
   assert.match(slice, /\*\*What changed\*\*/);
-  assert.match(slice, /^- `home @ 900` — /m);
-  assert.match(slice, /\*\*`button\.cta`\*\* background blue \(`#2563eb`\) → red \(`#dc2626`\)/);
-  assert.match(slice, /\*\*`span\.caret`\*\* text gray \(`#9ca3af`\) → blue \(`#2563eb`\)/);
-  assert.deepEqual(json.digest, [
-    {
-      surface: 'home@900',
-      status: 'changed',
-      elements: [
-        { name: 'button.cta', phrase: 'background blue (`#2563eb`) → red (`#dc2626`)' },
-        { name: 'span.caret', phrase: 'text gray (`#9ca3af`) → blue (`#2563eb`)' },
-      ],
-      more: 0,
-    },
-  ]);
+  assert.doesNotMatch(slice, /home @ 900/);
+  assert.match(slice, /^- Button changed background \(1 button\)$/m);
+  assert.match(slice, /^- Caret changed colour \(1 element\)$/m);
+  assert.deepEqual(
+    json.digest.map(({ surface, status, elements, more }) => ({ surface, status, elements, more })),
+    [
+      {
+        surface: 'home@900',
+        status: 'changed',
+        elements: [
+          { name: 'button.cta', phrase: 'background blue (`#2563eb`) → red (`#dc2626`)' },
+          { name: 'span.caret', phrase: 'text gray (`#9ca3af`) → blue (`#2563eb`)' },
+        ],
+        more: 0,
+      },
+    ],
+  );
 });
 
 test('map-supplied values cannot inject lines, approval boxes, receipts, or mentions through the What changed block', () => {
@@ -90,13 +93,9 @@ test('map-supplied values cannot inject lines, approval boxes, receipts, or ment
   assert.doesNotMatch(slice, /^\s*- \[[ xX]\] \*\*Approve all changes\*\*/m, 'no injected approval box line');
   assert.doesNotMatch(slice, /<!-- styleproof-receipt/, 'no injected receipt marker');
   assert.doesNotMatch(slice, /@owner/, 'mentions are neutralised');
-  assert.match(slice, /display block → x - \\\[x\\\] \\\*\\\*Approve all changes\\\*\\\* &lt;\\!-- styleproof-receipt/);
-  assert.match(
-    slice,
-    /\*\*`span\.caret`\*\* text black \(`#000000`\) → red \(`#ff0000`\)/,
-    'hostile token names are dropped',
-  );
-  assert.match(slice, /\*\*`-owner`\*\* text black/, 'hostile path labels stay inert');
+  assert.match(slice, /Button changed layout/);
+  assert.match(slice, /Caret changed colour/);
+  assert.doesNotMatch(slice, /#000000|#ff0000/);
   assert.equal(json.digest[0].elements.length, 3);
 });
 
@@ -116,13 +115,13 @@ test('a map-supplied interaction-state name cannot carry a receipt marker or men
       },
     }),
   );
-  assert.match(slice, /\*\*`button\.cta`\*\* interaction states changed: `:hover-+ styleproof-receipt head-sha-x/);
+  assert.match(slice, /Button got a new interaction colour/);
   assert.doesNotMatch(slice, /<!-- styleproof-receipt/);
   assert.doesNotMatch(slice, /@owner/);
 });
 
-test('a token retune that keeps its token name still shows both hex values', () => {
-  const { slice } = report(
+test('a token retune stays value-free above the cut and retains the values below it', () => {
+  const { slice, md } = report(
     pairFixture({
       surface: 'home@900',
       before: pageMap({
@@ -135,7 +134,10 @@ test('a token retune that keeps its token name still shows both hex values', () 
       }),
     }),
   );
-  assert.match(slice, /\*\*`button\.cta`\*\* background `brand-red` \(`#dc2626`\) → `brand-red` \(`#b91c1c`\)/);
+  assert.match(slice, /Button changed background/);
+  assert.doesNotMatch(slice, /brand-red|#dc2626|#b91c1c/);
+  assert.match(md, /#dc2626/);
+  assert.match(md, /#b91c1c/);
 });
 
 test('every changed element and every one-sided surface is named or counted, never silently capped', () => {
@@ -176,11 +178,13 @@ test('every changed element and every one-sided surface is named or counted, nev
   for (const row of json.digest) assert.ok(row.more >= 0);
   assert.match(slice, /^- `legacy @ 900` — 🗑️ removed surface$/m);
   assert.match(slice, /^- `pricing @ 900` — 🆕 new surface, no baseline$/m);
-  assert.match(slice, /· \+2 more element\(s\)$/m);
-  assert.match(slice, /^- …and 3 more changes$/m);
+  assert.match(slice, /Card 4 changed colour on home \(1 element\)/);
+  assert.match(slice, /Legal was added on home \(1 element\)/);
+  assert.match(slice, /^- …and 7 more changes$/m);
+  assert.match(slice, /\*\*17 changes need review\*\* · 17 distinct changes on 13 surfaces/);
 });
 
-test('a global chrome row keeps the every-surface-that-renders-it qualifier', () => {
+test('a global chrome row names the changed surfaces and preserves its JSON qualifier', () => {
   const dirs = tmpDirs();
   const nav = (color) => ({
     'html > body > nav': { tag: 'nav', cls: 'rail', rect: [0, 0, 400, 40] },
@@ -192,11 +196,7 @@ test('a global chrome row keeps the every-surface-that-renders-it qualifier', ()
   }
   const { slice, json } = report(dirs);
 
-  assert.match(
-    slice,
-    /· 🧱 global chrome, changed on every surface base that renders it — \*\*`a\.link`\*\* text black/,
-  );
-  assert.doesNotMatch(slice.slice(slice.indexOf('**What changed**')), /all \d+ surface/);
+  assert.match(slice, /Links changed colour on home and settings \(2 links\)/);
   assert.equal(json.digest[0].chrome, true);
 });
 
@@ -221,4 +221,169 @@ test('an element whose phrase would flood the comment is still named, as restyle
 test('plain-English phrases escape map-supplied CSS values below the cut too', () => {
   const [line] = describeChange([{ label: 'div.box', props: [{ prop: 'opacity', before: '1', after: '0*5 @team' }] }]);
   assert.equal(line, '**`div.box`** — opacity 1 → 0\\*5 @\u200bteam');
+});
+
+test('the Action cut contains one human sentence for three identical card title changes', () => {
+  const titles = (color) =>
+    pageMap({
+      extra: Object.fromEntries(
+        [1, 2, 3].map((index) => [
+          `body > h2:nth-child(${index})`,
+          { tag: 'h2', cls: 'card-title', rect: [20, index * 80, 160, 40], style: { color } },
+        ]),
+      ),
+    });
+  const { slice, md, json } = report(
+    pairFixture({
+      surface: 'index@1280',
+      before: titles('red'),
+      after: titles('blue'),
+    }),
+  );
+  assert.deepEqual(
+    slice.split('\n').filter((line) => line.startsWith('- ')),
+    ['- Card titles changed colour (3 elements)'],
+  );
+  assert.match(slice, /^\*\*1 change needs review\*\* · 1 distinct change on 1 surface/m);
+  assert.doesNotMatch(slice, /card-title|index @|\bred\b|\bblue\b|### /);
+  assert.match(md, /^### /m, 'the detail boundary still exists for action.yml');
+  assert.deepEqual(json.digest[0].sentences, ['Card titles changed colour (3 elements)']);
+});
+
+test('surface names appear only for several changed product bases, not extra widths or live variants', () => {
+  for (const [surfaces, expected] of [
+    [['checkout@390', 'checkout@900'], 'Button changed colour (1 button)'],
+    [['checkout@900', 'checkout-loaded@900'], 'Button changed colour (1 button)'],
+    [['checkout@900', 'account@900'], 'Buttons changed colour on account and checkout (2 buttons)'],
+  ]) {
+    const dirs = tmpDirs();
+    for (const surface of surfaces) {
+      const metadata = surface.startsWith('checkout-loaded')
+        ? { surfaceKey: 'checkout', variantKey: 'loaded', variantKind: 'live-state' }
+        : undefined;
+      writeCapture(dirs.beforeDir, surface, { ...pageMap({ button: { color: 'red' } }), metadata });
+      writeCapture(dirs.afterDir, surface, { ...pageMap({ button: { color: 'blue' } }), metadata });
+    }
+    const { slice } = report(dirs);
+    assert.match(slice, new RegExp(`^- ${expected.replace(/[()]/g, '\\$&')}$`, 'm'));
+  }
+});
+
+test('identical visible sentences in separate change groups merge before the Action cut and row cap', () => {
+  const dirs = tmpDirs();
+  for (let index = 1; index <= 12; index++) {
+    const surface = `home@${400 + index * 10}`;
+    const color = `rgb(${index}, 0, 0)`;
+    writeCapture(dirs.beforeDir, surface, pageMap({ button: { color: 'red' } }));
+    writeCapture(dirs.afterDir, surface, pageMap({ button: { color } }));
+  }
+  const { slice, json } = report(dirs);
+  const bullets = slice.split('\n').filter((line) => line.startsWith('- '));
+  assert.deepEqual(bullets, ['- Button changed colour (1 button)']);
+  assert.equal(new Set(bullets).size, bullets.length);
+  assert.equal(json.digest.length, 12, 'legacy change-group rows remain available');
+  assert.deepEqual(
+    json.digest.flatMap((row) => row.sentences),
+    ['Button changed colour (1 button)'],
+  );
+  assert.ok(json.digest.every((row) => row.elements.length === 1 && row.more === 0));
+});
+
+test('different value changes across widths count each element path once per surface base', () => {
+  const titles = (color) =>
+    makeMap({
+      elements: Object.fromEntries(
+        [1, 2, 3].map((index) => [
+          `body > h2:nth-child(${index})`,
+          { tag: 'h2', cls: 'card-title', rect: [20, index * 80, 160, 40], style: { color } },
+        ]),
+      ),
+    });
+  for (const bases of [['cards'], ['cards', 'catalog']]) {
+    const dirs = tmpDirs();
+    for (const base of bases) {
+      for (const [width, color] of [
+        [390, 'red'],
+        [1280, 'blue'],
+      ]) {
+        writeCapture(dirs.beforeDir, `${base}@${width}`, titles('black'));
+        writeCapture(dirs.afterDir, `${base}@${width}`, titles(color));
+      }
+    }
+    const { slice, json } = report(dirs);
+    const where = bases.length === 1 ? '' : ' on cards and catalog';
+    const expected = `Card titles changed colour${where} (${3 * bases.length} elements)`;
+    assert.deepEqual(
+      slice.split('\n').filter((line) => line.startsWith('- ')),
+      [`- ${expected}`],
+    );
+    assert.deepEqual(
+      json.digest.flatMap((row) => row.sentences),
+      [expected],
+    );
+    assert.match(slice, /\*\*1 change needs review\*\* · 1 distinct change/);
+  }
+});
+
+test('three distinct sentences in one signature group agree with the headline', () => {
+  const elements = (after) => ({
+    'body > h2': { tag: 'h2', cls: 'card-title', rect: [0, 0, 100, 40], style: { color: after ? 'red' : 'black' } },
+    'body > p': { tag: 'p', cls: 'card-body', rect: [0, 80, 100, 40], style: { padding: after ? '16px' : '8px' } },
+    'body > nav > a': { tag: 'a', cls: 'nav-link', rect: [0, 160, 100, 40], style: { margin: after ? '16px' : '8px' } },
+  });
+  const { slice, json } = report(
+    pairFixture({
+      surface: 'cards@900',
+      before: makeMap({ elements: elements(false) }),
+      after: makeMap({ elements: elements(true) }),
+    }),
+  );
+  const sentences = json.digest.flatMap((row) => row.sentences);
+  assert.equal(sentences.length, 3);
+  assert.match(slice, /\*\*3 changes need review\*\* · 3 distinct changes on 1 surface/);
+  assert.equal(slice.split('\n').filter((line) => line.startsWith('- ')).length, 3);
+});
+
+test('partially overlapping element paths across widths are counted as a union', () => {
+  const dirs = tmpDirs();
+  for (const [width, indices, color] of [
+    [390, [1, 2], 'red'],
+    [1280, [2, 3], 'blue'],
+  ]) {
+    const elements = (value) =>
+      Object.fromEntries(
+        indices.map((index) => [
+          `body > h2:nth-child(${index})`,
+          { tag: 'h2', cls: 'card-title', rect: [0, index * 60, 100, 40], style: { color: value } },
+        ]),
+      );
+    writeCapture(dirs.beforeDir, `cards@${width}`, makeMap({ elements: elements('black') }));
+    writeCapture(dirs.afterDir, `cards@${width}`, makeMap({ elements: elements(color) }));
+  }
+  const { slice } = report(dirs);
+  assert.deepEqual(
+    slice.split('\n').filter((line) => line.startsWith('- ')),
+    ['- Card titles changed colour (3 elements)'],
+  );
+});
+
+test('the headline counts sentences omitted by the ten-line cap', () => {
+  const elements = (color) =>
+    Object.fromEntries(
+      Array.from({ length: 12 }, (_, index) => [
+        `body > h2:nth-child(${index + 1})`,
+        { tag: 'h2', cls: `title-${index + 1}`, rect: [0, index * 40, 100, 30], style: { color } },
+      ]),
+    );
+  const { slice, json } = report(
+    pairFixture({
+      surface: 'cards@900',
+      before: makeMap({ elements: elements('black') }),
+      after: makeMap({ elements: elements('red') }),
+    }),
+  );
+  assert.equal(json.digest.flatMap((row) => row.sentences).length, 12);
+  assert.match(slice, /\*\*12 changes need review\*\* · 12 distinct changes on 1 surface/);
+  assert.equal(slice.split('\n').filter((line) => line.startsWith('- ')).length, 11);
+  assert.match(slice, /^- …and 2 more changes$/m);
 });

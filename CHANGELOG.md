@@ -51,6 +51,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   An unavailable shared baseline skips the form sweep, and isolated form Typed OM
   proof cannot erase legacy evidence. Invalid input types follow the browser's text fallback.
 
+- Report summaries count distinct elements across widths and groups, with one plain-English sentence per change and matching headline counts.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).
