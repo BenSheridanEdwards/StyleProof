@@ -145,11 +145,7 @@ function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
     pick('head').map((c) => c.map),
     changes,
   );
-  assert.deepEqual(
-    script.gaps.map(({ side, reason }) => ({ side, reason })),
-    SIDES.map((side) => ({ side, reason: `${side} script evidence: unsupported script URL` })),
-    'corpus J2 evidence must have only its explicitly expected unsupported-script gaps',
-  );
+  assert.deepEqual(script.gaps, [], 'corpus J2 evidence must have no unchecked run-level gaps');
 
   const evidence = script.units.find((unit) => unit.side === side);
   const J2 = evidence?.execution ?? 'unmeasured';
@@ -263,7 +259,7 @@ const lines = [
   `  declared spec (${corpus.scenarios.declared.join(', ')}): today's diff shows ${shown('declared')}/${visual.length} visual changes`,
   `  reach joins name ${named.length}/${missed.length} of the misses (${missed.length - named.length} pinned residual)`,
   `  complete spec (${corpus.scenarios.complete.length} surfaces): today's diff shows ${shown('complete')}/${visual.length}`,
-  `  J2 expected run-level gaps: unsupported script URL on base and head (asserted; not reach-complete)`,
+  `  J2 run-level gaps: none (asserted for every source unit; not reach-complete)`,
   ``,
 ];
 for (const r of results)

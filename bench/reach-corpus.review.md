@@ -21,9 +21,9 @@ adapter, including comparison SHAs, multiline hunks, capture prefixes, patch
 pairing, source hashes and expression starts.
 
 The temporary fixture is a Git repository, so each capture resolves its actual
-`src/base` or `src/head` project-root prefix. The corpus asserts its two expected
-J2 run-level gaps: **unsupported script URL**, one per side. These unmapped-script
-gaps are recorded in the receipt's `j2Gaps`; any additional gap fails the oracle.
+`src/base` or `src/head` project-root prefix. After rebasing onto the injected-script
+capture fix (#1287), the corpus asserts **zero J2 run-level gaps** for every source
+unit. The receipt's `j2Gaps` records the empty lists; any gap fails the oracle.
 Case statuses judge mapped source units; the run is not reach-complete.
 
 **J3-prototype is separate evidence.** The token-name `classReach` prototype is
@@ -52,6 +52,9 @@ receipt contains eleven unknown cells: five declared and six complete.
 Round four changes no case status: **zero cells moved to unknown**. Resolving the
 temporary Git root removes the two previously unchecked prefix gaps; the two
 unsupported-script gaps remain explicit and asserted.
+After the round-five rebase, #1287 excludes those injected scripts and removes
+both unsupported-script gaps. No case status changes; unknown counts stay five
+declared and six complete.
 
 | Case               | Src J2 declared | Src J2 complete | J3-prototype declared / complete |
 | ------------------ | --------------- | --------------- | -------------------------------- |

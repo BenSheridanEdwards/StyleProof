@@ -316,7 +316,12 @@ function scriptSummary(reach: ReportReach): string {
   const scripts = reach.scripts ?? [];
   const gaps =
     reach.scriptGapCount ??
-    reach.gaps.filter((gap) => gap.join === 'J2' && !/^J2 (?:gap paths|gaps|units) truncated:/.test(gap.reason)).length;
+    reach.gaps.reduce((count, gap) => {
+      if (gap.join !== 'J2') return count;
+      const omitted = gap.reason.match(/^J2 gaps truncated: (\d+)\b/);
+      if (omitted) return count + Number(omitted[1]);
+      return count + (/^J2 (?:gap paths|gaps|units) truncated:/.test(gap.reason) ? 0 : 1);
+    }, 0);
   const statuses = ['reached', 'never-rendered', 'unmeasured', 'unknown'] as const;
 
   return `; J2: ${statuses.map((status) => `${reach.scriptCounts?.[status] ?? scripts.filter((unit) => unit.status === status).reduce((sum, unit) => sum + (unit.count ?? 1), 0)} ${status}`).join(', ')}, ${gaps} run-level gap(s) (warn-only)`;

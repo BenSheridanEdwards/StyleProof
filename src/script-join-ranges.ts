@@ -46,15 +46,13 @@ function positionAt(source: Source, offset: number): SourcePosition {
 }
 
 function tokenRange(line: string, start: number, end: number): [number, number] {
-  if (start === end) return [start, end];
-
   let from = start,
     to = end;
 
   for (const token of line.matchAll(TOKEN)) {
     const right = token.index + token[0].length;
 
-    if (token.index < end && start < right) {
+    if (start === end ? token.index < start && start < right : token.index < end && start < right) {
       from = Math.min(from, token.index);
       to = Math.max(to, right);
     }
@@ -95,6 +93,12 @@ function changedColumns(before: string, after: string): { base: [number, number]
 
   const insertion = start === baseEnd || start === headEnd;
 
+  if (
+    (base[0] < base[1] && !before.slice(...base).match(TOKEN)) ||
+    (head[0] < head[1] && !after.slice(...head).match(TOKEN))
+  )
+    return undefined;
+
   if (!insertion && (!singleToken(before.slice(...base)) || !singleToken(after.slice(...head)))) return undefined;
 
   return { base, head };
@@ -109,9 +113,9 @@ function changedLine(
   unmeasuredReason?: string,
 ): ScriptChange[] {
   const text = source.lines[gitLine - 1] ?? '';
-  const [start, end] = columns ?? [0, text.length];
+  const lineScope = !columns || columns[0] === columns[1];
+  const [start, end] = lineScope ? [0, text.length] : columns;
 
-  if (columns && start === end) return [];
   const offset = source.gitStarts[gitLine - 1];
 
   return [
@@ -122,7 +126,7 @@ function changedLine(
       contentHash: source.hash,
       text,
       ...(unmeasuredReason ? { unmeasuredReason } : {}),
-      ...(columns ? {} : { changeScope: 'line' as const }),
+      ...(lineScope ? { changeScope: 'line' as const } : {}),
     },
   ];
 }

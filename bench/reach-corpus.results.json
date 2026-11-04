@@ -1,32 +1,10 @@
 {
-  "generated": "2026-11-04T17:55:10.779Z",
+  "generated": "2026-11-04T19:28:55.274Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "j2Gaps": {
-    "declared": [
-      {
-        "side": "base",
-        "status": "unmeasured",
-        "reason": "base script evidence: unsupported script URL"
-      },
-      {
-        "side": "head",
-        "status": "unmeasured",
-        "reason": "head script evidence: unsupported script URL"
-      }
-    ],
-    "complete": [
-      {
-        "side": "base",
-        "status": "unmeasured",
-        "reason": "base script evidence: unsupported script URL"
-      },
-      {
-        "side": "head",
-        "status": "unmeasured",
-        "reason": "head script evidence: unsupported script URL"
-      }
-    ]
+    "declared": [],
+    "complete": []
   },
   "totals": {
     "cases": 16,

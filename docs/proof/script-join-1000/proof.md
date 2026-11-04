@@ -245,3 +245,49 @@ product-state identity warning and does not certify reach-complete. JSON and
 Markdown assertions verify the changed copy and counts; the round-three images
 above remain historical evidence. Full gate tails and publication status are in
 the handoff.
+
+## Round 5: insertion points inside tokens
+
+The retained [red run](round5-red-unit.txt) on `5331f9535` has **24 failures**:
+all 21 new cases and three updated line-attribution assertions. Before the rebase,
+targeted checks pass **277/277 units** and **37/37 browser cases**.
+
+| Item | Red → green |
+| --- | --- |
+| 1 | Twelve cases join and split shared identifier prefixes, member access and argument separators, through both the classifier and real Git adapter. A zero-width point now widens only to a token strictly containing it. Both ranges retain their anchors; idle head anchors produce never-rendered units. |
+| 2 | Four new insertion/deletion cases and three updated assertions require a unit on each changed side. Empty token ranges now fall back to their whole changed line and use that side's evidence. Nonempty token ranges keep their columns. |
+| 3 | Four operator-only insertion/deletion cases fall back to line scope instead of emitting punctuation fragments such as `=`. |
+| 4 | A legacy summary with one listed gap and seven omitted records now counts eight real gaps. Unit/path notices add nothing; an explicit `scriptGapCount` still takes precedence. |
+
+The [current report JSON](round5-report.json) and [Markdown](round5-report.md)
+exercise the real Git adapter with stored synthetic anchors for
+`const v = base + baseOffset;` → `const v = baseOffset;`. They retain base
+`app.ts:1:10-1:27` as ran/unknown and head `app.ts:1:10-1:20` as
+never-ran/never-rendered. The product-state identity warning, no computed-style
+changes and reach-incomplete status remain visible. This proves diagnostic
+attribution with synthetic execution evidence; it does not prove rendering or
+certify a same-state comparison. No report layout changes are involved.
+
+`bench:reach:check` passes all **32 scenario cells** with zero status changes;
+unknown counts remain five declared and six complete. The corpus still judges
+head units from hand-built one-line patches. Adapter coverage is in the unit and
+browser tests. `demo:check`
+confirms the generated demo is current. Final full-gate tails and the published
+SHA are in the handoff.
+
+The first full verify attempt passed 4,895/4,896 with one load-sensitive failure:
+`spawnSyncToCompletion names a child killed at the bound, with its last output`.
+Its child had not printed before the unchanged 400 ms deadline. All six timeout
+fixture tests pass unchanged on immediate recheck. The full verification rerun
+passes **4,896/4,896**, with zero failures, cancellations or skips.
+
+The first push of round five passed all hooks (4,896 units; 710 browser cases,
+one expected skip). `main` advanced during that run, so the feature branch is
+rebased onto `08cee3559`. Its #1287 injected-script fix removes the corpus's two
+previously expected unsupported-script gaps. The [integration red](round5-rebase-corpus-red.txt)
+records actual `[]` against the old two-gap assertion. The oracle now requires
+zero J2 gaps on every source unit, and the receipt/review document reflect that
+stronger evidence. Corpus case statuses remain unchanged. Rebased targeted checks
+pass **330/330 units** and **45/45 browser cases**, including the new upstream
+capture and HTML tests. Rebased full verification passes **4,936/4,936**, with
+zero failures, cancellations or skips. Corpus and demo checks also pass again.

@@ -1,0 +1,905 @@
+✔ unloaded MDX, template, extensionless and gitlink paths remain named J2 gaps (2175.273958ms)
+✔ git line three maps to JavaScript line four after an earlier Unicode line separator (1.77975ms)
+✖ unrelated equal-count hunks and empty token sides retain line scope (0.564625ms)
+✔ capture root prefixes bind source keys independently of the report working directory (2920.415083ms)
+✔ without scriptReach there is no manifest or git work and J1 opt-in behavior is preserved (0.597958ms)
+✔ three thousand adjacent findings render as ranges and a long fragmented table is capped (5.009709ms)
+✔ git uses one all-path diff and one blob batch, retaining healthy files after a missing blob (5235.381084ms)
+✔ submodule bumps remain named even with no text source that J2 can judge (2901.376875ms)
+✔ unjudged path lists sort Unicode scalar values rather than locale or UTF-16 order (1717.620167ms)
+✔ shortening a string end retains both token units (8.882792ms)
+✔ shortening a string end retains both token units through the git adapter (2804.242209ms)
+✔ lengthening a string end retains both token units (0.814375ms)
+✔ lengthening a string end retains both token units through the git adapter (3117.143ms)
+✔ shortening a number end retains both token units (0.745792ms)
+✔ shortening a number end retains both token units through the git adapter (2150.000667ms)
+✔ lengthening a number end retains both token units (0.302625ms)
+✔ lengthening a number end retains both token units through the git adapter (2889.607209ms)
+✔ shortening a identifier end retains both token units (0.313459ms)
+✔ shortening a identifier end retains both token units through the git adapter (2254.061333ms)
+✔ lengthening a identifier end retains both token units (0.388458ms)
+✔ lengthening a identifier end retains both token units through the git adapter (3067.400792ms)
+✔ shortening a string interior retains both token units (0.153375ms)
+✔ shortening a string interior retains both token units through the git adapter (2601.907583ms)
+✔ lengthening a string interior retains both token units (0.144333ms)
+✔ lengthening a string interior retains both token units through the git adapter (2168.095334ms)
+✔ shortening a number interior retains both token units (3.331083ms)
+✔ shortening a number interior retains both token units through the git adapter (2343.669208ms)
+✔ lengthening a number interior retains both token units (0.143583ms)
+✔ lengthening a number interior retains both token units through the git adapter (2563.063542ms)
+✔ shortening a identifier interior retains both token units (0.149166ms)
+✔ shortening a identifier interior retains both token units through the git adapter (2693.046416ms)
+✔ lengthening a identifier interior retains both token units (0.137334ms)
+✔ lengthening a identifier interior retains both token units through the git adapter (2518.610291ms)
+✖ a true expression insertion keeps the opposite changed line (2217.423666ms)
+✖ a true expression deletion keeps the opposite changed line (2747.023333ms)
+✔ EOF newline addition keeps both changed line units when another line also changes (2390.196417ms)
+✔ EOF newline deletion keeps both changed line units when another line also changes (2724.123542ms)
+✔ CRLF to LF keeps both changed line units when another line also changes (2693.930166ms)
+✔ LF to CRLF keeps both changed line units when another line also changes (2813.947583ms)
+✔ JSON truncation says details are omitted from the artifact and preserves the real gap count (0.898334ms)
+✔ EOF newline-only changes retain both sides in a separate git hunk (2344.07875ms)
+✔ CRLF newline-only changes retain both sides in a separate git hunk (2583.977208ms)
+✔ human truncation says omitted details are absent from this report (0.855333ms)
+✔ presentation notices never replace the number of actual J2 evidence gaps (0.152709ms)
+✖ joining a shared identifier prefix retains both anchored ranges (3.58525ms)
+✖ joining a shared identifier prefix retains both anchored ranges through git (2403.730334ms)
+✖ splitting a shared identifier prefix retains both anchored ranges (0.424709ms)
+✖ splitting a shared identifier prefix retains both anchored ranges through git (1589.067209ms)
+✖ joining a member access retains both anchored ranges (0.582667ms)
+✖ joining a member access retains both anchored ranges through git (1886.476125ms)
+✖ splitting a member access retains both anchored ranges (0.674583ms)
+✖ splitting a member access retains both anchored ranges through git (1877.274458ms)
+✖ joining a argument separator retains both anchored ranges (0.846958ms)
+✖ joining a argument separator retains both anchored ranges through git (2464.277625ms)
+✖ splitting a argument separator retains both anchored ranges (0.271292ms)
+✖ splitting a argument separator retains both anchored ranges through git (2497.381292ms)
+✖ a true deletion retains a line unit for the opposite changed side (0.450125ms)
+✖ a true deletion retains a line unit for the opposite changed side through git (2276.613708ms)
+✖ a true insertion retains a line unit for the opposite changed side (0.603666ms)
+✖ a true insertion retains a line unit for the opposite changed side through git (3283.591208ms)
+✖ an operator-only insertion uses line scope (0.415666ms)
+✖ an operator-only insertion uses line scope through git (2319.296708ms)
+✖ an operator-only deletion uses line scope (0.435666ms)
+✖ an operator-only deletion uses line scope through git (2542.109791ms)
+✖ legacy reach summaries add omitted gap records without counting unit or path notices (0.620959ms)
+ℹ tests 65
+ℹ suites 0
+ℹ pass 41
+ℹ fail 24
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53259.857292
+
+✖ failing tests:
+
+test at test/script-join-review.test.mjs:103:1
+✖ unrelated equal-count hunks and empty token sides retain line scope (0.564625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 2
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-review.test.mjs:118:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:110:3
+✖ a true expression insertion keeps the opposite changed line (2217.423666ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  -   'base',
+      'head'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:114:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'head' ],
+    expected: [ 'base', 'head' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round4.test.mjs:110:3
+✖ a true expression deletion keeps the opposite changed line (2747.023333ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      'base',
+  -   'head'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round4.test.mjs:114:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'base' ],
+    expected: [ 'base', 'head' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ joining a shared identifier prefix retains both anchored ranges (3.58525ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     ' + baseOffset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'base + baseOffset',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'Offset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'baseOffset',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', ' + baseOffset', 'unmeasured', 'unmeasured' ], [ 'head', 'Offset', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'base + baseOffset', 'ran', 'unknown' ], [ 'head', 'baseOffset', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ joining a shared identifier prefix retains both anchored ranges through git (2403.730334ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     ' + baseOffset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'base + baseOffset',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'Offset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'baseOffset',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', ' + baseOffset', 'unmeasured', 'unmeasured' ], [ 'head', 'Offset', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'base + baseOffset', 'ran', 'unknown' ], [ 'head', 'baseOffset', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ splitting a shared identifier prefix retains both anchored ranges (0.424709ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'Offset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'baseOffset',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     ' + baseOffset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'base + baseOffset',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'Offset', 'unmeasured', 'unmeasured' ], [ 'head', ' + baseOffset', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'baseOffset', 'ran', 'unknown' ], [ 'head', 'base + baseOffset', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ splitting a shared identifier prefix retains both anchored ranges through git (1589.067209ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'Offset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'baseOffset',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     ' + baseOffset',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'base + baseOffset',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'Offset', 'unmeasured', 'unmeasured' ], [ 'head', ' + baseOffset', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'baseOffset', 'ran', 'unknown' ], [ 'head', 'base + baseOffset', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ joining a member access retains both anchored ranges (0.582667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     '.bc',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a.bc',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'c',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'ac',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', '.bc', 'unmeasured', 'unmeasured' ], [ 'head', 'c', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'a.bc', 'ran', 'unknown' ], [ 'head', 'ac', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ joining a member access retains both anchored ranges through git (1886.476125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     '.bc',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a.bc',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     'c',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'ac',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', '.bc', 'unmeasured', 'unmeasured' ], [ 'head', 'c', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'a.bc', 'ran', 'unknown' ], [ 'head', 'ac', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ splitting a member access retains both anchored ranges (0.674583ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'c',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'ac',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     '.bc',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a.bc',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'c', 'unmeasured', 'unmeasured' ], [ 'head', '.bc', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'ac', 'ran', 'unknown' ], [ 'head', 'a.bc', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ splitting a member access retains both anchored ranges through git (1877.274458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'c',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'ac',
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'head',
+  +     '.bc',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a.bc',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'c', 'unmeasured', 'unmeasured' ], [ 'head', '.bc', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'ac', 'ran', 'unknown' ], [ 'head', 'a.bc', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ joining a argument separator retains both anchored ranges (0.846958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     ', ',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a, b',
+  -     'ran',
+  -     'unknown'
+      ],
+  -   [
+  -     'head',
+  -     'ab',
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', ', ', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'a, b', 'ran', 'unknown' ], [ 'head', 'ab', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ joining a argument separator retains both anchored ranges through git (2464.277625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     ', ',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a, b',
+  -     'ran',
+  -     'unknown'
+      ],
+  -   [
+  -     'head',
+  -     'ab',
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', ', ', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'a, b', 'ran', 'unknown' ], [ 'head', 'ab', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ splitting a argument separator retains both anchored ranges (0.271292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'ab',
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+  +     ', ',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a, b',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', ', ', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'ab', 'ran', 'unknown' ], [ 'head', 'a, b', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:66:7
+✖ splitting a argument separator retains both anchored ranges through git (2497.381292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'ab',
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+  +     ', ',
+  +     'unmeasured',
+  +     'unmeasured'
+  -     'a, b',
+  -     'never-ran',
+  -     'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:69:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', ', ', 'unmeasured', 'unmeasured' ] ],
+    expected: [ [ 'base', 'ab', 'ran', 'unknown' ], [ 'head', 'a, b', 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:79:5
+✖ a true deletion retains a line unit for the opposite changed side (0.450125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      'base',
+  -   'head'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'base' ],
+    expected: [ 'base', 'head' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:79:5
+✖ a true deletion retains a line unit for the opposite changed side through git (2276.613708ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      'base',
+  -   'head'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'base' ],
+    expected: [ 'base', 'head' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:79:5
+✖ a true insertion retains a line unit for the opposite changed side (0.603666ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  -   'base',
+      'head'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'head' ],
+    expected: [ 'base', 'head' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:79:5
+✖ a true insertion retains a line unit for the opposite changed side through git (3283.591208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  -   'base',
+      'head'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'head' ],
+    expected: [ 'base', 'head' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:98:5
+✖ an operator-only insertion uses line scope (0.415666ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'line',
+  -     0,
+  -     6,
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+  +     undefined,
+  +     4,
+  +     5,
+  -     'line',
+  -     0,
+  -     7,
+        'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:102:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', undefined, 4, 5, 'never-rendered' ] ],
+    expected: [ [ 'base', 'line', 0, 6, 'unknown' ], [ 'head', 'line', 0, 7, 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:98:5
+✖ an operator-only insertion uses line scope through git (2319.296708ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'line',
+  -     0,
+  -     6,
+  -     'unknown'
+  -   ],
+  -   [
+        'head',
+  +     undefined,
+  +     4,
+  +     5,
+  -     'line',
+  -     0,
+  -     7,
+        'never-rendered'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:102:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', undefined, 4, 5, 'never-rendered' ] ],
+    expected: [ [ 'base', 'line', 0, 6, 'unknown' ], [ 'head', 'line', 0, 7, 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:98:5
+✖ an operator-only deletion uses line scope (0.435666ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     undefined,
+  +     4,
+  +     5,
+  -     'line',
+  -     0,
+  -     7,
+        'unknown'
+      ],
+  -   [
+  -     'head',
+  -     'line',
+  -     0,
+  -     6,
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:102:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', undefined, 4, 5, 'unknown' ] ],
+    expected: [ [ 'base', 'line', 0, 7, 'unknown' ], [ 'head', 'line', 0, 6, 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:98:5
+✖ an operator-only deletion uses line scope through git (2542.109791ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     undefined,
+  +     4,
+  +     5,
+  -     'line',
+  -     0,
+  -     7,
+        'unknown'
+      ],
+  -   [
+  -     'head',
+  -     'line',
+  -     0,
+  -     6,
+  -     'never-rendered'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:102:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', undefined, 4, 5, 'unknown' ] ],
+    expected: [ [ 'base', 'line', 0, 7, 'unknown' ], [ 'head', 'line', 0, 6, 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round5.test.mjs:109:1
+✖ legacy reach summaries add omitted gap records without counting unit or path notices (0.620959ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /8 run-level gap\(s\)/. Input:
+
+  '- Changed but never matched: 0 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under `reach`; J2: 0 reached, 0 never-rendered, 0 unmeasured, 0 unknown, 1 run-level gap(s) (warn-only)'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round5.test.mjs:119:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '- Changed but never matched: 0 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under `reach`; J2: 0 reached, 0 never-rendered, 0 unmeasured, 0 unknown, 1 run-level gap(s) (warn-only)',
+    expected: /8 run-level gap\(s\)/,
+    operator: 'match',
+    diff: 'simple'
+  }

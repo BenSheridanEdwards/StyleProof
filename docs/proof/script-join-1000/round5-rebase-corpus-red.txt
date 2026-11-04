@@ -1,0 +1,40 @@
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: corpus J2 evidence must have only its explicitly expected unsupported-script gaps
++ actual - expected
+
++ []
+- [
+-   {
+-     reason: 'base script evidence: unsupported script URL',
+-     side: 'base'
+-   },
+-   {
+-     reason: 'head script evidence: unsupported script URL',
+-     side: 'head'
+-   }
+- ]
+
+    at jsUnit (file://<checkout>/bench/reach-corpus.mjs:148:10)
+    at evaluate (file://<checkout>/bench/reach-corpus.mjs:190:18)
+    at file://<checkout>/bench/reach-corpus.mjs:211:57 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [],
+  expected: [
+    {
+      side: 'base',
+      reason: 'base script evidence: unsupported script URL'
+    },
+    {
+      side: 'head',
+      reason: 'head script evidence: unsupported script URL'
+    }
+  ],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.12.1
