@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { CDPSession, Page } from '@playwright/test';
 import { collectMediaTexts } from './breakpoints.js';
 import { warn } from './capture/shared.js';
 import type { CaptureMetadata, CaptureOptions, MediaState } from './capture/types.js';
@@ -52,7 +52,7 @@ type StartingMedia = Required<Pick<MediaState, 'colorScheme' | 'media' | 'forced
 const startingPageMedia = new WeakMap<Page, StartingMedia>();
 
 /** Establish this capture's complete media environment before navigation, clearing prior crawl states. */
-export async function applyMediaState(page: Page, declaration?: MediaState): Promise<void> {
+export async function applyMediaState(page: Page, declaration?: MediaState, session?: CDPSession): Promise<void> {
   if (!declaration && !pagesWithDeclaredMedia.has(page)) {
     await page.emulateMedia({ reducedMotion: 'reduce' });
 
@@ -69,15 +69,25 @@ export async function applyMediaState(page: Page, declaration?: MediaState): Pro
     startingPageMedia.set(page, startingMedia);
   }
 
-  await page.emulateMedia({
+  const media = {
     colorScheme: declaration?.colorScheme ?? startingMedia.colorScheme,
     media: declaration?.media ?? startingMedia.media,
     forcedColors: declaration?.forcedColors ?? startingMedia.forcedColors,
-    reducedMotion: 'reduce',
-  });
-
+    reducedMotion: 'reduce' as const,
+  };
+  await page.emulateMedia(media);
   if (declaration) pagesWithDeclaredMedia.add(page);
   else pagesWithDeclaredMedia.delete(page);
+  // Chromium reapplies each attached session's media state on a process swap. An empty
+  // tracker session can otherwise overwrite Playwright's print override during navigation.
+  await session?.send('Emulation.setEmulatedMedia', {
+    media: media.media,
+    features: [
+      { name: 'prefers-color-scheme', value: media.colorScheme },
+      { name: 'forced-colors', value: media.forcedColors },
+      { name: 'prefers-reduced-motion', value: media.reducedMotion },
+    ],
+  });
 }
 
 /** Restore declarations after Chromium detaches a CDP capture session and clears print media. */

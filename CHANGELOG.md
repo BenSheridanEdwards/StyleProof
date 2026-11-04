@@ -58,7 +58,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   browser-context media settings. Undeclared media conditions emit one advisory
   warning per runner process without writing temporary markers,
   including `prefers-contrast` (which is not emulated). Default capture keys and
-  counts stay unchanged.
+  counts stay unchanged (#1295). Print emulation also stays active at document load
+  during script-reach self-checks across data URLs and cross-origin navigations.
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

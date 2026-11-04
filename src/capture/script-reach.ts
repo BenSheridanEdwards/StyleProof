@@ -6,6 +6,7 @@ import {
 } from './script-coverage-ownership.js';
 /** Navigation-window script coverage. Reader failures are evidence gaps, never capture failures. */
 import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-resources.js';
+import { applyMediaState } from '../media-states.js';
 import { storedScriptUrl } from '../script-reach-identity.js';
 import { STYLEPROOF_SCRIPT_URL } from './script-evaluation.js';
 import { resolveScriptProjectRoot } from './script-project-root.js';
@@ -13,7 +14,7 @@ import { MAX_GENERATED_LENGTH, MAX_SCRIPTS, MAX_SCRIPT_IDENTIFICATIONS } from '.
 import { storedScriptEvidence } from '../script-reach-storage.js';
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
-import type { CaptureOptions, StyleMap } from './types.js';
+import type { CaptureOptions, MediaState, StyleMap } from './types.js';
 import type { CDPSession, Page, Response } from '@playwright/test';
 import {
   mapScriptCoverage,
@@ -297,7 +298,7 @@ async function releaseClient(page: Page, client: CDPSession): Promise<ReturnType
 /** Arm BEFORE go()/navigation. Each capture/self-check needs a fresh tracker. */
 export async function trackScriptReach(
   page: Page,
-  options: { projectRoot?: string } = {},
+  options: { projectRoot?: string; mediaState?: MediaState } = {},
 ): Promise<ScriptReachTracker> {
   if (page.context().browser()?.browserType().name() !== 'chromium') {
     return { stop: async () => unmeasuredScriptReach('script coverage requires Chromium'), dispose: async () => {} };
@@ -350,6 +351,7 @@ export async function trackScriptReach(
     page.on('response', onResponse);
     try {
       client = registerStyleProofSession(await page.context().newCDPSession(page));
+      if (options.mediaState) await applyMediaState(page, options.mediaState, client);
       client.on('Debugger.scriptParsed', (script) => {
         scripts.set(script.scriptId, {
           ...script,

@@ -11,6 +11,7 @@ import {
   type StyleMap,
   type MediaState,
   defineCrawlCapture,
+  defineStyleMapCapture,
 } from '../dist/index.js';
 import { expandSurfaceVariants } from '../dist/runner.js';
 import { captureSurface, detectSurfaceWidths } from '../dist/runner/surface-capture.js';
@@ -362,3 +363,56 @@ test.describe.serial('declared crawl media', () => {
   });
 });
 test.afterAll(() => fileSystem.rmSync(crawlDirectory, { recursive: true, force: true }));
+
+for (const navigationKind of ['data', 'cross-origin']) {
+  test.describe.serial(`script reach print navigation: ${navigationKind}`, () => {
+    const directory = fileSystem.mkdtempSync(path.join(temporaryDirectory(), 'styleproof-print-navigation-'));
+    const navigationMedia: string[] = [];
+    const markup =
+      '<!doctype html><html><body><button style="outline:solid red">Example</button><script>' +
+      'const button=document.querySelector("button");' +
+      'button.dataset.printAtLoad=String(matchMedia("print").matches);' +
+      'button.style.outlineWidth=matchMedia("print").matches?"7px":"1px";' +
+      '</script></body></html>';
+    test.beforeEach(async ({ page }) => {
+      if (navigationKind === 'cross-origin') {
+        await page.route(/^http:\/\/(first|second)\.test\//, (route) =>
+          route.fulfill({ contentType: 'text/html', body: markup }),
+        );
+      }
+    });
+    defineStyleMapCapture({
+      parallel: false,
+      dir: directory,
+      freezeClock: false,
+      selfCheck: true,
+      screenshots: false,
+      captureScriptReach: true,
+      mediaStates: [{ key: 'print', media: 'print' }],
+      surfaces: [
+        {
+          key: 'home',
+          widths: [640],
+          go: async (page) => {
+            const destination =
+              navigationKind === 'data'
+                ? `data:text/html,${encodeURIComponent(markup)}`
+                : page.url().startsWith('http://first.test/')
+                  ? 'http://second.test/'
+                  : 'http://first.test/';
+            await page.goto(destination);
+            navigationMedia.push((await page.locator('button').getAttribute('data-print-at-load'))!);
+          },
+        },
+      ],
+    });
+    test('both print loads and saved styles retain print with script reach and self-check enabled', () => {
+      expect(navigationMedia).toEqual(['false', 'false', 'true', 'true']);
+      const print = loadStyleMap(path.join(directory, 'home-print@640.json.gz'));
+      const button = Object.entries(print.elements).find(([elementPath]) => elementPath.includes('button'))?.[1];
+      expect(button?.style['outline-width']).toBe('7px');
+      expect(print.scriptReach).toBeDefined();
+    });
+    test.afterAll(() => fileSystem.rmSync(directory, { recursive: true, force: true }));
+  });
+}

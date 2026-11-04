@@ -204,7 +204,7 @@ export async function captureSurface(
       () => phase,
       async (surfaceRun) => {
         const scriptReach = s.captureScriptReach
-          ? await trackScriptReach(page, { projectRoot: s.projectRoot })
+          ? await trackScriptReach(page, { projectRoot: s.projectRoot, mediaState: surface.metadata?.mediaState })
           : undefined;
         let map: StyleMap;
         try {
