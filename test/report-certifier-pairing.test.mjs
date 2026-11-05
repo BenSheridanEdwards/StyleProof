@@ -101,7 +101,16 @@ for (const [name, banners, cards, descendants] of [
       const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
       const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-      assert.equal((md.match(/`#ffffff` → `#ff0000`/g) ?? []).length, cards + Number(descendants));
+      // Identical cards share one property receipt; every matched restyle remains in the findings and counts.
+      assert.equal((md.match(/`#ffffff` → `#ff0000`/g) ?? []).length, 1 + Number(descendants));
+      const restyledPaths = new Set(
+        report.surfaces
+          .flatMap((surface) => surface.findings ?? [])
+          .filter((finding) => finding.kind === 'style')
+          .map((finding) => finding.path),
+      );
+      assert.equal(restyledPaths.size, cards + Number(descendants));
+      if (cards > 1) assert.match(md, /3 elements restyled/);
       assert.doesNotMatch(md, /(?:section\.card|span\.label)[^\n]*(?:removed|added)/);
       assert.equal(certifier.counts.style, cards + Number(descendants));
       assert.equal(report.counts.style, certifier.counts.style);

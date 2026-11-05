@@ -1,10 +1,11 @@
-import { formatSurfaceList, safeKey } from '../change-groups.js';
+import { formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
 import { derivedLonghandCount } from '../findings-clean.js';
 import { codeValue } from '../code-span.js';
 import { describeElement, tokenIndex } from '../describe.js';
 import type { OneSidedStatus } from './headline.js';
 import { buildElementChanges, clipText } from './markdown.js';
 import { presentationMaps, type ChangeGroup, type RenderCtx } from './shared.js';
+import { formatChangeSentence, mergeSentenceChanges, sentenceChanges, type SentenceChange } from './change-sentence.js';
 
 /** The "What changed" block: one row per one-sided surface and per change group, above the PR-comment cut. */
 
@@ -20,6 +21,8 @@ export type DigestRow = {
   /** Changed elements not listed in `elements`. */
   more: number;
   foldedRows?: number;
+  /** Plain-English distinct changes; legacy element/value fields remain unchanged. */
+  sentences?: string[];
 };
 
 const MAX_ROWS = 10;
@@ -40,7 +43,12 @@ const ONE_SIDED_TEXT: Record<OneSidedStatus, string> = {
   'capture-failed': '⚠️ baseline repair needed',
 };
 
-function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow {
+function changedRow(
+  ctx: RenderCtx,
+  cg: ChangeGroup,
+  chrome: boolean,
+  nameSurfaces: boolean,
+): { row: DigestRow; changes: SentenceChange[] } {
   const { sd, findings } = cg.rep;
   const [mapA, mapB] = presentationMaps(ctx, sd.surface);
   const describeCtx = { tokensBefore: identTokens(mapA.tokens), tokensAfter: identTokens(mapB.tokens) };
@@ -60,13 +68,23 @@ function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow
     ...(chrome ? { chrome: true as const } : {}),
     elements,
     more: els.length - elements.length,
+    sentences: [],
   };
+  const changes = sentenceChanges(
+    findings.length ? findings : (cg.rep.folded ?? []),
+    [
+      ...new Set(
+        cg.surfaces.map((surface) => ctx.load(ctx.afterDir, surface).metadata?.surfaceKey ?? surfaceBase(surface)),
+      ),
+    ],
+    nameSurfaces,
+  );
 
   const foldedRows = derivedLonghandCount(cg.rep.folded ?? []);
 
   if (foldedRows) row.foldedRows = foldedRows;
 
-  return row;
+  return { row, changes };
 }
 
 /** One-sided surfaces first (review first), then shared-chrome groups, then the rest. */
@@ -75,34 +93,37 @@ export function buildDigest(
   oneSided: Array<{ surface: string; status: OneSidedStatus }>,
   groups: { chrome: ChangeGroup[]; rest: ChangeGroup[] },
 ): DigestRow[] {
+  const changedBases = new Set(
+    [...groups.chrome, ...groups.rest].flatMap((group) =>
+      group.surfaces.map((surface) => ctx.load(ctx.afterDir, surface).metadata?.surfaceKey ?? surfaceBase(surface)),
+    ),
+  );
+  const changedRows = [
+    ...groups.chrome.map((cg) => changedRow(ctx, cg, true, changedBases.size > 1)),
+    ...groups.rest.map((cg) => changedRow(ctx, cg, false, changedBases.size > 1)),
+  ];
+  const entries = changedRows.flatMap(({ row, changes }) => changes.map((change) => ({ row, change })));
+  for (const { change, firstIndex } of mergeSentenceChanges(entries.map((entry) => entry.change))) {
+    entries[firstIndex].row.sentences!.push(formatChangeSentence(change));
+  }
   return [
     ...oneSided.map(({ surface, status }) => ({ surface, status, elements: [], more: 0 })),
-    ...groups.chrome.map((cg) => changedRow(ctx, cg, true)),
-    ...groups.rest.map((cg) => changedRow(ctx, cg, false)),
+    ...changedRows.map(({ row }) => row),
   ];
 }
 
-function rowLine(row: DigestRow): string {
+function rowLines(row: DigestRow): string[] {
   const surface = codeValue(formatSurfaceList([safeKey(row.surface)]));
-  if (row.status !== 'changed') return `- ${surface} — ${ONE_SIDED_TEXT[row.status]}`;
-  const where = row.chrome
-    ? `${surface} · 🧱 global chrome, changed on every surface base that renders it`
-    : row.otherSurfaces
-      ? `${surface} +${row.otherSurfaces} more surface(s)`
-      : surface;
-  const parts = row.elements.map((e) => `**${codeValue(e.name)}** ${e.phrase}`);
-  if (row.more > 0) parts.push(`+${row.more} more element(s)`);
-
-  if (row.foldedRows) parts.push(`+${row.foldedRows} size/position row${row.foldedRows === 1 ? '' : 's'} folded`);
-
-  return `- ${where} — ${parts.join(' · ')}`;
+  if (row.status !== 'changed') return [`- ${surface} — ${ONE_SIDED_TEXT[row.status]}`];
+  return (row.sentences ?? []).map((sentence) => `- ${sentence}`);
 }
 
 /** The block's Markdown, rows capped with a count of what is left out; empty when nothing changed. */
 export function digestLines(rows: DigestRow[]): string[] {
   if (rows.length === 0) return [];
-  const shown = rows.slice(0, MAX_ROWS).map(rowLine);
-  const rest = rows.length - shown.length;
+  const lines = rows.flatMap(rowLines);
+  const shown = lines.slice(0, MAX_ROWS);
+  const rest = lines.length - shown.length;
   if (rest > 0) shown.push(`- …and ${rest} more ${rest === 1 ? 'change' : 'changes'}`);
   return ['**What changed**', '', ...shown];
 }

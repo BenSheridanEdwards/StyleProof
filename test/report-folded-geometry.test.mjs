@@ -44,7 +44,11 @@ test('#1140 a width change beside a colour change is shown or counted in report.
   const shown = /\bwidth\b[^\n]*240px[^\n]*280px/.test(md);
   const counted = /\+?1 (derived longhand|size\/position)/.test(md);
   assert.ok(shown || counted, `report.md neither shows nor counts the folded width row:\n${md}`);
-  assert.match(md.split(/^### /m)[0], /\+1 size\/position row folded/, 'the PR-comment digest includes the count');
+  assert.doesNotMatch(
+    md.split(/^### /m)[0],
+    /size\/position row folded/,
+    'the summary leaves geometry bookkeeping below the cut',
+  );
   assert.match(
     md,
     /<details>[\s\S]*Folded size\/position rows:[\s\S]*\| `width` \| `240px` \| `280px` \|[\s\S]*<\/details>/,
@@ -91,7 +95,7 @@ test('folded geometry on a narrow surface prevents identical surface grouping', 
   writeCapture(fixture.afterDir, 's@375', sidebar('280px', 'red'));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   assert.match(md, /\| `width` \| `240px` \| `280px` \|/);
-  assert.match(md.split(/^### /m)[0], /\+1 size\/position row folded/);
+  assert.match(md.split(/^### /m)[0], /Sidebar changed colour \(1 element\)/);
   assert.doesNotMatch(md, /Identical across 2 surfaces/);
   assert.match(md, /375/);
 });
@@ -201,7 +205,7 @@ test('a hover geometry-only surface remains beside a visible colour surface', (t
     JSON.parse(json).surfaces.find((s) => s.surfaces.includes('geometry@1280')).visualEvidence,
     'not-rendered',
   );
-  assert.match(md.split(/^### /m)[0], /geometry[\s\S]*\+1 size\/position row folded/);
+  assert.match(md.split(/^### /m)[0], /Sidebar got a new hover size on geometry \(1 element\)/);
   assert.match(md.split(/^### /m).slice(1).join('\n'), /geometry[\s\S]*\+1 size\/position row folded/);
   assert.match(md, /`:hover` \| `width` \| `240px` → `280px`/);
   assert.match(md, /color/);

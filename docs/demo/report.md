@@ -2,16 +2,16 @@
 
 ⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
 
-**2 changes need review**
+**4 changes need review** · 4 distinct changes on 2 surfaces (3 computed-style differences)
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
-
-**1 distinct change** (3 computed-style difference(s)) in 1 changed surface base with an existing baseline.
 
 **What changed**
 
 - `pricing @ 900` — 🆕 new surface, no baseline
-- `home @ 900` — **`aside.off-canvas-status`** opacity 0.85 → 1 · **`span.caret`** text gray (`#9ca3af`) → blue (`#2563eb`) · **`button.cta`** background blue (`#2563eb`) → red (`#dc2626`)
+- Off canvas status changed opacity (1 element)
+- Caret changed colour (1 element)
+- Button changed background (1 button)
 
 🧱 **2 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
 

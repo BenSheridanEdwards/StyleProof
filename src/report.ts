@@ -544,9 +544,16 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const md = new ReportMarkdown(opts.maxReportBytes ?? DEFAULT_MAX_REPORT_BYTES);
   const headline = reportHeadline({
     changeGroups: view.changeGroups,
+    distinctChangeCount: digest.reduce(
+      (count, row) => count + (row.status === 'changed' ? (row.sentences?.length ?? 0) : 1),
+      0,
+    ),
     missing: view.missing,
     shown: view.shown,
-    changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
+    changedScope: countChangedSurfaceScope(
+      [...view.changeGroups, ...view.missing.map(({ sd }) => ({ surfaces: [sd.surface] }))],
+      surfaceKeyOf,
+    ),
     whatChanged: digestLines(digest),
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,

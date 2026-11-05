@@ -56,13 +56,80 @@ visual changes and kept the check red. A reviewer ticks **Approve all changes**
 to sign off that commit. Any later push that changes the evidence reopens the
 gate.
 
-Below the headline count, the comment lists **What changed**. Each one-sided
-surface gets a row with its status. Each change gets a row that names up to
-three elements and what happened to them, and counts the rest as
-`+N more element(s)`. After ten rows, `…and N more changes` counts what is left.
-`report.json` records the same rows under `digest`, as
-`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more }`.
-The key is present only when there is at least one row.
+Below the headline count, the comment lists **What changed**. The list uses
+one plain-English line per change: an element noun, a value-free description,
+and an element count. Surface names appear only when several changed surface
+bases need distinguishing. Matching descriptions merge into one line with
+their distinct elements counted together, including changes from separate groups or pseudo-elements.
+Each one-sided surface keeps its status row. After ten displayed lines,
+`…and N more changes` counts the remaining lines after merging.
+
+`report.json` preserves the legacy `digest` rows and their fields:
+`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more, foldedRows? }`.
+The additive `sentences` array contains the plain-English summaries on changed
+rows. Merged sentences appear on the first matching row; later matching rows
+may have an empty array. The legacy `elements` and `more` fields retain their
+existing element-list limits. Counts identify each element by its path within a
+surface base, so widths and separate change groups do not multiply it. The
+headline counts all distinct changed sentences and one-sided surface rows,
+including those beyond the ten-line display cap.
+The `digest` key is present only when there is at least one row.
+
+### Grouped report sections and JSON regions
+
+Identical changes to elements with the same displayed label, kind, pseudo/state
+target and summarized before/after values share one section. Its element list
+uses the shortest unique path tails, remains open through five elements, and
+folds longer lists (ten paths plus a remaining count). The first frame in
+top-to-bottom order with a renderable changed layer supplies the representative
+crops; an off-canvas member cannot suppress a later visible example. When no
+member can render, the report retains its not-visible explanation.
+An existing overlap frame stays intact when its elements share
+the change; an overlap frame containing different changes keeps the existing
+combined layout. Folded size/position rows remain available for every element,
+even when their values differ from the representative's.
+
+The JSON grouping is additive. `report.json` retains `surfaces[].regions[]`
+with main's original overlap/crop-cap region count, `paths`, and `before`/`after`
+boxes. Those boxes continue to enclose their paths. A legacy region references a
+section's shown crop only when that region's own element would have rendered in
+the corresponding screenshot layer. An unrendered resting view keeps
+`images: {}`, even if its section has a resting or hover crop. Each `stateImages`
+entry is likewise present only when that region could render in that state;
+unrendered state entries stay absent as on main. For state-only changes, `images`
+uses the first state crop eligible for that region. Shared references never
+substitute a hover crop for an unrendered resting view.
+Each legacy region's `visualEvidence` and `reason` describe its own resting
+visibility, even when its representative is visible. A state-only region does
+not acquire resting-visibility evidence. `cropOmitted` records an omitted shared
+resting crop when that region could otherwise render.
+Eligible shared references are representative images, not a separate crop of each legacy region's
+box; `sections[]` identifies the actual crop frame. No additional crops are
+rendered for legacy geometry, so only shown crops consume the image budget or
+contribute to the omitted-crop count. Compact summaries also select their crop
+link from `sections[]` when it is present.
+Grouping-only fields (`representativePath`, `cropPaths`, `elements`, and
+`regionIndexes`) belong to `sections[]`; legacy regions keep main's field shape,
+including when an overlap region exactly matches its section.
+
+The new optional `surfaces[].sections[]` describes the report layout when
+identical elements share a section; it is omitted for unchanged layouts:
+
+- `paths`: all elements covered by the section.
+- `regionIndexes`: zero-based indexes into the unchanged legacy `regions` list.
+  A crop-cap union can be referenced by more than one section.
+- `representativePath`, `cropPaths`, `before`, `after`, `images`, and optional
+  `stateImages`: the representative example and its crop frame, not a box
+  enclosing every section member. `cropPaths` is empty when no image rendered.
+- `elements`: members as `{ paths, before, after }`, with individual padded bounds.
+
+Folded size/position rows stay in their owning section's property details. Each
+member's rows are labelled by the same unique path tail as its element-list
+entry. Glance lines deduplicate identical property descriptions without a count;
+the section heading carries the element count. DOM identity includes retag detail
+and advisory React component names/props, so neither disappears through grouping.
+Legacy findings and counts are unchanged. Mixed-change overlap regions keep
+main's combined layout.
 
 ### A safety policy blocks
 

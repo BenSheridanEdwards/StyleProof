@@ -9,13 +9,15 @@ import {
   type BaselineFailureReceipt,
   type SurfaceCaptureFailure,
 } from '../map-store.js';
-import { formatChangedSurfaceScope, formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
+import { formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
 import type { ChangeGroup, PreparedSurface, ReportConsistency } from './shared.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 
 /** Everything the headline prose between the certification block and the detail needs. */
 export type HeadlineInput = {
   changeGroups: ChangeGroup[];
+  /** All changed sentences and one-sided surface rows, before the display cap. */
+  distinctChangeCount: number;
   missing: PreparedSurface[];
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
@@ -74,22 +76,23 @@ export function readBaselineInfo(beforeDir: string, afterDir: string): BaselineI
 /** Property/DOM/state tallies with the zeros dropped (secondary headline detail). */
 function changeCountLabel(shown: DiffCounts): string {
   const parts: [number, string][] = [
-    [shown.dom, 'DOM change(s)'],
-    [shown.style, 'computed-style difference(s)'],
-    [shown.state, 'state-delta difference(s)'],
+    [shown.dom, 'DOM change'],
+    [shown.style, 'computed-style difference'],
+    [shown.state, 'state-delta difference'],
   ];
   return parts
     .filter(([n]) => n)
-    .map(([n, label]) => `${n} ${label}`)
+    .map(([n, label]) => `${n} ${label}${n === 1 ? '' : 's'}`)
     .join(' · ');
 }
 
-/** Lead with distinct/reviewable groups; property tally is parenthetical (#770). */
-function distinctChangeLine(groupCount: number, shown: DiffCounts, scope: string): string {
-  const distinct = groupCount === 1 ? '**1 distinct change**' : `**${groupCount} distinct changes**`;
-  const tallies = changeCountLabel(shown);
-  const detail = tallies ? ` (${tallies})` : '';
-  return `${distinct}${detail} in ${scope} with an existing baseline.`;
+/** Lead with distinct sentences; variants and property tallies share one parenthesis. */
+function distinctChangeLine(count: number, shown: DiffCounts, scope: { bases: number; variants: number }): string {
+  const distinct = count === 1 ? '1 distinct change' : `${count} distinct changes`;
+  const detail = [scope.variants > scope.bases ? `${scope.variants} variants` : '', changeCountLabel(shown)]
+    .filter(Boolean)
+    .join(', ');
+  return `${distinct} on ${scope.bases} surface${scope.bases === 1 ? '' : 's'}${detail ? ` (${detail})` : ''}`;
 }
 
 function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
@@ -260,27 +263,18 @@ function verdictNeedsReview(n: number): string {
 }
 
 function summaryLines(input: HeadlineInput): string[] {
-  const { changeGroups, missing, shown, changedScope, baseline } = input;
+  const { changeGroups, distinctChangeCount, missing, shown, changedScope, baseline } = input;
   const noChange = changeGroups.length === 0 && missing.length === 0 ? noChangedSurfaceSummary(input) : undefined;
   if (noChange) return noChange;
-  const reviewable = changeGroups.length + missing.length;
+  const reviewable = distinctChangeCount;
   const md = [
-    verdictNeedsReview(reviewable),
+    verdictNeedsReview(reviewable) +
+      (changeGroups.length > 0 ? ` · ${distinctChangeLine(distinctChangeCount, shown, changedScope)}` : ''),
     '',
     ...baselineFailureSummaryLines(baseline.failures),
     ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures),
     ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
   ];
-  if (changeGroups.length > 0) {
-    md.push(
-      ...(md.length > 0 && md[md.length - 1] !== '' ? [''] : []),
-      distinctChangeLine(
-        changeGroups.length,
-        shown,
-        formatChangedSurfaceScope(changedScope.bases, changedScope.variants),
-      ),
-    );
-  }
   return md;
 }
 
