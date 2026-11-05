@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-05T21:46:58.281Z",
+  "generated": "2026-11-05T22:33:24.314Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "j2Gaps": {
@@ -18,7 +18,7 @@
     "todayShownComplete": "16/17",
     "missesNamedByReach": "14/14",
     "residual": [],
-    "unknownDeclared": 6,
+    "unknownDeclared": 7,
     "unknownComplete": 8,
     "failed": []
   },
@@ -245,6 +245,7 @@
             "app.jsx:42: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -259,6 +260,7 @@
             "app.jsx:42: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -293,11 +295,13 @@
                 }
               },
               "token": "fault-badge--loud",
+              "explicit": true,
               "status": "never-rendered",
               "why": "class token never landed on a captured element",
               "level": "warn"
             }
           ],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -325,12 +329,14 @@
                 }
               },
               "token": "fault-badge--loud",
+              "explicit": true,
               "delta": "gained",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -342,13 +348,13 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
             "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:8: never-rendered (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:8:36 tone-amber never-rendered"
+            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:8:36 tone-amber never-rendered"
           ],
           "classUnits": [
             {
@@ -365,8 +371,30 @@
                 }
               },
               "token": "tone-amber",
+              "explicit": false,
               "status": "never-rendered",
               "why": "class token never landed on a captured element",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 46
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -397,7 +425,30 @@
                 }
               },
               "token": "tone-amber",
+              "explicit": false,
               "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 46
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "delta": "lost",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
@@ -437,8 +488,30 @@
                 }
               },
               "token": "tone-red",
+              "explicit": false,
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 38
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "status": "never-rendered",
+              "why": "class token never landed on a captured element",
               "level": "warn"
             }
           ],
@@ -469,7 +542,30 @@
                 }
               },
               "token": "tone-red",
+              "explicit": false,
               "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 38
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "delta": "lost",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
@@ -493,6 +589,7 @@
             "app.jsx:66: never-rendered (an anchor in the changed range never ran)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -504,6 +601,7 @@
             "app.jsx:66: never-rendered (an anchor in the changed range never ran)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -523,6 +621,7 @@
             "app.jsx:75: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -535,6 +634,7 @@
             "app.jsx:75: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -554,6 +654,7 @@
             "app.jsx:76: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -566,6 +667,7 @@
             "app.jsx:76: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -600,7 +702,30 @@
                 }
               },
               "token": "same-line-new",
+              "explicit": true,
               "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-old",
+              "explicit": true,
+              "delta": "lost",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
@@ -633,7 +758,30 @@
                 }
               },
               "token": "same-line-new",
+              "explicit": true,
               "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-old",
+              "explicit": true,
+              "delta": "lost",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
@@ -674,6 +822,7 @@
                 }
               },
               "token": "collision-new",
+              "explicit": false,
               "delta": "gained",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
@@ -693,7 +842,50 @@
                 }
               },
               "token": "collision-new",
+              "explicit": false,
               "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
@@ -727,6 +919,7 @@
                 }
               },
               "token": "collision-new",
+              "explicit": false,
               "delta": "gained",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
@@ -746,7 +939,50 @@
                 }
               },
               "token": "collision-new",
+              "explicit": false,
               "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
               "status": "unknown",
               "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"

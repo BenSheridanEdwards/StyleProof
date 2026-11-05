@@ -1,5 +1,8 @@
 # Class delta join: round-one review and QA corrections
 
+Historical round-one proof. [Round-two corrections](../round-2/proof.md) supersede
+its omission, explicit-context and corpus claims.
+
 Review base: `6c984fdf1f7b20e0036be52f7a8ef2e738a0f044`.
 Fetched origin/main and rebased first; Git reported the branch already up to date.
 The caller explicitly corrected the previous no-delta rule. ADR 0009, README and

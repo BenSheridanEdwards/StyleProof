@@ -24,7 +24,7 @@
 test at test/reach-corpus.test.mjs:214:1
 ✖ reach corpus retains and verifies base-side J3 removals on replacement lines (57.367416ms)
   TypeError [Error]: Cannot read properties of undefined (reading 'length')
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/reach-corpus.test.mjs:218:38)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:218:38)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)

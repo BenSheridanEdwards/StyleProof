@@ -336,7 +336,8 @@
             "J2": "never-ran",
             "J3": "never-rendered"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 0
         },
         "complete": {
           "today": "shown",
@@ -344,7 +345,8 @@
           "joins": {
             "J3": "unknown"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 0
         }
       }
     },
@@ -367,12 +369,14 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
             "J3": "never-rendered"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         },
         "complete": {
           "today": "shown",
@@ -380,7 +384,9 @@
           "joins": {
             "J3": "unknown"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         }
       }
     },
@@ -408,7 +414,9 @@
             "J2": "ran",
             "J3": "unknown"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "never-rendered"
         },
         "complete": {
           "today": "shown",
@@ -416,7 +424,9 @@
           "joins": {
             "J3": "unknown"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         }
       }
     },
@@ -539,7 +549,9 @@
             "J2": "ran",
             "J3": "unknown"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         },
         "complete": {
           "today": "shown",
@@ -548,7 +560,9 @@
             "J2": "ran",
             "J3": "unknown"
           },
-          "classCount": 1
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         }
       }
     },
@@ -581,7 +595,9 @@
             "J2": "ran",
             "J3": "unknown"
           },
-          "classCount": 2
+          "classCount": 2,
+          "baseClassCount": 2,
+          "baseJ3": "unknown"
         },
         "complete": {
           "today": "shown",
@@ -590,7 +606,9 @@
             "J2": "ran",
             "J3": "unknown"
           },
-          "classCount": 2
+          "classCount": 2,
+          "baseClassCount": 2,
+          "baseJ3": "unknown"
         }
       }
     }

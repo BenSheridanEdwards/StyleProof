@@ -2264,8 +2264,14 @@ selector functions such as `:not(.x)`.
 For each changed class-token occurrence (file, side, exact UTF-16 source span):
 
 - `never-rendered` is allowed **only if no captured element on the occurrence's own
-  side carries the token**: head for additions, base for removals. This presence
-  check includes unpaired elements and volatile captured elements.
+  side carries the token, and every map on that side has complete omission facts**:
+  head for additions, base for removals. The presence check includes unpaired elements.
+  Any volatile elements, configured ignore list, untraversed shadow hosts or frames
+  on that side leave absence unproven (`unknown`). Legacy maps without these facts
+  are also conservative. Captures persist optional `classPresence` version 1:
+  `ignored` (a boolean, without selector text), `shadowHosts` and `frames` (counts,
+  including cross-origin frames). Zero counts and `ignored: false` are recorded too;
+  StyleProof's own hover sink and UA-default iframe are capture tools, not omissions.
 - If any element on that side carries it: `unknown` — "token present on a captured
   element; not tied to this occurrence". Neither unchanged class lists during a
   refactor nor a newly added element nor a changed element tag proves absence.
@@ -2278,10 +2284,15 @@ For each changed class-token occurrence (file, side, exact UTF-16 source span):
   available; a broken file does not downgrade healthy siblings or the other side.
 
 The reader supports string/template literals, object keys within class helpers,
-nested templates, Vue `:class`/`v-bind:class` with simple object/array bindings,
+nested templates, Solid `classList` object keys, Vue `:class`/`v-bind:class` with simple object/array bindings,
 Svelte `class:name` directives, and whitespace-bounded Svelte class interpolations.
+In `cva`, base class strings and variant values are class contexts; option/variant
+keys (bare or quoted) and default variant selections are excluded. Compound variant
+conditions are excluded; literal `class`/`className` values can still be read.
 Substitution literals adjoining static text are dynamic fragments, not whole tokens:
 `` `${flag ? 'old' : 'keep'}-suffix` `` never contributes the token `old`.
+String concatenation such as `className={'card card--' + tone}` emits a named
+concatenation-fragment gap, including when only the dynamic suffix changes.
 A changed explicit class context with no extractable served-vocabulary token emits
 a gap naming the file, side and range instead of disappearing.
 
@@ -2291,18 +2302,29 @@ interpolations and assembled class fragments. Known static candidates can still 
 listed, but they never prove a dynamic portion rendered. Nested prose inside a
 recognised helper is deliberately conservative: `cn('btn', t('old thing'))` can name
 `old` if it is in the CSS vocabulary. Ordinary prose outside class contexts is skipped.
+A remaining line-alignment residual can exclude a newly introduced occurrence:
+base `const A='tone'` → head `const B='tone'` plus `const A='tone2'` can align the
+first line's identical literal and exclude `tone`, even though its binding changed.
+This reader does not establish binding identity. Closed shadow roots that cannot be
+discovered remain a capture limitation.
 Line starts are precomputed for binary position lookup, and substitution token scans
 are restricted to their own template ranges; the regression suite bounds 1 MB string
-and template inputs below one second on the development machine.
+and template inputs below one second on the development machine. Scoped gaps and
+J3 negatives are indexed by source key and side with merged, sorted intervals and
+binary overlap lookup; a separate regression bounds 16,000 changed lines below one
+second for classification and combination individually.
 
 No capture records per-occurrence render provenance today. The type hook is reserved
 for it; **no J3 unit can currently be reached**, including unique tokens and
 collisions. J2 execution never upgrades J3, and J3 never upgrades J2. An overlapping
-J3 negative can lower a J2 range that ran to `never-rendered`, retaining its execution.
+J3 negative from an **explicit class context** can lower a J2 range that ran to
+`never-rendered`, retaining its execution. Vocabulary-only candidates never lower
+J2, even when every word is a CSS class name. Older class units lacking explicit
+context evidence also cannot lower J2.
 A class occurrence never corroborates a different style value on the same line.
 
 `report.json.reach.classes` lists `sourceKey`, base/head `side`, literal `range`,
-`token`, optional token-name `delta` (`gained`/`lost`), `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
+`token`, `explicit` (class context versus vocabulary-only candidate), optional token-name `delta` (`gained`/`lost`), `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
 numeric range and token. `classCounts` and `classGapCount` retain full counts.
 J2/J3 share at most 64 KB of detail after style findings; J3 omissions get a named
 count notice. Markdown/HTML cap J3 at 100 unit rows and 100 bounded gap rows.

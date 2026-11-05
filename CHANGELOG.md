@@ -8,14 +8,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
-  Only absence from every captured element on the occurrence's own side reads `never-rendered`;
+  Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
-  Captures record no per-occurrence render provenance. Ordinary prose is skipped. J3 negative evidence can
-  lower J2, never upgrade it; findings and missing-evidence gaps stay warn-only at both levels,
+  Capture omission facts are additive; volatile/ignored regions, shadow hosts/frames and legacy maps
+  without those facts keep absence unknown. Captures record no per-occurrence render provenance. Ordinary
+  prose is skipped. Only explicit class-context negative evidence can lower J2, never upgrade it; findings and missing-evidence gaps stay warn-only at both levels,
   with bounded report detail and full status counts. Pure additions/deletions retain their occurrences;
   replacement exclusions use hunk-aligned lines. CSS escapes, simple Vue/Svelte bindings, helper
   object keys and nested templates are supported; fragments are excluded and unresolved explicit
-  class contexts get scoped gaps. Source positions and template walks are indexed (#1001).
+  class contexts get scoped gaps, including concatenated fragments. Solid classList keys and cva variant
+  values are read; cva keys are excluded. Zero-width edits retain both tokens. Source positions, template
+  walks, scoped gaps and negative joins are indexed; the corpus checks base removals too (#1001).
 
 - Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
   on compared elements when the capture recorded the layer and a compared owner.

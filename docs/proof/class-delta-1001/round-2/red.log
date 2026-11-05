@@ -34,7 +34,7 @@ test at test/class-join-round2.test.mjs:44:3
 ✖ volatile elements leave absence unproven only on the affected side (3.779792ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -45,8 +45,8 @@ test at test/class-join-round2.test.mjs:44:3
         'head',
         'never-rendered'
       ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:47:12)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)
@@ -63,7 +63,7 @@ test at test/class-join-round2.test.mjs:44:3
 ✖ ignored elements leave absence unproven only on the affected side (0.466708ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -74,8 +74,8 @@ test at test/class-join-round2.test.mjs:44:3
         'head',
         'never-rendered'
       ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:47:12)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -94,7 +94,7 @@ test at test/class-join-round2.test.mjs:44:3
 ✖ shadow hosts leave absence unproven only on the affected side (0.303458ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -105,8 +105,8 @@ test at test/class-join-round2.test.mjs:44:3
         'head',
         'never-rendered'
       ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:47:12)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -125,7 +125,7 @@ test at test/class-join-round2.test.mjs:44:3
 ✖ frames leave absence unproven only on the affected side (0.732917ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -136,8 +136,8 @@ test at test/class-join-round2.test.mjs:44:3
         'head',
         'never-rendered'
       ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:47:12)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -156,7 +156,7 @@ test at test/class-join-round2.test.mjs:44:3
 ✖ legacy omission metadata leave absence unproven only on the affected side (0.304ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -167,8 +167,8 @@ test at test/class-join-round2.test.mjs:44:3
         'head',
         'never-rendered'
       ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:47:12)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -187,11 +187,11 @@ test at test/class-join-round2.test.mjs:58:1
 ✖ one incomplete surface prevents absence proof across the whole occurrence side (0.282708ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   + actual - expected
-  
+
   + 'never-rendered'
   - 'unknown'
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:63:10)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:63:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -209,10 +209,10 @@ test at test/class-join-round2.test.mjs:58:1
 test at test/class-join-round2.test.mjs:66:1
 ✖ reordered vocabulary-only dataset values stay J3-only and cannot lower J2 (1.681083ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(result.units.every((u) => u.status === 'never-rendered' && u.explicit === false))
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:72:10)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:72:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -230,10 +230,10 @@ test at test/class-join-round2.test.mjs:66:1
 test at test/class-join-round2.test.mjs:76:1
 ✖ explicit class negatives may still lower J2 while legacy units cannot (0.279459ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(result.units.every((u) => u.explicit))
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:79:10)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:79:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -252,7 +252,7 @@ test at test/class-join-round2.test.mjs:85:1
 ✖ cva class strings include base and variant values, excluding bare and quoted variant keys (0.743417ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       'old',
   +   'primary',
@@ -265,8 +265,8 @@ test at test/class-join-round2.test.mjs:85:1
   +   'primary',
       'new'
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:89:10)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:89:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -291,7 +291,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: btn-x → btn (0.320042ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -302,8 +302,8 @@ test at test/class-join-round2.test.mjs:106:5
   -     'btn'
   -   ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -322,7 +322,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: btn → btn-x (0.189583ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
   -     'base',
@@ -333,8 +333,8 @@ test at test/class-join-round2.test.mjs:106:5
         'btn-x'
       ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -353,7 +353,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: card-a → card (0.154792ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -364,8 +364,8 @@ test at test/class-join-round2.test.mjs:106:5
   -     'card'
   -   ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -384,7 +384,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: card → card-a (0.139125ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
   -     'base',
@@ -395,8 +395,8 @@ test at test/class-join-round2.test.mjs:106:5
         'card-a'
       ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -415,7 +415,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: ab → a (0.12225ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -426,8 +426,8 @@ test at test/class-join-round2.test.mjs:106:5
   -     'a'
   -   ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -446,7 +446,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: a → ab (0.109125ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
   -     'base',
@@ -457,8 +457,8 @@ test at test/class-join-round2.test.mjs:106:5
         'ab'
       ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -477,7 +477,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: p-2 → p-20 (0.117042ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
   -     'base',
@@ -488,8 +488,8 @@ test at test/class-join-round2.test.mjs:106:5
         'p-20'
       ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -508,7 +508,7 @@ test at test/class-join-round2.test.mjs:106:5
 ✖ zero-width change retains both occurrences: p-20 → p-2 (0.124458ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
     [
       [
         'base',
@@ -519,8 +519,8 @@ test at test/class-join-round2.test.mjs:106:5
   -     'p-2'
   -   ]
     ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:108:14)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -538,10 +538,10 @@ test at test/class-join-round2.test.mjs:106:5
 test at test/class-join-round2.test.mjs:117:1
 ✖ class concatenation emits a named fragment gap and cannot lower J2 (0.290792ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:120:10)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:120:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -560,7 +560,7 @@ test at test/class-join-round2.test.mjs:128:1
 ✖ Solid classList object keys yield explicit class occurrences (0.158959ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
   + []
   - [
   -   [
@@ -572,8 +572,8 @@ test at test/class-join-round2.test.mjs:128:1
   -     true
   -   ]
   - ]
-  
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:130:10)
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:130:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -591,7 +591,7 @@ test at test/class-join-round2.test.mjs:128:1
 test at test/class-join-round2.test.mjs:139:1
 ✖ 16k scoped gaps and negative lookups stay below one second (4043.176333ms)
   AssertionError [ERR_ASSERTION]: classify: 2990.2906669999998ms
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.test.mjs:161:10)
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:161:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)

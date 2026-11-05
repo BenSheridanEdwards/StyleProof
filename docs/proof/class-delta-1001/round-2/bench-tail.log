@@ -1,0 +1,12 @@
+  ✓ colliding-constant [declared] today missed · reach unknown · J2 ran · J3 unknown
+  ✓ colliding-constant [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ error-handler [declared] today n/a · reach never-rendered · J2 never-ran
+  ✓ error-handler [complete] today n/a · reach never-rendered · J2 never-ran
+  ✓ render-scope-value [declared] today missed · reach unknown · J2 ran
+  ✓ render-scope-value [complete] today shown · reach unknown · J2 ran
+  ✓ eager-jsx-element [declared] today missed · reach unknown · J2 ran
+  ✓ eager-jsx-element [complete] today shown · reach unknown · J2 ran
+  ✓ same-line-class-style [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-line-class-style [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [complete] today shown · reach unknown · J2 ran · J3 unknown
