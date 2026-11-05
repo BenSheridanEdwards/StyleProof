@@ -403,10 +403,10 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
-            "J3": "never-rendered"
+            "J3": "unknown"
           },
           "classCount": 1
         },

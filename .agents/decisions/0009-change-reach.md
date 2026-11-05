@@ -2,7 +2,7 @@
 
 - **Status:** accepted (2026-10-23)
 - **Amendment (2026-11-02, #1240):** The changed-stylesheet join below is target design, not built. Until it is built (#934), StyleProof cannot list a changed stylesheet no capture served. The report names this as a run-level J1 gap that is not checked, under both levels. It prevents reach-complete but does not hold `gate`, because the report has neither the PR's changed files nor source maps.
-- **Implementation note (2026-11-05, #1001):** J3 now judges source occurrences against paired class-list deltas. Captures record no per-occurrence render provenance: no delta is `never-rendered`, a directional token-name delta is `unknown`, and no J3 unit reaches or corroborates J2. Missing vocabulary, ledgers, source ranges or pairing remain named warn-only `unmeasured` gaps.
+- **Implementation note (2026-11-05, #1001):** J3 now judges source occurrences against paired class-list deltas. Captures record no per-occurrence render provenance: only absence from every captured element on the occurrence's own side is `never-rendered`; any presence (including unpaired elements and unchanged class lists) is `unknown`, and no J3 unit reaches or corroborates J2. Missing vocabulary, ledgers, source ranges or pairing remain named warn-only `unmeasured` gaps.
 - **Date:** 2026-10-21
 - **Epic:** #934
 - **Depends on:** #988 reach corpus, #989 reach cost receipt, #991 served-rule ledger (merged in #1045)
@@ -40,7 +40,7 @@ the joins on a fixture whose spec opens only the healthy state:
 | complete (all five states)  | 12 of 13 changes   | mark every rendered change reached              |
 
 The #1001 receipt now covers 18 cases (17 visual): declared shows 3/17, complete
-shows 16/17, and all 14 declared misses are named. Unknown case counts are 5/8;
+shows 16/17, and all 14 declared misses are named. After round-one presence corrections, unknown case counts are 6/8;
 no J3 occurrence reaches without provenance. See the review for the 16-case baseline.
 
 The same corpus pins one noise case: a changed error-handler string that never
@@ -242,7 +242,7 @@ the evidence adds to a capture on a GitHub runner:
      unit from another value, line or hunk never does, including another value
      on the same line: in `<Banner className="new-x" style={{ color: fault ?
      'red' : 'blue' }} />`, a `reached` J3 unit for `new-x` says nothing about
-     the style value, which stays `unknown`. Class tokens follow the same rule:
+     the style value, which stays `unknown`. Class tokens follow the same rule. J3 can report `never-rendered` only when no captured element on that occurrence's side carries the token (head for additions, base for removals), including unpaired and volatile captured elements. Token presence without provenance stays `unknown`; the absence of a directional delta is not negative evidence. Pure additions/deletions cannot be excluded by opposite-blob positions; replacement exclusions use only hunk-relative counterpart lines:
      a J3 delta corroborates only the occurrence whose source range produced
      it, proved by per-occurrence provenance (for example, source-mapped render
      provenance linking the captured element's class value to that
@@ -345,7 +345,7 @@ the evidence adds to a capture on a GitHub runner:
   original complete-state J3 expectations (`branch-class`, `module-constant`,
   `colliding-constant`) stay `reached` only through per-occurrence evidence; if
   Phase 1 cannot record that evidence, they are deliberately re-expected as
-  `unknown`. #1001 applies that re-expectation to all three cases; declared captures report `never-rendered`.
+  `unknown`. #1001 applies that re-expectation to all three cases; declared branch-class and module-constant report `never-rendered`; colliding-constant is `unknown` because its head token is already present on healthy.
 
 ## Alternatives rejected
 

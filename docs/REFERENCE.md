@@ -2250,21 +2250,50 @@ are known class tokens, or they are in a class attribute/assignment or helper
 `twJoin`, `cn`). Only vocabulary tokens enter the join; a sentence with one matching
 word is skipped. Comments, regex bodies and dynamic word fragments are excluded.
 The full git blobs and literal text are transient, never report fields. Raw changed
-columns exclude untouched words in single-line edits. Identical literal words at
-identical source positions on both sides are also excluded; this is text comparison,
-not render provenance. Multi-line replacements retain the adapter's conservative line scope.
+columns exclude untouched words in single-line replacements. Purely added or deleted
+lines never use an opposite-blob exclusion. Replacement blocks compare only with
+the opposite line at the same hunk-relative index, including when line numbers shift.
+Identical literal words or unchanged literal values on those aligned lines can be
+excluded; this textual alignment is never render provenance.
 
-Captures pair by their capture filename key, as in the style diff. J3 uses the
-certification path correspondence and same-tag paired elements, excluding volatile
-subtrees on either side; an added/removed element alone supplies no paired delta.
-For each literal occurrence (file, side, exact UTF-16 source span), each gained head
-or lost base vocabulary token has a separate unit:
+CSS vocabulary is read as selector identifiers: escapes inside an ID cannot create
+class delimiters; attribute values and strings cannot contribute classes. Escaped
+class names are decoded (`.a\:b` → `a:b`, `.w-1\/2` → `w-1/2`), including inside
+selector functions such as `:not(.x)`.
 
-- No paired element changed that token in the occurrence's direction:
-  `never-rendered` — "class token never landed on a captured element".
-- A directional delta exists: `unknown` — "class token; delta not tied to this occurrence".
-- Missing/partial ledgers, class vocabulary, source ranges or pairing: a named
-  run-level J3 `unmeasured` gap, plus unmeasured units where they can be listed.
+For each changed class-token occurrence (file, side, exact UTF-16 source span):
+
+- `never-rendered` is allowed **only if no captured element on the occurrence's own
+  side carries the token**: head for additions, base for removals. This presence
+  check includes unpaired elements and volatile captured elements.
+- If any element on that side carries it: `unknown` — "token present on a captured
+  element; not tied to this occurrence". Neither unchanged class lists during a
+  refactor nor a newly added element nor a changed element tag proves absence.
+- Captures pair by filename key and use certification path correspondence to
+  describe token-name deltas. Unpaired head/base elements count as gained/lost;
+  tag replacements supply both. Volatile paths do not supply reliable deltas.
+  Delta presence or absence never ties a token to its source occurrence.
+- Missing/partial ledgers, class vocabulary, source ranges or pairing produce named
+  J3 `unmeasured` gaps. Gaps affect only their named side/file and source range when
+  available; a broken file does not downgrade healthy siblings or the other side.
+
+The reader supports string/template literals, object keys within class helpers,
+nested templates, Vue `:class`/`v-bind:class` with simple object/array bindings,
+Svelte `class:name` directives, and whitespace-bounded Svelte class interpolations.
+Substitution literals adjoining static text are dynamic fragments, not whole tokens:
+`` `${flag ? 'old' : 'keep'}-suffix` `` never contributes the token `old`.
+A changed explicit class context with no extractable served-vocabulary token emits
+a gap naming the file, side and range instead of disappearing.
+
+Residuals include computed object keys, spreads, aliased/custom helpers, arbitrary
+calls or identifiers whose returned strings require data flow, nested/complex Svelte
+interpolations and assembled class fragments. Known static candidates can still be
+listed, but they never prove a dynamic portion rendered. Nested prose inside a
+recognised helper is deliberately conservative: `cn('btn', t('old thing'))` can name
+`old` if it is in the CSS vocabulary. Ordinary prose outside class contexts is skipped.
+Line starts are precomputed for binary position lookup, and substitution token scans
+are restricted to their own template ranges; the regression suite bounds 1 MB string
+and template inputs below one second on the development machine.
 
 No capture records per-occurrence render provenance today. The type hook is reserved
 for it; **no J3 unit can currently be reached**, including unique tokens and
@@ -2273,7 +2302,7 @@ J3 negative can lower a J2 range that ran to `never-rendered`, retaining its exe
 A class occurrence never corroborates a different style value on the same line.
 
 `report.json.reach.classes` lists `sourceKey`, base/head `side`, literal `range`,
-`token`, `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
+`token`, optional token-name `delta` (`gained`/`lost`), `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
 numeric range and token. `classCounts` and `classGapCount` retain full counts.
 J2/J3 share at most 64 KB of detail after style findings; J3 omissions get a named
 count notice. Markdown/HTML cap J3 at 100 unit rows and 100 bounded gap rows.

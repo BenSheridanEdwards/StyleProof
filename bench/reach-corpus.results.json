@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-05T20:48:37.500Z",
+  "generated": "2026-11-05T21:46:58.281Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "j2Gaps": {
@@ -18,7 +18,7 @@
     "todayShownComplete": "16/17",
     "missesNamedByReach": "14/14",
     "residual": [],
-    "unknownDeclared": 5,
+    "unknownDeclared": 6,
     "unknownComplete": 8,
     "failed": []
   },
@@ -325,8 +325,9 @@
                 }
               },
               "token": "fault-badge--loud",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -396,8 +397,9 @@
                 }
               },
               "token": "tone-amber",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -412,13 +414,13 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
-            "J3": "never-rendered"
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:9: never-rendered (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:9:26 tone-red never-rendered"
+            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:9:26 tone-red unknown"
           ],
           "classUnits": [
             {
@@ -435,8 +437,8 @@
                 }
               },
               "token": "tone-red",
-              "status": "never-rendered",
-              "why": "class token never landed on a captured element",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -467,8 +469,9 @@
                 }
               },
               "token": "tone-red",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -597,8 +600,9 @@
                 }
               },
               "token": "same-line-new",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -629,8 +633,9 @@
                 }
               },
               "token": "same-line-new",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -669,8 +674,9 @@
                 }
               },
               "token": "collision-new",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             },
             {
@@ -687,8 +693,9 @@
                 }
               },
               "token": "collision-new",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],
@@ -720,8 +727,9 @@
                 }
               },
               "token": "collision-new",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             },
             {
@@ -738,8 +746,9 @@
                 }
               },
               "token": "collision-new",
+              "delta": "gained",
               "status": "unknown",
-              "why": "class token; delta not tied to this occurrence",
+              "why": "token present on a captured element; not tied to this occurrence",
               "level": "warn"
             }
           ],

@@ -517,7 +517,7 @@ test at test/class-join-round1.test.mjs:193:1
 
 test at test/class-join-round1.test.mjs:212:3
 ✖ one MB of string literals scans in under one second (5005.67525ms)
-  Error: spawnSync /opt/homebrew/Cellar/node/26.12.1/bin/node ETIMEDOUT
+  Error: spawnSync <node> ETIMEDOUT
       at Object.spawnSync (node:internal/child_process:1175:20)
       at spawnSync (node:child_process:976:24)
       at execFileSync (node:child_process:1019:15)
@@ -530,10 +530,10 @@ test at test/class-join-round1.test.mjs:212:3
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
     errno: -60,
     code: 'ETIMEDOUT',
-    syscall: 'spawnSync /opt/homebrew/Cellar/node/26.12.1/bin/node',
-    path: '/opt/homebrew/Cellar/node/26.12.1/bin/node',
+    syscall: 'spawnSync <node>',
+    path: '<node>',
     spawnargs: [ '--input-type=module', '-e', `import {classLiterals} from './dist/class-join-literals.js'; const line = "const C = 'old known';\\n"; const text=line.repeat(Math.ceil(1_000_000/line.length)); const start=performance.now(); const literals=classLiterals(text,'app.ts'); console.log(JSON.stringify({bytes:text.length,ms:performance.now()-start,count:literals.length}));` ],
-    error: Error: spawnSync /opt/homebrew/Cellar/node/26.12.1/bin/node ETIMEDOUT
+    error: Error: spawnSync <node> ETIMEDOUT
         at Object.spawnSync (node:internal/child_process:1175:20)
         at spawnSync (node:child_process:976:24)
         at execFileSync (node:child_process:1019:15)
@@ -554,7 +554,7 @@ test at test/class-join-round1.test.mjs:212:3
 
 test at test/class-join-round1.test.mjs:212:3
 ✖ one MB of template literals scans in under one second (5004.622958ms)
-  Error: spawnSync /opt/homebrew/Cellar/node/26.12.1/bin/node ETIMEDOUT
+  Error: spawnSync <node> ETIMEDOUT
       at Object.spawnSync (node:internal/child_process:1175:20)
       at spawnSync (node:child_process:976:24)
       at execFileSync (node:child_process:1019:15)
@@ -567,10 +567,10 @@ test at test/class-join-round1.test.mjs:212:3
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
     errno: -60,
     code: 'ETIMEDOUT',
-    syscall: 'spawnSync /opt/homebrew/Cellar/node/26.12.1/bin/node',
-    path: '/opt/homebrew/Cellar/node/26.12.1/bin/node',
+    syscall: 'spawnSync <node>',
+    path: '<node>',
     spawnargs: [ '--input-type=module', '-e', 'import {classLiterals} from \'./dist/class-join-literals.js\'; const line = "const C = `btn ${on ? \\"old\\" : \\"new\\"}`;\\n"; const text=line.repeat(Math.ceil(1_000_000/line.length)); const start=performance.now(); const literals=classLiterals(text,\'app.ts\'); console.log(JSON.stringify({bytes:text.length,ms:performance.now()-start,count:literals.length}));' ],
-    error: Error: spawnSync /opt/homebrew/Cellar/node/26.12.1/bin/node ETIMEDOUT
+    error: Error: spawnSync <node> ETIMEDOUT
         at Object.spawnSync (node:internal/child_process:1175:20)
         at spawnSync (node:child_process:976:24)
         at execFileSync (node:child_process:1019:15)
