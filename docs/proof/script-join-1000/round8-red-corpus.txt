@@ -1,0 +1,48 @@
+Already up to date
+Done in 170ms using pnpm v11.7.0
+$ pnpm run build && node bench/reach-corpus.mjs --check
+$ tsc
+StyleProof reach corpus — 16 changes on bench/fixtures/reach (15 visual)
+
+  declared spec (home): today's diff shows 1/15 visual changes
+  reach joins name 14/14 of the misses (0 pinned residual)
+  complete spec (5 surfaces): today's diff shows 14/15
+  J2 run-level gaps: none (asserted for every source unit; not reach-complete)
+
+  ✓ hover-rule [declared] today shown · reach reached
+  ✓ hover-rule [complete] today shown · reach reached
+  ✓ fault-rule [declared] today missed · reach never-rendered
+  ✓ fault-rule [complete] today shown · reach reached
+  ✓ token-consumer [declared] today missed · reach never-rendered
+  ✓ token-consumer [complete] today shown · reach reached
+  ✓ ternary-arm [declared] today missed · reach never-rendered
+  ✓ ternary-arm [complete] today shown · reach reached
+  ✓ keyframes [declared] today missed · reach blind-channel
+  ✓ keyframes [complete] today missed · reach blind-channel
+  ✓ dark-mode [declared] today missed · reach never-rendered
+  ✓ dark-mode [complete] today shown · reach reached
+  ✓ wide-media [declared] today missed · reach never-rendered
+  ✓ wide-media [complete] today shown · reach reached
+  ✓ removed-rule [declared] today missed · reach never-rendered
+  ✓ removed-rule [complete] today shown · reach reached
+  ✓ css-module [declared] today missed · reach never-rendered
+  ✓ css-module [complete] today shown · reach reached
+  ✓ runtime-css-in-js [declared] today missed · reach unknown · J2 ran
+  ✓ runtime-css-in-js [complete] today shown · reach unknown · J2 ran
+  ✓ branch-class [declared] today missed · reach never-rendered · J2 never-ran · J3-prototype never-rendered (#1001: per-occurrence provenance pending)
+  ✓ branch-class [complete] today shown · reach unknown · J2 ran · J3-prototype reached (#1001: per-occurrence provenance pending)
+  ✓ module-constant [declared] today missed · reach unknown · J2 ran · J3-prototype never-rendered (#1001: per-occurrence provenance pending)
+  ✓ module-constant [complete] today shown · reach unknown · J2 ran · J3-prototype reached (#1001: per-occurrence provenance pending)
+  ✓ colliding-constant [declared] today missed · reach unknown · J2 ran · J3-prototype never-rendered (#1001: per-occurrence provenance pending)
+  ✓ colliding-constant [complete] today shown · reach unknown · J2 ran · J3-prototype reached (#1001: per-occurrence provenance pending)
+  ✓ error-handler [declared] today n/a · reach never-rendered · J2 never-ran
+  ✓ error-handler [complete] today n/a · reach never-rendered · J2 never-ran
+  ✓ render-scope-value [declared] today missed · reach unknown · J2 ran
+  ✓ render-scope-value [complete] today shown · reach unknown · J2 ran
+  ✗ eager-jsx-element [declared] today missed · reach unmeasured · J2 unmeasured
+  ✗ eager-jsx-element [complete] today shown · reach unmeasured · J2 unmeasured
+
+2 violated expectation(s):
+  declared: eager-jsx-element — reach unmeasured, want unknown; J2 unmeasured, want ran
+  complete: eager-jsx-element — reach unmeasured, want unknown; J2 unmeasured, want ran
+[ELIFECYCLE] Command failed with exit code 1.

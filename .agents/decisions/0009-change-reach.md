@@ -175,6 +175,17 @@ the evidence adds to a capture on a GitHub runner:
      V8 does not give every potentially throwing expression its own continuation
      counter. Capture notes name these residuals; the 2.2 join must keep such code unknown rather than infer
      reached from block execution.
+     After an optional chain, V8 may end an enclosing idle continuation early,
+     so later code in that block can read executed even when it never ran:
+     `if (t) return 1; const i = s?.missing?.x; sink("dead");`.
+     These counters cannot prove the continuation executed.
+   - **J2 source-map attribution.** A minifier can merge equivalent arms
+     (`flag ? one : one` → `one`) or hoist a shared call
+     (`flag ? sink(a) : sink(b)` → `sink(flag ? a : b)`). The source-map anchor
+     can remain on one original arm even when the other arm ran, making that
+     original arm read executed. J2 cannot detect this from the map. This is
+     an attribution residual, and execution alone still supplies no rendering
+     proof; corroboration requires the same value's exact source range.
    - value-producing lines at any lexical scope: module, component or render
      body, hook, helper or memo. A value here is anything a line computes that
      can reach the page. Examples, not an exhaustive list: style objects,

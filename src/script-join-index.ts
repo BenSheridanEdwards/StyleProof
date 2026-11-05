@@ -78,7 +78,8 @@ function rowEvidence(row: Anchor[], start: number, end: number): number {
     index < row.length && row[index].column < end;
     index++
   ) {
-    bits |= row[index].bits;
+    // Punctuation and other starts can still supply negative/mixed evidence.
+    if (row[index].bits & 2) bits |= row[index].bits;
   }
 
   return bits;
@@ -110,53 +111,65 @@ function precedingEvidence(range: SourceSpan, index: ScriptExecutionIndex): numb
   return cursor > 0 ? index.rows.get(index.lines[cursor - 1])!.at(-1)!.bits : 0;
 }
 
-function firstStart(range: SourceSpan, index: ScriptExecutionIndex): SourcePosition | undefined {
-  for (
-    let cursor = firstAtOrAfter(index.lines, range.start.line, (value) => value);
-    cursor < index.lines.length;
-    cursor++
-  ) {
-    const line = index.lines[cursor];
-    if (line > range.end.line) break;
-    const row = index.rows.get(line)!;
-    const anchor =
-      row[firstAtOrAfter(row, line === range.start.line ? range.start.column : 0, (point) => point.column)];
-    if (anchor && (line < range.end.line || anchor.column < range.end.column)) return { line, column: anchor.column };
-  }
+type TokenEvidence = { bits: number; missing: boolean; preceding: boolean; count: number; why?: string };
+
+function exactAnchor(point: SourcePosition, index: ScriptExecutionIndex): number | undefined {
+  const row = index.rows.get(point.line) ?? [];
+  const position = firstAtOrAfter(row, point.column, (anchor) => anchor.column);
+  return row[position]?.column === point.column ? row[position].bits : undefined;
 }
 
-function leadingExecution(range: SourceSpan, index: ScriptExecutionIndex, text?: string): RangeExecution | undefined {
-  if (text === undefined) return;
-  const first = firstStart(range, index);
-  if (!first) return;
-  const stop = first.line - range.start.line;
-  if (stop === 0 && first.column === range.start.column) return;
-  const prefix = text
-    .split(/\r\n|[\n\r\u2028\u2029]/)
-    .slice(0, stop + 1)
-    .map((line, i) => line.slice(i === 0 ? range.start.column : 0, i === stop ? first.column : undefined))
-    .join('\n');
-  if (!scriptTokens(prefix).length) return;
-  const preceding = rangeExecution(0, 'preceding-anchor', range, index);
+function tokenEvidence(point: SourcePosition, index: ScriptExecutionIndex, startsInRange: boolean): TokenEvidence {
+  const own = startsInRange ? exactAnchor(point, index) : undefined;
+  if (own !== undefined) return { bits: own, missing: false, preceding: false, count: 1 };
+  const before = precedingEvidence({ start: point, end: point }, index);
   return {
-    ...preceding,
-    why: `leading text before the first in-range anchor; ${preceding.why ?? 'preceding-anchor evidence cannot be ignored'}`,
+    bits: before & 2 ? before : 0,
+    missing: !(before & 2),
+    preceding: true,
+    count: 1,
+    why:
+      before === 1
+        ? 'changed script token has no mapped anchor at its start; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler)'
+        : 'script token without an execution start, including leading text, retains negative or missing preceding-anchor evidence',
   };
 }
 
-function combinedExecution(bits: number, scope: RangeExecution['scope'], leading: RangeExecution): RangeExecution {
-  const negative = leading.execution === 'partly-ran' ? 3 : leading.execution === 'never-ran' ? 2 : 0;
-  bits |= negative;
-  // An unmeasured prefix cannot be proved by a later start. Any known idle
-  // portion still names the line as never-rendered rather than hiding it.
-  const execution = bits & 2 ? (bits & 1 ? 'partly-ran' : 'never-ran') : 'unmeasured';
-  return { execution, scope: scope === 'line' ? scope : 'preceding-anchor', why: leading.why };
+function rangeTokens(range: SourceSpan, index: ScriptExecutionIndex, text: string): TokenEvidence {
+  const result: TokenEvidence = { bits: 0, missing: false, preceding: false, count: 0 };
+  const lines = text.split(/\r\n|[\n\r\u2028\u2029]/);
+  for (const [offset, line] of lines.entries()) {
+    const number = range.start.line + offset;
+    if (number > range.end.line) break;
+    const from = offset === 0 ? range.start.column : 0;
+    const to = number === range.end.line ? range.end.column : Infinity;
+    for (const token of scriptTokens(line)) {
+      if (token.index >= to || token.end <= from) continue;
+      const evidence = tokenEvidence({ line: number, column: Math.max(from, token.index) }, index, token.index >= from);
+      result.bits |= evidence.bits;
+      result.missing ||= evidence.missing;
+      result.preceding ||= evidence.preceding;
+      result.count++;
+      result.why ??= evidence.why;
+    }
+  }
+  return result;
+}
+
+function tokenExecution(bits: number, scope: RangeExecution['scope'], evidence: TokenEvidence): RangeExecution {
+  bits |= evidence.bits;
+  const execution =
+    bits & 2 ? (bits & 1 ? 'partly-ran' : 'never-ran') : !evidence.missing && bits === 1 ? 'ran' : 'unmeasured';
+  return {
+    execution,
+    scope: evidence.preceding && scope !== 'line' ? 'preceding-anchor' : scope,
+    ...(evidence.why ? { why: evidence.why } : {}),
+  };
 }
 
 export function executionIn(range: SourceSpan, index: ScriptExecutionIndex, text?: string): RangeExecution {
   let bits = 0;
   let scope: RangeExecution['scope'] = 'range';
-
   for (
     let cursor = firstAtOrAfter(index.lines, range.start.line, (line) => line);
     cursor < index.lines.length && index.lines[cursor] <= range.end.line;
@@ -165,34 +178,16 @@ export function executionIn(range: SourceSpan, index: ScriptExecutionIndex, text
     const line = index.lines[cursor];
     if (line === range.end.line && range.end.column === 0) break;
     const row = index.rows.get(line)!;
-    if (lineOnly(row)) {
-      scope = 'line';
-    }
+    if (lineOnly(row)) scope = 'line';
     bits |= rangeRowEvidence(row, line, range);
   }
-
-  const leading = leadingExecution(range, index, text);
-  return leading ? combinedExecution(bits, scope, leading) : rangeExecution(bits, scope, range, index);
-}
-
-function rangeExecution(
-  bits: number,
-  scope: RangeExecution['scope'],
-  range: SourceSpan,
-  index: ScriptExecutionIndex,
-): RangeExecution {
-  if (!bits) {
-    bits = precedingEvidence(range, index);
-    if (bits && scope !== 'line') scope = 'preceding-anchor';
-    // A mapped start before this range can name an idle block, but cannot
-    // prove execution of text that the bundler may have removed entirely.
-    if (bits === 1)
-      return {
-        execution: 'unmeasured',
-        scope,
-        why: 'no mapped anchor inside the changed range; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler)',
-      };
-  }
-
-  return { execution: bits === 3 ? 'partly-ran' : bits === 2 ? 'never-ran' : bits === 1 ? 'ran' : 'unmeasured', scope };
+  const tokens = text === undefined ? undefined : rangeTokens(range, index, text);
+  if (tokens?.count) return tokenExecution(bits, scope, tokens);
+  const fallback = tokenEvidence(range.start, index, false);
+  fallback.missing = true;
+  fallback.why =
+    text === undefined
+      ? 'changed source text unavailable; no token-start execution proof'
+      : 'no script token-start execution proof; punctuation anchors supply negative evidence only';
+  return tokenExecution(bits, scope, fallback);
 }

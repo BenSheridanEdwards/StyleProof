@@ -123,10 +123,10 @@ test('real captured revisions join through git multi-line hunks, a recorded pref
   expect(
     units.map((unit) => [unit.side, unit.range.start.line, unit.changeScope, unit.execution, unit.status]),
   ).toEqual([
-    ['base', 1, 'line', 'ran', 'unknown'],
-    ['base', 2, 'line', 'ran', 'unknown'],
-    ['head', 1, 'line', 'ran', 'unknown'],
-    ['head', 2, 'line', 'ran', 'unknown'],
+    ['base', 1, 'line', 'unmeasured', 'unmeasured'],
+    ['base', 2, 'line', 'unmeasured', 'unmeasured'],
+    ['head', 1, 'line', 'unmeasured', 'unmeasured'],
+    ['head', 2, 'line', 'unmeasured', 'unmeasured'],
   ]);
   expect(diff.gaps.some((gap) => /git source diff unavailable/.test(gap.reason))).toBe(false);
   expect(diff.changes.some((change) => change.sourceKey === 'link.js')).toBe(true);

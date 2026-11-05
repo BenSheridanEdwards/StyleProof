@@ -1,0 +1,82 @@
+Already up to date
+Done in 325ms using pnpm v11.7.0
+
+Running 15 tests using 1 worker
+
+(node:71521) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › a live closing brace cannot prove the eliminated development arm ran in real Chromium through git (2.1s)
+(node:574) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › the eliminated development arm stays unmeasured after a line break in real Chromium through git (2.7s)
+  ✘   3 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › a two-token ternary edit cannot borrow the surviving arm execution in real Chromium through git (2.6s)
+(node:22544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   4 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (2.2s)
+  ✓   5 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (2.0s)
+  ✓   6 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (2.5s)
+  ✓   7 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (1.8s)
+  ✓   8 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (1.4s)
+  ✓   9 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (1.6s)
+  ✓  10 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › a merged return cannot inherit execution from the selected zero branch (1.4s)
+  ✓  11 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › idle multiline template accounts for leading text before executed starts in real Chromium (1.7s)
+  ✓  12 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (1.7s)
+  ✓  13 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (1.9s)
+  ✓  14 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › idle clsx template accounts for leading text before executed starts in real Chromium (1.4s)
+  ✓  15 [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › empty map callback accounts for leading text before executed starts in real Chromium (1.7s)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › a live closing brace cannot prove the eliminated development arm ran in real Chromium through git
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      148 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      149 |     expect(units).toHaveLength(scenario.count);
+    > 150 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      151 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      152 |     );
+      153 |     if (scenario.expected === 'unmeasured' || !scenario.minifySyntax) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:150:46
+
+    Error Context: test-results/test-script-join-round6.e2-d6ac3-n-real-Chromium-through-git-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › a two-token ternary edit cannot borrow the surviving arm execution in real Chromium through git
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      148 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      149 |     expect(units).toHaveLength(scenario.count);
+    > 150 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      151 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      152 |     );
+      153 |     if (scenario.expected === 'unmeasured' || !scenario.minifySyntax) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:150:46
+
+    Error Context: test-results/test-script-join-round6.e2-87388-n-real-Chromium-through-git-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › a live closing brace cannot prove the eliminated development arm ran in real Chromium through git
+    [chromium] › test/script-join-round6.e2e.spec.ts:90:3 › a two-token ternary edit cannot borrow the surviving arm execution in real Chromium through git
+  13 passed (1.6m)

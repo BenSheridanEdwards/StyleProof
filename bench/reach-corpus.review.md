@@ -71,6 +71,13 @@ computed-style finding on the complete spec does not supply exact-range
 corroboration. Thus those src J2 units stay unknown. The healthy page never enters
 the fault badge branch, so branch-class remains never-rendered there.
 
+Round eight changes **zero case statuses and zero cells to unknown**. Eager JSX
+remains ran/unknown in both scenarios: its opening tag, properties and text have
+token-start anchors; the closing tag is delimiter syntax, not a second evaluation
+of its name. All 32 expectations and the zero-gap assertion remain unchanged.
+The refreshed receipt adds the general throwing-expression limit to ran/unknown
+reasons; J3-prototype rows still cannot corroborate J2.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry

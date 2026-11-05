@@ -52,7 +52,10 @@ test('a changed main operand ran even when the nullish fallback on the same line
       ['never-ran', 'never-rendered'],
     ],
   );
-  assert.equal(units[0].why, 'value; rendering not proved');
+  assert.equal(
+    units[0].why,
+    'value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved',
+  );
 });
 
 test('an expression without its own anchor takes only negative preceding evidence', () => {
@@ -143,7 +146,12 @@ test('J2 names all five block-entry residuals and never treats their anchors as 
   ];
 
   for (const [text, reason] of samples) {
-    const unit = classify([change(0, text.length, { text })], undefined, [capture([[1, 0, 0]], [])]).units[0];
+    const unit = classify([change(0, text.length, { text })], undefined, [
+      capture(
+        Array.from({ length: text.length }, (_, column) => [1, column, column]),
+        [],
+      ),
+    ]).units[0];
     assert.equal(unit.status, 'unknown');
     assert.match(unit.why, new RegExp(reason));
   }

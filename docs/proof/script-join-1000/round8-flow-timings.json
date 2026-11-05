@@ -1,0 +1,110 @@
+[
+  {
+    "label": "main-1",
+    "exit": 0,
+    "wall_seconds": 46.988,
+    "load_start": [
+      173.9912109375,
+      138.21630859375,
+      114.310546875
+    ],
+    "load_end": [
+      143.61279296875,
+      135.86767578125,
+      114.71728515625
+    ],
+    "map_seconds": 36.628,
+    "map_status": 0
+  },
+  {
+    "label": "branch-1",
+    "exit": 0,
+    "wall_seconds": 39.126,
+    "load_start": [
+      143.61279296875,
+      135.86767578125,
+      114.71728515625
+    ],
+    "load_end": [
+      94.95703125,
+      124.42041015625,
+      111.49951171875
+    ],
+    "map_seconds": 31.968,
+    "map_status": 0
+  },
+  {
+    "label": "main-2",
+    "exit": 0,
+    "wall_seconds": 27.832,
+    "load_start": [
+      94.95703125,
+      124.42041015625,
+      111.49951171875
+    ],
+    "load_end": [
+      70.41650390625,
+      115.67578125,
+      108.77783203125
+    ],
+    "map_seconds": 23.454,
+    "map_status": 0
+  },
+  {
+    "label": "branch-2",
+    "exit": 0,
+    "wall_seconds": 29.879,
+    "load_start": [
+      70.41650390625,
+      115.67578125,
+      108.77783203125
+    ],
+    "load_end": [
+      55.25927734375,
+      107.71533203125,
+      106.13232421875
+    ],
+    "map_seconds": 25.717,
+    "map_status": 0
+  },
+  {
+    "label": "branch-3",
+    "exit": 0,
+    "wall_seconds": 23.404,
+    "load_start": [
+      29.4013671875,
+      84.46044921875,
+      97.29541015625
+    ],
+    "load_end": [
+      29.88037109375,
+      80.125,
+      95.3583984375
+    ],
+    "map_seconds": 19.096,
+    "map_status": 0,
+    "before_first_surface_seconds": 8.873,
+    "surface_interval_seconds": 10.111,
+    "after_last_surface_seconds": 0.112
+  },
+  {
+    "label": "main-3",
+    "exit": 0,
+    "wall_seconds": 15.427,
+    "load_start": [
+      29.88037109375,
+      80.125,
+      95.3583984375
+    ],
+    "load_end": [
+      28.806640625,
+      77.4501953125,
+      94.138671875
+    ],
+    "map_seconds": 13.872,
+    "map_status": 0,
+    "before_first_surface_seconds": 5.124,
+    "surface_interval_seconds": 8.652,
+    "after_last_surface_seconds": 0.096
+  }
+]

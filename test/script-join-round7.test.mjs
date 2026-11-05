@@ -30,7 +30,7 @@ for (const [name, entry, gaps] of [
           sourceKey: 'app.js',
           contentHash: sha256(text),
           encoding: 'line-column-tuples',
-          executed: [[1, 0, 0]],
+          executed: Array.from({ length: text.length }, (_, column) => [1, column, column]),
           unexecuted: [],
           mixed: [],
         },
@@ -60,7 +60,7 @@ for (const [name, entry, gaps] of [
 }
 
 const explanation =
-  'no mapped anchor inside the changed range; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler)';
+  'changed script token has no mapped anchor at its start; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler)';
 
 for (const [name, before] of [
   [
@@ -193,7 +193,7 @@ test('a column-zero start proves entry only when it starts inside the changed ra
     side: 'head',
     text,
     contentHash: sha256(text),
-    range: { start: { line: 1, column }, end: { line: 1, column: text.length } },
+    range: { start: { line: 1, column }, end: { line: 1, column: column === 0 ? 5 : text.length } },
   }));
   const units = classifyScriptReach([map], [map], changes).units;
   assert.deepEqual(
@@ -248,7 +248,7 @@ for (const [name, before, from, to, column] of [
     );
     assert.deepEqual(
       units.map((unit) => unit.execution),
-      ['partly-ran', 'partly-ran'],
+      ['never-ran', 'never-ran'],
     );
     assert.ok(units.every((unit) => unit.why.includes('leading')));
   });
@@ -274,6 +274,6 @@ for (const [prefix, state, expected] of [
     const text = prefix + 'value;';
     const unit = executionIn({ start: { line: 2, column: 0 }, end: { line: 2, column: text.length } }, index, text);
     assert.equal(unit.execution, expected);
-    if (expected !== 'ran') assert.match(unit.why, /leading text/);
+    if (expected !== 'ran') assert.match(unit.why, /script token|leading text/);
   });
 }

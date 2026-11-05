@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-04T19:28:55.274Z",
+  "generated": "2026-11-05T09:12:50.930Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "j2Gaps": {
@@ -235,7 +235,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:40: unknown (value; rendering not proved)"
+            "app.jsx:40: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "ok": true
         },
@@ -248,7 +248,7 @@
           "units": [
             ".css-11ycpj1: reached (matched in a captured state)",
             ".css-xgzlw4: reached (matched in a captured state)",
-            "app.jsx:40: unknown (value; rendering not proved)"
+            "app.jsx:40: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "ok": true
         }
@@ -278,7 +278,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:51: unknown (value; rendering not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:51: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
           ],
           "prototypeJ3": "reached",
           "ok": true
@@ -297,7 +297,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:8: unknown (value; rendering not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
           ],
           "prototypeJ3": "never-rendered",
           "ok": true
@@ -309,7 +309,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:8: unknown (value; rendering not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
           ],
           "prototypeJ3": "reached",
           "ok": true
@@ -328,7 +328,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:9: unknown (value; rendering not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
           ],
           "prototypeJ3": "never-rendered",
           "ok": true
@@ -340,7 +340,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:9: unknown (value; rendering not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
           ],
           "prototypeJ3": "reached",
           "ok": true
@@ -386,7 +386,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:67: unknown (value; rendering not proved)"
+            "app.jsx:67: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "ok": true
         },
@@ -397,7 +397,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:67: unknown (value; rendering not proved)"
+            "app.jsx:67: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "ok": true
         }
@@ -415,7 +415,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:68: unknown (value; rendering not proved)"
+            "app.jsx:68: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "ok": true
         },
@@ -426,7 +426,7 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:68: unknown (value; rendering not proved)"
+            "app.jsx:68: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
           "ok": true
         }

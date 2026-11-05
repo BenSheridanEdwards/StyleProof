@@ -14,7 +14,7 @@ export type ScriptChange = {
   range: SourceSpan;
   /** SHA-256 of the entire git blob, not the changed substring. */
   contentHash: string;
-  /** Changed source lines, used only to name conservative residuals. Never persisted by the join. */
+  /** Full JavaScript lines containing the range, starting at range.start.line; token evidence and residual names only. Never persisted. */
   text: string;
   /** The entire changed line, rather than a trimmed token range. */
   changeScope?: 'line';
@@ -178,9 +178,12 @@ function residuals(text: string): string[] {
 }
 
 function residualReason(text: string): string {
-  if (text.length > 128) return '; J2 residual naming skipped for source lines over 128 UTF-16 code units';
+  const continuation = '; J2 block-entry limit: code after a throwing expression is not proved';
+  if (text.length > 128)
+    return '; J2 residual naming skipped for source lines over 128 UTF-16 code units' + continuation;
   const limits = residuals(text);
-  return limits.length ? `; J2 block-entry residual: ${limits.join('; ')}` : '';
+  const named = limits.length ? `; J2 block-entry residual: ${limits.join('; ')}` : '';
+  return named + (limits.includes('code after a throwing expression') ? '' : continuation);
 }
 
 function emptyLine(change: ScriptChange): boolean {

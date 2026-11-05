@@ -144,7 +144,18 @@ for (const after of ['x = a.c ?? b;', 'x = a() ?? b;']) {
     const before = 'x = a ?? b;';
     const maps = [
       captured(before, [[1, 4, 4]], [], '/app.js', [[1, 9, 10]]),
-      captured(after, [[1, 4, 4]], [], '/app.js', [[1, after.indexOf('b'), after.indexOf('b') + 1]]),
+      captured(
+        after,
+        after.includes('a.c')
+          ? [
+              [1, 4, 4],
+              [1, 6, 6],
+            ]
+          : [[1, 4, 4]],
+        [],
+        '/app.js',
+        [[1, after.indexOf('b'), after.indexOf('b') + 1]],
+      ),
     ];
     const changes = changedScriptRanges(
       `@@ -1 +1 @@\n-${before}\n+${after}\n`,

@@ -29,7 +29,8 @@ function capture(text, column, idle = false) {
               sourceKey: 'app.ts',
               contentHash: sha256(text),
               encoding: 'line-column-tuples',
-              executed: idle ? [] : [[1, column, column]],
+              // This synthetic revision is fully witnessed, independent of tokenization.
+              executed: idle ? [] : Array.from({ length: text.length }, (_, position) => [1, position, position]),
               unexecuted: idle ? [[1, column, column + 1]] : [],
               mixed: [],
             },

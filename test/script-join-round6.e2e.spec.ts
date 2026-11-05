@@ -8,8 +8,30 @@ import { classifyScriptReach } from '../dist/script-join.js';
 import { readScriptChanges } from '../dist/script-join-git.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 import { overlaySource } from './script-join-round6-fixture.mjs';
+import { residualCases, tokenCases, tokenDefines } from './script-join-round8-fixture.mjs';
+import { generateStyleMapReport } from '../dist/report.js';
+import { writeCapture } from './helpers.mjs';
 
 const scenarios = [
+  ...residualCases.flatMap(({ name, before, residual }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} reports its residual with minify=${minifySyntax}`,
+      before,
+      after: before.replace('"red"', '"blue"'),
+      residual,
+      minifySyntax,
+      expected: 'unknown',
+      count: 2,
+    })),
+  ),
+  ...tokenCases.map(({ name, before, after }) => ({
+    name: name + ' in real Chromium through git',
+    before,
+    after,
+    minifySyntax: true,
+    expected: 'unmeasured',
+    count: 2,
+  })),
   ...[false, true].map((rendered) => ({
     name: `${rendered ? 'opened' : 'unopened'} overlay CSS-template and JSX-text edits use real Chromium execution through git`,
     before: overlaySource(rendered),
@@ -110,7 +132,7 @@ for (const scenario of scenarios) {
         sourcemap: 'external',
         jsxFactory: 'h',
         minify: scenario.minifySyntax,
-        define: { 'process.env.NODE_ENV': '"production"' },
+        define: tokenDefines,
       });
       const page = await context.newPage();
       await page.route('https://overlay.test/**', (route) => {
@@ -148,13 +170,27 @@ for (const scenario of scenarios) {
     expect(units.map((unit) => unit.status)).toEqual(
       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
     );
-    if (scenario.expected === 'unmeasured' || !scenario.minifySyntax) {
+    if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
       expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
       expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
     }
     if (scenario.expected === 'unmeasured') {
       expect(units.every((unit) => unit.execution === 'unmeasured')).toBe(true);
       expect(units.every((unit) => unit.why.includes('it may have been removed by the bundler'))).toBe(true);
+    }
+    if ('residual' in scenario) {
+      maps.forEach((map, i) => writeCapture(dirs[i], 'home@1280', map, null));
+      const previous = process.cwd();
+      let report;
+      process.chdir(root);
+      try {
+        report = generateStyleMapReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+      } finally {
+        process.chdir(previous);
+      }
+      const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+      expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+      expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
     }
   });
 }

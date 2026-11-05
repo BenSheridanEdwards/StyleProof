@@ -170,7 +170,7 @@ for (const tokenScoped of [false, true])
     assert.equal(json.surfaces.flatMap((surface) => surface.findings ?? []).length, 20);
     assert.ok(Buffer.byteLength(raw) <= DEFAULT_MAX_JSON_BYTES, `${Buffer.byteLength(raw)} JSON bytes`);
     assert.equal(json.findingsBudget?.omitted ?? 0, 0);
-    assert.equal(json.reach.scriptCounts[tokenScoped ? 'unmeasured' : 'unknown'], 3000);
+    assert.equal(json.reach.scriptCounts.unmeasured, 3000);
     const metadata = { ...json, reach: { ...json.reach, scripts: [] } };
     const tightBytes = Buffer.byteLength(JSON.stringify(metadata, null, 2)) + 1024;
     const tight = render('tight-report', { maxJsonBytes: tightBytes });
@@ -289,6 +289,11 @@ test('inter-hunk context and user diff formatting cannot attribute unchanged lin
 test('long residual candidates stay unknown without running unbounded naming regexes', () => {
   const text = '(a=1,'.repeat(600);
   const maps = [measured(text)];
+  maps[0].scriptReach.scripts[0].files[0].executed = [...text.matchAll(/[a1]/g)].map((token) => [
+    1,
+    token.index,
+    token.index,
+  ]);
   const [unit] = classifyScriptReach(maps, maps, [change(text)]).units;
   assert.equal(unit.status, 'unknown');
   assert.match(unit.why, /residual naming skipped.*128/);

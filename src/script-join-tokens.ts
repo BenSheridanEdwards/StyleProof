@@ -45,9 +45,17 @@ export function scriptTokens(line: string): ScriptToken[] {
   const tokens: ScriptToken[] = [],
     jsx = jsxTextRanges(line);
   const matcher = new RegExp(TOKEN);
+  const closingTag = /<\/(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*)?\s*>/uy;
   let cursor = 0,
     text = 0;
   while (cursor < line.length) {
+    // A closing JSX tag is delimiter syntax, not another evaluation of its name.
+    // Execution joining still retains any negative anchors inside that delimiter.
+    closingTag.lastIndex = cursor;
+    if (line[cursor] === '<' && closingTag.test(line)) {
+      cursor = closingTag.lastIndex;
+      continue;
+    }
     while (text < jsx.length && jsx[text].index < cursor) text++;
     if (jsx[text]?.index === cursor) {
       tokens.push(jsx[text]);

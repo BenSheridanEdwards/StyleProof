@@ -464,3 +464,100 @@ production health checks pass unchanged. The earlier formatting addition briefly
 raised classifyRange cognitive complexity to 17; simplifying reason concatenation
 removed the finding without changing thresholds. Full gate tails and the final
 published SHA are in the handoff.
+
+## Round 8: token-start proof and residual visibility
+
+Rebased onto `6a711821e`. The history check after the reboot shows only the eight
+expected issue-1000 commits, ending at rebased `71bed0a28`; origin/main has not
+moved. No unrelated commits were incorporated.
+
+The retained [unit red](round8-red-unit.txt) has six failures and two passing
+controls. The [browser red](round8-red-browser.txt) has two failures and thirteen
+passing controls. The production-defined same-line closing-brace repro, its
+line-break control and the two-token optimized ternary now all read unmeasured
+on both sides through real esbuild mappings, Chromium and the Git adapter.
+A live closing delimiter cannot prove the eliminated development arm ran.
+
+Positive execution is now token-based: every script token in a range needs its
+own start inside that range to prove ran. Punctuation supplies negative evidence
+only. Missing starts use only negative preceding evidence, whether before or
+after another live start. Idle/mixed evidence still names never-rendered; an
+executed neighbour cannot prove removed or unmapped code. Binary-search indexes
+are retained, and the 6,000-line regression passes. JavaScript-line text is now
+sliced from blob offsets before tokenizing, with real-esbuild CR/U+2028/U+2029
+controls. Prior coarse whole-line fixtures now require unmeasured rather than
+ran when tokens have no starts; explicit evaluated-operand and idle-fallback
+controls retain their exact assertions. Synthetic range/residual fixtures use
+explicit per-token execution witnesses to isolate those behaviors.
+
+The first corpus attempt exposed two eager-JSX expectation failures, retained
+in [corpus red](round8-red-corpus.txt). The expectation was never changed.
+The [JSX regression red](round8-jsx-red-unit.txt) has three failures: the lexer
+mistook the name in a closing tag for another executable token (and could read
+that slash as a regex). For the source line
+`  const banner = <strong className="sp-banner">Down</strong>;`, esbuild records
+starts at zero-based columns **2, 8, 17, 18, 25, 35, 47, 51**. All executable
+tokens start at **2, 8, 18, 25, 35, 47**. The name at column 53 is inside the
+closing delimiter, with no separate evaluation. Closing JSX tags now remain
+delimiter syntax, while raw idle/mixed anchors there still supply negative
+evidence. Tests assert every executable token has a real mapped start, for both
+executed and idle controls, and preserve tokens in following code and strings.
+Eager JSX remains **ran → unknown** in both corpus scenarios. Round eight moves
+**zero cases and zero scenario cells to unknown**: the counts remain five declared
+and six complete, all 32 expectations pass, and every J2 run-level gap list is
+empty. J3-prototype evidence remains separate.
+
+The QA [residual unit red](round8-residual-red-unit.txt) has two throwing-call
+failures and fifteen passes; [browser red](round8-residual-red-browser.txt) has
+two failures and four passing default-parameter controls. Supplied defaults in
+single-line functions and arrows already name their residual, minified and
+unminified. No attempt is made to distinguish supplied arguments from evaluated
+defaults. The throwing call on a preceding line now remains named in every
+ran/unknown unit reason, including report JSON, Markdown and HTML. V8 execution
+still reads ran and rendering stays unknown. ADR 0009 item 5, capture notes and
+REFERENCE also document early-ended optional-chain continuations and minifier
+attribution across merged arms. These are evidence limits, not new detectors.
+
+Final focused checks pass **444/444 units** and **93/93 browser cases**, including
+all earlier nullish operands, idle fallbacks, token joins/splits, unopened overlays,
+merged captures and real Git controls. The [closing-brace JSON](round8-report.json)
+and [throwing-continuation JSON](round8-throw-report.json), their Markdown and
+stored evidence were generated from actual browser captures and Git revisions.
+Both screenshots were inspected at 1100 pixels with Evidence expanded. They
+retain product-state identity unproven, inventory not checked, content/structure
+not evaluated, warn-only J2 and reach incomplete. They are diagnostic reporting
+proof, not a certified same-state comparison.
+
+![Eliminated development-arm tokens remain unmeasured despite the live delimiter](round8-report-top.png)
+
+![Code after a throwing call remains unknown with its residual visible](round8-throw-report-top.png)
+
+### CLI-flow timeout comparison
+
+`test/cli-flow.e2e.spec.ts:1101` was run serially on exact main `6a711821e` and
+this branch, using the same installed dependencies, compiler, Node, browser,
+single Playwright worker and fixture-port base. The 60-second child timeout and
+all test configuration stayed unchanged. The first two pairs ran main then branch;
+the third reversed that order. All six passed; [timings](round8-flow-timings.json)
+and individual command tails are retained alongside this file.
+
+| Pair | Main wall / map child (s) | Branch wall / map child (s) |
+| --- | --- | --- |
+| 1 | 46.988 / 36.628 | 39.126 / 31.968 |
+| 2 | 27.832 / 23.454 | 29.879 / 25.717 |
+| 3, branch first | 15.427 / 13.872 | 23.404 / 19.096 |
+
+The branch was slower in two pairs and faster in one; these runs do not establish
+a stable branch-specific regression. One-minute host load ranged from about 174
+to 29. In the third pair, monotonic process tracing puts main/branch time before
+the first captured-surface message at 5.124/8.873 seconds, between first and last
+surface messages at 8.652/10.111 seconds, and after the last message at
+0.096/0.112 seconds. The difference is startup/capture time, not a long
+post-capture tail. The generated zero-config spec does not enable scriptReach;
+this map-only flow neither runs the J2 Git join nor generates a report. The
+reported 60-second timeout did not reproduce. No timeout was raised, no capture
+work was removed, and no speculative performance change was made. The exact
+cause of the earlier timeout remains unproven on this shared host.
+
+Final verification, corpus and enforced pre-push browser tails are reported in
+the handoff. No hooks or gates are bypassed.

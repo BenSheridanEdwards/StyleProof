@@ -238,8 +238,9 @@ test('an idle arrow body on later lines cannot clear a mixed column-zero header'
 
 test('residual naming avoids adversarial backtracking before its CPU use exceeds ten milliseconds', () => {
   const text = '(a='.repeat(682),
-    map = capture(text),
-    started = process.cpuUsage();
+    map = capture(text);
+  map.scriptReach.scripts[0].files[0].executed = [...text.matchAll(/a/g)].map((token) => [1, token.index, token.index]);
+  const started = process.cpuUsage();
   const [unit] = classifyScriptReach(
     [map],
     [map],
@@ -280,8 +281,13 @@ test('an anchor for another source on the same original line cannot represent an
 
 test('residual candidates at the naming cap stay below ten milliseconds of CPU', () => {
   for (const text of ['(a='.repeat(42), '{a='.repeat(42), 'a('.repeat(63)]) {
-    const map = capture(text),
-      started = process.cpuUsage();
+    const map = capture(text);
+    map.scriptReach.scripts[0].files[0].executed = [...text.matchAll(/a/g)].map((token) => [
+      1,
+      token.index,
+      token.index,
+    ]);
+    const started = process.cpuUsage();
     const [unit] = classifyScriptReach(
       [map],
       [map],

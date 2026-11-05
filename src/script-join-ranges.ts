@@ -129,14 +129,20 @@ function changedLine(
   const [start, end] = lineScope ? [0, text.length] : columns;
 
   const offset = source.gitStarts[gitLine - 1];
+  const range = { start: positionAt(source, offset + start), end: positionAt(source, offset + end) };
+  // Git lines can contain several JavaScript lines; token columns belong to
+  // the JavaScript line where the range begins, never the preceding segment.
+  const original = source.text
+    .slice(source.jsStarts[range.start.line - 1], source.jsStarts[range.end.line] ?? source.text.length)
+    .replace(/(?:\r\n|[\n\r\u2028\u2029])$/, '');
 
   return [
     {
       sourceKey,
       side,
-      range: { start: positionAt(source, offset + start), end: positionAt(source, offset + end) },
+      range,
       contentHash: source.hash,
-      text,
+      text: original,
       ...(unmeasuredReason ? { unmeasuredReason } : {}),
       ...(lineScope ? { changeScope: 'line' as const } : {}),
     },

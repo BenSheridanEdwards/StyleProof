@@ -1,0 +1,160 @@
+✖ a live closing brace cannot prove the eliminated development arm ran with real esbuild mappings (54.456125ms)
+✔ the eliminated development arm stays unmeasured after a line break with real esbuild mappings (4.160208ms)
+✖ a two-token ternary edit cannot borrow the surviving arm execution with real esbuild mappings (2.760167ms)
+✖ token evidence for }, reads unmeasured (0.315208ms)
+✖ token evidence for foo(); removed; reads unmeasured (0.240458ms)
+✔ token evidence for foo(); bar; reads ran (0.372917ms)
+✖ token evidence for }; idle; reads never-ran (0.447167ms)
+✖ the capture notes retain optional-chain continuation and merged-arm attribution limits (0.258542ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 2
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 364.8925
+
+✖ failing tests:
+
+test at test/script-join-round8.test.mjs:13:3
+✖ a live closing brace cannot prove the eliminated development arm ran with real esbuild mappings (54.456125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:25:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:13:3
+✖ a two-token ternary edit cannot borrow the surviving arm execution with real esbuild mappings (2.760167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:25:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:36:3
+✖ token evidence for }, reads unmeasured (0.315208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'ran'
+  - 'unmeasured'
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:39:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ran',
+    expected: 'unmeasured',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:36:3
+✖ token evidence for foo(); removed; reads unmeasured (0.240458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'ran'
+  - 'unmeasured'
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:39:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ran',
+    expected: 'unmeasured',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:36:3
+✖ token evidence for }; idle; reads never-ran (0.447167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'partly-ran'
+  - 'never-ran'
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:39:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'partly-ran',
+    expected: 'never-ran',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:43:1
+✖ the capture notes retain optional-chain continuation and merged-arm attribution limits (0.258542ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /optional chain.*idle continuation.*early/s. Input:
+
+  'An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.'
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:45:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.',
+    expected: /optional chain.*idle continuation.*early/s,
+    operator: 'match',
+    diff: 'simple'
+  }
