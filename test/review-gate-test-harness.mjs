@@ -19,6 +19,7 @@ function reviewRun({
   changed = true,
   mode = 'review-gate',
   reportStorage = 'artifact',
+  reportMarkdown,
 } = {}) {
   let clock = Date.parse('2026-11-04T10:00:00Z');
   let currentHeadCommit = headCommit;
@@ -35,6 +36,8 @@ function reviewRun({
   const callbacks = {};
   const warnings = [];
   const messages = [];
+  const environments = {};
+  const files = reportMarkdown === undefined ? {} : { 'styleproof-report/report.md': reportMarkdown };
 
   function addStatus(parameters) {
     const status = {
@@ -190,6 +193,7 @@ function reviewRun({
     const environment = { GITHUB_ACTION_PATH: actionRoot };
 
     for (const [key, value] of Object.entries(step.env ?? {})) environment[key] = resolve(value);
+    environments[name] = { ...environment };
     const outputs = {};
     const AsynchronousFunction = Object.getPrototypeOf(async function () {}).constructor;
     await new AsynchronousFunction('github', 'context', 'core', 'process', 'require', resolve(step.with.script))(
@@ -206,7 +210,10 @@ function reviewRun({
         warning: (message) => warnings.push(message),
       },
       { env: environment },
-      (name) => (name === 'fs' ? { existsSync: () => false } : nativeRequire(name)),
+      (name) =>
+        name === 'fs'
+          ? { existsSync: (file) => Object.hasOwn(files, file), readFileSync: (file) => files[file] }
+          : nativeRequire(name),
     );
 
     for (const [key, value] of Object.entries(outputs)) values[`steps.${step.id}.outputs.${key}`] = value;
@@ -304,6 +311,7 @@ function reviewRun({
     github,
     warnings,
     messages,
+    environments,
     start,
     stepEnabled,
     runStep,

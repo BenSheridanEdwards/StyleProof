@@ -106,7 +106,7 @@ test('an ownership read error cannot publish a ticked comment', async () => {
 });
 
 for (const unavailable of ['comments', 'permission']) {
-  test(`unavailable ${unavailable} ownership evidence cannot publish a ticked comment`, async () => {
+  test(`unavailable ${unavailable} evidence ${unavailable === 'permission' ? 'does not grant a user receipt ownership' : 'blocks approval publication'}`, async () => {
     const run = reviewRun();
     await run.start();
 
@@ -130,8 +130,10 @@ for (const unavailable of ['comments', 'permission']) {
     }
 
     await run.runStep('comment');
-    assert.equal(run.commentWrites.length, 0);
-    assert.match(run.warnings.join('\n'), /ownership could not be proven/);
+    assert.equal(run.commentWrites.length, unavailable === 'permission' ? 1 : 0);
+
+    if (unavailable === 'comments') assert.match(run.warnings.join('\n'), /ownership could not be proven/);
+    else assert.equal(run.values['steps.comment.outputs.stale-delivery'], 'false');
   });
 }
 

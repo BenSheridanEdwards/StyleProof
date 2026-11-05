@@ -399,7 +399,7 @@ for (const receipt of ['', '<!-- styleproof-run-id:899 run-attempt:1 -->']) {
       assert.equal(run.commentWrites.length, writesBeforeReconciliation);
     } else {
       assert.match(run.comments[0].body, /- \[ \] \*\*Approve all changes\*\*/);
-      assert.match(run.comments[0].body, /styleproof-run-id:900 run-attempt:1/);
+      assert.doesNotMatch(run.comments[0].body, /styleproof-run-id:/);
       assert.equal(run.commentWrites.length, writesBeforeReconciliation + 1);
     }
   });

@@ -506,7 +506,7 @@ test('composite action wires the rerun ordering guard into the comment and statu
   const guardIndex = commentStep[0].indexOf('await guardReviewWrite');
   const upsertIndex = commentStep[0].indexOf('github.rest.issues.updateComment');
   assert.ok(guardIndex > 0 && upsertIndex > guardIndex, 'the guard must be evaluated before the upsert');
-  assert.match(commentStep[0], /setOutput\('stale-delivery', guarded\.headMoved \? 'false' : 'true'\)/);
+  assert.match(commentStep[0], /setOutput\('stale-delivery', guarded\.superseded \? 'true' : 'false'\)/);
   assert.match(commentStep[0], /setOutput\('stale-delivery', 'false'\)/);
   // The comment records the attempt that wrote it, so the NEXT delivery can order itself.
   assert.match(commentStep[0], /formatRunAttemptReceiptMarker\(\{ runId, runAttempt \}\)/);

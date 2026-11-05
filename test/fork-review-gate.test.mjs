@@ -101,6 +101,7 @@ function values({
     'inputs.fail-on-diff': failOnDiff ? 'true' : 'false',
     'steps.comment.outputs.stale-delivery': staleDelivery,
     'steps.comment.outputs.approval-limit-reached': 'false',
+    'steps.comment.outputs.delivery-failed': 'false',
     'steps.review-pending.outputs.stale-delivery': reviewStale,
     'steps.certify-pending.outputs.superseded': pendingSuperseded,
     'steps.status.outputs.superseded': statusSuperseded,

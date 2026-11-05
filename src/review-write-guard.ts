@@ -36,16 +36,27 @@ type ReviewWriteInput = Omit<ReviewPublicationInput, 'github'> & {
   comment?: { identifier?: number; claimExisting?: boolean };
   approvalToRemove?: Parameters<typeof readReviewApproval>[0];
   approvalToGrant?: Parameters<typeof readReviewApproval>[0];
-  allowNonGreenStatus?: boolean;
 };
 
-type ReviewWriteDecision = { allowed: boolean; approval?: ReviewApproval; headMoved?: boolean };
+type ReviewWriteDecision = {
+  allowed: boolean;
+  approval?: ReviewApproval;
+  headMoved?: boolean;
+  superseded?: boolean;
+  unavailable?: boolean;
+  commentBody?: string;
+};
 
 async function validateReviewWrite(input: ReviewWriteInput): Promise<ReviewWriteDecision> {
-  const skip = (reason: string, headChanged = false) => {
+  const skip = (reason: string, kind: 'head-moved' | 'superseded' | 'unavailable' | 'unapproved') => {
     input.core.info(`StyleProof: ${reason} — review write skipped.`);
 
-    return { allowed: false, headMoved: headChanged };
+    return {
+      allowed: false,
+      headMoved: kind === 'head-moved',
+      superseded: kind === 'superseded',
+      unavailable: kind === 'unavailable',
+    };
   };
 
   const headMoved = async () => {
@@ -55,7 +66,7 @@ async function validateReviewWrite(input: ReviewWriteInput): Promise<ReviewWrite
     return data.head.sha !== input.headSha;
   };
 
-  if (await headMoved()) return skip('the PR head moved', true);
+  if (await headMoved()) return skip('the PR head moved', 'head-moved');
 
   const ownershipInput = {
     ...input,
@@ -64,7 +75,7 @@ async function validateReviewWrite(input: ReviewWriteInput): Promise<ReviewWrite
     },
   };
 
-  if (await reviewRunSuperseded(ownershipInput)) return skip('a newer delivery owns this head');
+  if (await reviewRunSuperseded(ownershipInput)) return skip('a newer delivery owns this head', 'superseded');
 
   const comments = await input.github.paginate(input.github.rest.issues.listComments, {
     ...input.repo,
@@ -74,17 +85,19 @@ async function validateReviewWrite(input: ReviewWriteInput): Promise<ReviewWrite
 
   if (
     await findLaterAttemptReceipt({
-      ...ownershipInput,
+      ...input,
       comments: comments.filter((comment) => comment.body?.includes(input.commentMarker)),
     })
   ) {
-    return skip('a later report receipt owns this head');
+    return skip('a later report receipt owns this head', 'superseded');
   }
+
+  let commentBody: string | undefined;
 
   if (input.comment?.identifier !== undefined) {
     const current = comments.find((comment) => comment.id === input.comment!.identifier);
 
-    if (!current?.body?.includes(input.commentMarker)) return skip('the report comment is missing');
+    if (!current?.body?.includes(input.commentMarker)) return skip('the report comment is missing', 'unavailable');
     const receipt = parseRunAttemptReceiptMarker(current.body);
 
     if (
@@ -92,25 +105,27 @@ async function validateReviewWrite(input: ReviewWriteInput): Promise<ReviewWrite
       !current.body.includes(formatRunAttemptReceiptMarker(input)) &&
       !(input.comment.claimExisting && shouldSupersedeExistingComment({ ...input, existingCommentBody: current.body }))
     ) {
-      return skip('the comment belongs to another delivery');
+      return skip('the comment belongs to another delivery', 'unavailable');
     }
+
+    commentBody = current.body;
   }
 
   const preservedApproval = input.approvalToRemove ? await readReviewApproval(input.approvalToRemove) : undefined;
 
   if (preservedApproval?.approved) {
-    skip('approval now stands');
+    input.core.info('StyleProof: approval now stands — review write skipped.');
 
     return { allowed: false, approval: preservedApproval };
   }
 
   const approval = input.approvalToGrant ? await readReviewApproval(input.approvalToGrant) : undefined;
 
-  if (approval?.approved === false) return skip('approval no longer stands');
+  if (approval?.approved === false) return skip('approval no longer stands', 'unapproved');
 
-  if (await headMoved()) return skip('the PR head moved', true);
+  if (await headMoved()) return skip('the PR head moved', 'head-moved');
 
-  return { allowed: true, approval };
+  return { allowed: true, approval, commentBody };
 }
 
 /** One guard for every review publication; GitHub cannot make its last read and the write atomic. */
@@ -120,9 +135,8 @@ export async function guardReviewWrite(input: ReviewWriteInput): Promise<ReviewW
   } catch {
     input.core.warning('StyleProof: delivery ownership could not be proven — approval-granting writes skipped.');
 
-    if (!input.allowNonGreenStatus || input.comment) return { allowed: false };
-    const approval = input.approvalToRemove ? await readReviewApproval(input.approvalToRemove) : undefined;
+    const superseded = await reviewRunSuperseded(input);
 
-    return approval?.approved ? { allowed: false, approval } : { allowed: true };
+    return { allowed: false, superseded, unavailable: !superseded };
   }
 }

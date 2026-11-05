@@ -972,6 +972,7 @@ runs:
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
           core.setOutput('stale-delivery', 'false');
+          core.setOutput('delivery-failed', 'false');
           core.setOutput('approval-limit-reached', 'false');
           let commentIdentifier = existing?.id;
           let initialCommentWrite = true;
@@ -1039,6 +1040,7 @@ runs:
           // clean verdict is advisory. In every mode that sets the review status, the comment
           // carries the approval box so a maintainer can sign it off (same logic as the status).
           const { decideReviewStatus } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-status.js`);
+          const { formatReviewApprovalLine } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-comment.js`);
           const untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
           const setsReviewStatus = requireApproval || mode === 'review-gate' || migrationMode || mode === 'advisory';
           const renderComment = ({ approved, approver }) => {
@@ -1048,9 +1050,8 @@ runs:
             // still must never read as certified, because the fork produced both map sets.
             const untrustedCertify = untrustedCapture && !setsReviewStatus;
             // One box signs off every change; an already-approved re-run renders it pre-ticked.
-            const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
             const box = (useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED') || untrustedReview
-              ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
+              ? ['', formatReviewApprovalLine({ approved, approver })]
               : [];
             const reportJson = fs.existsSync('styleproof-report/report.json')
               ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
@@ -1112,7 +1113,7 @@ runs:
             ];
 
             const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
-            return { body, ticked: approved && box.length > 0, approvable: box.length > 0 };
+            return { body, ticked: approved && box.length > 0, approvable: box.length > 0, guidance: footer[1] };
           };
           const { readReviewApproval } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-approval.js`);
           const approvalInput = {
@@ -1134,13 +1135,21 @@ runs:
             });
             if (!guarded.allowed) {
               if (guarded.approval) return upsert(guarded.approval);
-              core.setOutput('stale-delivery', guarded.headMoved ? 'false' : 'true');
+              core.setOutput('stale-delivery', guarded.superseded ? 'true' : 'false');
+              core.setOutput('delivery-failed', guarded.unavailable ? 'true' : 'false');
               return;
             }
             const response = await (commentIdentifier
               ? github.rest.issues.updateComment({ ...context.repo, comment_id: commentIdentifier, body: rendered.body })
               : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body: rendered.body }));
             commentIdentifier = response?.data?.id ?? commentIdentifier;
+            core.setOutput('approved', rendered.ticked ? 'true' : 'false');
+            core.setOutput('comment-identifier', String(commentIdentifier));
+            core.setOutput('approvable', rendered.approvable ? 'true' : 'false');
+            if (initialCommentWrite && rendered.approvable) {
+              core.setOutput('approved-guidance', renderComment({ approved: true, approver: '' }).guidance);
+              core.setOutput('unapproved-guidance', renderComment({ approved: false, approver: '' }).guidance);
+            }
             initialCommentWrite = false;
             return { approval, rendered };
           };
@@ -1162,15 +1171,6 @@ runs:
           if (publication.rendered.ticked && !approvalStable) {
             core.warning('StyleProof: comment approval re-check limit reached — fresh sign-off required.');
             core.setOutput('approval-limit-reached', 'true');
-          }
-          core.setOutput('approved', publication.rendered.ticked ? 'true' : 'false');
-          core.setOutput('comment-identifier', String(commentIdentifier));
-          // Keep both existing renders; split the approved form at its approver field.
-          const ticked = renderComment({ approved: true, approver: '\0' });
-          if (ticked.ticked) {
-            const approverPosition = ticked.body.lastIndexOf('\0');
-            core.setOutput('ticked-body', JSON.stringify([ticked.body.slice(0, approverPosition), ticked.body.slice(approverPosition + 1)]));
-            core.setOutput('unticked-body', renderComment({ approved: false, approver: '' }).body);
           }
 
     # Review-gate and migration modes: drive a commit status the approve workflow
@@ -1263,13 +1263,14 @@ runs:
           };
           const writeStatus = async (parameters, removesApproval = false) => {
             const guarded = await guardReviewWrite({
-              ...writeGuardInput, allowNonGreenStatus: parameters.state !== 'success',
+              ...writeGuardInput,
               ...(removesApproval ? { approvalToRemove: approvalInput } : {}),
             });
             if (!guarded.allowed) {
               if (!guarded.approval) {
-                core.setOutput('stale-delivery', 'true');
-                return;
+                core.setOutput('stale-delivery', guarded.superseded ? 'true' : 'false');
+                if (!guarded.unavailable) return;
+                return { response: await github.rest.repos.createCommitStatus(signOffRequired), state: 'failure' };
               }
               let latest;
               try {
@@ -1279,8 +1280,7 @@ runs:
                 latest = statuses.find((status) => status.context === approvalInput.statusContext);
               } catch {
                 core.warning('StyleProof: current approval status could not be read — success write skipped.');
-                core.setOutput('stale-delivery', 'true');
-                return;
+                return writeStatus(signOffRequired);
               }
               if (latest?.state === 'success' && latest.description === guarded.approval.description) {
                 return { state: 'success', approval: guarded.approval };
@@ -1304,6 +1304,11 @@ runs:
           const approvalMissing = untrustedCapture
             ? { ...signOffRequired, state: 'pending', description: UNTRUSTED_CAPTURE_STATUS_DESCRIPTION }
             : signOffRequired;
+          if ('${{ steps.comment.outputs.delivery-failed }}' === 'true') {
+            const publication = await writeStatus(signOffRequired);
+            if (publication) core.setOutput('state', publication.state);
+            return;
+          }
           // Exhaustion forces fresh sign-off; delivery ownership still guards this fail-closed write.
           if ('${{ steps.comment.outputs.approval-limit-reached }}' === 'true') {
             const publication = await writeStatus(approvalMissing);
@@ -1360,6 +1365,7 @@ runs:
             }
             if (publication.state === 'success' && !approvalStable) {
               core.warning('StyleProof: status approval re-check limit reached — fresh sign-off required.');
+              core.setOutput('approval-limit-reached', 'true');
               publication = await writeStatus(approvalMissing);
               if (!publication) return;
             }
@@ -1369,7 +1375,8 @@ runs:
     # Reconcile either existing render from the final status; API failures only warn.
     - name: Reconcile review comment
       if: >-
-        always() && steps.comment.outputs.ticked-body != '' &&
+        always() && steps.comment.outputs.approvable == 'true' &&
+        steps.comment.outputs.comment-identifier != '' &&
         steps.status.outcome != 'skipped' &&
         steps.review-pending.outputs.stale-delivery != 'true' &&
         steps.comment.outputs.stale-delivery != 'true' &&
@@ -1377,8 +1384,8 @@ runs:
       uses: actions/github-script@v9
       env:
         STYLEPROOF_COMMENT_IDENTIFIER: ${{ steps.comment.outputs.comment-identifier }}
-        STYLEPROOF_UNTICKED_COMMENT: ${{ steps.comment.outputs.unticked-body }}
-        STYLEPROOF_TICKED_COMMENT: ${{ steps.comment.outputs.ticked-body }}
+        STYLEPROOF_APPROVED_GUIDANCE: ${{ steps.comment.outputs.approved-guidance }}
+        STYLEPROOF_UNAPPROVED_GUIDANCE: ${{ steps.comment.outputs.unapproved-guidance }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
       with:
@@ -1388,6 +1395,7 @@ runs:
           try {
             const { readReviewApproval } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-approval.js`);
             const { guardReviewWrite } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-write-guard.js`);
+            const { formatReviewApprovalLine } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-comment.js`);
             const approvalInput = {
               github, repository: context.repo, headCommit: '${{ steps.context.outputs.head-sha }}',
               pullRequestNumber: Number('${{ steps.context.outputs.pr-number }}'),
@@ -1395,10 +1403,12 @@ runs:
               defaultBranch: context.payload.repository.default_branch,
               reviewDigest: '${{ steps.verdict.outputs.diff-digest }}',
             };
-            const approval = await readReviewApproval(approvalInput);
-            const approved = '${{ steps.status.outputs.state }}' === 'success' && approval.approved;
-            if (approved === ('${{ steps.comment.outputs.approved }}' === 'true')) return;
-            if (!approved) {
+            const limitReached = '${{ steps.comment.outputs.approval-limit-reached }}' === 'true' ||
+              '${{ steps.status.outputs.approval-limit-reached }}' === 'true';
+            const approval = limitReached ? { approved: false } : await readReviewApproval(approvalInput);
+            const approved = !limitReached && '${{ steps.status.outputs.state }}' === 'success' && approval.approved;
+            if (!limitReached && approved === ('${{ steps.comment.outputs.approved }}' === 'true')) return;
+            if (!approved && !limitReached) {
               const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
                 ...context.repo, ref: approvalInput.headCommit, per_page: 100,
               });
@@ -1410,13 +1420,23 @@ runs:
               runAttempt: '${{ github.run_attempt }}', statusContext: approvalInput.statusContext,
               commentMarker: process.env.STYLEPROOF_COMMENT_MARKER,
               comment: { identifier: Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER) },
-              ...(approved ? { approvalToGrant: approvalInput } : { approvalToRemove: approvalInput }),
+              ...(approved ? { approvalToGrant: approvalInput } : !limitReached ? { approvalToRemove: approvalInput } : {}),
             });
             if (!guarded.allowed) return;
-            const [beforeApprover, afterApprover] = JSON.parse(process.env.STYLEPROOF_TICKED_COMMENT);
+            const boxLine = /^- \[[ x]\] \*\*Approve all changes\*\*(?: — _approved by @[A-Za-z0-9_-]+_)?$/m;
+            if (!boxLine.test(guarded.commentBody)) return;
+            let body = guarded.commentBody.replace(boxLine, formatReviewApprovalLine({
+              approved, approver: approved ? guarded.approval.approver : '',
+            }));
+            const previousGuidance = approved ? process.env.STYLEPROOF_UNAPPROVED_GUIDANCE : process.env.STYLEPROOF_APPROVED_GUIDANCE;
+            const currentGuidance = approved ? process.env.STYLEPROOF_APPROVED_GUIDANCE : process.env.STYLEPROOF_UNAPPROVED_GUIDANCE;
+            const guidancePosition = body.lastIndexOf(previousGuidance);
+            if (guidancePosition >= 0) {
+              body = body.slice(0, guidancePosition) + currentGuidance + body.slice(guidancePosition + previousGuidance.length);
+            }
             await github.rest.issues.updateComment({
               ...context.repo, comment_id: Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER),
-              body: approved ? beforeApprover + guarded.approval.approver + afterApprover : process.env.STYLEPROOF_UNTICKED_COMMENT,
+              body,
             });
           } catch (error) {
             core.warning(`StyleProof: review comment reconciliation could not complete: ${error.message}`);

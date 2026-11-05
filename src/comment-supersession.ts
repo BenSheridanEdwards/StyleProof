@@ -47,7 +47,6 @@ export function shouldSupersedeExistingComment(options: {
 
 /** Accept cross-run receipts only from GitHub Actions; same-run receipts also trust verified writers. */
 export async function findLaterAttemptReceipt(options: {
-  onReadError?: () => never;
   github: {
     rest: {
       repos: {
@@ -91,8 +90,6 @@ export async function findLaterAttemptReceipt(options: {
 
         permissions.set(key, ['write', 'maintain', 'admin'].includes(data.permission));
       } catch {
-        options.onReadError?.();
-
         permissions.set(key, false);
       }
     }
