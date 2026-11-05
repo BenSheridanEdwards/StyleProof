@@ -9,10 +9,16 @@ import { generatorResidual } from './script-join-round12-fixture.mjs';
 import { generatorFileCases, generatorLexicalControls } from './script-join-round13-fixture.mjs';
 import { patches } from './script-join-round6-fixture.mjs';
 
-async function joined(before, after, options) {
+async function joined(before, after, options, sourceKey = 'app.ts') {
   const maps = [];
   for (const text of [before, after]) {
-    const bundle = await transform(text, { loader: 'ts', sourcemap: 'external', sourcefile: 'app.ts', ...options });
+    const bundle = await transform(text, {
+      loader: sourceKey.endsWith('tsx') ? 'tsx' : 'ts',
+      jsxFactory: 'h',
+      sourcemap: 'external',
+      sourcefile: sourceKey,
+      ...options,
+    });
     const files = mapScriptCoverage(
       { functions: [{ ranges: [{ startOffset: 0, endOffset: bundle.code.length, count: 1 }] }] },
       bundle.code,
@@ -28,14 +34,14 @@ async function joined(before, after, options) {
       },
     });
   }
-  const changes = changedScriptRanges(patches(before, after), { base: before, head: after }, 'app.ts');
+  const changes = changedScriptRanges(patches(before, after), { base: before, head: after }, sourceKey);
   return { changes, result: classifyScriptReach([maps[0]], [maps[1]], changes) };
 }
 
 for (const options of [{}, { minifySyntax: true }, { minifyWhitespace: true }, { minify: true }]) {
   for (const scenario of generatorFileCases) {
     test(`${scenario.name} downgrades every file change under ${JSON.stringify(options)}`, async () => {
-      const { result } = await joined(scenario.before, scenario.after, options);
+      const { result } = await joined(scenario.before, scenario.after, options, scenario.sourceKey);
       assert.equal(result.units.length, 2);
       assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)));
       assert.ok(

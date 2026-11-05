@@ -1,0 +1,176 @@
+✖ a generator divisor after a keyword-named property call downgrades every file change under {} (17.149958ms)
+✔ a generator call inside division downgrades every file change under {} (1.863708ms)
+✔ a generator call after an object operand downgrades every file change under {} (2.101667ms)
+✔ QA static method downgrades every file change under {} (2.0175ms)
+✔ QA async method without whitespace downgrades every file change under {} (1.708791ms)
+✔ QA ordinary function in a generator file downgrades every file change under {} (1.243417ms)
+✔ a static generator downgrades every file change under {} (1.1685ms)
+✔ a static async generator downgrades every file change under {} (1.205584ms)
+✔ a computed generator downgrades every file change under {} (1.812166ms)
+✔ a computed async generator downgrades every file change under {} (1.156208ms)
+✔ a private-name generator downgrades every file change under {} (0.992458ms)
+✔ a quoted-name generator downgrades every file change under {} (0.897667ms)
+✔ a numeric-name generator downgrades every file change under {} (1.205333ms)
+✔ a public generator downgrades every file change under {} (0.786208ms)
+✔ a private async generator downgrades every file change under {} (1.365417ms)
+✔ adjacent generator methods on one line downgrades every file change under {} (0.835416ms)
+✔ a long saga body downgrades every file change under {} (1.121458ms)
+✔ a generator expression downgrades every file change under {} (1.064541ms)
+✔ an async generator expression downgrades every file change under {} (1.040417ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {} (0.825458ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {} (1.683125ms)
+✖ a generator divisor after a keyword-named property call downgrades every file change under {"minifySyntax":true} (2.967917ms)
+✔ a generator call inside division downgrades every file change under {"minifySyntax":true} (1.356125ms)
+✔ a generator call after an object operand downgrades every file change under {"minifySyntax":true} (1.165708ms)
+✔ QA static method downgrades every file change under {"minifySyntax":true} (1.379ms)
+✔ QA async method without whitespace downgrades every file change under {"minifySyntax":true} (1.387667ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minifySyntax":true} (0.574708ms)
+✔ a static generator downgrades every file change under {"minifySyntax":true} (1.136875ms)
+✔ a static async generator downgrades every file change under {"minifySyntax":true} (1.292917ms)
+✔ a computed generator downgrades every file change under {"minifySyntax":true} (0.680084ms)
+✔ a computed async generator downgrades every file change under {"minifySyntax":true} (1.395458ms)
+✔ a private-name generator downgrades every file change under {"minifySyntax":true} (0.922292ms)
+✔ a quoted-name generator downgrades every file change under {"minifySyntax":true} (1.245708ms)
+✔ a numeric-name generator downgrades every file change under {"minifySyntax":true} (0.868375ms)
+✔ a public generator downgrades every file change under {"minifySyntax":true} (1.417459ms)
+✔ a private async generator downgrades every file change under {"minifySyntax":true} (0.939416ms)
+✔ adjacent generator methods on one line downgrades every file change under {"minifySyntax":true} (1.485334ms)
+✔ a long saga body downgrades every file change under {"minifySyntax":true} (1.648ms)
+✔ a generator expression downgrades every file change under {"minifySyntax":true} (0.926916ms)
+✔ an async generator expression downgrades every file change under {"minifySyntax":true} (1.543625ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {"minifySyntax":true} (1.041459ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {"minifySyntax":true} (2.234875ms)
+✖ a generator divisor after a keyword-named property call downgrades every file change under {"minifyWhitespace":true} (1.74675ms)
+✔ a generator call inside division downgrades every file change under {"minifyWhitespace":true} (0.747917ms)
+✔ a generator call after an object operand downgrades every file change under {"minifyWhitespace":true} (1.388417ms)
+✔ QA static method downgrades every file change under {"minifyWhitespace":true} (0.635583ms)
+✔ QA async method without whitespace downgrades every file change under {"minifyWhitespace":true} (1.00575ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minifyWhitespace":true} (1.184666ms)
+✔ a static generator downgrades every file change under {"minifyWhitespace":true} (0.875583ms)
+✔ a static async generator downgrades every file change under {"minifyWhitespace":true} (1.544166ms)
+✔ a computed generator downgrades every file change under {"minifyWhitespace":true} (0.91125ms)
+✔ a computed async generator downgrades every file change under {"minifyWhitespace":true} (1.909ms)
+✔ a private-name generator downgrades every file change under {"minifyWhitespace":true} (0.816125ms)
+✔ a quoted-name generator downgrades every file change under {"minifyWhitespace":true} (0.812167ms)
+✔ a numeric-name generator downgrades every file change under {"minifyWhitespace":true} (0.920041ms)
+✔ a public generator downgrades every file change under {"minifyWhitespace":true} (0.908416ms)
+✔ a private async generator downgrades every file change under {"minifyWhitespace":true} (0.813166ms)
+✔ adjacent generator methods on one line downgrades every file change under {"minifyWhitespace":true} (1.280875ms)
+✔ a long saga body downgrades every file change under {"minifyWhitespace":true} (1.176084ms)
+✔ a generator expression downgrades every file change under {"minifyWhitespace":true} (0.517625ms)
+✔ an async generator expression downgrades every file change under {"minifyWhitespace":true} (0.737166ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {"minifyWhitespace":true} (1.007417ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {"minifyWhitespace":true} (0.905708ms)
+✖ a generator divisor after a keyword-named property call downgrades every file change under {"minify":true} (2.101167ms)
+✔ a generator call inside division downgrades every file change under {"minify":true} (1.507792ms)
+✔ a generator call after an object operand downgrades every file change under {"minify":true} (1.455833ms)
+✔ QA static method downgrades every file change under {"minify":true} (1.023292ms)
+✔ QA async method without whitespace downgrades every file change under {"minify":true} (0.922417ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minify":true} (1.572833ms)
+✔ a static generator downgrades every file change under {"minify":true} (0.755417ms)
+✔ a static async generator downgrades every file change under {"minify":true} (1.247292ms)
+✔ a computed generator downgrades every file change under {"minify":true} (1.113958ms)
+✔ a computed async generator downgrades every file change under {"minify":true} (0.817584ms)
+✔ a private-name generator downgrades every file change under {"minify":true} (1.351083ms)
+✔ a quoted-name generator downgrades every file change under {"minify":true} (1.418917ms)
+✔ a numeric-name generator downgrades every file change under {"minify":true} (0.764ms)
+✔ a public generator downgrades every file change under {"minify":true} (1.267542ms)
+✔ a private async generator downgrades every file change under {"minify":true} (1.033042ms)
+✔ adjacent generator methods on one line downgrades every file change under {"minify":true} (0.788666ms)
+✔ a long saga body downgrades every file change under {"minify":true} (1.199583ms)
+✔ a generator expression downgrades every file change under {"minify":true} (0.824208ms)
+✔ an async generator expression downgrades every file change under {"minify":true} (1.093416ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {"minify":true} (1.042458ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {"minify":true} (1.239708ms)
+✔ non-generator syntax cannot downgrade a live value: if (window.input) /function\*|\*m\(\)/.test("x"); window.result = sink(1); (0.963042ms)
+✔ non-generator syntax cannot downgrade a live value: if (window.input) {} /function\*|\*m\(\)/.test("x"); window.result = sink(1); (1.018875ms)
+✔ non-generator syntax cannot downgrade a live value: const a = 2, b = (c) => c; window.value = a *b(1); (0.881417ms)
+✔ non-generator syntax cannot downgrade a live value: window.value = "function* fake() {}"; window.result = sink(1); (1.200375ms)
+✔ non-generator syntax cannot downgrade a live value: window.value = `class D { static *s() {} }`; window.result = sink(1); (1.160625ms)
+✔ non-generator syntax cannot downgrade a live value: window.value = /function\*|\*foo\(\)/.source; window.result = sink(1); (0.8855ms)
+✔ non-generator syntax cannot downgrade a live value: /* function* fake() {} */ window.result = sink(1); (0.964792ms)
+✔ non-generator syntax cannot downgrade a live value: // class D { static *s() {} }
+window.result = sink(1); (0.655625ms)
+✔ base and head keep their own whole-file generator flag (1.160583ms)
+ℹ tests 93
+ℹ suites 0
+ℹ pass 89
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 226.312833
+
+✖ failing tests:
+
+test at test/script-join-round13.test.mjs:43:5
+✖ a generator divisor after a keyword-named property call downgrades every file change under {} (17.149958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:46:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:43:5
+✖ a generator divisor after a keyword-named property call downgrades every file change under {"minifySyntax":true} (2.967917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:46:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:43:5
+✖ a generator divisor after a keyword-named property call downgrades every file change under {"minifyWhitespace":true} (1.74675ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:46:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:43:5
+✖ a generator divisor after a keyword-named property call downgrades every file change under {"minify":true} (2.101167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:46:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

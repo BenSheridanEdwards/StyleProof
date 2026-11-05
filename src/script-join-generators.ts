@@ -29,8 +29,8 @@ function afterKey(tokens: ScriptLexeme[], start: number): number {
   return -1;
 }
 
-export function sourceContainsGenerator(text: string): boolean {
-  const tokens = scriptLexemes(text);
+export function sourceContainsGenerator(text: string, sourceKey = ''): boolean {
+  const tokens = scriptLexemes(text, sourceKey);
   return tokens.some((token, index) => {
     if (token.value !== '*') return false;
     if (tokens[index - 1]?.value === 'function') return true;

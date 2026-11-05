@@ -17,7 +17,7 @@ import { generatorCases, generatorResidual, methodDefaults, tsxGenerics } from '
 import { generatorFileCases } from './script-join-round13-fixture.mjs';
 
 const scenarios = [
-  ...generatorFileCases.flatMap(({ name, before, after, hits }) =>
+  ...generatorFileCases.flatMap(({ name, before, after, hits, sourceKey }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} whole-file generator residual with minify=${minifySyntax}`,
       before,
@@ -25,7 +25,7 @@ const scenarios = [
       hits,
       generator: true,
       residual: generatorResidual,
-      sourceKey: 'app.ts',
+      sourceKey: sourceKey ?? 'app.ts',
       minifySyntax,
       expected: 'unmeasured',
       count: 2,

@@ -189,30 +189,75 @@ function ordinaryToken(text: string, start: number, matcher: RegExp): ScriptToke
 }
 
 /** Syntax for conservative header recognition; quoted/template/regex contents are opaque. */
-export function scriptLexemes(text: string): ScriptLexeme[] {
-  const result: ScriptLexeme[] = [],
-    substitutions: number[] = [];
+type LexicalContext = { tokens: ScriptLexeme[]; parentheses: boolean[]; objects: boolean[]; regexAfter?: boolean };
+const CONTROL_HEADERS = new Set(['if', 'while', 'for', 'with', 'switch', 'catch']);
+const OBJECT_PREFIXES = new Set(['=', '(', '[', ',', ':', 'return', 'yield']);
+
+function appendLexeme(context: LexicalContext, token: ScriptLexeme): void {
+  const previous = context.tokens.at(-1)?.value ?? '';
+  context.regexAfter = undefined;
+  if (token.value === '(')
+    context.parentheses.push(CONTROL_HEADERS.has(previous) && context.tokens.at(-2)?.value !== '.');
+  else if (token.value === ')') context.regexAfter = context.parentheses.pop() ?? false;
+  else if (token.value === '{') context.objects.push(OBJECT_PREFIXES.has(previous));
+  else if (token.value === '}') context.regexAfter = !context.objects.pop();
+  context.tokens.push(token);
+}
+
+function matchedLexeme(text: string, cursor: number, match: RegExpExecArray, regexAfter?: boolean) {
+  if (match.groups?.regexp && !(regexAfter ?? literalMayStart(text, cursor)))
+    return { token: { value: '/' }, width: 1 };
+  const literal = match.groups?.regexp || /^['"\d.]/.test(match[0]);
+  const token: ScriptLexeme = literal ? { value: '', key: true } : { value: match[0], key: true };
+  return { token, width: match[0].length };
+}
+
+function headerOpaqueRanges(text: string, sourceKey: string): ScriptToken[] {
+  if (/\.(?:[cm]?ts|vue|svelte|astro|html)$/i.test(sourceKey)) return [];
+  const ranges = jsxTextRanges(text).flatMap((range) => {
+    if (!range.negativeOnly) return [range];
+    if (text[range.index] === '<') return [];
+    let end = range.index;
+    while (end < range.end && !'<{\r\n'.includes(text[end])) end++;
+    return end > range.index ? [{ index: range.index, end }] : [];
+  });
+  for (const match of text.matchAll(/<\/(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*)?\s*>/gu))
+    ranges.push({ index: match.index, end: match.index + match[0].length });
+  return ranges.sort((a, b) => a.index - b.index);
+}
+
+export function scriptLexemes(text: string, sourceKey = ''): ScriptLexeme[] {
+  const context: LexicalContext = { tokens: [], parentheses: [], objects: [] };
+  const substitutions: number[] = [];
   const matcher = new RegExp(TOKEN);
-  let cursor = 0;
+  const opaque = headerOpaqueRanges(text, sourceKey);
+  let cursor = 0,
+    range = 0;
   while (cursor < text.length) {
+    while (opaque[range]?.index < cursor) range++;
+    if (opaque[range]?.index === cursor) {
+      appendLexeme(context, { value: '', key: true });
+      cursor = opaque[range++].end;
+      continue;
+    }
     const piece = templatePiece(text, cursor, substitutions);
     if (piece) {
-      if (piece.tokens.length) result.push({ value: '', key: true });
+      if (piece.tokens.length) appendLexeme(context, { value: '', key: true });
       cursor = piece.end;
       continue;
     }
     matcher.lastIndex = cursor;
     const match = matcher.exec(text);
     if (match) {
-      const literal = match.groups?.regexp || /^['"\d.]/.test(match[0]);
-      result.push(literal ? { value: '', key: true } : { value: match[0], key: true });
-      cursor += match[0].length;
+      const { token, width } = matchedLexeme(text, cursor, match, context.regexAfter);
+      appendLexeme(context, token);
+      cursor += width;
       continue;
     }
-    if (!/\s/.test(text[cursor])) result.push({ value: text[cursor] });
+    if (!/\s/.test(text[cursor])) appendLexeme(context, { value: text[cursor] });
     cursor++;
   }
-  return result;
+  return context.tokens;
 }
 
 export function scriptTokens(line: string, sourceKey = '', language?: 'ts'): ScriptToken[] {

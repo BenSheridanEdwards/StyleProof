@@ -837,3 +837,18 @@ Multiplication `a *b(c)` and fake headers in literal/comment text remain control
 Base and head retain their own flags, which never enter report units. Parameter
 naming keeps its existing bounded context. The combined unit run passes **686/686**.
 Final browser/gate tails, SHA and lease-protected push are recorded in the handoff.
+
+
+A lexer-goal follow-up retained [eight failures / 77 passes](round13-division-red-unit.txt)
+for generators hidden inside division expressions. Parenthesis/control and
+object/block context now distinguish those divisors from regex literals after
+`if` or a block. The [JSX red](round13-jsx-red-unit.txt) records eight failures /
+81 passes: four still lacked the file-residual name on already-unmeasured object
+divisions, and four hid a generator after JSX comment-like text. Already-unmeasured
+units in a flagged file now retain that residual alongside their original reason.
+JSX text and closing tags are opaque delimiters for full-file header recognition;
+TypeScript assertion sources retain their dialect. An additional keyword-named
+property-call divisor has [four red failures](round13-property-red-unit.txt),
+preventing `obj.if()` from being mistaken for an `if` statement. No expectation
+was widened to clear these cases. The first commit attempt stopped at two
+unnecessary string escapes in a regex fixture; `String.raw` resolved lint.

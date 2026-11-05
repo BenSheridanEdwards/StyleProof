@@ -225,7 +225,7 @@ function positiveExecution(
   change: ScriptChange,
   proofs: readonly SourceCorroboration[],
 ): Pick<ScriptUnit, 'execution' | 'status' | 'why'> {
-  if (change.generatorFile ?? sourceContainsGenerator(change.text))
+  if (change.generatorFile ?? sourceContainsGenerator(change.text, change.sourceKey))
     return {
       execution: 'unmeasured',
       status: 'unmeasured',
@@ -249,6 +249,12 @@ function positiveExecution(
     : { execution: 'ran', status: 'unknown', why: `value; rendering not proved${residualReason(change)}` };
 }
 
+function generatorReasonSuffix(change: ScriptChange, execution: ScriptExecution, why: string): string {
+  return change.generatorFile && execution === 'unmeasured' && !why.includes(GENERATOR_BODY_RESIDUAL)
+    ? `; file-wide J2 residual: ${GENERATOR_BODY_RESIDUAL}, including changes outside the generator`
+    : '';
+}
+
 function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonly SourceCorroboration[]): ScriptUnit {
   const { text, language, contentHash, unmeasuredReason } = change;
   const identity = scriptUnitIdentity(change);
@@ -256,7 +262,13 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
   let scope: 'range' | 'line' | 'preceding-anchor' = 'range';
 
   const unit = (execution: ScriptExecution, status: ScriptUnit['status'], why: string): ScriptUnit => {
-    const entry: ScriptUnit = { ...identity, execution, status, why, level: 'warn' };
+    const entry: ScriptUnit = {
+      ...identity,
+      execution,
+      status,
+      why: why + generatorReasonSuffix(change, execution, why),
+      level: 'warn',
+    };
 
     if (scope === 'line') {
       entry.executionScope = 'line';

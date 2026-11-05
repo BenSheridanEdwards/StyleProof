@@ -1,6 +1,18 @@
 const setup = 'globalThis.hits = 0; function __h(x) { globalThis.hits++; } function sink(x) { return x; }\n';
 
 export const generatorFileCases = [
+  [
+    'a generator divisor after a keyword-named property call',
+    'const obj = { if() { return 1; } }; window.result = obj.if() / (function* gen(){ __h("d1"); yield sink(1); })() / 2;',
+  ],
+  [
+    'a generator call inside division',
+    'const factor = 1; window.result = factor / (function* gen(){ __h("d1"); yield sink(1); })() / 2;',
+  ],
+  [
+    'a generator call after an object operand',
+    'window.result = {} / (function* gen(){ __h("d1"); yield sink(1); })() / 2;',
+  ],
   ['QA static method', 'class D { static *method(){yield sink(1);} }\nglobalThis.keep = D.method();'],
   [
     'QA async method without whitespace',
@@ -53,7 +65,19 @@ export const generatorFileCases = [
   ],
 ].map(([name, body]) => ({ name, before: setup + body, after: (setup + body).replace('sink(1)', 'sink(2)'), hits: 0 }));
 
+const jsxBody =
+  'const h = (tag, props, ...children) => ({tag, props, children}); globalThis.keep = <section><p>// NOTE</p>{(function* gen(){ __h("d1"); yield sink(1); })()}</section>;';
+generatorFileCases.push({
+  name: 'a generator expression after JSX comment-like text',
+  before: setup + jsxBody,
+  after: (setup + jsxBody).replace('sink(1)', 'sink(2)'),
+  hits: 0,
+  sourceKey: 'app.tsx',
+});
+
 export const generatorLexicalControls = [
+  String.raw`if (window.input) /function\*|\*m\(\)/.test("x"); window.result = sink(1);`,
+  String.raw`if (window.input) {} /function\*|\*m\(\)/.test("x"); window.result = sink(1);`,
   'const a = 2, b = (c) => c; window.value = a *b(1);',
   'window.value = "function* fake() {}"; window.result = sink(1);',
   'window.value = `class D { static *s() {} }`; window.result = sink(1);',
