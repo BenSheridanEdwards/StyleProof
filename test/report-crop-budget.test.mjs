@@ -60,6 +60,33 @@ function sameFindings(actual, expected) {
   }
 }
 
+test('a rejected first page tile leaves room for a later tile and labels the missing head honestly', () => {
+  const directories = tmpDirs();
+  try {
+    fs.mkdirSync(directories.beforeDir, { recursive: true });
+    const image = PNG.sync.read(noisePng(390, 850, 1));
+    image.data.fill(255, 390 * 800 * 4);
+    const capture = surfaceMap(0, 0, [0, 0, 390, 850]);
+    capture.viewport = { width: 390, height: 800 };
+    writeCapture(directories.afterDir, 'new@390', capture, PNG.sync.write(image));
+    const actual = report(directories, 'later-tile', { maxCropBytes: 350 });
+    const surface = actual.json.surfaces[0];
+    assert.equal(actual.files.length, 1);
+    assert.equal(surface.images.length, 1);
+    assert.equal(surface.shownHeight, 50);
+    assert.equal(surface.capturedHeight, 850);
+    assert.equal(actual.json.cropBudget.omitted, 1);
+    assert.ok(actual.bytes <= 350);
+    assert.match(actual.md, /800–850 of 850px/);
+    assert.match(actual.md, /Page capped: showing 50 of 850px/);
+    assert.doesNotMatch(actual.md, /800px below/);
+    assert.match(actual.md, /content not reviewed here/);
+    for (const file of actual.files) assert.ok(actual.md.includes(file));
+  } finally {
+    rmTmp(directories.root);
+  }
+});
+
 test('grouped legacy regions create no hidden crops or budget omissions before another surface', () => {
   const directories = tmpDirs();
   try {
