@@ -63,7 +63,7 @@ function addLiteral(scan: Scan, token: ScriptToken, inherited = explicit(scan)):
   const literal = literalAt(source, token);
   if (inherited) scan.frames.at(-1)!.measured = true;
   if (text[literal.end - 1] !== text[token.index]) return literal.end;
-  const binding = bindingLiteral(source, token.index, literal.end, scan.key);
+  const binding = bindingLiteral(source, token.index, literal.end, scan.key, readExpression);
   if (binding) {
     scan.literals.push(...binding);
     return literal.end;
@@ -246,6 +246,31 @@ function scanRange(scan: Scan, start: number, end: number): void {
       cursor = token.end - 1;
     }
   }
+}
+
+/** Framework expressions share the JS call barriers; only their positions need translation. */
+function readExpression(source: ClassSource, start: number, end: number): ClassLiteral[] {
+  const local = classSource(source.text.slice(start, end), 'binding.ts');
+  const scan: Scan = {
+    source: local,
+    key: 'binding.ts',
+    prefix: '',
+    literals: [],
+    frames: [{ inherited: true, value: false, own: false, start: 0, classContext: true }],
+  };
+  scanRange(scan, 0, local.text.length);
+  flushValue(scan, local.text.length);
+  const translated = (range: SourceSpan): SourceSpan =>
+    sourceSpan(
+      source,
+      start + local.lines[range.start.line - 1] + range.start.column,
+      start + local.lines[range.end.line - 1] + range.end.column,
+    );
+  return scan.literals.map((literal) => ({
+    ...literal,
+    range: translated(literal.range),
+    words: literal.words.map((word) => ({ ...word, range: translated(word.range) })),
+  }));
 }
 
 /** Binary lookup through monotonic prefix ends avoids a full literal scan per changed line. */

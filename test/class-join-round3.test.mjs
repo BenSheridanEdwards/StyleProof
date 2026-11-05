@@ -102,6 +102,22 @@ test('matching unchanged neighbours does not erase reordered class words', () =>
   assert.deepEqual(new Set(result.units.map((u) => u.side)), new Set(['base', 'head']));
 });
 
+for (const [file, before, after] of [
+  ['App.svelte', '<div data-class="old"/>', '<div data-class="new"/>'],
+  ['App.vue', '<div data-class="old"/>', '<div data-class="new"/>'],
+  ['App.svelte', '<div class="card {t(\'old\')}"/>', '<div class="card {t(\'new\')}"/>'],
+  ['App.vue', "<div :class=\"cn('card', t('old'))\"/>", "<div :class=\"cn('card', t('new'))\"/>"],
+])
+  test(`framework bindings preserve J3-only contexts: ${file} ${before}`, () => {
+    const beforeMap = map(),
+      afterMap = map();
+    const changes = changedScriptRanges(`@@ -1 +1 @@\n-${before}\n+${after}\n`, { base: before, head: after }, file);
+    const result = classifyClassReach([beforeMap], [afterMap], changes, [{ base: beforeMap, head: afterMap }]);
+    assert.equal(result.units.length, 2);
+    assert.ok(result.units.every((u) => !u.explicit));
+    assert.ok(combineClassReach(scriptUnits(changes), result.units).every((u) => u.status === 'reached'));
+  });
+
 for (const side of ['base', 'head'])
   test(`an unpaired ${side} surface leaves both sides conservative`, () => {
     const base = map(),
