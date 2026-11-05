@@ -267,13 +267,13 @@ test('state targets normalize only the owner itself or a descendant after a path
 });
 
 test('identical separated elements have one representative section, element list and property table', () => {
-  const { md, json } = render();
-  assert.equal(sections(md).length, 1);
-  assert.match(md, /### \*\*Card title\*\* `h2.card-title` · 3 elements restyled/);
-  assert.match(md, /Showing 1 of 3 elements for the grouped change above\./);
-  assert.match(md, /- `article:nth-child\(1\) > h2` \(shown\)/);
-  assert.match(md, /- `article:nth-child\(3\) > h2`/);
-  assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1);
+  const { md: markdown, json } = render();
+  assert.equal(sections(markdown).length, 1);
+  assert.match(markdown, /### \*\*Card title\*\* `h2.card-title` · 3 elements restyled/);
+  assert.match(markdown, /Showing 1 of 3 elements for the grouped change above\./);
+  assert.match(markdown, /- `article:nth-child\(1\) > h2` \(shown\)/);
+  assert.match(markdown, /- `article:nth-child\(3\) > h2`/);
+  assert.equal((markdown.match(/\| `color` \|/g) ?? []).length, 1);
   const regions = json.surfaces[0].regions;
   assert.equal(regions.length, 3);
   assert.deepEqual(regions[0].paths, [elementPath(1)]);
@@ -283,18 +283,18 @@ test('identical separated elements have one representative section, element list
 });
 
 test('different before/after values remain separate sections', () => {
-  const { md } = render({ different: true });
-  assert.equal(sections(md).length, 2);
+  const { md: markdown } = render({ different: true });
+  assert.equal(sections(markdown).length, 2);
 });
 
 test('identical state bundles share one heading, one list and one property table', () => {
-  const { md, json } = render({ states: true });
-  assert.equal(sections(md).length, 1);
-  assert.match(md, /### .*3 elements.*`:hover`, `:focus`/);
-  assert.equal((md.match(/\(shown\)/g) ?? []).length, 1);
-  assert.equal((md.match(/\| `background-color` \|/g) ?? []).length, 1);
-  assert.equal((md.match(/\| `outline-width` \|/g) ?? []).length, 1);
-  assert.equal((md.match(/\| State \| Property \|/g) ?? []).length, 1);
+  const { md: markdown, json } = render({ states: true });
+  assert.equal(sections(markdown).length, 1);
+  assert.match(markdown, /### .*3 elements.*`:hover`, `:focus`/);
+  assert.equal((markdown.match(/\(shown\)/g) ?? []).length, 1);
+  assert.equal((markdown.match(/\| `background-color` \|/g) ?? []).length, 1);
+  assert.equal((markdown.match(/\| `outline-width` \|/g) ?? []).length, 1);
+  assert.equal((markdown.match(/\| State \| Property \|/g) ?? []).length, 1);
   assert.deepEqual(Object.keys(json.surfaces[0].sections[0].stateImages), ['hover', 'focus']);
   assert.match(json.surfaces[0].sections[0].stateImages.hover.composite, /-1-composite/);
   assert.match(json.surfaces[0].sections[0].stateImages.focus.composite, /-2-composite/);
@@ -306,18 +306,18 @@ test('element lists stay open through five, fold after five and truncate after t
   assert.doesNotMatch(five, /<summary>Elements/);
   const six = render({ count: 6 }).md;
   assert.match(six, /<details>\n<summary>Elements \(6\)<\/summary>/);
-  const { md } = render({ count: 12 });
-  assert.match(md, /<summary>Elements \(12\)<\/summary>/);
-  assert.equal((md.match(/^- `article:nth-child/gm) ?? []).length, 10);
-  assert.match(md, /… and 2 more/);
+  const { md: markdown } = render({ count: 12 });
+  assert.match(markdown, /<summary>Elements \(12\)<\/summary>/);
+  assert.equal((markdown.match(/^- `article:nth-child/gm) ?? []).length, 10);
+  assert.match(markdown, /… and 2 more/);
 });
 
 test('overlap regions keep their crop and collapse identical glance lines without a multiplier', () => {
-  const { md, json } = render({ overlap: true });
-  assert.equal(sections(md).length, 1);
+  const { md: markdown, json } = render({ overlap: true });
+  assert.equal(sections(markdown).length, 1);
   assert.equal(json.surfaces[0].regions[0].paths.length, 3);
-  assert.match(md, /`color` `#1e3c78` → `#961e3c`/);
-  assert.doesNotMatch(md, /×3/);
+  assert.match(markdown, /`color` `#1e3c78` → `#961e3c`/);
+  assert.doesNotMatch(markdown, /×3/);
 });
 
 test('glance collapse preserves different values and pseudo/state prefixes', () => {
@@ -381,38 +381,42 @@ test('folded height rows survive for every grouped element, including non-repres
     [20, 22, 20],
     [21, 22, 23],
   ]) {
-    const { md } = render({ heights });
-    assert.equal(sections(md).length, 1);
-    assert.doesNotMatch(md, /Folded size\/position rows outside the crops/);
-    assert.equal((md.match(/\| `height` \|/g) ?? []).length, heights.filter((height) => height !== 20).length);
+    const { md: markdown } = render({ heights });
+    assert.equal(sections(markdown).length, 1);
+    assert.doesNotMatch(markdown, /Folded size\/position rows outside the crops/);
+    assert.equal((markdown.match(/\| `height` \|/g) ?? []).length, heights.filter((height) => height !== 20).length);
     for (const height of heights.filter((height) => height !== 20))
-      assert.ok(md.includes(`| \`20px\` | \`${height}px\` |`));
-    assert.doesNotMatch(md, /the other 2 changed identically/);
+      assert.ok(markdown.includes(`| \`20px\` | \`${height}px\` |`));
+    assert.doesNotMatch(markdown, /the other 2 changed identically/);
   }
 });
 
 test('different relative state targets stay separate even with the same tag and values', () => {
-  const { md } = render({ count: 2, states: true, targetOf: (owner, index) => `${owner} > span:nth-child(${index})` });
-  assert.equal(sections(md).length, 4);
+  const { md: markdown } = render({
+    count: 2,
+    states: true,
+    targetOf: (owner, index) => `${owner} > span:nth-child(${index})`,
+  });
+  assert.equal(sections(markdown).length, 4);
 });
 
 test('identical overlapping and separated regions share one counted section and element list', () => {
   for (const states of [false, true])
     for (const options of [{ overlap: true }, { overlapCount: 2 }]) {
-      const { md, json } = render({ states, ...options });
-      assert.equal(sections(md).length, 1);
-      assert.match(md, /### .* · 3 elements restyled/);
-      assert.equal((md.match(/^- `article:nth-child/gm) ?? []).length, 3);
+      const { md: markdown, json } = render({ states, ...options });
+      assert.equal(sections(markdown).length, 1);
+      assert.match(markdown, /### .* · 3 elements restyled/);
+      assert.equal((markdown.match(/^- `article:nth-child/gm) ?? []).length, 3);
       assert.equal(json.surfaces[0].sections[0].paths.length, 3);
       assert.equal(json.surfaces[0].sections[0].elements.length, 3);
-      assert.equal((md.match(/\(shown\)/g) ?? []).length, options.overlap ? 3 : 2);
+      assert.equal((markdown.match(/\(shown\)/g) ?? []).length, options.overlap ? 3 : 2);
       if (states) assert.deepEqual(Object.keys(json.surfaces[0].sections[0].stateImages), ['hover', 'focus']);
     }
 });
 
 test('mixed-change overlap regions retain the existing section behavior', () => {
-  const { md, json } = render({ overlap: true, different: true });
-  assert.equal(sections(md).length, 1);
+  const { md: markdown, json } = render({ overlap: true, different: true });
+  assert.equal(sections(markdown).length, 1);
   assert.equal(json.surfaces[0].regions[0].paths.length, 3);
   assert.equal(json.surfaces[0].regions[0].elements, undefined);
   assert.equal(json.surfaces[0].sections, undefined);
@@ -420,9 +424,10 @@ test('mixed-change overlap regions retain the existing section behavior', () => 
 
 test('path tails are the shortest unique suffix across the whole element list', () => {
   const pathOf = (index) => `html > body > section:nth-child(${index}) > article > h2`;
-  const { md } = render({ pathOf });
-  for (let index = 1; index <= 3; index++) assert.ok(md.includes(`- \`section:nth-child(${index}) > article > h2\``));
-  assert.doesNotMatch(md, /- `html/);
+  const { md: markdown } = render({ pathOf });
+  for (let index = 1; index <= 3; index++)
+    assert.ok(markdown.includes(`- \`section:nth-child(${index}) > article > h2\``));
+  assert.doesNotMatch(markdown, /- `html/);
   const long = render({ count: 12, pathOf }).md;
   assert.ok(long.includes('- `section:nth-child(10) > article > h2`'));
   assert.match(long, /… and 2 more/);
@@ -435,21 +440,21 @@ test('JSON sections retain every covered element and identify the representative
 });
 
 test('omitted representative crops never mark elements as shown', () => {
-  const { md, json } = render({ maxCropFiles: 0 });
-  assert.doesNotMatch(md, /\(shown\)|<sub>Showing/);
+  const { md: markdown, json } = render({ maxCropFiles: 0 });
+  assert.doesNotMatch(markdown, /\(shown\)|<sub>Showing/);
   assert.deepEqual(json.surfaces[0].sections[0].cropPaths, []);
 });
 
 test('grouped folded rows stay inside their section and identify each element by its list tail', () => {
-  const { md } = render({ heights: [21, 22, 23] });
-  assert.equal(sections(md).length, 1);
-  assert.doesNotMatch(md, /Folded size\/position rows outside the crops/);
+  const { md: markdown } = render({ heights: [21, 22, 23] });
+  assert.equal(sections(markdown).length, 1);
+  assert.doesNotMatch(markdown, /Folded size\/position rows outside the crops/);
   for (let index = 1; index <= 3; index++) {
     const label = `**\`article:nth-child(${index}) > h2\`**`;
-    const start = md.indexOf(label);
+    const start = markdown.indexOf(label);
     assert.ok(start >= 0, label);
-    const end = md.indexOf('**`article:nth-child(', start + label.length);
-    const element = md.slice(start, end < 0 ? undefined : end);
+    const end = markdown.indexOf('**`article:nth-child(', start + label.length);
+    const element = markdown.slice(start, end < 0 ? undefined : end);
     assert.ok(element.includes(`| \`20px\` | \`${20 + index}px\` |`));
     for (const other of [21, 22, 23].filter((height) => height !== 20 + index))
       assert.ok(!element.includes(`| \`${other}px\` |`));
@@ -491,9 +496,9 @@ test('glance lines use no element multiplier for either separated or overlapping
   const single = propertyGlanceLine([change(1)]);
   assert.equal(propertyGlanceLine([change(1), change(2), change(3)]), single);
   for (const overlap of [false, true]) {
-    const { md } = render({ overlap });
-    assert.doesNotMatch(md.split('Showing')[0], /×3/);
-    assert.match(md, /3 elements restyled/);
+    const { md: markdown } = render({ overlap });
+    assert.doesNotMatch(markdown.split('Showing')[0], /×3/);
+    assert.match(markdown, /3 elements restyled/);
   }
 });
 
