@@ -93,6 +93,18 @@ test('cva class strings include base and variant values, excluding bare and quot
   assert.ok(result.units.every((u) => u.explicit));
 });
 
+test('cva computed keys and quoted options do not turn configuration into class values', () => {
+  for (const key of ['variants', "'variants'"]) {
+    const base = `cva('old', { ${key}: { tone: { ['primary']: 'x' } }, defaultVariants: { tone: 'open' } })`;
+    const head = `cva('new', { ${key}: { tone: { ['open']: 'y' } }, defaultVariants: { tone: 'primary' } })`;
+    const result = judge(edits(base, head));
+    assert.deepEqual(
+      result.units.map((u) => u.token),
+      ['old', 'x', 'new', 'y'],
+    );
+  }
+});
+
 for (const [a, b] of [
   ['btn-x', 'btn'],
   ['card-a', 'card'],

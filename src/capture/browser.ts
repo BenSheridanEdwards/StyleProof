@@ -326,13 +326,14 @@ export function capturePage({
   let frames = 0;
   let ignored = false;
   for (const el of all) {
-    if (el === frame || el.hasAttribute('data-styleproof-hover-sink')) continue;
-    const tag = el.tagName.toLowerCase();
-    if (['script', 'style', 'link', 'noscript', 'meta', 'title', 'base', 'template'].includes(tag)) continue;
+    if (el === frame) continue;
     if (skipSel && el.matches(skipSel)) {
-      ignored = true;
+      if (!el.matches('script, style, link, noscript, meta, title, base, template, [data-styleproof-hover-sink]'))
+        ignored = true;
       continue;
     }
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'noscript') continue;
     if (!motionOnly && (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) shadowHosts++;
     if (!motionOnly && (tag === 'iframe' || tag === 'frame')) {
       frames++;

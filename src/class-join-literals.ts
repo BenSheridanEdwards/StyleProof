@@ -36,6 +36,7 @@ type Frame = {
   measured?: boolean;
   residual?: string;
   cva?: 'call' | 'options' | 'variants' | 'values' | 'excluded';
+  bracket?: string;
 };
 type Scan = { source: ClassSource; key: string; frames: Frame[]; prefix: string; literals: ClassLiteral[] };
 const explicit = (scan: Scan) => {
@@ -46,9 +47,12 @@ const explicit = (scan: Scan) => {
 
 function cvaContext(scan: Scan, char: string): Frame['cva'] {
   if (/\bcva\s*$/.test(scan.prefix)) return 'call';
-  const parent = scan.frames.at(-1)!.cva;
+  const frame = scan.frames.at(-1)!,
+    parent = frame.cva;
+  if (parent && char === '[' && frame.bracket === '{' && !scan.prefix.trim()) return 'excluded';
   if (parent === 'call') return char === '{' ? 'options' : 'values';
-  if (parent === 'options') return /\bvariants\s*:\s*$/.test(scan.prefix) ? 'variants' : 'excluded';
+  if (parent === 'options')
+    return /(?:\bvariants|['"]variants['"])\s*:\s*$/.test(scan.prefix) ? 'variants' : 'excluded';
   if (parent === 'variants') return 'values';
   return parent;
 }
@@ -68,7 +72,7 @@ function addLiteral(scan: Scan, token: ScriptToken, inherited = explicit(scan)):
   const cva = scan.frames.at(-1)!.cva;
   const cvaKey = cva && !scan.prefix.trim() && /^\s*:/.test(text.slice(literal.end, literal.end + 128));
   if (cva && (!isClass || cvaKey)) {
-    scan.prefix += ' value ';
+    scan.prefix += text.slice(token.index, literal.end);
     return literal.end;
   }
   pushLiteral(scan, token, literal, isClass);
@@ -142,7 +146,7 @@ function delimiter(char: string, cursor: number, scan: Scan): void {
     const own = helper.test(scan.prefix) || attribute.test(scan.prefix);
     const cva = cvaContext(scan, char);
     if (own) scan.frames.at(-1)!.measured = true;
-    scan.frames.push({ inherited: explicit(scan) || own, value: false, own, start: cursor, cva });
+    scan.frames.push({ inherited: explicit(scan) || own, value: false, own, start: cursor, cva, bracket: char });
     scan.prefix = '';
   } else if (')]}'.includes(char)) {
     closeFrame(scan, cursor);
