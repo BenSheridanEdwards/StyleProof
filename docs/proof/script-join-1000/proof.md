@@ -795,3 +795,23 @@ Unreleased entry for #1000, and trailing transcript whitespace is stripped.
 
 The combined unit run passes **611/611**. Full browser and gate tails, exact head
 and the hook-protected push result are recorded in the handoff.
+
+
+Rebased again onto `bff724ee5` before final gates; no conflicts. The expanded
+real-Chromium/Git run passes **124/124**. The [fresh report JSON](round12-report.json),
+[Markdown](round12-report.md) and [stored capture evidence](round12-report-evidence.json)
+show both generator-body token ranges as unmeasured, with the exact residual in
+their reasons and capture notes. There are zero J2 gaps and zero blocking findings.
+The full 1100-pixel screenshot was inspected with Evidence expanded, including
+product-state identity unproven, inventory not checked, content/structure not
+evaluated and reach incomplete. This is diagnostic attribution proof, not
+rendering or same-state certification.
+
+![Creating a generator cannot prove its changed body ran](round12-report-top.png)
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 gaps, unchanged
+**five declared / six complete unknown** totals and zero case-status changes or
+cells moved to unknown. Eager JSX and render-scope values stay unknown in both
+scenarios. Only the timestamp changes in the receipt. The corpus still uses
+hand-built one-line patches and selects the head unit; the browser tests use the
+real Git adapter on both revisions. `demo:check` also passes.

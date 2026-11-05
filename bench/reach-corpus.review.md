@@ -97,6 +97,12 @@ rather than claim the whole expression never evaluated. The new `.ts` assertion
 and parameter cases run in unit tests and the real-Chromium/Git adapter spec;
 the corpus still uses hand-built one-line patches and selects the head unit.
 
+Round 12 also passes all 32 expectations with zero J2 gaps and unchanged 5/6
+unknown totals. No case status or result cell moves to unknown; eager JSX and
+render-scope values remain unknown. The receipt changes only its timestamp.
+Generator creation/iteration and live/idle TSX generic regressions run through
+the real Chromium/Git adapter spec; the corpus method stays unchanged.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry
