@@ -5,6 +5,7 @@ import { warn } from '../capture/shared.js';
 import type { ServedRuleTracker } from '../capture/reach.js';
 import type { CaptureOptions } from '../capture/types.js';
 import { requireLiveTextCapture, validateLiveText } from '../live-text.js';
+import { validateMediaStates } from '../media-states.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, restoreRealSpecClock } from '../spec-clock.js';
 import { resolveNavigateTimeoutMs, resolveSurfaceTimeoutMs } from '../surface-progress.js';
 import type {
@@ -149,6 +150,7 @@ export function resolveSettings(c: CaptureConfig, projectRoot?: string): Setting
   const navigateTimeoutMs = resolveNavigateTimeoutMs(c.navigateTimeoutMs, surfaceTimeoutMs);
   return {
     ...resolveForcedStateLimits(c),
+    mediaStates: validateMediaStates(c.mediaStates),
     dir,
     baseDir,
     outDir: resolveOutputDir(baseDir, dir),
@@ -191,6 +193,8 @@ export function captureOptionsFor(
       forcedStateScope: surface.forcedStateScope === undefined ? s.forcedStateScope : surface.forcedStateScope,
     }),
     ignore: surface.ignore ?? [],
+    mediaStatesDeclared: (surface.mediaStates ?? s.mediaStates).length > 0,
+    mediaWarningScope: s.outDir,
     captureText: s.captureText,
     captureReach: s.captureReach,
     captureScriptReach: s.captureScriptReach,

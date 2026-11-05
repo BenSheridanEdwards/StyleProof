@@ -602,6 +602,62 @@ why — instead of capturing contaminated state or keying a popup under the wron
 trigger. Dismiss the leaking overlay in the surface's `go()`, or capture it as an
 explicit variant.
 
+### Media environments
+
+Declare browser media features instead of hand-writing `page.emulateMedia` setup:
+
+```ts
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR,
+  mediaStates: [
+    { key: 'dark', colorScheme: 'dark' },
+    { key: 'print', media: 'print' },
+    { key: 'contrast', forcedColors: 'active' },
+  ],
+  surfaces: [
+    {
+      key: 'home',
+      go: async (page) => {
+        await page.goto('/');
+      },
+    },
+  ],
+});
+```
+
+`mediaStates` is accepted globally by `defineStyleMapCapture` and
+`defineCrawlCapture`, and on each `Surface`. A surface declaration replaces the
+global list; `mediaStates: []` opts that surface out. Each entry requires a safe
+capture `key` and at least one of `colorScheme: 'light' | 'dark'`,
+`media: 'screen' | 'print'`, or `forcedColors: 'active' | 'none'`. Features may be
+combined. `reducedMotion` is rejected: motion always stays frozen at `'reduce'`.
+
+The original captures remain. Each media environment adds `<surface>-<mediaKey>`
+and `<surface>-<variant>-<mediaKey>` for explicit `variants`, at each detected or
+declared width. `liveStates` still replace the bare base; they and `stateRecipes`
+are independent captures and receive no automatic media copies. Popup discovery
+is disabled on media copies. This bounded expansion avoids multiplying transient,
+network-fixture, and discovered popup states. To cover one of those states under
+media emulation, model it as an explicit variant or a separate base surface.
+
+Emulation starts before navigation and persists through breakpoint detection,
+settling, self-check, and screenshots. Omitted features retain the page’s
+starting media settings, including browser-context settings. Shared crawl pages
+restore those starting settings before the next base surface. Saved
+`metadata.mediaState` records the declared features; media copies reuse
+`variantKind: 'variant'`, so reports need no renderer changes.
+
+Nothing expands by default. When readable loaded stylesheets use
+`prefers-color-scheme`, `print`, `forced-colors`, or `prefers-contrast` and no
+media states are declared for the surface, one capture-time warning per runner
+process names the detected features and points at `mediaStates`. This is
+discovery advice, not a completeness claim. Public `captureStyleMap`,
+`styleproof-capture`, and variant-crawler calls do not emit this advice because
+they have no `mediaStates` declaration option. Unreadable sheets and
+JavaScript-only media queries are not inspected. `prefers-contrast` is not
+emulated by this option; forced colors is a separate browser feature. The ad-hoc
+`styleproof-capture` CLI currently needs a spec for these media environments.
+
 ### Harvest one-step variants
 
 Routes are not the whole UI: drawers, tabs, dialogs, empty form errors, selects,
@@ -1841,8 +1897,9 @@ Approval is a checkbox tick handled by a separate workflow: tick **Approve all c
 
 | Option              | Default                     | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `surfaces`          | _required_                  | Page states to certify — each `{ key, go, widths?, ignore?, height?, liveStates?, variants?, popups? }`. `go(page)` drives to a settled state. Omit `widths` to auto-detect the app's `@media` breakpoints and sweep one width per band.                                                                                                                                                                                                                               |
+| `surfaces`          | _required_                  | Page states to certify — each `{ key, go, widths?, ignore?, height?, liveStates?, variants?, popups?, mediaStates? }`. `go(page)` drives to a settled state. Omit `widths` to auto-detect the app's `@media` breakpoints and sweep one width per band.                                                                                                                                                                                                                               |
 | `liveStates`        | _none_                      | Optional pinned live product states. Each `{ key, setup?, go?, widths?, height?, ignore? }` becomes `<surface>-<state>` and is labeled as a live state in reports.                                                                                                                                                                                                                                                                                                     |
+| `mediaStates`       | _none_                      | Extra browser media environments for the base and explicit variants. Each `{ key, colorScheme?, media?, forcedColors? }` becomes `<surface>-<key>`; surface declarations replace the global list. See [media environments](#media-environments).                                                                                                                                                                                                                       |
 | `variants`          | _none_                      | Optional non-live deterministic states under a surface. The base surface still captures; each variant becomes `<surface>-<variant>` so base/head compare matching states.                                                                                                                                                                                                                                                                                              |
 | `popups`            | `false`                     | Optional automatic popup capture. Set `true` or `{ max, triggers, overlays, timeoutMs }` to click visible safe triggers and save each opened overlay state as `<surface>-popup-XX`; maps include `overlays` proof metadata for captured semantic roots.                                                                                                                                                                                                                |
 | `expected`          | _none_                      | Your route/view/state/component universe. Emits a coverage-guard test (runs without a capture dir) that fails when a required key has no surface and isn't excluded.                                                                                                                                                                                                                                                                                                   |

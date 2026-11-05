@@ -50,6 +50,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `stateLayerOmissions`; one-sided layers and drift/read failures remain uncertified.
   An unavailable shared baseline skips the form sweep, and isolated form Typed OM
   proof cannot erase legacy evidence. Invalid input types follow the browser's text fallback.
+- Add opt-in `mediaStates` to surface definitions, `defineStyleMapCapture`, and
+  `defineCrawlCapture` for dark/light color schemes, print/screen media, and forced
+  colors. Base surfaces and explicit variants gain separate captures; live states,
+  recipes, and popup discovery are not multiplied. Capture metadata records the
+  emulated features. Omitted features and shared-page resets preserve starting
+  browser-context media settings. Undeclared media conditions emit one advisory
+  warning per runner process without writing temporary markers,
+  including `prefers-contrast` (which is not emulated). Default capture keys and
+  counts stay unchanged (#1295). Print emulation also stays active at document load
+  during script-reach self-checks across data URLs and cross-origin navigations.
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

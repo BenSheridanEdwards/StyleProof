@@ -200,7 +200,7 @@ export async function assertDeterministic(
   servedRules?: ServedRuleTracker,
 ): Promise<void> {
   const scriptReach = settings.captureScriptReach
-    ? await trackScriptReach(page, { projectRoot: settings.projectRoot })
+    ? await trackScriptReach(page, { projectRoot: settings.projectRoot, mediaState: surface.metadata?.mediaState })
     : undefined;
   let again: StyleMap;
   try {

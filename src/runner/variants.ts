@@ -1,5 +1,6 @@
 import { validateProductStateIdentity } from '../capture.js';
 import type { CaptureMetadata } from '../capture/types.js';
+import { applyMediaState, validateMediaStates } from '../media-states.js';
 import {
   applyStateRecipe,
   classifyStateRecipe,
@@ -24,6 +25,7 @@ function inherited(surface: Surface, variant?: SurfaceVariant): Omit<ExpandedSur
     widths: v.widths ?? surface.widths,
     height: v.height ?? surface.height,
     popups: surface.popups,
+    mediaStates: surface.mediaStates,
     maxForcedStateElements:
       v.maxForcedStateElements === undefined ? surface.maxForcedStateElements : v.maxForcedStateElements,
     maxForcedStateScanWork:
@@ -116,12 +118,34 @@ export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
     ...base,
     metadata: { surfaceKey: surface.key, ...(productState ? { productState } : {}) },
   };
-  // liveStates drop the bare base (fuzzy live UI); variants and recipes still expand.
+  const mediaStates = validateMediaStates(surface.mediaStates);
+  const explicitVariants = variants.map((variant) => expandOne(surface, variant, 'variant'));
+  // liveStates drop the bare base. Only the remaining base and explicit variants get media copies:
+  // automatically multiplying recipes, live fixtures and popup discovery would hide capture costs.
+  const mediaParents = [...(liveStates.length ? [] : [baseSurface]), ...explicitVariants];
+  const mediaSurfaces = mediaParents.flatMap((parent) =>
+    mediaStates.map((mediaState): ExpandedSurface => ({
+      ...parent,
+      key: `${parent.key}-${mediaState.key}`,
+      popups: false,
+      go: async (page) => {
+        await applyMediaState(page, mediaState);
+        await parent.go(page);
+      },
+      metadata: {
+        ...parent.metadata,
+        variantKey: parent.metadata?.variantKey ? `${parent.metadata.variantKey}-${mediaState.key}` : mediaState.key,
+        variantKind: 'variant',
+        mediaState,
+      },
+    })),
+  );
   return [
     ...(liveStates.length ? [] : [baseSurface]),
-    ...variants.map((variant) => expandOne(surface, variant, 'variant')),
+    ...explicitVariants,
     ...liveStates.map((state) => expandOne(surface, state, 'live-state')),
     ...recipes.map((recipe) => expandStateRecipe(surface, recipe)),
+    ...mediaSurfaces,
   ];
 }
 
@@ -130,6 +154,9 @@ type ExpandedKeyed = { key: string; metadata?: CaptureMetadata };
 function expandedOrigin(s: ExpandedKeyed): string {
   const surfaceKey = s.metadata?.surfaceKey ?? s.key;
   const variantKey = s.metadata?.variantKey;
+  if (s.metadata?.mediaState) {
+    return `surface '${surfaceKey}'${variantKey !== s.metadata.mediaState.key ? ` variant '${variantKey}'` : ''} media state '${s.metadata.mediaState.key}'`;
+  }
   if (!variantKey) return `surface '${surfaceKey}'`;
   const kind =
     s.metadata?.variantKind === 'state-recipe' || s.metadata?.variantKind === 'live-state'
@@ -160,7 +187,7 @@ export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
         `styleproof: capture key '${s.key}' is produced by two surfaces — ` +
           `${expandedOrigin(prior)} collides with ${expandedOrigin(s)}. ` +
           `Keys must expand uniquely (they name the map files and report entries); ` +
-          `rename one surface, variant, live state, or state recipe.`,
+          `rename one surface, variant, media state, live state, or state recipe.`,
       );
     }
     const folded = foldCaptureKey(s.key);
@@ -170,7 +197,7 @@ export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
         `styleproof: capture keys '${twin.key}' and '${s.key}' differ only by case or Unicode normalization — ` +
           `${expandedOrigin(twin)} collides with ${expandedOrigin(s)}. ` +
           `They would overwrite each other's map file on a case-insensitive filesystem (macOS, Windows); ` +
-          `rename one surface, variant, live state, or state recipe.`,
+          `rename one surface, variant, media state, live state, or state recipe.`,
       );
     }
     byKey.set(s.key, s);

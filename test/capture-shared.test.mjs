@@ -63,6 +63,7 @@ function capturePageHarness() {
       if (typeof fn === 'string') return runInContext(fn, context);
       let result;
       switch (fn.name) {
+        case 'collectMediaTexts':
         case 'freezeMotion':
         case 'unfreezeMotion':
         case 'capturePage':

@@ -153,7 +153,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     exclude = {},
     observeNavigation = true,
   } = options;
-  const { widths, height, ignore, variants, liveStates, stateRecipes, popups } = options;
+  const { widths, height, ignore, variants, liveStates, stateRecipes, popups, mediaStates } = options;
   if (!dir) return;
 
   const settings = resolveSettings(options);
@@ -161,7 +161,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
   test.describe('styleproof capture (crawl)', () => {
     // The crawl applies the SAME variants to every link, so an `expected` key's expansion is knowable up front.
     const ledgerSurfaces = (expected ?? []).flatMap((key) =>
-      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates, stateRecipes }),
+      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates, stateRecipes, mediaStates }),
     );
     recordCaptureTestOutcomes();
     writeCoverageLedgerTest(settings, expected ?? null, exclude, ledgerSurfaces);
@@ -196,6 +196,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           variants,
           liveStates,
           stateRecipes,
+          mediaStates,
           popups,
         });
       // Navigation observed while a surface settles expands the frontier for another bounded pass.

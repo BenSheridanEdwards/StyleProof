@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { loadStyleProofConfigWithLocation } from './config.js';
 import { coverageGaps, coverageKeys, mergeCoverageConfig } from './coverage.js';
 import { requireLiveTextCapture, validateLiveText } from './live-text.js';
+import { validateMediaStates } from './media-states.js';
 import { captureTestBudgetMs } from './surface-progress.js';
 import { withSurfaceFailureTolerance } from './runner/self-check.js';
 import { resolveSettings } from './runner/settings.js';
@@ -19,6 +20,7 @@ import type { DefineOptions, HeartbeatOrdinal } from './runner/types.js';
 import { assertUniqueExpandedKeys, expandSurfaceVariants } from './runner/variants.js';
 import { parseOnlySurfacesEnv, surfaceMatchesOnlySet } from './selective-remap.js';
 
+export type { MediaState } from './capture/types.js';
 export type {
   CrawlOptions,
   DefineOptions,
@@ -59,7 +61,13 @@ export const CAPTURE_TEST_GREP = '/(?:^|\\s)styleproof capture(?:\\s|$)/';
 export function defineStyleMapCapture(options: DefineOptions): void {
   requireLiveTextCapture(validateLiveText(options.liveText), options.captureText ?? true);
   const { surfaces, expected: programmaticExpected, exclude: programmaticExclude = {}, dir } = options;
-  const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
+  const mediaStates = validateMediaStates(options.mediaStates);
+  const captureSurfaces = surfaces.flatMap((surface) =>
+    expandSurfaceVariants({
+      ...surface,
+      mediaStates: surface.mediaStates === undefined ? mediaStates : surface.mediaStates,
+    }),
+  );
   assertUniqueExpandedKeys(captureSurfaces);
   // Opt-in selective remap: STYLEPROOF_ONLY_SURFACES limits which surfaces get capture tests.
   // Coverage ledger still sees the full declared set so the gate's completeness basis is honest.

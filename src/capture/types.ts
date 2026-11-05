@@ -46,6 +46,14 @@ export type ProductStateIdentity = {
   revision: string;
 };
 
+/** One explicitly declared browser media environment; reduced motion always stays frozen. */
+export type MediaState = {
+  key: string;
+  colorScheme?: 'light' | 'dark';
+  media?: 'screen' | 'print';
+  forcedColors?: 'active' | 'none';
+};
+
 export type CaptureMetadata = {
   /** Requests still in flight when settling timed out; the capture may show a loading state. */
   settleTimedOutWithRequestsInFlight?: number;
@@ -53,6 +61,8 @@ export type CaptureMetadata = {
   variantKey?: string;
   variantKind?: 'variant' | 'live-state' | 'popup' | 'state-recipe';
   stateRecipe?: StateRecipeCaptureProvenance;
+  /** Emulated browser features, retained for future report presentation. */
+  mediaState?: MediaState;
   /** Explicit same-product-state evidence used by the certification comparison. */
   productState?: ProductStateIdentity;
   /** Consumer-declared live/age/clock text. Advisory unless `freeze` is true. */
@@ -233,6 +243,10 @@ export type CaptureOptions = {
   onPhase?: (phase: 'settle' | 'capture') => void;
   /** Internal: fail closed unless this recipe-observed transient stays visible through extraction. */
   requiredVisibleState?: { selector: string; stateKey: string };
+  /** Internal: suppress media discovery advice when the surface declares media captures. */
+  mediaStatesDeclared?: boolean;
+  /** Internal: runner output scope for in-process warning de-duplication across surfaces and widths. */
+  mediaWarningScope?: string;
   /** Internal: metadata persisted with the capture. */
   metadata?: CaptureMetadata;
 };

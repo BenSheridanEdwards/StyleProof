@@ -22,6 +22,7 @@ import {
   writeBrowserBuildSidecar,
   writeCaptureManifest,
 } from '../map-store.js';
+import { applyMediaState, restoreDeclaredMediaState, warnUndeclaredMediaStates } from '../media-states.js';
 import { realNow } from '../spec-clock.js';
 import { formatSurfaceHeartbeat, runWithSurfaceTimeout, type CapturePhase } from '../surface-progress.js';
 import { captureArtifactStem } from '../surface-keys.js';
@@ -110,7 +111,7 @@ export async function detectSurfaceWidths(
     );
   }
   // Base and head load with the same viewport, reduced motion, pinned data and frozen clock.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await applyMediaState(page, surface.metadata?.mediaState);
   if (viewport) await page.setViewportSize(viewport);
   // Drop routes an earlier surface left on a shared crawl page before pinning this detection load.
   await page.unroute(s.replayUrl);
@@ -172,7 +173,7 @@ export async function captureSurface(
   options: { pageIsShared?: boolean } = {},
 ): Promise<void> {
   // Declared BEFORE go(): JS animation libraries read prefers-reduced-motion at mount.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await applyMediaState(page, declared.metadata?.mediaState);
   const height = viewportHeight(declared, width);
   await page.setViewportSize({ width, height });
   // Both trackers are armed BEFORE go() so the surface's own load requests are seen. Residue
@@ -180,7 +181,13 @@ export async function captureSurface(
   const requests = trackInflightRequests(page);
   const residue = trackDataResidue(page, s.replayUrl, declared.metadata?.surfaceKey ?? declared.key, baseURL);
   // Change Reach: Chromium keeps linked stylesheets' text only when this is armed before they load.
-  const servedRules = s.captureReach ? await trackServedRules(page) : undefined;
+  const declaredMedia = declared.metadata?.mediaState;
+  // Armed before navigation, the tracker session must carry the declared media type across process swaps.
+  const servedRules = s.captureReach
+    ? await trackServedRules(page, {
+        prepareSession: declaredMedia ? (session) => applyMediaState(page, declaredMedia, session) : undefined,
+      })
+    : undefined;
   const captureKey = `${declared.key}@${width}`;
   const startedAtMs = realNow(); // realNow: the spec-process clock may be frozen
   let phase: CapturePhase = 'navigate';
@@ -203,7 +210,7 @@ export async function captureSurface(
       () => phase,
       async (surfaceRun) => {
         const scriptReach = s.captureScriptReach
-          ? await trackScriptReach(page, { projectRoot: s.projectRoot })
+          ? await trackScriptReach(page, { projectRoot: s.projectRoot, mediaState: surface.metadata?.mediaState })
           : undefined;
         let map: StyleMap;
         try {
@@ -223,6 +230,12 @@ export async function captureSurface(
         } finally {
           await scriptReach?.dispose();
         }
+
+        // Advisory only: a page that cannot be read again after capture must not fail the surface.
+        await warnUndeclaredMediaStates(page, {
+          ...captureOptionsFor(surface, s, requests.pending, servedRules),
+          metadata: surface.metadata,
+        }).catch(() => undefined);
 
         if (s.selfCheck) {
           phase = 'self-check';
@@ -253,6 +266,9 @@ export async function captureSurface(
     requests.dispose();
     residue.dispose();
     await servedRules?.dispose();
+    // Screenshot and rule-tracking CDP sessions can clear Chromium's print emulation on detach.
+    // Best-effort on cleanup: a closed page must not replace the capture's own error or skip unrouting.
+    await restoreDeclaredMediaState(page, declared.metadata).catch(() => undefined);
     await stop();
     await page.unroute(s.replayUrl);
   }

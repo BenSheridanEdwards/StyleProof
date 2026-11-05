@@ -4,6 +4,7 @@
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { restoreDeclaredMediaState } from './media-states.js';
 import { GENERATED_ID_SOURCES } from './generated-id.js';
 import { realNow } from './spec-clock.js';
 import { PSEUDO_REFERENCES } from './pseudo-references.js';
@@ -394,6 +395,8 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
 
   const { states, stateLayers, stateLayerOmissions, stateTargets, statesSkipped, stateComputedValueStyle } =
     await captureStateLayer(page, options, read.limits, read.ignore, volatile);
+  // Chromium clears print emulation when the forced-state reader detaches its CDP session.
+  await restoreDeclaredMediaState(page, options.metadata);
   const tokens = await page.evaluate(capturePageTokens);
   const inventory: NavigableItem[] = options.inventory
     ? classifyInventory(await page.evaluate(collectNavAffordances))
@@ -492,6 +495,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // Rule usage starts after the settle, so a rule matched only while the page was still
   // changing is not recorded as reached; starting it records every rule the settled page matches.
   const reach = options.captureReach ? (options.servedRules ?? (await trackServedRules(page))) : undefined;
+  let captureSucceeded = false;
   try {
     await reach?.start();
 
@@ -516,10 +520,15 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     await attachScriptReach(result, options);
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
     await page.evaluate(unfreezeMotion, true);
+    captureSucceeded = true;
     return result;
   } finally {
     // A caller-armed tracker outlives this capture (self-check, popups); one armed here does not.
     if (reach && !options.servedRules) await reach.dispose();
+    // Strict after a successful read; on a throw path the original error must surface instead.
+    await restoreDeclaredMediaState(page, options.metadata).catch((error: unknown) => {
+      if (captureSucceeded) throw error;
+    });
     // Best-effort: the page may already be closing on a throw path.
     await page.evaluate(unfreezeMotion, false).catch(() => {});
   }

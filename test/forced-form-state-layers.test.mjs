@@ -155,7 +155,7 @@ test('form owner applicability follows path correspondence', () => {
 });
 
 test('runner form allowance inherits defaults and honours the surface override', () => {
-  const settings = { maxFormStateScanWork: 45000 };
+  const settings = { maxFormStateScanWork: 45000, mediaStates: [] };
   const surface = { key: 'form', go: async () => {} };
   assert.equal(captureOptionsFor(surface, settings, () => 0).maxFormStateScanWork, 45000);
   assert.equal(
