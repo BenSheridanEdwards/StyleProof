@@ -31,6 +31,7 @@ export const rawGeneratorCases = [
   after: (setup + body).replace('sink(1)', 'sink(2)'),
   sourceKey,
   hits: 0,
+  browserExpected: name === 'a generator after function-expression division' ? 'never-rendered' : 'unmeasured',
 }));
 
 export const apostropheControls = [

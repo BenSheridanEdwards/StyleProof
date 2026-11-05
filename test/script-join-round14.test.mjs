@@ -6,7 +6,7 @@ import { scriptTokens } from '../dist/script-join-tokens.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 import { classifyScriptReach } from '../dist/script-join.js';
 import { mapScriptCoverage } from '../dist/script-reach.js';
-import { compactScriptEvidence } from '../dist/script-reach-storage.js';
+import { compactScriptEvidence, storedScriptEvidence } from '../dist/script-reach-storage.js';
 import { patches } from './script-join-round6-fixture.mjs';
 import { rawGeneratorCases, apostropheControls } from './script-join-round14-fixture.mjs';
 
@@ -108,3 +108,17 @@ for (const text of ['const a=1;window.value=a+2;', 'window.text="ordinary";', 'w
   test(`ordinary source has no raw generator-like pattern: ${text}`, () =>
     assert.equal(sourceContainsGenerator(text), false));
 }
+
+test('capture notes describe raw over-flagging, including files without generators', () => {
+  assert.ok(
+    storedScriptEvidence([]).notes.some(
+      (note) => note.includes('raw text') && note.includes('files with no generator'),
+    ),
+  );
+});
+
+test('a run of intervening comments needs a following star to match a function pattern', () => {
+  const prefix = 'function' + '/* text */'.repeat(64);
+  assert.equal(sourceContainsGenerator(prefix + ' ordinary'), false);
+  assert.equal(sourceContainsGenerator(prefix + '* () {}'), true);
+});

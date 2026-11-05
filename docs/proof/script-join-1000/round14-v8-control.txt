@@ -1,0 +1,257 @@
+Already up to date
+Done in 63ms using pnpm v11.7.0
+
+Running 190 tests using 1 worker
+
+(node:88164) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    1 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=false (357ms)
+  ✓    2 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=true (301ms)
+  ✓    3 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=false (307ms)
+  ✓    4 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=true (291ms)
+  ✓    5 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=false (290ms)
+  ✓    6 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=true (290ms)
+  ✓    7 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=false (296ms)
+  ✓    8 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=true (301ms)
+  ✓    9 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=false (282ms)
+  ✓   10 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=true (290ms)
+  ✘   11 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=false (273ms)
+(node:89190) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   12 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=true (311ms)
+(node:89248) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   13 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=false (342ms)
+  ✓   14 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=true (315ms)
+  ✓   15 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=false (299ms)
+  ✓   16 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=true (292ms)
+  ✓   17 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=false (290ms)
+  ✓   18 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=true (282ms)
+  ✓   19 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › inline JSX non-generator apostrophe control with minify=false (265ms)
+  ✓   20 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › inline JSX non-generator apostrophe control with minify=true (269ms)
+  ✓   21 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › multiline JSX non-generator apostrophe control with minify=false (273ms)
+  ✓   22 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › multiline JSX non-generator apostrophe control with minify=true (269ms)
+  ✓   23 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › realistic component non-generator apostrophe control with minify=false (266ms)
+  ✓   24 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › realistic component non-generator apostrophe control with minify=true (264ms)
+  ✓   25 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator divisor after a keyword-named property call whole-file generator residual with minify=false (280ms)
+  ✓   26 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator divisor after a keyword-named property call whole-file generator residual with minify=true (280ms)
+  ✓   27 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator call inside division whole-file generator residual with minify=false (283ms)
+  ✓   28 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator call inside division whole-file generator residual with minify=true (278ms)
+  ✓   29 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator call after an object operand whole-file generator residual with minify=false (284ms)
+  ✓   30 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator call after an object operand whole-file generator residual with minify=true (278ms)
+  ✓   31 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › QA static method whole-file generator residual with minify=false (279ms)
+  ✓   32 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › QA static method whole-file generator residual with minify=true (293ms)
+  ✓   33 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › QA async method without whitespace whole-file generator residual with minify=false (290ms)
+  ✓   34 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › QA async method without whitespace whole-file generator residual with minify=true (290ms)
+  ✓   35 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › QA ordinary function in a generator file whole-file generator residual with minify=false (300ms)
+  ✓   36 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › QA ordinary function in a generator file whole-file generator residual with minify=true (295ms)
+  ✓   37 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static generator whole-file generator residual with minify=false (287ms)
+  ✓   38 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static generator whole-file generator residual with minify=true (275ms)
+  ✓   39 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generator whole-file generator residual with minify=false (281ms)
+  ✓   40 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generator whole-file generator residual with minify=true (278ms)
+  ✓   41 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a computed generator whole-file generator residual with minify=false (282ms)
+  ✓   42 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a computed generator whole-file generator residual with minify=true (281ms)
+  ✓   43 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a computed async generator whole-file generator residual with minify=false (279ms)
+  ✓   44 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a computed async generator whole-file generator residual with minify=true (281ms)
+  ✓   45 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a private-name generator whole-file generator residual with minify=false (279ms)
+  ✓   46 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a private-name generator whole-file generator residual with minify=true (282ms)
+  ✓   47 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a quoted-name generator whole-file generator residual with minify=false (286ms)
+  ✓   48 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a quoted-name generator whole-file generator residual with minify=true (286ms)
+  ✓   49 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a numeric-name generator whole-file generator residual with minify=false (295ms)
+  ✓   50 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a numeric-name generator whole-file generator residual with minify=true (297ms)
+  ✓   51 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a public generator whole-file generator residual with minify=false (283ms)
+  ✓   52 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a public generator whole-file generator residual with minify=true (277ms)
+  ✓   53 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a private async generator whole-file generator residual with minify=false (284ms)
+  ✓   54 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a private async generator whole-file generator residual with minify=true (281ms)
+  ✓   55 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › adjacent generator methods on one line whole-file generator residual with minify=false (293ms)
+  ✓   56 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › adjacent generator methods on one line whole-file generator residual with minify=true (287ms)
+  ✓   57 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a long saga body whole-file generator residual with minify=false (283ms)
+  ✓   58 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a long saga body whole-file generator residual with minify=true (283ms)
+  ✓   59 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator expression whole-file generator residual with minify=false (287ms)
+  ✓   60 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator expression whole-file generator residual with minify=true (293ms)
+  ✓   61 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an async generator expression whole-file generator residual with minify=false (296ms)
+  ✓   62 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an async generator expression whole-file generator residual with minify=true (310ms)
+  ✓   63 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=false (294ms)
+  ✓   64 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=true (287ms)
+  ✓   65 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator expression after JSX comment-like text whole-file generator residual with minify=false (281ms)
+  ✓   66 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator expression after JSX comment-like text whole-file generator residual with minify=true (301ms)
+  ✓   67 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a never-iterated generator names its V8 residual with minify=false (287ms)
+  ✓   68 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a never-iterated generator names its V8 residual with minify=true (282ms)
+  ✓   69 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an iterated generator names its V8 residual with minify=false (277ms)
+  ✓   70 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an iterated generator names its V8 residual with minify=true (299ms)
+  ✓   71 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a never-iterated async generator names its V8 residual with minify=false (283ms)
+  ✓   72 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a never-iterated async generator names its V8 residual with minify=true (290ms)
+  ✓   73 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator method names its V8 residual with minify=false (295ms)
+  ✓   74 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator method names its V8 residual with minify=true (320ms)
+  ✓   75 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an async generator method names its V8 residual with minify=false (284ms)
+  ✓   76 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an async generator method names its V8 residual with minify=true (281ms)
+  ✓   77 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a multiline generator body names its V8 residual with minify=false (282ms)
+  ✓   78 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a multiline generator body names its V8 residual with minify=true (292ms)
+  ✓   79 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › live TSX generic <T extends unknown> arm in Chromium with minify=false (266ms)
+  ✓   80 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › live TSX generic <T extends unknown> arm in Chromium with minify=true (264ms)
+  ✓   81 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle TSX generic <T extends unknown> arm in Chromium with minify=false (264ms)
+  ✓   82 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle TSX generic <T extends unknown> arm in Chromium with minify=true (265ms)
+  ✓   83 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › live TSX generic <T,> arm in Chromium with minify=false (264ms)
+  ✓   84 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › live TSX generic <T,> arm in Chromium with minify=true (279ms)
+  ✓   85 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle TSX generic <T,> arm in Chromium with minify=false (271ms)
+  ✓   86 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle TSX generic <T,> arm in Chromium with minify=true (298ms)
+  ✓   87 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › live TSX generic <T, U> arm in Chromium with minify=false (297ms)
+  ✓   88 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › live TSX generic <T, U> arm in Chromium with minify=true (273ms)
+  ✓   89 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle TSX generic <T, U> arm in Chromium with minify=false (262ms)
+  ✓   90 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle TSX generic <T, U> arm in Chromium with minify=true (264ms)
+  ✓   91 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a class method default (281ms)
+  ✓   92 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an object method default (277ms)
+  ✓   93 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a parameter-property constructor default (281ms)
+  ✓   94 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a whole-line template default (282ms)
+  ✓   95 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › TypeScript assertion 1 cannot hide removed code in .ts with minify=false (286ms)
+  ✓   96 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › TypeScript assertion 1 cannot hide removed code in .ts with minify=true (270ms)
+  ✓   97 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › TypeScript assertion 2 cannot hide removed code in .ts with minify=false (320ms)
+  ✓   98 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › TypeScript assertion 2 cannot hide removed code in .ts with minify=true (276ms)
+  ✓   99 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › TypeScript assertion 3 cannot hide removed code in .ts with minify=false (280ms)
+  ✓  100 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › TypeScript assertion 3 cannot hide removed code in .ts with minify=true (268ms)
+  ✓  101 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a live generic arrow value retains positive execution in .ts with minify=false (266ms)
+  ✓  102 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a live generic arrow value retains positive execution in .ts with minify=true (282ms)
+  ✓  103 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a default initializer with two nested calls (286ms)
+  ✓  104 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a multiline destructured props default (278ms)
+  ✓  105 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a multiline ordinary parameter default (280ms)
+  ✓  106 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › slashes in a regex character class cannot start a fake comment with minify=false (272ms)
+  ✓  107 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › slashes in a regex character class cannot start a fake comment with minify=true (265ms)
+  ✓  108 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › paired single quotes across JSX siblings cannot invent a string with minify=false (264ms)
+  ✓  109 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › paired single quotes across JSX siblings cannot invent a string with minify=true (266ms)
+  ✓  110 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › paired double quotes across JSX siblings cannot invent a string with minify=false (281ms)
+  ✓  111 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › paired double quotes across JSX siblings cannot invent a string with minify=true (269ms)
+  ✓  112 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › regex-looking JSX text after an expression cannot hide code with minify=false (273ms)
+  ✓  113 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › regex-looking JSX text after an expression cannot hide code with minify=true (271ms)
+  ✓  114 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › regex-looking JSX text after a closing tag cannot hide code with minify=false (272ms)
+  ✓  115 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › regex-looking JSX text after a closing tag cannot hide code with minify=true (261ms)
+  ✓  116 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › paired backticks across JSX siblings cannot invent a template with minify=false (265ms)
+  ✓  117 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › paired backticks across JSX siblings cannot invent a template with minify=true (282ms)
+  ✓  118 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text // TODO after a child expression cannot hide code with minify=false (274ms)
+  ✓  119 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text // TODO after a child expression cannot hide code with minify=true (264ms)
+  ✓  120 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text // TODO after a closing tag cannot hide code with minify=false (265ms)
+  ✓  121 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text // TODO after a closing tag cannot hide code with minify=true (285ms)
+  ✓  122 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text /* note after a child expression cannot hide code with minify=false (275ms)
+  ✓  123 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text /* note after a child expression cannot hide code with minify=true (263ms)
+  ✓  124 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text /* note after a closing tag cannot hide code with minify=false (264ms)
+  ✓  125 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text /* note after a closing tag cannot hide code with minify=true (266ms)
+  ✓  126 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text `npm i after a child expression cannot hide code with minify=false (276ms)
+  ✓  127 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text `npm i after a child expression cannot hide code with minify=true (283ms)
+  ✓  128 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text `npm i after a closing tag cannot hide code with minify=false (264ms)
+  ✓  129 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text `npm i after a closing tag cannot hide code with minify=true (265ms)
+  ✓  130 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text // TODO cannot hide a removed sibling with minify=false (269ms)
+  ✓  131 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text // TODO cannot hide a removed sibling with minify=true (270ms)
+  ✓  132 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text /* note cannot hide a removed sibling with minify=false (265ms)
+  ✓  133 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text /* note cannot hide a removed sibling with minify=true (264ms)
+  ✓  134 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text `npm i cannot hide a removed sibling with minify=false (289ms)
+  ✓  135 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › JSX text `npm i cannot hide a removed sibling with minify=true (272ms)
+  ✓  136 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=false (275ms)
+  ✓  137 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=true (280ms)
+  ✓  138 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a JSX attribute keeps negative evidence for its unopened OR arm with minify=false (272ms)
+  ✓  139 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a JSX attribute keeps negative evidence for its unopened OR arm with minify=true (292ms)
+  ✓  140 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an escaped slash after a condition cannot start a fake comment with minify=false (264ms)
+  ✓  141 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an escaped slash after a condition cannot start a fake comment with minify=true (263ms)
+  ✓  142 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded template class substitution retains idle substitution evidence without minification (265ms)
+  ✓  143 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded template call substitution retains idle substitution evidence without minification (278ms)
+  ✓  144 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded template side effect retains idle substitution evidence without minification (263ms)
+  ✓  145 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a template on its own call line retains idle substitution evidence without minification (263ms)
+  ✓  146 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › the second template on one line retains idle substitution evidence without minification (264ms)
+  ✓  147 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded logical template substitution retains idle substitution evidence without minification (266ms)
+  ✓  148 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a multiline template substitution retains idle substitution evidence without minification (278ms)
+  ✓  149 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a substitution expression on its own line retains idle substitution evidence without minification (265ms)
+  ✓  150 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a live template substitution keeps ran with minify=false (263ms)
+  ✓  151 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a live template substitution keeps ran with minify=true (265ms)
+  ✓  152 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › parameter destructuring default reports its residual with minify=false (282ms)
+  ✓  153 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › parameter destructuring default reports its residual with minify=true (279ms)
+  ✓  154 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › parameter default with a nested call reports its residual with minify=false (277ms)
+  ✓  155 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › parameter default with a nested call reports its residual with minify=true (278ms)
+  ✓  156 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a return value after an empty parameter list reports its residual with minify=false (300ms)
+  ✓  157 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a return value after an empty parameter list reports its residual with minify=true (287ms)
+  ✓  158 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a return value outside a function default reports its residual with minify=false (285ms)
+  ✓  159 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a return value outside a function default reports its residual with minify=true (283ms)
+  ✓  160 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an arrow body outside its parameter default reports its residual with minify=false (295ms)
+  ✓  161 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › an arrow body outside its parameter default reports its residual with minify=true (282ms)
+  ✓  162 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › supplied function default reports its residual with minify=false (283ms)
+  ✓  163 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › supplied function default reports its residual with minify=true (302ms)
+  ✓  164 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › supplied arrow default reports its residual with minify=false (278ms)
+  ✓  165 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › supplied arrow default reports its residual with minify=true (278ms)
+  ✓  166 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › code after a throwing call reports its residual with minify=false (280ms)
+  ✓  167 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › code after a throwing call reports its residual with minify=true (295ms)
+  ✓  168 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a live closing brace cannot prove the eliminated development arm ran in real Chromium through git (269ms)
+  ✓  169 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › the eliminated development arm stays unmeasured after a line break in real Chromium through git (267ms)
+  ✓  170 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a two-token ternary edit cannot borrow the surviving arm execution in real Chromium through git (264ms)
+  ✓  171 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded template class substitution in real Chromium through git (277ms)
+  ✓  172 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded template call substitution in real Chromium through git (261ms)
+  ✓  173 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded template side effect in real Chromium through git (265ms)
+  ✓  174 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a template on its own call line in real Chromium through git (265ms)
+  ✓  175 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › the second template on one line in real Chromium through git (262ms)
+  ✓  176 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a folded logical template substitution in real Chromium through git (262ms)
+  ✓  177 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a multiline template substitution in real Chromium through git (265ms)
+  ✓  178 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a substitution expression on its own line in real Chromium through git (264ms)
+  ✓  179 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (278ms)
+  ✓  180 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (274ms)
+  ✓  181 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (260ms)
+  ✓  182 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (263ms)
+  ✓  183 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (262ms)
+  ✓  184 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (266ms)
+  ✓  185 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a merged return cannot inherit execution from the selected zero branch (263ms)
+  ✓  186 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle multiline template accounts for leading text before executed starts in real Chromium (271ms)
+  ✓  187 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (266ms)
+  ✓  188 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (266ms)
+  ✓  189 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › idle clsx template accounts for leading text before executed starts in real Chromium (266ms)
+  ✓  190 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › empty map callback accounts for leading text before executed starts in real Chromium (285ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-7d08e-r-pattern-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-be78b-or-pattern-with-minify-true-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=true
+  188 passed (55.0s)

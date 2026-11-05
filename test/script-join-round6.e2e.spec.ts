@@ -18,7 +18,7 @@ import { generatorFileCases } from './script-join-round13-fixture.mjs';
 import { rawGeneratorCases, apostropheControls } from './script-join-round14-fixture.mjs';
 
 const scenarios = [
-  ...rawGeneratorCases.flatMap(({ name, before, after, hits, sourceKey }) =>
+  ...rawGeneratorCases.flatMap(({ name, before, after, hits, sourceKey, browserExpected }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} raw generator pattern with minify=${minifySyntax}`,
       before,
@@ -27,8 +27,9 @@ const scenarios = [
       sourceKey,
       minifySyntax,
       generator: true,
-      residual: generatorResidual,
-      expected: 'unmeasured',
+      rawGenerator: true,
+      ...(browserExpected === 'unmeasured' ? { residual: generatorResidual } : { idle: true }),
+      expected: browserExpected,
       count: 2,
     })),
   ),
@@ -313,6 +314,8 @@ for (const scenario of scenarios) {
     }
     const diff = readScriptChanges(dirs[0], dirs[1], { cwd: root, baseMaps: [maps[0]], headMaps: [maps[1]] });
     expect(diff.gaps).toEqual([]);
+    if ('rawGenerator' in scenario)
+      expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
     expect(units).toHaveLength(scenario.count);
     expect(units.map((unit) => unit.status)).toEqual(

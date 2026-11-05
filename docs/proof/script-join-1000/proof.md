@@ -898,3 +898,13 @@ unflagged. Parameter naming keeps its bounded context. Single/double-quoted
 TOKEN arms stop at every JS line terminator and an unterminated quote is one
 character. The combined unit run passes **767/767**. Final browser/gate tails,
 SHA and exact-lease push are recorded in the handoff.
+
+
+The first green browser attempt retained **188 passes / two failed expectations**
+in [V8 control output](round14-v8-control.txt). Chromium supplied negative evidence
+for the function-expression division fixture in both modes, so its units were
+correctly never-rendered rather than unmeasured. That fixture now requires the
+exact never-rendered result and idle execution; all raw-generator browser cases
+also explicitly require both file flags. No classification code was changed to
+clear those expectations. Synthetic all-ran unit evidence for the same fixture
+still strictly requires unmeasured, proving the downgrade when it is applicable.
