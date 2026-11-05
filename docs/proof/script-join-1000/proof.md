@@ -706,3 +706,10 @@ the remaining atomic forms that could swallow sibling code. Their retained
 It includes single/double quotes paired across siblings and slash-prefixed text
 after expressions or closing tags. These contexts use the same negative-only
 rule; no rendered value is inferred from the neighbouring source anchor.
+
+
+The ambiguous-regex guard also checks the complete possible regex candidate,
+including comment-looking character classes such as `/[//]/`, instead of relying
+only on the previous backslash. Its [red](round10-regex-class-red-unit.txt) has
+**one failure / 42 passes**; the minified control was already conservative.
+Ordinary division is still lexed normally. All targeted units now pass **536/536**.

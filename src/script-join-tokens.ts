@@ -24,13 +24,16 @@ function jsxTextAfter(line: string, open: number, close: number): ScriptToken | 
   return line.slice(close + 1, end).trim() ? { index: close + 1, end } : undefined;
 }
 
-function jsxBoundaryTail(text: string, start: number): ScriptToken | undefined {
-  const prefix = /^[ \t]*(?=[`'"/])/.exec(text.slice(start));
-  if (!prefix) return;
-  const index = start + prefix[0].length;
+function negativeTail(text: string, index: number): ScriptToken {
   let end = index;
   while (end < text.length && !'\r\n\u2028\u2029'.includes(text[end])) end++;
   return { index, end, negativeOnly: true };
+}
+
+function jsxBoundaryTail(text: string, start: number): ScriptToken | undefined {
+  const prefix = /^[ \t]*(?=[`'"/])/.exec(text.slice(start));
+  if (!prefix) return;
+  return negativeTail(text, start + prefix[0].length);
 }
 
 function jsxBoundary(text: string, start: number, seen: boolean): { end: number; tokens: ScriptToken[] } | undefined {
@@ -129,9 +132,8 @@ function commentPiece(text: string, start: number, end: number): { end: number; 
   if (text[start - 1] !== '\\') return { end, tokens: [] };
   // A comment after an escaped slash was reached through an unrecognised regex.
   // It cannot consume the remaining code as positive execution evidence.
-  let tail = start;
-  while (tail < text.length && !'\r\n\u2028\u2029'.includes(text[tail])) tail++;
-  return { end: tail, tokens: [{ index: start - 1, end: tail, negativeOnly: true }] };
+  const tail = negativeTail(text, start - 1);
+  return { end: tail.end, tokens: [tail] };
 }
 
 function templatePiece(
@@ -171,6 +173,18 @@ function templateEnd(text: string, start: number): number {
   return cursor;
 }
 
+function ordinaryToken(text: string, start: number, matcher: RegExp): ScriptToken | undefined {
+  matcher.lastIndex = start;
+  const match = matcher.exec(text);
+  if (!match) return;
+  if (match.groups?.regexp && !literalMayStart(text, start)) {
+    // Re-lexing a possible regex body must not invent a comment that hides code.
+    const candidate = text.slice(start, start + match[0].length + 1);
+    return /\/\/|\/\*|\\\//.test(candidate) ? negativeTail(text, start) : undefined;
+  }
+  return { index: start, end: start + match[0].length };
+}
+
 export function scriptTokens(line: string): ScriptToken[] {
   const tokens: ScriptToken[] = [],
     jsx = jsxTextRanges(line);
@@ -199,15 +213,13 @@ export function scriptTokens(line: string): ScriptToken[] {
       cursor = closingTag.lastIndex;
       continue;
     }
-    matcher.lastIndex = cursor;
-    const match = matcher.exec(line);
-    if (!match || (match.groups?.regexp && !literalMayStart(line, cursor))) {
+    const token = ordinaryToken(line, cursor, matcher);
+    if (!token) {
       cursor++;
       continue;
     }
-    const end = cursor + match[0].length;
-    tokens.push({ index: cursor, end });
-    cursor = end;
+    tokens.push(token);
+    cursor = token.end;
   }
   return tokens;
 }

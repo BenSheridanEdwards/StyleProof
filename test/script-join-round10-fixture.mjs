@@ -3,6 +3,12 @@ const jsxRuntime =
 
 export const lexicalCases = [
   {
+    name: 'slashes in a regex character class cannot start a fake comment',
+    ambiguous: true,
+    before:
+      'const live = window.live ?? true, s = "/"; function dbg(x) { window.debug = x; }\nif (live) /[//]/.test(s) && __DEV__ && dbg("red");',
+  },
+  {
     name: 'paired single quotes across JSX siblings cannot invent a string',
     ambiguous: true,
     before:
