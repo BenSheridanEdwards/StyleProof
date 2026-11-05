@@ -209,7 +209,7 @@ test('positions retain JavaScript line terminators and UTF-16 columns', () => {
 });
 
 for (const kind of ['string', 'template'])
-  test(`one MB of ${kind} literals scans in under one second`, () => {
+  test(`one MB of ${kind} literals scans in under one second`, (t) => {
     const script = `import {classLiterals} from './dist/class-join-literals.js'; const line = ${JSON.stringify(kind === 'string' ? "const C = 'old known';\n" : 'const C = `btn ${on ? "old" : "new"}`;\n')}; const text=line.repeat(Math.ceil(1_000_000/line.length)); const start=performance.now(); const literals=classLiterals(text,'app.ts'); console.log(JSON.stringify({bytes:text.length,ms:performance.now()-start,count:literals.length}));`;
     const output = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
       cwd: new URL('..', import.meta.url),
@@ -217,6 +217,14 @@ for (const kind of ['string', 'template'])
       timeout: 5000,
     });
     const measured = JSON.parse(output);
+    t.diagnostic(JSON.stringify({ kind, ...measured }));
     assert.ok(measured.count > 10000);
     assert.ok(measured.ms < 1000, JSON.stringify(measured));
   });
+
+test('a bare className assignment with no static tokens is a scoped gap', () => {
+  const result = judge(edits('el.className = before;', 'el.className = after;'));
+  assert.ok(
+    result.gaps.some((gap) => gap.side === 'head' && gap.paths?.includes('app.tsx') && /unresolved/.test(gap.reason)),
+  );
+});

@@ -9,10 +9,13 @@ import { classifyClassReach } from '../dist/class-join.js';
 import { assessReachDirs } from '../dist/report/reach.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
-for (const collision of [false, true])
-  test(`real Git/Chromium J3 ${collision ? 'collision stays unknown' : 'unopened constant is never-rendered'}`, async ({
+for (const scenario of ['unopened', 'collision', 'refactor'])
+  test(`real Git/Chromium J3 ${scenario === 'refactor' ? 'class-preserving refactor stays unknown' : scenario === 'collision' ? 'collision stays unknown' : 'unopened constant is never-rendered'}`, async ({
     context,
   }, testInfo) => {
+    const collision = scenario === 'collision',
+      refactor = scenario === 'refactor';
+    const expected = scenario === 'unopened' ? 'never-rendered' : 'unknown';
     const root = testInfo.outputPath('repository'),
       project = path.join(root, 'apps/web');
     fs.mkdirSync(project, { recursive: true });
@@ -20,16 +23,23 @@ for (const collision of [false, true])
     git('init', '-q');
     git('config', 'user.name', 'Fixture');
     git('config', 'user.email', 'fixture@example.test');
-    const source = [
-      "const OK = 'old';",
-      "const FAULT = 'old';",
-      `document.querySelector('main').className = ${collision ? 'OK' : "'steady'"};`,
-      "if (location.search) { const el = document.createElement('span'); el.className = FAULT; document.body.append(el); }",
-    ].join('\n');
+    const source = refactor
+      ? "document.querySelector('main').className = 'old known';\nwindow.done = 1;"
+      : [
+          "const OK = 'old';",
+          "const FAULT = 'old';",
+          `document.querySelector('main').className = ${collision ? 'OK' : "'steady'"};`,
+          "if (location.search) { const el = document.createElement('span'); el.className = FAULT; document.body.append(el); }",
+        ].join('\n');
     const maps = [],
       dirs = ['base', 'head'].map((side) => path.join(root, 'maps', side));
     for (const [index, side] of ['base', 'head'].entries()) {
-      const text = side === 'base' ? source : source.replaceAll("'old'", "'new'");
+      const text =
+        side === 'base'
+          ? source
+          : refactor
+            ? "const CLS = 'old known';\ndocument.querySelector('main').className = CLS;\nwindow.done = 1;"
+            : source.replaceAll("'old'", "'new'");
       fs.writeFileSync(path.join(project, 'app.js'), text);
       git('add', 'apps');
       git('commit', '-qm', 'fixture');
@@ -42,7 +52,7 @@ for (const collision of [false, true])
           contentType: name === '/' ? 'text/html' : 'application/javascript',
           body:
             name === '/'
-              ? '<style>.old{color:red}.new{color:blue}.steady{color:black}</style><main>Healthy</main><script src="/app.js"></script>'
+              ? '<style>.old{color:red}.new{color:blue}.steady{color:black}.known{font-weight:bold}</style><main>Healthy</main><script src="/app.js"></script>'
               : name.endsWith('.map')
                 ? bundle.map
                 : bundle.code + '\n//# sourceMappingURL=app.js.map',
@@ -74,15 +84,16 @@ for (const collision of [false, true])
     expect(diff.gaps).toEqual([]);
     expect(diff.changes.every((change) => change.sourceKey === 'app.js')).toBe(true);
     const result = classifyClassReach([maps[0]], [maps[1]], diff.changes, [{ base: maps[0], head: maps[1] }]);
-    expect(result.gaps).toEqual([]);
+    if (refactor) expect(result.gaps.some((gap) => gap.side === 'head' && gap.paths?.includes('app.js'))).toBe(true);
+    else expect(result.gaps).toEqual([]);
     expect(result.units).toHaveLength(4);
-    expect(result.units.every((unit) => unit.status === (collision ? 'unknown' : 'never-rendered'))).toBe(true);
+    expect(result.units.every((unit) => unit.status === expected)).toBe(true);
     // The report adapter must use capture filenames for surface pairing and captured SHAs for the diff.
     const original = process.cwd();
     try {
       process.chdir(project);
       const report = assessReachDirs(dirs[0], dirs[1], 'gate')!;
-      expect(report.classCounts?.[collision ? 'unknown' : 'never-rendered']).toBe(4);
+      expect(report.classCounts?.[expected]).toBe(4);
       expect(report.classCounts?.reached).toBe(0);
       expect(report.blocking).toBe(0);
       expect(report.complete).toBe(false);

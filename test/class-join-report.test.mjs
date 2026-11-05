@@ -30,7 +30,7 @@ test('J3 is listed in human and JSON reporting, warn-only at both levels', () =>
     assert.ok(!reach.gaps.some((gap) => gap.join === 'J3'));
     const md = [...reachStripLines(reach), ...reachSectionLines(reach)].join('\n');
     assert.match(md, /J3.*warn-only/);
-    assert.match(md, /class token; delta not tied to this occurrence/);
+    assert.match(md, /token present on a captured element; not tied to this occurrence/);
     assert.doesNotMatch(md, /class-list deltas are not recorded|and class-list deltas\./);
     assert.match(reachSummaryLine(reach), /J3:.*2 unknown/);
     assert.doesNotMatch(JSON.stringify(reach), /classSource|const C/);

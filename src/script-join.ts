@@ -23,6 +23,8 @@ export type ScriptChange = {
   classSource?: string;
   /** Opposite blob only excludes identical literal words at identical positions. Never persisted. */
   classOtherSource?: string;
+  /** Only a replacement block can align a class word with its opposite git line. Never persisted. */
+  classCounterpart?: { range: SourceSpan; current: SourcePosition };
   /** Raw changed columns, before J2 expands to evaluation tokens. J3 excludes unchanged words. */
   classRange?: SourceSpan;
   /** Bounded preceding source lines used only to name parameter residuals. Never persisted. */
@@ -44,6 +46,7 @@ export type ScriptUnit = Omit<
   | 'text'
   | 'classSource'
   | 'classOtherSource'
+  | 'classCounterpart'
   | 'classRange'
   | 'parameterContext'
   | 'generatorFile'

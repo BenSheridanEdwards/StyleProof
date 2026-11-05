@@ -234,7 +234,7 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
   return (['base', 'head'] as const).flatMap((side) => {
     const source = sources[side],
       other = endings[side === 'base' ? 'head' : 'base'];
-    return lines[side].flatMap((line) => {
+    return lines[side].flatMap((line, index) => {
       const changedEnding = [...(other.get(source.lines[line - 1]) ?? [])].some(
         (ending) => ending !== source.endings[line - 1],
       );
@@ -248,14 +248,32 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
           ? 'line ending changed; execution anchors cannot attribute an EOF newline or CRLF/LF change'
           : undefined,
       );
-      if (!raw) return entries;
       const offset = source.gitStarts[line - 1];
+      const opposite = side === 'base' ? 'head' : 'base';
+      const counterpart = lines[opposite][index];
+      const otherSource = sources[opposite],
+        otherOffset = otherSource.gitStarts[counterpart - 1];
       return entries.map((entry) => ({
         ...entry,
-        classRange: {
-          start: positionAt(source, offset + raw.start),
-          end: positionAt(source, offset + (side === 'base' ? raw.baseEnd : raw.headEnd)),
-        },
+        ...(raw
+          ? {
+              classRange: {
+                start: positionAt(source, offset + raw.start),
+                end: positionAt(source, offset + (side === 'base' ? raw.baseEnd : raw.headEnd)),
+              },
+            }
+          : {}),
+        ...(counterpart
+          ? {
+              classCounterpart: {
+                current: positionAt(source, offset),
+                range: {
+                  start: positionAt(otherSource, otherOffset),
+                  end: positionAt(otherSource, otherOffset + otherSource.lines[counterpart - 1].length),
+                },
+              },
+            }
+          : {}),
       }));
     });
   });

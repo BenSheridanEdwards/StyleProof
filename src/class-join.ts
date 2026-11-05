@@ -1,8 +1,16 @@
+import { selectorClasses } from './class-join-selectors.js';
 /** J3: changed class-token occurrences × paired class-list deltas. Warn-only. */
 import type { StyleMap } from './capture.js';
 import { compareScriptRanges, compareSourceKeys, type ScriptChange, type ScriptUnit } from './script-join.js';
 import type { SourceSpan } from './script-reach.js';
-import { classLiterals, literalsInChange, type ClassLiteral, spansOverlap } from './class-join-literals.js';
+import {
+  classLiterals,
+  literalsInChange,
+  type ClassLiteral,
+  spansOverlap,
+  indexClassLiterals,
+  type ClassWord,
+} from './class-join-literals.js';
 import { correspondBeforeMap } from './path-correspondence.js';
 import { isUnder } from './capture/shared.js';
 
@@ -11,6 +19,8 @@ export type ClassUnit = {
   side: 'base' | 'head';
   range: SourceSpan;
   token: string;
+  /** Token-name movement only; never occurrence provenance. */
+  delta?: 'gained' | 'lost';
   status: 'reached' | 'never-rendered' | 'unknown' | 'unmeasured';
   why: string;
   level: 'warn';
@@ -18,6 +28,7 @@ export type ClassUnit = {
   provenance?: { kind: 'source-mapped-render'; surface: string; elementPath: string; range: SourceSpan };
 };
 export type ClassJoinGap = {
+  range?: SourceSpan;
   paths?: string[];
   pathCount?: number;
   join: 'J3';
@@ -29,34 +40,28 @@ export type ClassJoinGap = {
 };
 export type ClassMapPair = { base: StyleMap; head: StyleMap };
 export type ClassJoinResult = { units: ClassUnit[]; gaps: ClassJoinGap[] };
-export const classJoinGap = (reason: string, side?: 'base' | 'head'): ClassJoinGap => ({
+export const classJoinGap = (reason: string, side?: 'base' | 'head', sourceKey?: string): ClassJoinGap => ({
   join: 'J3',
   status: 'unmeasured',
   kind: 'class-list',
   ...(side ? { side } : {}),
+  ...(sourceKey ? { paths: [sourceKey] } : {}),
   reason,
   remedy:
     'capture both revisions with captureReach and retain paired maps, served CSS class vocabulary and changed source ranges',
 });
 
-/** Read selector class identifiers, excluding quoted attribute values and at-rule strings. */
 export function classVocabulary(keys: readonly string[]): Set<string> {
-  const names = new Set<string>();
-  for (const key of keys) {
-    const selector = key
-      .split(' > ')
-      .filter((part) => !part.startsWith('@'))
-      .join(' > ');
-    const clean = selector.replace(/\/\*[^]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\[[^\]]*\]/g, '');
-    for (const match of clean.matchAll(/\.((?:\\(?:[\da-f]{1,6}\s?|[^\r\n\f])|[\w\u0080-\uFFFF-])+)/gi)) {
-      names.add(
-        match[1].replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_all, hex: string, char: string) =>
-          hex ? String.fromCodePoint(Math.min(parseInt(hex, 16) || 0xfffd, 0x10ffff)) : char,
-        ),
-      );
-    }
-  }
-  return names;
+  return new Set(
+    keys.flatMap((key) =>
+      selectorClasses(
+        key
+          .split(' > ')
+          .filter((part) => !part.startsWith('@'))
+          .join(' > '),
+      ),
+    ),
+  );
 }
 
 function vocabularyGaps(maps: readonly StyleMap[], side: 'base' | 'head'): ClassJoinGap[] {
@@ -64,6 +69,7 @@ function vocabularyGaps(maps: readonly StyleMap[], side: 'base' | 'head'): Class
   if (!maps.length) reasons.add(`missing ${side} captures; class-list delta unavailable`);
   for (const map of maps) {
     const ledger = map.reach;
+    if (!map.elements) reasons.add(`missing ${side} element class lists`);
     if (!ledger || ledger.version !== 2 || ledger.scope !== 'compared')
       reasons.add(`missing ${side} served-rule ledger; class vocabulary unavailable`);
     else if (ledger.unknown || ledger.unreadable)
@@ -78,53 +84,137 @@ function vocabularyGaps(maps: readonly StyleMap[], side: 'base' | 'head'): Class
 
 const classes = (cls: string) => new Set(cls.split(/\s+/).filter(Boolean));
 type Deltas = Record<'base' | 'head', Set<string>>;
+function elementDeltas(before: Set<string>, after: Set<string>, deltas: Deltas): void {
+  for (const token of before) if (!after.has(token)) deltas.base.add(token);
+  for (const token of after) if (!before.has(token)) deltas.head.add(token);
+}
 function pairDeltas(pair: ClassMapPair, deltas: Deltas): void {
   const base = correspondBeforeMap(pair.base, pair.head),
     head = pair.head;
   const volatile = [...(base.volatile ?? []), ...(head.volatile ?? [])];
-  const paired = Object.entries(head.elements).filter(
-    ([path, now]) => base.elements[path]?.tag === now.tag && !isUnder(path, volatile),
-  );
-  for (const [path, now] of paired) {
-    const before = classes(base.elements[path].cls ?? ''),
-      after = classes(now.cls ?? '');
-    for (const token of before) if (!after.has(token)) deltas.base.add(token);
-    for (const token of after) if (!before.has(token)) deltas.head.add(token);
+  const paths = new Set([...Object.keys(base.elements), ...Object.keys(head.elements)]);
+  for (const path of paths) {
+    if (isUnder(path, volatile)) continue;
+    const was = base.elements[path],
+      now = head.elements[path];
+    const before = classes(was?.cls ?? ''),
+      after = classes(now?.cls ?? '');
+    if (was && now && was.tag !== now.tag) {
+      elementDeltas(before, new Set(), deltas);
+      elementDeltas(new Set(), after, deltas);
+    } else elementDeltas(before, after, deltas);
   }
 }
-
-type JoinContext = { vocabulary: Set<string>; deltas: Deltas; unmeasured: boolean; unchanged: Set<string> };
+function presentTokens(maps: readonly StyleMap[]): Set<string> {
+  return new Set(
+    maps.flatMap((map) => Object.values(map.elements ?? {}).flatMap((element) => [...classes(element.cls ?? '')])),
+  );
+}
+type LiteralIndex = ReturnType<typeof indexClassLiterals>;
+type JoinContext = { vocabulary: Set<string>; deltas: Deltas; present: Deltas; gaps: ClassJoinGap[] };
+function affects(gap: ClassJoinGap, change: ScriptChange, range: SourceSpan): boolean {
+  return (
+    (!gap.side || gap.side === change.side) &&
+    (!gap.paths || gap.paths.includes(change.sourceKey)) &&
+    (!gap.range || spansOverlap(gap.range, range))
+  );
+}
 function classUnit(change: ScriptChange, literal: ClassLiteral, token: string, context: JoinContext): ClassUnit {
-  const unmeasured = context.unmeasured || !!change.unmeasuredReason;
-  const moved = context.deltas[change.side].has(token);
+  const unmeasured = !!change.unmeasuredReason || context.gaps.some((gap) => affects(gap, change, literal.range));
+  const present = context.present[change.side].has(token);
   return {
     sourceKey: change.sourceKey,
     side: change.side,
     range: literal.range,
     token,
-    status: unmeasured ? 'unmeasured' : moved ? 'unknown' : 'never-rendered',
+    ...(context.deltas[change.side].has(token)
+      ? { delta: change.side === 'head' ? ('gained' as const) : ('lost' as const) }
+      : {}),
+    status: unmeasured ? 'unmeasured' : present ? 'unknown' : 'never-rendered',
     why: unmeasured
-      ? 'class-list delta or source evidence unavailable; see J3 run-level gaps'
-      : moved
-        ? 'class token; delta not tied to this occurrence'
+      ? 'class-list or source evidence unavailable; see J3 run-level gaps'
+      : present
+        ? 'token present on a captured element; not tied to this occurrence'
         : 'class token never landed on a captured element',
     level: 'warn',
   };
 }
-
-function unitsForChange(change: ScriptChange, literals: ClassLiteral[], context: JoinContext): ClassUnit[] {
-  const sources = literalsInChange(change, literals).filter(
-    (literal) => literal.explicit || literal.words.every((word) => context.vocabulary.has(word.token)),
+function wordKey(word: ClassWord, start: SourceSpan['start']): string {
+  const relative = (position: SourceSpan['start']) => [position.line - start.line, position.column];
+  return JSON.stringify([word.token, relative(word.range.start), relative(word.range.end)]);
+}
+function unchangedWords(change: ScriptChange, opposite: LiteralIndex | undefined): Set<string> {
+  if (!change.classCounterpart || !opposite) return new Set();
+  const range = change.classCounterpart.range;
+  return new Set(
+    literalsInChange({ range }, opposite).flatMap((literal) =>
+      literal.words.filter((word) => spansOverlap(word.range, range)).map((word) => wordKey(word, range.start)),
+    ),
   );
+}
+function unchangedLiterals(
+  change: ScriptChange,
+  index: LiteralIndex,
+  opposite: LiteralIndex | undefined,
+): Set<ClassLiteral> {
+  if (!change.classCounterpart || !opposite) return new Set();
+  const current = literalsInChange({ range: { start: change.classCounterpart.current, end: change.range.end } }, index);
+  const other = literalsInChange({ range: change.classCounterpart.range }, opposite);
+  const same = (a: ClassLiteral, b: ClassLiteral | undefined) =>
+    !!b &&
+    a.words.length > 0 &&
+    a.explicit === b.explicit &&
+    JSON.stringify(a.words.map((word) => word.token)) === JSON.stringify(b.words.map((word) => word.token));
+  return new Set(current.filter((literal, i) => same(literal, other[i])));
+}
+function unitsForChange(
+  change: ScriptChange,
+  index: LiteralIndex,
+  opposite: LiteralIndex | undefined,
+  context: JoinContext,
+): ClassUnit[] {
+  const stable = unchangedLiterals(change, index, opposite);
+  const sources = literalsInChange(change, index).filter(
+    (literal) =>
+      !stable.has(literal) && (literal.explicit || literal.words.every((word) => context.vocabulary.has(word.token))),
+  );
+  const unchanged = unchangedWords(change, opposite),
+    current = change.classCounterpart?.current ?? change.range.start;
   return sources.flatMap((literal) => {
     const words = literal.words.filter(
       (word) =>
         context.vocabulary.has(word.token) &&
-        !context.unchanged.has(JSON.stringify(word)) &&
+        !unchanged.has(wordKey(word, current)) &&
         spansOverlap(word.range, change.classRange ?? change.range),
     );
     return [...new Set(words.map((word) => word.token))].map((token) => classUnit(change, literal, token, context));
   });
+}
+function extractionGaps(
+  change: ScriptChange,
+  index: LiteralIndex,
+  vocabulary: Set<string>,
+  opposite: LiteralIndex | undefined,
+): ClassJoinGap[] {
+  const stable = unchangedLiterals(change, index, opposite);
+  return literalsInChange(change, index)
+    .filter((literal) => literal.explicit && !stable.has(literal))
+    .flatMap((literal) => {
+      const known = literalsInChange({ range: literal.range }, index).some((entry) =>
+        entry.words.some((word) => vocabulary.has(word.token)),
+      );
+      if (known && !literal.residual) return [];
+      return [
+        {
+          ...classJoinGap(
+            `${change.sourceKey}:${literal.range.start.line}:${literal.range.start.column}: ${literal.residual ?? 'explicit class expression unresolved; no served class tokens'}`,
+            change.side,
+            change.sourceKey,
+          ),
+          range: literal.range,
+        },
+      ];
+    });
 }
 
 /** Pairing is explicit: map array positions or token names never establish identity. */
@@ -135,38 +225,59 @@ export function classifyClassReach(
   pairs: readonly ClassMapPair[] = [],
 ): ClassJoinResult {
   const gaps = [...vocabularyGaps(base, 'base'), ...vocabularyGaps(head, 'head')];
-  for (const reason of [
-    ...new Set(changes.flatMap((change) => (change.unmeasuredReason ? [change.unmeasuredReason] : []))),
-  ].sort(compareSourceKeys))
-    gaps.push(classJoinGap(reason));
   if (!pairs.length) gaps.push(classJoinGap('no paired captures; class-list delta unavailable'));
   const vocabulary = classVocabulary(
     [...base, ...head].flatMap((map) => map.reach?.rules.map((rule) => rule.key) ?? []),
   );
   const deltas: Deltas = { base: new Set(), head: new Set() };
   for (const pair of pairs) pairDeltas(pair, deltas);
-  const cache = new Map<string, ClassLiteral[]>(),
-    units = new Map<string, ClassUnit>();
-  const unchanged = new Map<string, Set<string>>();
-  const context: JoinContext = { vocabulary, deltas, unmeasured: gaps.length > 0, unchanged: new Set() };
-  for (const change of changes) {
-    const source = change.classSource ?? '\n'.repeat(change.range.start.line - 1) + change.text;
-    const key = `${change.sourceKey}\u0000${change.side}\u0000${change.contentHash}`;
-    if (!cache.has(key)) cache.set(key, classLiterals(source, change.sourceKey));
-    const otherKey = `${change.sourceKey}\u0000${change.side}\u0000opposite`;
-    if (!cache.has(otherKey)) cache.set(otherKey, classLiterals(change.classOtherSource ?? '', change.sourceKey));
-    if (!unchanged.has(otherKey))
-      unchanged.set(
-        otherKey,
-        new Set(cache.get(otherKey)!.flatMap((literal) => literal.words.map((word) => JSON.stringify(word)))),
+  const cache = new Map<string, LiteralIndex>();
+  const indexed = (change: ScriptChange, opposite = false): LiteralIndex => {
+    const key = `${change.sourceKey}\u0000${change.side}\u0000${opposite ? 'opposite' : change.contentHash}`;
+    if (!cache.has(key))
+      cache.set(
+        key,
+        indexClassLiterals(
+          classLiterals(
+            opposite
+              ? (change.classOtherSource ?? '')
+              : (change.classSource ?? '\n'.repeat(change.range.start.line - 1) + change.text),
+            change.sourceKey,
+          ),
+        ),
       );
-    context.unchanged = unchanged.get(otherKey)!;
-    for (const unit of unitsForChange(change, cache.get(key)!, context))
-      units.set(JSON.stringify([unit.sourceKey, unit.side, unit.range, unit.token]), unit);
+    return cache.get(key)!;
+  };
+  for (const change of changes) {
+    if (change.unmeasuredReason) gaps.push(classJoinGap(change.unmeasuredReason, change.side, change.sourceKey));
+    gaps.push(
+      ...extractionGaps(
+        change,
+        indexed(change),
+        vocabulary,
+        change.classCounterpart ? indexed(change, true) : undefined,
+      ),
+    );
   }
+  const uniqueGaps = [...new Map(gaps.map((gap) => [JSON.stringify(gap), gap])).values()].sort((a, b) =>
+    compareSourceKeys(JSON.stringify(a), JSON.stringify(b)),
+  );
+  const context: JoinContext = {
+    vocabulary,
+    deltas,
+    present: { base: presentTokens(base), head: presentTokens(head) },
+    gaps: uniqueGaps,
+  };
+  const units = changes.flatMap((change) =>
+    unitsForChange(change, indexed(change), change.classCounterpart ? indexed(change, true) : undefined, context),
+  );
   return {
-    units: [...units.values()].sort((a, b) => compareScriptRanges(a, b) || compareSourceKeys(a.token, b.token)),
-    gaps,
+    units: [
+      ...new Map(
+        units.map((unit) => [JSON.stringify([unit.sourceKey, unit.side, unit.range, unit.token]), unit]),
+      ).values(),
+    ].sort((a, b) => compareScriptRanges(a, b) || compareSourceKeys(a.token, b.token)),
+    gaps: uniqueGaps,
   };
 }
 

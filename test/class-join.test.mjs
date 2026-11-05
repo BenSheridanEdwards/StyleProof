@@ -25,7 +25,7 @@ test('a token-name delta never reaches any occurrence, including a unique token'
   assert.deepEqual(result.gaps, []);
   assert.equal(result.units.length, 2);
   assert.ok(result.units.every((u) => u.status === 'unknown' && u.level === 'warn'));
-  assert.ok(result.units.every((u) => u.why === 'class token; delta not tied to this occurrence'));
+  assert.ok(result.units.every((u) => u.why === 'token present on a captured element; not tied to this occurrence'));
   assert.deepEqual(
     result.units.map((u) => u.token),
     ['old', 'new'],
@@ -33,8 +33,8 @@ test('a token-name delta never reaches any occurrence, including a unique token'
   assert.deepEqual(result.units[1].range, { start: { line: 1, column: 10 }, end: { line: 1, column: 15 } });
 });
 
-test('no directional delta is sound negative evidence even when J2 ran', () => {
-  const result = classify("const C = 'old';", "const C = 'new';", map('old'), map('old'));
+test('absence from every captured element on its side is negative even when J2 ran', () => {
+  const result = classify("const C = 'old';", "const C = 'new';", map(''), map(''));
   assert.ok(result.units.every((u) => u.status === 'never-rendered'));
   const scripts = changes("const C = 'old';", "const C = 'new';").map((c) => ({
     ...c,
@@ -97,16 +97,14 @@ test('gained head and lost base tokens use their own directions', () => {
   assert.ok(result.units.every((u) => u.status === 'never-rendered'));
 });
 
-test('one-sided elements and volatile subtrees cannot provide paired deltas', () => {
+test('one-sided and volatile captured elements retain unknown presence evidence', () => {
   const before = map('old'),
     after = map('new');
   after.elements = { other: after.elements.body };
-  assert.ok(
-    classify("const C = 'old';", "const C = 'new';", before, after).units.every((u) => u.status === 'never-rendered'),
-  );
+  assert.ok(classify("const C = 'old';", "const C = 'new';", before, after).units.every((u) => u.status === 'unknown'));
   assert.ok(
     classify("const C = 'old';", "const C = 'new';", map('old', { volatile: ['body'] }), map('new')).units.every(
-      (u) => u.status === 'never-rendered',
+      (u) => u.status === 'unknown',
     ),
   );
 });
@@ -119,7 +117,10 @@ test('missing/partial/empty class vocabulary and absent map pairing name J3 gaps
   ]) {
     const result = classify("const C = 'old';", "const C = 'new';", map('old', { reach }));
     assert.ok(result.gaps.some((g) => g.join === 'J3' && g.status === 'unmeasured' && g.side === 'base'));
-    assert.ok(result.units.every((u) => u.status === 'unmeasured'));
+    assert.deepEqual(
+      result.units.map((u) => u.status),
+      ['unmeasured', 'unknown'],
+    );
   }
   assert.ok(
     classifyClassReach([map()], [map()], changes("'old'", "'new'"), []).gaps.some((g) => /pair/i.test(g.reason)),
