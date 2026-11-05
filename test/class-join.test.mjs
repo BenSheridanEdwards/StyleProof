@@ -141,3 +141,23 @@ test('class units sort by code point and exact range, independent of change orde
   assert.deepEqual(classifyClassReach([before], [after], [...input].reverse(), pairs), one);
   assert.equal(one.units[0].sourceKey, 'Ａ.tsx');
 });
+
+test('className ternary context accepts marker words but ends before another property', () => {
+  const result = classify(
+    "h({ className: flag ? 'old marker' : 'other', title: 'old sentence' })",
+    "h({ className: flag ? 'new marker' : 'other', title: 'new sentence' })",
+  );
+  assert.deepEqual(
+    result.units.map((unit) => unit.token),
+    ['old', 'new'],
+  );
+});
+
+test('unchanged words in an edited class string cannot invent negative evidence', () => {
+  const result = classify("const C = 'old known';", "const C = 'new known';");
+  assert.deepEqual(
+    result.units.map((unit) => unit.token),
+    ['old', 'new'],
+  );
+  assert.ok(result.units.every((unit) => unit.status === 'unknown'));
+});

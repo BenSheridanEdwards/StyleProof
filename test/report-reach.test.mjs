@@ -43,7 +43,7 @@ function report(dirs, options = {}) {
 }
 
 const strip =
-  "**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that matches each rule under **Changed but never matched**. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS) and class-list deltas.";
+  "**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that matches each rule under **Changed but never matched**. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS).";
 
 const intro =
   '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
@@ -209,7 +209,7 @@ test('gate keeps unbuilt joins advisory when all changed served rules matched ca
   assert.match(output.md, /\*\*Reach incomplete\*\*/);
   assert.doesNotMatch(output.md, /Reach gate|Held by|Reach complete/);
   assert.ok(output.json.reach.gaps.some((gap) => gap.join === 'J2' && gap.kind === 'execution'));
-  assert.ok(output.json.reach.gaps.filter((gap) => gap.join !== 'J2').every((gap) => gap.kind === 'not-built'));
+  assert.ok(output.json.reach.gaps.filter((gap) => gap.join === 'J1').every((gap) => gap.kind === 'not-built'));
 });
 
 test('gate holds blind-channel changes and incomplete ledger evidence', (t) => {
@@ -240,7 +240,16 @@ test('directory reach assessment agrees with the report and does not depend on c
           ? { ...capture, reach: { ...capture.reach, rules: [...capture.reach.rules].reverse() } }
           : capture,
       );
-  assert.deepEqual(assessReachMaps(reversed(base), reversed(head), 'gate'), output.json.reach);
+  assert.deepEqual(
+    assessReachMaps(
+      reversed(base),
+      reversed(head),
+      'gate',
+      undefined,
+      base.map((capture, index) => ({ base: capture, head: head[index] })),
+    ),
+    output.json.reach,
+  );
   assert.equal(output.json.reach.blocking, 1, 'the missing base ledger holds even when changed rules cannot be listed');
 });
 
@@ -254,8 +263,8 @@ test('fully reached CSS still discloses missing script evidence and unbuilt join
   assert.equal(output.json.reach.complete, false);
   assert.deepEqual(output.json.reach.counts, { reached: 1, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 });
   assert.deepEqual(
-    output.json.reach.gaps.filter((gap) => gap.join !== 'J2').map((gap) => gap.join),
-    ['J1', 'J3'],
+    output.json.reach.gaps.filter((gap) => gap.kind === 'not-built').map((gap) => gap.join),
+    ['J1'],
   );
   assert.ok(output.json.reach.gaps.filter((gap) => gap.join === 'J2').every((gap) => gap.kind === 'execution'));
   assert.match(output.md, /Script change reach \(J2\)/);

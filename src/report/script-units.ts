@@ -1,3 +1,4 @@
+import { reserveClassNotice, budgetClassReach } from './class-units.js';
 /** Bounded J2 presentation. Full classifier units and counts remain in the assessment. */
 import { compareScriptRanges, scriptJoinGap, type ScriptUnit } from '../script-join.js';
 import type { ReportReach } from './reach.js';
@@ -65,7 +66,7 @@ export function reserveScriptNotice(reach: ReportReach | undefined): ReportReach
   if (j2) gaps.push(gapRecordNotice(reach.gaps, j2));
   if (paths) gaps.push(gapPathNotice(paths));
   if (reach.scripts.length) gaps.push(truncationGap(unitCount(reach.scripts)));
-  return { ...reach, scripts: [], gaps };
+  return reserveClassNotice({ ...reach, scripts: [], gaps });
 }
 
 /** Pretty-printed cost at the actual reach.scripts nesting depth, including array indentation. */
@@ -91,15 +92,23 @@ export function budgetScriptReach(
     listed += count;
   }
   const omitted = unitCount(original.scripts) - listed;
-  const gapDetail = budgetScriptGaps(original.gaps, budget);
-  return {
-    reach: {
+  const gapDetail = budgetScriptGaps(
+    original.gaps.filter((gap) => gap.join !== 'J3'),
+    budget,
+  );
+  const classDetail = budgetClassReach(
+    original,
+    {
       ...reserved,
       scripts,
       complete: original.complete && omitted === 0 && gapDetail.omitted === 0 && gapDetail.pathsOmitted === 0,
       gaps: [...gapDetail.gaps, ...(omitted ? [truncationGap(omitted)] : [])],
     },
+    budget,
+  );
+  return {
+    reach: classDetail.reach,
     omitted,
-    detailsOmitted: omitted + gapDetail.omitted + gapDetail.pathsOmitted,
+    detailsOmitted: omitted + gapDetail.omitted + gapDetail.pathsOmitted + classDetail.omitted,
   };
 }
