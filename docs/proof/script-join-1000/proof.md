@@ -1082,3 +1082,29 @@ Quoted continuation docs now also list CR and U+2029.
 The combined join/reach/report unit suite passes **1,091/1,091**, and all **18/18**
 new Chromium/Git cases pass. Full gate tails, current report proof and the
 exact-lease push result are recorded in the handoff.
+
+
+The crafted 20k/40k unclosed-class pair remains within its budget at **2.0 ms
+wall / 1.5 ms CPU** in the combined targeted run. The raw-generator large-file
+timing and all prior join/report regression units also pass.
+
+The [fresh JSON](round17-report.json), [Markdown](round17-report.md) and
+[stored capture evidence](round17-report-evidence.json) use the review's long
+`[//]` literal followed by the eliminated `sink` call. Real Git revisions and
+Chromium captures assert zero sink hits on both sides. The formerly false-ran
+units now read unmeasured with ambiguous-boundary/negative-preceding evidence.
+There are zero J2 gaps and zero blocking findings. The full 1100-pixel screenshot
+was inspected with Evidence expanded: product-state identity is unproven,
+inventory is not checked, content/structure was not evaluated, J1/J3 gaps remain
+and reach is incomplete. This is advisory attribution proof, not certification
+that the changed code ran or rendered.
+
+![A long regex body cannot hide the eliminated sink change](round17-report-top.png)
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 gaps and unchanged
+**five declared / six complete unknown** totals. No case status or result cell
+moves to unknown; eager JSX and render-scope values remain unknown in both
+scenarios. Only the timestamp changes in the receipt. The corpus still uses
+hand-built one-line patches and selects the head unit; Chromium tests cover the
+real Git adapter on both sides. `demo:check` passes. Final gate tails and the
+exact-lease push result are recorded in the handoff.
