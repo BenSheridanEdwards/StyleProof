@@ -1,0 +1,163 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { performance } from 'node:perf_hooks';
+import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
+import { changedScriptRanges } from '../dist/script-join-git.js';
+
+const complete = { version: 1, ignored: false, shadowHosts: 0, frames: 0 };
+const map = (extra = {}) => ({
+  defaults: {},
+  states: {},
+  elements: {},
+  classPresence: complete,
+  reach: {
+    version: 2,
+    scope: 'compared',
+    sheets: ['app.css'],
+    rules: [
+      { key: '.old.new.open.btn.primary.x.y.danger.safe.card.card--.btn-x.card-a.ab.a.p-2.p-20', hash: 'x', sheet: 0 },
+    ],
+  },
+  ...extra,
+});
+const edits = (base, head, patch) =>
+  changedScriptRanges(patch ?? `@@ -1 +1 @@\n-${base}\n+${head}\n`, { base, head }, 'app.tsx');
+const judge = (changes, base = map(), head = map()) => classifyClassReach([base], [head], changes, [{ base, head }]);
+const scripts = (changes) =>
+  changes.map(({ sourceKey, side, range }) => ({
+    sourceKey,
+    side,
+    range,
+    status: 'unknown',
+    execution: 'ran',
+    why: 'ran; rendering unproved',
+    level: 'warn',
+  }));
+
+for (const [name, extra] of [
+  ['volatile elements', { volatile: ['body > time'] }],
+  ['ignored elements', { classPresence: { ...complete, ignored: true } }],
+  ['shadow hosts', { classPresence: { ...complete, shadowHosts: 1 } }],
+  ['frames', { classPresence: { ...complete, frames: 1 } }],
+  ['legacy omission metadata', { classPresence: undefined }],
+])
+  test(`${name} leave absence unproven only on the affected side`, () => {
+    const changes = edits('<div className="old"/>', '<div className="new"/>');
+    const result = judge(changes, map(extra), map());
+    assert.deepEqual(
+      result.units.map((u) => [u.side, u.status]),
+      [
+        ['base', 'unknown'],
+        ['head', 'never-rendered'],
+      ],
+    );
+    assert.match(result.units[0].why, /absence.*unproven/);
+    assert.equal(combineClassReach(scripts(changes), result.units)[0].status, 'unknown');
+  });
+
+test('one incomplete surface prevents absence proof across the whole occurrence side', () => {
+  const base = map(),
+    head = map(),
+    hidden = map({ volatile: ['body > time'] });
+  const result = classifyClassReach([base], [head, hidden], edits("'old'", "'new'"), [{ base, head }]);
+  assert.equal(result.units.find((u) => u.side === 'head').status, 'unknown');
+});
+
+test('reordered vocabulary-only dataset values stay J3-only and cannot lower J2', () => {
+  const base = "const MODE = 'open';\nconst a = 1;\nconst b = 2;\nel.dataset.mode = MODE;";
+  const head = "const a = 1;\nconst b = 2;\nconst MODE = 'open';\nel.dataset.mode = MODE;";
+  const changes = edits(base, head, "@@ -1 +0,0 @@\n-const MODE = 'open';\n@@ -3,0 +3 @@\n+const MODE = 'open';\n");
+  const result = judge(changes);
+  assert.equal(result.units.length, 2);
+  assert.ok(result.units.every((u) => u.status === 'never-rendered' && u.explicit === false));
+  assert.ok(combineClassReach(scripts(changes), result.units).every((u) => u.status === 'unknown'));
+});
+
+test('explicit class negatives may still lower J2 while legacy units cannot', () => {
+  const changes = edits('<div className="old"/>', '<div className="new"/>');
+  const result = judge(changes);
+  assert.ok(result.units.every((u) => u.explicit));
+  assert.ok(combineClassReach(scripts(changes), result.units).every((u) => u.status === 'never-rendered'));
+  const legacy = result.units.map((u) => ({ ...u, explicit: undefined }));
+  assert.ok(combineClassReach(scripts(changes), legacy).every((u) => u.status === 'unknown'));
+});
+
+test('cva class strings include base and variant values, excluding bare and quoted variant keys', () => {
+  const base = "cva('old', { variants: { tone: { primary: 'x', 'open': 'old' } } })";
+  const head = "cva('new', { variants: { tone: { open: 'y', 'primary': 'new' } } })";
+  const result = judge(edits(base, head));
+  assert.deepEqual(
+    result.units.map((u) => u.token),
+    ['old', 'x', 'old', 'new', 'y', 'new'],
+  );
+  assert.ok(result.units.every((u) => u.explicit));
+});
+
+for (const [a, b] of [
+  ['btn-x', 'btn'],
+  ['card-a', 'card'],
+  ['ab', 'a'],
+  ['p-2', 'p-20'],
+])
+  for (const [before, after] of [
+    [a, b],
+    [b, a],
+  ])
+    test(`zero-width change retains both occurrences: ${before} → ${after}`, () => {
+      const result = judge(edits(`<div className="${before}"/>`, `<div className="${after}"/>`));
+      assert.deepEqual(
+        result.units.map((u) => [u.side, u.token]),
+        [
+          ['base', before],
+          ['head', after],
+        ],
+      );
+    });
+
+test('class concatenation emits a named fragment gap and cannot lower J2', () => {
+  const changes = edits("<div className={'card card--' + old}/>", "<div className={'card card--' + tone}/>");
+  const result = judge(changes);
+  assert.ok(
+    result.gaps.some(
+      (g) => /concatenation.*fragment/.test(g.reason) && g.side === 'head' && g.paths?.includes('app.tsx'),
+    ),
+  );
+  assert.ok(combineClassReach(scripts(changes), result.units).every((u) => u.status === 'unknown'));
+});
+
+test('Solid classList object keys yield explicit class occurrences', () => {
+  const result = judge(edits('<div classList={{ danger: on }}/>', '<div classList={{ safe: on }}/>'));
+  assert.deepEqual(
+    result.units.map((u) => [u.token, u.explicit]),
+    [
+      ['danger', true],
+      ['safe', true],
+    ],
+  );
+});
+
+test('16k scoped gaps and negative lookups stay below one second', (t) => {
+  const count = 16000;
+  const source = 'className="old"; className={dynamic};\n'.repeat(count);
+  const changes = Array.from({ length: count }, (_, i) => ({
+    sourceKey: 'app.tsx',
+    side: 'head',
+    contentHash: 'same',
+    text: 'className="old";',
+    classSource: source,
+    range: { start: { line: i + 1, column: 0 }, end: { line: i + 2, column: 0 } },
+  }));
+  const start = performance.now();
+  const result = judge(changes);
+  const classifiedMs = performance.now() - start;
+  assert.equal(result.units.length, count);
+  assert.equal(result.gaps.length, count);
+  const negatives = result.units.map((u) => ({ ...u, explicit: true, status: 'never-rendered' }));
+  const begin = performance.now();
+  const combined = combineClassReach(scripts(changes), negatives);
+  const combinedMs = performance.now() - begin;
+  t.diagnostic(JSON.stringify({ count, classifiedMs, combinedMs }));
+  assert.ok(combined.every((u) => u.status === 'never-rendered'));
+  assert.ok(classifiedMs < 1000, `classify: ${classifiedMs}ms`);
+  assert.ok(combinedMs < 1000, `combine: ${combinedMs}ms`);
+});
