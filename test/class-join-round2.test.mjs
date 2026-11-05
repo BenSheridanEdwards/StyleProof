@@ -4,7 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 
-const complete = { version: 1, ignored: false, shadowHosts: 0, frames: 0 };
+const complete = { version: 2, ignored: false, shadowHosts: 0, frames: 0, outsideBody: 0, shadowRootsVerified: true };
 const map = (extra = {}) => ({
   defaults: {},
   states: {},

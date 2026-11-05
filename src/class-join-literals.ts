@@ -2,15 +2,7 @@
 import type { SourcePosition, SourceSpan } from './script-reach.js';
 import type { ScriptToken } from './script-join-tokens.js';
 import type { ScriptChange } from './script-join.js';
-import {
-  classSource,
-  classWords,
-  commentEnd,
-  literalAt,
-  sourceSpan,
-  tokenIndex,
-  type ClassSource,
-} from './class-join-source.js';
+import { classSource, classWords, commentEnd, literalAt, sourceSpan, type ClassSource } from './class-join-source.js';
 import { bindingLiteral, svelteDirectives } from './class-join-bindings.js';
 
 export type ClassWord = { token: string; range: SourceSpan };
@@ -18,11 +10,13 @@ export type ClassLiteral = {
   range: SourceSpan;
   words: ClassWord[];
   explicit: boolean;
+  /** Lexical class-helper candidates can be listed without supplying positive value evidence. */
+  classContext?: boolean;
   context?: boolean;
   residual?: string;
 };
-const helper = /(?:\b(?:clsx|cx|classnames|classNames|cva|twMerge|twJoin|cn)|\bclassList\s*\.\s*\w+)\s*$/;
-const attribute = /\bclass(?:Name|List)?\s*[:=]\s*$/;
+const helper = /\b(?:clsx|cx|classnames|classNames|cva|twMerge|twJoin|cn)\s*$/;
+const attribute = /(?<![\w-])class(?:Name|List)?\s*[:=]\s*$/;
 const comparePosition = (a: SourcePosition, b: SourcePosition) => a.line - b.line || a.column - b.column;
 export const spansOverlap = (a: SourceSpan, b: SourceSpan): boolean =>
   comparePosition(a.start, b.end) < 0 && comparePosition(b.start, a.end) < 0;
@@ -37,12 +31,18 @@ type Frame = {
   residual?: string;
   cva?: 'call' | 'options' | 'variants' | 'values' | 'excluded';
   bracket?: string;
+  classContext?: boolean;
+  blocked?: boolean;
+  method?: string;
+  argument?: number;
 };
 type Scan = { source: ClassSource; key: string; frames: Frame[]; prefix: string; literals: ClassLiteral[] };
 const explicit = (scan: Scan) => {
   const frame = scan.frames.at(-1)!;
+  if (frame.blocked) return false;
+  if (frame.method) return frame.method === 'add' || (frame.method === 'replace' && frame.argument === 1);
   if (frame.cva) return frame.value || frame.cva === 'call' || frame.cva === 'values';
-  return scan.frames.some((frame) => frame.inherited || frame.value);
+  return frame.inherited || frame.value;
 };
 
 function cvaContext(scan: Scan, char: string): Frame['cva'] {
@@ -68,7 +68,7 @@ function addLiteral(scan: Scan, token: ScriptToken, inherited = explicit(scan)):
     scan.literals.push(...binding);
     return literal.end;
   }
-  const isClass = inherited || attribute.test(scan.prefix);
+  const isClass = !scan.frames.at(-1)!.blocked && (inherited || attribute.test(scan.prefix));
   const cva = scan.frames.at(-1)!.cva;
   const cvaKey = cva && !scan.prefix.trim() && /^\s*:/.test(text.slice(literal.end, literal.end + 128));
   if (cva && (!isClass || cvaKey)) {
@@ -93,6 +93,7 @@ function pushLiteral(scan: Scan, token: ScriptToken, literal: ReturnType<typeof 
     range: sourceSpan(source, token.index, literal.end),
     words: classWords(source, literal.parts),
     explicit: isClass,
+    classContext: isClass || !!scan.frames.at(-1)!.classContext,
     ...(residual ? { residual } : {}),
   });
   addSubstitutionLiterals(scan, literal.substitutions, isClass);
@@ -104,14 +105,21 @@ function addSubstitutionLiterals(
 ): void {
   for (const part of substitutions) {
     if (!part.whole) continue;
-    let index = tokenIndex(scan.source, part.start);
-    while (index < scan.source.tokens.length && scan.source.tokens[index].index < part.end) {
-      const token = scan.source.tokens[index];
-      if (!token.negativeOnly && '\'"`'.includes(scan.source.text[token.index])) {
-        const end = addLiteral(scan, token, isClass);
-        index = tokenIndex(scan.source, end);
-      } else index++;
-    }
+    const nested: Scan = {
+      ...scan,
+      prefix: '',
+      frames: [
+        {
+          inherited: isClass,
+          value: false,
+          own: false,
+          start: part.start,
+          classContext: isClass || !!scan.frames.at(-1)!.classContext,
+          blocked: scan.frames.at(-1)!.blocked,
+        },
+      ],
+    };
+    scanRange(nested, part.start, part.end);
   }
 }
 function flushValue(scan: Scan, cursor: number): void {
@@ -120,7 +128,7 @@ function flushValue(scan: Scan, cursor: number): void {
     scan.literals.push({
       range: sourceSpan(scan.source, frame.valueStart, cursor),
       words: [],
-      explicit: true,
+      explicit: !frame.blocked,
       context: true,
       ...(frame.residual ? { residual: frame.residual } : {}),
     });
@@ -132,7 +140,7 @@ function closeFrame(scan: Scan, cursor: number): void {
   if (scan.frames.length <= 1) return;
   flushValue(scan, cursor);
   const frame = scan.frames.pop()!;
-  if (frame.own)
+  if (frame.own && !frame.blocked)
     scan.literals.push({
       range: sourceSpan(scan.source, frame.start, cursor + 1),
       words: [],
@@ -141,13 +149,32 @@ function closeFrame(scan: Scan, cursor: number): void {
       ...(frame.residual ? { residual: frame.residual } : {}),
     });
 }
+function openFrame(char: string, cursor: number, scan: Scan): void {
+  const parent = scan.frames.at(-1)!;
+  const method = char === '(' ? /\bclassList\s*\.\s*(\w+)\s*$/.exec(scan.prefix)?.[1] : undefined;
+  const own = helper.test(scan.prefix) || attribute.test(scan.prefix) || method === 'add' || method === 'replace';
+  const call = char === '(' && !own && !method && /[\w$)\]]\s*$/.test(scan.prefix);
+  const blocked =
+    !!parent.blocked || (!!parent.method && !explicit(scan)) || (call && (!!parent.classContext || explicit(scan)));
+  const cva = cvaContext(scan, char);
+  if (own) parent.measured = true;
+  scan.frames.push({
+    inherited: explicit(scan) || own,
+    value: false,
+    own,
+    start: cursor,
+    cva,
+    bracket: char,
+    classContext: !!parent.classContext || explicit(scan) || own || !!method,
+    blocked,
+    method,
+    argument: 0,
+  });
+  scan.prefix = '';
+}
 function delimiter(char: string, cursor: number, scan: Scan): void {
   if ('([{'.includes(char)) {
-    const own = helper.test(scan.prefix) || attribute.test(scan.prefix);
-    const cva = cvaContext(scan, char);
-    if (own) scan.frames.at(-1)!.measured = true;
-    scan.frames.push({ inherited: explicit(scan) || own, value: false, own, start: cursor, cva, bracket: char });
-    scan.prefix = '';
+    openFrame(char, cursor, scan);
   } else if (')]}'.includes(char)) {
     closeFrame(scan, cursor);
     scan.prefix = '';
@@ -155,6 +182,7 @@ function delimiter(char: string, cursor: number, scan: Scan): void {
     flushValue(scan, cursor);
     scan.prefix = '';
     scan.frames.at(-1)!.value = false;
+    if (char === ',' && scan.frames.at(-1)!.method) scan.frames.at(-1)!.argument!++;
   } else {
     if ((char === ':' || char === '=') && /^[\s\w.$-]+$/.test(scan.prefix)) {
       flushValue(scan, cursor);
@@ -191,7 +219,16 @@ export function classLiterals(text: string, sourceKey: string): ClassLiteral[] {
     prefix: '',
     literals: svelteDirectives(source, sourceKey),
   };
-  for (let cursor = 0; cursor < text.length; cursor++) {
+  scanRange(scan, 0, text.length);
+  flushValue(scan, text.length);
+  return scan.literals.sort(
+    (a, b) => comparePosition(a.range.start, b.range.start) || comparePosition(a.range.end, b.range.end),
+  );
+}
+function scanRange(scan: Scan, start: number, end: number): void {
+  const { source } = scan,
+    { text } = source;
+  for (let cursor = start; cursor < end; cursor++) {
     const comment = commentEnd(text, cursor);
     if (comment !== undefined) {
       cursor = comment - 1;
@@ -209,10 +246,6 @@ export function classLiterals(text: string, sourceKey: string): ClassLiteral[] {
       cursor = token.end - 1;
     }
   }
-  flushValue(scan, text.length);
-  return scan.literals.sort(
-    (a, b) => comparePosition(a.range.start, b.range.start) || comparePosition(a.range.end, b.range.end),
-  );
 }
 
 /** Binary lookup through monotonic prefix ends avoids a full literal scan per changed line. */

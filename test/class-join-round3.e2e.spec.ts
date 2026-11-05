@@ -97,7 +97,12 @@ for (const call of ["remove('clock')", "contains('clock')", "toggle('clock', fal
     expect(combineClassReach(scripts, result.units).every((u) => u.status === 'reached')).toBe(true);
   });
 
-for (const markup of ['<next-route-announcer></next-route-announcer>', '<div id="__next-route-announcer__"></div>'])
+for (const markup of [
+  '<next-route-announcer></next-route-announcer>',
+  '<div id="__next-route-announcer__"></div>',
+  '<next-route-announcer></next-route-announcer><script>document.querySelector("next-route-announcer").attachShadow({mode:"open"}).innerHTML="<span>Announcement</span>";</script>',
+  '<div id="__next-route-announcer__"></div><script>document.querySelector("div").attachShadow({mode:"closed"}).innerHTML="<span>Announcement</span>";</script>',
+])
   test(`framework exemption permits absence: ${markup}`, async ({ page }) => {
     await page.setContent(`<style>.old{color:red}.new{color:blue}</style><body>${markup}</body>`);
     const map = await captureStyleMap(page, { captureReach: true, captureStates: false, stabilize: false });
@@ -112,3 +117,35 @@ for (const markup of ['<next-route-announcer></next-route-announcer>', '<div id=
     expect(map.classPresence?.ignored).toBe(false);
     expect(result.units.every((u) => u.status === 'never-rendered')).toBe(true);
   });
+
+test('user-agent shadow roots do not prevent absence proof', async ({ page }) => {
+  await page.setContent('<style>.old{color:red}.new{color:blue}</style><body><input type="range"/></body>');
+  const map = await captureStyleMap(page, { captureReach: true, captureStates: false, stabilize: false });
+  expect(map.classPresence?.shadowHosts).toBe(0);
+  expect(map.classPresence?.shadowRootsVerified).toBe(true);
+  const before = 'el.className="old"',
+    after = 'el.className="new"';
+  const changes = changedScriptRanges(`@@ -1 +1 @@\n-${before}\n+${after}\n`, { base: before, head: after }, 'app.js');
+  expect(
+    classifyClassReach([map], [map], changes, [{ base: map, head: map }]).units.every(
+      (u) => u.status === 'never-rendered',
+    ),
+  ).toBe(true);
+});
+
+test('an untraversed frame outside body is also an omission', async ({ page }) => {
+  await page.setContent('<style>.old{color:red}.new{color:blue}</style><body></body>');
+  await page.evaluate(() => {
+    const frame = document.createElement('iframe');
+    frame.srcdoc = '<span class="old">Nested</span>';
+    document.head.appendChild(frame);
+  });
+  const map = await captureStyleMap(page, { captureReach: true, captureStates: false, stabilize: false });
+  expect(map.classPresence?.frames).toBe(1);
+  const before = 'el.className="old"',
+    after = 'el.className="new"';
+  const changes = changedScriptRanges(`@@ -1 +1 @@\n-${before}\n+${after}\n`, { base: before, head: after }, 'app.js');
+  expect(
+    classifyClassReach([map], [map], changes, [{ base: map, head: map }]).units.every((u) => u.status === 'unknown'),
+  ).toBe(true);
+});

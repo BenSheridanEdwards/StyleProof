@@ -140,6 +140,7 @@ export function injectPathOf(generatedIdSources: string[]): void {
 
 export type CaptureArgs = {
   skipSel: string;
+  frameworkSkipSel?: string;
   motionOnly: boolean;
   captureText: boolean;
   captureComponent?: boolean;
@@ -153,6 +154,7 @@ export type PageCapture = {
   sameOriginFrames: number;
   frames: number;
   ignored: boolean;
+  outsideBody: number;
   scrollX: number;
   scrollY: number;
   documentHeight: number;
@@ -162,6 +164,7 @@ export type PageCapture = {
 // fallow-ignore-next-line complexity
 export function capturePage({
   skipSel,
+  frameworkSkipSel,
   motionOnly,
   captureText,
   captureComponent,
@@ -323,20 +326,17 @@ export function capturePage({
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
   let shadowHosts = 0;
   let sameOriginFrames = 0;
-  let frames = 0;
   let ignored = false;
   for (const el of all) {
     if (el === frame) continue;
     if (skipSel && el.matches(skipSel)) {
-      if (!el.matches('script, style, link, noscript, meta, title, base, template, [data-styleproof-hover-sink]'))
-        ignored = true;
+      if (!frameworkSkipSel || !el.matches(frameworkSkipSel)) ignored = true;
       continue;
     }
     const tag = el.tagName.toLowerCase();
     if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'noscript') continue;
     if (!motionOnly && (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) shadowHosts++;
-    if (!motionOnly && (tag === 'iframe' || tag === 'frame')) {
-      frames++;
+    if (!motionOnly && ['iframe', 'frame', 'object', 'embed'].includes(tag)) {
       try {
         if ((el as HTMLIFrameElement).contentDocument) sameOriginFrames++;
       } catch {
@@ -398,7 +398,20 @@ export function capturePage({
   }
   frame.remove();
   assertFrozen();
-  return { defaults, elements, shadowHosts, sameOriginFrames, frames, ignored, scrollX, scrollY, documentHeight };
+  const frames = document.querySelectorAll('iframe, frame, object, embed').length;
+  const outsideBody = document.querySelectorAll('html > :not(head):not(body)').length;
+  return {
+    defaults,
+    elements,
+    shadowHosts,
+    sameOriginFrames,
+    frames,
+    ignored,
+    outsideBody,
+    scrollX,
+    scrollY,
+    documentHeight,
+  };
 }
 
 /** Poll using the capture function installed in this settle's non-enumerable window store. */

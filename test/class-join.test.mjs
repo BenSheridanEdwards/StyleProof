@@ -6,7 +6,7 @@ import { changedScriptRanges } from '../dist/script-join-git.js';
 const map = (cls = '', extra = {}) => ({
   defaults: {},
   states: {},
-  classPresence: { version: 1, ignored: false, shadowHosts: 0, frames: 0 },
+  classPresence: { version: 2, ignored: false, shadowHosts: 0, frames: 0, outsideBody: 0, shadowRootsVerified: true },
   elements: { body: { tag: 'body', cls, style: {} } },
   reach: {
     version: 2,

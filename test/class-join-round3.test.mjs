@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
+import { captureAuthorShadowRoots } from '../dist/capture/class-presence.js';
 
 const facts = { version: 2, ignored: false, shadowHosts: 0, frames: 0, outsideBody: 0, shadowRootsVerified: true };
 const map = (extra = {}) => ({
@@ -73,8 +74,8 @@ for (const [before, after, tokens] of [
     'new btn card known',
     [
       ['base', 'old'],
-      ['head', 'new'],
       ['head', 'btn'],
+      ['head', 'new'],
     ],
   ],
 ])
@@ -95,6 +96,11 @@ for (const [name, extra] of [
     const result = judge('el.className="old"', 'el.className="new"', map(extra), map(extra));
     assert.ok(result.units.every((u) => u.status === 'unknown'));
   });
+
+test('matching unchanged neighbours does not erase reordered class words', () => {
+  const result = judge("twMerge('old new')", "twMerge('new old')");
+  assert.deepEqual(new Set(result.units.map((u) => u.side)), new Set(['base', 'head']));
+});
 
 for (const side of ['base', 'head'])
   test(`an unpaired ${side} surface leaves both sides conservative`, () => {
@@ -123,3 +129,50 @@ for (const [firstFrames, secondFrames] of [
       judge('el.className="old"', 'el.className="new"', first, first).units.every((u) => u.status === 'unknown'),
     );
   });
+
+test('CDP counts author roots, excludes user-agent/framework roots and detaches', async () => {
+  let detached = false;
+  const page = {
+    context: () => ({
+      newCDPSession: async () => ({
+        send: async (method, options) => {
+          assert.equal(method, 'DOM.getDocument');
+          assert.deepEqual(options, { depth: -1, pierce: true });
+          return {
+            root: {
+              nodeType: 9,
+              children: [
+                { nodeName: 'INPUT', shadowRoots: [{ shadowRootType: 'user-agent' }] },
+                { nodeName: 'DIV', shadowRoots: [{ shadowRootType: 'closed' }] },
+                { nodeName: 'NEXT-ROUTE-ANNOUNCER', shadowRoots: [{ shadowRootType: 'open' }] },
+              ],
+            },
+          };
+        },
+        detach: async () => {
+          detached = true;
+        },
+      }),
+    }),
+  };
+  assert.equal(await captureAuthorShadowRoots(page), 1);
+  assert.equal(detached, true);
+});
+
+test('failed CDP never supplies a verified zero', async () => {
+  let detached = false;
+  const page = {
+    context: () => ({
+      newCDPSession: async () => ({
+        send: async () => {
+          throw new Error('protocol unavailable');
+        },
+        detach: async () => {
+          detached = true;
+        },
+      }),
+    }),
+  };
+  assert.equal(await captureAuthorShadowRoots(page), undefined);
+  assert.equal(detached, true);
+});

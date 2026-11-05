@@ -3,17 +3,11 @@ import { selectorClasses } from './class-join-selectors.js';
 import type { StyleMap } from './capture.js';
 import { compareScriptRanges, compareSourceKeys, type ScriptChange, type ScriptUnit } from './script-join.js';
 import type { SourceSpan } from './script-reach.js';
-import {
-  classLiterals,
-  literalsInChange,
-  type ClassLiteral,
-  spansOverlap,
-  indexClassLiterals,
-  type ClassWord,
-} from './class-join-literals.js';
+import { classLiterals, literalsInChange, type ClassLiteral, indexClassLiterals } from './class-join-literals.js';
 import { correspondBeforeMap } from './path-correspondence.js';
 import { isUnder } from './capture/shared.js';
 import { scopedRangeLookup } from './class-join-index.js';
+import { unchangedLiterals, unchangedWords } from './class-join-alignment.js';
 
 export type ClassUnit = {
   sourceKey: string;
@@ -129,12 +123,27 @@ function presenceComplete(maps: readonly StyleMap[]): boolean {
       return (
         !!map.elements &&
         !map.volatile?.length &&
-        facts?.version === 1 &&
+        facts?.version === 2 &&
+        facts.shadowRootsVerified === true &&
+        facts.outsideBody === 0 &&
+        !facts.unstable &&
         facts.ignored === false &&
         facts.shadowHosts === 0 &&
         facts.frames === 0
       );
     })
+  );
+}
+/** Every captured surface must occur exactly once in the explicit filename-paired set. */
+function fullyPaired(base: readonly StyleMap[], head: readonly StyleMap[], pairs: readonly ClassMapPair[]): boolean {
+  if (!pairs.length || base.length !== pairs.length || head.length !== pairs.length) return false;
+  const before = new Set(pairs.map((pair) => pair.base)),
+    after = new Set(pairs.map((pair) => pair.head));
+  return (
+    before.size === base.length &&
+    after.size === head.length &&
+    base.every((map) => before.has(map)) &&
+    head.every((map) => after.has(map))
   );
 }
 function classUnit(change: ScriptChange, literal: ClassLiteral, token: string, context: JoinContext): ClassUnit {
@@ -157,37 +166,9 @@ function classUnit(change: ScriptChange, literal: ClassLiteral, token: string, c
         ? 'token present on a captured element; not tied to this occurrence'
         : absent
           ? 'class token never landed on a captured element'
-          : 'token absence unproven; capture omitted elements or lacks omission metadata',
+          : 'token absence unproven; omitted elements, unstable/legacy facts or unpaired captures',
     level: 'warn',
   };
-}
-function wordKey(word: ClassWord, start: SourceSpan['start']): string {
-  const relative = (position: SourceSpan['start']) => [position.line - start.line, position.column];
-  return JSON.stringify([word.token, relative(word.range.start), relative(word.range.end)]);
-}
-function unchangedWords(change: ScriptChange, opposite: LiteralIndex | undefined): Set<string> {
-  if (!change.classCounterpart || !opposite) return new Set();
-  const range = change.classCounterpart.range;
-  return new Set(
-    literalsInChange({ range }, opposite).flatMap((literal) =>
-      literal.words.filter((word) => spansOverlap(word.range, range)).map((word) => wordKey(word, range.start)),
-    ),
-  );
-}
-function unchangedLiterals(
-  change: ScriptChange,
-  index: LiteralIndex,
-  opposite: LiteralIndex | undefined,
-): Set<ClassLiteral> {
-  if (!change.classCounterpart || !opposite) return new Set();
-  const current = literalsInChange({ range: { start: change.classCounterpart.current, end: change.range.end } }, index);
-  const other = literalsInChange({ range: change.classCounterpart.range }, opposite);
-  const same = (a: ClassLiteral, b: ClassLiteral | undefined) =>
-    !!b &&
-    a.words.length > 0 &&
-    a.explicit === b.explicit &&
-    JSON.stringify(a.words.map((word) => word.token)) === JSON.stringify(b.words.map((word) => word.token));
-  return new Set(current.filter((literal, i) => same(literal, other[i])));
 }
 function unitsForChange(
   change: ScriptChange,
@@ -198,15 +179,15 @@ function unitsForChange(
   const stable = unchangedLiterals(change, index, opposite);
   const sources = literalsInChange(change, index).filter(
     (literal) =>
-      !stable.has(literal) && (literal.explicit || literal.words.every((word) => context.vocabulary.has(word.token))),
+      !stable.has(literal) &&
+      (literal.explicit || literal.classContext || literal.words.every((word) => context.vocabulary.has(word.token))),
   );
-  const unchanged = unchangedWords(change, opposite),
-    current = change.classCounterpart?.current ?? change.range.start;
+  const unchanged = unchangedWords(change, index, opposite);
   return sources.flatMap((literal) => {
     const words = literal.words.filter(
       (word) =>
         context.vocabulary.has(word.token) &&
-        !unchanged.has(wordKey(word, current)) &&
+        !unchanged.has(word) &&
         touches(word.range, change.classRange ?? change.range),
     );
     return [...new Set(words.map((word) => word.token))].map((token) => classUnit(change, literal, token, context));
@@ -227,8 +208,8 @@ function extractionGaps(
   return literalsInChange(change, index)
     .filter((literal) => literal.explicit && (!stable.has(literal) || literal.residual))
     .flatMap((literal) => {
-      const known = literalsInChange({ range: literal.range }, index).some((entry) =>
-        entry.words.some((word) => vocabulary.has(word.token)),
+      const known = literalsInChange({ range: literal.range }, index).some(
+        (entry) => entry.explicit && entry.words.some((word) => vocabulary.has(word.token)),
       );
       if (known && !literal.residual) return [];
       return [
@@ -289,11 +270,12 @@ export function classifyClassReach(
   const uniqueGaps = [...new Map(gaps.map((gap) => [JSON.stringify(gap), gap])).values()].sort((a, b) =>
     compareSourceKeys(JSON.stringify(a), JSON.stringify(b)),
   );
+  const paired = fullyPaired(base, head, pairs);
   const context: JoinContext = {
     vocabulary,
     deltas,
     present: { base: presentTokens(base), head: presentTokens(head) },
-    complete: { base: presenceComplete(base), head: presenceComplete(head) },
+    complete: { base: paired && presenceComplete(base), head: paired && presenceComplete(head) },
     gap: scopedRangeLookup(uniqueGaps),
   };
   const units = changes.flatMap((change) =>

@@ -1,0 +1,30 @@
+Already up to date
+Done in 54ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:43738) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/class-join-round3.e2e.spec.ts:136:1 › an untraversed frame outside body is also an omission (118ms)
+
+
+  1) [chromium] › test/class-join-round3.e2e.spec.ts:136:1 › an untraversed frame outside body is also an omission
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      142 |   });
+      143 |   const map = await captureStyleMap(page, { captureReach: true, captureStates: false, stabilize: false });
+    > 144 |   expect(map.classPresence?.frames).toBe(1);
+          |                                     ^
+      145 |   const before = 'el.className="old"', after = 'el.className="new"';
+      146 |   const changes = changedScriptRanges(`@@ -1 +1 @@\n-${before}\n+${after}\n`, {base:before,head:after},'app.js');
+      147 |   expect(classifyClassReach([map],[map],changes,[{base:map,head:map}]).units.every(u=>u.status==='unknown')).toBe(true);
+        at <checkout>/test/class-join-round3.e2e.spec.ts:144:37
+
+    Error Context: test-results/test-class-join-round3.e2e-19d7a-de-body-is-also-an-omission-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/class-join-round3.e2e.spec.ts:136:1 › an untraversed frame outside body is also an omission

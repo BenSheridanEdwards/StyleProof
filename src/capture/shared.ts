@@ -16,3 +16,9 @@ export function isUnder(path: string, roots: string[]): boolean {
 export function skipSelector(ignore: string[]): string {
   return ignore.length ? ignore.map((s) => `${s}, :is(${s}) *`).join(', ') : '';
 }
+/** Non-rendered/framework-owned regions intentionally outside compared app elements. */
+export const FRAMEWORK_IGNORE = [
+  ...'meta title link script style base noscript template next-route-announcer'.split(' '),
+  '[id="__next-route-announcer__"]',
+  '[data-styleproof-hover-sink]',
+];
