@@ -354,3 +354,23 @@ test('a wide header without body rows keeps ordinary visible table markup', () =
   );
   assert.doesNotMatch(html, /class="wide-table"/);
 });
+
+test('wide tables add one label per cell without redundant descendant roles', () => {
+  const markdown = [
+    '| Rule | Change | Gated by | Source | Why |',
+    '| --- | --- | --- | --- | --- |',
+    ...Array(2000).fill('| `.panel` | changed | — | `/app.css` | Never matched |'),
+  ].join('\n');
+  const table = renderReportHtml(markdown).match(/<table\b[\s\S]*?<\/table>/)[0];
+  assert.doesNotMatch(table, /<(?:thead|tbody|tr|th|td)[^>]* role=/);
+  assert.equal((table.match(/data-label=/g) ?? []).length, 10000);
+  const nativeTable = table.replace(/ class="wide-table"| role="table"| scope="col"| data-label="[^"]*"/g, '');
+  assert.ok(Buffer.byteLength(table) < Buffer.byteLength(nativeTable) * 1.9);
+});
+
+test('only exceptionally long raw tokens opt ordinary tables into constrained sizing', () => {
+  const render = (value) => renderReportHtml(`| Property | Value |\n| --- | --- |\n| width | ${value} |`);
+  assert.doesNotMatch(render('&'.repeat(30)), /class="long-value-table"/);
+  assert.doesNotMatch(render('A'.repeat(79)), /class="long-value-table"/);
+  assert.match(render('A'.repeat(80)), /<table class="long-value-table">/);
+});

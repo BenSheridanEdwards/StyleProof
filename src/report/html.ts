@@ -129,14 +129,15 @@ function renderTable(rows: string[]): string {
   const [header, ...rest] = rows.map(cellsOf);
   const body = rest.filter((cells) => !isSeparator(cells));
   const wide = header.length >= 4 && body.length > 0;
-  const role = (name: string) => (wide ? ` role="${name}"` : '');
+  // Only exceptional unbroken values need constrained sizing; ordinary tables stay intrinsic.
+  const hasLongValue = !wide && [header, ...body].some((cells) => cells.some((cell) => /\S{80}/u.test(cell)));
   // Strip only rendered tags: inline() has already escaped the label for an attribute.
   const labels = wide ? header.map((cell) => inline(cell).replace(/<[^>]*>/g, '')) : [];
-  const thead = `<thead${role('rowgroup')}><tr${role('row')}>${header.map((cell) => `<th${wide ? ' role="columnheader" scope="col"' : ''}>${inline(cell)}</th>`).join('')}</tr></thead>`;
+  const thead = `<thead><tr>${header.map((cell) => `<th${wide ? ' scope="col"' : ''}>${inline(cell)}</th>`).join('')}</tr></thead>`;
   const tbody = body.length
-    ? `<tbody${role('rowgroup')}>${body.map((cells) => `<tr${role('row')}>${cells.map((cell, index) => `<td${wide ? ` role="cell" data-label="${labels[index] ?? ''}"` : ''}>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
+    ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell, index) => `<td${wide ? ` data-label="${labels[index] ?? ''}"` : ''}>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
     : '';
-  return `<table${wide ? ' class="wide-table" role="table"' : ''}>${thead}${tbody}</table>`;
+  return `<table${wide ? ' class="wide-table" role="table"' : hasLongValue ? ' class="long-value-table"' : ''}>${thead}${tbody}</table>`;
 }
 
 type Block = { html: string; next: number };
@@ -217,7 +218,7 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
     .wide-table tbody { display: grid; gap: 12px; }
     .wide-table tbody tr { border: 1px solid oklch(0.881 0.014 243); border-radius: 6px; padding: 6px 0; }
     .wide-table td { border: 0; padding: 4px 12px; overflow-wrap: anywhere; }
-    .wide-table td::before { content: attr(data-label) / ""; margin-inline-end: 8px;
+    .wide-table td::before { content: attr(data-label); content: attr(data-label) / ""; margin-inline-end: 8px;
       color: oklch(0.496 0.013 248); font-size: 0.8em; font-weight: 600; }`
     : '';
   let page = `<!doctype html>
@@ -239,8 +240,8 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   th { background: #f6f8fa; }
   code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
   @container (max-width: 560px) {
-    table:not(.wide-table) { inline-size: 100%; table-layout: fixed; }
-    th, td { overflow-wrap: break-word; }
+    .long-value-table { inline-size: 100%; table-layout: fixed; }
+    th, td, td code { overflow-wrap: break-word; }
 ${wideTableStyles}
   }
   details { margin: 8px 0; }

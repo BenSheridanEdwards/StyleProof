@@ -17,8 +17,8 @@
   th { background: #f6f8fa; }
   code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
   @container (max-width: 560px) {
-    table:not(.wide-table) { inline-size: 100%; table-layout: fixed; }
-    th, td { overflow-wrap: break-word; }
+    .long-value-table { inline-size: 100%; table-layout: fixed; }
+    th, td, td code { overflow-wrap: break-word; }
 
   }
   details { margin: 8px 0; }

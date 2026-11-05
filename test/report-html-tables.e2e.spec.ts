@@ -149,3 +149,57 @@ test('a long value in an ordinary three-column table fits at 390px', async ({ pa
       .evaluate((cell) => getComputedStyle(cell).display),
   ).toBe('table-cell');
 });
+
+for (const width of [320, 390]) {
+  for (const [name, tableMarkdown] of [
+    [
+      'property changes',
+      [
+        '| Property | Before | After |',
+        '| --- | --- | --- |',
+        '| `border-color` | `#1e3c78` | `#961e3c` |',
+        '| `color` | `#1e3c78` | `#961e3c` |',
+        ...[
+          'caret-color',
+          'outline-color',
+          'column-rule-color',
+          'row-rule-color',
+          'text-decoration-color',
+          'text-emphasis-color',
+          '-webkit-text-fill-color',
+          '-webkit-text-stroke-color',
+        ].map((property) => `| ↳ \`${property}\` _(currentColor)_ | \`#1e3c78\` | \`#961e3c\` |`),
+      ].join('\n'),
+    ],
+    ['two columns', '| Property | Value |\n| --- | --- |\n| width | 12px |'],
+  ]) {
+    test(`${name} retains main table geometry at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const html = renderReportHtml(tableMarkdown);
+      const geometry = () =>
+        page.locator('table').evaluate((table) =>
+          [table, ...table.querySelectorAll('th, td')].map((element) => {
+            const { x, y, width, height } = element.getBoundingClientRect();
+            return { x, y, width, height };
+          }),
+        );
+      await page.setContent(html.replace(/<style>[\s\S]*?<\/style>/, `<style>${mainTableCss}</style>`));
+      const expected = await geometry();
+      const expectedScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      await page.setContent(html);
+      expect(await geometry()).toEqual(expected);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(expectedScrollWidth);
+    });
+  }
+}
+
+test('mobile labels survive an engine ignoring alternative-text content syntax', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.setContent(renderReportHtml(markdown).replace('content: attr(data-label) / "";', ''));
+  expect(
+    await page
+      .locator('td')
+      .first()
+      .evaluate((cell) => getComputedStyle(cell, '::before').content),
+  ).toBe('"Rule"');
+});
