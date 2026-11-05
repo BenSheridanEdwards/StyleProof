@@ -183,19 +183,27 @@ the evidence adds to a capture on a GitHub runner:
      as executed: iterator creation can give the whole function count 1 with no
      inner idle range. A file whose raw text contains a generator-like pattern
      has its ran evidence downgraded to unmeasured; this may include files with
-     no generator. The listed raw patterns are:
-     - `function\s*\*`, also allowing block or line comments between `function`
-       and `*`;
-     - `\*\s*(?:#?[\w$]+|\[[^\]\n]*\]|'[^'\n]*'|"[^"\n]*"|\d[\w.]*)\s*(?:<[^()\n]*>\s*)?\(`.
+     no generator. The raw patterns are:
+     - `\byield\b` anywhere, including strings/comments;
+     - `function GAP *`;
+     - `* GAP KEY GAP ? GAP <GENERIC> GAP (` with `?` and `<GENERIC>` optional.
 
-     No lexer is consulted. Strings, comments, regex bodies and template text
-     are not excluded. Multiplication `a *b(c)` or `obj.function *b(2)`, regex
-     text `/function*foo/` and strings/comments containing these patterns
-     intentionally flag. Each side scans its full source once, and every
-     otherwise-ran change in that file becomes unmeasured, including changes
-     outside the generator and actually iterated bodies, even with same-range
-     corroboration. Negative or missing evidence retains its existing status.
-     The bounded context remains only for parameter residual naming.
+     `GAP` permits whitespace, block comments and line comments between the star,
+     key, optional question mark, generic list and parenthesis. Keys accept optional
+     `#` followed by `[\p{ID_Continue}$\\]+` with Unicode semantics (including
+     escaped names), numeric literals including `.5` and `0x…`, quoted keys
+     `'(?:\\.|[^'\\])*'` / `"(?:\\.|[^"\\])*"`, or computed keys equivalent to
+     `\[[^]{0,512}?\]`. Generic contents are equivalent to `<[^]{0,512}?>` and
+     may include parentheses/newlines. Bounds count Unicode characters.
+     All raw source positions remain eligible: strings, comments, regex bodies
+     and templates are not excluded. Matching multiplication-like text and other
+     non-generator text intentionally flags. The rule covers changes outside a
+     generator and actually iterated bodies, before same-range corroboration.
+     Negative or missing evidence keeps its existing status. Gap ends are
+     precomputed once; key and suffix results are cached; each computed/generic
+     lookahead is bounded to 512 characters. This is linear in file size with
+     fixed bounds and avoids a backtracking whole-header regex. The bounded
+     context remains only for parameter residual naming.
    - **J2 source-map attribution.** A minifier can merge equivalent arms
      (`flag ? one : one` → `one`) or hoist a shared call
      (`flag ? sink(a) : sink(b)` → `sink(flag ? a : b)`). The source-map anchor

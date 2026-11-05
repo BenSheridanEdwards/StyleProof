@@ -934,3 +934,29 @@ scenarios. Only the timestamp changes in the receipt. The corpus still uses
 hand-built one-line patches and selects the head unit; browser tests cover the
 real Git adapter on both sides. `demo:check` also passes. Final full-gate tails
 and the exact-lease push result are recorded in the handoff.
+
+
+## Round 15: widened bounded raw patterns
+
+Fetch/rebase found main `bff724ee5` already included. Retained
+[unit red](round15-red-unit.txt) has **238 failures / nine passes**; the
+[real-Chromium red](round15-red-browser.txt) has **116 failures / four passes**.
+Thirty independent header fixtures cover every review shape and all eight QA
+repros. Each has yield and no-yield variants; the latter explicitly assert no
+raw yield word, so the catch-all cannot mask a header miss. Units run all four
+esbuild modes, and browser captures run minified/unminified through real Git.
+
+A raw yield word now flags immediately. Otherwise the scanner permits raw
+whitespace/comment gaps between function/star or method-header pieces. Keys
+include Unicode/escaped identifiers, private, numeric/fractional, escaped quoted
+and computed names. Optional question marks and generic lists are accepted;
+computed/generic contents are bounded to 512 characters, including newlines and
+parentheses. A [Unicode-boundary red](round15-unicode-red-unit.txt) pins one
+failure / 247 passes before counting surrogate pairs as single characters.
+
+Every raw position stays eligible; nothing is lexically excluded. Gap ends are
+precomputed backwards once, key/suffix results are cached, and lookaheads stay
+bounded. No whole-header regex can backtrack across repeated comments. The
+2,130,016-byte adversarial timing fixture takes **150.9 ms wall / 146.6 ms CPU**
+for two scans in the targeted run. The combined unit suite passes **1,017/1,017**.
+Final browser/gate tails, SHA and exact-lease push are recorded in the handoff.

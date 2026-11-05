@@ -16,8 +16,24 @@ import { assertionCases, genericControl, parameterCases } from './script-join-ro
 import { generatorCases, generatorResidual, methodDefaults, tsxGenerics } from './script-join-round12-fixture.mjs';
 import { generatorFileCases } from './script-join-round13-fixture.mjs';
 import { rawGeneratorCases, apostropheControls } from './script-join-round14-fixture.mjs';
+import { widenedGeneratorCases } from './script-join-round15-fixture.mjs';
 
 const scenarios = [
+  ...widenedGeneratorCases.flatMap(({ name, before, after, hits }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} widened raw generator pattern with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      sourceKey: 'app.ts',
+      minifySyntax,
+      generator: true,
+      rawGenerator: true,
+      residual: generatorResidual,
+      expected: 'unmeasured',
+      count: 2,
+    })),
+  ),
   ...rawGeneratorCases.flatMap(({ name, before, after, hits, sourceKey, browserExpected }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} raw generator pattern with minify=${minifySyntax}`,
