@@ -622,3 +622,11 @@ checked, content/structure was not evaluated, and reach remains incomplete. This
 is diagnostic execution/report proof, not rendering or same-state certification.
 
 ![A live template head cannot prove the removed substitution literal ran](round9-report-top.png)
+
+
+The refreshed corpus receipt passes **32/32 expectations**, with zero J2 gaps and
+**zero case-status changes or cells moved to unknown**. Eager JSX and render-scope
+values remain ran/unknown in both scenarios. Unknown totals stay five declared
+and six complete, and J3-prototype results remain separate. No expectation was
+relaxed. The unchanged corpus still uses hand-built one-line patches and selects
+the head unit; the expanded browser spec exercises real Git on both revisions.

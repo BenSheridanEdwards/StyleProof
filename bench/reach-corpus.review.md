@@ -78,6 +78,12 @@ of its name. All 32 expectations and the zero-gap assertion remain unchanged.
 The refreshed receipt adds the general throwing-expression limit to ran/unknown
 reasons; J3-prototype rows still cannot corroborate J2.
 
+Round nine also moves **zero cases and zero cells to unknown**. Eager JSX and
+render-scope values remain ran/unknown in both scenarios, with all 32 expectations
+and the zero-gap assertion unchanged. Additional real-esbuild/Chromium regressions
+cover folded template substitutions, mapped idle arms and live controls; these are
+outside the corpus's hand-built one-line patches.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry
