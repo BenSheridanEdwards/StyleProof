@@ -7,6 +7,8 @@ import { generateStructuralStyleMapReportForTesting as generateReport } from '..
 import { propertyGlanceLine } from '../dist/report/markdown.js';
 import { makeMap, pairFixture, rmTmp, solidPng, writeCapture } from './helpers.mjs';
 
+const displayedSections = (report) => report.surfaces[0].sections ?? report.surfaces[0].regions;
+
 function fixture(
   t,
   {
@@ -94,7 +96,7 @@ test('identical separated elements share one section, union crop and property ta
   for (let index = 1; index <= 3; index++) assert.ok(md.includes(`- \`article:nth-child(${index}) > h2\``));
   assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1);
   assert.equal((md.match(/`color` `#1e3c78` → `#961e3c`/g) ?? []).length, 1);
-  const region = json.surfaces[0].regions[0];
+  const region = displayedSections(json)[0];
   assert.deepEqual(region.paths, paths);
   assert.equal(region.after.h, 319);
   const image = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, region.images.annotated)));
@@ -121,7 +123,7 @@ test('matching state changes share one heading, two combined state crops and one
   assert.match(md, /3 elements · `:hover`, `:focus`/);
   assert.equal((md.match(/\| State \| Property \|/g) ?? []).length, 1);
   assert.equal((md.match(/All 3 changed elements are marked\./g) ?? []).length, 4);
-  const region = json.surfaces[0].regions[0];
+  const region = displayedSections(json)[0];
   assert.deepEqual(Object.keys(region.stateImages), ['hover', 'focus']);
   assert.match(region.stateImages.hover.composite, /-1-composite.png$/);
   assert.match(region.stateImages.focus.composite, /-2-composite.png$/);
@@ -131,8 +133,8 @@ test('an unreadable union uses the top-most crop and tells the reviewer', (t) =>
   const { md, json } = fixture(t, { positions: [1400, 40, 700] });
   assert.equal(sections(md).length, 1);
   assert.match(md, /The top-most crop marks 1 of 3 changed elements.*combined crop would be unreadable/);
-  assert.equal(json.surfaces[0].regions[0].cropFallback, 'top-most');
-  assert.equal(json.surfaces[0].regions[0].after.h, 1419, 'JSON retains the union geometry');
+  assert.equal(displayedSections(json)[0].cropFallback, 'top-most');
+  assert.equal(displayedSections(json)[0].after.h, 1419, 'JSON retains the union geometry');
 });
 
 test('crop dimension limits also trigger the readable fallback', (t) => {
@@ -141,7 +143,11 @@ test('crop dimension limits also trigger the readable fallback', (t) => {
 });
 
 test('the folded element list stops at ten and counts the rest', (t) => {
-  const { md } = fixture(t, { count: 12 });
+  const { md } = fixture(t, {
+    count: 12,
+    positions: Array.from({ length: 12 }, (_, index) => 40 + index * 155),
+  });
+  assert.match(md, /The top-most crop marks 1 of 12 changed elements/);
   assert.match(md, /<summary>12 elements<\/summary>/);
   assert.equal((md.match(/^- `article:nth-child/gm) ?? []).length, 10);
   assert.match(md, /… and 2 more/);
@@ -214,7 +220,7 @@ test('element grouping retains kind, label, pseudo, state and summarized values'
 test('the crop count threshold collapses distinct exposed sections into one main-style union', (t) => {
   const { md, json } = fixture(t, { different: true, options: { maxCrops: 1 } });
   assert.equal(sections(md).length, 1);
-  assert.equal(json.surfaces[0].regions.filter((region) => region.images.composite).length, 1);
+  assert.equal(displayedSections(json).filter((region) => region.images.composite).length, 1);
   assert.doesNotMatch(md, /Crop omitted: this surface reached the `--max-crops` limit/);
   assert.equal((md.match(/\| `color` \|/g) ?? []).length, 2);
 });
@@ -224,12 +230,12 @@ test('a combined section keeps its list and values when the image budget is exha
   assert.match(md, /crop budget/);
   assert.match(md, /<summary>3 elements<\/summary>/);
   assert.match(md, /\| `color` \|/);
-  assert.deepEqual(json.surfaces[0].regions[0].images, {});
+  assert.deepEqual(displayedSections(json)[0].images, {});
 });
 
 test('separated page areas fall back even below the union height threshold', (t) => {
   const { md, json } = fixture(t, { positions: [40, 600, 620] });
-  assert.ok(json.surfaces[0].regions[0].after.h < 1000);
+  assert.ok(displayedSections(json)[0].after.h < 1000);
   assert.match(md, /The top-most crop marks 1 of 3 changed elements/);
 });
 
@@ -277,7 +283,7 @@ test('folded descendant states do not inflate the combined heading element count
   assert.deepEqual(report.counts, { dom: 0, style: 0, state: 3 });
   assert.match(markdown, /size\/position rows folded/);
   assert.match(markdown, /`width`/);
-  const covered = report.surfaces[0].regions[0].paths;
+  const covered = displayedSections(report)[0].paths;
   for (const owner of owners) assert.ok(covered.includes(`${owner} > span`));
 });
 
@@ -330,13 +336,13 @@ test('nearby identical state changes share one counted section and list', (t) =>
   assert.equal(sections(md).length, 1);
   assert.match(md, /3 elements · `:hover`, `:focus`/);
   assert.match(md, /<summary>3 elements<\/summary>/);
-  assert.deepEqual(json.surfaces[0].regions[0].paths, paths);
+  assert.deepEqual(displayedSections(json)[0].paths, paths);
 });
 
 test('a mixed overlap region preserves main layout instead of combining across its boundary', (t) => {
   const { md, json } = fixture(t, { different: true, positions: [40, 45, 50] });
-  assert.equal(json.surfaces[0].regions.length, 1);
-  assert.equal(json.surfaces[0].regions[0].elements, undefined, 'mixed regions are not combined sections');
+  assert.equal(displayedSections(json).length, 1);
+  assert.equal(displayedSections(json)[0].elements, undefined, 'mixed regions are not combined sections');
   assert.match(md, /\+ 2 more/);
   assert.doesNotMatch(md, /<summary>3 elements<\/summary>/);
 });
@@ -380,7 +386,7 @@ test('an off-canvas member does not replace the union of the exposed members', (
   assert.match(md, /1 of 3 elements is outside the captured screenshot/);
   assert.doesNotMatch(md, /combined crop would be unreadable/);
   assert.doesNotMatch(md, /All 3 changed elements are marked/);
-  const region = json.surfaces[0].regions[0];
+  const region = displayedSections(json)[0];
   assert.equal(region.cropFallback, undefined);
   const image = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, region.images.annotated)));
   assert.ok(image.height < 300, 'crop excludes the off-canvas member');
@@ -395,15 +401,15 @@ test('an off-canvas member does not replace the union of the exposed members', (
 
 test('the crop cap preserves main collapse semantics including a zero cap', (t) => {
   const zero = fixture(t, { options: { maxCrops: 0 } });
-  assert.equal(zero.json.surfaces[0].regions.filter((region) => region.images.composite).length, 1);
+  assert.equal(displayedSections(zero.json).filter((region) => region.images.composite).length, 1);
   const many = fixture(t, {
     count: 10,
     styleFor: (index, head) => ({ color: head ? `rgb(${index + 10}, 30, 60)` : 'rgb(30, 60, 120)' }),
     options: { maxCrops: 8 },
   });
-  assert.equal(many.json.surfaces[0].regions.length, 1);
-  assert.ok(many.json.surfaces[0].regions[0].images.composite);
-  assert.equal(many.json.surfaces[0].regions[0].paths.length, 10);
+  assert.equal(displayedSections(many.json).length, 1);
+  assert.ok(displayedSections(many.json)[0].images.composite);
+  assert.equal(displayedSections(many.json)[0].paths.length, 10);
   assert.doesNotMatch(many.md, /max-crops.*limit/);
 });
 
@@ -415,7 +421,7 @@ test('an unexposed section does not consume a crop slot', (t) => {
     }),
     options: { maxCrops: 2 },
   });
-  assert.equal(json.surfaces[0].regions.filter((region) => region.images.composite).length, 2);
+  assert.equal(displayedSections(json).filter((region) => region.images.composite).length, 2);
 });
 
 test('a mixed parent-child region keeps main outermost heading anchors', (t) => {
@@ -436,9 +442,9 @@ test('a mixed parent-child region keeps main outermost heading anchors', (t) => 
   assert.match(md, /### \*\*Parent\*\* `section.parent` · 2 elements restyled/);
   assert.doesNotMatch(md, /section.parent` \+ 1 more/);
   assert.deepEqual(
-    json.surfaces[0].regions[0].paths,
+    displayedSections(json)[0].paths,
     [parent, child],
-    'expanded JSON membership is deliberate and documented',
+    'section membership is additive; legacy region paths remain unchanged',
   );
 });
 

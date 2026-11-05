@@ -12,6 +12,8 @@ import { emptyLiveTextAudit } from '../dist/live-text.js';
 import { ReportMarkdown } from '../dist/report/sections.js';
 import { makeMap, pairFixture, rmTmp, solidPng } from './helpers.mjs';
 
+const displayedSections = (report) => report.surfaces[0].sections ?? report.surfaces[0].regions;
+
 function reportPair(context, before, after, options = {}, stateLayers = []) {
   const directories = pairFixture({
     surface: 'evidence@600',
@@ -57,9 +59,9 @@ test('a fallback caption counts the nested elements actually outlined in its cro
     );
   const { markdown, report, directories } = reportPair(context, map(false), map(true));
   assert.match(markdown, /The top-most crop marks 2 of 3 changed elements/);
-  assert.equal(report.surfaces[0].regions[0].cropFallback, 'top-most');
+  assert.equal(displayedSections(report)[0].cropFallback, 'top-most');
   const image = PNG.sync.read(
-    fs.readFileSync(path.join(directories.outDir, report.surfaces[0].regions[0].images.annotated)),
+    fs.readFileSync(path.join(directories.outDir, displayedSections(report)[0].images.annotated)),
   );
   for (const [x, y] of [
     [32, 32],
@@ -77,8 +79,8 @@ test('mixed overlapping tags retain paths without advertising combined elements'
       'body > p': element('p', 'copy', [40, 50, 100, 30], { color: head ? 'green' : 'blue' }),
     });
   const { report, markdown } = reportPair(context, map(false), map(true));
-  assert.equal(report.surfaces[0].regions[0].elements, undefined);
-  assert.equal(report.surfaces[0].regions[0].paths.length, 2);
+  assert.equal(displayedSections(report)[0].elements, undefined);
+  assert.equal(displayedSections(report)[0].paths.length, 2);
   assert.match(markdown, /\+ 1 more/);
   assert.doesNotMatch(markdown, /<summary>2 elements<\/summary>/);
 });
@@ -106,7 +108,7 @@ test('fallback counts use the saved crop bounds after a height cap', (context) =
   const { markdown, report, directories } = reportPair(context, map(false), map(true), { maxHeight: 80 });
   assert.match(markdown, /The top-most crop marks 1 of 3 changed elements/);
   const image = PNG.sync.read(
-    fs.readFileSync(path.join(directories.outDir, report.surfaces[0].regions[0].images.annotated)),
+    fs.readFileSync(path.join(directories.outDir, displayedSections(report)[0].images.annotated)),
   );
   assert.ok(image.height <= 120);
 });
@@ -149,8 +151,8 @@ test('a hidden addition in a mixed region keeps its missing-side evidence explic
   });
   const { markdown, report } = reportPair(context, before, after);
   assert.match(markdown, /1 of 2 elements is not exposed in the captured page/);
-  assert.equal(report.surfaces[0].regions[0].elements, undefined);
-  assert.ok(report.surfaces[0].regions[0].paths.includes('body > p'));
+  assert.equal(displayedSections(report)[0].elements, undefined);
+  assert.ok(displayedSections(report)[0].paths.includes('body > p'));
 });
 
 test('a separate hidden addition does not force visible regions to collapse at the crop cap', (context) => {
@@ -161,8 +163,8 @@ test('a separate hidden addition does not force visible regions to collapse at t
       ...(head ? { 'body > p': element('p', 'copy', [40, 10, 100, 10], { visibility: 'hidden' }) } : {}),
     });
   const { report } = reportPair(context, map(false), map(true), { maxCrops: 2 });
-  assert.equal(report.surfaces[0].regions.length, 3);
-  assert.equal(report.surfaces[0].regions.filter((region) => region.images.composite).length, 2);
+  assert.equal(displayedSections(report).length, 3);
+  assert.equal(displayedSections(report).filter((region) => region.images.composite).length, 2);
 });
 
 test('an unsupported state capture still retains the property evidence below the comment cut', (context) => {
@@ -324,9 +326,9 @@ test('matching states keep one member list and table when only one state has scr
   assert.ok(markdown.includes('2 elements · `:hover`, `:focus`'));
   assert.ok(markdown.includes('No :focus screenshot'));
   assert.ok(markdown.includes('| `:focus` | `outline-color` |'));
-  assert.deepEqual(Object.keys(report.surfaces[0].regions[0].stateImages), ['hover']);
-  assert.ok(report.surfaces[0].regions[0].stateImages.hover.composite);
-  assert.equal(report.surfaces[0].regions[0].stateImages.focus, undefined);
+  assert.deepEqual(Object.keys(displayedSections(report)[0].stateImages), ['hover']);
+  assert.ok(displayedSections(report)[0].stateImages.hover.composite);
+  assert.equal(displayedSections(report)[0].stateImages.focus, undefined);
 });
 
 test('state crops omitted after a resting picture retain their changes and single member list', (context) => {
@@ -347,8 +349,8 @@ test('state crops omitted after a resting picture retain their changes and singl
   assert.equal(markdown.split('<summary>2 elements</summary>').length - 1, 1);
   assert.ok(markdown.includes('crop budget'));
   assert.ok(markdown.includes('| `:hover` | `background-color` |'));
-  assert.ok(report.surfaces[0].regions[0].images.composite);
-  assert.equal(report.surfaces[0].regions[0].stateImages?.hover, undefined);
+  assert.ok(displayedSections(report)[0].images.composite);
+  assert.equal(displayedSections(report)[0].stateImages?.hover, undefined);
 });
 
 test('zero crop threshold unions different exposed state changes without combined metadata', (context) => {
@@ -366,10 +368,10 @@ test('zero crop threshold unions different exposed state changes without combine
       ),
     );
   const { markdown, report } = reportPair(context, map(false), map(true), { maxCrops: 0 }, ['hover']);
-  assert.equal(report.surfaces[0].regions.length, 1);
-  assert.ok(report.surfaces[0].regions[0].stateImages.hover.composite);
-  assert.deepEqual(report.surfaces[0].regions[0].paths, owners);
-  assert.equal(report.surfaces[0].regions[0].elements, undefined);
+  assert.equal(displayedSections(report).length, 1);
+  assert.ok(displayedSections(report)[0].stateImages.hover.composite);
+  assert.deepEqual(displayedSections(report)[0].paths, owners);
+  assert.equal(displayedSections(report)[0].elements, undefined);
   assert.ok(markdown.includes('`blue` → `red`'));
   assert.ok(markdown.includes('`blue` → `green`'));
 });
@@ -458,9 +460,9 @@ test('a JSON findings cap preserves combined member paths even when its outline 
   const { report, markdown } = reportPair(context, map(false), map(true), { maxJsonBytes: 1 });
   assert.equal(report.findingsBudget.listed, 0);
   assert.equal(report.findingsBudget.omitted, 2);
-  assert.deepEqual(report.surfaces[0].regions[0].paths, owners);
+  assert.deepEqual(displayedSections(report)[0].paths, owners);
   assert.deepEqual(
-    report.surfaces[0].regions[0].elements,
+    displayedSections(report)[0].elements,
     owners.map((elementPath) => ({ path: elementPath })),
   );
   assert.ok(markdown.includes('omitted from report.json at its byte budget'));

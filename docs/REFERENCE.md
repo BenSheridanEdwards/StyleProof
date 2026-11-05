@@ -87,20 +87,32 @@ only one matching element has a folded row. Crops union exposed members only; th
 caption separately counts elements outside the screenshot or otherwise unexposed.
 A top-most fallback is reserved for an unreadable union of exposed members.
 
-`report.json` preserves every existing region field. Each
-`surfaces[].regions[].paths` membership expands from crop anchors to all element
-paths covered by the section, including descendants whose folded evidence is
-displayed there. Heading anchors still use outermost paths, so a mixed parent/child
-region keeps the parent heading without an extra descendant in the label. Combined sections
-add `elements: [{ path }]` for the primary changed elements. Mixed regions omit
-`elements`, even when their `paths` array contains several elements. A readable-crop
-fallback adds `cropFallback: "top-most"`; `before` and `after` retain the union
-geometry. The existing `cropOmitted: "budget"` reason identifies file/byte omissions.
-The `maxCrops` threshold retains the legacy union collapse: too many exposed regions
-collapse into one union crop, and zero still allows that single crop. Regions with
-no exposed screenshot pair do not consume a slot. Counts and original findings
-are unchanged. Overlap regions containing different changes retain the existing
-mixed-region layout; they are not combined with other identical sections.
+`report.json` keeps main's `surfaces[].regions` anchors: the same number and
+order of regions, the same `paths`, and the same padded `before` / `after` boxes,
+including main's outermost-path and crop-count collapse rules. Their `images`,
+`stateImages`, `cropOmitted`, and `visualEvidence` describe the displayed section's
+evidence; several original regions can reference the same combined crop. Keeping
+these anchors does not render extra files or spend the crop budget again.
+
+When grouping or membership changes the layout, an additive `surfaces[].sections`
+list describes the displayed sections. Each section has `regionIndexes` linking
+to the original regions, its covered `paths` (including folded descendants), and
+the section's union `before` / `after` geometry and image references. The indices
+can be empty when main had no exposed anchor. Combined sections add
+`elements: [{ path }]`; mixed sections omit `elements`. An unreadable union adds
+`cropFallback: "top-most"`. The list is omitted when the original regions already
+describe the unchanged layout, avoiding duplicate metadata under the JSON budget.
+Consumers use `sections` when present and otherwise use `regions` for the layout.
+Counts and original findings remain unchanged.
+
+The displayed crop-count threshold still collapses excess exposed sections into
+one union crop, and zero allows one crop. Unexposed sections do not consume a
+visible crop slot. If an exposed union exceeds about 2.5 capture viewport heights,
+spans distant page areas, or cannot fit the crop dimensions, the picture falls back
+to the top-most frame. A long spread list can therefore say "marks 1 of 12"; its
+list and property evidence still cover all twelve elements. Overlapping mixed
+changes keep their existing layout and do not combine with matching changes
+elsewhere.
 
 ### A safety policy blocks
 
