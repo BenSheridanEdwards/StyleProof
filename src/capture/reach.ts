@@ -739,6 +739,7 @@ function selectorPseudo(
   prelude: string,
   start: number,
   formStates: readonly string[],
+  depth: number,
 ): { end: number; elements: string[]; forced: boolean } | undefined {
   const rest = prelude.slice(start);
   if (unattributablePseudo(rest)) return undefined;
@@ -750,7 +751,9 @@ function selectorPseudo(
     return { end: element.end, elements: [element.name], forced: false };
   }
 
-  const forcedEnd = forcedStateEnd(prelude, start, formStates);
+  // Nested form state remains an exact DOM-fingerprinted token. Relaxing it
+  // inside :not(), :is() or :has() can change which branch supplies a match.
+  const forcedEnd = forcedStateEnd(prelude, start, depth === 0 ? formStates : []);
 
   if (forcedEnd > start) return { end: forcedEnd, elements: [], forced: true };
   const pseudoClass = /^:([\w-]+)/.exec(rest);
@@ -786,7 +789,9 @@ function selectorProbe(
       i = opaque;
       continue;
     }
-    const pseudo = selectorPseudo(prelude, i, formStates);
+
+    const pseudo = selectorPseudo(prelude, i, formStates, depth);
+
     if (!pseudo) return undefined;
     if (pseudo.end > i) {
       forced ||= pseudo.forced;
@@ -801,6 +806,23 @@ function selectorProbe(
   // Rule usage is per rule, so one forced state on an unread pseudo-element makes the whole rule unattributable.
   if (forced && elements.some((name) => !FORCED_PSEUDO_ELEMENTS.has(name))) return undefined;
   return { selector: probe, relaxed, nested };
+}
+
+/** Exact form-state proof plus any distinct, attributable top-level relaxation. */
+function selectorProofs(prelude: string, chain: readonly string[], formStates: readonly string[]): SelectorProbe[] {
+  const candidates = [
+    selectorProbe(prelude, chain),
+    formStates.length ? selectorProbe(prelude, chain, formStates) : undefined,
+  ];
+
+  return candidates.filter(
+    (probe, index): probe is SelectorProbe =>
+      probe !== undefined &&
+      !probe.nested &&
+      !candidates
+        .slice(0, index)
+        .some((prior) => prior?.selector === probe.selector && prior?.relaxed === probe.relaxed),
+  );
 }
 
 type ComparedProbes = { probes: (string | null)[]; exclusive: boolean[]; compared: string[] };
@@ -1045,6 +1067,7 @@ export async function trackServedRules(
       const rules: ServedRule[] = [];
       const probes: (string | null)[] = [];
       const exclusive: boolean[] = [];
+      const ruleProbes: number[][] = [];
       const entries = read.map((sheet) =>
         servedEntries(
           sheet.text,
@@ -1055,10 +1078,18 @@ export async function trackServedRules(
       for (const [index, sheet] of read.entries()) {
         const inDocument = await documentSheet(client, sheet.header, frameTree.frame.id, shadow);
         for (const { rule, chain, prelude } of entries[index]) {
-          const probe = rule.used && inDocument ? selectorProbe(prelude, chain, formStates) : undefined;
-          // Removing a state inside :not(), for example, need not preserve the original candidates.
-          probes.push(probe && !probe.nested ? probe.selector : null);
-          exclusive.push(probe?.relaxed ?? false);
+          const candidates = rule.used && inDocument ? selectorProofs(prelude, chain, formStates) : [];
+
+          ruleProbes.push(
+            candidates.map((probe) => {
+              const index = probes.length;
+              probes.push(probe.selector);
+              // Action states and pseudo-elements retain their original exclusivity checks.
+              exclusive.push(probe.relaxed);
+
+              return index;
+            }),
+          );
           rules.push({ ...rule, sheet: index });
         }
       }
@@ -1074,7 +1105,8 @@ export async function trackServedRules(
         const n = (seen.get(rule.key) ?? 0) + 1;
         seen.set(rule.key, n);
         if (n > 1) rule.key += ` #${n}`;
-        if (rule.used && (!same || !matched[index])) {
+
+        if (rule.used && (!same || !ruleProbes[index].some((probe) => matched[probe]))) {
           delete rule.used;
           rule.outside = true;
         }

@@ -10,21 +10,29 @@ const html = `<!doctype html><html><head><link rel="stylesheet" href="/app.css">
   <button class="save">Save</button><input class="field" placeholder="Hint" value="Filled"></main>
 </body></html>`;
 
-async function capture(page: Page, color: string, options = {}): Promise<StyleMap> {
+async function capture(
+  page: Page,
+  color: string,
+  options = {},
+  fixture: { html?: string; css?: string; selectors?: string[]; restingOutside?: boolean } = {},
+): Promise<StyleMap> {
   await page.unrouteAll();
   await page.route('http://form-reach.test/**', (route) =>
     route.fulfill({
       contentType: route.request().url().endsWith('/app.css') ? 'text/css' : 'text/html',
       body: route.request().url().endsWith('/app.css')
-        ? selectors.map((selector) => `${selector} { color: ${color}; }`).join('\n')
-        : html,
+        ? (fixture.css ??
+          (fixture.selectors ?? selectors).map((selector) => `${selector} { color: ${color}; }`).join('\n'))
+        : (fixture.html ?? html),
     }),
   );
   const servedRules = await trackServedRules(page);
 
   try {
     await page.goto('http://form-reach.test/', { waitUntil: 'load' });
-    expect(await page.locator(':checked, :disabled, :placeholder-shown').count()).toBe(0);
+
+    if (fixture.restingOutside !== false)
+      expect(await page.locator(':checked, :disabled, :placeholder-shown').count()).toBe(0);
 
     return await captureStyleMap(page, { captureReach: true, servedRules, ...options });
   } finally {
@@ -88,4 +96,57 @@ test('an ignored candidate keeps a forced sibling rule unmeasured', async ({ pag
   const base = await capture(page, 'red', options);
   const head = await capture(page, 'blue', options);
   expect(classifyRuleReach([base], [head]).rules.find((rule) => rule.key === selectors[0])?.status).toBe('unmeasured');
+});
+
+test('recorded form layers preserve resting and nested matches around ignored candidates', async ({
+  page,
+}, testInfo) => {
+  const fixture = {
+    restingOutside: false,
+    selectors: [
+      'button:not(:disabled)',
+      '.save:not(:disabled):hover',
+      '.f:not(:placeholder-shown) + label',
+      '.x:not(:checked)',
+      '.choice:checked',
+      '.form:has(.choice:checked)',
+      '.choice:is(:checked)',
+    ],
+    html: `<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body>
+      <main class="form"><button class="save">Save</button><input class="f" placeholder="Hint" value="Filled"><label>Label</label>
+      <input class="x" type="checkbox"><input class="choice" type="checkbox" checked>
+      <div class="ign"><input class="choice" type="checkbox"></div></main></body></html>`,
+  };
+
+  const maps: StyleMap[] = [];
+
+  for (const color of ['rgb(10, 20, 30)', 'rgb(40, 50, 60)']) {
+    const css = fixture.selectors
+      .map((selector) => `${selector} { ${selector.endsWith(':hover') ? 'background-color' : 'color'}: ${color}; }`)
+      .join('\n');
+
+    maps.push(await capture(page, color, { ignore: ['.ign'] }, { ...fixture, css }));
+  }
+
+  const [base, head] = maps;
+
+  for (const layer of ['checked', 'disabled', 'placeholder-shown']) {
+    expect(head.stateLayers).toContain(layer);
+    expect(head.stateTargets?.[layer]?.length).toBeGreaterThan(0);
+  }
+
+  const reach = classifyRuleReach([base], [head]);
+  const proofPath = testInfo.outputPath('resting-form-reach.json');
+  await writeFile(proofPath, JSON.stringify(reach, null, 2));
+  await testInfo.attach('resting-form-reach.json', {
+    path: proofPath,
+    contentType: 'application/json',
+  });
+  expect(reach.ledger).toBe('complete');
+  expect(Object.fromEntries(reach.rules.map(({ key, status }) => [key, status]))).toEqual(
+    Object.fromEntries(fixture.selectors.map((selector) => [selector, 'reached'])),
+  );
+  expect(head.reach?.rules.every((rule) => rule.used && !rule.outside)).toBe(true);
+  expect(diffStyleMaps(base, head).some((finding) => finding.kind === 'style')).toBe(true);
+  expect(diffStyleMaps(base, head).some((finding) => finding.kind === 'state' && finding.state === 'hover')).toBe(true);
 });

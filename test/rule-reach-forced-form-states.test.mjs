@@ -10,7 +10,13 @@ const cases = [
 ];
 
 // CDP saw the rule while forced; the final selector probe runs after reset.
-async function capture(selector, probe, color, metadata, { comparedMatch = true, resting = false } = {}) {
+async function capture(
+  selector,
+  probe,
+  color,
+  metadata,
+  { comparedMatch = true, resting = false, exactProbe = selector, exactExclusive = false } = {},
+) {
   const text = `${selector} { color: ${color}; }`;
   let added;
 
@@ -47,13 +53,19 @@ async function capture(selector, probe, color, metadata, { comparedMatch = true,
         fingerprint: 'unchanged resting DOM',
         matched:
           input?.probes.map((candidate, index) => {
+            if (resting && candidate === exactProbe) {
+              assert.equal(input.exclusive[index], exactExclusive, 'exact form tokens retain the original scope check');
+
+              return true;
+            }
+
             if (candidate === probe) {
               assert.equal(input.exclusive[index], true, 'relaxed probes require every candidate to be compared');
 
               return comparedMatch;
             }
 
-            return resting && candidate === selector;
+            return false;
           }) ?? [],
       };
     },
@@ -67,6 +79,37 @@ async function capture(selector, probe, color, metadata, { comparedMatch = true,
     await tracker.dispose();
   }
 }
+
+const recordedFormLayers = {
+  stateLayers: ['checked', 'disabled', 'placeholder-shown'],
+  stateTargets: { checked: ['control'], disabled: ['control'], 'placeholder-shown': ['control'] },
+};
+
+for (const [selector, exactProbe, exactExclusive = false] of [
+  ['button:not(:disabled)', 'button:not(:disabled)'],
+  ['button:not(:disabled):hover', 'button:not(:disabled)', true],
+  ['.f:not(:placeholder-shown) + label', '.f:not(:placeholder-shown) + label'],
+  ['.x:not(:checked)', '.x:not(:checked)'],
+  ['.form:has(.choice:checked)', '.form:has(.choice:checked)'],
+  ['.choice:is(:checked)', '.choice:is(:checked)'],
+]) {
+  test(`recorded form layers preserve exact matching for ${selector}`, async () => {
+    const options = { resting: true, exactProbe, exactExclusive, comparedMatch: false };
+    const base = await capture(selector, 'unused relaxed probe', 'red', recordedFormLayers, options);
+    const head = await capture(selector, 'unused relaxed probe', 'blue', recordedFormLayers, options);
+    assert.equal(classifyRuleReach([base], [head]).rules[0].status, 'reached');
+    assert.equal(head.reach.rules[0].used, true);
+    assert.equal(head.reach.rules[0].outside, undefined);
+  });
+}
+
+test('a resting checked match survives an ignored candidate in the relaxed probe with layer metadata', async () => {
+  const options = { resting: true, comparedMatch: false };
+  const base = await capture('.choice:checked', '.choice', 'red', recordedFormLayers, options);
+  const head = await capture('.choice:checked', '.choice', 'blue', recordedFormLayers, options);
+  assert.equal(classifyRuleReach([base], [head]).rules[0].status, 'reached');
+  assert.equal(head.reach.rules[0].outside, undefined);
+});
 
 for (const [state, selector, probe] of cases) {
   const metadata = { stateLayers: [state], stateTargets: { [state]: ['control'] } };
