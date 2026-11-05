@@ -103,6 +103,13 @@ render-scope values remain unknown. The receipt changes only its timestamp.
 Generator creation/iteration and live/idle TSX generic regressions run through
 the real Chromium/Git adapter spec; the corpus method stays unchanged.
 
+Round 13 retains all 32 expectations and zero J2 gaps. Unknown totals remain five
+in declared and six in complete; no case status or result cell moves to unknown,
+and eager JSX/render-scope values stay unknown in both. Only the receipt timestamp
+changes. Whole-file generator recognition and its intentional outside-generator
+over-flagging are covered by unit and real-Chromium/Git tests. The corpus still
+uses hand-built one-line patches and selects the head unit.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry

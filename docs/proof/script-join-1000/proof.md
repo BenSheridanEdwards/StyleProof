@@ -852,3 +852,26 @@ property-call divisor has [four red failures](round13-property-red-unit.txt),
 preventing `obj.if()` from being mistaken for an `if` statement. No expectation
 was widened to clear these cases. The first commit attempt stopped at two
 unnecessary string escapes in a regex fixture; `String.raw` resolved lint.
+
+
+Final targeted checks pass **704/704 units** and **166/166 real-Chromium/Git cases**,
+including the original header shapes, long saga, intentional outside-generator
+changes, division, control-regex and JSX-comment boundaries. No scope or verdict
+policy changed. The [long-saga report JSON](round13-report.json),
+[Markdown](round13-report.md) and [stored evidence](round13-report-evidence.json)
+show both changed `app.ts:10:13-10:14` arguments as unmeasured with the file-wide
+generator residual. Their header is far beyond the old context window. There are
+zero J2 gaps and zero blocking findings. The full 1100-pixel screenshot was read
+with Evidence expanded: product-state identity remains unproven, inventory is not
+checked, content/structure was not evaluated and reach remains incomplete. This
+is diagnostic proof, not rendering or same-state certification.
+
+![Long generator bodies retain the file-wide V8 residual](round13-report-top.png)
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 gaps and unchanged
+**five declared / six complete unknown** totals. Zero case statuses or result
+cells move to unknown; eager JSX and render-scope values remain unknown in both
+scenarios. Only the timestamp changes in the receipt. The corpus still uses
+hand-built one-line patches and selects the head unit; the browser tests cover
+the real Git adapter on both sides. `demo:check` passes. Final full-gate tails and
+the exact-lease push result are recorded in the handoff.
