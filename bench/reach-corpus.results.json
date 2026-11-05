@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-05T12:37:05.487Z",
+  "generated": "2026-11-05T13:52:13.447Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "j2Gaps": {
@@ -266,7 +266,7 @@
             "J2": "never-ran"
           },
           "units": [
-            "app.jsx:51: never-rendered (changed expression never ran); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:51: never-rendered (an anchor in the changed range never ran); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
           ],
           "prototypeJ3": "never-rendered",
           "ok": true
@@ -358,7 +358,7 @@
             "J2": "never-ran"
           },
           "units": [
-            "app.jsx:63: never-rendered (changed expression never ran)"
+            "app.jsx:63: never-rendered (an anchor in the changed range never ran)"
           ],
           "ok": true
         },
@@ -368,7 +368,7 @@
             "J2": "never-ran"
           },
           "units": [
-            "app.jsx:63: never-rendered (changed expression never ran)"
+            "app.jsx:63: never-rendered (an anchor in the changed range never ran)"
           ],
           "ok": true
         }

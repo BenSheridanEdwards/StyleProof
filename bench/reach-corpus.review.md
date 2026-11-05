@@ -89,6 +89,14 @@ totals**. No case or scenario cell changes status. Eager JSX and render-scope
 values remain unknown; the additional lexical-boundary cases exercise real Git
 in the browser suite rather than changing the corpus method or expectations.
 
+Round 11 keeps all 32 expectations and zero J2 gaps. Unknown totals remain five
+in declared and six in complete; eager JSX and render-scope values stay unknown
+in both. Zero case statuses or result cells move to unknown. The refreshed receipt
+changes only its timestamp and three never-ran explanations to name an anchor,
+rather than claim the whole expression never evaluated. The new `.ts` assertion
+and parameter cases run in unit tests and the real-Chromium/Git adapter spec;
+the corpus still uses hand-built one-line patches and selects the head unit.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry

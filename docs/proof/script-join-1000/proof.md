@@ -747,3 +747,27 @@ retain the existing negative control. Never-ran wording now says an anchor in th
 changed range never ran, without claiming the entire expression did not evaluate.
 The focused suite passes 28/28; the earlier join/reach/report run passes 561/561.
 Full gates and the exact lease-protected push result are recorded in the handoff.
+
+The final combined unit run passes **564/564**, and the real-Chromium/Git spec
+passes **96/96**, including both assertion revisions, the live generic arrow,
+multiline parameter names and all earlier lexer controls. The commit hooks first
+blocked an unused private context binding, then two functions at cognitive
+complexity 16. Explicit public-unit identity and the existing tag helper resolve
+both findings; no threshold, timeout, hook or expectation was weakened.
+
+The [report JSON](round11-report.json), [Markdown](round11-report.md) and
+[stored browser evidence](round11-report-evidence.json) show the eliminated `.ts`
+assertion literals as two unmeasured token ranges, not ran. There are zero J2 gaps
+and zero blocking findings. The full 1100-pixel screenshot was inspected with
+Evidence expanded. Product-state identity is unproven, inventory is not checked,
+content/structure was not evaluated and reach stays incomplete. This proves the
+diagnostic attribution, not rendering or same-state certification.
+
+![TypeScript assertions cannot supply execution for removed literals](round11-report-top.png)
+
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 gaps and unchanged
+**five declared / six complete unknown** totals. Zero case statuses or result
+cells move to unknown; eager JSX and render-scope values remain unknown in both.
+Only the timestamp and three never-ran explanations change in the receipt.
+`demo:check` also passes. Final verify/e2e tails and the push result are in the handoff.
