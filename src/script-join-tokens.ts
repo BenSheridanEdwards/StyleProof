@@ -25,7 +25,7 @@ function jsxTextAfter(line: string, open: number, close: number): ScriptToken | 
 }
 
 function jsxBoundaryTail(text: string, start: number): ScriptToken | undefined {
-  const prefix = /^[ \t]*(?=`|\/\/|\/\*)/.exec(text.slice(start));
+  const prefix = /^[ \t]*(?=[`'"/])/.exec(text.slice(start));
   if (!prefix) return;
   const index = start + prefix[0].length;
   let end = index;

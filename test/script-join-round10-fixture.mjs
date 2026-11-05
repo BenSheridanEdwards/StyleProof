@@ -3,6 +3,33 @@ const jsxRuntime =
 
 export const lexicalCases = [
   {
+    name: 'paired single quotes across JSX siblings cannot invent a string',
+    ambiguous: true,
+    before:
+      jsxRuntime +
+      'window.result=<section><p>{1}\'first</p>{__DEV__ && <Debug tone="red" />}<p>\'second</p></section>;',
+  },
+  {
+    name: 'paired double quotes across JSX siblings cannot invent a string',
+    ambiguous: true,
+    from: "'red'",
+    to: "'orange'",
+    before:
+      jsxRuntime +
+      'window.result=<section><p>{1}"first</p>{__DEV__ && <Debug tone=\'red\' />}<p>"second</p></section>;',
+  },
+  {
+    name: 'regex-looking JSX text after an expression cannot hide code',
+    ambiguous: true,
+    before: jsxRuntime + 'window.result=<section>{1}/prefix{__DEV__ && <Debug tone="red" />}suffix</section>;',
+  },
+  {
+    name: 'regex-looking JSX text after a closing tag cannot hide code',
+    ambiguous: true,
+    before:
+      jsxRuntime + 'window.result=<section><p>healthy</p>/prefix{__DEV__ && <Debug tone="red" />}suffix</section>;',
+  },
+  {
     name: 'paired backticks across JSX siblings cannot invent a template',
     ambiguous: true,
     before:
@@ -45,4 +72,4 @@ export const lexicalCases = [
     before:
       'const live = window.live ?? true, s = "/"; function dbg(x) { window.debug = x; }\nif (live) /\\//.test(s) && __DEV__ && dbg("red");',
   },
-].map((entry) => ({ ...entry, after: entry.before.replace('"red"', '"orange"') }));
+].map((entry) => ({ ...entry, after: entry.before.replace(entry.from ?? '"red"', entry.to ?? '"orange"') }));

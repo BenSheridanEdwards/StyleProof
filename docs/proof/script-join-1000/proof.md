@@ -698,3 +698,11 @@ closed or unclosed template from swallowing later code. Targeted units pass
 The first full verify attempt stopped at anti-slop lint: a new mocked-process
 test used Reflect.apply unnecessarily. It now calls the saved function directly.
 No test or lint policy was changed; full gates are rerun on the committed fix.
+
+
+The same tail guard also covers quoted strings and regex-looking slash prefixes,
+the remaining atomic forms that could swallow sibling code. Their retained
+[literal-tail red](round10-literal-tail-red-unit.txt) has **eight failures / 33 passes**.
+It includes single/double quotes paired across siblings and slash-prefixed text
+after expressions or closing tags. These contexts use the same negative-only
+rule; no rendered value is inferred from the neighbouring source anchor.
