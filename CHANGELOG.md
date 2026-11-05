@@ -12,6 +12,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Exact form-state probes remain available with layer metadata present, including inside
   selector functions and when an ignored candidate prevents the relaxed probe from proving reach.
   Only top-level form-state tokens are relaxed.
+  Form-state permission is per map, not per owner; the fingerprint misses state changes
+  made by script and reverted within the tracking window, as with action states.
   Omitted form layers do not establish forced reach; unlisted pseudo-classes stay outside.
 - Action runtime installation and context lookup failures now replace earlier approval with a
   terminal failure status requesting a re-run, even when the runtime could not be built (#1284).

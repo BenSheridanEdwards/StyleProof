@@ -7,6 +7,7 @@ const cases = [
   ['checked', '.choice:checked + .label', '.choice + .label'],
   ['disabled', '.save:disabled', '.save'],
   ['placeholder-shown', '.field:placeholder-shown', '.field'],
+  ['checked', '.c:checked:not(:disabled) + .l', '.c:not(:disabled) + .l', ['checked', 'disabled']],
 ];
 
 // CDP saw the rule while forced; the final selector probe runs after reset.
@@ -111,9 +112,13 @@ test('a resting checked match survives an ignored candidate in the relaxed probe
   assert.equal(head.reach.rules[0].outside, undefined);
 });
 
-for (const [state, selector, probe] of cases) {
-  const metadata = { stateLayers: [state], stateTargets: { [state]: ['control'] } };
-  test(`a changed ${state} rule matched only in a captured forced layer is reached`, async () => {
+for (const [state, selector, probe, layers = [state]] of cases) {
+  const metadata = {
+    stateLayers: layers,
+    stateTargets: Object.fromEntries(layers.map((layer) => [layer, ['control']])),
+  };
+
+  test(`a changed ${selector} rule matched only in a captured forced layer is reached`, async () => {
     const base = await capture(selector, probe, 'red', metadata);
     const head = await capture(selector, probe, 'blue', metadata);
     assert.equal(head.reach.version, 2);
@@ -123,7 +128,7 @@ for (const [state, selector, probe] of cases) {
     assert.equal(head.reach.rules[0].outside, undefined);
   });
 
-  test(`${state} stays outside without a captured layer or compared owner`, async () => {
+  test(`${selector} stays outside without a captured layer or compared owner`, async () => {
     for (const missing of [
       undefined,
       { ...metadata, stateLayers: [] },
@@ -137,14 +142,14 @@ for (const [state, selector, probe] of cases) {
     }
   });
 
-  test(`${state} cannot attribute a relaxed match with outside candidates`, async () => {
+  test(`${selector} cannot attribute a relaxed match with outside candidates`, async () => {
     const base = await capture(selector, probe, 'red', metadata, { comparedMatch: false });
     const head = await capture(selector, probe, 'blue', metadata, { comparedMatch: false });
     assert.equal(head.reach.rules[0].outside, true);
     assert.equal(classifyRuleReach([base], [head]).rules[0].status, 'unmeasured');
   });
 
-  test(`${state} resting matches still count without forced-layer metadata`, async () => {
+  test(`${selector} resting matches still count without forced-layer metadata`, async () => {
     const base = await capture(selector, probe, 'red', undefined, { resting: true });
     const head = await capture(selector, probe, 'blue', undefined, { resting: true });
     assert.equal(classifyRuleReach([base], [head]).rules[0].status, 'reached');

@@ -3,7 +3,12 @@ import { writeFile } from 'node:fs/promises';
 import { captureStyleMap, diffStyleMaps, trackServedRules, type StyleMap } from '../dist/index.js';
 import { classifyRuleReach } from '../dist/rule-reach.js';
 
-const selectors = ['.choice:checked + .label', '.save:disabled', '.field:placeholder-shown'];
+const selectors = [
+  '.choice:checked + .label',
+  '.save:disabled',
+  '.field:placeholder-shown',
+  '.choice:checked:not(:disabled) + .label',
+];
 
 const html = `<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body>
   <main><input class="choice" type="checkbox"><label class="label">Choice</label>
