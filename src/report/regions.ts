@@ -405,9 +405,9 @@ function combinedStateHeading(regionArguments: RegionArgs, findings: Finding[]):
   return markdown;
 }
 
-function stateLayerCrop(a: RegionArgs, findings: Finding[], state: string): CropPack {
-  const layers = screenshotPair(a.ctx, a.cg.rep.sd.surface, `.${state}`);
-  if (layers[0] && layers[1]) return regionCrop(a, findings, layers, state);
+function stateLayerCrop(regionArguments: RegionArgs, findings: Finding[], state: string): CropPack {
+  const layers = screenshotPair(regionArguments.ctx, regionArguments.cg.rep.sd.surface, `.${state}`);
+  if (layers[0] && layers[1]) return regionCrop(regionArguments, findings, layers, state);
   return {
     md: ['', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`],
     images: {},
@@ -415,7 +415,7 @@ function stateLayerCrop(a: RegionArgs, findings: Finding[], state: string): Crop
 }
 
 function singleStateHeading(
-  a: RegionArgs,
+  regionArguments: RegionArgs,
   regionFindings: Finding[],
   stateFindings: Finding[],
   state: string,
@@ -423,18 +423,18 @@ function singleStateHeading(
   first: boolean,
 ): string[] {
   const headingFindings = firstHeadingUsesAll && first ? regionFindings : stateFindings;
-  const heading = headingFindings.filter((finding) => a.cg.rep.findings.includes(finding));
-  const md = [
+  const heading = headingFindings.filter((finding) => regionArguments.cg.rep.findings.includes(finding));
+  const markdown = [
     '',
-    `### ${regionHeading(outermost(a.g.paths), heading)} ${codeValue(`:${state}`)}`,
+    `### ${regionHeading(outermost(regionArguments.g.paths), heading)} ${codeValue(`:${state}`)}`,
     '',
-    a.surfaceList,
+    regionArguments.surfaceList,
     '',
     `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`,
   ];
   const glance = propertyGlanceLine(stateFindings);
-  if (glance) md.push('', glance);
-  return md;
+  if (glance) markdown.push('', glance);
+  return markdown;
 }
 
 function combinedStateDetails(regionArguments: RegionArgs, findings: Finding[], showElementList: boolean): string[] {
