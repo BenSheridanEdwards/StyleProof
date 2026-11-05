@@ -666,6 +666,10 @@ surface that exercises it; see
 and [what the crawler can and cannot reach](docs/REFERENCE.md#what-the-crawler-can-and-cannot-reach--honestly).
 With `captureReach` and `changeReach: 'gate'`, a changed CSS rule no captured
 state matched fails certify mode and needs approval in review-gate mode.
+Captured forced `:checked`, `:disabled`, and `:placeholder-shown` reads count as reached
+when their layer and a compared owner are recorded; omitted layers do not establish forced reach.
+Exact resting form-state matches remain valid with layer metadata present, including inside
+selector functions. Only top-level form-state tokens are relaxed, with every relaxed candidate compared.
 A changed stylesheet no capture loaded, such as a lazy route's or code-split chunk's CSS, is not checked yet: the report labels it **Not checked**, gives capture guidance, and the gate does not hold it.
 A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached.
 Reader failures preserve the capture and record reach unknown with no rule evidence, listed under `changeReach: 'warn'` and held only under opt-in `changeReach: 'gate'`.

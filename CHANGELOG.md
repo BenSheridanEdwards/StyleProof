@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
+  on compared elements when the capture recorded the layer and a compared owner.
+  Exact form-state probes remain available with layer metadata present, including inside
+  selector functions and when an ignored candidate prevents the relaxed probe from proving reach.
+  Only top-level form-state tokens are relaxed.
+  Form-state permission is per map, not per owner; the fingerprint misses state changes
+  made by script and reverted within the tracking window, as with action states.
+  Omitted form layers do not establish forced reach; unlisted pseudo-classes stay outside.
 - Action runtime installation and context lookup failures now replace earlier approval with a
   terminal failure status requesting a re-run, even when the runtime could not be built (#1284).
 - Script reach keeps anonymous app scripts that contain a StyleProof sourceURL marker as string data.
