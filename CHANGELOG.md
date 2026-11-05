@@ -7,10 +7,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Change Reach keeps TypeScript angle assertions separate from JSX text, including
-  embedded `lang="ts"` scripts, so removed code cannot borrow a live assertion's
-  execution. Bounded parameter context names nested and multiline defaults, and
-  idle evidence names an anchor rather than claiming the whole expression never ran.
 - Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
   on compared elements when the capture recorded the layer and a compared owner.
   Exact form-state probes remain available with layer metadata present, including inside
@@ -145,7 +141,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- J2 joins changed script ranges from the compared maps' SHAs using captured root prefixes and source-content hashes. Start anchors separate evaluated operands from unopened fallbacks while coarse maps retain hidden mixed branches unless same-source, same-line anchors represent them. Token length changes and joins retain both sides; empty edits select touching tokens before falling back to line scope. Numeric, private-name, regex and JSX-text tokens retain their anchors. Only token-start anchors prove their own script tokens ran; punctuation and uncovered tokens cannot borrow positive execution. JSX text precedes comment/template detection; attribute expressions preserve tag boundaries, and ambiguous escaped-slash tails use negative-only evidence. Git reads have named 60-second timeouts and retain parsed blobs. Template substitution expressions keep independent starts; live heads cannot prove folded-away arms, and middle/tail chunks supply negative evidence only. Default-parameter naming is limited to changed initializer ranges; throwing-continuation limits stay named; capture notes document optional-chain continuations and minifier attribution. Uninstrumented ranges use only negative preceding-anchor evidence; an executed preceding start stays unmeasured because the changed code may have been removed by the bundler; leading tokens also retain this negative-only evidence when later starts ran, and mixed evidence is cleared only within the same script URL. Reach detail follows chrome and content in the Markdown display budget. Explicitly resolved vendor-only maps add no J2 gap; missing maps and ambiguous empty mappings stay named. Empty lines, line-ending-only changes and unjudged paths stay named; Git hunks use actual changed lines and tolerate type changes. Root provenance survives early returns and self-check rewrites; unavailable prefixes keep git-side lines unmeasured. JSON gives diff findings priority and bounds J2 units, gap records and path lists with explicit omission counts and accurate evidence-gap totals, including legacy truncated reports; token ranges stay exact. J2 stays warn-only, and corpus J3 prototypes never corroborate it (#1000).
+- J2 joins changed source ranges against navigation-window execution, using the
+  compared base maps' SHA, captured project-root prefixes and source-content hashes
+  (#1000). Exact token starts separate live operands from unopened branches;
+  punctuation, ambiguous lexical boundaries and unmapped text supply negative
+  evidence only. TypeScript assertions and generic headers cannot swallow later
+  expressions; embedded TypeScript declarations and Astro scripts retain their
+  dialect. Balanced, bounded context names function, arrow, method and constructor
+  defaults, including nested, multiline and whole-line template initializers.
+  V8 generator creation cannot prove body entry, so recognized generator bodies
+  stay unmeasured even when iterated. Capture notes name this and the other V8 and
+  source-map residuals. Git reads have named 60-second deadlines; missing evidence,
+  empty lines, line-ending edits and unjudged paths stay named on both revisions.
+  Report budgets prioritize style findings and bound J2 units, gaps and path lists
+  with explicit omission counts. J2 stays warn-only under both levels; execution
+  alone never proves rendering, and corpus J3 prototypes never corroborate it.
 
 - Opt-in `captureScriptReach` stores navigation-window V8 block evidence at original-source anchors, content hashes and project-relative keys. Missing maps/shared coverage stay unmeasured; read failures and self-check drift become unknown. Evidence notes name expression-evaluation and throwing-expression residuals. Absolute bundler paths are root-validated/redacted, app-only mapping and script counts have deterministic caps, and Playwright injected scripts are excluded; no git-diff join or verdict change is included (#999).
 

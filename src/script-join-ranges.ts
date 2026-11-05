@@ -17,12 +17,18 @@ type Source = {
 };
 
 /** Index embedded TS blocks once; their HTML container's extension is not a JS dialect. */
-function typescriptLines(text: string, starts: number[]): Set<number> {
+function typescriptLines(text: string, starts: number[], sourceKey: string): Set<number> {
   const lines = new Set<number>();
   const blocks = /<script\b[^>]*>/gi;
   let line = 0;
   for (const block of text.matchAll(blocks)) {
-    if (!/\blang\s*=\s*(?:["']ts["']|ts(?=\s|>))/i.test(block[0])) continue;
+    if (
+      !sourceKey.endsWith('.astro') &&
+      !/\b(?:lang\s*=\s*(?:["'](?:ts|typescript)["']|(?:ts|typescript)(?=\s|>))|type\s*=\s*(?:["']text\/typescript["']|text\/typescript(?=\s|>)))/i.test(
+        block[0],
+      )
+    )
+      continue;
     const end = text.indexOf('</script', block.index + block[0].length);
     while (line < starts.length && starts[line] <= (end < 0 ? text.length : end)) {
       if ((starts[line + 1] ?? text.length + 1) > block.index) lines.add(line + 1);
@@ -32,7 +38,7 @@ function typescriptLines(text: string, starts: number[]): Set<number> {
   return lines;
 }
 
-function sourceOf(text: string): Source {
+function sourceOf(text: string, sourceKey: string): Source {
   const gitStarts = [0],
     jsStarts = [0];
 
@@ -50,7 +56,7 @@ function sourceOf(text: string): Source {
     gitStarts,
     jsStarts,
     hash: sha256(text),
-    typescript: typescriptLines(text, gitStarts),
+    typescript: typescriptLines(text, gitStarts, sourceKey),
   };
 }
 
@@ -240,7 +246,7 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
 
 /** Read +/- body lines. Header counts include context and never grant attribution themselves. */
 export function changedScriptRanges(patch: string, texts: ScriptTexts, sourceKey: string): ScriptChange[] {
-  const sources = { base: sourceOf(texts.base), head: sourceOf(texts.head) };
+  const sources = { base: sourceOf(texts.base, sourceKey), head: sourceOf(texts.head, sourceKey) };
   const changes: ScriptChange[] = [];
   let position: { base: number; head: number } | undefined;
   let block: ChangedLines = { base: [], head: [] };

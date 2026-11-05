@@ -31,8 +31,17 @@ function parameterList(text: string, pair: Delimiter): boolean {
   return (
     pair.kind === '(' &&
     (/\bfunction\b(?:\s*\*)?\s*(?:[\w$]+\s*)?$/.test(text.slice(0, pair.start)) ||
-      /^\s*=>/.test(text.slice(pair.end + 1)))
+      /^\s*=>/.test(text.slice(pair.end + 1)) ||
+      methodHeader(text, pair))
   );
+}
+
+function methodHeader(text: string, pair: Delimiter): boolean {
+  const header = /(?:^|[{};,])\s*(?:(?:public|private|protected|static|async|override|abstract)\s+)*([\w$]+)\s*$/.exec(
+    text.slice(0, pair.start),
+  );
+  if (!header || new Set(['if', 'for', 'while', 'switch', 'catch', 'with']).has(header[1])) return false;
+  return /^\s*(?::[^{};]*)?\s*\{/.test(text.slice(pair.end + 1));
 }
 
 function initializerEnd(text: string, start: number, end: number, pairs: Delimiter[]): number {
@@ -46,14 +55,21 @@ function initializerEnd(text: string, start: number, end: number, pairs: Delimit
   return end;
 }
 
-function namesIn(text: string, parameters: Delimiter, pairs: Delimiter[], from: number, to: number): string[] {
+function namesIn(
+  text: string,
+  parameters: Delimiter,
+  pairs: Delimiter[],
+  from: number,
+  to: number,
+  wholeLine: boolean,
+): string[] {
   const names: string[] = [];
   const content = text.slice(parameters.start + 1, parameters.end);
   for (const match of content.matchAll(/\b[\w$]+\s*=(?!=|>)\s*/g)) {
     const assignment = parameters.start + 1 + match.index;
     const fromValue = assignment + match[0].length;
     const end = initializerEnd(text, fromValue, parameters.end, pairs);
-    if (from < fromValue || to > end) continue;
+    if (wholeLine ? from >= end || to <= fromValue : from < fromValue || to > end) continue;
     const destructured = pairs.some(
       (pair) => pair.kind === '{' && pair.start > parameters.start && pair.start < assignment && pair.end >= end,
     );
@@ -72,7 +88,9 @@ export function parameterResiduals(change: ScriptChange): string[] {
   const pairs = delimiters(text);
   return [
     ...new Set(
-      pairs.filter((pair) => parameterList(text, pair)).flatMap((pair) => namesIn(text, pair, pairs, from, to)),
+      pairs
+        .filter((pair) => parameterList(text, pair))
+        .flatMap((pair) => namesIn(text, pair, pairs, from, to, change.changeScope === 'line')),
     ),
   ];
 }

@@ -13,8 +13,45 @@ import { generateStyleMapReport } from '../dist/report.js';
 import { writeCapture } from './helpers.mjs';
 import { lexicalCases } from './script-join-round10-fixture.mjs';
 import { assertionCases, genericControl, parameterCases } from './script-join-round11-fixture.mjs';
+import { generatorCases, generatorResidual, methodDefaults, tsxGenerics } from './script-join-round12-fixture.mjs';
 
 const scenarios = [
+  ...generatorCases.flatMap(({ name, before, after, hits }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} names its V8 residual with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      generator: true,
+      residual: generatorResidual,
+      sourceKey: 'app.ts',
+      minifySyntax,
+      expected: 'unmeasured',
+      count: 2,
+    })),
+  ),
+  ...tsxGenerics.flatMap(({ name, before, after, idle }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} in Chromium with minify=${minifySyntax}`,
+      before,
+      after,
+      minifySyntax,
+      sourceKey: 'app.tsx',
+      expected: idle ? 'never-rendered' : 'unknown',
+      ...(idle ? { idle: true } : { live: true }),
+      count: 2,
+    })),
+  ),
+  ...methodDefaults.map(({ name, before, after, residual }) => ({
+    name,
+    before,
+    after,
+    residual,
+    sourceKey: 'app.ts',
+    minifySyntax: false,
+    expected: 'unknown',
+    count: 2,
+  })),
   ...assertionCases.flatMap(({ name, before, after }, index) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} in .ts with minify=${minifySyntax}`,
@@ -215,6 +252,10 @@ for (const scenario of scenarios) {
       const tracker = await trackScriptReach(page, { projectRoot: root, projectRootPrefix: '' });
       try {
         await page.goto('https://overlay.test/');
+        if ('hits' in scenario)
+          expect(await page.evaluate(() => (globalThis as typeof globalThis & { hits: number }).hits)).toBe(
+            scenario.hits,
+          );
         maps.push(
           await captureStyleMap(page, {
             captureScriptReach: true,
@@ -235,16 +276,21 @@ for (const scenario of scenarios) {
     expect(units.map((unit) => unit.status)).toEqual(
       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
     );
-    if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+    if (
+      (scenario.expected === 'unmeasured' && !('generator' in scenario)) ||
+      (scenario.count === 4 && !scenario.minifySyntax)
+    ) {
       expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
       expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
     }
     if (scenario.expected === 'unmeasured') {
       expect(units.every((unit) => unit.execution === 'unmeasured')).toBe(true);
       const reason =
-        'ambiguous' in scenario && scenario.ambiguous
-          ? 'ambiguous lexical boundary'
-          : 'it may have been removed by the bundler';
+        'generator' in scenario
+          ? generatorResidual
+          : 'ambiguous' in scenario && scenario.ambiguous
+            ? 'ambiguous lexical boundary'
+            : 'it may have been removed by the bundler';
       expect(units.every((unit) => unit.why.includes(reason))).toBe(true);
     }
     if ('idle' in scenario && scenario.idle) {

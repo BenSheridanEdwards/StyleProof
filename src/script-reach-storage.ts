@@ -7,6 +7,9 @@ import type {
   SourceSpan,
 } from './script-reach.js';
 
+export const GENERATOR_BODY_RESIDUAL =
+  'bodies of generator / async-generator functions that were called but never iterated';
+
 /** Adapt the pure mapper's objects to stored tuples; no stored object format is supported. */
 function compactSpans(spans: (SourceSpan | CompactSourceSpan)[]): CompactSourceSpan[] {
   return spans
@@ -65,6 +68,7 @@ export function storedScriptEvidence(
     window: 'navigation',
     status: 'measured',
     notes: [
+      `V8 can mark ${GENERATOR_BODY_RESIDUAL} as executed, with no inner idle range. Iterator creation does not prove body entry. J2 keeps recognized generator bodies unmeasured even when iteration really occurred.`,
       'An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.',
       'After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.',
       'A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof.',

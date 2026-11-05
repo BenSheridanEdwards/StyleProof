@@ -771,3 +771,27 @@ The refreshed corpus passes **32/32 expectations**, with zero J2 gaps and unchan
 cells move to unknown; eager JSX and render-scope values remain unknown in both.
 Only the timestamp and three never-ran explanations change in the receipt.
 `demo:check` also passes. Final verify/e2e tails and the push result are in the handoff.
+
+
+## Round 12: generator creation is not body entry
+
+Main remains `67eb3a6df`; the initial fetch/rebase was already current. Retained
+[unit red](round12-red-unit.txt) has **37 failures / 10 passes**; the
+[real-Chromium red](round12-red-browser.txt) has **17 failures / 11 passes**.
+Generator fixtures assert actual body-entry counts: zero for creation alone and
+one for `.next()`. They pin plain, async, object/class methods and multiline bodies,
+with four esbuild modes in units and minified/unminified real-browser captures.
+Recognized generator headers in changed text or bounded preceding context now
+downgrade ran to unmeasured before any corroboration; iterated bodies deliberately
+stay unmeasured too. ADR 0009 item 5, capture notes and REFERENCE name the residual.
+
+QA's live TSX generic repro is pinned alongside idle arms for `<T extends unknown>`,
+`<T,>` and `<T, U>`. Only the type-parameter header is negative-only; subsequent
+expression tokens keep independent starts. Live arms read ran/unknown and idle
+arms remain never-rendered. Method/constructor defaults and whole-line template
+defaults now name their limits. Embedded `lang="typescript"`, `type="text/typescript"`
+and default Astro scripts use TypeScript lexical rules. The changelog is one
+Unreleased entry for #1000, and trailing transcript whitespace is stripped.
+
+The combined unit run passes **611/611**. Full browser and gate tails, exact head
+and the hook-protected push result are recorded in the handoff.

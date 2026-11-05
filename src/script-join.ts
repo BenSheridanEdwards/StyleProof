@@ -8,6 +8,7 @@ import {
 import type { StyleMap } from './capture.js';
 import type { SourcePosition, SourceSpan } from './script-reach.js';
 import { parameterResiduals } from './script-join-parameters.js';
+import { GENERATOR_BODY_RESIDUAL } from './script-reach-storage.js';
 
 export type ScriptChange = {
   sourceKey: string;
@@ -217,6 +218,35 @@ function scriptUnitIdentity(change: ScriptChange) {
   };
 }
 
+function positiveExecution(
+  change: ScriptChange,
+  proofs: readonly SourceCorroboration[],
+): Pick<ScriptUnit, 'execution' | 'status' | 'why'> {
+  const context = (change.parameterContext?.before ?? '') + change.text;
+  if (/\bfunction\s*\*|(?:^|[{};,\n])\s*(?:async\s+)?\*\s*[\w$]+\s*\(/.test(context))
+    return {
+      execution: 'unmeasured',
+      status: 'unmeasured',
+      why: `J2 block-entry residual: ${GENERATOR_BODY_RESIDUAL}; V8 iterator creation cannot prove body entry; recognized generator bodies stay unmeasured even when iterated`,
+    };
+  const corroborated = proofs.some(
+    (proof) =>
+      (proof.join === 'J1' || proof.join === 'J3') &&
+      proof.status === 'reached' &&
+      proof.sourceKey === change.sourceKey &&
+      proof.side === change.side &&
+      equalPosition(proof.range.start, change.range.start) &&
+      equalPosition(proof.range.end, change.range.end),
+  );
+  return corroborated
+    ? {
+        execution: 'ran',
+        status: 'reached',
+        why: 'rendering corroborated by a reached J1/J3 unit from this exact source range',
+      }
+    : { execution: 'ran', status: 'unknown', why: `value; rendering not proved${residualReason(change)}` };
+}
+
 function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonly SourceCorroboration[]): ScriptUnit {
   const { text, language, contentHash, unmeasuredReason } = change;
   const identity = scriptUnitIdentity(change);
@@ -276,19 +306,8 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
         .join('; '),
     );
 
-  const corroborated = proofs.some(
-    (proof) =>
-      (proof.join === 'J1' || proof.join === 'J3') &&
-      proof.status === 'reached' &&
-      proof.sourceKey === change.sourceKey &&
-      proof.side === change.side &&
-      equalPosition(proof.range.start, change.range.start) &&
-      equalPosition(proof.range.end, change.range.end),
-  );
-
-  if (corroborated)
-    return unit(execution, 'reached', 'rendering corroborated by a reached J1/J3 unit from this exact source range');
-  return unit(execution, 'unknown', `value; rendering not proved${residualReason(change)}`);
+  const positive = positiveExecution(change, proofs);
+  return unit(positive.execution, positive.status, positive.why);
 }
 
 /** All findings are advisory at either changeReach level; this join never edits another gate. */

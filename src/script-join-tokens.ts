@@ -18,9 +18,9 @@ function literalMayStart(line: string, offset: number): boolean {
 function jsxTextAfter(line: string, open: number, close: number): ScriptToken | undefined {
   if (!literalMayStart(line, open)) return;
   const tag = line.slice(open, close + 1);
-  if (tag.endsWith('/>') || !/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?:\s[^]*)?)?>$/u.test(tag)) return;
   // A TS generic header can resemble an opening tag in JSX-capable input.
-  if (/^<[\w$]+(?:\s+extends\b[^]*|\s*,\s*)>$/.test(tag)) return negativeTail(line, close + 1);
+  if (/^<[\w$]+(?:\s+extends\b[^]*|\s*,[^]*)>$/.test(tag)) return { index: open, end: close + 1, negativeOnly: true };
+  if (tag.endsWith('/>') || !/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?:\s[^]*)?)?>$/u.test(tag)) return;
   let end = close + 1;
   while (end < line.length && !'<{}\r\n'.includes(line[end])) end++;
   return line.slice(close + 1, end).trim() ? { index: close + 1, end } : undefined;
@@ -58,7 +58,7 @@ function jsxTextRanges(line: string): ScriptToken[] {
       continue;
     }
     if (line[cursor] !== '<' || !literalMayStart(line, cursor)) continue;
-    if (!/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?=[\s/>])|>)/u.test(line.slice(cursor))) continue;
+    if (!/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?=[\s,/>])|>)/u.test(line.slice(cursor))) continue;
     const close = jsxTagEnd(line, cursor);
     if (close < 0) {
       ranges.push({ index: cursor, end: line.length, negativeOnly: true });
