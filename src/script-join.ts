@@ -7,6 +7,7 @@ import {
 } from './script-join-index.js';
 import type { StyleMap } from './capture.js';
 import type { SourcePosition, SourceSpan } from './script-reach.js';
+import { parameterResiduals } from './script-join-parameters.js';
 
 export type ScriptChange = {
   sourceKey: string;
@@ -16,6 +17,10 @@ export type ScriptChange = {
   contentHash: string;
   /** Full JavaScript lines containing the range, starting at range.start.line; token evidence and residual names only. Never persisted. */
   text: string;
+  /** Bounded preceding source lines used only to name parameter residuals. Never persisted. */
+  parameterContext?: { before: string; after: string };
+  /** Embedded TypeScript blocks do not use JSX lexical rules. Never persisted. */
+  language?: 'ts';
   /** The entire changed line, rather than a trimmed token range. */
   changeScope?: 'line';
   /** Retain git-side lines when their captured source-key provenance is unavailable. */
@@ -24,7 +29,10 @@ export type ScriptChange = {
 
 export type ScriptExecution = 'ran' | 'never-ran' | 'partly-ran' | 'not-loaded' | 'unmeasured';
 
-export type ScriptUnit = Omit<ScriptChange, 'text' | 'contentHash' | 'unmeasuredReason'> & {
+export type ScriptUnit = Omit<
+  ScriptChange,
+  'text' | 'parameterContext' | 'language' | 'contentHash' | 'unmeasuredReason'
+> & {
   execution: ScriptExecution;
   status: 'reached' | 'never-rendered' | 'unmeasured' | 'unknown';
   why: string;
@@ -166,30 +174,11 @@ function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): Evidenc
   };
 }
 
-/** Name only fully delimited simple parameter initializers containing the changed range. */
-function defaultParameter(change: ScriptChange): boolean {
-  const { text, range } = change;
-  const breaks = [...text.matchAll(/\r\n|[\n\r\u2028\u2029]/g)];
-  const lastBreak = breaks[range.end.line - range.start.line - 1];
-  const end = (lastBreak ? lastBreak.index + lastBreak[0].length : 0) + range.end.column;
-  const headers =
-    /\bfunction\b(?:\s*\*)?\s*(?:[\w$]+\s*)?\(((?:[^()]|\([^()]*\))*)\)|\(((?:[^()]|\([^()]*\))*)\)\s*=>/g;
-  for (const header of text.matchAll(headers)) {
-    const parameters = header[1] ?? header[2];
-    const offset = header.index + header[0].indexOf('(') + 1;
-    for (const initializer of parameters.matchAll(/(?:^|,)\s*[\w$]+\s*=(?!=|>)\s*([^,]+)/g)) {
-      const start = offset + initializer.index + initializer[0].length - initializer[1].length;
-      if (range.start.column >= start && end <= start + initializer[1].trimEnd().length) return true;
-    }
-  }
-  return false;
-}
-
 /** Detection only names limits; absence of these spellings never supplies rendering proof. */
 function residuals(change: ScriptChange): string[] {
   const { text } = change;
   return [
-    ...(defaultParameter(change) ? ['default parameter values'] : []),
+    ...parameterResiduals(change),
     ...(/(?:\b(?:const|let|var)\s+)?[[{][^]*?\w\s*=[^]*?[\]}]\s*(?:=|\)\s*(?:=>|\{))/.test(text)
       ? ['destructuring defaults']
       : []),
@@ -219,8 +208,18 @@ function contentHashIssue(file: ScriptExecutionIndex, contentHash: string): stri
     return 'content-hash mismatch between git blob and captured sourcesContent';
 }
 
+function scriptUnitIdentity(change: ScriptChange) {
+  return {
+    sourceKey: change.sourceKey,
+    side: change.side,
+    range: change.range,
+    ...(change.changeScope ? { changeScope: change.changeScope } : {}),
+  };
+}
+
 function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonly SourceCorroboration[]): ScriptUnit {
-  const { text, contentHash, unmeasuredReason, ...identity } = change;
+  const { text, language, contentHash, unmeasuredReason } = change;
+  const identity = scriptUnitIdentity(change);
 
   let scope: 'range' | 'line' | 'preceding-anchor' = 'range';
 
@@ -254,7 +253,7 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
 
   const issue = contentHashIssue(file, contentHash);
   if (issue) return unit('unmeasured', 'unmeasured', issue);
-  const measured = executionIn(change.range, file, text);
+  const measured = executionIn(change.range, file, text, change.sourceKey, language);
   const execution = measured.execution;
   scope = measured.scope;
 
@@ -269,7 +268,10 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
     return unit(
       execution,
       'never-rendered',
-      [execution === 'never-ran' ? 'changed expression never ran' : 'changed expression only partly ran', measured.why]
+      [
+        execution === 'never-ran' ? 'an anchor in the changed range never ran' : 'changed expression only partly ran',
+        measured.why,
+      ]
         .filter(Boolean)
         .join('; '),
     );

@@ -12,8 +12,39 @@ import { residualCases, tokenCases, tokenDefines } from './script-join-round8-fi
 import { generateStyleMapReport } from '../dist/report.js';
 import { writeCapture } from './helpers.mjs';
 import { lexicalCases } from './script-join-round10-fixture.mjs';
+import { assertionCases, genericControl, parameterCases } from './script-join-round11-fixture.mjs';
 
 const scenarios = [
+  ...assertionCases.flatMap(({ name, before, after }, index) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} in .ts with minify=${minifySyntax}`,
+      before,
+      after,
+      minifySyntax,
+      sourceKey: 'app.ts',
+      expected: index === 1 && !minifySyntax ? 'never-rendered' : 'unmeasured',
+      count: 2,
+    })),
+  ),
+  ...[false, true].map((minifySyntax) => ({
+    ...genericControl,
+    name: genericControl.name + ` in .ts with minify=${minifySyntax}`,
+    sourceKey: 'app.ts',
+    minifySyntax,
+    expected: 'unknown',
+    live: true,
+    count: 2,
+  })),
+  ...parameterCases.map(({ name, before, residual }) => ({
+    name,
+    before,
+    after: before.replace('"red"', '"blue"'),
+    residual,
+    sourceKey: 'app.ts',
+    minifySyntax: false,
+    expected: 'unknown',
+    count: 2,
+  })),
   ...lexicalCases.flatMap(({ name, before, after, ambiguous, browserExpected }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} with minify=${minifySyntax}`,
@@ -148,20 +179,21 @@ for (const scenario of scenarios) {
     git('config', 'user.name', 'Fixture');
     git('config', 'user.email', 'fixture@example.test');
     const { before, after } = scenario;
+    const sourceKey = 'sourceKey' in scenario ? scenario.sourceKey : 'app.tsx';
     const maps = [],
       dirs = [];
     for (const [i, text] of [before, after].entries()) {
-      fs.writeFileSync(path.join(root, 'app.tsx'), text);
-      git('add', 'app.tsx');
+      fs.writeFileSync(path.join(root, sourceKey), text);
+      git('add', sourceKey);
       git('commit', '-qm', 'fixture');
       const dir = path.join(root, i ? 'head' : 'base');
       fs.mkdirSync(dir);
       dirs.push(dir);
       stampCertifyingFixture(dir, git('rev-parse', 'HEAD'));
       const bundle = await transform(text, {
-        loader: 'tsx',
+        loader: sourceKey === 'app.ts' ? 'ts' : 'tsx',
         target: 'es2022',
-        sourcefile: 'app.tsx',
+        sourcefile: sourceKey,
         sourcemap: 'external',
         jsxFactory: 'h',
         minify: scenario.minifySyntax,

@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Change Reach keeps TypeScript angle assertions separate from JSX text, including
+  embedded `lang="ts"` scripts, so removed code cannot borrow a live assertion's
+  execution. Bounded parameter context names nested and multiline defaults, and
+  idle evidence names an anchor rather than claiming the whole expression never ran.
 - Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
   on compared elements when the capture recorded the layer and a compared owner.
   Exact form-state probes remain available with layer metadata present, including inside

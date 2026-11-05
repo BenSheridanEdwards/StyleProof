@@ -694,6 +694,7 @@ StyleProof init scripts and reads are excluded by their source URL.
 App anonymous and eval scripts stay named unmeasured. Each
 surface@width stores original-source executed, mixed and unexecuted anchors plus
 content hashes, stable source keys and the captured git-relative `projectRootPrefix` in `StyleMap.scriptReach`. An executed anchor means its block was entered; code after any expression that threw in that block is not proved.
+TypeScript `.ts`, `.mts`, `.cts` sources and embedded `lang="ts"` scripts use TypeScript token boundaries; angle assertions cannot create JSX text execution proof.
 It does not prove every expression evaluated. J2 residuals are default parameter values,
 destructuring defaults, logical assignment RHS (`||=`, `&&=`, `??=`), and later links
 of short-circuited optional chains. The J2 join keeps these limits visible as unknown when execution is the only proof. Unmapped code supplies no execution proof. Project-root-relative source keys preserve package directories (config directory, then git root);

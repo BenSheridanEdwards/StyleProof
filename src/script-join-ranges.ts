@@ -13,7 +13,24 @@ type Source = {
   gitStarts: number[];
   jsStarts: number[];
   hash: string;
+  typescript: Set<number>;
 };
+
+/** Index embedded TS blocks once; their HTML container's extension is not a JS dialect. */
+function typescriptLines(text: string, starts: number[]): Set<number> {
+  const lines = new Set<number>();
+  const blocks = /<script\b[^>]*>/gi;
+  let line = 0;
+  for (const block of text.matchAll(blocks)) {
+    if (!/\blang\s*=\s*(?:["']ts["']|ts(?=\s|>))/i.test(block[0])) continue;
+    const end = text.indexOf('</script', block.index + block[0].length);
+    while (line < starts.length && starts[line] <= (end < 0 ? text.length : end)) {
+      if ((starts[line + 1] ?? text.length + 1) > block.index) lines.add(line + 1);
+      line++;
+    }
+  }
+  return lines;
+}
 
 function sourceOf(text: string): Source {
   const gitStarts = [0],
@@ -26,7 +43,15 @@ function sourceOf(text: string): Source {
   const endings = rawLines.map((line, i) => (i < rawLines.length - 1 ? (line.endsWith('\r') ? '\r\n' : '\n') : ''));
   const lines = rawLines.map((line, i) => (endings[i] ? line.replace(/\r$/, '') : line));
 
-  return { text, lines, endings, gitStarts, jsStarts, hash: sha256(text) };
+  return {
+    text,
+    lines,
+    endings,
+    gitStarts,
+    jsStarts,
+    hash: sha256(text),
+    typescript: typescriptLines(text, gitStarts),
+  };
 }
 
 function positionAt(source: Source, offset: number): SourcePosition {
@@ -87,14 +112,20 @@ function differingColumns(before: string, after: string): { start: number; baseE
 }
 
 /** Trim only a single related line pair; multi-line replacements have no positional pairing. */
-function changedColumns(before: string, after: string): { base: [number, number]; head: [number, number] } | undefined {
+function changedColumns(
+  before: string,
+  after: string,
+  sourceKey: string,
+  baseLanguage?: 'ts',
+  headLanguage?: 'ts',
+): { base: [number, number]; head: [number, number] } | undefined {
   if (before === after) return undefined;
   const { start, baseEnd, headEnd } = differingColumns(before, after);
 
   if (!before.slice(0, start).trim()) return undefined;
 
-  const baseTokens = scriptTokens(before),
-    headTokens = scriptTokens(after);
+  const baseTokens = scriptTokens(before, sourceKey, baseLanguage),
+    headTokens = scriptTokens(after, sourceKey, headLanguage);
   const [baseFrom, baseTo] = tokenRange(baseTokens, start, baseEnd),
     [headFrom, headTo] = tokenRange(headTokens, start, headEnd);
   const from = Math.min(baseFrom, headFrom),
@@ -143,6 +174,18 @@ function changedLine(
       range,
       contentHash: source.hash,
       text: original,
+      parameterContext: {
+        before: source.text
+          .slice(source.jsStarts[Math.max(0, range.start.line - 5)], source.jsStarts[range.start.line - 1])
+          .slice(-128),
+        after: source.text
+          .slice(
+            source.jsStarts[range.end.line] ?? source.text.length,
+            source.jsStarts[range.end.line + 4] ?? source.text.length,
+          )
+          .slice(0, 128),
+      },
+      ...(source.typescript.has(gitLine) ? { language: 'ts' as const } : {}),
       ...(unmeasuredReason ? { unmeasuredReason } : {}),
       ...(lineScope ? { changeScope: 'line' as const } : {}),
     },
@@ -165,7 +208,13 @@ function endingIndex(source: Source, lines: number[]): Map<string, Set<string>> 
 function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source }, sourceKey: string): ScriptChange[] {
   const columns =
     lines.base.length === 1 && lines.head.length === 1
-      ? changedColumns(sources.base.lines[lines.base[0] - 1] ?? '', sources.head.lines[lines.head[0] - 1] ?? '')
+      ? changedColumns(
+          sources.base.lines[lines.base[0] - 1] ?? '',
+          sources.head.lines[lines.head[0] - 1] ?? '',
+          sourceKey,
+          sources.base.typescript.has(lines.base[0]) ? 'ts' : undefined,
+          sources.head.typescript.has(lines.head[0]) ? 'ts' : undefined,
+        )
       : undefined;
   const endings = { base: endingIndex(sources.base, lines.base), head: endingIndex(sources.head, lines.head) };
   return (['base', 'head'] as const).flatMap((side) => {

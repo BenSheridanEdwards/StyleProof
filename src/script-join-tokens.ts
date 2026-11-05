@@ -19,6 +19,8 @@ function jsxTextAfter(line: string, open: number, close: number): ScriptToken | 
   if (!literalMayStart(line, open)) return;
   const tag = line.slice(open, close + 1);
   if (tag.endsWith('/>') || !/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?:\s[^]*)?)?>$/u.test(tag)) return;
+  // A TS generic header can resemble an opening tag in JSX-capable input.
+  if (/^<[\w$]+(?:\s+extends\b[^]*|\s*,\s*)>$/.test(tag)) return negativeTail(line, close + 1);
   let end = close + 1;
   while (end < line.length && !'<{}\r\n'.includes(line[end])) end++;
   return line.slice(close + 1, end).trim() ? { index: close + 1, end } : undefined;
@@ -185,9 +187,9 @@ function ordinaryToken(text: string, start: number, matcher: RegExp): ScriptToke
   return { index: start, end: start + match[0].length };
 }
 
-export function scriptTokens(line: string): ScriptToken[] {
+export function scriptTokens(line: string, sourceKey = '', language?: 'ts'): ScriptToken[] {
   const tokens: ScriptToken[] = [],
-    jsx = jsxTextRanges(line);
+    jsx = language === 'ts' || /\.(?:ts|mts|cts)$/i.test(sourceKey) ? [] : jsxTextRanges(line);
   const matcher = new RegExp(TOKEN);
   const closingTag = /<\/(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*)?\s*>/uy;
   const substitutions: number[] = [];

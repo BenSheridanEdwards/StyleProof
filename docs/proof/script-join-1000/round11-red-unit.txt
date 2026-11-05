@@ -1,0 +1,508 @@
+✖ TypeScript assertion 1 cannot hide removed code with {} (136.460458ms)
+✔ TypeScript assertion 2 cannot hide removed code with {} (8.8685ms)
+✖ TypeScript assertion 3 cannot hide removed code with {} (12.646417ms)
+✖ a live generic arrow value retains positive execution with {} (15.304375ms)
+✖ TypeScript assertion 1 cannot hide removed code with {"minifySyntax":true} (31.175834ms)
+✖ TypeScript assertion 2 cannot hide removed code with {"minifySyntax":true} (7.699583ms)
+✖ TypeScript assertion 3 cannot hide removed code with {"minifySyntax":true} (38.341708ms)
+✖ a live generic arrow value retains positive execution with {"minifySyntax":true} (34.129833ms)
+✖ TypeScript assertion 1 cannot hide removed code with {"minifyWhitespace":true} (5.069083ms)
+✔ TypeScript assertion 2 cannot hide removed code with {"minifyWhitespace":true} (6.2615ms)
+✖ TypeScript assertion 3 cannot hide removed code with {"minifyWhitespace":true} (4.292625ms)
+✖ a live generic arrow value retains positive execution with {"minifyWhitespace":true} (4.342625ms)
+✖ TypeScript assertion 1 cannot hide removed code with {"minify":true} (5.522334ms)
+✖ TypeScript assertion 2 cannot hide removed code with {"minify":true} (7.783667ms)
+✖ TypeScript assertion 3 cannot hide removed code with {"minify":true} (11.260084ms)
+✖ a live generic arrow value retains positive execution with {"minify":true} (24.231458ms)
+✖ angle assertions in .ts never create JSX text tokens (0.345875ms)
+✖ angle assertions in .mts never create JSX text tokens (0.183666ms)
+✖ angle assertions in .cts never create JSX text tokens (0.118625ms)
+✖ a TypeScript script block in App.vue never creates JSX text tokens (11.577583ms)
+✖ a TypeScript script block in App.svelte never creates JSX text tokens (6.050375ms)
+✖ a TypeScript script block in app.html never creates JSX text tokens (1.94525ms)
+✖ a type-parameter-shaped tag never invents positive JSX text: const f = <T extends unknown>(a: T) => "red"; (0.188125ms)
+✔ a type-parameter-shaped tag never invents positive JSX text: const f = <T,>(a: T) => "red"; (0.141583ms)
+✖ a default initializer with two nested calls names its residual (3.746625ms)
+✖ a multiline destructured props default names its residual (2.699833ms)
+✖ a multiline ordinary parameter default names its residual (3.654667ms)
+✖ negative-only tails name an idle anchor without claiming the whole expression never ran (0.375583ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 3
+ℹ fail 25
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 589.744583
+
+✖ failing tests:
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 1 cannot hide removed code with {} (136.460458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 3 cannot hide removed code with {} (12.646417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:62:3
+✖ a live generic arrow value retains positive execution with {} (15.304375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.status === 'unknown'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:65:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 1 cannot hide removed code with {"minifySyntax":true} (31.175834ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 2 cannot hide removed code with {"minifySyntax":true} (7.699583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 3 cannot hide removed code with {"minifySyntax":true} (38.341708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:62:3
+✖ a live generic arrow value retains positive execution with {"minifySyntax":true} (34.129833ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.status === 'unknown'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:65:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 1 cannot hide removed code with {"minifyWhitespace":true} (5.069083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 3 cannot hide removed code with {"minifyWhitespace":true} (4.292625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:62:3
+✖ a live generic arrow value retains positive execution with {"minifyWhitespace":true} (4.342625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.status === 'unknown'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:65:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 1 cannot hide removed code with {"minify":true} (5.522334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 2 cannot hide removed code with {"minify":true} (7.783667ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:54:5
+✖ TypeScript assertion 3 cannot hide removed code with {"minify":true} (11.260084ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.status === (retainedArm ? 'never-rendered' : 'unmeasured')))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:59:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:62:3
+✖ a live generic arrow value retains positive execution with {"minify":true} (24.231458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.status === 'unknown'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:65:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:70:3
+✖ angle assertions in .ts never create JSX text tokens (0.345875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(scriptTokens(text, `app.${extension}`).some((token) => text.slice(token.index, token.end) === '"red"'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:72:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:70:3
+✖ angle assertions in .mts never create JSX text tokens (0.183666ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(scriptTokens(text, `app.${extension}`).some((token) => text.slice(token.index, token.end) === '"red"'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:72:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:70:3
+✖ angle assertions in .cts never create JSX text tokens (0.118625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(scriptTokens(text, `app.${extension}`).some((token) => text.slice(token.index, token.end) === '"red"'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:72:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:77:3
+✖ a TypeScript script block in App.vue never creates JSX text tokens (11.577583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:81:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:77:3
+✖ a TypeScript script block in App.svelte never creates JSX text tokens (6.050375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:81:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:77:3
+✖ a TypeScript script block in app.html never creates JSX text tokens (1.94525ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured'))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:81:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:90:3
+✖ a type-parameter-shaped tag never invents positive JSX text: const f = <T extends unknown>(a: T) => "red"; (0.188125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:91:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:100:3
+✖ a default initializer with two nested calls names its residual (3.746625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.why.includes(scenario.residual)))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:103:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:100:3
+✖ a multiline destructured props default names its residual (2.699833ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.why.includes(scenario.residual)))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:103:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:100:3
+✖ a multiline ordinary parameter default names its residual (3.654667ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.why.includes(scenario.residual)))
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:103:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/script-join-round11.test.mjs:111:1
+✖ negative-only tails name an idle anchor without claiming the whole expression never ran (0.375583ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /an anchor in the changed range never ran/. Input:
+  
+  'changed expression never ran; script token without an execution start, including leading text, retains negative or missing preceding-anchor evidence; preceding-anchor evidence (nearest mapped start at or before the changed range)'
+  
+      at TestContext.<anonymous> (file://<baseline>/test/script-join-round11.test.mjs:139:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'changed expression never ran; script token without an execution start, including leading text, retains negative or missing preceding-anchor evidence; preceding-anchor evidence (nearest mapped start at or before the changed range)',
+    expected: /an anchor in the changed range never ran/,
+    operator: 'match',
+    diff: 'simple'
+  }

@@ -721,3 +721,29 @@ was recaptured on the final implementation and inspected again. The refreshed
 corpus still passes all **32 expectations**, with zero J2 gaps, unchanged 5/6 unknown
 totals and zero case-status changes. Eager JSX and render-scope values remain
 unknown. Final full-gate tails and the lease-protected push result are in the handoff.
+
+
+## Round 11: TypeScript assertions are not JSX text
+
+Rebased cleanly onto `67eb3a6df`. The [initial red](round11-initial-red-unit.txt)
+records 24 failures / one pass. The retained ternary arm in the unminified fixture
+needed idle V8 ranges, rather than treating all emitted code as executed. After
+correcting that fixture and adding embedded-script cases, the exact final tests
+against compiled, unchanged pre-fix source have [25 failures / three passes](round11-red-unit.txt).
+The baseline replay is an isolated copy of compiled output with the four changed
+join modules transpiled from pre-fix HEAD; it does not change the working tree or hooks.
+
+Source keys now reach both trimming and execution tokenization. `.ts`, `.mts` and
+`.cts` skip JSX-text ranges; embedded `lang="ts"` blocks are indexed once per blob
+and use the same rule. A type-parameter-shaped tag in JSX-capable input is negative-only.
+The three assertion repros cover plain, syntax-minified, whitespace-minified and
+fully minified esbuild modes, alongside a live generic arrow. Eliminated literals
+remain unmeasured; a retained idle arm remains never-rendered.
+
+Parameter naming uses balanced delimiters and bounded preceding/following context
+(four lines, 128 code units per side), permitting nested calls and multiline props.
+Source context and dialect hints are stripped from report units. Plain returns
+retain the existing negative control. Never-ran wording now says an anchor in the
+changed range never ran, without claiming the entire expression did not evaluate.
+The focused suite passes 28/28; the earlier join/reach/report run passes 561/561.
+Full gates and the exact lease-protected push result are recorded in the handoff.

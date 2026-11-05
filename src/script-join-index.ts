@@ -141,7 +141,13 @@ function tokenEvidence(
   };
 }
 
-function rangeTokens(range: SourceSpan, index: ScriptExecutionIndex, text: string): TokenEvidence {
+function rangeTokens(
+  range: SourceSpan,
+  index: ScriptExecutionIndex,
+  text: string,
+  sourceKey: string,
+  language?: 'ts',
+): TokenEvidence {
   const result: TokenEvidence = { bits: 0, missing: false, preceding: false, count: 0 };
   const lines = text.split(/\r\n|[\n\r\u2028\u2029]/);
   for (const [offset, line] of lines.entries()) {
@@ -149,7 +155,7 @@ function rangeTokens(range: SourceSpan, index: ScriptExecutionIndex, text: strin
     if (number > range.end.line) break;
     const from = offset === 0 ? range.start.column : 0;
     const to = number === range.end.line ? range.end.column : Infinity;
-    for (const token of scriptTokens(line)) {
+    for (const token of scriptTokens(line, sourceKey, language)) {
       if (token.index >= to || token.end <= from) continue;
       const evidence = tokenEvidence(
         { line: number, column: Math.max(from, token.index) },
@@ -178,7 +184,13 @@ function tokenExecution(bits: number, scope: RangeExecution['scope'], evidence: 
   };
 }
 
-export function executionIn(range: SourceSpan, index: ScriptExecutionIndex, text?: string): RangeExecution {
+export function executionIn(
+  range: SourceSpan,
+  index: ScriptExecutionIndex,
+  text?: string,
+  sourceKey = '',
+  language?: 'ts',
+): RangeExecution {
   let bits = 0;
   let scope: RangeExecution['scope'] = 'range';
   for (
@@ -192,7 +204,7 @@ export function executionIn(range: SourceSpan, index: ScriptExecutionIndex, text
     if (lineOnly(row)) scope = 'line';
     bits |= rangeRowEvidence(row, line, range);
   }
-  const tokens = text === undefined ? undefined : rangeTokens(range, index, text);
+  const tokens = text === undefined ? undefined : rangeTokens(range, index, text, sourceKey, language);
   if (tokens?.count) return tokenExecution(bits, scope, tokens);
   const fallback = tokenEvidence(range.start, index, false);
   fallback.missing = true;
