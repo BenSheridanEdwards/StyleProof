@@ -131,8 +131,15 @@ function renderTable(rows: string[]): string {
   const [header, ...rest] = rows.map(cellsOf);
   const body = rest.filter((cells) => !isSeparator(cells));
   const wide = header.length >= 4 && body.length > 0;
-  // Only exceptional unbroken values need constrained sizing; ordinary tables stay intrinsic.
-  const hasLongValue = !wide && [header, ...body].some((cells) => cells.some((cell) => /\S{80}/u.test(cell)));
+  // Measure visible runs, not Markdown targets or escaped entity lengths. Labels stay escaped below.
+  const visibleText = (cell: string) =>
+    inline(cell, true)
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&');
+  const hasLongValue =
+    !wide && [header, ...body].some((cells) => cells.some((cell) => /\S{80}/u.test(visibleText(cell))));
   // Render escaped label text directly, without generating or stripping HTML tags.
   const labels = wide ? header.map((cell) => inline(cell, true)) : [];
   const thead = `<thead><tr>${header.map((cell) => `<th${wide ? ' scope="col"' : ''}>${inline(cell)}</th>`).join('')}</tr></thead>`;
@@ -220,6 +227,7 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
     .wide-table tbody { display: grid; gap: 12px; }
     .wide-table tbody tr { border: 1px solid oklch(0.881 0.014 243); border-radius: 6px; padding: 6px 0; }
     .wide-table td { border: 0; padding: 4px 12px; overflow-wrap: anywhere; }
+    .wide-table td code { overflow-wrap: anywhere; }
     .wide-table td::before { content: attr(data-label); content: attr(data-label) / ""; margin-inline-end: 8px;
       color: oklch(0.496 0.013 248); font-size: 0.8em; font-weight: 600; }`
     : '';
@@ -244,6 +252,9 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   @container (max-width: 560px) {
     .long-value-table { inline-size: 100%; table-layout: fixed; }
     th, td, td code { overflow-wrap: break-word; }
+    table:not(.wide-table):has(th:nth-child(3):last-child) :is(th, td) {
+      padding-inline: clamp(8px, calc(7cqi - 12px), 12px);
+    }
 ${wideTableStyles}
   }
   details { margin: 8px 0; }

@@ -173,7 +173,9 @@ for (const width of [320, 390]) {
     ],
     ['two columns', '| Property | Value |\n| --- | --- |\n| width | 12px |'],
   ]) {
-    test(`${name} retains main table geometry at ${width}px`, async ({ page }) => {
+    test(`${name} ${width === 320 && name === 'property changes' ? 'fits the narrowest column' : 'retains main table geometry'} at ${width}px`, async ({
+      page,
+    }) => {
       await page.setViewportSize({ width, height: 900 });
       const html = renderReportHtml(tableMarkdown);
       const geometry = () =>
@@ -187,8 +189,14 @@ for (const width of [320, 390]) {
       const expected = await geometry();
       const expectedScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       await page.setContent(html);
-      expect(await geometry()).toEqual(expected);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(expectedScrollWidth);
+      if (width === 320 && name === 'property changes') {
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+        expect((await geometry())[0].width).toBeLessThanOrEqual(width - 32);
+        expect(await page.locator('table').evaluate((table) => getComputedStyle(table).tableLayout)).toBe('auto');
+      } else {
+        expect(await geometry()).toEqual(expected);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(expectedScrollWidth);
+      }
     });
   }
 }
@@ -203,3 +211,40 @@ test('mobile labels survive an engine ignoring alternative-text content syntax',
       .evaluate((cell) => getComputedStyle(cell, '::before').content),
   ).toBe('"Rule"');
 });
+
+for (const width of [320, 390]) {
+  for (const source of ['https://cdn.example.com/' + 'x'.repeat(36), 'x'.repeat(260)]) {
+    test(`wide card wraps a ${source.length}-character code value at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.setContent(
+        renderReportHtml(
+          [
+            '| Rule | Change | Gated by | Source | Why |',
+            '| --- | --- | --- | --- | --- |',
+            `| .panel | changed | — | \`${source}\` | Never matched |`,
+          ].join('\n'),
+        ),
+      );
+      await expect(page.locator('td code')).toHaveText(source);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    });
+  }
+
+  test(`a short link label with a long target retains natural geometry at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const html = renderReportHtml(
+      `| Route | Image |\n| --- | --- |\n| home | [crop](https://example.com/${'x'.repeat(90)}) |`,
+    );
+    const geometry = () =>
+      page.locator('table').evaluate((table) =>
+        [table, ...table.querySelectorAll('th, td')].map((element) => {
+          const { x, y, width, height } = element.getBoundingClientRect();
+          return { x, y, width, height };
+        }),
+      );
+    await page.setContent(html.replace(/<style>[\s\S]*?<\/style>/, `<style>${mainTableCss}</style>`));
+    const expected = await geometry();
+    await page.setContent(html);
+    expect(await geometry()).toEqual(expected);
+  });
+}

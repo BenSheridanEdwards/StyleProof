@@ -19,6 +19,9 @@
   @container (max-width: 560px) {
     .long-value-table { inline-size: 100%; table-layout: fixed; }
     th, td, td code { overflow-wrap: break-word; }
+    table:not(.wide-table):has(th:nth-child(3):last-child) :is(th, td) {
+      padding-inline: clamp(8px, calc(7cqi - 12px), 12px);
+    }
 
   }
   details { margin: 8px 0; }

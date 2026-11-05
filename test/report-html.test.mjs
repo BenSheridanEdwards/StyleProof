@@ -368,10 +368,14 @@ test('wide tables add one label per cell without redundant descendant roles', ()
   assert.ok(Buffer.byteLength(table) < Buffer.byteLength(nativeTable) * 1.9);
 });
 
-test('only exceptionally long raw tokens opt ordinary tables into constrained sizing', () => {
+test('only exceptionally long visible tokens opt ordinary tables into constrained sizing', () => {
   const render = (value) => renderReportHtml(`| Property | Value |\n| --- | --- |\n| width | ${value} |`);
   assert.doesNotMatch(render('&'.repeat(30)), /class="long-value-table"/);
   assert.doesNotMatch(render('A'.repeat(79)), /class="long-value-table"/);
+  assert.doesNotMatch(render('`' + 'A'.repeat(79) + '`'), /class="long-value-table"/);
+  assert.doesNotMatch(render('[crop](https://example.com/' + 'x'.repeat(90) + ')'), /class="long-value-table"/);
+  assert.doesNotMatch(render('&amp;'.repeat(20)), /class="long-value-table"/);
+  assert.match(render('`[crop](https://example.com/' + 'x'.repeat(90) + ')`'), /class="long-value-table"/);
   assert.match(render('A'.repeat(80)), /<table class="long-value-table">/);
 });
 
