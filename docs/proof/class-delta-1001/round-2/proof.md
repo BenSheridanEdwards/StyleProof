@@ -1,5 +1,8 @@
 # J3 review corrections, round two (#1001)
 
+Historical round-two proof. [Round-three corrections](../round-3/proof.md) supersede
+its version-1 omission facts, positive-context and alignment rules.
+
 Review baseline: `95e6f7cd55f07a2105e49d363c0c17d29cca9f23`. The branch was
 fetched and rebased onto the latest origin/main; it was already current. Changes
 are additive map/unit metadata and advisory classification corrections. No

@@ -1,6 +1,6 @@
 # J3 class-list delta join (#1001)
 
-Historical round-zero proof. [Round-two corrections](round-2/proof.md) supersede
+Historical round-zero proof. [Round-three corrections](round-3/proof.md) supersede
 the absence-of-delta rule, extraction exclusions and corpus unknown totals below.
 
 Base: main after #1000 / PR #1302 (`0cc4bd2dc`).

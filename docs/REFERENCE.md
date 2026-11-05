@@ -1649,8 +1649,8 @@ are never proved by execution; recognizable spellings name the residual in the
 reason, and the capture notes retain the full limits for every source. Every ran/unknown unit also names the general throwing-expression continuation limit, even when the throwing call is on an earlier line; report JSON, Markdown and HTML retain that reason. Recognizable, fully delimited function, arrow, method and constructor parameter defaults name their residual only when the changed range is inside the initializer. Return expressions, arrow bodies and later assignments do not inherit that label; a supplied argument still gives no proof the default evaluated. A bounded four-line context on either side (128 UTF-16 code units each) names multiline parameter defaults, including destructured props. Balanced scanning permits arbitrary parenthesis depth within that context; uncertain or truncated headers retain the general notes. TypeScript `.ts`, `.mts`, `.cts` sources and embedded `lang="ts"`, `lang="typescript"` or `type="text/typescript"` blocks bypass JSX-text lexing; Astro script blocks default to TypeScript. Type-parameter-shaped tags in JSX-capable input supply negative evidence only for the header itself; the following expression keeps its own token-start execution. Whole-line ranges can name a default initializer they overlap. A reached
 J1/J3 unit can corroborate only the exact same source key, side and source range.
 Another value, including one on the same line, never corroborates it. J1 currently
-records served CSS without source ranges, so none supplies this proof yet; J3 is
-not built. J2 findings and run-level gaps stay advisory under **both** changeReach
+records served CSS without source ranges, so none supplies this proof yet. J3 is
+implemented, but records no per-occurrence render provenance and cannot corroborate J2. J2 findings and run-level gaps stay advisory under **both** changeReach
 levels, add to existing findings, and prevent reach-complete while unresolved.
 
 ## Optional: selective remap (advisory + CI opt-in)
@@ -2253,8 +2253,9 @@ The full git blobs and literal text are transient, never report fields. Raw chan
 columns exclude untouched words in single-line replacements. Purely added or deleted
 lines never use an opposite-blob exclusion. Replacement blocks compare only with
 the opposite line at the same hunk-relative index, including when line numbers shift.
-Identical literal words or unchanged literal values on those aligned lines can be
-excluded; this textual alignment is never render provenance.
+Unchanged words within aligned literals can be excluded even when an insertion
+shifts their columns. Matching preserves token order and multiplicity, so reordered
+class words still yield units. This textual alignment is never render provenance.
 
 CSS vocabulary is read as selector identifiers: escapes inside an ID cannot create
 class delimiters; attribute values and strings cannot contribute classes. Escaped
@@ -2266,12 +2267,30 @@ For each changed class-token occurrence (file, side, exact UTF-16 source span):
 - `never-rendered` is allowed **only if no captured element on the occurrence's own
   side carries the token, and every map on that side has complete omission facts**:
   head for additions, base for removals. The presence check includes unpaired elements.
-  Any volatile elements, configured ignore list, untraversed shadow hosts or frames
-  on that side leave absence unproven (`unknown`). Legacy maps without these facts
-  are also conservative. Captures persist optional `classPresence` version 1:
-  `ignored` (a boolean, without selector text), `shadowHosts` and `frames` (counts,
-  including cross-origin frames). Zero counts and `ignored: false` are recorded too;
-  StyleProof's own hover sink and UA-default iframe are capture tools, not omissions.
+  Any volatile elements, configured ignore list, untraversed author shadow roots,
+  embedded documents or direct children of html outside head/body leave absence
+  unproven (`unknown`). Capture keys on both sides must exactly match the explicit
+  paired set; an unmatched surface also prevents absence proof on either side.
+  Version-1 maps and maps without complete facts remain conservative.
+
+  Captures persist optional `classPresence` version 2: `ignored` (without selector
+  text), `shadowHosts`, `frames`, `outsideBody` and `shadowRootsVerified`.
+  Frames include iframe/frame/object/embed elements throughout the main document,
+  including cross-origin frames. `outsideBody` counts html children other than head
+  and body; these children are not traversed. CDP
+  `DOM.getDocument({depth:-1, pierce:true})` verifies open and closed author roots;
+  user-agent roots are excluded. An unsupported/failed probe omits verification,
+  never invents a verified zero. Only verified zero counts can support absence.
+  FRAMEWORK_IGNORE is shared by capture and omission checks, including Next route
+  announcers, the hover sink and other deliberately excluded framework regions.
+  The temporary UA-default iframe is removed before frame counts are recorded.
+
+  Omission facts can vary between captures, for example as ad frames mount. They
+  supply no positive render proof. Self-check compares `classPresence`; differences
+  mark the retained first map `unstable: true` and keep absence unknown, in either
+  direction, even if a later read has zero omissions. An existing unknown is never
+  cleared by the cleaner read. Independent later runs can have different facts;
+  absence is bounded to the captures and paired keys of that run.
 - If any element on that side carries it: `unknown` — "token present on a captured
   element; not tied to this occurrence". Neither unchanged class lists during a
   refactor nor a newly added element nor a changed element tag proves absence.
@@ -2301,12 +2320,14 @@ calls or identifiers whose returned strings require data flow, nested/complex Sv
 interpolations and assembled class fragments. Known static candidates can still be
 listed, but they never prove a dynamic portion rendered. Nested prose inside a
 recognised helper is deliberately conservative: `cn('btn', t('old thing'))` can name
-`old` if it is in the CSS vocabulary. Ordinary prose outside class contexts is skipped.
+`old` if it is in the CSS vocabulary, but the non-helper call makes it J3-only.
+Literals inside an unrelated call cannot inherit positive class evidence, including
+inside template substitutions. Ordinary prose outside class contexts is skipped.
 A remaining line-alignment residual can exclude a newly introduced occurrence:
 base `const A='tone'` → head `const B='tone'` plus `const A='tone2'` can align the
 first line's identical literal and exclude `tone`, even though its binding changed.
-This reader does not establish binding identity. Closed shadow roots that cannot be
-discovered remain a capture limitation.
+This reader does not establish binding identity. Shadow content and embedded
+documents remain untraversed; their omission facts prevent false absence proof.
 Line starts are precomputed for binary position lookup, and substitution token scans
 are restricted to their own template ranges; the regression suite bounds 1 MB string
 and template inputs below one second on the development machine. Scoped gaps and
@@ -2321,10 +2342,15 @@ J3 negative from an **explicit class context** can lower a J2 range that ran to
 `never-rendered`, retaining its execution. Vocabulary-only candidates never lower
 J2, even when every word is a CSS class name. Older class units lacking explicit
 context evidence also cannot lower J2.
+For classList calls, only `add` arguments and the second `replace` argument are
+positive contexts. `remove`, `contains`, the first/extra `replace` arguments and
+both forms of `toggle` stay J3-only. Attribute matching rejects word/hyphen prefixes:
+`data-class="open"` is not a positive class attribute. Nested unrelated calls such
+as `cn('card', t('open'))` also stay J3-only, even with a vocabulary match.
 A class occurrence never corroborates a different style value on the same line.
 
 `report.json.reach.classes` lists `sourceKey`, base/head `side`, literal `range`,
-`token`, `explicit` (class context versus vocabulary-only candidate), optional token-name `delta` (`gained`/`lost`), `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
+`token`, `explicit` (positive class value versus J3-only candidate), optional token-name `delta` (`gained`/`lost`), `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
 numeric range and token. `classCounts` and `classGapCount` retain full counts.
 J2/J3 share at most 64 KB of detail after style findings; J3 omissions get a named
 count notice. Markdown/HTML cap J3 at 100 unit rows and 100 bounded gap rows.

@@ -28,8 +28,9 @@ removals on replacement lines have independent counts and status expectations; t
 are retained under `baseClassUnits` in the receipt.
 No per-occurrence render provenance is recorded. A delta is unknown, never reached
 or J2 corroboration. Token absence is negative evidence only when every map on the occurrence side records
-no omissions: volatile elements, ignore lists, untraversed shadow hosts/frames, and
-legacy maps without omission facts leave absence unknown. Only explicit class-context
+no omissions with verified version-2 facts and complete pairing: volatile elements,
+ignore lists, untraversed author roots/documents, outside-body children, unstable
+facts and version-1/legacy maps leave absence unknown. Only positive class-context
 negatives may lower J2; vocabulary-only candidates cannot. Token presence, including
 on unpaired elements or unchanged class lists, stays unknown.
 
@@ -88,3 +89,7 @@ without future source-mapped render provenance. Missing class vocabulary, ledger
 source ranges or paired captures remain named unmeasured gaps. J2/J3 findings and
 gaps stay advisory at both levels and prevent reach-complete. The changed-stylesheet
 and other ADR attribution joins remain unbuilt.
+
+Round three retains the measured 7/8 unknown totals and all combined/J3 corpus
+statuses. The capture/context fixes do not change this fully paired fixture;
+base-removal counts/statuses remain independently asserted.
