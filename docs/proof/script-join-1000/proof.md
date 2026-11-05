@@ -590,3 +590,35 @@ Targeted unit checks pass **533/533**, including existing script reach, range
 trimming, report, media and runner tests. Code and retained red evidence are
 committed before the heavier checks to survive a reboot. Full gate tails and
 publication status are reported in the handoff; no hook or timeout is weakened.
+
+
+### Round 9 QA addendum: parameter initializer boundaries
+
+The [residual red](round9-residual-red-unit.txt) has **six failures / 28 passes**.
+It covers the ordinary return repro and return/arrow bodies with unrelated
+defaults, both minified and unminified. Default-parameter naming now requires a
+recognizable, fully delimited parameter initializer containing the changed range.
+The bounded detector does not search through a completed parameter list into
+later assignments. Uncertain syntax retains the general capture notes rather
+than guessing this per-unit label. Existing function and arrow default positives
+still name the residual; execution and status are unchanged. The generic
+throwing-expression limit remains visible for ran/unknown values. The earlier
+whole-line residual sample now selects its actual initializer range explicitly.
+
+All **539/539 targeted units** pass on the addendum. The expanded browser spec
+also retains the template, delimiter, operand and overlay controls. The initial
+commit was blocked at cognitive complexity 18; the lexer loop was simplified
+and the unchanged Fallow threshold then passed. A transient runner import failure
+passed 44/44 in isolation and in subsequent combined runs without a source change.
+
+The expanded real-Chromium/Git spec passes **45/45**, including all template and
+residual controls. The final keyword-boundary adjustment passes its focused
+**74/74** unit run. The [generated JSON](round9-report.json),
+[Markdown](round9-report.md) and [stored browser evidence](round9-report-evidence.json)
+show the removed template literals as two unmeasured token units, with zero J2
+gaps and zero blocking findings. The screenshot was inspected at 1100 pixels
+with Evidence expanded. Product-state identity remains unproven, inventory is not
+checked, content/structure was not evaluated, and reach remains incomplete. This
+is diagnostic execution/report proof, not rendering or same-state certification.
+
+![A live template head cannot prove the removed substitution literal ran](round9-report-top.png)

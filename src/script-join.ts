@@ -166,10 +166,29 @@ function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): Evidenc
   };
 }
 
+/** Name only fully delimited simple parameter initializers containing the changed range. */
+function defaultParameter(change: ScriptChange): boolean {
+  const { text, range } = change;
+  const breaks = [...text.matchAll(/\r\n|[\n\r\u2028\u2029]/g)];
+  const lastBreak = breaks[range.end.line - range.start.line - 1];
+  const end = (lastBreak ? lastBreak.index + lastBreak[0].length : 0) + range.end.column;
+  const headers = /\bfunction\b(?:\s*\*)?\s*(?:[\w$]+\s*)?\(([^()]*)\)|\(([^()]*)\)\s*=>/g;
+  for (const header of text.matchAll(headers)) {
+    const parameters = header[1] ?? header[2];
+    const offset = header.index + header[0].indexOf('(') + 1;
+    for (const initializer of parameters.matchAll(/(?:^|,)\s*[\w$]+\s*=(?!=|>)\s*([^,]+)/g)) {
+      const start = offset + initializer.index + initializer[0].length - initializer[1].length;
+      if (range.start.column >= start && end <= start + initializer[1].trimEnd().length) return true;
+    }
+  }
+  return false;
+}
+
 /** Detection only names limits; absence of these spellings never supplies rendering proof. */
-function residuals(text: string): string[] {
+function residuals(change: ScriptChange): string[] {
+  const { text } = change;
   return [
-    ...(/\bfunction\b[^]*?\([^]*?=|\([^)]*=.*\)\s*=>/.test(text) ? ['default parameter values'] : []),
+    ...(defaultParameter(change) ? ['default parameter values'] : []),
     ...(/(?:\b(?:const|let|var)\s+)?[[{][^]*?\w\s*=[^]*?[\]}]\s*=/.test(text) ? ['destructuring defaults'] : []),
     ...(/(?:\|\||&&|\?\?)=/.test(text) ? ['logical assignment RHS'] : []),
     ...(/\?\./.test(text) ? ['later links of a short-circuited optional chain'] : []),
@@ -177,11 +196,12 @@ function residuals(text: string): string[] {
   ];
 }
 
-function residualReason(text: string): string {
+function residualReason(change: ScriptChange): string {
+  const { text } = change;
   const continuation = '; J2 block-entry limit: code after a throwing expression is not proved';
   if (text.length > 128)
     return '; J2 residual naming skipped for source lines over 128 UTF-16 code units' + continuation;
-  const limits = residuals(text);
+  const limits = residuals(change);
   const named = limits.length ? `; J2 block-entry residual: ${limits.join('; ')}` : '';
   return named + (limits.includes('code after a throwing expression') ? '' : continuation);
 }
@@ -263,7 +283,7 @@ function classifyRange(change: ScriptChange, side: EvidenceSide, proofs: readonl
 
   if (corroborated)
     return unit(execution, 'reached', 'rendering corroborated by a reached J1/J3 unit from this exact source range');
-  return unit(execution, 'unknown', `value; rendering not proved${residualReason(text)}`);
+  return unit(execution, 'unknown', `value; rendering not proved${residualReason(change)}`);
 }
 
 /** All findings are advisory at either changeReach level; this join never edits another gate. */

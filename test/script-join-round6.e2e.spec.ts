@@ -33,12 +33,13 @@ const scenarios = [
     live: true,
     count: 2,
   })),
-  ...residualCases.flatMap(({ name, before, residual }) =>
+  ...residualCases.flatMap(({ name, before, residual, notResidual }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} reports its residual with minify=${minifySyntax}`,
       before,
       after: before.replace('"red"', '"blue"'),
       residual,
+      notResidual,
       minifySyntax,
       expected: 'unknown',
       count: 2,
@@ -203,6 +204,7 @@ for (const scenario of scenarios) {
     }
     if ('live' in scenario) expect(units.every((unit) => unit.execution === 'ran')).toBe(true);
     if ('residual' in scenario) {
+      if (scenario.notResidual) expect(units.every((unit) => !unit.why.includes(scenario.notResidual))).toBe(true);
       maps.forEach((map, i) => writeCapture(dirs[i], 'home@1280', map, null));
       const previous = process.cwd();
       let report;

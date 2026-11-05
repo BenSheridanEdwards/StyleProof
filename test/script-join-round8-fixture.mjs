@@ -90,6 +90,11 @@ export const tokenDefines = {
 };
 
 export const residualCases = [
+  ...[
+    ['a return value after an empty parameter list', 'function Overlay(){return "red";}window.result=Overlay();'],
+    ['a return value outside a function default', 'function App(value="ok"){return "red";}window.result=App("ok");'],
+    ['an arrow body outside its parameter default', 'const App=(value="ok")=>"red";window.result=App("ok");'],
+  ].map(([name, before]) => ({ name, before, residual: 'throwing expression', notResidual: 'default parameter' })),
   {
     name: 'supplied function default',
     before: 'function App(value="red"){return value;} window.result=App("ok");',

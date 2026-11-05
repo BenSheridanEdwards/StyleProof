@@ -1644,7 +1644,7 @@ Markdown/HTML group them by status and name file:line:column and side:
 
 J2 treats uncertain values as uncorroborated. The block-entry and source-map attribution residuals above
 are never proved by execution; recognizable spellings name the residual in the
-reason, and the capture notes retain the full limits for every source. Every ran/unknown unit also names the general throwing-expression continuation limit, even when the throwing call is on an earlier line; report JSON, Markdown and HTML retain that reason. Single-line function and arrow parameter defaults name their residual without treating a supplied argument as execution proof. A reached
+reason, and the capture notes retain the full limits for every source. Every ran/unknown unit also names the general throwing-expression continuation limit, even when the throwing call is on an earlier line; report JSON, Markdown and HTML retain that reason. Recognizable, fully delimited function and arrow parameter defaults name their residual only when the changed range is inside the initializer. Return expressions, arrow bodies and later assignments do not inherit that label; a supplied argument still gives no proof the default evaluated. A reached
 J1/J3 unit can corroborate only the exact same source key, side and source range.
 Another value, including one on the same line, never corroborates it. J1 currently
 records served CSS without source ranges, so none supplies this proof yet; J3 is

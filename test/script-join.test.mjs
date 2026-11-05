@@ -146,7 +146,9 @@ test('J2 names all five block-entry residuals and never treats their anchors as 
   ];
 
   for (const [text, reason] of samples) {
-    const unit = classify([change(0, text.length, { text })], undefined, [
+    const from = reason === 'default parameter' ? text.indexOf('value') : 0;
+    const to = reason === 'default parameter' ? from + 'value'.length : text.length;
+    const unit = classify([change(from, to, { text })], undefined, [
       capture(
         Array.from({ length: text.length }, (_, column) => [1, column, column]),
         [],

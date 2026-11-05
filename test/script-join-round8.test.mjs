@@ -95,6 +95,7 @@ for (const scenario of residualCases) {
       assert.equal(units.length, 2);
       assert.ok(units.every((unit) => unit.execution === 'ran' && unit.status === 'unknown'));
       assert.ok(units.every((unit) => unit.why.includes(scenario.residual)));
+      if (scenario.notResidual) assert.ok(units.every((unit) => !unit.why.includes(scenario.notResidual)));
     });
   }
 }
