@@ -15,8 +15,35 @@ import { lexicalCases } from './script-join-round10-fixture.mjs';
 import { assertionCases, genericControl, parameterCases } from './script-join-round11-fixture.mjs';
 import { generatorCases, generatorResidual, methodDefaults, tsxGenerics } from './script-join-round12-fixture.mjs';
 import { generatorFileCases } from './script-join-round13-fixture.mjs';
+import { rawGeneratorCases, apostropheControls } from './script-join-round14-fixture.mjs';
 
 const scenarios = [
+  ...rawGeneratorCases.flatMap(({ name, before, after, hits, sourceKey }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} raw generator pattern with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      sourceKey,
+      minifySyntax,
+      generator: true,
+      residual: generatorResidual,
+      expected: 'unmeasured',
+      count: 2,
+    })),
+  ),
+  ...apostropheControls.flatMap(({ name, before, after }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} non-generator apostrophe control with minify=${minifySyntax}`,
+      before,
+      after,
+      sourceKey: 'app.tsx',
+      minifySyntax,
+      expected: 'never-rendered',
+      idle: true,
+      count: 2,
+    })),
+  ),
   ...generatorFileCases.flatMap(({ name, before, after, hits, sourceKey }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} whole-file generator residual with minify=${minifySyntax}`,

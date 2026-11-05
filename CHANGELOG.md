@@ -150,9 +150,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dialect. Balanced, bounded context names function, arrow, method and constructor
   defaults, including nested, multiline and whole-line template initializers.
   V8 generator creation cannot prove body entry, so any otherwise-ran change in a
-  file containing a recognised generator header stays unmeasured, including code
-  outside the generator. Full-file lexical detection covers modifiers and all key
-  forms, ignoring stars inside strings, comments, regex bodies and template text. Capture notes name this and the other V8 and
+  file whose raw text contains a generator-like pattern stays unmeasured, including
+  code outside a generator and files with no generator. Raw patterns cover generic
+  and decorated method text and intentionally include matching multiplication,
+  strings, comments, regex bodies and templates. Quoted tokens stop at a line
+  terminator; an unterminated quote is one character. Capture notes name this and the other V8 and
   source-map residuals. Git reads have named 60-second deadlines; missing evidence,
   empty lines, line-ending edits and unjudged paths stay named on both revisions.
   Report budgets prioritize style findings and bound J2 units, gaps and path lists

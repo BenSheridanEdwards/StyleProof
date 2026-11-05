@@ -76,12 +76,12 @@ generatorFileCases.push({
 });
 
 export const generatorLexicalControls = [
-  String.raw`if (window.input) /function\*|\*m\(\)/.test("x"); window.result = sink(1);`,
-  String.raw`if (window.input) {} /function\*|\*m\(\)/.test("x"); window.result = sink(1);`,
+  'if (window.input) /function*foo/.test("x"); window.result = sink(1);',
+  'if (window.input) {} /function*foo/.test("x"); window.result = sink(1);',
   'const a = 2, b = (c) => c; window.value = a *b(1);',
   'window.value = "function* fake() {}"; window.result = sink(1);',
   'window.value = `class D { static *s() {} }`; window.result = sink(1);',
-  String.raw`window.value = /function\*|\*foo\(\)/.source; window.result = sink(1);`,
+  'window.value = /function*foo/.source; window.result = sink(1);',
   '/* function* fake() {} */ window.result = sink(1);',
   '// class D { static *s() {} }\nwindow.result = sink(1);',
 ];

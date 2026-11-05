@@ -21,7 +21,7 @@ export type ScriptChange = {
   text: string;
   /** Bounded preceding source lines used only to name parameter residuals. Never persisted. */
   parameterContext?: { before: string; after: string };
-  /** File-wide lexical flag from this side's full source blob. Never persisted. */
+  /** File-wide raw-text flag from this side's full source blob. Never persisted. */
   generatorFile?: boolean;
   /** Embedded TypeScript blocks do not use JSX lexical rules. Never persisted. */
   language?: 'ts';
@@ -225,11 +225,11 @@ function positiveExecution(
   change: ScriptChange,
   proofs: readonly SourceCorroboration[],
 ): Pick<ScriptUnit, 'execution' | 'status' | 'why'> {
-  if (change.generatorFile ?? sourceContainsGenerator(change.text, change.sourceKey))
+  if (change.generatorFile ?? sourceContainsGenerator(change.text))
     return {
       execution: 'unmeasured',
       status: 'unmeasured',
-      why: `J2 block-entry residual: ${GENERATOR_BODY_RESIDUAL}; V8 iterator creation cannot prove body entry; ran evidence anywhere in a file containing a recognised generator header stays unmeasured, including changes outside the generator`,
+      why: `J2 block-entry residual: ${GENERATOR_BODY_RESIDUAL}; V8 iterator creation cannot prove body entry; raw generator-like text downgrades ran evidence anywhere in this file to unmeasured, including outside a generator; this may include files with no generator`,
     };
   const corroborated = proofs.some(
     (proof) =>
@@ -251,7 +251,7 @@ function positiveExecution(
 
 function generatorReasonSuffix(change: ScriptChange, execution: ScriptExecution, why: string): string {
   return change.generatorFile && execution === 'unmeasured' && !why.includes(GENERATOR_BODY_RESIDUAL)
-    ? `; file-wide J2 residual: ${GENERATOR_BODY_RESIDUAL}, including changes outside the generator`
+    ? `; raw-text file-wide J2 residual: ${GENERATOR_BODY_RESIDUAL}; generator-like text may flag files with no generator`
     : '';
 }
 

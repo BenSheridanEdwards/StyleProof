@@ -875,3 +875,26 @@ scenarios. Only the timestamp changes in the receipt. The corpus still uses
 hand-built one-line patches and selects the head unit; the browser tests cover
 the real Git adapter on both sides. `demo:check` passes. Final full-gate tails and
 the exact-lease push result are recorded in the handoff.
+
+
+## Round 14: raw generator-like patterns, bounded quoted tokens
+
+Fetch/rebase found main `bff724ee5` already included. Retained
+[unit red](round14-red-unit.txt) has **65 failures / 91 passes**; the
+[real-Chromium red](round14-red-browser.txt) has **18 failures / six passes**.
+The tests pin generic class/object/static-async methods, both decorator forms,
+function-expression division and apostrophe text in inline/multiline/realistic
+JSX and Vue/Svelte/HTML templates. CR, LF, CRLF, U+2028 and U+2029 have direct
+quoted-token boundary tests. Non-generator apostrophe browser controls already
+passed and retain never-rendered for their unopened function edits.
+
+The generator-only hand lexer is removed. Each side's entire source is checked
+once against the requested raw function-star and key/type-parameters/paren
+patterns. Strings, comments, regex and template text are deliberately included.
+The former multiplication/regex/string/comment exclusions are re-expected as
+unmeasured and pinned: these are intentional conservative findings, not
+generator syntax claims. Ordinary files without either raw pattern remain
+unflagged. Parameter naming keeps its bounded context. Single/double-quoted
+TOKEN arms stop at every JS line terminator and an unterminated quote is one
+character. The combined unit run passes **767/767**. Final browser/gate tails,
+SHA and exact-lease push are recorded in the handoff.

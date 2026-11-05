@@ -53,13 +53,13 @@ for (const options of [{}, { minifySyntax: true }, { minifyWhitespace: true }, {
 }
 
 for (const body of generatorLexicalControls) {
-  test(`non-generator syntax cannot downgrade a live value: ${body}`, async () => {
+  test(`raw generator-like text conservatively downgrades a live value: ${body}`, async () => {
     const before = 'function sink(x) { return x; }\n' + body;
     const after = before.includes('sink(1)') ? before.replace('sink(1)', 'sink(2)') : before.replace('*b(1)', '*b(2)');
     const { changes, result } = await joined(before, after, {});
-    assert.ok(changes.every((change) => change.generatorFile === false));
+    assert.ok(changes.every((change) => change.generatorFile === true));
     assert.equal(result.units.length, 2);
-    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.status === 'unknown'));
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)));
   });
 }
 

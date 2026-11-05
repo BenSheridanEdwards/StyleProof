@@ -180,23 +180,22 @@ the evidence adds to a capture on a GitHub runner:
      `if (t) return 1; const i = s?.missing?.x; sink("dead");`.
      These counters cannot prove the continuation executed.
      V8 also reports **bodies of generator / async-generator functions that were called but never iterated**
-     as executed: creating an iterator can give the whole function count 1 with
-     no inner idle range, even though its body never entered. The join downgrades
-     `ran` to `unmeasured` based on the entire source file on the side judged,
-     not a changed-line window. Any change in a file that contains a recognised
-     generator header reads unmeasured when its evidence would otherwise read ran,
-     including changes outside the generator. This intentionally includes ordinary
-     functions and values in the same file and actually iterated generators, even
-     when same-range corroboration is available. Negative or missing evidence
-     retains its existing status. Recognised headers are `function*` / `function *`
-     (including async and expression forms), and `*` method markers with an
-     optional run of `static`, `public`, `private`, `protected`, `override`,
-     `abstract`, `readonly`, `declare` and `async`, followed by an identifier,
-     computed `[...]` key, private `#name`, quoted name or numeric name. The
-     template-, regex- and comment-aware lexer ignores stars in strings,
-     comments, regex bodies and literal template chunks; substitutions are code.
-     Each full blob is scanned once. The bounded context remains only for
-     parameter residual naming.
+     as executed: iterator creation can give the whole function count 1 with no
+     inner idle range. A file whose raw text contains a generator-like pattern
+     has its ran evidence downgraded to unmeasured; this may include files with
+     no generator. The listed raw patterns are:
+     - `function\s*\*`, also allowing block or line comments between `function`
+       and `*`;
+     - `\*\s*(?:#?[\w$]+|\[[^\]\n]*\]|'[^'\n]*'|"[^"\n]*"|\d[\w.]*)\s*(?:<[^()\n]*>\s*)?\(`.
+
+     No lexer is consulted. Strings, comments, regex bodies and template text
+     are not excluded. Multiplication `a *b(c)` or `obj.function *b(2)`, regex
+     text `/function*foo/` and strings/comments containing these patterns
+     intentionally flag. Each side scans its full source once, and every
+     otherwise-ran change in that file becomes unmeasured, including changes
+     outside the generator and actually iterated bodies, even with same-range
+     corroboration. Negative or missing evidence retains its existing status.
+     The bounded context remains only for parameter residual naming.
    - **J2 source-map attribution.** A minifier can merge equivalent arms
      (`flag ? one : one` → `one`) or hoist a shared call
      (`flag ? sink(a) : sink(b)` → `sink(flag ? a : b)`). The source-map anchor

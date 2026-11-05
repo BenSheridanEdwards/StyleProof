@@ -59,7 +59,7 @@ function sourceOf(text: string, sourceKey: string): Source {
     jsStarts,
     hash: sha256(text),
     typescript: typescriptLines(text, gitStarts, sourceKey),
-    generatorFile: sourceContainsGenerator(text, sourceKey),
+    generatorFile: sourceContainsGenerator(text),
   };
 }
 
