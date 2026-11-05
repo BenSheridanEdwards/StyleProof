@@ -1,0 +1,548 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 24 tests using 1 worker
+
+(node:60065) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode name escaped raw generator with minify=false (393ms)
+(node:60140) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode name escaped raw generator with minify=true (296ms)
+(node:60215) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode inside a name escaped raw generator with minify=false (299ms)
+(node:60280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode inside a name escaped raw generator with minify=true (298ms)
+(node:60367) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced private name escaped raw generator with minify=false (290ms)
+(node:60422) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced private name escaped raw generator with minify=true (304ms)
+(node:60497) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced astral name escaped raw generator with minify=false (301ms)
+(node:60570) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced astral name escaped raw generator with minify=true (297ms)
+(node:60639) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\n" escaped raw generator with minify=false (306ms)
+(node:60729) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\n" escaped raw generator with minify=true (297ms)
+(node:60784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\n" escaped raw generator with minify=false (296ms)
+(node:60843) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\n" escaped raw generator with minify=true (301ms)
+(node:60915) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\r\n" escaped raw generator with minify=false (295ms)
+(node:60971) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\r\n" escaped raw generator with minify=true (292ms)
+(node:61026) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  15 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\r\n" escaped raw generator with minify=false (297ms)
+(node:61088) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  16 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\r\n" escaped raw generator with minify=true (302ms)
+(node:61145) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "
+" escaped raw generator with minify=false (298ms)
+(node:61201) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "
+" escaped raw generator with minify=true (296ms)
+(node:61262) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  19 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "
+" escaped raw generator with minify=false (302ms)
+(node:61317) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  20 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "
+" escaped raw generator with minify=true (296ms)
+(node:61372) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  21 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA computed key above bound documented bound residual with minify=false (298ms)
+(node:61432) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  22 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA computed key above bound documented bound residual with minify=true (301ms)
+(node:61487) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  23 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA generic list above bound documented bound residual with minify=false (296ms)
+(node:61542) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  24 [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA generic list above bound documented bound residual with minify=true (309ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode name escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-ba133-generator-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode name escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-3bfdc--generator-with-minify-true-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode inside a name escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-31c58-generator-with-minify-false-chromium/error-context.md
+
+  4) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode inside a name escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-b092e--generator-with-minify-true-chromium/error-context.md
+
+  5) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced private name escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-40695-generator-with-minify-false-chromium/error-context.md
+
+  6) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced private name escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-9951a--generator-with-minify-true-chromium/error-context.md
+
+  7) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced astral name escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-4b585-generator-with-minify-false-chromium/error-context.md
+
+  8) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced astral name escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-482ec--generator-with-minify-true-chromium/error-context.md
+
+  9) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\n" escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-27a8a-generator-with-minify-false-chromium/error-context.md
+
+  10) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\n" escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-98ca8--generator-with-minify-true-chromium/error-context.md
+
+  11) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\n" escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-27a8a-generator-with-minify-false-chromium/error-context.md
+
+  12) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\n" escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-98ca8--generator-with-minify-true-chromium/error-context.md
+
+  13) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\r\n" escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-fe13e-generator-with-minify-false-chromium/error-context.md
+
+  14) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\r\n" escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-5f9f9--generator-with-minify-true-chromium/error-context.md
+
+  15) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\r\n" escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-fe13e-generator-with-minify-false-chromium/error-context.md
+
+  16) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\r\n" escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-5f9f9--generator-with-minify-true-chromium/error-context.md
+
+  17) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "
+" escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-63ce0-generator-with-minify-false-chromium/error-context.md
+
+  18) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "
+" escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-55e56--generator-with-minify-true-chromium/error-context.md
+
+  19) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "
+" escaped raw generator with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-63ce0-generator-with-minify-false-chromium/error-context.md
+
+  20) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "
+" escaped raw generator with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |     expect(diff.gaps).toEqual([]);
+      363 |     if ('rawGenerator' in scenario)
+    > 364 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:364:106
+
+    Error Context: test-results/test-script-join-round6.e2-55e56--generator-with-minify-true-chromium/error-context.md
+
+  21) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA computed key above bound documented bound residual with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+    > 367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+          |                                                                                                               ^
+      368 |         true,
+      369 |       );
+      370 |     }
+        at <repo>/test/script-join-round6.e2e.spec.ts:367:111
+
+    Error Context: test-results/test-script-join-round6.e2-424e5--residual-with-minify-false-chromium/error-context.md
+
+  22) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA computed key above bound documented bound residual with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+    > 367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+          |                                                                                                               ^
+      368 |         true,
+      369 |       );
+      370 |     }
+        at <repo>/test/script-join-round6.e2e.spec.ts:367:111
+
+    Error Context: test-results/test-script-join-round6.e2-e0957-d-residual-with-minify-true-chromium/error-context.md
+
+  23) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA generic list above bound documented bound residual with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+    > 367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+          |                                                                                                               ^
+      368 |         true,
+      369 |       );
+      370 |     }
+        at <repo>/test/script-join-round6.e2e.spec.ts:367:111
+
+    Error Context: test-results/test-script-join-round6.e2-10d5a--residual-with-minify-false-chromium/error-context.md
+
+  24) [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA generic list above bound documented bound residual with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      365 |     if ('boundedGeneratorResidual' in scenario) {
+      366 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+    > 367 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+          |                                                                                                               ^
+      368 |         true,
+      369 |       );
+      370 |     }
+        at <repo>/test/script-join-round6.e2e.spec.ts:367:111
+
+    Error Context: test-results/test-script-join-round6.e2-c820c-d-residual-with-minify-true-chromium/error-context.md
+
+  24 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode name escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode name escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode inside a name escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced Unicode inside a name escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced private name escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced private name escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced astral name escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › braced astral name escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\n" escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\n" escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\n" escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\n" escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\r\n" escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "\r\n" escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\r\n" escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "\r\n" escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "
+" escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › ' quoted continuation "
+" escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "
+" escaped raw generator with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › " quoted continuation "
+" escaped raw generator with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA computed key above bound documented bound residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA computed key above bound documented bound residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA generic list above bound documented bound residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:300:3 › QA generic list above bound documented bound residual with minify=true

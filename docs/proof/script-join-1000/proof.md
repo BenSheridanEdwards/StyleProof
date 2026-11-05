@@ -989,3 +989,30 @@ scenarios. Only the timestamp changes in the receipt. The corpus still uses
 hand-built one-line patches and selects the head unit; browser tests cover the
 real Git adapter on both sides. `demo:check` passes. Final full-gate tails and
 the exact-lease push result are recorded in the handoff.
+
+
+## Round 16: escaped generator names and bounded regex attempts
+
+Fetch/rebase found main `bff724ee5` already included. The retained
+[unit red](round16-red-unit.txt) has **50 failures / zero passes** and the
+[Chromium/Git red](round16-red-browser.txt) has **24 failures / zero passes**.
+Four braced Unicode names (including private and astral names), both quoted
+key forms with LF/CRLF/U+2028 continuations, and QA's two over-bound cases
+run through all four esbuild modes in unit tests and minified/unminified real
+Chromium captures through the Git adapter. Every new generator fixture has no
+raw yield word, and the browser asserts zero body hits on both revisions.
+
+The identifier matcher now accepts braced escapes, and quoted-key escapes
+consume line terminators. The 512-character computed/generic bound is unchanged.
+A generator with no `yield` whose computed key or type-parameter list exceeds
+512 characters is not detected: those pinned cases still read ran/unknown,
+and their capture notes explicitly name the residual. This is a documented
+limit, not evidence that the generator body ran.
+
+Regex attempts now inspect at most 4,096 characters. Unrecognised regex classes
+retain negative-only evidence so they cannot invent comments hiding later code.
+A first attempt forbidding slash inside classes regressed two valid-literal
+tests; it was replaced with the bounded attempt, preserving both expectations.
+The crafted 20k/40k input pair originally used **3,633.7 ms CPU / 3,631.3 ms wall**.
+The combined join/reach/report unit suite now passes **1,067/1,067**; final timing,
+browser proof, gate tails and exact-lease push are recorded in the handoff.

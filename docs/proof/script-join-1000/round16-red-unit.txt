@@ -1,0 +1,982 @@
+✖ braced Unicode name is flagged under {} (33.873666ms)
+✖ braced Unicode name is flagged under {"minifySyntax":true} (2.418ms)
+✖ braced Unicode name is flagged under {"minifyWhitespace":true} (1.418458ms)
+✖ braced Unicode name is flagged under {"minify":true} (1.739916ms)
+✖ braced Unicode inside a name is flagged under {} (1.724792ms)
+✖ braced Unicode inside a name is flagged under {"minifySyntax":true} (1.060417ms)
+✖ braced Unicode inside a name is flagged under {"minifyWhitespace":true} (0.774792ms)
+✖ braced Unicode inside a name is flagged under {"minify":true} (1.395708ms)
+✖ braced private name is flagged under {} (1.572875ms)
+✖ braced private name is flagged under {"minifySyntax":true} (1.050583ms)
+✖ braced private name is flagged under {"minifyWhitespace":true} (0.95725ms)
+✖ braced private name is flagged under {"minify":true} (1.167417ms)
+✖ braced astral name is flagged under {} (2.638209ms)
+✖ braced astral name is flagged under {"minifySyntax":true} (1.010416ms)
+✖ braced astral name is flagged under {"minifyWhitespace":true} (0.910375ms)
+✖ braced astral name is flagged under {"minify":true} (0.775167ms)
+✖ ' quoted continuation "\n" is flagged under {} (0.794167ms)
+✖ ' quoted continuation "\n" is flagged under {"minifySyntax":true} (0.936083ms)
+✖ ' quoted continuation "\n" is flagged under {"minifyWhitespace":true} (0.638167ms)
+✖ ' quoted continuation "\n" is flagged under {"minify":true} (1.203417ms)
+✖ " quoted continuation "\n" is flagged under {} (0.866459ms)
+✖ " quoted continuation "\n" is flagged under {"minifySyntax":true} (0.627917ms)
+✖ " quoted continuation "\n" is flagged under {"minifyWhitespace":true} (0.655208ms)
+✖ " quoted continuation "\n" is flagged under {"minify":true} (0.918542ms)
+✖ ' quoted continuation "\r\n" is flagged under {} (0.581708ms)
+✖ ' quoted continuation "\r\n" is flagged under {"minifySyntax":true} (0.93475ms)
+✖ ' quoted continuation "\r\n" is flagged under {"minifyWhitespace":true} (0.908333ms)
+✖ ' quoted continuation "\r\n" is flagged under {"minify":true} (0.56575ms)
+✖ " quoted continuation "\r\n" is flagged under {} (0.755958ms)
+✖ " quoted continuation "\r\n" is flagged under {"minifySyntax":true} (0.95525ms)
+✖ " quoted continuation "\r\n" is flagged under {"minifyWhitespace":true} (0.565458ms)
+✖ " quoted continuation "\r\n" is flagged under {"minify":true} (0.872167ms)
+✖ ' quoted continuation "
+" is flagged under {} (0.937458ms)
+✖ ' quoted continuation "
+" is flagged under {"minifySyntax":true} (0.543917ms)
+✖ ' quoted continuation "
+" is flagged under {"minifyWhitespace":true} (0.793709ms)
+✖ ' quoted continuation "
+" is flagged under {"minify":true} (0.860625ms)
+✖ " quoted continuation "
+" is flagged under {} (0.605833ms)
+✖ " quoted continuation "
+" is flagged under {"minifySyntax":true} (0.963542ms)
+✖ " quoted continuation "
+" is flagged under {"minifyWhitespace":true} (0.818667ms)
+✖ " quoted continuation "
+" is flagged under {"minify":true} (0.580416ms)
+✖ QA computed key above bound retains the documented residual under {} (2.00125ms)
+✖ QA computed key above bound retains the documented residual under {"minifySyntax":true} (1.524166ms)
+✖ QA computed key above bound retains the documented residual under {"minifyWhitespace":true} (1.039792ms)
+✖ QA computed key above bound retains the documented residual under {"minify":true} (0.81075ms)
+✖ QA generic list above bound retains the documented residual under {} (1.15425ms)
+✖ QA generic list above bound retains the documented residual under {"minifySyntax":true} (0.99725ms)
+✖ QA generic list above bound retains the documented residual under {"minifyWhitespace":true} (0.732083ms)
+✖ QA generic list above bound retains the documented residual under {"minify":true} (1.0535ms)
+✖ capture notes name the no-yield computed/generic scan-bound residual (0.119ms)
+✖ crafted unclosed regex classes tokenize within a bounded CPU budget (3631.621542ms)
+ℹ 20k + 40k unclosed classes: 3631.3 ms wall, 3633.7 ms CPU
+ℹ tests 50
+ℹ suites 0
+ℹ pass 0
+ℹ fail 50
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3800.499709
+
+✖ failing tests:
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode name is flagged under {} (33.873666ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode name is flagged under {"minifySyntax":true} (2.418ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode name is flagged under {"minifyWhitespace":true} (1.418458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode name is flagged under {"minify":true} (1.739916ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode inside a name is flagged under {} (1.724792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode inside a name is flagged under {"minifySyntax":true} (1.060417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode inside a name is flagged under {"minifyWhitespace":true} (0.774792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced Unicode inside a name is flagged under {"minify":true} (1.395708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced private name is flagged under {} (1.572875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced private name is flagged under {"minifySyntax":true} (1.050583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced private name is flagged under {"minifyWhitespace":true} (0.95725ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced private name is flagged under {"minify":true} (1.167417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced astral name is flagged under {} (2.638209ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced astral name is flagged under {"minifySyntax":true} (1.010416ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced astral name is flagged under {"minifyWhitespace":true} (0.910375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ braced astral name is flagged under {"minify":true} (0.775167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\n" is flagged under {} (0.794167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\n" is flagged under {"minifySyntax":true} (0.936083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\n" is flagged under {"minifyWhitespace":true} (0.638167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\n" is flagged under {"minify":true} (1.203417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\n" is flagged under {} (0.866459ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\n" is flagged under {"minifySyntax":true} (0.627917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\n" is flagged under {"minifyWhitespace":true} (0.655208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\n" is flagged under {"minify":true} (0.918542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\r\n" is flagged under {} (0.581708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\r\n" is flagged under {"minifySyntax":true} (0.93475ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\r\n" is flagged under {"minifyWhitespace":true} (0.908333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "\r\n" is flagged under {"minify":true} (0.56575ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\r\n" is flagged under {} (0.755958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\r\n" is flagged under {"minifySyntax":true} (0.95525ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\r\n" is flagged under {"minifyWhitespace":true} (0.565458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "\r\n" is flagged under {"minify":true} (0.872167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "
+" is flagged under {} (0.937458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "
+" is flagged under {"minifySyntax":true} (0.543917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "
+" is flagged under {"minifyWhitespace":true} (0.793709ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ ' quoted continuation "
+" is flagged under {"minify":true} (0.860625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "
+" is flagged under {} (0.605833ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "
+" is flagged under {"minifySyntax":true} (0.963542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "
+" is flagged under {"minifyWhitespace":true} (0.818667ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ " quoted continuation "
+" is flagged under {"minify":true} (0.580416ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === !residual))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:48:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA computed key above bound retains the documented residual under {} (2.00125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA computed key above bound retains the documented residual under {"minifySyntax":true} (1.524166ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA computed key above bound retains the documented residual under {"minifyWhitespace":true} (1.039792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA computed key above bound retains the documented residual under {"minify":true} (0.81075ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA generic list above bound retains the documented residual under {} (1.15425ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA generic list above bound retains the documented residual under {"minifySyntax":true} (0.99725ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA generic list above bound retains the documented residual under {"minifyWhitespace":true} (0.732083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:17:5
+✖ QA generic list above bound retains the documented residual under {"minify":true} (1.0535ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:58:28)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:62:1
+✖ capture notes name the no-yield computed/generic scan-bound residual (0.119ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(boundResidual)))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:63:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round16.test.mjs:66:1
+✖ crafted unclosed regex classes tokenize within a bounded CPU budget (3631.621542ms)
+  AssertionError [ERR_ASSERTION]: 3633.749 ms CPU exceeds 500 ms
+      at TestContext.<anonymous> (<repo>/test/script-join-round16.test.mjs:77:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

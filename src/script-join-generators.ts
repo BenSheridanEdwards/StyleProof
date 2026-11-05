@@ -1,9 +1,9 @@
 /** Raw over-approximation: contents in strings, comments and templates are included. */
 const YIELD_WORD = /\byield\b/u;
-const IDENTIFIER = /#?[\p{ID_Continue}$\\]+/uy;
+const IDENTIFIER = /#?(?:[\p{ID_Continue}$\\]|\{[\dA-Fa-f]{1,6}\})+/uy;
 const NUMERIC =
   /(?:0[xXoObB][\dA-Fa-f_]+n?|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?n?|\.\d[\d_]*(?:[eE][+-]?\d[\d_]*)?)/uy;
-const QUOTED = /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/uy;
+const QUOTED = /'(?:\\[^]|[^'\\])*'|"(?:\\[^]|[^"\\])*"/uy;
 const BOUND = 512;
 
 type RawScan = {

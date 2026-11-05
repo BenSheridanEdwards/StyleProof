@@ -190,11 +190,13 @@ the evidence adds to a capture on a GitHub runner:
 
      `GAP` permits whitespace, block comments and line comments between the star,
      key, optional question mark, generic list and parenthesis. Keys accept optional
-     `#` followed by `[\p{ID_Continue}$\\]+` with Unicode semantics (including
-     escaped names), numeric literals including `.5` and `0x…`, quoted keys
-     `'(?:\\.|[^'\\])*'` / `"(?:\\.|[^"\\])*"`, or computed keys equivalent to
+     `#` followed by `(?:[\p{ID_Continue}$\\]|\{[\dA-Fa-f]{1,6}\})+` with Unicode semantics (including
+     fixed and braced escaped names), numeric literals including `.5` and `0x…`, quoted keys
+     `'(?:\\[^]|[^'\\])*'` / `"(?:\\[^]|[^"\\])*"`, or computed keys equivalent to
      `\[[^]{0,512}?\]`. Generic contents are equivalent to `<[^]{0,512}?>` and
      may include parentheses/newlines. Bounds count Unicode characters.
+     A generator with no `yield` whose computed key or type-parameter list exceeds 512 characters is not detected.
+     Quoted keys accept escaped LF, CRLF and U+2028 line continuations.
      All raw source positions remain eligible: strings, comments, regex bodies
      and templates are not excluded. Matching multiplication-like text and other
      non-generator text intentionally flags. The rule covers changes outside a

@@ -17,8 +17,38 @@ import { generatorCases, generatorResidual, methodDefaults, tsxGenerics } from '
 import { generatorFileCases } from './script-join-round13-fixture.mjs';
 import { rawGeneratorCases, apostropheControls } from './script-join-round14-fixture.mjs';
 import { widenedGeneratorCases } from './script-join-round15-fixture.mjs';
+import { escapedGeneratorCases, overBoundCases, boundResidual } from './script-join-round16-fixture.mjs';
 
 const scenarios = [
+  ...escapedGeneratorCases.flatMap(({ name, before, after, hits }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} escaped raw generator with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      sourceKey: 'app.ts',
+      minifySyntax,
+      generator: true,
+      rawGenerator: true,
+      residual: generatorResidual,
+      expected: 'unmeasured',
+      count: 2,
+    })),
+  ),
+  ...overBoundCases.flatMap(({ name, before, after, hits }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} documented bound residual with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      sourceKey: 'app.ts',
+      minifySyntax,
+      boundedGeneratorResidual: true,
+      live: true,
+      expected: 'unknown',
+      count: 2,
+    })),
+  ),
   ...widenedGeneratorCases.flatMap(({ name, before, after, hits }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} widened raw generator pattern with minify=${minifySyntax}`,
@@ -332,6 +362,12 @@ for (const scenario of scenarios) {
     expect(diff.gaps).toEqual([]);
     if ('rawGenerator' in scenario)
       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+    if ('boundedGeneratorResidual' in scenario) {
+      expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        true,
+      );
+    }
     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
     expect(units).toHaveLength(scenario.count);
     expect(units.map((unit) => unit.status)).toEqual(
