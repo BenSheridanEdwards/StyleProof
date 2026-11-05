@@ -10,9 +10,10 @@ export function elementChangeSignature(findings: Finding[]): string {
     if (normalizedFinding.kind !== 'dom')
       normalizedFinding.props = [...normalizedFinding.props].sort((left, right) => left.prop.localeCompare(right.prop));
     if (normalizedFinding.kind === 'state' && finding.kind === 'state') {
-      normalizedFinding.sub = finding.sub.startsWith(finding.path)
-        ? label + finding.sub.slice(finding.path.length)
-        : finding.sub;
+      normalizedFinding.sub =
+        finding.sub === finding.path || finding.sub.startsWith(`${finding.path} > `)
+          ? label + finding.sub.slice(finding.path.length)
+          : finding.sub;
     }
     return normalizedFinding;
   });

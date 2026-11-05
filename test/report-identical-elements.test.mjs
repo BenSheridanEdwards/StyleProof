@@ -103,6 +103,28 @@ function render({
 const sections = (md) => md.match(/^### /gm) ?? [];
 const signatureCount = (findings) => new Set(findings.map((finding) => elementChangeSignature([finding]))).size;
 
+test('state targets normalize only the owner itself or a descendant after a path separator', () => {
+  const path = 'body > li';
+  const state = (owner, target) => ({
+    kind: 'state',
+    path: owner,
+    sub: target,
+    cls: 'item',
+    state: 'hover',
+    props: [{ prop: 'color', before: 'blue', after: 'red' }],
+  });
+  const target = `${path}:nth-child(10) > span`;
+  assert.equal(
+    elementChangeSignature([state(path, target)]),
+    elementChangeSignature([state(`${path}:nth-child(1)`, target)]),
+    'an unrelated target must retain its full path for either owner',
+  );
+  assert.equal(
+    signatureCount([state(path, `${path} > span`), state(`${path}:nth-child(1)`, `${path}:nth-child(1) > span`)]),
+    1,
+  );
+});
+
 test('identical separated elements have one representative section, element list and property table', () => {
   const { md, json } = render();
   assert.equal(sections(md).length, 1);
@@ -132,9 +154,9 @@ test('identical state bundles share one heading, one list and one property table
   assert.equal((md.match(/\| `background-color` \|/g) ?? []).length, 1);
   assert.equal((md.match(/\| `outline-width` \|/g) ?? []).length, 1);
   assert.equal((md.match(/\| State \| Property \|/g) ?? []).length, 1);
-  assert.deepEqual(Object.keys(json.surfaces[0].regions[0].stateImages), ['hover', 'focus']);
-  assert.match(json.surfaces[0].regions[0].stateImages.hover.composite, /-1-composite/);
-  assert.match(json.surfaces[0].regions[0].stateImages.focus.composite, /-2-composite/);
+  assert.deepEqual(Object.keys(json.surfaces[0].sections[0].stateImages), ['hover', 'focus']);
+  assert.match(json.surfaces[0].sections[0].stateImages.hover.composite, /-1-composite/);
+  assert.match(json.surfaces[0].sections[0].stateImages.focus.composite, /-2-composite/);
   assert.equal(json.counts.state, 6);
 });
 
@@ -209,7 +231,7 @@ test('equal grid track counts with different summarized values stay separate', (
 
 test('a representative region preserves the existing crop budget omission field', () => {
   const { json } = render({ maxCropFiles: 0 });
-  assert.equal(json.surfaces[0].regions[0].cropOmitted, 'budget');
+  assert.equal(json.surfaces[0].sections[0].cropOmitted, 'budget');
   assert.equal(json.surfaces[0].sections[0].elements.length, 3);
 });
 
@@ -243,7 +265,7 @@ test('identical overlapping and separated regions share one counted section and 
       assert.equal(json.surfaces[0].sections[0].paths.length, 3);
       assert.equal(json.surfaces[0].sections[0].elements.length, 3);
       assert.equal((md.match(/\(shown\)/g) ?? []).length, options.overlap ? 3 : 2);
-      if (states) assert.deepEqual(Object.keys(json.surfaces[0].regions[0].stateImages), ['hover', 'focus']);
+      if (states) assert.deepEqual(Object.keys(json.surfaces[0].sections[0].stateImages), ['hover', 'focus']);
     }
 });
 
@@ -317,8 +339,7 @@ test('legacy JSON region membership and boxes remain per original region with ad
     assert.deepEqual(surface.regions[index].paths, [elementPath(index + 1)]);
     assert.equal(surface.regions[index].before.y, (index + 1) * 90 - 12);
     assert.deepEqual(surface.regions[index].before, surface.regions[index].after);
-    assert.ok(surface.regions[index].images.composite);
-    assert.match(surface.regions[index].images.composite, new RegExp(`-${index + 1}-composite`));
+    assert.deepEqual(surface.regions[index].images, {});
   }
   assert.equal(surface.sections.length, 1);
   assert.deepEqual(surface.sections[0].regionIndexes, [0, 1, 2]);
@@ -341,7 +362,7 @@ test('JSON retains the original crop-cap union even when a section uses a smalle
   assert.equal(surface.regions.length, 1);
   assert.deepEqual(surface.regions[0].paths, [1, 2, 3].map(elementPath));
   assert.deepEqual(surface.regions[0].before, { x: 8, y: 78, w: 204, h: 224 });
-  assert.ok(surface.regions[0].images.composite);
+  assert.deepEqual(surface.regions[0].images, {});
   assert.deepEqual(surface.sections[0].before, { x: 8, y: 78, w: 204, h: 44 });
   assert.deepEqual(surface.sections[0].regionIndexes, [0]);
 });

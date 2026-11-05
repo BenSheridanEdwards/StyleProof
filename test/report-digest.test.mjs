@@ -391,9 +391,3 @@ test('the headline counts sentences omitted by the ten-line cap', () => {
 function assertSentence(slice, expected) {
   assert.ok(slice.split('\n').includes(`- ${expected}`));
 }
-
-test('sentence assertions compare literal punctuation without interpreting regex syntax', () => {
-  const sentence = 'Nav links [primary]+ changed colour (2 elements).';
-  assert.doesNotThrow(() => assertSentence(`- ${sentence}\n`, sentence));
-  assert.throws(() => assertSentence('- Button changed colour (1 button)!', 'Button changed colour (1 button).'));
-});

@@ -549,9 +549,19 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       region.paths.some((path) => groups[index].paths.includes(path)) ? [regionIndex] : [],
     ),
   }));
-  // Generate the original region evidence too, reusing every matching section crop.
+  // Legacy geometry must not render hidden crops or consume the visible report's budget.
   const legacyClaimed = new Set<SiblingSpacingChange>();
-  const regions = legacyGroups.map((group) => renderGroup(group, legacyClaimed).regionJson);
+  const regions = legacyGroups.map((group) => {
+    const own = claimSpacing(spacing, group.paths, legacyClaimed);
+    const matching = groups.findIndex(
+      (section) =>
+        JSON.stringify([section.paths, section.before, section.after]) ===
+        JSON.stringify([group.paths, group.before, group.after]),
+    );
+    return matching >= 0
+      ? rendered[matching].regionJson
+      : { paths: group.paths, before: group.before, after: group.after, images: {}, ...spacingJson(own) };
+  });
   // Keep reflow ancestors in one capped table outside the crop budget.
   const outside = folded.filter((f) => !groups.some((g) => g.paths.some((root) => isSameOrDescendant(f.path, root))));
 

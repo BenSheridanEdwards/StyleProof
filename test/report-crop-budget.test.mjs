@@ -60,6 +60,52 @@ function sameFindings(actual, expected) {
   }
 }
 
+test('grouped legacy regions create no hidden crops or budget omissions before another surface', () => {
+  const directories = tmpDirs();
+  try {
+    for (const after of [false, true]) {
+      const directory = after ? directories.afterDir : directories.beforeDir;
+      const color = after ? 'red' : 'blue';
+      writeCapture(
+        directory,
+        'cards@390',
+        makeMap({
+          elements: Object.fromEntries(
+            Array.from({ length: 6 }, (_, index) => [
+              `body > article:nth-child(${index + 1}) > h2`,
+              { tag: 'h2', cls: 'card-title', rect: [20, 80 + index * 100, 180, 20], style: { color } },
+            ]),
+          ),
+        }),
+        solidPng(390, 1000, after ? [150, 30, 60] : [30, 60, 120]),
+      );
+      writeCapture(
+        directory,
+        'footer@390',
+        makeMap({ elements: { 'body > footer': { tag: 'footer', rect: [20, 100, 180, 40], style: { color } } } }),
+        solidPng(390, 400, after ? [150, 30, 60] : [30, 60, 120]),
+      );
+    }
+    for (const maxCropFiles of [1000, 4, 2]) {
+      const actual = report(directories, `visible-${maxCropFiles}`, { maxCropFiles });
+      const referenced = [...new Set([...actual.md.matchAll(/\(crops\/([^\s)]+\.png)\)/g)].map((match) => match[1]))];
+      assert.deepEqual(actual.files, referenced.sort(), 'every written crop appears in the report');
+      assert.equal(actual.json.surfaces.find((surface) => surface.representative === 'cards@390').regions.length, 6);
+      if (maxCropFiles >= 4) {
+        assert.equal(actual.files.length, 4);
+        assert.doesNotMatch(actual.md, /Crop omitted|crop\(s\) omitted/);
+        const footer = actual.json.surfaces.find((surface) => surface.representative === 'footer@390');
+        assert.ok(footer.regions[0].images.composite, 'the later surface retains its visible crop');
+      } else {
+        assert.equal(actual.json.cropBudget.omitted, 1, 'only the visible footer crop was omitted');
+        assert.equal((actual.md.match(/Crop omitted:/g) ?? []).length, 1);
+      }
+    }
+  } finally {
+    rmTmp(directories.root);
+  }
+});
+
 test('whole-report crop budget preserves findings and certification', async (t) => {
   const dirs = tmpDirs();
   t.after(() => rmTmp(dirs.root));
