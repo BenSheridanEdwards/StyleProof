@@ -110,6 +110,13 @@ changes. Whole-file generator recognition and its intentional outside-generator
 over-flagging are covered by unit and real-Chromium/Git tests. The corpus still
 uses hand-built one-line patches and selects the head unit.
 
+Round 14's raw generator-pattern policy retains all 32 expectations, zero J2 gaps
+and unchanged five/six unknown totals. No case status or result cell moves to
+unknown; eager JSX and render-scope values remain unknown. Only the timestamp
+changes in the receipt. Unit and real-Chromium/Git tests pin the intentional raw
+multiplication/string/comment/regex over-flagging and apostrophe boundaries; the
+corpus still uses hand-built one-line patches and selects the head unit.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry

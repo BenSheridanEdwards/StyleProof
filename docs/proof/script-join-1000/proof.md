@@ -908,3 +908,29 @@ exact never-rendered result and idle execution; all raw-generator browser cases
 also explicitly require both file flags. No classification code was changed to
 clear those expectations. Synthetic all-ran unit evidence for the same fixture
 still strictly requires unmeasured, proving the downgrade when it is applicable.
+
+
+Final targeted checks pass **769/769 units** and **190/190 real-Chromium/Git cases**.
+The raw patterns are tested through all four esbuild modes; all earlier header
+shapes, TSX generics, TS assertions, templates, overlays and operand joins remain
+green. The ordinary apostrophe controls require never-rendered and no raw flag.
+Capture-note wording and repeated intervening comments are pinned too.
+
+The [fresh JSON](round14-report.json), [Markdown](round14-report.md) and
+[stored capture evidence](round14-report-evidence.json) deliberately use a file
+with **no generator**: a live `a *b(1)` changes to `a *b(2)`. Both argument units
+read unmeasured and explicitly name the raw-pattern over-flagging. There are zero
+J2 gaps and zero blocking findings. The full 1100-pixel screenshot was inspected
+with Evidence expanded: product-state identity remains unproven, inventory is not
+checked, content/structure was not evaluated and reach remains incomplete. This
+is diagnostic policy proof, not rendering or same-state certification.
+
+![Raw multiplication text intentionally produces advisory unmeasured units](round14-report-top.png)
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 gaps and unchanged
+**five declared / six complete unknown** totals. Zero case statuses or result
+cells move to unknown; eager JSX and render-scope values remain unknown in both
+scenarios. Only the timestamp changes in the receipt. The corpus still uses
+hand-built one-line patches and selects the head unit; browser tests cover the
+real Git adapter on both sides. `demo:check` also passes. Final full-gate tails
+and the exact-lease push result are recorded in the handoff.
