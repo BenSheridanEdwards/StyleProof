@@ -1,0 +1,35 @@
+Already up to date
+Done in 57ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/class-join-report.test.mjs test/class-join.test.mjs
+✔ J3 is listed in human and JSON reporting, warn-only at both levels (3.1255ms)
+✔ J3 detail and gaps use leftover JSON bytes, keeping full status counts (1.16825ms)
+✔ missing J3 inputs keep class-list deltas explicitly not checked (0.203542ms)
+✔ omitted J3 detail cannot retain a complete flag (0.341667ms)
+✔ J3 gap records share the leftover budget and preserve their real count (0.490541ms)
+✔ a token-name delta never reaches any occurrence, including a unique token (3.630416ms)
+✔ no directional delta is sound negative evidence even when J2 ran (0.681416ms)
+✔ prose with a vocabulary word is skipped; a string of only known classes joins (0.65575ms)
+✔ JSX className identifies vocabulary tokens in an explicit class source (0.682375ms)
+✔ HTML class identifies vocabulary tokens in an explicit class source (0.23875ms)
+✔ object className identifies vocabulary tokens in an explicit class source (0.296459ms)
+✔ clsx identifies vocabulary tokens in an explicit class source (0.291042ms)
+✔ cva identifies vocabulary tokens in an explicit class source (0.199625ms)
+✔ classList identifies vocabulary tokens in an explicit class source (0.406667ms)
+✔ template identifies vocabulary tokens in an explicit class source (0.571666ms)
+✔ only literals intersecting the changed range are occurrences (0.206083ms)
+✔ collision retains distinct occurrence ranges and never upgrades a J2 unit (0.207875ms)
+✔ gained head and lost base tokens use their own directions (0.097958ms)
+✔ one-sided elements and volatile subtrees cannot provide paired deltas (0.389ms)
+✔ missing/partial/empty class vocabulary and absent map pairing name J3 gaps (0.280958ms)
+✔ comments, regex and template substitutions are not invented class text (0.293042ms)
+✔ class units sort by code point and exact range, independent of change order (0.19575ms)
+✔ className ternary context accepts marker words but ends before another property (0.128833ms)
+✔ unchanged words in an edited class string cannot invent negative evidence (0.095708ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 98.45475

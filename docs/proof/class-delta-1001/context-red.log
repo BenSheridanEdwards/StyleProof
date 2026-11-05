@@ -1,0 +1,60 @@
+Already up to date
+Done in 60ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/class-join.test.mjs
+✔ a token-name delta never reaches any occurrence, including a unique token (3.265208ms)
+✔ no directional delta is sound negative evidence even when J2 ran (0.582875ms)
+✔ prose with a vocabulary word is skipped; a string of only known classes joins (0.645042ms)
+✔ JSX className identifies vocabulary tokens in an explicit class source (0.406875ms)
+✔ HTML class identifies vocabulary tokens in an explicit class source (0.153541ms)
+✔ object className identifies vocabulary tokens in an explicit class source (0.674541ms)
+✔ clsx identifies vocabulary tokens in an explicit class source (0.486292ms)
+✔ cva identifies vocabulary tokens in an explicit class source (0.17575ms)
+✔ classList identifies vocabulary tokens in an explicit class source (0.406208ms)
+✔ template identifies vocabulary tokens in an explicit class source (0.472708ms)
+✔ only literals intersecting the changed range are occurrences (0.171375ms)
+✔ collision retains distinct occurrence ranges and never upgrades a J2 unit (0.18325ms)
+✔ gained head and lost base tokens use their own directions (0.0855ms)
+✔ one-sided elements and volatile subtrees cannot provide paired deltas (0.203125ms)
+✔ missing/partial/empty class vocabulary and absent map pairing name J3 gaps (0.262083ms)
+✔ comments, regex and template substitutions are not invented class text (0.472041ms)
+✔ class units sort by code point and exact range, independent of change order (0.237583ms)
+✖ className ternary context accepts marker words but ends before another property (0.689959ms)
+✔ unchanged words in an edited class string cannot invent negative evidence (0.113125ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 18
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 86.992416
+
+✖ failing tests:
+
+test at test/class-join.test.mjs:145:1
+✖ className ternary context accepts marker words but ends before another property (0.689959ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'other',
+  +   'other'
+  -   'old',
+  -   'new'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join.test.mjs:150:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'other', 'other' ],
+    expected: [ 'old', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.
