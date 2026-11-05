@@ -1,0 +1,117 @@
+✖ git diff has sixty seconds and names a timeout (1.70525ms)
+✖ a timed-out blob batch retains parsed blobs and names unread consumers (0.395083ms)
+✖ a root timeout is named in the run-level J2 gap (65.303459ms)
+✖ a diff timeout is named in the run-level J2 gap (65.845ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 236.459333
+
+✖ failing tests:
+
+test at test/script-join-round10-git.test.mjs:20:1
+✖ git diff has sixty seconds and names a timeout (1.70525ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /timed out/. Input:
+
+  'AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n' +
+    '\n' +
+    '10000 !== 60000\n'
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10-git.test.mjs:22:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+    10000 !== 60000
+
+        at <checkout>/test/script-join-round10-git.test.mjs:21:55
+        at Object.apply (node:internal/test_runner/mock/mock:805:20)
+        at readScriptGitDiff (<checkout>/dist/script-join-git-read.js:7:20)
+        at <checkout>/test/script-join-round10-git.test.mjs:22:23
+        at getActual (node:assert:580:5)
+        at strict.throws (node:assert:728:24)
+        at TestContext.<anonymous> (<checkout>/test/script-join-round10-git.test.mjs:22:10)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.start (node:internal/test_runner/test:1262:17),
+    expected: /timed out/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10-git.test.mjs:25:1
+✖ a timed-out blob batch retains parsed blobs and names unread consumers (0.395083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  10000 !== 60000
+
+      at <checkout>/test/script-join-round10-git.test.mjs:26:55
+      at Object.apply (node:internal/test_runner/mock/mock:805:20)
+      at readScriptGitBlobs (<checkout>/dist/script-join-git-read.js:106:20)
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10-git.test.mjs:27:17)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 10000,
+    expected: 60000,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10-git.test.mjs:33:3
+✖ a root timeout is named in the run-level J2 gap (65.303459ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  10000 !== 60000
+
+      at <checkout>/test/script-join-round10-git.test.mjs:46:16
+      at Object.apply (node:internal/test_runner/mock/mock:805:20)
+      at runGit (<checkout>/dist/node-util.js:8:12)
+      at readScriptChanges (<checkout>/dist/script-join-git.js:159:18)
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10-git.test.mjs:52:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 10000,
+    expected: 60000,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10-git.test.mjs:33:3
+✖ a diff timeout is named in the run-level J2 gap (65.845ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.gaps.some((gap) => /timed out/.test(gap.reason)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10-git.test.mjs:54:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

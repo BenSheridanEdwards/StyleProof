@@ -119,8 +119,13 @@ function exactAnchor(point: SourcePosition, index: ScriptExecutionIndex): number
   return row[position]?.column === point.column ? row[position].bits : undefined;
 }
 
-function tokenEvidence(point: SourcePosition, index: ScriptExecutionIndex, startsInRange: boolean): TokenEvidence {
-  const own = startsInRange ? exactAnchor(point, index) : undefined;
+function tokenEvidence(
+  point: SourcePosition,
+  index: ScriptExecutionIndex,
+  startsInRange: boolean,
+  negativeOnly = false,
+): TokenEvidence {
+  const own = startsInRange && !negativeOnly ? exactAnchor(point, index) : undefined;
   if (own !== undefined) return { bits: own, missing: false, preceding: false, count: 1 };
   const before = precedingEvidence({ start: point, end: point }, index);
   return {
@@ -128,8 +133,9 @@ function tokenEvidence(point: SourcePosition, index: ScriptExecutionIndex, start
     missing: !(before & 2),
     preceding: true,
     count: 1,
-    why:
-      before === 1
+    why: negativeOnly
+      ? 'ambiguous lexical boundary; only negative preceding execution evidence is usable'
+      : before === 1
         ? 'changed script token has no mapped anchor at its start; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler)'
         : 'script token without an execution start, including leading text, retains negative or missing preceding-anchor evidence',
   };
@@ -145,7 +151,12 @@ function rangeTokens(range: SourceSpan, index: ScriptExecutionIndex, text: strin
     const to = number === range.end.line ? range.end.column : Infinity;
     for (const token of scriptTokens(line)) {
       if (token.index >= to || token.end <= from) continue;
-      const evidence = tokenEvidence({ line: number, column: Math.max(from, token.index) }, index, token.index >= from);
+      const evidence = tokenEvidence(
+        { line: number, column: Math.max(from, token.index) },
+        index,
+        token.index >= from,
+        token.negativeOnly,
+      );
       result.bits |= evidence.bits;
       result.missing ||= evidence.missing;
       result.preceding ||= evidence.preceding;

@@ -1,0 +1,386 @@
+Already up to date
+Done in 137ms using pnpm v11.7.0
+
+Running 14 tests using 1 worker
+
+(node:8086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text // TODO cannot hide a removed sibling with minify=false (680ms)
+(node:9637) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text // TODO cannot hide a removed sibling with minify=true (818ms)
+(node:10974) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text /* note cannot hide a removed sibling with minify=false (809ms)
+(node:12380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text /* note cannot hide a removed sibling with minify=true (791ms)
+(node:13659) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text `npm i cannot hide a removed sibling with minify=false (959ms)
+(node:14787) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text `npm i cannot hide a removed sibling with minify=true (1.0s)
+(node:16118) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=false (1.0s)
+(node:17491) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=true (856ms)
+(node:19009) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an escaped slash after a condition cannot start a fake comment with minify=false (948ms)
+(node:20231) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an escaped slash after a condition cannot start a fake comment with minify=true (793ms)
+(node:21205) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter destructuring default reports its residual with minify=false (850ms)
+(node:22461) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter destructuring default reports its residual with minify=true (669ms)
+(node:23444) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter default with a nested call reports its residual with minify=false (655ms)
+(node:24516) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter default with a nested call reports its residual with minify=true (752ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text // TODO cannot hide a removed sibling with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-e9a7f-d-sibling-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text // TODO cannot hide a removed sibling with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-02947-ed-sibling-with-minify-true-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text /* note cannot hide a removed sibling with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-1e6c9-d-sibling-with-minify-false-chromium/error-context.md
+
+  4) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text /* note cannot hide a removed sibling with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-98409-ed-sibling-with-minify-true-chromium/error-context.md
+
+  5) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text `npm i cannot hide a removed sibling with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-3da5e-d-sibling-with-minify-false-chromium/error-context.md
+
+  6) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text `npm i cannot hide a removed sibling with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-8de7c-ed-sibling-with-minify-true-chromium/error-context.md
+
+  7) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-ed5b5-oved-code-with-minify-false-chromium/error-context.md
+
+  8) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-d5c31-moved-code-with-minify-true-chromium/error-context.md
+
+  9) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an escaped slash after a condition cannot start a fake comment with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-44151-e-comment-with-minify-false-chromium/error-context.md
+
+  10) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an escaped slash after a condition cannot start a fake comment with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      191 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      192 |     expect(units).toHaveLength(scenario.count);
+    > 193 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      194 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      195 |     );
+      196 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:193:46
+
+    Error Context: test-results/test-script-join-round6.e2-d722e-ke-comment-with-minify-true-chromium/error-context.md
+
+  11) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter destructuring default reports its residual with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      218 |       }
+      219 |       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+    > 220 |       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+          |                                                                                                         ^
+      221 |       expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      222 |     }
+      223 |   });
+        at <checkout>/test/script-join-round6.e2e.spec.ts:220:105
+
+    Error Context: test-results/test-script-join-round6.e2-3fecb--residual-with-minify-false-chromium/error-context.md
+
+  12) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter destructuring default reports its residual with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      218 |       }
+      219 |       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+    > 220 |       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+          |                                                                                                         ^
+      221 |       expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      222 |     }
+      223 |   });
+        at <checkout>/test/script-join-round6.e2e.spec.ts:220:105
+
+    Error Context: test-results/test-script-join-round6.e2-889dd-s-residual-with-minify-true-chromium/error-context.md
+
+  13) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter default with a nested call reports its residual with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      218 |       }
+      219 |       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+    > 220 |       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+          |                                                                                                         ^
+      221 |       expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      222 |     }
+      223 |   });
+        at <checkout>/test/script-join-round6.e2e.spec.ts:220:105
+
+    Error Context: test-results/test-script-join-round6.e2-ffc7d--residual-with-minify-false-chromium/error-context.md
+
+  14) [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter default with a nested call reports its residual with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      218 |       }
+      219 |       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+    > 220 |       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+          |                                                                                                         ^
+      221 |       expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      222 |     }
+      223 |   });
+        at <checkout>/test/script-join-round6.e2e.spec.ts:220:105
+
+    Error Context: test-results/test-script-join-round6.e2-f8661-s-residual-with-minify-true-chromium/error-context.md
+
+  14 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text // TODO cannot hide a removed sibling with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text // TODO cannot hide a removed sibling with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text /* note cannot hide a removed sibling with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text /* note cannot hide a removed sibling with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text `npm i cannot hide a removed sibling with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › JSX text `npm i cannot hide a removed sibling with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an escaped slash after a condition cannot start a fake comment with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › an escaped slash after a condition cannot start a fake comment with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter destructuring default reports its residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter destructuring default reports its residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter default with a nested call reports its residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:133:3 › parameter default with a nested call reports its residual with minify=true

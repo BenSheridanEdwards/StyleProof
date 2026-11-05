@@ -1,5 +1,5 @@
 /** Conservative lexical ranges: ambiguous slash expressions remain ordinary code. */
-export type ScriptToken = { index: number; end: number };
+export type ScriptToken = { index: number; end: number; negativeOnly?: true };
 
 const TOKEN =
   /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|(?<regexp>\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\[\r\n])+\/[dgimsuvy]*)|0[xXoObB][\dA-Fa-f_]+n?|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?n?|\.\d[\d_]*(?:[eE][+-]?\d[\d_]*)?|#?[\p{ID_Start}_$][\p{ID_Continue}$]*/uy;
@@ -18,7 +18,7 @@ function literalMayStart(line: string, offset: number): boolean {
 function jsxTextAfter(line: string, open: number, close: number): ScriptToken | undefined {
   if (!literalMayStart(line, open)) return;
   const tag = line.slice(open, close + 1);
-  if (tag.endsWith('/>') || !/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?:\s[^<>]*)?)?>$/u.test(tag)) return;
+  if (tag.endsWith('/>') || !/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?:\s[^]*)?)?>$/u.test(tag)) return;
   let end = close + 1;
   while (end < line.length && !'<{}\r\n'.includes(line[end])) end++;
   return line.slice(close + 1, end).trim() ? { index: close + 1, end } : undefined;
@@ -26,19 +26,56 @@ function jsxTextAfter(line: string, open: number, close: number): ScriptToken | 
 
 function jsxTextRanges(line: string): ScriptToken[] {
   const ranges: ScriptToken[] = [];
-  let open = -1;
   for (let cursor = 0; cursor < line.length; cursor++) {
-    if (line[cursor] === '<') open = cursor;
-    else if (line[cursor] === '>' && open >= 0) {
-      const text = jsxTextAfter(line, open, cursor);
-      open = -1;
-      if (text) {
-        ranges.push(text);
-        cursor = text.end - 1;
-      }
+    if (line[cursor] !== '<' || !literalMayStart(line, cursor)) continue;
+    if (!/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?=[\s/>])|>)/u.test(line.slice(cursor))) continue;
+    const close = jsxTagEnd(line, cursor);
+    if (close < 0) {
+      ranges.push({ index: cursor, end: line.length, negativeOnly: true });
+      break;
     }
+    const text = jsxTextAfter(line, cursor, close);
+    cursor = text ? text.end - 1 : close;
+    if (text) ranges.push(text);
   }
   return ranges;
+}
+
+function quotedEnd(text: string, start: number): number {
+  if (text[start] === '`') return templateEnd(text, start);
+  for (let cursor = start + 1; cursor < text.length; cursor++) {
+    if (text[cursor] === '\\') cursor++;
+    else if (text[cursor] === text[start]) return cursor + 1;
+  }
+  return text.length;
+}
+
+function tagLiteralEnd(text: string, cursor: number, braces: number, matcher: RegExp): number | undefined {
+  if ('\'"`'.includes(text[cursor])) return quotedEnd(text, cursor);
+  if (!braces) return;
+  const comment = commentEnd(text, cursor);
+  if (comment !== undefined) return comment;
+  if (text[cursor] !== '/') return;
+  matcher.lastIndex = cursor;
+  const match = matcher.exec(text);
+  if (match?.groups?.regexp) return literalMayStart(text, cursor) ? cursor + match[0].length : -1;
+}
+
+function jsxTagEnd(text: string, start: number): number {
+  let braces = 0;
+  const matcher = new RegExp(TOKEN);
+  for (let cursor = start + 1; cursor < text.length; cursor++) {
+    const literal = tagLiteralEnd(text, cursor, braces, matcher);
+    if (literal === -1) return -1;
+    if (literal !== undefined) {
+      cursor = literal - 1;
+      continue;
+    }
+    if (text[cursor] === '{') braces++;
+    else if (text[cursor] === '}') braces--;
+    else if (text[cursor] === '>' && braces === 0) return cursor;
+  }
+  return -1;
 }
 
 /** Backticks start a value; subsequent template chunks only delimit substitutions. */
@@ -62,13 +99,22 @@ function commentEnd(text: string, start: number): number | undefined {
   return end;
 }
 
+function commentPiece(text: string, start: number, end: number): { end: number; tokens: ScriptToken[] } {
+  if (text[start - 1] !== '\\') return { end, tokens: [] };
+  // A comment after an escaped slash was reached through an unrecognised regex.
+  // It cannot consume the remaining code as positive execution evidence.
+  let tail = start;
+  while (tail < text.length && !'\r\n\u2028\u2029'.includes(text[tail])) tail++;
+  return { end: tail, tokens: [{ index: start - 1, end: tail, negativeOnly: true }] };
+}
+
 function templatePiece(
   text: string,
   start: number,
   substitutions: number[],
 ): { end: number; tokens: ScriptToken[] } | undefined {
   const comment = commentEnd(text, start);
-  if (comment !== undefined) return { end: comment, tokens: [] };
+  if (comment !== undefined) return commentPiece(text, start, comment);
   const head = text[start] === '`';
   if (head || (text[start] === '}' && substitutions.at(-1) === 0)) {
     const chunk = templateChunk(text, start);
@@ -81,6 +127,24 @@ function templatePiece(
   return;
 }
 
+function templateEnd(text: string, start: number): number {
+  const substitutions: number[] = [],
+    matcher = new RegExp(TOKEN);
+  let cursor = start;
+  while (cursor < text.length) {
+    const piece = templatePiece(text, cursor, substitutions);
+    if (piece) {
+      cursor = piece.end;
+      if (!substitutions.length) return cursor;
+      continue;
+    }
+    matcher.lastIndex = cursor;
+    const match = matcher.exec(text);
+    cursor += match?.[0].length ?? 1;
+  }
+  return cursor;
+}
+
 export function scriptTokens(line: string): ScriptToken[] {
   const tokens: ScriptToken[] = [],
     jsx = jsxTextRanges(line);
@@ -90,6 +154,12 @@ export function scriptTokens(line: string): ScriptToken[] {
   let cursor = 0,
     text = 0;
   while (cursor < line.length) {
+    while (text < jsx.length && jsx[text].index < cursor) text++;
+    if (jsx[text]?.index === cursor) {
+      tokens.push(jsx[text]);
+      cursor = jsx[text++].end;
+      continue;
+    }
     const piece = templatePiece(line, cursor, substitutions);
     if (piece) {
       tokens.push(...piece.tokens);
@@ -101,12 +171,6 @@ export function scriptTokens(line: string): ScriptToken[] {
     closingTag.lastIndex = cursor;
     if (line[cursor] === '<' && closingTag.test(line)) {
       cursor = closingTag.lastIndex;
-      continue;
-    }
-    while (text < jsx.length && jsx[text].index < cursor) text++;
-    if (jsx[text]?.index === cursor) {
-      tokens.push(jsx[text]);
-      cursor = jsx[text++].end;
       continue;
     }
     matcher.lastIndex = cursor;

@@ -630,3 +630,32 @@ values remain ran/unknown in both scenarios. Unknown totals stay five declared
 and six complete, and J3-prototype results remain separate. No expectation was
 relaxed. The unchanged corpus still uses hand-built one-line patches and selects
 the head unit; the expanded browser spec exercises real Git on both revisions.
+
+
+## Round 10: lexical boundaries cannot invent execution
+
+Rebased cleanly onto `175bd9a69`. The retained [unit red](round10-red-unit.txt)
+has **18 failures / 37 passes**. [Git red](round10-red-git-unit.txt) has four
+failures, and the [real-Chromium red](round10-red-browser.txt) has **14 failures**.
+All three JSX-text prefixes, the arrow attribute and the escaped-slash condition
+are pinned through real esbuild maps in minified and unminified modes, with both
+git revisions captured in the browser cases.
+
+Delimited JSX text now precedes comment/template detection. Tag scanning keeps
+brace depth and skips strings/templates/comments and recognizable regexes, so
+an attribute arrow cannot start a fake text token. Uncertain tag boundaries and
+comment-like tails reached after an escaped slash are explicitly negative-only:
+executed neighbouring anchors cannot prove the swallowed region ran; idle/mixed
+evidence is retained. Ordinary division and all earlier template/JSX boundaries
+remain covered. These flags are internal lexical evidence, not report source text.
+
+Parameter destructuring and one-level nested default calls now name their
+residuals. The plain-return negatives still exclude default-parameter naming.
+Root lookup, diff and blob batch use 60-second Git deadlines; timeout reasons
+survive into run-level gaps, and parsed blobs survive a timed-out batch. Four
+mocked-process tests check deadlines and reasons without waiting sixty seconds.
+
+Targeted units pass **510/510**. Fallow initially flagged cognitive complexity 22
+in the tag scanner; layout and literal skipping were separated before committing.
+No threshold, hook or test timeout was weakened. Code and red evidence are
+committed before the full checks; final gate tails and push status are in the handoff.

@@ -11,8 +11,20 @@ import { overlaySource } from './script-join-round6-fixture.mjs';
 import { residualCases, tokenCases, tokenDefines } from './script-join-round8-fixture.mjs';
 import { generateStyleMapReport } from '../dist/report.js';
 import { writeCapture } from './helpers.mjs';
+import { lexicalCases } from './script-join-round10-fixture.mjs';
 
 const scenarios = [
+  ...lexicalCases.flatMap(({ name, before, after, ambiguous }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} with minify=${minifySyntax}`,
+      before,
+      after,
+      minifySyntax,
+      expected: 'unmeasured',
+      ambiguous,
+      count: 2,
+    })),
+  ),
   ...tokenCases
     .filter((entry) => entry.template)
     .map(({ name, before, after, foldedAlways }) => ({
@@ -197,7 +209,11 @@ for (const scenario of scenarios) {
     }
     if (scenario.expected === 'unmeasured') {
       expect(units.every((unit) => unit.execution === 'unmeasured')).toBe(true);
-      expect(units.every((unit) => unit.why.includes('it may have been removed by the bundler'))).toBe(true);
+      const reason =
+        'ambiguous' in scenario && scenario.ambiguous
+          ? 'ambiguous lexical boundary'
+          : 'it may have been removed by the bundler';
+      expect(units.every((unit) => unit.why.includes(reason))).toBe(true);
     }
     if ('idle' in scenario && scenario.idle) {
       expect(units.every((unit) => ['never-ran', 'partly-ran'].includes(unit.execution))).toBe(true);

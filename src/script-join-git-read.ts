@@ -15,7 +15,12 @@ export type ScriptGitFile = {
 
 export type ScriptBlob = { content?: Buffer; reason?: string };
 
-const gitOptions = (cwd: string) => ({ cwd, timeout: 10_000, maxBuffer: 1 << 28 });
+export const SCRIPT_GIT_TIMEOUT_MS = 60_000;
+const gitOptions = (cwd: string) => ({ cwd, timeout: SCRIPT_GIT_TIMEOUT_MS, maxBuffer: 1 << 28 });
+
+export function scriptGitTimedOut(error: Error | undefined): boolean {
+  return Boolean(error && 'code' in error && error.code === 'ETIMEDOUT');
+}
 
 export function readScriptGitDiff(repository: string, base: string, head: string): ScriptGitFile[] {
   const result = spawnSync(
@@ -55,7 +60,10 @@ export function readScriptGitDiff(repository: string, base: string, head: string
     gitOptions(repository),
   );
 
-  if (result.status !== 0) throw new Error('git source diff unavailable');
+  if (result.status !== 0)
+    throw new Error(
+      scriptGitTimedOut(result.error) ? 'git source diff timed out after 60 s' : 'git source diff unavailable',
+    );
   const text = result.stdout.toString('utf8');
   const files: ScriptGitFile[] = [];
   let cursor = 0;
@@ -148,8 +156,10 @@ export function readScriptGitBlobs(repository: string, objectIds: string[]): Map
     cursor = record.next;
   }
 
-  for (const oid of objectIds)
-    if (!blobs.has(oid)) blobs.set(oid, { reason: 'git blob batch unavailable or truncated' });
+  const reason = scriptGitTimedOut(result.error)
+    ? 'git blob batch timed out after 60 s'
+    : 'git blob batch unavailable or truncated';
+  for (const oid of objectIds) if (!blobs.has(oid)) blobs.set(oid, { reason });
 
   return blobs;
 }

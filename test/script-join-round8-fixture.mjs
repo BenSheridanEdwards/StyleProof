@@ -90,6 +90,16 @@ export const tokenDefines = {
 };
 
 export const residualCases = [
+  {
+    name: 'parameter destructuring default',
+    before: 'const App = (({ a = "red" }) => a); window.result = App({});',
+    residual: 'destructuring defaults',
+  },
+  {
+    name: 'parameter default with a nested call',
+    before: 'const App = ((a = String("red")) => a); window.result = App();',
+    residual: 'default parameter values',
+  },
   ...[
     ['a return value after an empty parameter list', 'function Overlay(){return "red";}window.result=Overlay();'],
     ['a return value outside a function default', 'function App(value="ok"){return "red";}window.result=App("ok");'],

@@ -1,0 +1,411 @@
+✖ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=false (263.26975ms)
+✖ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=true (3.114584ms)
+✖ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=false (2.625875ms)
+✖ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=true (2.718333ms)
+✖ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=false (2.224625ms)
+✖ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=true (1.898583ms)
+✖ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=false (2.013041ms)
+✖ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=true (2.894833ms)
+✖ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=false (2.068ms)
+✔ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=true (1.820792ms)
+✖ JSX text // TODO ends before the following expression (0.355ms)
+✖ JSX text /* note ends before the following expression (0.104291ms)
+✖ JSX text `npm i ends before the following expression (0.094125ms)
+✖ JSX attributes keep expression tokens inside braces: (i)=>i.label || __DEV__ && "red" (0.074333ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>({label:"}>"}).label || "red" (0.042041ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>`x${i.label}` || "red" (0.023625ms)
+✖ ambiguous escaped-slash comments retain negative-only tail evidence (0.086417ms)
+✔ an eager JSX element keeps its executable starts with V8 count 0 (259.670667ms)
+✔ an eager JSX element keeps its executable starts with V8 count 1 (2.267375ms)
+✔ JSX closing-tag names are delimiter syntax while strings and following code keep tokens (0.179625ms)
+✖ parameter destructuring default names its residual with minify=false (5.719125ms)
+✖ parameter destructuring default names its residual with minify=true (2.297792ms)
+✖ parameter default with a nested call names its residual with minify=false (2.556417ms)
+✖ parameter default with a nested call names its residual with minify=true (1.152167ms)
+✔ a return value after an empty parameter list names its residual with minify=false (1.374416ms)
+✔ a return value after an empty parameter list names its residual with minify=true (1.2205ms)
+✔ a return value outside a function default names its residual with minify=false (1.086667ms)
+✔ a return value outside a function default names its residual with minify=true (1.751375ms)
+✔ an arrow body outside its parameter default names its residual with minify=false (1.269792ms)
+✔ an arrow body outside its parameter default names its residual with minify=true (1.200167ms)
+✔ supplied function default names its residual with minify=false (0.883708ms)
+✔ supplied function default names its residual with minify=true (1.685708ms)
+✔ supplied arrow default names its residual with minify=false (1.050666ms)
+✔ supplied arrow default names its residual with minify=true (1.427583ms)
+✔ code after a throwing call names its residual with minify=false (1.077916ms)
+✔ code after a throwing call names its residual with minify=true (1.233958ms)
+✔ a live closing brace cannot prove the eliminated development arm ran with real esbuild mappings (1.54975ms)
+✔ the eliminated development arm stays unmeasured after a line break with real esbuild mappings (1.246917ms)
+✔ a two-token ternary edit cannot borrow the surviving arm execution with real esbuild mappings (1.1435ms)
+✔ a folded template class substitution with real esbuild mappings (0.998292ms)
+✔ a folded template call substitution with real esbuild mappings (1.52225ms)
+✔ a folded template side effect with real esbuild mappings (1.330375ms)
+✔ a template on its own call line with real esbuild mappings (1.235709ms)
+✔ the second template on one line with real esbuild mappings (1.099917ms)
+✔ a folded logical template substitution with real esbuild mappings (1.03175ms)
+✔ a multiline template substitution with real esbuild mappings (1.083625ms)
+✔ a substitution expression on its own line with real esbuild mappings (1.139584ms)
+✔ token evidence for }, reads unmeasured (0.138417ms)
+✔ token evidence for foo(); removed; reads unmeasured (0.046208ms)
+✔ token evidence for foo(); bar; reads ran (0.043792ms)
+✔ token evidence for }; idle; reads never-ran (0.037834ms)
+✔ the capture notes retain optional-chain continuation and merged-arm attribution limits (0.181ms)
+✔ token columns stay on the changed JavaScript line after "\r" (1.030917ms)
+✔ token columns stay on the changed JavaScript line after "
+" (2.647708ms)
+✔ token columns stay on the changed JavaScript line after "
+" (1.417ms)
+ℹ tests 55
+ℹ suites 0
+ℹ pass 37
+ℹ fail 18
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 413.87625
+
+✖ failing tests:
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=false (263.26975ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=true (3.114584ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=false (2.625875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=true (2.718333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=false (2.224625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=true (1.898583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=false (2.013041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=true (2.894833ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=false (2.068ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:32:3
+✖ JSX text // TODO ends before the following expression (0.355ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text).some((token) => token.index === text.indexOf('"red"') && token.end === text.indexOf('"red"') + 5))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:34:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:32:3
+✖ JSX text /* note ends before the following expression (0.104291ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text).some((token) => token.index === text.indexOf('"red"') && token.end === text.indexOf('"red"') + 5))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:34:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:32:3
+✖ JSX text `npm i ends before the following expression (0.094125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text).some((token) => token.index === text.indexOf('"red"') && token.end === text.indexOf('"red"') + 5))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:34:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:39:3
+✖ JSX attributes keep expression tokens inside braces: (i)=>i.label || __DEV__ && "red" (0.074333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text).some((token) => token.index === text.indexOf('"red"')))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:41:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:45:1
+✖ ambiguous escaped-slash comments retain negative-only tail evidence (0.086417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text).some((token) => token.negativeOnly && token.end === text.length))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:47:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ parameter destructuring default names its residual with minify=false (5.719125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:97:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ parameter destructuring default names its residual with minify=true (2.297792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:97:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ parameter default with a nested call names its residual with minify=false (2.556417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:97:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ parameter default with a nested call names its residual with minify=true (1.152167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:97:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

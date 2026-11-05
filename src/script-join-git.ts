@@ -4,7 +4,14 @@ import { readMapManifest } from './map-store/manifest.js';
 import { runGit, sha256 } from './node-util.js';
 import type { StyleMap } from './capture.js';
 import { changedScriptRanges } from './script-join-ranges.js';
-import { readScriptGitDiff, readScriptGitBlobs, type ScriptGitFile, type ScriptBlob } from './script-join-git-read.js';
+import {
+  readScriptGitDiff,
+  readScriptGitBlobs,
+  SCRIPT_GIT_TIMEOUT_MS,
+  scriptGitTimedOut,
+  type ScriptGitFile,
+  type ScriptBlob,
+} from './script-join-git-read.js';
 import {
   compareScriptRanges,
   compareSourceKeys,
@@ -238,22 +245,34 @@ export function readScriptChanges(beforeDir: string, afterDir: string, options: 
 
   if (gaps.length) return { changes: [], gaps };
   const cwd = options.cwd ?? process.cwd();
-  const root = runGit(cwd, ['rev-parse', '--show-toplevel'], { timeout: 10_000 });
+  const root = runGit(cwd, ['rev-parse', '--show-toplevel'], { timeout: SCRIPT_GIT_TIMEOUT_MS });
 
   if (root.status !== 0)
     return {
       changes: [],
-      gaps: [scriptJoinGap('git source diff unavailable; retain both captured revisions in the checkout')],
+      gaps: [
+        scriptJoinGap(
+          scriptGitTimedOut(root.error)
+            ? 'git source root lookup timed out after 60 s; retain both captured revisions in the checkout'
+            : 'git source diff unavailable; retain both captured revisions in the checkout',
+        ),
+      ],
     };
 
   try {
     const repository = root.stdout.trim();
 
     return joinFiles(repository, readScriptGitDiff(repository, shas.base, shas.head), maps);
-  } catch {
+  } catch (error) {
     return {
       changes: [],
-      gaps: [scriptJoinGap('git source diff unavailable; retain both captured revisions in the checkout')],
+      gaps: [
+        scriptJoinGap(
+          error instanceof Error && error.message === 'git source diff timed out after 60 s'
+            ? 'git source diff timed out after 60 s; retain both captured revisions in the checkout'
+            : 'git source diff unavailable; retain both captured revisions in the checkout',
+        ),
+      ],
     };
   }
 }

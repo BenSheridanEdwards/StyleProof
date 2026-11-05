@@ -172,7 +172,8 @@ function defaultParameter(change: ScriptChange): boolean {
   const breaks = [...text.matchAll(/\r\n|[\n\r\u2028\u2029]/g)];
   const lastBreak = breaks[range.end.line - range.start.line - 1];
   const end = (lastBreak ? lastBreak.index + lastBreak[0].length : 0) + range.end.column;
-  const headers = /\bfunction\b(?:\s*\*)?\s*(?:[\w$]+\s*)?\(([^()]*)\)|\(([^()]*)\)\s*=>/g;
+  const headers =
+    /\bfunction\b(?:\s*\*)?\s*(?:[\w$]+\s*)?\(((?:[^()]|\([^()]*\))*)\)|\(((?:[^()]|\([^()]*\))*)\)\s*=>/g;
   for (const header of text.matchAll(headers)) {
     const parameters = header[1] ?? header[2];
     const offset = header.index + header[0].indexOf('(') + 1;
@@ -189,7 +190,9 @@ function residuals(change: ScriptChange): string[] {
   const { text } = change;
   return [
     ...(defaultParameter(change) ? ['default parameter values'] : []),
-    ...(/(?:\b(?:const|let|var)\s+)?[[{][^]*?\w\s*=[^]*?[\]}]\s*=/.test(text) ? ['destructuring defaults'] : []),
+    ...(/(?:\b(?:const|let|var)\s+)?[[{][^]*?\w\s*=[^]*?[\]}]\s*(?:=|\)\s*(?:=>|\{))/.test(text)
+      ? ['destructuring defaults']
+      : []),
     ...(/(?:\|\||&&|\?\?)=/.test(text) ? ['logical assignment RHS'] : []),
     ...(/\?\./.test(text) ? ['later links of a short-circuited optional chain'] : []),
     ...(/\b[\w$]+\s*\([^]*?\)[^]*?;[^]*?\S/.test(text) ? ['code after a throwing expression'] : []),
