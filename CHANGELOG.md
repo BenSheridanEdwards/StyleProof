@@ -153,11 +153,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   file whose raw text contains a generator-like pattern stays unmeasured, including
   code outside a generator and files with no generator. Raw yield words also flag;
   bounded header patterns accept Unicode/escaped, numeric, quoted and computed
-  keys (including braced escapes and quoted line continuations), comment gaps, optional
+  keys (including braced escapes with arbitrarily many leading hex zeros and quoted
+  CR/LF/CRLF/U+2028/U+2029 continuations), comment gaps, optional
   methods and generic constraints across newlines. No-yield generators with computed
   keys or generic lists above the 512-character bound remain a named residual.
-  Regex-literal attempts are capped at 4,096 characters; unclosed classes retain
-  negative-only evidence without repeated scans.
+  Regex-literal attempts are capped at 4,096 characters; failed slash-start
+  attempts cut off before a line terminator retain negative-only evidence for the
+  remaining line, including in template and JSX-tag scans. Long division lines
+  may also be over-flagged.
   Cached gaps and bounded checks keep large-file scanning linear. Matching raw
   multiplication, strings, comments, regex bodies and templates intentionally flag. Quoted tokens stop at a line
   terminator; an unterminated quote is one character. Capture notes name this and the other V8 and

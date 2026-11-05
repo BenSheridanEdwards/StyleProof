@@ -18,8 +18,37 @@ import { generatorFileCases } from './script-join-round13-fixture.mjs';
 import { rawGeneratorCases, apostropheControls } from './script-join-round14-fixture.mjs';
 import { widenedGeneratorCases } from './script-join-round15-fixture.mjs';
 import { escapedGeneratorCases, overBoundCases, boundResidual } from './script-join-round16-fixture.mjs';
+import { cappedRegexCases, paddedEscapeCases } from './script-join-round17-fixture.mjs';
 
 const scenarios = [
+  ...cappedRegexCases.flatMap(({ name, before, after, hits, sourceKey }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} capped-regex regression with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      sourceKey,
+      minifySyntax,
+      ambiguous: name !== 'short regex control',
+      expected: 'unmeasured',
+      count: 2,
+    })),
+  ),
+  ...paddedEscapeCases.flatMap(({ name, before, after, hits, sourceKey }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} padded-escape regression with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      sourceKey,
+      minifySyntax,
+      generator: true,
+      rawGenerator: true,
+      residual: generatorResidual,
+      expected: 'unmeasured',
+      count: 2,
+    })),
+  ),
   ...escapedGeneratorCases.flatMap(({ name, before, after, hits }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} escaped raw generator with minify=${minifySyntax}`,

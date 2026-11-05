@@ -190,13 +190,13 @@ the evidence adds to a capture on a GitHub runner:
 
      `GAP` permits whitespace, block comments and line comments between the star,
      key, optional question mark, generic list and parenthesis. Keys accept optional
-     `#` followed by `(?:[\p{ID_Continue}$\\]|\{[\dA-Fa-f]{1,6}\})+` with Unicode semantics (including
-     fixed and braced escaped names), numeric literals including `.5` and `0x…`, quoted keys
+     `#` followed by `(?:[\p{ID_Continue}$\\]|\{[\dA-Fa-f]+\})+` with Unicode semantics (including
+     fixed and braced escaped names with arbitrarily many leading hex zeros), numeric literals including `.5` and `0x…`, quoted keys
      `'(?:\\[^]|[^'\\])*'` / `"(?:\\[^]|[^"\\])*"`, or computed keys equivalent to
      `\[[^]{0,512}?\]`. Generic contents are equivalent to `<[^]{0,512}?>` and
      may include parentheses/newlines. Bounds count Unicode characters.
      A generator with no `yield` whose computed key or type-parameter list exceeds 512 characters is not detected.
-     Quoted keys accept escaped LF, CRLF and U+2028 line continuations.
+     Quoted keys accept escaped CR, LF, CRLF, U+2028 and U+2029 line continuations.
      All raw source positions remain eligible: strings, comments, regex bodies
      and templates are not excluded. Matching multiplication-like text and other
      non-generator text intentionally flags. The rule covers changes outside a
@@ -206,6 +206,11 @@ the evidence adds to a capture on a GitHub runner:
      lookahead is bounded to 512 characters. This is linear in file size with
      fixed bounds and avoids a backtracking whole-header regex. The bounded
      context remains only for parameter residual naming.
+     Regex-literal attempts inspect at most 4,096 characters. A failed slash-start
+     attempt whose window was cut off before a line terminator makes the remaining
+     line negative-only; template and JSX-tag scans stop conservatively too.
+     Long division lines may also be over-flagged. Truncated regex bodies must
+     never be re-lexed as code.
    - **J2 source-map attribution.** A minifier can merge equivalent arms
      (`flag ? one : one` → `one`) or hoist a shared call
      (`flag ? sink(a) : sink(b)` → `sink(flag ? a : b)`). The source-map anchor

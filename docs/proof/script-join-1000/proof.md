@@ -1009,8 +1009,9 @@ A generator with no `yield` whose computed key or type-parameter list exceeds
 and their capture notes explicitly name the residual. This is a documented
 limit, not evidence that the generator body ran.
 
-Regex attempts now inspect at most 4,096 characters. Unrecognised regex classes
-retain negative-only evidence so they cannot invent comments hiding later code.
+Round 16 capped regex attempts at 4,096 characters, but only unrecognised `/[`
+starts retained negative-only tails. Other truncated starts could still invent
+comments or template boundaries while re-lexing the body; Round 17 closes that gap.
 A first attempt forbidding slash inside classes regressed two valid-literal
 tests; it was replaced with the bounded attempt, preserving both expectations.
 The crafted 20k/40k input pair originally used **3,633.7 ms CPU / 3,631.3 ms wall**.
@@ -1043,4 +1044,41 @@ moves to unknown; eager JSX and render-scope values remain unknown in both
 scenarios. Only the timestamp changes in the receipt. The corpus still uses
 hand-built one-line patches and selects the head unit; Chromium tests cover the
 real Git adapter on both revisions. `demo:check` passes. Final gate tails and the
+exact-lease push result are recorded in the handoff.
+
+
+## Round 17: negative-only truncated slash attempts
+
+Fetch/rebase found main `bff724ee5` already included. Retained
+[unit red](round17-red-unit.txt) has **20 failures / four passes**;
+[Chromium/Git red](round17-red-browser.txt) has **14 failures / four passes**.
+The [initial browser output](round17-initial-red-browser.txt) has two additional
+harness failures: the short-regex control was incorrectly assigned the long
+regex reason. Its expected unmeasured status was unchanged when correcting
+that test setup. The initial output is retained separately, not counted as
+product failures.
+
+All four review rows use valid regex literals with 4,200 characters of escaped
+dots, tested minified and unminified. Additional JSX attribute and JSX template
+attribute cases exercise tagLiteralEnd and templateEnd. Both revisions assert
+zero sink hits in real Chromium, and changes flow through real Git. The short
+regex control remains unmeasured. CR, LF, CRLF, U+2028 and U+2029 tests pin the
+negative tail's line boundary; a long division line deliberately becomes
+negative-only.
+
+The 4,096-character regex-attempt cap is unchanged. When a failed slash-start
+attempt was cut off before a line terminator, the remaining line is negative-only
+for every slash start. Template and JSX-tag scans stop conservatively as well.
+This deliberately over-flags long division lines. The prior `/[`-only fallback
+left other regex bodies able to invent comments or substitution boundaries;
+this closes that regression without re-lexing the truncated body.
+
+Braced identifier escapes now accept any nonempty run of hex digits, including
+V8's leading zeros. Public and private eight-digit generator names without
+yield read unmeasured with the generator residual. The existing 512-character
+computed/generic bound and its documented no-yield residual are unchanged.
+Quoted continuation docs now also list CR and U+2029.
+
+The combined join/reach/report unit suite passes **1,091/1,091**, and all **18/18**
+new Chromium/Git cases pass. Full gate tails, current report proof and the
 exact-lease push result are recorded in the handoff.

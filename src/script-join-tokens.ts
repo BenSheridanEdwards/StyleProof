@@ -3,11 +3,22 @@ export type ScriptToken = { index: number; end: number; negativeOnly?: true };
 
 const TOKEN =
   /'(?:\\.|[^'\\\r\n\u2028\u2029])*'|"(?:\\.|[^"\\\r\n\u2028\u2029])*"|['"]|(?<regexp>\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\[\r\n])+\/[dgimsuvy]*)|0[xXoObB][\dA-Fa-f_]+n?|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?n?|\.\d[\d_]*(?:[eE][+-]?\d[\d_]*)?|#?[\p{ID_Start}_$][\p{ID_Continue}$]*/uy;
+const MAX_REGEX_ATTEMPT = 4096;
+
 /** Regex attempts have a fixed budget even on malformed or ambiguous input. */
 function tokenMatch(text: string, start: number, matcher: RegExp): RegExpExecArray | null {
   const slash = text[start] === '/';
   matcher.lastIndex = slash ? 0 : start;
-  return matcher.exec(slash ? text.slice(start, start + 4096) : text);
+  return matcher.exec(slash ? text.slice(start, start + MAX_REGEX_ATTEMPT) : text);
+}
+
+/** A cut-off slash may be a regex or division; neither permits re-lexing its tail. */
+function truncatedRegex(text: string, start: number): boolean {
+  return (
+    text[start] === '/' &&
+    start + MAX_REGEX_ATTEMPT < text.length &&
+    !/[\r\n\u2028\u2029]/.test(text.slice(start, start + MAX_REGEX_ATTEMPT))
+  );
 }
 
 const REGEX_PREFIX_WORDS = new Set(['return', 'throw', 'case', 'delete', 'void', 'typeof', 'yield', 'await']);
@@ -95,6 +106,7 @@ function tagLiteralEnd(text: string, cursor: number, braces: number, matcher: Re
   if (comment !== undefined) return comment;
   if (text[cursor] !== '/') return;
   const match = tokenMatch(text, cursor, matcher);
+  if (!match && truncatedRegex(text, cursor)) return -1;
   if (match?.groups?.regexp) return literalMayStart(text, cursor) ? cursor + match[0].length : -1;
 }
 
@@ -175,6 +187,7 @@ function templateEnd(text: string, start: number): number {
       continue;
     }
     const match = tokenMatch(text, cursor, matcher);
+    if (!match && truncatedRegex(text, cursor)) return text.length;
     cursor += match?.[0].length ?? 1;
   }
   return cursor;
@@ -182,8 +195,9 @@ function templateEnd(text: string, start: number): number {
 
 function ordinaryToken(text: string, start: number, matcher: RegExp): ScriptToken | undefined {
   const match = tokenMatch(text, start, matcher);
-  // An unrecognized regex class must not become a fake comment hiding later code.
-  if (!match) return text.startsWith('/[', start) ? negativeTail(text, start) : undefined;
+  // A cut-off slash or unrecognized class cannot supply positive token evidence.
+  if (!match)
+    return truncatedRegex(text, start) || text.startsWith('/[', start) ? negativeTail(text, start) : undefined;
   if (match.groups?.regexp && !literalMayStart(text, start)) {
     // Re-lexing a possible regex body must not invent a comment that hides code.
     const candidate = text.slice(start, start + match[0].length + 1);

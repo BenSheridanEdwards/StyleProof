@@ -1,0 +1,432 @@
+✖ long slash-class regex in a conditional stays unmeasured with minify=false (40.740958ms)
+✖ long slash-class regex in a conditional stays unmeasured with minify=true (3.352458ms)
+✖ long star-class regex in a conditional stays unmeasured with minify=false (3.49075ms)
+✖ long star-class regex in a conditional stays unmeasured with minify=true (3.098125ms)
+✖ long brace regex in a substitution stays unmeasured with minify=false (2.933042ms)
+✖ long brace regex in a substitution stays unmeasured with minify=true (1.777792ms)
+✖ long slash-class regex before a comma stays unmeasured with minify=false (2.284792ms)
+✖ long slash-class regex before a comma stays unmeasured with minify=true (2.061709ms)
+✔ long regex inside a JSX attribute stays unmeasured with minify=false (3.0595ms)
+✔ long regex inside a JSX attribute stays unmeasured with minify=true (1.850166ms)
+✖ long regex inside a JSX template attribute stays unmeasured with minify=false (2.046041ms)
+✖ long regex inside a JSX template attribute stays unmeasured with minify=true (1.471958ms)
+✔ short regex control stays unmeasured with minify=false (0.84875ms)
+✔ short regex control stays unmeasured with minify=true (1.127334ms)
+✖ eight-digit braced generator name stays unmeasured with minify=false (0.915083ms)
+✖ eight-digit braced generator name stays unmeasured with minify=true (0.730083ms)
+✖ eight-digit braced private generator name stays unmeasured with minify=false (0.347666ms)
+✖ eight-digit braced private generator name stays unmeasured with minify=true (0.358209ms)
+✖ a capped slash stops its negative tail at "\n" (0.60225ms)
+✖ a capped slash stops its negative tail at "\r" (0.224792ms)
+✖ a capped slash stops its negative tail at "\r\n" (0.209875ms)
+✖ a capped slash stops its negative tail at "
+" (1.480584ms)
+✖ a capped slash stops its negative tail at "
+" (0.79975ms)
+✖ a long division line supplies negative-only evidence after the slash (0.286ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 4
+ℹ fail 20
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 166.969541
+
+✖ failing tests:
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long slash-class regex in a conditional stays unmeasured with minify=false (40.740958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long slash-class regex in a conditional stays unmeasured with minify=true (3.352458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long star-class regex in a conditional stays unmeasured with minify=false (3.49075ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long star-class regex in a conditional stays unmeasured with minify=true (3.098125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long brace regex in a substitution stays unmeasured with minify=false (2.933042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long brace regex in a substitution stays unmeasured with minify=true (1.777792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long slash-class regex before a comma stays unmeasured with minify=false (2.284792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long slash-class regex before a comma stays unmeasured with minify=true (2.061709ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long regex inside a JSX template attribute stays unmeasured with minify=false (2.046041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ long regex inside a JSX template attribute stays unmeasured with minify=true (1.471958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ eight-digit braced generator name stays unmeasured with minify=false (0.915083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:29:31)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ eight-digit braced generator name stays unmeasured with minify=true (0.730083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:29:31)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ eight-digit braced private generator name stays unmeasured with minify=false (0.347666ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:29:31)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:16:5
+✖ eight-digit braced private generator name stays unmeasured with minify=true (0.358209ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:29:31)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:63:3
+✖ a capped slash stops its negative tail at "\n" (0.60225ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 4226
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 4226,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:63:3
+✖ a capped slash stops its negative tail at "\r" (0.224792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 4226
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 4226,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:63:3
+✖ a capped slash stops its negative tail at "\r\n" (0.209875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 4226
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 4226,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:63:3
+✖ a capped slash stops its negative tail at "
+" (1.480584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 4226
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 4226,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:63:3
+✖ a capped slash stops its negative tail at "
+" (0.79975ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 4226
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 4226,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round17.test.mjs:73:1
+✖ a long division line supplies negative-only evidence after the slash (0.286ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (<repo>/test/script-join-round17.test.mjs:75:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
