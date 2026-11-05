@@ -100,6 +100,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Migration
 
+- **Capture refuses separately started servers (#1300).** Capture fails when a Playwright
+  `webServer` URL already responds, even if the config enables reuse. If your app server
+  is started separately, pass `--external-server` or set `BASE_URL` (the only route under
+  `styleproof ci` and the Action). These opt-ins override `reuseExistingServer: false`
+  for that run. Config files are not rewritten. The directory containing the Playwright
+  config must be writable so capture can create and remove its temporary wrapper.
+
 1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
    subfolder are affected when the parent holding the config is world-writable,
    owned by another non-root user, or a runner-owned checkout above a root

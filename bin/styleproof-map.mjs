@@ -6,7 +6,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { projectPlaywright } from './project-playwright.mjs';
+import { randomUUID } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import { capturePlaywrightConfig, captureServerRefusal } from '../dist/runner/capture-server.js';
+import { projectPlaywrightAsync } from './project-playwright.mjs';
 import { selectCaptureWorkers } from '../dist/capture-workers.js';
 import { missingSpecMessage, nonLinuxUploadWarning, playwrightMissingMessage } from '../dist/cli-errors.js';
 import {
@@ -85,6 +88,7 @@ const cli = defineCli({
       help: 'publish the capture to the map store branch (default: off; STYLEPROOF_UPLOAD=1 also enables it)',
       negate: true,
     },
+    'external-server': { help: 'allow capturing an already running server deliberately (also enabled by BASE_URL)' },
     restore: { help: 'restore a map from the map store instead of capturing' },
     'crawl-base-url': { value: 'url', help: 'run styleproof-variants before capture against this app URL' },
     'crawl-route': { value: 'r', help: 'route path or key=path for the pre-map variant crawl.', repeat: true },
@@ -426,11 +430,98 @@ const captureEnv = (label) => ({
   // Always pass through an explicit only-set when selective reuse is active (empty = capture none).
   ...(onlySurfaces ? { STYLEPROOF_ONLY_SURFACES: [...onlySurfaces].join(',') } : {}),
 });
-const runCapture = (label, extraEnv = {}) =>
-  projectPlaywright(['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs, ...workerArgs], {
-    stdio: 'inherit',
-    env: { ...captureEnv(label), ...extraEnv },
-  });
+const externalServer = Boolean(opts['external-server'] || env.BASE_URL);
+let selectedConfig;
+try {
+  selectedConfig = opts.restore
+    ? undefined
+    : capturePlaywrightConfig([...configArgs, ...playwrightArgs], process.cwd());
+} catch (error) {
+  fail(NAME, errorMessage(error));
+}
+// Wrappers stay beside the config so relative Playwright paths retain their meaning.
+// A killed process may leave a wrapper; only reap files whose owning process is gone.
+if (selectedConfig) {
+  const folder = path.dirname(selectedConfig);
+  for (const name of fs.readdirSync(folder)) {
+    const match = /^\.styleproof-capture-(\d+)-[0-9a-f-]{36}\.config\.mjs$/.exec(name);
+    if (!match) continue;
+    try {
+      process.kill(Number(match[1]), 0);
+    } catch (error) {
+      if (error.code === 'ESRCH') fs.rmSync(path.join(folder, name), { force: true });
+    }
+  }
+}
+const runCapture = async (label, extraEnv = {}) => {
+  const wrapper = selectedConfig
+    ? path.join(path.dirname(selectedConfig), `.styleproof-capture-${process.pid}-${randomUUID()}.config.mjs`)
+    : undefined;
+  const cleanup = () => {
+    if (wrapper) fs.rmSync(wrapper, { force: true });
+  };
+  process.once('SIGINT', cleanup);
+  process.once('SIGTERM', cleanup);
+  const pending = { stdout: '', stderr: '' };
+  let foreignServer = false;
+  let interruptedSignal;
+  const emit = (stream, line) => {
+    const refusal = !externalServer && captureServerRefusal(line);
+    if (refusal) {
+      foreignServer = true;
+      console.error(`${NAME}: ${refusal}`);
+    } else process[stream].write(line);
+  };
+  try {
+    if (wrapper) {
+      try {
+        fs.writeFileSync(
+          wrapper,
+          `import imported from ${JSON.stringify(pathToFileURL(selectedConfig).href)};
+const config = await (imported?.default ?? imported);
+export default config && typeof config === 'object' ? { ...config, webServer: config.webServer && (Array.isArray(config.webServer)
+  ? config.webServer.map(server => ({ ...server, reuseExistingServer: ${externalServer} }))
+  : { ...config.webServer, reuseExistingServer: ${externalServer} }) } : config;
+`,
+        );
+      } catch (error) {
+        throw new Error(
+          `cannot write capture wrapper in ${path.dirname(selectedConfig)}: the Playwright config directory must be writable. ${errorMessage(error)}`,
+          { cause: error },
+        );
+      }
+    }
+    const result = await projectPlaywrightAsync(
+      [
+        'test',
+        '--grep',
+        CAPTURE_TEST_GREP,
+        ...configArgs,
+        ...playwrightArgs,
+        ...(wrapper ? ['--config', wrapper] : []),
+        ...workerArgs,
+      ],
+      { env: { ...captureEnv(label), ...extraEnv } },
+      (stream, chunk) => {
+        pending[stream] += chunk;
+        let newline;
+        while ((newline = pending[stream].indexOf('\n')) !== -1) {
+          emit(stream, pending[stream].slice(0, newline + 1));
+          pending[stream] = pending[stream].slice(newline + 1);
+        }
+      },
+    );
+    interruptedSignal = result.interruptedSignal;
+    for (const stream of ['stdout', 'stderr']) if (pending[stream]) emit(stream, pending[stream]);
+    return { ...result, foreignServer, status: foreignServer ? 2 : result.status };
+  } finally {
+    cleanup();
+    process.removeListener('SIGINT', cleanup);
+    process.removeListener('SIGTERM', cleanup);
+    // CI distinguishes an interrupted capture from an ordinary cold-base miss.
+    if (interruptedSignal) process.kill(process.pid, interruptedSignal);
+  }
+};
 
 /** Capture test titles are `<surface> @ <width|auto>`; any other failed or unfinished test is unexplained. */
 function failureLedgered(outcome, failures) {
@@ -529,10 +620,20 @@ async function captureAndPublish() {
   // Even with an empty only-set, run capture so coverage ledger + browser-build tests stamp the dir.
   // Every capture test records its outcome here, so one tolerated failure can never mask another failure.
   const outcomesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-outcomes-'));
-  const result = runCapture(dir, { [CAPTURE_OUTCOMES_ENV]: outcomesDir });
+  let result;
+  try {
+    result = await runCapture(dir, { [CAPTURE_OUTCOMES_ENV]: outcomesDir });
+  } catch (error) {
+    removeTree(outcomesDir);
+    fail(NAME, errorMessage(error));
+  }
   const unsuccessfulTests = readCaptureTestOutcomes(outcomesDir).filter((outcome) => outcome.status !== 'passed');
   removeTree(outcomesDir);
   if (result.error) fail(NAME, playwrightMissingMessage(result.error.message).replace(`${NAME}: `, ''));
+  if (result.foreignServer) {
+    discardCapture();
+    return 2;
+  }
   const captureStatus = result.status ?? 1;
   const captured = captureKeysIn(targetDir).length;
   const toleratedFailures = readSurfaceCaptureFailures(targetDir);
@@ -561,7 +662,7 @@ async function captureAndPublish() {
     return 0;
   }
   if (opts['prove-determinism']) {
-    const oracleExit = proveDeterminism();
+    const oracleExit = await proveDeterminism();
     if (oracleExit !== 0) return oracleExit;
   }
   // The first failing step's exit code, else the capture's own status.
@@ -572,14 +673,14 @@ async function captureAndPublish() {
 exitWhenDrained(opts.restore ? restoreFromStore() : await captureAndPublish());
 
 /** Capture runs 2..N into fresh dirs; returns the first non-zero exit, else 0. */
-function runOracleCaptures(extraRunDirs) {
+async function runOracleCaptures(extraRunDirs) {
   for (let run = 2; run <= DETERMINISM_ORACLE_RUNS; run += 1) {
     const label = `${dir}.oracle-run-${run}`;
     const runDir = path.isAbsolute(label) ? label : path.join(baseDir, label);
     clearCaptureOutput(runDir);
     extraRunDirs.push(runDir);
     console.error(`${NAME}: determinism oracle run ${run}/${DETERMINISM_ORACLE_RUNS}`);
-    const result = runCapture(label);
+    const result = await runCapture(label);
     if (result.error) {
       console.error(playwrightMissingMessage(result.error.message));
       return 2;
@@ -628,11 +729,11 @@ function recordOracleVerdict(runDirs) {
 
 /** The five-run oracle: four more captures in fresh contexts must hash identically to the
  *  first, or the bundle is discarded — a flake must never become a baseline. Returns the exit code. */
-function proveDeterminism() {
+async function proveDeterminism() {
   const extraRunDirs = [];
   let oracleExit;
   try {
-    oracleExit = runOracleCaptures(extraRunDirs) || recordOracleVerdict([targetDir, ...extraRunDirs]);
+    oracleExit = (await runOracleCaptures(extraRunDirs)) || recordOracleVerdict([targetDir, ...extraRunDirs]);
   } catch (error) {
     console.error(`${NAME}: determinism oracle errored\n${errorMessage(error)}`);
     oracleExit = 2;

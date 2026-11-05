@@ -284,9 +284,14 @@ test('styleproof-map cleans failed capture HARs unless explicitly retained', asy
             import childProcess from 'node:child_process';
             import fs from 'node:fs';
             import path from 'node:path';
+            import { EventEmitter } from 'node:events';
+            import { PassThrough } from 'node:stream';
             import { syncBuiltinESMExports } from 'node:module';
-            childProcess.spawnSync = (command, args, options) => {
+            childProcess.spawnSync = (command) => {
               if (command === 'git') return { status: null, error: new Error('git unavailable') };
+              throw new Error('unexpected synchronous subprocess: ' + command);
+            };
+            childProcess.spawn = (command, args, options) => {
               if (command !== 'playwright' && command !== 'playwright.cmd') {
                 throw new Error('unexpected subprocess: ' + command);
               }
@@ -296,7 +301,11 @@ test('styleproof-map cleans failed capture HARs unless explicitly retained', asy
                 fs.writeFileSync(path.join(dir, name), '{}');
               }
               if (${survivingMap}) fs.writeFileSync(path.join(dir, 'home@720.json'), '{}');
-              return { status: 1 };
+              const child = new EventEmitter();
+              child.stdout = new PassThrough();
+              child.stderr = new PassThrough();
+              process.nextTick(() => child.emit('close', 1, null));
+              return child;
             };
             syncBuiltinESMExports();
             process.argv = [process.execPath, ${JSON.stringify(MAP)}, ...process.argv.slice(1)];

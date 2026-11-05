@@ -304,6 +304,12 @@ StyleProof requires Node 22.13 or later, locally and in CI.
 
 Capture and CI browser installation run the project's `@playwright/test/cli` with Node when it resolves from the project directory. They fall back to Playwright on PATH only when the project CLI cannot be resolved. On Windows that fallback cannot run batch shims, so install `@playwright/test` in the project.
 
+Capture refuses an already running Playwright `webServer` before writing maps.
+Stop that server so this commit's build runs, or use `styleproof capture --external-server`
+to capture it deliberately. Set `BASE_URL` for `styleproof ci` or the Action.
+These opt-ins override `reuseExistingServer: false` for that run. New scaffolds disable reuse.
+Existing Playwright config files stay consumer-owned; capture enforces the same refusal policy for them.
+
 ### Upgrading to 8.0.0
 
 StyleProof 8 runs in CI. Upgrade the npm package and the report Action to
@@ -511,8 +517,8 @@ git worktree remove --force .styleproof/base-checkout
 npx styleproof-diff .styleproof/maps/base .styleproof/maps/head
 ```
 
-Stop any server already running on the app's port first: outside CI Playwright
-reuses it, so both captures would see the same build.
+Stop any server already running on the app's port first: capture refuses it so
+each capture builds and serves its own commit.
 
 For the hand-wired Action form, the fork/Dependabot split, the map-store and
 report branches, the CI base publisher, and every config key and flag, see
