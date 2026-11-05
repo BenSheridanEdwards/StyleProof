@@ -23,10 +23,13 @@ function render({
   overlapCount = 0,
   states = false,
   maxCropFiles,
+  maxCropBytes,
+  maxReportBytes,
   maxCrops = 30,
   heights,
   pathOf = elementPath,
   targetOf,
+  rectangleOf,
 } = {}) {
   const map = (after) =>
     makeMap({
@@ -38,7 +41,9 @@ function render({
             {
               tag: 'h2',
               cls: 'card-title',
-              rect: [20, overlap || index <= overlapCount ? 20 : index * 90, 180, 20],
+              rect: rectangleOf
+                ? rectangleOf(index)
+                : [20, overlap || index <= overlapCount ? 20 : index * 90, 180, 20],
               style: {
                 ...(heights ? { height: `${after ? heights[offset] : 20}px` } : {}),
                 color:
@@ -90,7 +95,7 @@ function render({
         fs.writeFileSync(`${directory}/cards@390.${state}.png`, solidPng(390, 1200));
       }
   try {
-    const result = generateStyleMapReport({ ...dirs, maxCrops, maxCropFiles });
+    const result = generateStyleMapReport({ ...dirs, maxCrops, maxCropFiles, maxCropBytes, maxReportBytes });
     return {
       md: fs.readFileSync(result.reportMdPath, 'utf8'),
       json: JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')),
@@ -102,6 +107,53 @@ function render({
 
 const sections = (md) => md.match(/^### /gm) ?? [];
 const signatureCount = (findings) => new Set(findings.map((finding) => elementChangeSignature([finding]))).size;
+
+test('legacy region image fields match the ungrouped renderer and reuse each section crop', () => {
+  for (const states of [false, true]) {
+    const baseline = render({ count: 1, states }).json.surfaces[0].regions[0];
+    const surface = render({ states }).json.surfaces[0];
+    const section = surface.sections[0];
+    for (const region of surface.regions) {
+      assert.deepEqual(Object.keys(region.images), Object.keys(baseline.images));
+      assert.deepEqual(region.images, section.images);
+      if (states) {
+        assert.deepEqual(Object.keys(region.stateImages), Object.keys(baseline.stateImages));
+        assert.deepEqual(region.stateImages, section.stateImages);
+        for (const state of ['hover', 'focus'])
+          assert.deepEqual(Object.keys(region.stateImages[state]), Object.keys(baseline.stateImages[state]));
+      }
+    }
+  }
+});
+
+test('compact grouped summaries retain a crop link for resting and interactive changes', () => {
+  for (const states of [false, true])
+    for (const maxReportBytes of [1500, 2000, 2500]) {
+      const { md: markdown, json: report } = render({
+        count: 6,
+        states,
+        maxReportBytes,
+        heights: [21, 22, 23, 24, 25, 26],
+      });
+      assert.match(markdown, /^- `cards@390` · \d+ change\(s\) — \[crop\]\(crops\//m);
+      assert.ok(markdown.includes(report.surfaces[0].sections[0].images.composite));
+      assert.ok(Buffer.byteLength(markdown) <= maxReportBytes);
+    }
+});
+
+test('a compact summary uses an available section crop when the first legacy region has none', () => {
+  const { md: markdown, json: report } = render({
+    different: true,
+    rectangleOf: (index) => (index < 3 ? [20, 20, 350, 1000] : [20, 1100, 20, 20]),
+    maxCropBytes: 300,
+    maxReportBytes: 1500,
+  });
+  const surface = report.surfaces[0];
+  assert.equal(surface.regions[0].images.composite, undefined);
+  const shown = surface.sections.find((section) => section.images.composite);
+  assert.ok(shown);
+  assert.ok(markdown.includes(`— [crop](${shown.images.composite})`));
+});
 
 test('state targets normalize only the owner itself or a descendant after a path separator', () => {
   const path = 'body > li';
@@ -339,7 +391,7 @@ test('legacy JSON region membership and boxes remain per original region with ad
     assert.deepEqual(surface.regions[index].paths, [elementPath(index + 1)]);
     assert.equal(surface.regions[index].before.y, (index + 1) * 90 - 12);
     assert.deepEqual(surface.regions[index].before, surface.regions[index].after);
-    assert.deepEqual(surface.regions[index].images, {});
+    assert.deepEqual(surface.regions[index].images, surface.sections[0].images);
   }
   assert.equal(surface.sections.length, 1);
   assert.deepEqual(surface.sections[0].regionIndexes, [0, 1, 2]);
@@ -362,7 +414,7 @@ test('JSON retains the original crop-cap union even when a section uses a smalle
   assert.equal(surface.regions.length, 1);
   assert.deepEqual(surface.regions[0].paths, [1, 2, 3].map(elementPath));
   assert.deepEqual(surface.regions[0].before, { x: 8, y: 78, w: 204, h: 224 });
-  assert.deepEqual(surface.regions[0].images, {});
+  assert.deepEqual(surface.regions[0].images, surface.sections[0].images);
   assert.deepEqual(surface.sections[0].before, { x: 8, y: 78, w: 204, h: 44 });
   assert.deepEqual(surface.sections[0].regionIndexes, [0]);
 });

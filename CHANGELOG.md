@@ -78,7 +78,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The residual read-to-write window remains because GitHub has no compare-and-set (#1296).
 
 - Report summaries count distinct elements across widths and groups, with one plain-English sentence per change and matching headline counts.
-- Group identical element changes into representative report sections with unique element paths and attributed folded rows; additive `report.json` `sections` metadata preserves the legacy region count and boxes.
+- Group identical element changes into representative report sections with unique element paths and attributed folded rows; additive `report.json` `sections` metadata preserves legacy geometry and representative image references.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping
   warnings in CommonJS projects while preserving other warnings and user `NODE_OPTIONS` (#1258).

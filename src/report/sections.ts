@@ -183,7 +183,8 @@ function omittedNoticeLines(budget: number): string[] {
 /** One-liner for a budget-capped change group: name · change count · crop link. */
 function compactChangeSummary(ctx: RenderCtx, cg: ChangeGroup, json: Record<string, unknown>): string {
   const more = cg.surfaces.length > 1 ? ` (+${cg.surfaces.length - 1} more)` : '';
-  const composite = (json.regions as Array<{ images?: { composite?: string } }> | undefined)?.[0]?.images?.composite;
+  const sections = (json.sections ?? json.regions) as Array<{ images?: { composite?: string } }> | undefined;
+  const composite = sections?.find((section) => section.images?.composite)?.images?.composite;
   const link = composite ? ` — [crop](${ctx.img(composite)})` : '';
   return `- \`${safeKey(cg.rep.sd.surface)}\`${more} · ${cg.rep.findings.length} change(s)${link}`;
 }

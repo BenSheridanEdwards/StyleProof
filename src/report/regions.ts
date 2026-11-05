@@ -185,7 +185,6 @@ type RegionArgs = {
   seq: { crop: number };
   /** Sibling spacing changes whose run this region shows (#755). */
   spacing: SiblingSpacingChange[];
-  cropCache: Map<string, CropPack>;
   changes: (findings: Finding[], foldedLabels?: ReadonlyMap<string, string>) => string[];
 };
 
@@ -210,16 +209,13 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
   }
   // Outline the LEAF changed elements on each side, not the merged anchor container.
   const marked = annotationPaths(findings, mapA, mapB);
-  const cacheKey = JSON.stringify([g.before, g.after, state, [...marked.before].sort(), [...marked.after].sort()]);
-  const cached = a.cropCache.get(cacheKey);
-  if (cached) return cached;
   a.seq.crop++;
   const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
     paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
   const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
   const changedNames = [...new Set(entries.filter((e): e is ElementEntry => !!e).map(shortElementName))].slice(0, 3);
   const changedLabel = changedNames.length ? ` — changed: ${changedNames.map(codeValue).join(', ')}` : '';
-  const packed = renderCropPair(a.ctx, {
+  return renderCropPair(a.ctx, {
     surface: cg.rep.sd.surface,
     suffix: String(a.seq.crop),
     // The SAME page rectangle on both sides, so the reviewer compares like-for-like.
@@ -235,8 +231,6 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
       zoom: (factor) => `magnified ${factor}× — change too small to see at 1:1${changedLabel}`,
     },
   })!;
-  a.cropCache.set(cacheKey, packed);
-  return packed;
 }
 
 function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUsesAll: boolean) {
@@ -327,35 +321,37 @@ function representativeCaption(shownPaths: string[], elementCount: number): stri
 }
 
 /** One section and property bundle, with the top-most crop for each changed layer. */
-function representativeSection(section: RegionArgs) {
-  const elements = section.g.elements!;
-  const findings = section.cg.rep.findings.filter((finding) =>
+function representativeSection(regionArguments: RegionArgs) {
+  const elements = regionArguments.g.elements!;
+  const findings = regionArguments.cg.rep.findings.filter((finding) =>
     elements.some((element) => element.paths.includes(finding.path)),
   );
-  const cropPaths = section.g.cropPaths!;
+  const cropPaths = regionArguments.g.cropPaths!;
   const representative = findings.filter((finding) => finding.path === cropPaths[0]);
   const cropFindings = findings.filter((finding) => cropPaths.includes(finding.path));
   const states = STATE_LAYER_NAMES.filter((state) =>
     representative.some((finding) => finding.kind === 'state' && finding.state === state),
   );
   const stateLabel = states.length ? ` · ${states.map((state) => codeValue(`:${state}`)).join(', ')}` : '';
-  const md = ['', `### ${regionHeading([cropPaths[0]], findings)}${stateLabel}`, '', section.surfaceList];
+  const md = ['', `### ${regionHeading([cropPaths[0]], findings)}${stateLabel}`, '', regionArguments.surfaceList];
   const glance = propertyGlanceLine(cropFindings);
   if (glance) md.push('', glance);
-  md.push(...spacingLines(section.spacing));
+  md.push(...spacingLines(regionArguments.spacing));
   const rest = cropFindings.filter((finding) => finding.kind !== 'state');
-  const resting: CropPack = rest.length ? regionCrop(section, rest, section.pngs) : { md: [], images: {} };
+  const resting: CropPack = rest.length
+    ? regionCrop(regionArguments, rest, regionArguments.pngs)
+    : { md: [], images: {} };
   md.push(...resting.md);
   const stateImages: Record<string, CropImages> = {};
   for (const state of states) {
     md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
-    const layers = screenshotPair(section.ctx, section.cg.rep.sd.surface, `.${state}`);
+    const layers = screenshotPair(regionArguments.ctx, regionArguments.cg.rep.sd.surface, `.${state}`);
     if (!layers[0] || !layers[1]) {
       md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
       continue;
     }
     const packed = regionCrop(
-      section,
+      regionArguments,
       cropFindings.filter((finding) => finding.kind === 'state' && finding.state === state),
       layers,
       state,
@@ -365,28 +361,28 @@ function representativeSection(section: RegionArgs) {
   }
   const images: CropImages = [resting.images, ...Object.values(stateImages)].find((image) => image.composite) ?? {};
   const shownPaths = images.composite ? cropPaths : [];
-  const folded = (section.cg.rep.folded ?? []).filter((finding) =>
-    section.g.paths.some((root) => isSameOrDescendant(finding.path, root)),
+  const folded = (regionArguments.cg.rep.folded ?? []).filter((finding) =>
+    regionArguments.g.paths.some((root) => isSameOrDescendant(finding.path, root)),
   );
   const foldedLabels = uniquePathTails(elements.map((element) => element.paths[0]));
   md.push(
     ...representativeCaption(shownPaths, elements.length),
     ...elementList(elements, shownPaths),
-    ...section.changes([...representative, ...folded], foldedLabels),
+    ...regionArguments.changes([...representative, ...folded], foldedLabels),
   );
   return {
     md,
     regionJson: {
-      paths: section.g.paths,
+      paths: regionArguments.g.paths,
       representativePath: cropPaths[0],
       cropPaths: shownPaths,
-      before: section.g.before,
-      after: section.g.after,
+      before: regionArguments.g.before,
+      after: regionArguments.g.after,
       images,
       ...(Object.keys(stateImages).length ? { stateImages } : {}),
       ...(resting.visualEvidence ? { visualEvidence: resting.visualEvidence, reason: resting.reason } : {}),
       ...(resting.omitted ? { cropOmitted: 'budget' } : {}),
-      ...spacingJson(section.spacing),
+      ...spacingJson(regionArguments.spacing),
       elements: elements.map((element) => ({ paths: element.paths, before: element.before, after: element.after })),
     },
   };
@@ -517,7 +513,6 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   groups = groupIdenticalRegions(groups, findings, mapA, mapB, ctx.padBy);
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups.flatMap((group) => group.elements ?? [group]));
   const claimed = new Set<SiblingSpacingChange>();
-  const cropCache = new Map<string, CropPack>();
   const renderGroup = (g: Group, claimedSpacing: Set<SiblingSpacingChange>) => {
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(
@@ -537,7 +532,6 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       region,
       pngs,
       seq,
-      cropCache,
       spacing: own,
       changes,
     });
@@ -551,16 +545,27 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   }));
   // Legacy geometry must not render hidden crops or consume the visible report's budget.
   const legacyClaimed = new Set<SiblingSpacingChange>();
-  const regions = legacyGroups.map((group) => {
+  const regions = legacyGroups.map((group, regionIndex) => {
     const own = claimSpacing(spacing, group.paths, legacyClaimed);
     const matching = groups.findIndex(
       (section) =>
         JSON.stringify([section.paths, section.before, section.after]) ===
         JSON.stringify([group.paths, group.before, group.after]),
     );
-    return matching >= 0
-      ? rendered[matching].regionJson
-      : { paths: group.paths, before: group.before, after: group.after, images: {}, ...spacingJson(own) };
+    if (matching >= 0) return rendered[matching].regionJson;
+    const coveringSections = sections.filter((section) => section.regionIndexes.includes(regionIndex));
+    const shownSection = coveringSections.find((section) => section.images.composite) ?? coveringSections[0];
+    const stateImages = Object.fromEntries(
+      coveringSections.flatMap((section) => Object.entries(section.stateImages ?? {})),
+    );
+    return {
+      paths: group.paths,
+      before: group.before,
+      after: group.after,
+      images: shownSection?.images ?? {},
+      ...(Object.keys(stateImages).length ? { stateImages } : {}),
+      ...spacingJson(own),
+    };
   });
   // Keep reflow ancestors in one capped table outside the crop budget.
   const outside = folded.filter((f) => !groups.some((g) => g.paths.some((root) => isSameOrDescendant(f.path, root))));
