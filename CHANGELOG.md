@@ -76,7 +76,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Bounded re-check exhaustion clears the box and requires fresh sign-off. Reconciliation
   edits the live comment's existing approval controls without full-body environment values.
   The residual read-to-write window remains because GitHub has no compare-and-set (#1296).
-
 - Report summaries count distinct elements across widths and groups, with one plain-English sentence per change and matching headline counts.
 - Report identical element changes once with combined exposed-element crops, attributed folded rows and a top-to-bottom element list; region paths include all covered elements, with additive element-list and crop-fallback metadata. Preserve the legacy crop-count union collapse.
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
