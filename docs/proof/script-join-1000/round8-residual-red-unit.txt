@@ -1,0 +1,65 @@
+✔ supplied function default names its residual with minify=false (50.468ms)
+✔ supplied function default names its residual with minify=true (3.599083ms)
+✔ supplied arrow default names its residual with minify=false (1.882834ms)
+✔ supplied arrow default names its residual with minify=true (4.941625ms)
+✖ code after a throwing call names its residual with minify=false (8.100416ms)
+✖ code after a throwing call names its residual with minify=true (5.811792ms)
+✔ a live closing brace cannot prove the eliminated development arm ran with real esbuild mappings (3.295708ms)
+✔ the eliminated development arm stays unmeasured after a line break with real esbuild mappings (2.714333ms)
+✔ a two-token ternary edit cannot borrow the surviving arm execution with real esbuild mappings (2.097708ms)
+✔ token evidence for }, reads unmeasured (0.37725ms)
+✔ token evidence for foo(); removed; reads unmeasured (0.115084ms)
+✔ token evidence for foo(); bar; reads ran (0.048833ms)
+✔ token evidence for }; idle; reads never-ran (0.033792ms)
+✔ the capture notes retain optional-chain continuation and merged-arm attribution limits (0.173292ms)
+✔ token columns stay on the changed JavaScript line after "\r" (2.979542ms)
+✔ token columns stay on the changed JavaScript line after "
+" (4.75575ms)
+✔ token columns stay on the changed JavaScript line after "
+" (1.178375ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 15
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 246.041083
+
+✖ failing tests:
+
+test at test/script-join-round8.test.mjs:14:5
+✖ code after a throwing call names its residual with minify=false (8.100416ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:14:5
+✖ code after a throwing call names its residual with minify=true (5.811792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:26:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -149,6 +149,7 @@ export function assertDeterministicScriptReach(first: StyleMap, again: StyleMap,
     ? `: ${changed.sourceKey}:${firstScriptDifference(changed, rightByKey.get(changed.sourceKey)!)}`
     : '';
   first.scriptReach = {
+    ...first.scriptReach,
     version: 1,
     window: 'navigation',
     status: 'unknown',
@@ -200,7 +201,11 @@ export async function assertDeterministic(
   servedRules?: ServedRuleTracker,
 ): Promise<void> {
   const scriptReach = settings.captureScriptReach
-    ? await trackScriptReach(page, { projectRoot: settings.projectRoot, mediaState: surface.metadata?.mediaState })
+    ? await trackScriptReach(page, {
+        projectRoot: settings.projectRoot,
+        projectRootPrefix: settings.projectRootPrefix,
+        mediaState: surface.metadata?.mediaState,
+      })
     : undefined;
   let again: StyleMap;
   try {

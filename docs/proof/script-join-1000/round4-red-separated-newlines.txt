@@ -1,0 +1,3 @@
+EOF separate hunk: expected 2 side units, actual 0
+CRLF separate hunk: expected 2 side units, actual 0
+2 reproduced failures on 834f57a07

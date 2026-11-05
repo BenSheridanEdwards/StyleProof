@@ -29,11 +29,17 @@ export type ScriptReachEntry<Span = CompactSourceSpan> = {
   url: string;
   status: 'mapped' | 'unknown' | 'unmeasured';
   reason?: string;
+  /** A readable, resolved map contains only non-app source identities, not merely no mapped segments. */
+  nonAppSourcesOnly?: true;
   files?: ScriptSourceReach<Span>[];
 };
 export type ScriptReach = {
   version: 1;
   window: 'navigation';
+  /** Config/project root relative to git top level; empty means repository root. Never an absolute path. */
+  projectRootPrefix?: string;
+  /** Missing git provenance remains named even when coverage itself was measured. */
+  projectRootIssue?: string;
   status: 'measured' | 'unknown' | 'unmeasured';
   reason?: string;
   /** V8 block-coverage residuals; consumers must retain these limits. */
@@ -266,22 +272,32 @@ function popRange(heap: number[], less: (a: number, b: number) => boolean): void
   heap[index] = value;
 }
 
-function segmentExecutions(segments: Segment[], runs: ExecutionRun[]): ExecutionKind[] {
+function segmentExecutions(
+  segments: Segment[],
+  runs: ExecutionRun[],
+  identities: (string | undefined)[],
+): ExecutionKind[] {
+  const anchored = new Map<number, Set<string>>();
+  const originalLine = (segment: Segment): string => `${identities[segment.source ?? -1]}:${segment.line}`;
   let index = 0;
+  for (const segment of segments) {
+    while (index < runs.length && runs[index].end <= segment.offset) index++;
+    if (index < runs.length && runs[index].start <= segment.offset) {
+      const lines = anchored.get(index) ?? new Set<string>();
+      lines.add(originalLine(segment));
+      anchored.set(index, lines);
+    }
+  }
+  index = 0;
   return segments.map((segment) => {
     while (index < runs.length && runs[index].end <= segment.offset) index++;
-    let any = false,
-      all = true,
-      covered = segment.offset;
-    for (let i = index; i < runs.length && runs[i].start < segment.end; i++) {
-      const run = runs[i];
-      if (run.start > covered) all = false;
-      any ||= run.kind === 'executed';
-      all &&= run.kind === 'executed';
-      covered = Math.max(covered, run.end);
-    }
-    all &&= covered >= segment.end;
-    return all ? 'executed' : any ? 'mixed' : 'unexecuted';
+    const run = runs[index];
+    const kind = run && run.start <= segment.offset ? run.kind : 'unexecuted';
+    // Only a start on this source and original line represents the other run
+    // (a ?? b). A later body's line cannot clear a coarse arrow header.
+    for (let cursor = index; cursor < runs.length && runs[cursor].start < segment.end; cursor++)
+      if (runs[cursor].kind !== kind && !anchored.get(cursor)?.has(originalLine(segment))) return 'mixed';
+    return kind;
   });
 }
 
@@ -341,7 +357,7 @@ function ensureSourceFile(
 
 /**
  * Each generated segment contributes one original start anchor. No original extent is inferred.
- * A split segment or conflicting states at a repeated original start contribute mixed evidence.
+ * Unanchored state changes inside a generated extent, or conflicting states at repeated original starts, are mixed.
  */
 export function mapScriptCoverage(
   entry: BinaryScriptCoverage,
@@ -363,7 +379,7 @@ export function mapScriptCoverage(
   if (entry.functions.reduce((sum, f) => sum + f.ranges.length, 0) > MAX_COVERAGE_RANGES)
     throw new ScriptEvidenceError('source mapping coverage range limit exceeded');
   const files = new Map<string, ScriptSourceReach<SourceSpan>>();
-  const executions = segmentExecutions(segments, executionRuns(entry));
+  const executions = segmentExecutions(segments, executionRuns(entry), identities);
   const states = new Map<string, AnchorStates>();
   const originals = map.sources.map((_, index) => originalSource(map, index, identities));
   segments.forEach((segment, index) => {

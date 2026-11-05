@@ -1,0 +1,77 @@
+✔ CSS template line on an unopened overlay is never-rendered (177.956708ms)
+✔ CSS template line on an executed overlay is unknown (14.653375ms)
+✔ multiline JSX text on an unopened overlay is never-rendered (7.9415ms)
+✔ multiline JSX text on an executed overlay is unknown (7.707625ms)
+✔ single-line JSX text on an unopened overlay is never-rendered (31.420125ms)
+✔ single-line JSX text on an executed overlay is unknown (10.77175ms)
+✔ hexadecimal on an unopened overlay is never-rendered (1.678417ms)
+✔ hexadecimal on an executed overlay is unknown (26.055291ms)
+✔ exponent on an unopened overlay is never-rendered (9.762542ms)
+✔ exponent on an executed overlay is unknown (8.667667ms)
+✔ separator on an unopened overlay is never-rendered (4.986875ms)
+✔ separator on an executed overlay is unknown (0.876666ms)
+✔ leading decimal on an unopened overlay is never-rendered (4.97175ms)
+✔ leading decimal on an executed overlay is unknown (5.39075ms)
+✔ binary on an unopened overlay is never-rendered (7.229208ms)
+✔ binary on an executed overlay is unknown (9.277958ms)
+✔ octal on an unopened overlay is never-rendered (3.822958ms)
+✔ octal on an executed overlay is unknown (2.708792ms)
+✔ bigint on an unopened overlay is never-rendered (8.094167ms)
+✔ bigint on an executed overlay is unknown (11.664666ms)
+✔ signed exponent on an unopened overlay is never-rendered (1.2655ms)
+✔ signed exponent on an executed overlay is unknown (1.842542ms)
+✔ regex literal on an unopened overlay is never-rendered (5.043542ms)
+✔ regex literal on an executed overlay is unknown (4.389542ms)
+✔ private name on an unopened overlay is never-rendered (7.09575ms)
+✔ private name on an executed overlay is unknown (4.746375ms)
+✔ a mixed preceding anchor keeps an unopened nullish fallback flagged (0.562083ms)
+✔ preceding lookup never takes a future anchor or another source (0.125084ms)
+✔ appending a property preserves the evaluated base operand (0.128459ms)
+✔ appending a call preserves the evaluated base operand (0.068167ms)
+✔ different-chunk executed evidence cannot clear a mixed start (0.087041ms)
+✔ same-script executed evidence can clear a mixed start (0.04ms)
+✔ division is not widened to a regex literal (0.069375ms)
+✖ touching the right-hand token does not import its idle anchor into the removed prefix (1.22925ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 33
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 656.382875
+
+✖ failing tests:
+
+test at test/script-join-round6.test.mjs:183:1
+✖ touching the right-hand token does not import its idle anchor into the removed prefix (1.22925ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  +     'partly-ran',
+  +     'never-rendered'
+  -     'ran',
+  -     'unknown'
+      ],
+      [
+        'ran',
+        'unknown'
+      ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round6.test.mjs:188:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'partly-ran', 'never-rendered' ], [ 'ran', 'unknown' ] ],
+    expected: [ [ 'ran', 'unknown' ], [ 'ran', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

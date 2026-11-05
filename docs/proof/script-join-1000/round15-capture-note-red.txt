@@ -1,0 +1,102 @@
+✔ a generic class method sets both raw file flags under {} (10.102958ms)
+✔ a generic class method sets both raw file flags under {"minifySyntax":true} (2.124334ms)
+✔ a generic class method sets both raw file flags under {"minifyWhitespace":true} (1.1665ms)
+✔ a generic class method sets both raw file flags under {"minify":true} (1.944916ms)
+✔ a generic object method sets both raw file flags under {} (1.345791ms)
+✔ a generic object method sets both raw file flags under {"minifySyntax":true} (1.191792ms)
+✔ a generic object method sets both raw file flags under {"minifyWhitespace":true} (1.551583ms)
+✔ a generic object method sets both raw file flags under {"minify":true} (0.805792ms)
+✔ a static async generic method sets both raw file flags under {} (1.2885ms)
+✔ a static async generic method sets both raw file flags under {"minifySyntax":true} (0.75675ms)
+✔ a static async generic method sets both raw file flags under {"minifyWhitespace":true} (0.87025ms)
+✔ a static async generic method sets both raw file flags under {"minify":true} (1.016917ms)
+✔ a decorated generator method sets both raw file flags under {} (0.671458ms)
+✔ a decorated generator method sets both raw file flags under {"minifySyntax":true} (0.923959ms)
+✔ a decorated generator method sets both raw file flags under {"minifyWhitespace":true} (0.741ms)
+✔ a decorated generator method sets both raw file flags under {"minify":true} (1.002833ms)
+✔ a factory-decorated generator method sets both raw file flags under {} (0.63225ms)
+✔ a factory-decorated generator method sets both raw file flags under {"minifySyntax":true} (0.935666ms)
+✔ a factory-decorated generator method sets both raw file flags under {"minifyWhitespace":true} (0.894042ms)
+✔ a factory-decorated generator method sets both raw file flags under {"minify":true} (0.8625ms)
+✔ a generator after function-expression division sets both raw file flags under {} (0.922417ms)
+✔ a generator after function-expression division sets both raw file flags under {"minifySyntax":true} (0.842375ms)
+✔ a generator after function-expression division sets both raw file flags under {"minifyWhitespace":true} (0.853583ms)
+✔ a generator after function-expression division sets both raw file flags under {"minify":true} (0.707708ms)
+✔ a generator after JSX apostrophe text sets both raw file flags under {} (0.880625ms)
+✔ a generator after JSX apostrophe text sets both raw file flags under {"minifySyntax":true} (0.808667ms)
+✔ a generator after JSX apostrophe text sets both raw file flags under {"minifyWhitespace":true} (0.806541ms)
+✔ a generator after JSX apostrophe text sets both raw file flags under {"minify":true} (0.638125ms)
+✔ a generator after multiline JSX apostrophe text sets both raw file flags under {} (0.8745ms)
+✔ a generator after multiline JSX apostrophe text sets both raw file flags under {"minifySyntax":true} (0.904708ms)
+✔ a generator after multiline JSX apostrophe text sets both raw file flags under {"minifyWhitespace":true} (0.524584ms)
+✔ a generator after multiline JSX apostrophe text sets both raw file flags under {"minify":true} (1.06025ms)
+✔ a generator after realistic component apostrophe text sets both raw file flags under {} (1.061875ms)
+✔ a generator after realistic component apostrophe text sets both raw file flags under {"minifySyntax":true} (0.790917ms)
+✔ a generator after realistic component apostrophe text sets both raw file flags under {"minifyWhitespace":true} (0.598083ms)
+✔ a generator after realistic component apostrophe text sets both raw file flags under {"minify":true} (0.855459ms)
+✔ raw generator-like text flags without parsing: a *b(c) (0.18025ms)
+✔ raw generator-like text flags without parsing: obj.function *b(2) (0.05475ms)
+✔ raw generator-like text flags without parsing: /function*foo/ (0.033ms)
+✔ raw generator-like text flags without parsing: "function * fake" (0.016042ms)
+✔ raw generator-like text flags without parsing: /* *m<T>() {} */ (0.095958ms)
+✔ raw generator-like text flags without parsing: function/*c*/* gen(){} (0.017667ms)
+✔ raw generator-like text flags without parsing: function// c
+*gen(){} (0.015458ms)
+✔ raw generator-like text flags without parsing: class D { @dec() *'quoted'<T>() {} } (0.037667ms)
+✔ apostrophe template text in .vue cannot hide a later raw header (0.393584ms)
+✔ apostrophe template text in .svelte cannot hide a later raw header (0.051916ms)
+✔ apostrophe template text in .html cannot hide a later raw header (0.038791ms)
+✔ an unterminated ' is one character before "\n" (0.253375ms)
+✔ an unterminated ' is one character before "\r" (0.024875ms)
+✔ an unterminated ' is one character before "\r\n" (0.016375ms)
+✔ an unterminated ' is one character before "
+" (1.144083ms)
+✔ an unterminated ' is one character before "
+" (0.02075ms)
+✔ an unterminated " is one character before "\n" (0.0235ms)
+✔ an unterminated " is one character before "\r" (0.028459ms)
+✔ an unterminated " is one character before "\r\n" (0.036542ms)
+✔ an unterminated " is one character before "
+" (0.062042ms)
+✔ an unterminated " is one character before "
+" (0.031042ms)
+✔ inline JSX cannot create a quoted token crossing its line (0.088ms)
+✔ multiline JSX cannot create a quoted token crossing its line (0.0305ms)
+✔ realistic component cannot create a quoted token crossing its line (0.037375ms)
+✔ ordinary source has no raw generator-like pattern: const a=1;window.value=a+2; (0.015541ms)
+✔ ordinary source has no raw generator-like pattern: window.text="ordinary"; (0.010458ms)
+✔ ordinary source has no raw generator-like pattern: window.regex=/ordinary/; (0.010209ms)
+✖ capture notes describe raw over-flagging, including files without generators (3.254458ms)
+✔ a run of intervening comments needs a following star to match a function pattern (0.204167ms)
+ℹ tests 65
+ℹ suites 0
+ℹ pass 64
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 131.197666
+
+✖ failing tests:
+
+test at test/script-join-round14.test.mjs:112:1
+✖ capture notes describe raw over-flagging, including files without generators (3.254458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:113:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { reachSummaryLine } from '../dist/report/reach.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
-import { fixtureCommitSha, makeMap, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
+import { fixtureCommitSha, makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
 
 const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
 const map = (...rules) => ({
@@ -43,11 +43,37 @@ function report(dirs, options = {}) {
 }
 
 const strip =
-  "**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that matches each rule under **Changed but never matched**. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS), render-code reach and class-list deltas.";
+  "**Reach incomplete** — 2 changed CSS rule(s) never matched. Fix: add a surface or state that matches each rule under **Changed but never matched**. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS) and class-list deltas.";
+
 const intro =
   '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
 const table = ['| Rule | Change | Gated by | Source | Why |', '| --- | --- | --- | --- | --- |'];
 const darkRule = '@media (prefers-color-scheme: dark) > .panel';
+
+test('large reach detail leaves the global chrome block its display budget first', (t) => {
+  const rules = Array.from({ length: 300 }, (_, i) => rule(`.unopened-${i}`, 'base'));
+  const elements = {
+    'html > body > nav': { tag: 'nav', cls: '', style: { color: 'black' } },
+    'html > body > nav > a': { tag: 'a', cls: 'link', style: { color: 'black' } },
+  };
+  const base = { ...map(...rules), elements };
+  const head = {
+    ...map(...rules.map((entry) => ({ ...entry, hash: 'head' }))),
+    elements: {
+      ...elements,
+      'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'black' } },
+    },
+  };
+  const dirs = fixture(t, [base, base], [head, head]);
+  for (const dir of [dirs.beforeDir, dirs.afterDir])
+    for (const index of [0, 1]) fs.writeFileSync(path.join(dir, `surface-${index}@1280.png`), solidPng(1280, 400));
+  const wide = report(dirs, { includeContent: true });
+  assert.match(wide.md, /## 🧱 Global chrome/);
+  assert.ok(wide.md.indexOf('## 🧱 Global chrome') < wide.md.indexOf('## Changed but never matched'));
+  const bounded = report(dirs, { maxMarkdownBytes: 5000, includeContent: true });
+  assert.match(bounded.md, /## 🧱 Global chrome/);
+  assert.equal(bounded.json.reach.rules.length, 300);
+});
 
 test('unrendered changed CSS rules are listed with their condition and source without changing the verdict', (t) => {
   const side = (hash) => map(rule('.panel--fault', hash), rule(darkRule, hash), rule('.ok', hash, { used: true }));
@@ -182,8 +208,8 @@ test('gate keeps unbuilt joins advisory when all changed served rules matched ca
   assert.match(output.md, /✓ No reviewable/);
   assert.match(output.md, /\*\*Reach incomplete\*\*/);
   assert.doesNotMatch(output.md, /Reach gate|Held by|Reach complete/);
-  assert.equal(output.json.reach.gaps.length, 3);
-  assert.ok(output.json.reach.gaps.every((gap) => gap.kind === 'not-built'));
+  assert.ok(output.json.reach.gaps.some((gap) => gap.join === 'J2' && gap.kind === 'execution'));
+  assert.ok(output.json.reach.gaps.filter((gap) => gap.join !== 'J2').every((gap) => gap.kind === 'not-built'));
 });
 
 test('gate holds blind-channel changes and incomplete ledger evidence', (t) => {
@@ -218,7 +244,7 @@ test('directory reach assessment agrees with the report and does not depend on c
   assert.equal(output.json.reach.blocking, 1, 'the missing base ledger holds even when changed rules cannot be listed');
 });
 
-test('fully reached changed served rules add no section but still disclose the three unbuilt joins', (t) => {
+test('fully reached CSS still discloses missing script evidence and unbuilt joins', (t) => {
   const output = report(fixture(t, [map(rule('.ok', 'h1', { used: true }))], [map(rule('.ok', 'h2', { used: true }))]));
   assert.doesNotMatch(output.md, /## Changed but never matched|Reach evidence gaps|Reach complete|\d+%/);
   assert.match(
@@ -227,31 +253,13 @@ test('fully reached changed served rules add no section but still disclose the t
   );
   assert.equal(output.json.reach.complete, false);
   assert.deepEqual(output.json.reach.counts, { reached: 1, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 });
-  assert.deepEqual(output.json.reach.gaps, [
-    {
-      join: 'J1',
-      status: 'unknown',
-      kind: 'not-built',
-      reason:
-        "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
-      remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
-    },
-    {
-      join: 'J2',
-      status: 'unmeasured',
-      kind: 'not-built',
-      reason:
-        'script execution is not joined to changed lines yet; navigation-window coverage includes transient loading code',
-      remedy: 'none yet: a later Change Reach phase (#934) adds it',
-    },
-    {
-      join: 'J3',
-      status: 'unmeasured',
-      kind: 'not-built',
-      reason: 'class-list deltas are not recorded yet',
-      remedy: 'none yet: a later Change Reach phase (#934) adds it',
-    },
-  ]);
+  assert.deepEqual(
+    output.json.reach.gaps.filter((gap) => gap.join !== 'J2').map((gap) => gap.join),
+    ['J1', 'J3'],
+  );
+  assert.ok(output.json.reach.gaps.filter((gap) => gap.join === 'J2').every((gap) => gap.kind === 'execution'));
+  assert.match(output.md, /Script change reach \(J2\)/);
+  assert.match(output.md, /missing base scriptReach/);
 });
 
 test('an empty changed-rule list cannot claim reach is complete', (t) => {
@@ -434,7 +442,7 @@ test('a bounded report summarizes unrendered rules without losing the full JSON 
   });
   assert.ok(
     output.md.includes(
-      '- Changed but never matched: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under `reach`',
+      '- Changed but never matched: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked; full list in report.json under `reach`; J2: 0 reached, 0 never-rendered, 0 unmeasured, 0 unknown, 2 run-level gap(s) (warn-only)',
     ),
   );
   assert.match(output.md, /summarized to keep this report renderable/);
@@ -630,7 +638,7 @@ for (const changeReach of ['gate', 'warn']) {
   });
 }
 
-test('script-only captures expose the navigation-window limit without claiming a built J2 join', async () => {
+test('script-only captures name unavailable map SHAs rather than inventing a source diff', async () => {
   const { assessReachMaps } = await import('../dist/report/reach.js');
   const capture = {
     ...withoutReach(map()),
@@ -639,6 +647,6 @@ test('script-only captures expose the navigation-window limit without claiming a
   const reach = assessReachMaps([capture], [capture], 'warn');
   assert.equal(reach?.blocking, 0);
   assert.equal(reach?.complete, false);
-  assert.match(reach?.gaps.find((gap) => gap.join === 'J2')?.reason ?? '', /not joined.*navigation-window.*transient/);
+  assert.match(reach?.gaps.find((gap) => gap.join === 'J2')?.reason ?? '', /base map SHA unavailable/);
   assert.equal(assessReachMaps([withoutReach(map())], [withoutReach(map())], 'warn'), undefined);
 });

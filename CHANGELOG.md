@@ -141,6 +141,35 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- J2 joins changed source ranges against navigation-window execution, using the
+  compared base maps' SHA, captured project-root prefixes and source-content hashes
+  (#1000). Exact token starts separate live operands from unopened branches;
+  punctuation, ambiguous lexical boundaries and unmapped text supply negative
+  evidence only. TypeScript assertions and generic headers cannot swallow later
+  expressions; embedded TypeScript declarations and Astro scripts retain their
+  dialect. Balanced, bounded context names function, arrow, method and constructor
+  defaults, including nested, multiline and whole-line template initializers.
+  V8 generator creation cannot prove body entry, so any otherwise-ran change in a
+  file whose raw text contains a generator-like pattern stays unmeasured, including
+  code outside a generator and files with no generator. Raw yield words also flag;
+  bounded header patterns accept Unicode/escaped, numeric, quoted and computed
+  keys (including braced escapes with arbitrarily many leading hex zeros and quoted
+  CR/LF/CRLF/U+2028/U+2029 continuations), comment gaps, optional
+  methods and generic constraints across newlines. No-yield generators with computed
+  keys or generic lists above the 512-character bound remain a named residual.
+  Regex-literal attempts are capped at 4,096 characters; failed slash-start
+  attempts cut off before a line terminator retain negative-only evidence for the
+  remaining line, including in template and JSX-tag scans. Long division lines
+  may also be over-flagged.
+  Cached gaps and bounded checks keep large-file scanning linear. Matching raw
+  multiplication, strings, comments, regex bodies and templates intentionally flag. Quoted tokens stop at a line
+  terminator; an unterminated quote is one character. Capture notes name this and the other V8 and
+  source-map residuals. Git reads have named 60-second deadlines; missing evidence,
+  empty lines, line-ending edits and unjudged paths stay named on both revisions.
+  Report budgets prioritize style findings and bound J2 units, gaps and path lists
+  with explicit omission counts. J2 stays warn-only under both levels; execution
+  alone never proves rendering, and corpus J3 prototypes never corroborate it.
+
 - Opt-in `captureScriptReach` stores navigation-window V8 block evidence at original-source anchors, content hashes and project-relative keys. Missing maps/shared coverage stay unmeasured; read failures and self-check drift become unknown. Evidence notes name expression-evaluation and throwing-expression residuals. Absolute bundler paths are root-validated/redacted, app-only mapping and script counts have deterministic caps, and Playwright injected scripts are excluded; no git-diff join or verdict change is included (#999).
 
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).

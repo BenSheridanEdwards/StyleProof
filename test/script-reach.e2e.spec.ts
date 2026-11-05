@@ -157,10 +157,14 @@ for (const drift of [false, true]) {
     const capture = captureSurface(page, surface, 800, settings, { index: 1, total: 1 });
     if (drift) {
       await capture;
-      expect(loadStyleMap(testInfo.outputPath('maps/branch@800.json.gz')).scriptReach).toMatchObject({
+      const evidence = loadStyleMap(testInfo.outputPath('maps/branch@800.json.gz')).scriptReach;
+      // The if header now remains mixed when only body-line anchors represent the other state.
+      expect(evidence).toMatchObject({
         status: 'unknown',
         reason: 'script evidence not reproducible: original.js:2',
       });
+      expect(evidence?.projectRootPrefix).toBe(settings.projectRootPrefix);
+      expect(evidence?.projectRootPrefix).not.toBeUndefined();
     } else {
       await capture;
       expect(
@@ -521,4 +525,45 @@ test('capture starts the map read before stopping script evidence', async ({ pag
     stabilize: false,
   });
   expect(map.scriptReach?.status).toBe('unmeasured');
+});
+
+test('the J2 join keeps coarse execution unmeasured and identifies an unopened branch from stored capture evidence', async ({
+  page,
+}) => {
+  const { classifyScriptReach } = await import('../dist/script-join.js');
+  const scriptReach = await trackScriptReach(page);
+
+  try {
+    await page.goto('https://script.test/');
+
+    const map = await captureStyleMap(page, {
+      captureScriptReach: true,
+      scriptReach,
+      captureStates: false,
+      stabilize: false,
+    });
+
+    const file = map.scriptReach?.scripts
+      .flatMap((script) => script.files ?? [])
+      .find((source) => source.sourceKey === 'original.js');
+
+    expect(file?.contentHash).toBeTruthy();
+
+    const original = JSON.parse(readFileSync(new URL('bundle.js.map', root), 'utf8')).sourcesContent[0].split('\n');
+    const changes = [3, 5].map((line) => ({
+      sourceKey: 'original.js',
+      side: 'head' as const,
+      range: { start: { line, column: 0 }, end: { line, column: 1000 } },
+      contentHash: file!.contentHash!,
+      text: original[line - 1],
+    }));
+
+    const joined = classifyScriptReach([map], [map], changes);
+    expect(joined.units.map((unit) => [unit.execution, unit.status, unit.level])).toEqual([
+      ['unmeasured', 'unmeasured', 'warn'],
+      ['never-ran', 'never-rendered', 'warn'],
+    ]);
+  } finally {
+    await scriptReach.dispose();
+  }
 });

@@ -1,0 +1,126 @@
+Already up to date
+Done in 60ms using pnpm v11.7.0
+
+Running 59 tests using 1 worker
+
+(node:60202) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › JSX text // TODO cannot hide a removed sibling with minify=false (408ms)
+  ✓   2 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › JSX text // TODO cannot hide a removed sibling with minify=true (316ms)
+  ✓   3 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › JSX text /* note cannot hide a removed sibling with minify=false (299ms)
+  ✓   4 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › JSX text /* note cannot hide a removed sibling with minify=true (287ms)
+  ✓   5 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › JSX text `npm i cannot hide a removed sibling with minify=false (280ms)
+  ✓   6 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › JSX text `npm i cannot hide a removed sibling with minify=true (280ms)
+  ✘   7 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=false (281ms)
+(node:61656) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=true (336ms)
+(node:61973) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   9 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an escaped slash after a condition cannot start a fake comment with minify=false (923ms)
+  ✓  10 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an escaped slash after a condition cannot start a fake comment with minify=true (892ms)
+  ✓  11 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded template class substitution retains idle substitution evidence without minification (919ms)
+  ✓  12 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded template call substitution retains idle substitution evidence without minification (313ms)
+  ✓  13 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded template side effect retains idle substitution evidence without minification (306ms)
+  ✓  14 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a template on its own call line retains idle substitution evidence without minification (277ms)
+  ✓  15 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › the second template on one line retains idle substitution evidence without minification (283ms)
+  ✓  16 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded logical template substitution retains idle substitution evidence without minification (283ms)
+  ✓  17 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a multiline template substitution retains idle substitution evidence without minification (677ms)
+  ✓  18 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a substitution expression on its own line retains idle substitution evidence without minification (470ms)
+  ✓  19 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a live template substitution keeps ran with minify=false (346ms)
+  ✓  20 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a live template substitution keeps ran with minify=true (295ms)
+  ✓  21 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › parameter destructuring default reports its residual with minify=false (308ms)
+  ✓  22 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › parameter destructuring default reports its residual with minify=true (309ms)
+  ✓  23 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › parameter default with a nested call reports its residual with minify=false (321ms)
+  ✓  24 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › parameter default with a nested call reports its residual with minify=true (304ms)
+  ✓  25 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a return value after an empty parameter list reports its residual with minify=false (308ms)
+  ✓  26 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a return value after an empty parameter list reports its residual with minify=true (308ms)
+  ✓  27 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a return value outside a function default reports its residual with minify=false (322ms)
+  ✓  28 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a return value outside a function default reports its residual with minify=true (313ms)
+  ✓  29 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow body outside its parameter default reports its residual with minify=false (315ms)
+  ✓  30 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow body outside its parameter default reports its residual with minify=true (333ms)
+  ✓  31 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › supplied function default reports its residual with minify=false (351ms)
+  ✓  32 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › supplied function default reports its residual with minify=true (301ms)
+  ✓  33 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › supplied arrow default reports its residual with minify=false (304ms)
+  ✓  34 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › supplied arrow default reports its residual with minify=true (298ms)
+  ✓  35 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › code after a throwing call reports its residual with minify=false (306ms)
+  ✓  36 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › code after a throwing call reports its residual with minify=true (301ms)
+  ✓  37 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a live closing brace cannot prove the eliminated development arm ran in real Chromium through git (300ms)
+  ✓  38 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › the eliminated development arm stays unmeasured after a line break in real Chromium through git (292ms)
+  ✓  39 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a two-token ternary edit cannot borrow the surviving arm execution in real Chromium through git (302ms)
+  ✓  40 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded template class substitution in real Chromium through git (304ms)
+  ✓  41 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded template call substitution in real Chromium through git (295ms)
+  ✓  42 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded template side effect in real Chromium through git (292ms)
+  ✓  43 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a template on its own call line in real Chromium through git (282ms)
+  ✓  44 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › the second template on one line in real Chromium through git (278ms)
+  ✓  45 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a folded logical template substitution in real Chromium through git (282ms)
+  ✓  46 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a multiline template substitution in real Chromium through git (281ms)
+  ✓  47 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a substitution expression on its own line in real Chromium through git (280ms)
+  ✓  48 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (300ms)
+  ✓  49 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (353ms)
+  ✓  50 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (305ms)
+  ✓  51 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (292ms)
+  ✓  52 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (288ms)
+  ✓  53 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (289ms)
+  ✓  54 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › a merged return cannot inherit execution from the selected zero branch (322ms)
+  ✓  55 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › idle multiline template accounts for leading text before executed starts in real Chromium (297ms)
+  ✓  56 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (287ms)
+  ✓  57 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (287ms)
+  ✓  58 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › idle clsx template accounts for leading text before executed starts in real Chromium (310ms)
+  ✓  59 [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › empty map callback accounts for leading text before executed starts in real Chromium (294ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      201 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      202 |     expect(units).toHaveLength(scenario.count);
+    > 203 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      204 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      205 |     );
+      206 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:203:46
+
+    Error Context: test-results/test-script-join-round6.e2-ed5b5-oved-code-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      201 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      202 |     expect(units).toHaveLength(scenario.count);
+    > 203 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      204 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      205 |     );
+      206 |     if (scenario.expected === 'unmeasured' || (scenario.count === 4 && !scenario.minifySyntax)) {
+        at <checkout>/test/script-join-round6.e2e.spec.ts:203:46
+
+    Error Context: test-results/test-script-join-round6.e2-d5c31-moved-code-with-minify-true-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:143:3 › an arrow in a JSX attribute cannot create a text token for removed code with minify=true
+  57 passed (22.0s)

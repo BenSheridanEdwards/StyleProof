@@ -1,0 +1,1481 @@
+✔ a generator divisor after a keyword-named property call downgrades every file change under {} (32.165ms)
+✔ a generator call inside division downgrades every file change under {} (1.680458ms)
+✔ a generator call after an object operand downgrades every file change under {} (1.829667ms)
+✔ QA static method downgrades every file change under {} (1.347792ms)
+✔ QA async method without whitespace downgrades every file change under {} (2.080166ms)
+✔ QA ordinary function in a generator file downgrades every file change under {} (1.487125ms)
+✔ a static generator downgrades every file change under {} (1.116084ms)
+✔ a static async generator downgrades every file change under {} (1.754291ms)
+✔ a computed generator downgrades every file change under {} (1.432084ms)
+✔ a computed async generator downgrades every file change under {} (1.074333ms)
+✔ a private-name generator downgrades every file change under {} (1.4745ms)
+✔ a quoted-name generator downgrades every file change under {} (0.933291ms)
+✔ a numeric-name generator downgrades every file change under {} (0.883ms)
+✔ a public generator downgrades every file change under {} (1.014125ms)
+✔ a private async generator downgrades every file change under {} (0.998167ms)
+✔ adjacent generator methods on one line downgrades every file change under {} (0.844458ms)
+✔ a long saga body downgrades every file change under {} (1.185375ms)
+✔ a generator expression downgrades every file change under {} (0.980875ms)
+✔ an async generator expression downgrades every file change under {} (1.157584ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {} (1.116083ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {} (1.798541ms)
+✔ a generator divisor after a keyword-named property call downgrades every file change under {"minifySyntax":true} (2.13525ms)
+✔ a generator call inside division downgrades every file change under {"minifySyntax":true} (1.01925ms)
+✔ a generator call after an object operand downgrades every file change under {"minifySyntax":true} (0.9445ms)
+✔ QA static method downgrades every file change under {"minifySyntax":true} (1.290542ms)
+✔ QA async method without whitespace downgrades every file change under {"minifySyntax":true} (0.813958ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minifySyntax":true} (1.36575ms)
+✔ a static generator downgrades every file change under {"minifySyntax":true} (0.996ms)
+✔ a static async generator downgrades every file change under {"minifySyntax":true} (1.301209ms)
+✔ a computed generator downgrades every file change under {"minifySyntax":true} (0.814708ms)
+✔ a computed async generator downgrades every file change under {"minifySyntax":true} (0.812167ms)
+✔ a private-name generator downgrades every file change under {"minifySyntax":true} (1.590375ms)
+✔ a quoted-name generator downgrades every file change under {"minifySyntax":true} (0.7235ms)
+✔ a numeric-name generator downgrades every file change under {"minifySyntax":true} (1.177166ms)
+✔ a public generator downgrades every file change under {"minifySyntax":true} (0.758333ms)
+✔ a private async generator downgrades every file change under {"minifySyntax":true} (1.210333ms)
+✔ adjacent generator methods on one line downgrades every file change under {"minifySyntax":true} (0.844458ms)
+✔ a long saga body downgrades every file change under {"minifySyntax":true} (1.304791ms)
+✔ a generator expression downgrades every file change under {"minifySyntax":true} (1.072083ms)
+✔ an async generator expression downgrades every file change under {"minifySyntax":true} (0.694042ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {"minifySyntax":true} (0.763209ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {"minifySyntax":true} (1.2005ms)
+✔ a generator divisor after a keyword-named property call downgrades every file change under {"minifyWhitespace":true} (1.377ms)
+✔ a generator call inside division downgrades every file change under {"minifyWhitespace":true} (0.995625ms)
+✔ a generator call after an object operand downgrades every file change under {"minifyWhitespace":true} (1.079042ms)
+✔ QA static method downgrades every file change under {"minifyWhitespace":true} (1.212125ms)
+✔ QA async method without whitespace downgrades every file change under {"minifyWhitespace":true} (0.809708ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minifyWhitespace":true} (1.121792ms)
+✔ a static generator downgrades every file change under {"minifyWhitespace":true} (0.756083ms)
+✔ a static async generator downgrades every file change under {"minifyWhitespace":true} (1.062292ms)
+✔ a computed generator downgrades every file change under {"minifyWhitespace":true} (0.8205ms)
+✔ a computed async generator downgrades every file change under {"minifyWhitespace":true} (1.1205ms)
+✔ a private-name generator downgrades every file change under {"minifyWhitespace":true} (1.469333ms)
+✔ a quoted-name generator downgrades every file change under {"minifyWhitespace":true} (0.858042ms)
+✔ a numeric-name generator downgrades every file change under {"minifyWhitespace":true} (1.198916ms)
+✔ a public generator downgrades every file change under {"minifyWhitespace":true} (0.790084ms)
+✔ a private async generator downgrades every file change under {"minifyWhitespace":true} (1.151042ms)
+✔ adjacent generator methods on one line downgrades every file change under {"minifyWhitespace":true} (0.788042ms)
+✔ a long saga body downgrades every file change under {"minifyWhitespace":true} (1.265583ms)
+✔ a generator expression downgrades every file change under {"minifyWhitespace":true} (0.817334ms)
+✔ an async generator expression downgrades every file change under {"minifyWhitespace":true} (1.0825ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {"minifyWhitespace":true} (0.633875ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {"minifyWhitespace":true} (1.266084ms)
+✔ a generator divisor after a keyword-named property call downgrades every file change under {"minify":true} (1.72ms)
+✔ a generator call inside division downgrades every file change under {"minify":true} (0.795417ms)
+✔ a generator call after an object operand downgrades every file change under {"minify":true} (0.973917ms)
+✔ QA static method downgrades every file change under {"minify":true} (0.57125ms)
+✔ QA async method without whitespace downgrades every file change under {"minify":true} (1.37575ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minify":true} (0.688375ms)
+✔ a static generator downgrades every file change under {"minify":true} (1.284042ms)
+✔ a static async generator downgrades every file change under {"minify":true} (1.077625ms)
+✔ a computed generator downgrades every file change under {"minify":true} (1.221209ms)
+✔ a computed async generator downgrades every file change under {"minify":true} (1.142ms)
+✔ a private-name generator downgrades every file change under {"minify":true} (0.695917ms)
+✔ a quoted-name generator downgrades every file change under {"minify":true} (1.223ms)
+✔ a numeric-name generator downgrades every file change under {"minify":true} (1.035125ms)
+✔ a public generator downgrades every file change under {"minify":true} (1.021125ms)
+✔ a private async generator downgrades every file change under {"minify":true} (0.848542ms)
+✔ adjacent generator methods on one line downgrades every file change under {"minify":true} (1.25225ms)
+✔ a long saga body downgrades every file change under {"minify":true} (1.136209ms)
+✔ a generator expression downgrades every file change under {"minify":true} (0.623625ms)
+✔ an async generator expression downgrades every file change under {"minify":true} (1.144917ms)
+✔ an ordinary value elsewhere in a generator file downgrades every file change under {"minify":true} (0.826125ms)
+✔ a generator expression after JSX comment-like text downgrades every file change under {"minify":true} (1.392958ms)
+✖ raw generator-like text conservatively downgrades a live value: if (window.input) /function*foo/.test("x"); window.result = sink(1); (5.087ms)
+✖ raw generator-like text conservatively downgrades a live value: if (window.input) {} /function*foo/.test("x"); window.result = sink(1); (1.794583ms)
+✖ raw generator-like text conservatively downgrades a live value: const a = 2, b = (c) => c; window.value = a *b(1); (1.024208ms)
+✖ raw generator-like text conservatively downgrades a live value: window.value = "function* fake() {}"; window.result = sink(1); (1.005334ms)
+✖ raw generator-like text conservatively downgrades a live value: window.value = `class D { static *s() {} }`; window.result = sink(1); (1.377417ms)
+✖ raw generator-like text conservatively downgrades a live value: window.value = /function*foo/.source; window.result = sink(1); (0.827958ms)
+✖ raw generator-like text conservatively downgrades a live value: /* function* fake() {} */ window.result = sink(1); (1.139917ms)
+✖ raw generator-like text conservatively downgrades a live value: // class D { static *s() {} }
+window.result = sink(1); (0.73475ms)
+✔ base and head keep their own whole-file generator flag (1.329333ms)
+✖ a generic class method sets both raw file flags under {} (35.158459ms)
+✖ a generic class method sets both raw file flags under {"minifySyntax":true} (2.744125ms)
+✖ a generic class method sets both raw file flags under {"minifyWhitespace":true} (1.4255ms)
+✖ a generic class method sets both raw file flags under {"minify":true} (2.381ms)
+✖ a generic object method sets both raw file flags under {} (2.595292ms)
+✖ a generic object method sets both raw file flags under {"minifySyntax":true} (1.032ms)
+✖ a generic object method sets both raw file flags under {"minifyWhitespace":true} (1.829708ms)
+✖ a generic object method sets both raw file flags under {"minify":true} (1.527084ms)
+✖ a static async generic method sets both raw file flags under {} (1.666125ms)
+✖ a static async generic method sets both raw file flags under {"minifySyntax":true} (1.855917ms)
+✖ a static async generic method sets both raw file flags under {"minifyWhitespace":true} (1.493667ms)
+✖ a static async generic method sets both raw file flags under {"minify":true} (1.41675ms)
+✖ a decorated generator method sets both raw file flags under {} (0.898584ms)
+✖ a decorated generator method sets both raw file flags under {"minifySyntax":true} (1.232334ms)
+✖ a decorated generator method sets both raw file flags under {"minifyWhitespace":true} (0.966083ms)
+✖ a decorated generator method sets both raw file flags under {"minify":true} (1.670208ms)
+✖ a factory-decorated generator method sets both raw file flags under {} (1.592042ms)
+✖ a factory-decorated generator method sets both raw file flags under {"minifySyntax":true} (1.022167ms)
+✖ a factory-decorated generator method sets both raw file flags under {"minifyWhitespace":true} (1.230041ms)
+✖ a factory-decorated generator method sets both raw file flags under {"minify":true} (1.156875ms)
+✖ a generator after function-expression division sets both raw file flags under {} (1.455958ms)
+✖ a generator after function-expression division sets both raw file flags under {"minifySyntax":true} (1.340417ms)
+✖ a generator after function-expression division sets both raw file flags under {"minifyWhitespace":true} (0.844291ms)
+✖ a generator after function-expression division sets both raw file flags under {"minify":true} (1.441625ms)
+✖ a generator after JSX apostrophe text sets both raw file flags under {} (1.9165ms)
+✖ a generator after JSX apostrophe text sets both raw file flags under {"minifySyntax":true} (0.912208ms)
+✖ a generator after JSX apostrophe text sets both raw file flags under {"minifyWhitespace":true} (1.300584ms)
+✖ a generator after JSX apostrophe text sets both raw file flags under {"minify":true} (1.6525ms)
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {} (1.541542ms)
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {"minifySyntax":true} (1.414125ms)
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {"minifyWhitespace":true} (0.713292ms)
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {"minify":true} (1.256792ms)
+✖ a generator after realistic component apostrophe text sets both raw file flags under {} (1.3925ms)
+✖ a generator after realistic component apostrophe text sets both raw file flags under {"minifySyntax":true} (0.918209ms)
+✖ a generator after realistic component apostrophe text sets both raw file flags under {"minifyWhitespace":true} (1.615ms)
+✖ a generator after realistic component apostrophe text sets both raw file flags under {"minify":true} (1.527167ms)
+✖ raw generator-like text flags without parsing: a *b(c) (0.280458ms)
+✔ raw generator-like text flags without parsing: obj.function *b(2) (0.108ms)
+✖ raw generator-like text flags without parsing: /function*foo/ (0.118125ms)
+✖ raw generator-like text flags without parsing: "function * fake" (0.061125ms)
+✖ raw generator-like text flags without parsing: /* *m<T>() {} */ (0.0965ms)
+✔ raw generator-like text flags without parsing: function/*c*/* gen(){} (0.025625ms)
+✔ raw generator-like text flags without parsing: function// c
+*gen(){} (0.023041ms)
+✖ raw generator-like text flags without parsing: class D { @dec() *'quoted'<T>() {} } (0.074125ms)
+✖ apostrophe template text in .vue cannot hide a later raw header (0.24925ms)
+✖ apostrophe template text in .svelte cannot hide a later raw header (0.083208ms)
+✖ apostrophe template text in .html cannot hide a later raw header (0.073208ms)
+✖ an unterminated ' is one character before "\n" (0.454875ms)
+✖ an unterminated ' is one character before "\r" (0.1315ms)
+✖ an unterminated ' is one character before "\r\n" (0.132208ms)
+✖ an unterminated ' is one character before "
+" (1.492042ms)
+✖ an unterminated ' is one character before "
+" (0.100208ms)
+✖ an unterminated " is one character before "\n" (0.04825ms)
+✖ an unterminated " is one character before "\r" (0.0645ms)
+✖ an unterminated " is one character before "\r\n" (0.06625ms)
+✖ an unterminated " is one character before "
+" (0.067709ms)
+✖ an unterminated " is one character before "
+" (0.039833ms)
+✖ inline JSX cannot create a quoted token crossing its line (0.16275ms)
+✖ multiline JSX cannot create a quoted token crossing its line (0.060834ms)
+✖ realistic component cannot create a quoted token crossing its line (0.052166ms)
+✔ ordinary source has no raw generator-like pattern: const a=1;window.value=a+2; (0.031667ms)
+✔ ordinary source has no raw generator-like pattern: window.text="ordinary"; (0.016833ms)
+✔ ordinary source has no raw generator-like pattern: window.regex=/ordinary/; (0.015875ms)
+ℹ tests 156
+ℹ suites 0
+ℹ pass 91
+ℹ fail 65
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 238.852708
+
+✖ failing tests:
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: if (window.input) /function*foo/.test("x"); window.result = sink(1); (5.087ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: if (window.input) {} /function*foo/.test("x"); window.result = sink(1); (1.794583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: const a = 2, b = (c) => c; window.value = a *b(1); (1.024208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: window.value = "function* fake() {}"; window.result = sink(1); (1.005334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: window.value = `class D { static *s() {} }`; window.result = sink(1); (1.377417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: window.value = /function*foo/.source; window.result = sink(1); (0.827958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: /* function* fake() {} */ window.result = sink(1); (1.139917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:56:3
+✖ raw generator-like text conservatively downgrades a live value: // class D { static *s() {} }
+window.result = sink(1); (0.73475ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:60:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic class method sets both raw file flags under {} (35.158459ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic class method sets both raw file flags under {"minifySyntax":true} (2.744125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic class method sets both raw file flags under {"minifyWhitespace":true} (1.4255ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic class method sets both raw file flags under {"minify":true} (2.381ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic object method sets both raw file flags under {} (2.595292ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic object method sets both raw file flags under {"minifySyntax":true} (1.032ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic object method sets both raw file flags under {"minifyWhitespace":true} (1.829708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generic object method sets both raw file flags under {"minify":true} (1.527084ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a static async generic method sets both raw file flags under {} (1.666125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a static async generic method sets both raw file flags under {"minifySyntax":true} (1.855917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a static async generic method sets both raw file flags under {"minifyWhitespace":true} (1.493667ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a static async generic method sets both raw file flags under {"minify":true} (1.41675ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a decorated generator method sets both raw file flags under {} (0.898584ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a decorated generator method sets both raw file flags under {"minifySyntax":true} (1.232334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a decorated generator method sets both raw file flags under {"minifyWhitespace":true} (0.966083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a decorated generator method sets both raw file flags under {"minify":true} (1.670208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a factory-decorated generator method sets both raw file flags under {} (1.592042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a factory-decorated generator method sets both raw file flags under {"minifySyntax":true} (1.022167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a factory-decorated generator method sets both raw file flags under {"minifyWhitespace":true} (1.230041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a factory-decorated generator method sets both raw file flags under {"minify":true} (1.156875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after function-expression division sets both raw file flags under {} (1.455958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after function-expression division sets both raw file flags under {"minifySyntax":true} (1.340417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after function-expression division sets both raw file flags under {"minifyWhitespace":true} (0.844291ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after function-expression division sets both raw file flags under {"minify":true} (1.441625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after JSX apostrophe text sets both raw file flags under {} (1.9165ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after JSX apostrophe text sets both raw file flags under {"minifySyntax":true} (0.912208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after JSX apostrophe text sets both raw file flags under {"minifyWhitespace":true} (1.300584ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after JSX apostrophe text sets both raw file flags under {"minify":true} (1.6525ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {} (1.541542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {"minifySyntax":true} (1.414125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {"minifyWhitespace":true} (0.713292ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after multiline JSX apostrophe text sets both raw file flags under {"minify":true} (1.256792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after realistic component apostrophe text sets both raw file flags under {} (1.3925ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after realistic component apostrophe text sets both raw file flags under {"minifySyntax":true} (0.918209ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after realistic component apostrophe text sets both raw file flags under {"minifyWhitespace":true} (1.615ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:15:5
+✖ a generator after realistic component apostrophe text sets both raw file flags under {"minify":true} (1.527167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:45:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:63:3
+✖ raw generator-like text flags without parsing: a *b(c) (0.280458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:64:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:63:3
+✖ raw generator-like text flags without parsing: /function*foo/ (0.118125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:64:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:63:3
+✖ raw generator-like text flags without parsing: "function * fake" (0.061125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:64:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:63:3
+✖ raw generator-like text flags without parsing: /* *m<T>() {} */ (0.0965ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:64:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:63:3
+✖ raw generator-like text flags without parsing: class D { @dec() *'quoted'<T>() {} } (0.074125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:64:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:68:3
+✖ apostrophe template text in .vue cannot hide a later raw header (0.24925ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:76:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:68:3
+✖ apostrophe template text in .svelte cannot hide a later raw header (0.083208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:76:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:68:3
+✖ apostrophe template text in .html cannot hide a later raw header (0.073208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:76:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated ' is one character before "\n" (0.454875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated ' is one character before "\r" (0.1315ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated ' is one character before "\r\n" (0.132208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 25,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 25 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated ' is one character before "
+" (1.492042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated ' is one character before "
+" (0.100208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated " is one character before "\n" (0.04825ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated " is one character before "\r" (0.0645ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated " is one character before "\r\n" (0.06625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 25,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 25 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated " is one character before "
+" (0.067709ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:82:5
+✖ an unterminated " is one character before "
+" (0.039833ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   end: 24,
+  -   end: 7,
+      index: 6
+    }
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:85:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { index: 6, end: 24 },
+    expected: { index: 6, end: 7 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:94:3
+✖ inline JSX cannot create a quoted token crossing its line (0.16275ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:96:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:94:3
+✖ multiline JSX cannot create a quoted token crossing its line (0.060834ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:96:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round14.test.mjs:94:3
+✖ realistic component cannot create a quoted token crossing its line (0.052166ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round14.test.mjs:96:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -1,0 +1,195 @@
+✖ paired single quotes across JSX siblings cannot invent a string stays unmeasured with minify=false (15.146209ms)
+✖ paired single quotes across JSX siblings cannot invent a string stays unmeasured with minify=true (2.6385ms)
+✖ paired double quotes across JSX siblings cannot invent a string stays unmeasured with minify=false (1.702417ms)
+✖ paired double quotes across JSX siblings cannot invent a string stays unmeasured with minify=true (1.669375ms)
+✖ regex-looking JSX text after an expression cannot hide code stays unmeasured with minify=false (1.798875ms)
+✖ regex-looking JSX text after an expression cannot hide code stays unmeasured with minify=true (1.308708ms)
+✖ regex-looking JSX text after a closing tag cannot hide code stays unmeasured with minify=false (1.333083ms)
+✖ regex-looking JSX text after a closing tag cannot hide code stays unmeasured with minify=true (1.448083ms)
+✔ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=false (1.572041ms)
+✔ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=true (0.924709ms)
+✔ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=false (1.159375ms)
+✔ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=true (1.018791ms)
+✔ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=false (1.040166ms)
+✔ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=true (1.001666ms)
+✔ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=false (0.79ms)
+✔ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=true (1.0435ms)
+✔ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=false (0.799875ms)
+✔ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=true (1.205625ms)
+✔ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=false (0.978875ms)
+✔ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=true (1.1005ms)
+✔ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=false (0.91875ms)
+✔ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=true (0.95925ms)
+✔ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=false (0.809333ms)
+✔ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=true (1.043625ms)
+✔ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=false (0.640584ms)
+✔ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=true (0.999708ms)
+✔ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=false (0.799083ms)
+✔ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=true (0.877833ms)
+✔ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=false (0.988917ms)
+✔ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=true (0.8645ms)
+✔ a JSX attribute keeps negative evidence for its unopened OR arm stays unmeasured with minify=false (0.815208ms)
+✔ a JSX attribute keeps negative evidence for its unopened OR arm stays unmeasured with minify=true (0.985ms)
+✔ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=false (0.732ms)
+✔ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=true (1.08675ms)
+✔ JSX text // TODO ends before the following expression (0.081833ms)
+✔ JSX text /* note ends before the following expression (0.034ms)
+✔ JSX text `npm i ends before the following expression (0.02175ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>i.label || __DEV__ && "red" (0.034167ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>({label:"}>"}).label || "red" (0.024542ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>`x${i.label}` || "red" (0.061416ms)
+✔ ambiguous escaped-slash comments retain negative-only tail evidence (0.07675ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 33
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 138.912959
+
+✖ failing tests:
+
+test at test/script-join-round10.test.mjs:15:5
+✖ paired single quotes across JSX siblings cannot invent a string stays unmeasured with minify=false (15.146209ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ paired single quotes across JSX siblings cannot invent a string stays unmeasured with minify=true (2.6385ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ paired double quotes across JSX siblings cannot invent a string stays unmeasured with minify=false (1.702417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ paired double quotes across JSX siblings cannot invent a string stays unmeasured with minify=true (1.669375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ regex-looking JSX text after an expression cannot hide code stays unmeasured with minify=false (1.798875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ regex-looking JSX text after an expression cannot hide code stays unmeasured with minify=true (1.308708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ regex-looking JSX text after a closing tag cannot hide code stays unmeasured with minify=false (1.333083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ regex-looking JSX text after a closing tag cannot hide code stays unmeasured with minify=true (1.448083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: thousands of separate J2 gaps reserve bounded metadata and name the first omitted record
+not ok 1 - thousands of separate J2 gaps reserve bounded metadata and name the first omitted record
+  ---
+  duration_ms: 14.722833
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:303:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /first: gap 00241/. Input:
+
+    'J2 gaps truncated: 4759 more in report.json; first: gap 00000; gap 00001'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'J2 gaps truncated: 4759 more in report.json; first: gap 00000; gap 00001'
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:312:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 394.79675

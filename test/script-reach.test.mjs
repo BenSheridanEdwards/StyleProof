@@ -36,7 +36,7 @@ test('coverage maps executed and unexecuted branches to original lines and hashe
   assert.equal(file.unexecuted[0].start.line, 2);
 });
 
-test('a V8 boundary inside one mapped segment is mixed, not fully executed', () => {
+test('a V8 boundary inside one mapped segment is mixed when the hidden run has no anchor', () => {
   const [file] = mapScriptCoverage(
     entry,
     '123456789012345',

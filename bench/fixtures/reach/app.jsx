@@ -64,6 +64,8 @@ function reportError(err) {
 }
 
 function App() {
+  const faultStyle = { color: 'green' };
+  const banner = <span className="sp-banner">Down</span>;
   try {
     return h(
       'main',
@@ -74,6 +76,8 @@ function App() {
       h('a', { className: 'tone-red sp-delete', href: '#delete' }, 'Delete'),
       h('div', { className: 'panel sp-panel' }, h(Indicator)),
       probe.fault && h(FaultOverlay),
+      probe.fault && h('span', { className: 'sp-fault-style', style: `color: ${faultStyle.color}` }, 'Fault value'),
+      probe.fault && banner,
     );
   } catch (err) {
     reportError(err);

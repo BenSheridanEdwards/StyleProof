@@ -175,6 +175,49 @@ the evidence adds to a capture on a GitHub runner:
      V8 does not give every potentially throwing expression its own continuation
      counter. Capture notes name these residuals; the 2.2 join must keep such code unknown rather than infer
      reached from block execution.
+     After an optional chain, V8 may end an enclosing idle continuation early,
+     so later code in that block can read executed even when it never ran:
+     `if (t) return 1; const i = s?.missing?.x; sink("dead");`.
+     These counters cannot prove the continuation executed.
+     V8 also reports **bodies of generator / async-generator functions that were called but never iterated**
+     as executed: iterator creation can give the whole function count 1 with no
+     inner idle range. A file whose raw text contains a generator-like pattern
+     has its ran evidence downgraded to unmeasured; this may include files with
+     no generator. The raw patterns are:
+     - `\byield\b` anywhere, including strings/comments;
+     - `function GAP *`;
+     - `* GAP KEY GAP ? GAP <GENERIC> GAP (` with `?` and `<GENERIC>` optional.
+
+     `GAP` permits whitespace, block comments and line comments between the star,
+     key, optional question mark, generic list and parenthesis. Keys accept optional
+     `#` followed by `(?:[\p{ID_Continue}$\\]|\{[\dA-Fa-f]+\})+` with Unicode semantics (including
+     fixed and braced escaped names with arbitrarily many leading hex zeros), numeric literals including `.5` and `0x…`, quoted keys
+     `'(?:\\[^]|[^'\\])*'` / `"(?:\\[^]|[^"\\])*"`, or computed keys equivalent to
+     `\[[^]{0,512}?\]`. Generic contents are equivalent to `<[^]{0,512}?>` and
+     may include parentheses/newlines. Bounds count Unicode characters.
+     A generator with no `yield` whose computed key or type-parameter list exceeds 512 characters is not detected.
+     Quoted keys accept escaped CR, LF, CRLF, U+2028 and U+2029 line continuations.
+     All raw source positions remain eligible: strings, comments, regex bodies
+     and templates are not excluded. Matching multiplication-like text and other
+     non-generator text intentionally flags. The rule covers changes outside a
+     generator and actually iterated bodies, before same-range corroboration.
+     Negative or missing evidence keeps its existing status. Gap ends are
+     precomputed once; key and suffix results are cached; each computed/generic
+     lookahead is bounded to 512 characters. This is linear in file size with
+     fixed bounds and avoids a backtracking whole-header regex. The bounded
+     context remains only for parameter residual naming.
+     Regex-literal attempts inspect at most 4,096 characters. A failed slash-start
+     attempt whose window was cut off before a line terminator makes the remaining
+     line negative-only; template and JSX-tag scans stop conservatively too.
+     Long division lines may also be over-flagged. Truncated regex bodies must
+     never be re-lexed as code.
+   - **J2 source-map attribution.** A minifier can merge equivalent arms
+     (`flag ? one : one` → `one`) or hoist a shared call
+     (`flag ? sink(a) : sink(b)` → `sink(flag ? a : b)`). The source-map anchor
+     can remain on one original arm even when the other arm ran, making that
+     original arm read executed. J2 cannot detect this from the map. This is
+     an attribution residual, and execution alone still supplies no rendering
+     proof; corroboration requires the same value's exact source range.
    - value-producing lines at any lexical scope: module, component or render
      body, hook, helper or memo. A value here is anything a line computes that
      can reach the page. Examples, not an exhaustive list: style objects,

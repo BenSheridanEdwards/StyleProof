@@ -1,107 +1,153 @@
 # Reach corpus: method and results
 
-Buyer-legible answer to: _when a pull request restyles a state the capture spec
-never opens, does today's gate see it, and can reach evidence name it?_ This is
-Phase 0 of Change Reach ([#934](https://github.com/BenSheridanEdwards/StyleProof/issues/934),
-ticket [#988](https://github.com/BenSheridanEdwards/StyleProof/issues/988)).
+The fixture measures whether unopened-state restyles appear in the computed-style
+diff and whether reach names missing evidence. `bench/reach-corpus.results.json`
+is the measured receipt; `pnpm run bench:reach:check` is the CI oracle.
 
 ## Method
 
-- `bench/fixtures/reach/` is one small app: the base side of a PR. Each case in
-  the corpus declares its seeded `edit`, and the head side is the base plus every
-  edit. There are 14 edits. 13 are visual and one is not.
-- `bench/reach-corpus.json` is the only source of truth. It lists five surfaces
-  (home, fault overlay, `status=bad`, dark mode, the 1440px band) and two
-  scenarios. **declared** opens only `home`, as a typical spec does.
-  **complete** opens all five.
-- `bench/reach-corpus.mjs` runs the real product path. esbuild bundles each
-  side with source maps. Chromium renders every surface on both sides.
-  `captureStyleMap` captures each one with `captureReach` and V8 JS coverage, and
-  `diffStyleMaps` compares base with head.
-- `src/rule-reach.ts` supplies J1 through `classifyRuleReach` on the
-  `captureReach` ledger. `bench/reach-joins.mjs` holds the J2/J3 prototypes.
-  - **J1:** a changed served CSS rule must match an element. Changed custom
-    properties follow `aliases`, need every consumer to match, and require a
-    read outside a custom-property declaration. Unread and alias-only tokens
-    are never matched. `@keyframes`, `@font-face` and `@property` resolve
-    through matched references; `@property` also resolves through declarations;
-    alias-only reads do not count.
-  - **J2:** a changed line of render code must run. This uses V8 block coverage
-    resolved through the bundle's source map.
-  - **J3:** a changed class token must land on a captured element. Some paired
-    element's class list must gain or lose it between base and head.
-- Before any case runs, the healthy base is captured twice. The two captures
-  must self-diff to zero and record identical reach ledgers and execution.
-  Missing ledgers or any drift abort the run. Each scenario also fails if its
-  J1 ledger is not complete, because CSS reach is then unknown.
-- Every changed unit, meaning each changed served rule or changed source line,
-  must belong to exactly one case. A unit no case claims fails the run.
+There are 16 seeded changes (15 visual and one non-visual error handler). The
+**declared** scenario captures home only; **complete** captures all five fixture
+states. “Complete” names that spec, not reach-complete certification. esbuild
+source maps, real Chromium, `trackScriptReach`, `captureStyleMap`, and
+`diffStyleMaps` supply the evidence. Healthy repeated captures must have identical
+style and reach evidence. Every changed unit must have exactly one case owner.
 
-## Results (receipt: `bench/reach-corpus.results.json`)
+J1 uses `src/rule-reach.ts`. J2 uses `changedScriptRanges` and
+`classifyScriptReach` from `src/` on stored capture evidence. The corpus constructs
+one-line patches by hand and judges the head unit (base for a removed line); it
+does not run `readScriptChanges`. Unit and e2e tests cover the real Git/manifest
+adapter, including comparison SHAs, multiline hunks, capture prefixes, patch
+pairing, source hashes and expression starts.
 
-The migrated runner (J1 from `src/rule-reach.ts`) reproduces these totals in
-Chromium: CI's `node bench/reach-corpus.mjs --check` passed every case on commit
-`b8ebaf468` (run 40170871007). The committed receipt file's timestamp and CSS
-unit strings still come from the earlier prototype run; `npm run bench:reach`
-refreshes them.
+The temporary fixture is a Git repository, so each capture resolves its actual
+`src/base` or `src/head` project-root prefix. After rebasing onto the injected-script
+capture fix (#1287), the corpus asserts **zero J2 run-level gaps** for every source
+unit. The receipt's `j2Gaps` records the empty lists; any gap fails the oracle.
+Case statuses judge mapped source units; the run is not reach-complete.
 
-| Scenario                | Today's diff shows      | Reach joins                                        |
-| ----------------------- | ----------------------- | -------------------------------------------------- |
-| declared (`home` only)  | 1 of 13 visual changes  | name 11 of the 12 misses; 1 is the pinned residual |
-| complete (all 5 states) | 12 of 13 visual changes | mark every rendered change reached                 |
+**J3-prototype is separate evidence.** The token-name `classReach` prototype is
+retained for branch-class, module-constant and colliding-constant, but never
+overrides or corroborates the src J2 status. Results have a separate
+`prototypeJ3` field and printed J3-prototype label. #1001 re-judges these cases
+under ADR 0009 per-occurrence provenance. A token delta is not that provenance.
 
-What each kind of change does in the declared scenario:
+## Results and correction
 
-| Change                                                         | Today  | Reach                                        |
-| -------------------------------------------------------------- | ------ | -------------------------------------------- |
-| `:hover` colour                                                | shown  | reached (forced `:hover` matches)            |
-| Fault-overlay rule, removed rule, CSS Module rule, ternary arm | missed | never matched (J1)                           |
-| Token used only by the fault badge                             | missed | never matched (J1 consumer closure)          |
-| Dark-mode and 1440px `@media` rules                            | missed | never matched, with the gating `@media`      |
-| `@keyframes` body                                              | missed | blind channel (a matched rule references it) |
-| Class added inside the fault overlay                           | missed | never rendered (J2 never ran)                |
-| Module-scope class constants (incl. one that collides)         | missed | never rendered (J3; J2 alone says "ran")     |
-| Runtime CSS-in-JS style string                                 | missed | **reached: the pinned residual**             |
-| `console.warn` text in an error handler                        | n/a    | never rendered (**noise**)                   |
+| Measurement                                  | Original prototype (14 cases) | Rejected join head (16 cases) | Corrected join (16 cases) |
+| -------------------------------------------- | ----------------------------- | ----------------------------- | ------------------------- |
+| Declared: visual changes shown               | 1/13                          | 1/15                          | 1/15                      |
+| Complete: visual changes shown               | 12/13                         | 14/15                         | 14/15                     |
+| Declared: unknown cases                      | 0                             | 3                             | 5                         |
+| Complete: unknown cases                      | 0                             | 3                             | 6                         |
+| Declared: misses named by non-reached status | 11/12                         | 14/14                         | 14/14                     |
+| Error handler, both scenarios                | never-rendered                | never-rendered                | never-rendered            |
 
-## What this proves, and what it doesn't
+The correction moves **five result cells** to unknown: module-constant and
+colliding-constant in both scenarios, and branch-class in complete. This is
+**three existing cases**, not five cases. Compared with the original prototype,
+the existing runtime-css-in-js case also moved to unknown in both scenarios;
+the render-scope-value and eager-jsx-element cases were newly added. The corrected
+receipt contains eleven unknown cells: five declared and six complete.
+Round four changes no case status: **zero cells moved to unknown**. Resolving the
+temporary Git root removes the two previously unchecked prefix gaps; the two
+unsupported-script gaps remain explicit and asserted.
+After the round-five rebase, #1287 excludes those injected scripts and removes
+both unsupported-script gaps. No case status changes; unknown counts stay five
+declared and six complete.
 
-**Proven:** on a deterministic fixture, a restyle confined to a state the spec
-never opens is invisible to today's diff, and that holds for a CSS rule, a
-token, a media query, a CSS Module, a markup class, and a module-scope constant.
-Reach evidence from a real browser names each of those misses with the changed
-rule or line. Capturing the missing states turns each one into an ordinary
-finding.
+| Case               | Src J2 declared | Src J2 complete | J3-prototype declared / complete |
+| ------------------ | --------------- | --------------- | -------------------------------- |
+| branch-class       | never-rendered  | unknown         | never-rendered / reached         |
+| module-constant    | unknown         | unknown         | never-rendered / reached         |
+| colliding-constant | unknown         | unknown         | never-rendered / reached         |
+| runtime-css-in-js  | unknown         | unknown         | n/a                              |
+| render-scope-value | unknown         | unknown         | n/a                              |
+| eager-jsx-element  | unknown         | unknown         | n/a                              |
+| error-handler      | never-rendered  | never-rendered  | n/a                              |
 
-**Named limits, pinned so they cannot drift silently:**
+The value definitions execute without proving their values rendered. Even a
+computed-style finding on the complete spec does not supply exact-range
+corroboration. Thus those src J2 units stay unknown. The healthy page never enters
+the fault badge branch, so branch-class remains never-rendered there.
 
-- **Runtime CSS-in-JS** (`runtime-css-in-js`). The style string runs at load,
-  so J2 says it ran. The rule is injected only on render, so J1 sees nothing.
-  The value is not a class token, so J3 has no signal. Today it reads as
-  reached, which is a false clearance. Zero-runtime CSS-in-JS compiles to CSS,
-  and J1 covers that exactly.
-- **Noise** (`error-handler`). Changed code that never runs during capture and
-  has no visual effect is still flagged. The client-bundle filter
-  ([#1000](https://github.com/BenSheridanEdwards/StyleProof/issues/1000)) and
-  acknowledgements ([#1006](https://github.com/BenSheridanEdwards/StyleProof/issues/1006))
-  are where that gets addressed.
-- **Blind channel** (`keyframes`). It is reached but computed styles cannot
-  hold it, so it is named rather than counted as clean.
+Round eight changes **zero case statuses and zero cells to unknown**. Eager JSX
+remains ran/unknown in both scenarios: its opening tag, properties and text have
+token-start anchors; the closing tag is delimiter syntax, not a second evaluation
+of its name. All 32 expectations and the zero-gap assertion remain unchanged.
+The refreshed receipt adds the general throwing-expression limit to ran/unknown
+reasons; J3-prototype rows still cannot corroborate J2.
 
-**Not proven:** the cost of recording reach evidence and the noise rate on a real
-app's PRs ([#989](https://github.com/BenSheridanEdwards/StyleProof/issues/989)).
-J2/J3 remain bench prototypes; J3 pairs changed lines by position inside each diff
-hunk. Unsupported CSS parsing fails with unknown reach. The fixture is synthetic,
-and its rates say nothing about a particular consumer app.
+Round nine also moves **zero cases and zero cells to unknown**. Eager JSX and
+render-scope values remain ran/unknown in both scenarios, with all 32 expectations
+and the zero-gap assertion unchanged. Additional real-esbuild/Chromium regressions
+cover folded template substitutions, mapped idle arms and live controls; these are
+outside the corpus's hand-built one-line patches.
 
-## Reproduce
+Round ten preserves **all 32 expectations, zero J2 gaps and the 5/6 unknown
+totals**. No case or scenario cell changes status. Eager JSX and render-scope
+values remain unknown; the additional lexical-boundary cases exercise real Git
+in the browser suite rather than changing the corpus method or expectations.
+
+Round 11 keeps all 32 expectations and zero J2 gaps. Unknown totals remain five
+in declared and six in complete; eager JSX and render-scope values stay unknown
+in both. Zero case statuses or result cells move to unknown. The refreshed receipt
+changes only its timestamp and three never-ran explanations to name an anchor,
+rather than claim the whole expression never evaluated. The new `.ts` assertion
+and parameter cases run in unit tests and the real-Chromium/Git adapter spec;
+the corpus still uses hand-built one-line patches and selects the head unit.
+
+Round 12 also passes all 32 expectations with zero J2 gaps and unchanged 5/6
+unknown totals. No case status or result cell moves to unknown; eager JSX and
+render-scope values remain unknown. The receipt changes only its timestamp.
+Generator creation/iteration and live/idle TSX generic regressions run through
+the real Chromium/Git adapter spec; the corpus method stays unchanged.
+
+Round 13 retains all 32 expectations and zero J2 gaps. Unknown totals remain five
+in declared and six in complete; no case status or result cell moves to unknown,
+and eager JSX/render-scope values stay unknown in both. Only the receipt timestamp
+changes. Whole-file generator recognition and its intentional outside-generator
+over-flagging are covered by unit and real-Chromium/Git tests. The corpus still
+uses hand-built one-line patches and selects the head unit.
+
+Round 14's raw generator-pattern policy retains all 32 expectations, zero J2 gaps
+and unchanged five/six unknown totals. No case status or result cell moves to
+unknown; eager JSX and render-scope values remain unknown. Only the timestamp
+changes in the receipt. Unit and real-Chromium/Git tests pin the intentional raw
+multiplication/string/comment/regex over-flagging and apostrophe boundaries; the
+corpus still uses hand-built one-line patches and selects the head unit.
+
+Round 15 retains all 32 expectations, zero J2 gaps and unchanged five/six unknown
+totals. No case status or result cell moves to unknown; eager JSX and render-scope
+values stay unknown. Only the timestamp changes in the receipt. Unit and real
+Chromium/Git tests cover widened raw header shapes with/without yield, including
+all eight independent QA repros; the corpus still uses hand-built one-line patches
+and selects the head unit.
+
+Round 16 retains all 32 expectations, zero J2 gaps and unchanged five/six unknown
+totals. No case status or result cell moves to unknown; eager JSX and render-scope
+values stay unknown. Only the timestamp changes in the receipt. Unit and real
+Chromium/Git tests pin braced Unicode names and quoted line continuations without
+yield, and the documented limit for no-yield computed/generic contents above 512
+characters. The corpus uses hand-built one-line patches and selects the head unit.
+
+Round 17 retains all 32 expectations, zero J2 gaps and unchanged five/six unknown
+totals. No case status or result cell moves to unknown; eager JSX and render-scope
+values stay unknown. Only the timestamp changes in the receipt. Unit and real
+Chromium/Git tests cover capped valid regex literals, nested template/tag scans,
+eight-digit braced escapes and the short-regex control. The corpus uses hand-built
+one-line patches and selects the head unit.
+
+## Limits
+
+This is a synthetic fixture, not a consumer noise-rate measurement. Block entry
+still cannot prove default parameter values, destructuring defaults, logical
+assignment RHS, later optional-chain links or code after a throwing expression.
+J2 findings remain advisory under both levels. The error handler remains named
+noise. The keyframes change remains a J1 blind channel. J3 per-occurrence
+provenance is not built, and these results never establish reach-complete.
 
 ```sh
-npm run bench:reach         # measure + write the receipt
-npm run bench:reach:check   # fail on any violated expectation
+pnpm run bench:reach        # write receipt
+pnpm run bench:reach:check  # check every expectation
 ```
-
-Adding a case: add it to `reach-corpus.json` with its `edit`, its `unit`
-matcher, and its expectations, then rerun. Each edit's `from` must occur exactly
-once in the base file. A changed unit that no case's matcher claims fails the
-run.

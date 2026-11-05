@@ -1,0 +1,71 @@
+✖ slashes in a regex character class cannot start a fake comment stays unmeasured with minify=false (38.0095ms)
+✔ slashes in a regex character class cannot start a fake comment stays unmeasured with minify=true (2.49325ms)
+✔ paired single quotes across JSX siblings cannot invent a string stays unmeasured with minify=false (2.07125ms)
+✔ paired single quotes across JSX siblings cannot invent a string stays unmeasured with minify=true (1.316917ms)
+✔ paired double quotes across JSX siblings cannot invent a string stays unmeasured with minify=false (1.732125ms)
+✔ paired double quotes across JSX siblings cannot invent a string stays unmeasured with minify=true (1.37225ms)
+✔ regex-looking JSX text after an expression cannot hide code stays unmeasured with minify=false (1.131208ms)
+✔ regex-looking JSX text after an expression cannot hide code stays unmeasured with minify=true (1.16025ms)
+✔ regex-looking JSX text after a closing tag cannot hide code stays unmeasured with minify=false (1.549166ms)
+✔ regex-looking JSX text after a closing tag cannot hide code stays unmeasured with minify=true (1.088292ms)
+✔ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=false (1.042083ms)
+✔ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=true (1.135709ms)
+✔ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=false (0.6765ms)
+✔ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=true (1.366708ms)
+✔ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=false (1.005042ms)
+✔ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=true (1.094625ms)
+✔ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=false (0.887833ms)
+✔ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=true (0.889333ms)
+✔ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=false (1.117458ms)
+✔ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=true (1.141875ms)
+✔ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=false (0.695625ms)
+✔ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=true (0.977834ms)
+✔ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=false (1.033083ms)
+✔ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=true (0.965792ms)
+✔ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=false (1.01425ms)
+✔ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=true (0.725542ms)
+✔ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=false (0.9315ms)
+✔ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=true (0.969959ms)
+✔ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=false (0.939792ms)
+✔ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=true (0.968208ms)
+✔ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=false (1.012958ms)
+✔ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=true (0.996334ms)
+✔ a JSX attribute keeps negative evidence for its unopened OR arm stays unmeasured with minify=false (0.978292ms)
+✔ a JSX attribute keeps negative evidence for its unopened OR arm stays unmeasured with minify=true (0.952084ms)
+✔ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=false (0.967375ms)
+✔ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=true (0.90025ms)
+✔ JSX text // TODO ends before the following expression (0.099708ms)
+✔ JSX text /* note ends before the following expression (0.034583ms)
+✔ JSX text `npm i ends before the following expression (0.019709ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>i.label || __DEV__ && "red" (0.061709ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>({label:"}>"}).label || "red" (0.022667ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>`x${i.label}` || "red" (0.102541ms)
+✔ ambiguous escaped-slash comments retain negative-only tail evidence (0.090042ms)
+ℹ tests 43
+ℹ suites 0
+ℹ pass 42
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 174.334959
+
+✖ failing tests:
+
+test at test/script-join-round10.test.mjs:15:5
+✖ slashes in a regex character class cannot start a fake comment stays unmeasured with minify=false (38.0095ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -118,6 +118,8 @@ export type Settings = Required<
   dir: string;
   /** Stable config/git root for script source identities, resolved before go(). */
   projectRoot?: string;
+  /** Run-level git-relative provenance; null records that git was unavailable. */
+  projectRootPrefix?: string | null;
   /** `resolveOutputDir(baseDir, dir)`, computed once. */
   outDir: string;
   replayFrom?: string;

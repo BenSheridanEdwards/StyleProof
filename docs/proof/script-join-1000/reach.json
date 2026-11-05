@@ -1,0 +1,74 @@
+{
+  "level": "gate",
+  "blocking": 0,
+  "complete": false,
+  "ledger": "complete",
+  "counts": {
+    "reached": 0,
+    "never-rendered": 0,
+    "unmeasured": 0,
+    "blind-channel": 0
+  },
+  "rules": [],
+  "unreadableSheets": 0,
+  "scripts": [
+    {
+      "sourceKey": "app.ts",
+      "side": "base",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 10
+        },
+        "end": {
+          "line": 1,
+          "column": 11
+        }
+      },
+      "execution": "ran",
+      "status": "unknown",
+      "why": "value; rendering not proved",
+      "level": "warn"
+    },
+    {
+      "sourceKey": "app.ts",
+      "side": "head",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 10
+        },
+        "end": {
+          "line": 1,
+          "column": 11
+        }
+      },
+      "execution": "ran",
+      "status": "unknown",
+      "why": "value; rendering not proved",
+      "level": "warn"
+    }
+  ],
+  "scriptCounts": {
+    "reached": 0,
+    "never-rendered": 0,
+    "unmeasured": 0,
+    "unknown": 2
+  },
+  "gaps": [
+    {
+      "join": "J1",
+      "status": "unknown",
+      "kind": "not-built",
+      "reason": "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+      "remedy": "add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join"
+    },
+    {
+      "join": "J3",
+      "status": "unmeasured",
+      "kind": "not-built",
+      "reason": "class-list deltas are not recorded yet",
+      "remedy": "none yet: a later Change Reach phase (#934) adds it"
+    }
+  ]
+}

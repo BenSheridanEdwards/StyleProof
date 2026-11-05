@@ -1,29 +1,34 @@
 // Reach corpus (#988): on a PR whose spec only opens the healthy state, how many
 // of its visual changes does today's diff show — and do the reach joins name the
-// rest? J1 runs classifyRuleReach on the captureReach ledger; J2/J3 are prototypes.
+// rest? J1 runs classifyRuleReach on the captureReach ledger; J2 runs src/script-join.ts; J3 remains a prototype.
 //
 //   pnpm run bench:reach          # measure (writes bench/reach-corpus.results.json)
 //   pnpm run bench:reach:check    # same, exit 1 on any violated expectation
 //
 // The fixture is the base side. The head side is the base plus every case's
 // `edit`, so each seeded change belongs to the case that declares it. The real
-// product path runs end to end: esbuild bundles each side with source maps,
+// build/capture/diff path runs: esbuild bundles each side with source maps,
 // Chromium renders it, captureStyleMap captures it with captureReach and V8 JS
 // coverage, and diffStyleMaps compares base and head. Expectations live in
 // bench/reach-corpus.json; drift in either direction fails --check, so a fix for a
 // documented miss or residual must update the corpus on purpose.
+// J2 uses hand-built one-line patches and selects the head unit, not readScriptChanges.
 import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
 import esbuild from 'esbuild';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { captureStyleMap, trackServedRules } from '../dist/capture.js';
+import { execFileSync } from 'node:child_process';
+import { captureStyleMap, trackServedRules, trackScriptReach } from '../dist/capture.js';
 import { classifyRuleReach } from '../dist/rule-reach.js';
+import { classifyScriptReach } from '../dist/script-join.js';
+import { changedScriptRanges } from '../dist/script-join-git.js';
 import { diffStyleMaps } from '../dist/diff.js';
 import { hasProp, markerOf, onTarget } from './finding-match.mjs';
-import { classReach, classVocabulary, diffHunks, jsReach, lineExecution } from './reach-joins.mjs';
+import { classReach, classVocabulary, diffHunks } from './reach-joins.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CORPUS_PATH = path.join(ROOT, 'bench', 'reach-corpus.json');
@@ -35,6 +40,7 @@ const SIDES = ['base', 'head'];
 
 // ---- write both sides' sources: head = base + every case edit --------------------
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-reach-'));
+execFileSync('git', ['init', '--quiet'], { cwd: out, stdio: 'pipe' });
 const src = (side, file = '') => path.join(out, 'src', side, file);
 for (const side of SIDES) fs.cpSync(FIXTURE, src(side), { recursive: true });
 for (const c of corpus.cases)
@@ -53,6 +59,7 @@ for (const side of SIDES) {
     sourcemap: true,
     outdir: path.join(out, side),
     entryNames: 'app',
+    jsxFactory: 'h',
     logLevel: 'warning',
   });
   fs.writeFileSync(
@@ -61,9 +68,7 @@ for (const side of SIDES) {
       '<body><div id="root"></div><script src="app.js"></script></body></html>\n',
   );
 }
-const sourceMaps = Object.fromEntries(
-  SIDES.map((side) => [side, JSON.parse(fs.readFileSync(path.join(out, side, 'app.js.map'), 'utf8'))]),
-);
+
 const sourceLines = Object.fromEntries(
   SIDES.map((side) => [side, fs.readFileSync(src(side, 'app.jsx'), 'utf8').split('\n')]),
 );
@@ -75,14 +80,16 @@ async function capture(browser, side, surface) {
     viewport: { width: surface.width, height: 800 },
     colorScheme: surface.colorScheme,
   });
-  await page.coverage.startJSCoverage({ resetOnNavigation: false });
+
+  const scriptReach = await trackScriptReach(page, { projectRoot: fs.realpathSync(src(side)) });
   const servedRules = await trackServedRules(page);
   try {
     await page.goto(pathToFileURL(path.join(out, side, 'index.html')).href + surface.query, { waitUntil: 'load' });
-    const map = await captureStyleMap(page, { captureReach: true, servedRules });
-    const js = (await page.coverage.stopJSCoverage()).find((e) => e.url.endsWith('/app.js'));
-    return { map, execution: lineExecution(js, sourceMaps[side], '/app.jsx') };
+    const map = await captureStyleMap(page, { captureReach: true, servedRules, captureScriptReach: true, scriptReach });
+
+    return { map };
   } finally {
+    await scriptReach.dispose();
     await servedRules.dispose();
     await page.close();
   }
@@ -98,9 +105,11 @@ const browser = await chromium.launch();
   const styleDrift = diffStyleMaps(a.map, b.map).length;
   const reachState =
     !a.map.reach || !b.map.reach ? 'missing' : isDeepStrictEqual(a.map.reach, b.map.reach) ? 'stable' : 'drifted';
-  const ranA = JSON.stringify([...a.execution]);
-  const ranB = JSON.stringify([...b.execution]);
-  if (styleDrift || reachState !== 'stable' || ranA !== ranB) {
+
+  const ranA = JSON.stringify(a.map.scriptReach);
+  const ranB = JSON.stringify(b.map.scriptReach);
+
+  if (styleDrift || reachState !== 'stable' || !a.map.scriptReach || ranA !== ranB) {
     console.error(
       `fixture is not deterministic — style drift ${styleDrift}, reach ledger ${reachState}, ` +
         `execution ${ranA === ranB ? 'stable' : 'drifted'}; corpus results would be noise`,
@@ -122,17 +131,43 @@ fs.rmSync(out, { recursive: true, force: true });
 function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
   const side = headLine ? 'head' : 'base';
   const line = headLine ?? baseLine;
-  const J2 = jsReach(
-    line,
-    pick(side).map((c) => c.execution),
+
+  const changes = changedScriptRanges(
+    `@@ -${baseLine ?? 0},${baseLine ? 1 : 0} +${headLine ?? 0},${headLine ? 1 : 0} @@\n` +
+      (baseLine ? `-${sourceLines.base[baseLine - 1]}\n` : '') +
+      (headLine ? `+${sourceLines.head[headLine - 1]}\n` : ''),
+    { base: sourceLines.base.join('\n'), head: sourceLines.head.join('\n') },
+    'app.jsx',
   );
+
+  const script = classifyScriptReach(
+    pick('base').map((c) => c.map),
+    pick('head').map((c) => c.map),
+    changes,
+  );
+  assert.deepEqual(script.gaps, [], 'corpus J2 evidence must have no unchecked run-level gaps');
+
+  const evidence = script.units.find((unit) => unit.side === side);
+  const J2 = evidence?.execution ?? 'unmeasured';
+
   const J3 =
     baseLine && headLine
       ? classReach(sourceLines.base[baseLine - 1], sourceLines.head[headLine - 1], vocabulary, pairs).status
       : 'n/a';
-  const ran = J2 === 'ran' && J3 !== 'never-rendered';
-  const status = J2 === 'unmeasured' ? 'unmeasured' : ran ? 'reached' : 'never-rendered';
-  return { kind: 'js', key: `app.jsx:${line}`, text: sourceLines[side][line - 1], status, joins: { J2, J3 } };
+
+  // Token-name deltas are displayed separately and never corroborate src J2.
+  const status = evidence?.status ?? 'unmeasured';
+
+  return {
+    kind: 'js',
+    key: `app.jsx:${line}`,
+    text: sourceLines[side][line - 1],
+    status,
+    joins: { J2 },
+    prototypeJ3: J3,
+    why: evidence?.why,
+    gaps: script.gaps.map(({ side, status, reason }) => ({ side, status, reason })),
+  };
 }
 
 function evaluate(surfaceIds) {
@@ -162,12 +197,15 @@ const matches = (c, u) =>
     ? Boolean(c.unit.css) && new RegExp(c.unit.css).test(u.selector)
     : Boolean(c.unit.js) && u.text.includes(c.unit.js);
 const worst = (units) =>
-  ['never-rendered', 'blind-channel', 'unmeasured'].find((s) => units.some((u) => u.status === s)) ?? 'reached';
+  ['never-rendered', 'blind-channel', 'unmeasured', 'unknown'].find((s) => units.some((u) => u.status === s)) ??
+  'reached';
 
 const failures = [];
+const scenarioGaps = {};
 const results = corpus.cases.map((c) => ({ id: c.id, category: c.category, desc: c.desc, scenarios: {} }));
 for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
   const { findings, units, ledger, unreadableSheets } = evaluate(surfaceIds);
+  scenarioGaps[scenario] = units.find((unit) => unit.kind === 'js')?.gaps ?? [];
   if (ledger !== 'complete')
     failures.push(`${scenario}: J1 ledger ${ledger} (${unreadableSheets} unreadable) — CSS reach is unknown`);
   for (const u of units) {
@@ -186,12 +224,19 @@ for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
       }),
       reach: mine.length ? worst(mine) : 'no changed unit',
       ...(js && { joins: js.joins }),
-      units: mine.map((u) => `${u.key}: ${u.status}${u.why ? ` (${u.why})` : ''}`),
+      units: mine.map(
+        (u) =>
+          `${u.key}: ${u.status}${u.why ? ` (${u.why})` : ''}${u.prototypeJ3 && u.prototypeJ3 !== 'n/a' ? `; J3-prototype ${u.prototypeJ3} (#1001 re-judges per-occurrence provenance)` : ''}`,
+      ),
     };
+    if (js?.prototypeJ3 && js.prototypeJ3 !== 'n/a') got.prototypeJ3 = js.prototypeJ3;
     const want = c.expect[scenario];
     const wrong = [
       ...(want.today && got.today !== want.today ? [`today ${got.today}, want ${want.today}`] : []),
       ...(got.reach !== want.reach ? [`reach ${got.reach}, want ${want.reach}`] : []),
+      ...(want.prototypeJ3 && got.prototypeJ3 !== want.prototypeJ3
+        ? [`J3-prototype ${got.prototypeJ3}, want ${want.prototypeJ3}`]
+        : []),
       ...Object.entries(want.joins ?? {})
         .filter(([join, status]) => got.joins?.[join] !== status)
         .map(([join, status]) => `${join} ${got.joins?.[join]}, want ${status}`),
@@ -214,13 +259,15 @@ const lines = [
   `  declared spec (${corpus.scenarios.declared.join(', ')}): today's diff shows ${shown('declared')}/${visual.length} visual changes`,
   `  reach joins name ${named.length}/${missed.length} of the misses (${missed.length - named.length} pinned residual)`,
   `  complete spec (${corpus.scenarios.complete.length} surfaces): today's diff shows ${shown('complete')}/${visual.length}`,
+  `  J2 run-level gaps: none (asserted for every source unit; not reach-complete)`,
   ``,
 ];
 for (const r of results)
   for (const [scenario, s] of Object.entries(r.scenarios))
     lines.push(
       `  ${s.ok ? '✓' : '✗'} ${r.id} [${scenario}] today ${s.today ?? 'n/a'} · reach ${s.reach}` +
-        (s.joins ? ` · J2 ${s.joins.J2} · J3 ${s.joins.J3}` : ''),
+        (s.joins ? ` · J2 ${s.joins.J2}` : '') +
+        (s.prototypeJ3 ? ` · J3-prototype ${s.prototypeJ3} (#1001: per-occurrence provenance pending)` : ''),
     );
 console.log(lines.join('\n'));
 
@@ -228,6 +275,7 @@ const receipt = {
   generated: new Date().toISOString(),
   browser: `chromium ${browserVersion}`,
   fixture: corpus.fixture,
+  j2Gaps: scenarioGaps,
   totals: {
     cases: corpus.cases.length,
     visual: visual.length,

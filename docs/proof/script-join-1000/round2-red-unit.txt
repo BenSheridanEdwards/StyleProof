@@ -1,0 +1,619 @@
+Already up to date
+Done in 64ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/script-join-round2.test.mjs test/script-reach.test.mjs
+TAP version 13
+# Subtest: one column-zero map retains a hidden ternary branch for whole-line and token changes
+not ok 1 - one column-zero map retains a hidden ternary branch for whole-line and token changes
+  ---
+  duration_ms: 2.990042
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:37:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + 'ran'
+    - 'partly-ran'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'partly-ran'
+  actual: 'ran'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:43:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: column-zero-only evidence always discloses line scope even when its anchor is inside the range
+not ok 2 - column-zero-only evidence always discloses line scope even when its anchor is inside the range
+  ---
+  duration_ms: 0.259625
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:49:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + undefined
+    - 'line'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'line'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:52:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: advisory J2 detail cannot evict twenty style findings from the default JSON budget
+not ok 3 - advisory J2 detail cannot evict twenty style findings from the default JSON budget
+  ---
+  duration_ms: 474.193625
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:55:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    0 !== 20
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 20
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:69:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: empty template-literal lines added and removed remain individually unmeasured
+not ok 4 - empty template-literal lines added and removed remain individually unmeasured
+  ---
+  duration_ms: 338.765125
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:77:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    0 !== 1
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:83:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: type changes and CR content do not invalidate healthy sibling paths
+not ok 5 - type changes and CR content do not invalidate healthy sibling paths
+  ---
+  duration_ms: 397.593458
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:91:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(result.changes.some((entry) => entry.sourceKey === 'app.ts'))
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:97:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a valid captured root still lists unloaded-only changed files as not loaded
+not ok 6 - a valid captured root still lists unloaded-only changed files as not loaded
+  ---
+  duration_ms: 283.788958
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:103:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    0 !== 2
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:108:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: inter-hunk context and user diff formatting cannot attribute unchanged lines
+not ok 7 - inter-hunk context and user diff formatting cannot attribute unchanged lines
+  ---
+  duration_ms: 440.131834
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:114:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    ... Skipped lines
+
+      [
+        [
+          'base',
+          1
+        ],
+        [
+          'base',
+    +     2
+    +   ],
+    +   [
+    +     'base',
+    +     3
+    +   ],
+    +   [
+    +     'base',
+          4
+        ],
+        [
+          'head',
+          1
+    ...
+          'head',
+    +     2
+    +   ],
+    +   [
+    +     'head',
+    +     3
+    +   ],
+    +   [
+    +     'head',
+          4
+        ]
+      ]
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'base'
+      1: 1
+    1:
+      0: 'base'
+      1: 4
+    2:
+      0: 'head'
+      1: 1
+    3:
+      0: 'head'
+      1: 4
+  actual:
+    0:
+      0: 'base'
+      1: 1
+    1:
+      0: 'base'
+      1: 2
+    2:
+      0: 'base'
+      1: 3
+    3:
+      0: 'base'
+      1: 4
+    4:
+      0: 'head'
+      1: 1
+    5:
+      0: 'head'
+      1: 2
+    6:
+      0: 'head'
+      1: 3
+    7:
+      0: 'head'
+      1: 4
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:119:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: long residual candidates stay unknown without running unbounded naming regexes
+not ok 8 - long residual candidates stay unknown without running unbounded naming regexes
+  ---
+  duration_ms: 475.931625
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:124:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /residual naming skipped.*2048/. Input:
+
+    'value; rendering not proved'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'value; rendering not proved'
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:129:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: capture settings resolve project-root provenance once for the whole run
+not ok 9 - capture settings resolve project-root provenance once for the whole run
+  ---
+  duration_ms: 167.177708
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:132:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    undefined !== ''
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ''
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:135:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: J2 gaps cannot suppress the incomplete J1 ledger fallback under gate
+not ok 10 - J2 gaps cannot suppress the incomplete J1 ledger fallback under gate
+  ---
+  duration_ms: 1.111042
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:138:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(result.gaps.some((gap) => gap.kind === 'ledger' && /reach ledger incomplete/.test(gap.reason)))
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:144:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: token-scoped units keep their exact columns instead of merging across adjacent lines
+not ok 11 - token-scoped units keep their exact columns instead of merging across adjacent lines
+  ---
+  duration_ms: 0.206875
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:148:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    1 !== 2
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:151:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a side without coverage still lists its changed lines using the other side root provenance
+not ok 12 - a side without coverage still lists its changed lines using the other side root provenance
+  ---
+  duration_ms: 356.988458
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:156:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      [
+    -   'base',
+        'head'
+      ]
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'base'
+    1: 'head'
+  actual:
+    0: 'head'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:160:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unmeasured script reasons use explicit Unicode code-point ordering
+not ok 13 - unmeasured script reasons use explicit Unicode code-point ordering
+  ---
+  duration_ms: 0.302958
+  type: 'test'
+  location: '<checkout>/test/script-join-round2.test.mjs:165:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    '𐀀; ' !== '; 𐀀'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '; 𐀀'
+  actual: '𐀀; '
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-round2.test.mjs:168:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: VLQ decodes signed deltas and rejects invalid, truncated and overflowing values
+ok 14 - VLQ decodes signed deltas and rejects invalid, truncated and overflowing values
+  ---
+  duration_ms: 1.29425
+  type: 'test'
+  ...
+# Subtest: coverage maps executed and unexecuted branches to original lines and hashes content
+ok 15 - coverage maps executed and unexecuted branches to original lines and hashes content
+  ---
+  duration_ms: 1.574625
+  type: 'test'
+  ...
+# Subtest: a V8 boundary inside one mapped segment is mixed when the hidden run has no anchor
+not ok 16 - a V8 boundary inside one mapped segment is mixed when the hidden run has no anchor
+  ---
+  duration_ms: 1.395042
+  type: 'test'
+  location: '<checkout>/test/script-reach.test.mjs:39:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+    + [
+    +   {
+    +     end: {
+    +       column: 0,
+    +       line: 1
+    +     },
+    +     start: {
+    +       column: 0,
+    +       line: 1
+    +     }
+    +   }
+    + ]
+    - []
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      start:
+        line: 1
+        column: 0
+      end:
+        line: 1
+        column: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-reach.test.mjs:46:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: missing original content leaves hash absent; vendored sources are excluded
+ok 17 - missing original content leaves hash absent; vendored sources are excluded
+  ---
+  duration_ms: 0.255875
+  type: 'test'
+  ...
+# Subtest: invalid source maps and unmapped spans never fabricate original coverage
+ok 18 - invalid source maps and unmapped spans never fabricate original coverage
+  ---
+  duration_ms: 0.183792
+  type: 'test'
+  ...
+# Subtest: mixed original line retains distinct executed and unexecuted anchors
+ok 19 - mixed original line retains distinct executed and unexecuted anchors
+  ---
+  duration_ms: 0.205833
+  type: 'test'
+  ...
+# Subtest: unmapped segments terminate evidence and sourceRoot resolves relative sources
+ok 20 - unmapped segments terminate evidence and sourceRoot resolves relative sources
+  ---
+  duration_ms: 0.136209
+  type: 'test'
+  ...
+# Subtest: script self-check compares mapped evidence and records changed or missing evidence as unknown
+ok 21 - script self-check compares mapped evidence and records changed or missing evidence as unknown
+  ---
+  duration_ms: 31.863833
+  type: 'test'
+  ...
+# Subtest: script reach defaults off and resolves independently of CSS reach
+ok 22 - script reach defaults off and resolves independently of CSS reach
+  ---
+  duration_ms: 0.658417
+  type: 'test'
+  ...
+# Subtest: multiple generated branches mapping to one original span are mixed when execution conflicts
+ok 23 - multiple generated branches mapping to one original span are mixed when execution conflicts
+  ---
+  duration_ms: 0.4215
+  type: 'test'
+  ...
+# Subtest: a rejecting script tracker adds unknown evidence without losing the map
+ok 24 - a rejecting script tracker adds unknown evidence without losing the map
+  ---
+  duration_ms: 0.269167
+  type: 'test'
+  ...
+# Subtest: trailing unmapped code stays outside executed evidence: AAAA
+ok 25 - trailing unmapped code stays outside executed evidence: AAAA
+  ---
+  duration_ms: 0.107208
+  type: 'test'
+  ...
+# Subtest: trailing unmapped code stays outside executed evidence: AAAA,K
+ok 26 - trailing unmapped code stays outside executed evidence: AAAA,K
+  ---
+  duration_ms: 0.052166
+  type: 'test'
+  ...
+# Subtest: original anchors are indexed across generated order and unmapped gaps
+ok 27 - original anchors are indexed across generated order and unmapped gaps
+  ---
+  duration_ms: 0.071625
+  type: 'test'
+  ...
+# Subtest: 20k segments and 10k V8 ranges map within a generous linear-sweep budget
+ok 28 - 20k segments and 10k V8 ranges map within a generous linear-sweep budget
+  ---
+  duration_ms: 37.703875
+  type: 'test'
+  ...
+# Subtest: original source key is independent of capture origin and port
+ok 29 - original source key is independent of capture origin and port
+  ---
+  duration_ms: 0.274917
+  type: 'test'
+  ...
+# Subtest: non-mapped blob drift becomes unknown without failing self-check
+ok 30 - non-mapped blob drift becomes unknown without failing self-check
+  ---
+  duration_ms: 0.162292
+  type: 'test'
+  ...
+# Subtest: non-mapped query drift becomes unknown without failing self-check
+ok 31 - non-mapped query drift becomes unknown without failing self-check
+  ---
+  duration_ms: 0.059291
+  type: 'test'
+  ...
+# Subtest: non-mapped timeout drift becomes unknown without failing self-check
+ok 32 - non-mapped timeout drift becomes unknown without failing self-check
+  ---
+  duration_ms: 0.054667
+  type: 'test'
+  ...
+# Subtest: non-mapped third-party drift becomes unknown without failing self-check
+ok 33 - non-mapped third-party drift becomes unknown without failing self-check
+  ---
+  duration_ms: 0.069458
+  type: 'test'
+  ...
+# Subtest: mapped app evidence ignores generated URLs and capture origins
+ok 34 - mapped app evidence ignores generated URLs and capture origins
+  ---
+  duration_ms: 0.147833
+  type: 'test'
+  ...
+# Subtest: non-Chromium reports the correct reason without probing coverage
+ok 35 - non-Chromium reports the correct reason without probing coverage
+  ---
+  duration_ms: 0.315083
+  type: 'test'
+  ...
+# Subtest: a map-fetch failure on one run becomes unknown instead of a self-check failure
+ok 36 - a map-fetch failure on one run becomes unknown instead of a self-check failure
+  ---
+  duration_ms: 0.133334
+  type: 'test'
+  ...
+# Subtest: self-check availability drift downgrades retained mapped scripts and removes anchors
+ok 37 - self-check availability drift downgrades retained mapped scripts and removes anchors
+  ---
+  duration_ms: 0.175709
+  type: 'test'
+  ...
+# Subtest: runner freezes a config-directory root and falls back to the git top level
+ok 38 - runner freezes a config-directory root and falls back to the git top level
+  ---
+  duration_ms: 117.789792
+  type: 'test'
+  ...
+1..38
+# tests 38
+# suites 0
+# pass 24
+# fail 14
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3136.068625
+[ELIFECYCLE] Command failed with exit code 1.

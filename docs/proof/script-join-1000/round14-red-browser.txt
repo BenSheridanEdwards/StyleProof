@@ -1,0 +1,539 @@
+Already up to date
+Done in 62ms using pnpm v11.7.0
+
+Running 24 tests using 1 worker
+
+(node:41353) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=false (362ms)
+(node:41717) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=true (338ms)
+(node:42134) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=false (324ms)
+(node:42475) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=true (322ms)
+(node:42821) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=false (340ms)
+(node:43144) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=true (344ms)
+(node:43478) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=false (342ms)
+(node:43773) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=true (345ms)
+(node:44108) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=false (347ms)
+(node:44485) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=true (340ms)
+(node:44852) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=false (335ms)
+(node:45239) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=true (341ms)
+(node:45629) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=false (345ms)
+(node:45942) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=true (423ms)
+(node:46368) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  15 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=false (378ms)
+(node:46796) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  16 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=true (347ms)
+(node:47182) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=false (348ms)
+(node:47522) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=true (356ms)
+(node:47935) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  19 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › inline JSX non-generator apostrophe control with minify=false (341ms)
+  ✓  20 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › inline JSX non-generator apostrophe control with minify=true (316ms)
+  ✓  21 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › multiline JSX non-generator apostrophe control with minify=false (290ms)
+  ✓  22 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › multiline JSX non-generator apostrophe control with minify=true (285ms)
+  ✓  23 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › realistic component non-generator apostrophe control with minify=false (286ms)
+  ✓  24 [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › realistic component non-generator apostrophe control with minify=true (277ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-5d670-r-pattern-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-9d6c7-or-pattern-with-minify-true-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-72230-r-pattern-with-minify-false-chromium/error-context.md
+
+  4) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-955a0-or-pattern-with-minify-true-chromium/error-context.md
+
+  5) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-1e5f5-r-pattern-with-minify-false-chromium/error-context.md
+
+  6) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-8c4aa-or-pattern-with-minify-true-chromium/error-context.md
+
+  7) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-1a157-r-pattern-with-minify-false-chromium/error-context.md
+
+  8) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-4ef21-or-pattern-with-minify-true-chromium/error-context.md
+
+  9) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-0238a-r-pattern-with-minify-false-chromium/error-context.md
+
+  10) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-c4b70-or-pattern-with-minify-true-chromium/error-context.md
+
+  11) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-7d08e-r-pattern-with-minify-false-chromium/error-context.md
+
+  12) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-be78b-or-pattern-with-minify-true-chromium/error-context.md
+
+  13) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-8ff65-r-pattern-with-minify-false-chromium/error-context.md
+
+  14) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-81a98-or-pattern-with-minify-true-chromium/error-context.md
+
+  15) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-25436-r-pattern-with-minify-false-chromium/error-context.md
+
+  16) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-f6c54-or-pattern-with-minify-true-chromium/error-context.md
+
+  17) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-27c75-r-pattern-with-minify-false-chromium/error-context.md
+
+  18) [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      316 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      317 |     expect(units).toHaveLength(scenario.count);
+    > 318 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      319 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      320 |     );
+      321 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:318:46
+
+    Error Context: test-results/test-script-join-round6.e2-14069-or-pattern-with-minify-true-chromium/error-context.md
+
+  18 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic class method raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generic object method raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a static async generic method raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a decorated generator method raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a factory-decorated generator method raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after function-expression division raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after JSX apostrophe text raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after multiline JSX apostrophe text raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:253:3 › a generator after realistic component apostrophe text raw generator pattern with minify=true
+  6 passed (16.0s)

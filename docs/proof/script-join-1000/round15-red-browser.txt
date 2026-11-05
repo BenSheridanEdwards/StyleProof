@@ -1,0 +1,2565 @@
+Already up to date
+Done in 56ms using pnpm v11.7.0
+
+Running 120 tests using 1 worker
+
+(node:69759) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    1 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key with yield widened raw generator pattern with minify=false (376ms)
+(node:69862) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    2 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key with yield widened raw generator pattern with minify=true (311ms)
+(node:69925) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    3 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key without yield widened raw generator pattern with minify=false (306ms)
+(node:69982) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    4 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key without yield widened raw generator pattern with minify=true (300ms)
+(node:70037) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    5 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key with yield widened raw generator pattern with minify=false (309ms)
+(node:70092) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    6 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key with yield widened raw generator pattern with minify=true (314ms)
+(node:70157) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    7 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key without yield widened raw generator pattern with minify=false (310ms)
+(node:70250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    8 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key without yield widened raw generator pattern with minify=true (298ms)
+(node:70305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘    9 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key with yield widened raw generator pattern with minify=false (311ms)
+(node:70364) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   10 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key with yield widened raw generator pattern with minify=true (307ms)
+(node:70421) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   11 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key without yield widened raw generator pattern with minify=false (305ms)
+(node:70478) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   12 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key without yield widened raw generator pattern with minify=true (309ms)
+(node:70533) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   13 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket with yield widened raw generator pattern with minify=false (320ms)
+(node:70588) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   14 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket with yield widened raw generator pattern with minify=true (300ms)
+(node:70647) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   15 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket without yield widened raw generator pattern with minify=false (316ms)
+(node:70706) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   16 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket without yield widened raw generator pattern with minify=true (313ms)
+(node:70761) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   17 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket with yield widened raw generator pattern with minify=false (307ms)
+(node:70823) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   18 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket with yield widened raw generator pattern with minify=true (302ms)
+(node:70880) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   19 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket without yield widened raw generator pattern with minify=false (306ms)
+(node:70935) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   20 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket without yield widened raw generator pattern with minify=true (305ms)
+(node:70990) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   21 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key with yield widened raw generator pattern with minify=false (306ms)
+(node:71045) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   22 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key with yield widened raw generator pattern with minify=true (301ms)
+(node:71100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   23 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key without yield widened raw generator pattern with minify=false (310ms)
+(node:71160) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   24 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key without yield widened raw generator pattern with minify=true (304ms)
+(node:71215) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   25 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key with yield widened raw generator pattern with minify=false (301ms)
+(node:71270) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   26 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key with yield widened raw generator pattern with minify=true (300ms)
+(node:71325) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   27 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key without yield widened raw generator pattern with minify=false (306ms)
+(node:71380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   28 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key without yield widened raw generator pattern with minify=true (303ms)
+(node:71437) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   29 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key with yield widened raw generator pattern with minify=false (299ms)
+(node:71494) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   30 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key with yield widened raw generator pattern with minify=true (315ms)
+(node:71552) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   31 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key without yield widened raw generator pattern with minify=false (308ms)
+(node:71613) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   32 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key without yield widened raw generator pattern with minify=true (300ms)
+(node:71668) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   33 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key with yield widened raw generator pattern with minify=false (308ms)
+(node:71723) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   34 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key with yield widened raw generator pattern with minify=true (302ms)
+(node:71784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   35 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key without yield widened raw generator pattern with minify=false (307ms)
+(node:71843) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   36 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key without yield widened raw generator pattern with minify=true (303ms)
+(node:71898) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   37 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › hex numeric key with yield widened raw generator pattern with minify=false (338ms)
+  ✓   38 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › hex numeric key with yield widened raw generator pattern with minify=true (301ms)
+  ✓   39 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › hex numeric key without yield widened raw generator pattern with minify=false (296ms)
+  ✓   40 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › hex numeric key without yield widened raw generator pattern with minify=true (279ms)
+  ✘   41 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key with yield widened raw generator pattern with minify=false (266ms)
+(node:72202) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   42 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key with yield widened raw generator pattern with minify=true (300ms)
+(node:72257) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   43 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key without yield widened raw generator pattern with minify=false (308ms)
+(node:72312) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   44 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key without yield widened raw generator pattern with minify=true (307ms)
+(node:72367) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   45 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key with yield widened raw generator pattern with minify=false (308ms)
+(node:72423) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   46 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key with yield widened raw generator pattern with minify=true (301ms)
+(node:72480) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   47 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key without yield widened raw generator pattern with minify=false (305ms)
+(node:72535) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   48 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key without yield widened raw generator pattern with minify=true (306ms)
+(node:72590) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   49 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star with yield widened raw generator pattern with minify=false (305ms)
+(node:72649) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   50 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star with yield widened raw generator pattern with minify=true (307ms)
+(node:72704) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   51 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star without yield widened raw generator pattern with minify=false (307ms)
+(node:72759) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   52 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star without yield widened raw generator pattern with minify=true (300ms)
+(node:72820) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   53 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star with yield widened raw generator pattern with minify=false (307ms)
+(node:72879) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   54 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star with yield widened raw generator pattern with minify=true (300ms)
+(node:72935) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   55 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star without yield widened raw generator pattern with minify=false (302ms)
+(node:72990) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   56 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star without yield widened raw generator pattern with minify=true (303ms)
+(node:73050) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   57 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star with yield widened raw generator pattern with minify=false (312ms)
+(node:73112) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   58 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star with yield widened raw generator pattern with minify=true (304ms)
+(node:73172) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   59 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star without yield widened raw generator pattern with minify=false (306ms)
+(node:73231) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   60 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star without yield widened raw generator pattern with minify=true (312ms)
+(node:73296) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   61 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis with yield widened raw generator pattern with minify=false (324ms)
+(node:73351) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   62 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis with yield widened raw generator pattern with minify=true (302ms)
+(node:73406) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   63 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis without yield widened raw generator pattern with minify=false (313ms)
+(node:73477) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   64 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis without yield widened raw generator pattern with minify=true (304ms)
+(node:73534) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   65 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis with yield widened raw generator pattern with minify=false (312ms)
+(node:73592) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   66 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis with yield widened raw generator pattern with minify=true (305ms)
+(node:73647) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   67 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis without yield widened raw generator pattern with minify=false (308ms)
+(node:73702) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   68 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis without yield widened raw generator pattern with minify=true (305ms)
+(node:73762) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   69 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint with yield widened raw generator pattern with minify=false (306ms)
+(node:73821) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   70 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint with yield widened raw generator pattern with minify=true (303ms)
+(node:73876) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   71 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint without yield widened raw generator pattern with minify=false (310ms)
+(node:73932) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   72 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint without yield widened raw generator pattern with minify=true (311ms)
+(node:73988) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   73 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list with yield widened raw generator pattern with minify=false (309ms)
+(node:74043) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   74 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list with yield widened raw generator pattern with minify=true (301ms)
+(node:74098) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   75 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list without yield widened raw generator pattern with minify=false (314ms)
+(node:74154) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   76 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list without yield widened raw generator pattern with minify=true (309ms)
+(node:74210) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   77 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics with yield widened raw generator pattern with minify=false (308ms)
+(node:74265) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   78 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics with yield widened raw generator pattern with minify=true (303ms)
+(node:74320) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   79 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics without yield widened raw generator pattern with minify=false (303ms)
+(node:74376) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   80 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics without yield widened raw generator pattern with minify=true (299ms)
+(node:74469) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   81 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method with yield widened raw generator pattern with minify=false (302ms)
+(node:74527) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   82 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method with yield widened raw generator pattern with minify=true (302ms)
+(node:74584) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   83 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method without yield widened raw generator pattern with minify=false (340ms)
+(node:74639) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   84 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method without yield widened raw generator pattern with minify=true (317ms)
+(node:74694) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   85 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default with yield widened raw generator pattern with minify=false (301ms)
+(node:74756) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   86 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default with yield widened raw generator pattern with minify=true (306ms)
+(node:74817) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   87 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default without yield widened raw generator pattern with minify=false (308ms)
+(node:74873) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   88 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default without yield widened raw generator pattern with minify=true (313ms)
+(node:74929) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   89 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star with yield widened raw generator pattern with minify=false (301ms)
+(node:74984) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   90 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star with yield widened raw generator pattern with minify=true (310ms)
+(node:75039) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   91 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star without yield widened raw generator pattern with minify=false (317ms)
+(node:75094) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   92 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star without yield widened raw generator pattern with minify=true (302ms)
+(node:75150) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   93 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis with yield widened raw generator pattern with minify=false (307ms)
+(node:75206) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   94 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis with yield widened raw generator pattern with minify=true (326ms)
+(node:75305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   95 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis without yield widened raw generator pattern with minify=false (301ms)
+(node:75360) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   96 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis without yield widened raw generator pattern with minify=true (310ms)
+(node:75416) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   97 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key with yield widened raw generator pattern with minify=false (301ms)
+(node:75474) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   98 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key with yield widened raw generator pattern with minify=true (303ms)
+(node:75529) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   99 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key without yield widened raw generator pattern with minify=false (310ms)
+(node:75584) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  100 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key without yield widened raw generator pattern with minify=true (310ms)
+(node:75651) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  101 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key with yield widened raw generator pattern with minify=false (311ms)
+(node:75734) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  102 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key with yield widened raw generator pattern with minify=true (312ms)
+(node:75819) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  103 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key without yield widened raw generator pattern with minify=false (306ms)
+(node:75880) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  104 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key without yield widened raw generator pattern with minify=true (300ms)
+(node:75936) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  105 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key with yield widened raw generator pattern with minify=false (301ms)
+(node:75991) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  106 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key with yield widened raw generator pattern with minify=true (308ms)
+(node:76046) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  107 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key without yield widened raw generator pattern with minify=false (308ms)
+(node:76101) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  108 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key without yield widened raw generator pattern with minify=true (307ms)
+(node:76156) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  109 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key with yield widened raw generator pattern with minify=false (311ms)
+(node:76217) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  110 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key with yield widened raw generator pattern with minify=true (306ms)
+(node:76281) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  111 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key without yield widened raw generator pattern with minify=false (309ms)
+(node:76338) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  112 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key without yield widened raw generator pattern with minify=true (302ms)
+(node:76397) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  113 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint with yield widened raw generator pattern with minify=false (307ms)
+(node:76465) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  114 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint with yield widened raw generator pattern with minify=true (311ms)
+(node:76520) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  115 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint without yield widened raw generator pattern with minify=false (317ms)
+(node:76575) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  116 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint without yield widened raw generator pattern with minify=true (307ms)
+(node:76634) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  117 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key with yield widened raw generator pattern with minify=false (308ms)
+(node:76689) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  118 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key with yield widened raw generator pattern with minify=true (309ms)
+(node:76748) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  119 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key without yield widened raw generator pattern with minify=false (309ms)
+(node:76805) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  120 [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key without yield widened raw generator pattern with minify=true (308ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-2ee6f-r-pattern-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-04627-or-pattern-with-minify-true-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-63bde-r-pattern-with-minify-false-chromium/error-context.md
+
+  4) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-2a56b-or-pattern-with-minify-true-chromium/error-context.md
+
+  5) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-7e1cf-r-pattern-with-minify-false-chromium/error-context.md
+
+  6) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-68797-or-pattern-with-minify-true-chromium/error-context.md
+
+  7) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-515b4-r-pattern-with-minify-false-chromium/error-context.md
+
+  8) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-8ba32-or-pattern-with-minify-true-chromium/error-context.md
+
+  9) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-581e1-r-pattern-with-minify-false-chromium/error-context.md
+
+  10) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-d9687-or-pattern-with-minify-true-chromium/error-context.md
+
+  11) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-630c8-r-pattern-with-minify-false-chromium/error-context.md
+
+  12) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-a96fb-or-pattern-with-minify-true-chromium/error-context.md
+
+  13) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-064b5-r-pattern-with-minify-false-chromium/error-context.md
+
+  14) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-8d91a-or-pattern-with-minify-true-chromium/error-context.md
+
+  15) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-f306a-r-pattern-with-minify-false-chromium/error-context.md
+
+  16) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-4dfae-or-pattern-with-minify-true-chromium/error-context.md
+
+  17) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-67126-r-pattern-with-minify-false-chromium/error-context.md
+
+  18) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-e0593-or-pattern-with-minify-true-chromium/error-context.md
+
+  19) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-3531d-r-pattern-with-minify-false-chromium/error-context.md
+
+  20) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-9ab68-or-pattern-with-minify-true-chromium/error-context.md
+
+  21) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-9a07a-r-pattern-with-minify-false-chromium/error-context.md
+
+  22) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-09db0-or-pattern-with-minify-true-chromium/error-context.md
+
+  23) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-b988e-r-pattern-with-minify-false-chromium/error-context.md
+
+  24) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-a6d1a-or-pattern-with-minify-true-chromium/error-context.md
+
+  25) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-0dc3b-r-pattern-with-minify-false-chromium/error-context.md
+
+  26) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-97c20-or-pattern-with-minify-true-chromium/error-context.md
+
+  27) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-2d376-r-pattern-with-minify-false-chromium/error-context.md
+
+  28) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-eb103-or-pattern-with-minify-true-chromium/error-context.md
+
+  29) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-e5d5b-r-pattern-with-minify-false-chromium/error-context.md
+
+  30) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-ffbe8-or-pattern-with-minify-true-chromium/error-context.md
+
+  31) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-1018b-r-pattern-with-minify-false-chromium/error-context.md
+
+  32) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-51c25-or-pattern-with-minify-true-chromium/error-context.md
+
+  33) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-ad59d-r-pattern-with-minify-false-chromium/error-context.md
+
+  34) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-77556-or-pattern-with-minify-true-chromium/error-context.md
+
+  35) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-caf80-r-pattern-with-minify-false-chromium/error-context.md
+
+  36) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-8a7c9-or-pattern-with-minify-true-chromium/error-context.md
+
+  37) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-41918-r-pattern-with-minify-false-chromium/error-context.md
+
+  38) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-fff28-or-pattern-with-minify-true-chromium/error-context.md
+
+  39) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-e7342-r-pattern-with-minify-false-chromium/error-context.md
+
+  40) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-435c6-or-pattern-with-minify-true-chromium/error-context.md
+
+  41) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-aa7ff-r-pattern-with-minify-false-chromium/error-context.md
+
+  42) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-adcb6-or-pattern-with-minify-true-chromium/error-context.md
+
+  43) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-8af66-r-pattern-with-minify-false-chromium/error-context.md
+
+  44) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-8433f-or-pattern-with-minify-true-chromium/error-context.md
+
+  45) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-e60e3-r-pattern-with-minify-false-chromium/error-context.md
+
+  46) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-dce9f-or-pattern-with-minify-true-chromium/error-context.md
+
+  47) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-33583-r-pattern-with-minify-false-chromium/error-context.md
+
+  48) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-76bf0-or-pattern-with-minify-true-chromium/error-context.md
+
+  49) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-d437d-r-pattern-with-minify-false-chromium/error-context.md
+
+  50) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-7d38e-or-pattern-with-minify-true-chromium/error-context.md
+
+  51) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-88bf7-r-pattern-with-minify-false-chromium/error-context.md
+
+  52) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-e7694-or-pattern-with-minify-true-chromium/error-context.md
+
+  53) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-b915e-r-pattern-with-minify-false-chromium/error-context.md
+
+  54) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-5458e-or-pattern-with-minify-true-chromium/error-context.md
+
+  55) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-b98d7-r-pattern-with-minify-false-chromium/error-context.md
+
+  56) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-1b34e-or-pattern-with-minify-true-chromium/error-context.md
+
+  57) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-daa95-r-pattern-with-minify-false-chromium/error-context.md
+
+  58) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-78c03-or-pattern-with-minify-true-chromium/error-context.md
+
+  59) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-d6d17-r-pattern-with-minify-false-chromium/error-context.md
+
+  60) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-e2e6e-or-pattern-with-minify-true-chromium/error-context.md
+
+  61) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-271fc-r-pattern-with-minify-false-chromium/error-context.md
+
+  62) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-97a82-or-pattern-with-minify-true-chromium/error-context.md
+
+  63) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-38028-r-pattern-with-minify-false-chromium/error-context.md
+
+  64) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-70d4a-or-pattern-with-minify-true-chromium/error-context.md
+
+  65) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-fffb9-r-pattern-with-minify-false-chromium/error-context.md
+
+  66) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-eb6f5-or-pattern-with-minify-true-chromium/error-context.md
+
+  67) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-d4d0a-r-pattern-with-minify-false-chromium/error-context.md
+
+  68) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-ad330-or-pattern-with-minify-true-chromium/error-context.md
+
+  69) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-f535a-r-pattern-with-minify-false-chromium/error-context.md
+
+  70) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-d97b4-or-pattern-with-minify-true-chromium/error-context.md
+
+  71) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-16fea-r-pattern-with-minify-false-chromium/error-context.md
+
+  72) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-311b1-or-pattern-with-minify-true-chromium/error-context.md
+
+  73) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-dbc60-r-pattern-with-minify-false-chromium/error-context.md
+
+  74) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-91b50-or-pattern-with-minify-true-chromium/error-context.md
+
+  75) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-c703c-r-pattern-with-minify-false-chromium/error-context.md
+
+  76) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-2ac0b-or-pattern-with-minify-true-chromium/error-context.md
+
+  77) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-23f9b-r-pattern-with-minify-false-chromium/error-context.md
+
+  78) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-f536a-or-pattern-with-minify-true-chromium/error-context.md
+
+  79) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-9dfb3-r-pattern-with-minify-false-chromium/error-context.md
+
+  80) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-3f7bd-or-pattern-with-minify-true-chromium/error-context.md
+
+  81) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-48059-r-pattern-with-minify-false-chromium/error-context.md
+
+  82) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-c1167-or-pattern-with-minify-true-chromium/error-context.md
+
+  83) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-ffaab-r-pattern-with-minify-false-chromium/error-context.md
+
+  84) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-df4cf-or-pattern-with-minify-true-chromium/error-context.md
+
+  85) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-dad89-r-pattern-with-minify-false-chromium/error-context.md
+
+  86) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-e6905-or-pattern-with-minify-true-chromium/error-context.md
+
+  87) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-51c18-r-pattern-with-minify-false-chromium/error-context.md
+
+  88) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-0d36f-or-pattern-with-minify-true-chromium/error-context.md
+
+  89) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-14279-r-pattern-with-minify-false-chromium/error-context.md
+
+  90) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-a831b-or-pattern-with-minify-true-chromium/error-context.md
+
+  91) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-2f760-r-pattern-with-minify-false-chromium/error-context.md
+
+  92) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-83f2d-or-pattern-with-minify-true-chromium/error-context.md
+
+  93) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-cf9eb-r-pattern-with-minify-false-chromium/error-context.md
+
+  94) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-7b628-or-pattern-with-minify-true-chromium/error-context.md
+
+  95) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-49962-r-pattern-with-minify-false-chromium/error-context.md
+
+  96) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-fee34-or-pattern-with-minify-true-chromium/error-context.md
+
+  97) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-7c104-r-pattern-with-minify-false-chromium/error-context.md
+
+  98) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-2dbcf-or-pattern-with-minify-true-chromium/error-context.md
+
+  99) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-ba585-r-pattern-with-minify-false-chromium/error-context.md
+
+  100) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-ca973-or-pattern-with-minify-true-chromium/error-context.md
+
+  101) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-be3d7-r-pattern-with-minify-false-chromium/error-context.md
+
+  102) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-54490-or-pattern-with-minify-true-chromium/error-context.md
+
+  103) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-f63bf-r-pattern-with-minify-false-chromium/error-context.md
+
+  104) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-fe90e-or-pattern-with-minify-true-chromium/error-context.md
+
+  105) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-2871f-r-pattern-with-minify-false-chromium/error-context.md
+
+  106) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-a45d5-or-pattern-with-minify-true-chromium/error-context.md
+
+  107) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-cc475-r-pattern-with-minify-false-chromium/error-context.md
+
+  108) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-3e83c-or-pattern-with-minify-true-chromium/error-context.md
+
+  109) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-109b2-r-pattern-with-minify-false-chromium/error-context.md
+
+  110) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-0fba3-or-pattern-with-minify-true-chromium/error-context.md
+
+  111) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-42133-r-pattern-with-minify-false-chromium/error-context.md
+
+  112) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-7113d-or-pattern-with-minify-true-chromium/error-context.md
+
+  113) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key with yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-1ca3d-r-pattern-with-minify-false-chromium/error-context.md
+
+  114) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key with yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-749e2-or-pattern-with-minify-true-chromium/error-context.md
+
+  115) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key without yield widened raw generator pattern with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-f2013-r-pattern-with-minify-false-chromium/error-context.md
+
+  116) [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key without yield widened raw generator pattern with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      332 |     expect(diff.gaps).toEqual([]);
+      333 |     if ('rawGenerator' in scenario)
+    > 334 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      335 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      336 |     expect(units).toHaveLength(scenario.count);
+      337 |     expect(units.map((unit) => unit.status)).toEqual(
+        at <repo>/test/script-join-round6.e2e.spec.ts:334:106
+
+    Error Context: test-results/test-script-join-round6.e2-fc647-or-pattern-with-minify-true-chromium/error-context.md
+
+  116 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › nested computed key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › static nested computed key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline computed key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a comment bracket without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › computed key with a quoted bracket without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode uber key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › Unicode grosse key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › fractional numeric key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped single quoted key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › escaped double quoted key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › async comment after star without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › private comment after star without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment after star without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › block comment before parenthesis without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › line comment before parenthesis without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › function type generic constraint without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › multiline generic list without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › comments around generics without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › optional method without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › parenthesized generic default without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA a comment after star without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA b comment before parenthesis without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA c Unicode key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA d escaped key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA e multiline Symbol key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA f nested computed key without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA g parenthesized function constraint without yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key with yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key with yield widened raw generator pattern with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key without yield widened raw generator pattern with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:270:3 › QA h escaped quoted key without yield widened raw generator pattern with minify=true
+  4 passed (1.3m)
