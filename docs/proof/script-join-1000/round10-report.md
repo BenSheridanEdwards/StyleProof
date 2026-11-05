@@ -16,8 +16,8 @@ _Warn-only under both changeReach levels. Execution is navigation-window block e
 
 | Source | Side | Execution | Why |
 | --- | --- | --- | --- |
-| `app.tsx:2:11-2:48` | base | unmeasured | ambiguous lexical boundary; only negative preceding execution evidence is usable; preceding-anchor evidence (nearest mapped start at or before the changed range) |
-| `app.tsx:2:11-2:51` | head | unmeasured | ambiguous lexical boundary; only negative preceding execution evidence is usable; preceding-anchor evidence (nearest mapped start at or before the changed range) |
+| `app.tsx:2:10-2:48` | base | unmeasured | ambiguous lexical boundary; only negative preceding execution evidence is usable; preceding-anchor evidence (nearest mapped start at or before the changed range) |
+| `app.tsx:2:10-2:51` | head | unmeasured | ambiguous lexical boundary; only negative preceding execution evidence is usable; preceding-anchor evidence (nearest mapped start at or before the changed range) |
 
 <details>
 <summary>Evidence (warnings & failures)</summary>

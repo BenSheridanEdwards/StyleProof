@@ -713,3 +713,11 @@ including comment-looking character classes such as `/[//]/`, instead of relying
 only on the previous backslash. Its [red](round10-regex-class-red-unit.txt) has
 **one failure / 42 passes**; the minified control was already conservative.
 Ordinary division is still lexed normally. All targeted units now pass **536/536**.
+
+Final targeted checks pass **536/536 units** and **85/85 real-Chromium/Git cases**,
+including the original repros, JSX tails after expressions/closing tags, paired
+quotes/backticks across siblings and regex character classes. The report example
+was recaptured on the final implementation and inspected again. The refreshed
+corpus still passes all **32 expectations**, with zero J2 gaps, unchanged 5/6 unknown
+totals and zero case-status changes. Eager JSX and render-scope values remain
+unknown. Final full-gate tails and the lease-protected push result are in the handoff.
