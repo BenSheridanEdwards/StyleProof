@@ -51,7 +51,7 @@ const isSafeUrl = (url: string) => {
  * reinterpreted; `_` only marks emphasis at word boundaries so identifiers
  * like `STYLE_REVIEW_REQUIRED` survive intact.
  */
-function inline(text: string): string {
+function inline(text: string, plainText = false): string {
   const staged: string[] = [];
   const stage = (html: string) => {
     staged.push(html);
@@ -59,8 +59,10 @@ function inline(text: string): string {
   };
   const restore = (html: string) => html.replace(/\uE000(\d+)\uE000/g, (_m, index) => staged[Number(index)]);
   const protectedText = text
-    .replace(CODE_SPAN, (_m, _fence, code) => stage(`<code>${escapeHtml(unpad(code))}</code>`))
-    .replace(STYLEPROOF_COMMENT, (comment) => stage(comment))
+    .replace(CODE_SPAN, (_m, _fence, code) =>
+      stage(plainText ? escapeHtml(unpad(code)) : `<code>${escapeHtml(unpad(code))}</code>`),
+    )
+    .replace(STYLEPROOF_COMMENT, (comment) => stage(plainText ? '' : comment))
     .replace(BACKSLASH_ESCAPE, (_m, char: string) => stage(escapeHtml(char)))
     .replace(NAMED_ENTITY, (entity) => stage(entity));
   // A link whose resolved target is not http(s) or relative stays literal text.
@@ -69,14 +71,14 @@ function inline(text: string): string {
   const html = escapeHtml(protectedText)
     .replace(
       /!\[([^\]]*)\]\(([^)\s]+)\)/g,
-      link((alt, src) => `<img src="${src}" alt="${alt}" loading="lazy">`),
+      link((alt, src) => (plainText ? alt : `<img src="${src}" alt="${alt}" loading="lazy">`)),
     )
     .replace(
       /\[([^\]]+)\]\(([^)\s]+)\)/g,
-      link((label, href) => `<a href="${href}">${label}</a>`),
+      link((label, href) => (plainText ? label : `<a href="${href}">${label}</a>`)),
     )
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[\s(>"'])_(\S(?:[^_]*\S)?)_(?=[\s).,;:!?"'<]|$)/g, '$1<em>$2</em>');
+    .replace(/\*\*([^*]+)\*\*/g, plainText ? '$1' : '<strong>$1</strong>')
+    .replace(/(^|[\s(>"'])_(\S(?:[^_]*\S)?)_(?=[\s).,;:!?"'<]|$)/g, plainText ? '$1$2' : '$1<em>$2</em>');
   return restore(html);
 }
 
@@ -131,8 +133,8 @@ function renderTable(rows: string[]): string {
   const wide = header.length >= 4 && body.length > 0;
   // Only exceptional unbroken values need constrained sizing; ordinary tables stay intrinsic.
   const hasLongValue = !wide && [header, ...body].some((cells) => cells.some((cell) => /\S{80}/u.test(cell)));
-  // Strip only rendered tags: inline() has already escaped the label for an attribute.
-  const labels = wide ? header.map((cell) => inline(cell).replace(/<[^>]*>/g, '')) : [];
+  // Render escaped label text directly, without generating or stripping HTML tags.
+  const labels = wide ? header.map((cell) => inline(cell, true)) : [];
   const thead = `<thead><tr>${header.map((cell) => `<th${wide ? ' scope="col"' : ''}>${inline(cell)}</th>`).join('')}</tr></thead>`;
   const tbody = body.length
     ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell, index) => `<td${wide ? ` data-label="${labels[index] ?? ''}"` : ''}>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`

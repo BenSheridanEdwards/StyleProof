@@ -374,3 +374,12 @@ test('only exceptionally long raw tokens opt ordinary tables into constrained si
   assert.doesNotMatch(render('A'.repeat(79)), /class="long-value-table"/);
   assert.match(render('A'.repeat(80)), /<table class="long-value-table">/);
 });
+
+test('wide header labels use image alternative text without carrying HTML', () => {
+  const html = renderReportHtml(
+    '| ![Rule label](/rule.png) | **Change** | Source | Why |\n| --- | --- | --- | --- |\n| .panel | changed | app.css | unmatched |',
+  );
+  assert.ok(html.includes('data-label="Rule label"'));
+  assert.ok(html.includes('data-label="Change"'));
+  assert.doesNotMatch(html, /data-label="[^"\n]*<(?:img|strong|script)/);
+});
