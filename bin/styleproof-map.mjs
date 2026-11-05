@@ -466,11 +466,16 @@ const runCapture = async (label, extraEnv = {}) => {
   let foreignServer = false;
   let interruptedSignal;
   const emit = (stream, line) => {
+    const displayLine = wrapper
+      ? line
+          .replaceAll(wrapper, () => selectedConfig)
+          .replaceAll(path.basename(wrapper), () => path.basename(selectedConfig))
+      : line;
     const refusal = !externalServer && captureServerRefusal(line);
     if (refusal) {
       foreignServer = true;
       console.error(`${NAME}: ${refusal}`);
-    } else process[stream].write(line);
+    } else process[stream].write(displayLine);
   };
   try {
     if (wrapper) {

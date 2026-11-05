@@ -309,6 +309,7 @@ Stop that server so this commit's build runs, or use `styleproof capture --exter
 to capture it deliberately. Set `BASE_URL` for `styleproof ci` or the Action.
 These opt-ins override `reuseExistingServer: false` for that run. New scaffolds disable reuse.
 Existing Playwright config files stay consumer-owned; capture enforces the same refusal policy for them.
+Validation errors name your selected Playwright config.
 
 ### Upgrading to 8.0.0
 
