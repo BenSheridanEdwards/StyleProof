@@ -130,14 +130,14 @@ test('matching state changes share one heading, two combined state crops and one
 test('an unreadable union uses the top-most crop and tells the reviewer', (t) => {
   const { md, json } = fixture(t, { positions: [1400, 40, 700] });
   assert.equal(sections(md).length, 1);
-  assert.match(md, /Top-most of 3 changed elements is marked.*combined crop would be unreadable/);
+  assert.match(md, /The top-most crop marks 1 of 3 changed elements.*combined crop would be unreadable/);
   assert.equal(json.surfaces[0].regions[0].cropFallback, 'top-most');
   assert.equal(json.surfaces[0].regions[0].after.h, 1419, 'JSON retains the union geometry');
 });
 
 test('crop dimension limits also trigger the readable fallback', (t) => {
   const { md } = fixture(t, { options: { maxHeight: 100 } });
-  assert.match(md, /Top-most of 3 changed elements is marked/);
+  assert.match(md, /The top-most crop marks 1 of 3 changed elements/);
 });
 
 test('the folded element list stops at ten and counts the rest', (t) => {
@@ -230,7 +230,7 @@ test('a combined section keeps its list and values when the image budget is exha
 test('separated page areas fall back even below the union height threshold', (t) => {
   const { md, json } = fixture(t, { positions: [40, 600, 620] });
   assert.ok(json.surfaces[0].regions[0].after.h < 1000);
-  assert.match(md, /Top-most of 3 changed elements is marked/);
+  assert.match(md, /The top-most crop marks 1 of 3 changed elements/);
 });
 
 test('a shared property table is not repeated when the original property order differs', async () => {
@@ -336,6 +336,7 @@ test('nearby identical state changes share one counted section and list', (t) =>
 test('a mixed overlap region preserves main layout instead of combining across its boundary', (t) => {
   const { md, json } = fixture(t, { different: true, positions: [40, 45, 50] });
   assert.equal(json.surfaces[0].regions.length, 1);
+  assert.equal(json.surfaces[0].regions[0].elements, undefined, 'mixed regions are not combined sections');
   assert.match(md, /\+ 2 more/);
   assert.doesNotMatch(md, /<summary>3 elements<\/summary>/);
 });
@@ -450,4 +451,11 @@ test('the element list follows visual top-to-bottom order rather than path sorti
     list.split('\n').filter((line) => line.startsWith('- ')),
     ['- `main > article > h2`', '- `aside > article > h2`', '- `footer > h2`'],
   );
+});
+
+test('resting and interactive changes share one element list per section group', (t) => {
+  const { md } = fixture(t, { states: true, styleFor: (_index, head) => ({ color: head ? 'red' : 'blue' }) });
+  assert.equal((md.match(/<summary>3 elements<\/summary>/g) ?? []).length, 1);
+  assert.match(md, /3 elements restyled/);
+  assert.match(md, /3 elements · `:hover`, `:focus`/);
 });

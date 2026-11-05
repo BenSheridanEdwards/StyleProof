@@ -265,7 +265,7 @@ test('surface names appear only for several changed product bases, not extra wid
       writeCapture(dirs.afterDir, surface, { ...pageMap({ button: { color: 'blue' } }), metadata });
     }
     const { slice } = report(dirs);
-    assert.match(slice, new RegExp(`^- ${expected.replace(/[()]/g, '\\$&')}$`, 'm'));
+    assert.ok(slice.split('\n').includes(`- ${expected}`));
   }
 });
 

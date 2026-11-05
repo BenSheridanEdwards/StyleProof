@@ -1,7 +1,7 @@
 import type { PNG } from 'pngjs';
 import type { Rect } from '../capture.js';
 import { pad, unionRects, type Box } from './geometry.js';
-import { annotateCrop, compositePair, cropPng, cropStem, zoomCrop } from './png.js';
+import { annotateCrop, compositePair, cropPng, cropStem, zoomCrop, type Crop } from './png.js';
 import { cropBudgetNote, cropBudgetOpen, writeBudgetedPng } from './crop-budget.js';
 import type { RenderCtx } from './shared.js';
 
@@ -18,6 +18,8 @@ export function cropNote(region: Box | null, pngA: PNG | null, pngB: PNG | null)
   return '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._';
 }
 
+type CropCaption = string | ((before: Box, after: Box) => string);
+
 export type CropPairSpec = {
   surface: string;
   /** Crop stem suffix after the surface slug: `3`, `content-2`. */
@@ -31,10 +33,16 @@ export type CropPairSpec = {
   rectsB: Rect[];
   labels?: { left: string; right: string };
   /** Caption fragments: the pair context, the annotated suffix, the zoom suffix. */
-  captions: { pair: string; annotated: string; zoom: (factor: number) => string };
+  captions: { pair: CropCaption; annotated: CropCaption; zoom: (factor: number) => string };
   /** Skip (return null) when the crop renders identically on both sides. */
   skipIdentical?: boolean;
 };
+
+/** Caption callbacks see the actual clamped frames used for the saved images. */
+function captionText(caption: CropCaption, before: Crop, after: Crop): string {
+  const bounds = (crop: Crop): Box => ({ x: crop.ox, y: crop.oy, w: crop.png.width, h: crop.png.height });
+  return typeof caption === 'string' ? caption : caption(bounds(before), bounds(after));
+}
 
 function zoomPlan(rectsA: Rect[], rectsB: Rect[], zoomBelow: number): { box: Box; factor: number } | null {
   const changed = unionRects([...rectsA, ...rectsB]);
@@ -115,7 +123,7 @@ export function renderCropPair(
     '',
     `![${left} ◀ │ ▶ ${right}](${ctx.img(images.composite!)})`,
     '',
-    `<sub>◀ ${left}  ·  ${right} ▶ — ${captions.pair}</sub>`,
+    `<sub>◀ ${left}  ·  ${right} ▶ — ${captionText(captions.pair, before, after)}</sub>`,
   ];
 
   // One primary before/after. Annotated + zoom live under a single optional
@@ -134,7 +142,7 @@ export function renderCropPair(
       '',
       `![highlighted ${left} ◀ │ ▶ ${right}](${ctx.img(images.annotated)})`,
       '',
-      `<sub>🔍 ${captions.annotated}</sub>`,
+      `<sub>🔍 ${captionText(captions.annotated, before, after)}</sub>`,
     );
   }
 

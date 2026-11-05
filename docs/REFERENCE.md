@@ -92,7 +92,8 @@ A top-most fallback is reserved for an unreadable union of exposed members.
 paths covered by the section, including descendants whose folded evidence is
 displayed there. Heading anchors still use outermost paths, so a mixed parent/child
 region keeps the parent heading without an extra descendant in the label. Combined sections
-add `elements: [{ path }]` for the primary changed elements. A readable-crop
+add `elements: [{ path }]` for the primary changed elements. Mixed regions omit
+`elements`, even when their `paths` array contains several elements. A readable-crop
 fallback adds `cropFallback: "top-most"`; `before` and `after` retain the union
 geometry. The existing `cropOmitted: "budget"` reason identifies file/byte omissions.
 The `maxCrops` threshold retains the legacy union collapse: too many exposed regions

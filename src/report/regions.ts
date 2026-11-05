@@ -255,32 +255,51 @@ function regionAnnotations(a: RegionArgs, findings: Finding[], pngs: Pngs) {
       ? findings.map((finding) => annotationPaths([finding], mapA, mapB))
       : [annotationPaths(findings, mapA, mapB)];
   const marked = {
-    before: [...new Set(annotations.flatMap((paths) => paths.before))],
-    after: [...new Set(annotations.flatMap((paths) => paths.after))],
+    before: [...new Set(annotations.flatMap((paths) => paths.before))].filter((elementPath) =>
+      hasExposedChangedEntry(mapA, mapB, [elementPath], pngs),
+    ),
+    after: [...new Set(annotations.flatMap((paths) => paths.after))].filter((elementPath) =>
+      hasExposedChangedEntry(mapA, mapB, [elementPath], pngs),
+    ),
   };
   const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
-    paths
-      .filter((p) => hasExposedChangedEntry(mapA, mapB, [p], pngs))
-      .map((p) => screenshotRectOf(map.elements[p]))
-      .filter((r): r is Rect => !!r);
+    paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
   const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
   const changedNames = [...new Set(entries.filter((e): e is ElementEntry => !!e).map(shortElementName))].slice(0, 3);
   const changedLabel = changedNames.length ? ` — changed: ${changedNames.map(codeValue).join(', ')}` : '';
-  return { rectsA: rectsOf(marked.before, mapA), rectsB: rectsOf(marked.after, mapB), changedLabel };
+  return { rectsA: rectsOf(marked.before, mapA), rectsB: rectsOf(marked.after, mapB), changedLabel, marked };
 }
 
-function markedElementsCaption(elementCount: number, frame: CropFrame): string {
+/** Count primary changed elements outlined on either saved side, once per element. */
+function countMarkedElements(
+  regionArguments: RegionArgs,
+  marked: { before: string[]; after: string[] },
+  before: Box,
+  after: Box,
+): number {
+  const onSide = (elementPath: string, map: StyleMap, paths: string[], bounds: Box): boolean => {
+    const box = paddedRect(map.elements[elementPath], 0);
+    return paths.includes(elementPath) && visible(box) && intersects(box, bounds);
+  };
+  return regionArguments.g.paths.filter(
+    (elementPath) =>
+      onSide(elementPath, regionArguments.mapA, marked.before, before) ||
+      onSide(elementPath, regionArguments.mapB, marked.after, after),
+  ).length;
+}
+
+function markedElementsCaption(elementCount: number, frame: CropFrame, markedCount: number): string {
   const missing = frame.outside + frame.unexposed;
   if (frame.fallback)
-    return `Top-most of ${frame.exposed} ${missing ? 'exposed ' : ''}changed elements is marked; the combined crop would be unreadable.`;
+    return `The top-most crop marks ${markedCount} of ${frame.exposed} ${missing ? 'exposed ' : ''}changed elements; the combined crop would be unreadable.`;
   if (!missing) return `All ${elementCount} changed elements are marked.`;
   return frame.exposed === 1
     ? 'The exposed changed element is marked.'
     : `All ${frame.exposed} exposed changed elements are marked.`;
 }
 
-function combinedCropCaption(elementCount: number, frame: CropFrame, combined: boolean): string {
-  const parts = combined && elementCount > 1 ? [markedElementsCaption(elementCount, frame)] : [];
+function combinedCropCaption(elementCount: number, frame: CropFrame, combined: boolean, markedCount: number): string {
+  const parts = combined && elementCount > 1 ? [markedElementsCaption(elementCount, frame, markedCount)] : [];
   if (frame.outside)
     parts.push(
       `${frame.outside} of ${elementCount} elements ${frame.outside === 1 ? 'is' : 'are'} outside the captured screenshot.`,
@@ -304,9 +323,10 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
     };
   }
   a.seq.crop++;
-  const { rectsA, rectsB, changedLabel } = regionAnnotations(a, findings, [pngA, pngB]);
+  const { rectsA, rectsB, changedLabel, marked } = regionAnnotations(a, findings, [pngA, pngB]);
   const frame = cropFrame(a, pngA, pngB);
-  const caption = combinedCropCaption(g.paths.length, frame, !!g.identical);
+  const caption = (before: Box, after: Box) =>
+    combinedCropCaption(g.paths.length, frame, !!g.identical, countMarkedElements(a, marked, before, after));
   const packed = renderCropPair(a.ctx, {
     surface: cg.rep.sd.surface,
     suffix: String(a.seq.crop),
@@ -318,8 +338,11 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
     rectsB,
     labels: state ? { left: `base :${state}`, right: `head :${state}` } : undefined,
     captions: {
-      pair: `${state ? `both sides are :${state}` : formatSurfaceWithContext(cg.rep.sd.surface, mapA, mapB)}${caption ? ` — ${caption}` : ''}`,
-      annotated: caption || `magenta boxes mark each change${changedLabel}`,
+      pair: (before, after) => {
+        const marking = caption(before, after);
+        return `${state ? `both sides are :${state}` : formatSurfaceWithContext(cg.rep.sd.surface, mapA, mapB)}${marking ? ` — ${marking}` : ''}`;
+      },
+      annotated: (before, after) => caption(before, after) || `magenta boxes mark each change${changedLabel}`,
       zoom: (factor) => `magnified ${factor}× — change too small to see at 1:1${changedLabel}`,
     },
   })!;
@@ -371,7 +394,13 @@ function singleStateHeading(
   return md;
 }
 
-function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUsesAll: boolean) {
+function combinedStateDetails(regionArguments: RegionArgs, findings: Finding[], showElementList: boolean): string[] {
+  if (!regionArguments.g.identical || regionArguments.g.paths.length < 2 || !findings.length) return [];
+  const members = showElementList ? elementList(regionArguments.g) : [];
+  return [...members, ...regionArguments.changes(findings, regionArguments.g.paths)];
+}
+
+function stateSections(a: RegionArgs, regionFindings: Finding[], stateOnly: boolean) {
   const md: string[] = [];
   const stateImages: Record<string, CropImages> = {};
   const combined = a.g.identical && a.g.paths.length > 1;
@@ -381,7 +410,7 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
   for (const state of STATE_LAYER_NAMES) {
     const sf = findings.filter((finding) => finding.state === state);
     if (!sf.length) continue;
-    if (!combined) md.push(...singleStateHeading(a, regionFindings, sf, state, firstHeadingUsesAll, md.length === 0));
+    if (!combined) md.push(...singleStateHeading(a, regionFindings, sf, state, stateOnly, md.length === 0));
     if (combined) md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
     const packed = stateLayerCrop(a, sf, state);
     md.push(...packed.md);
@@ -390,7 +419,7 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
 
     if (!combined) md.push(...a.changes(sf, a.g.paths));
   }
-  if (combined && findings.length) md.push(...elementList(a.g), ...a.changes(findings, a.g.paths));
+  md.push(...combinedStateDetails(a, findings, stateOnly));
   return { md, stateImages, cropFallback };
 }
 
@@ -475,7 +504,7 @@ function regionSidecar(a: RegionArgs, resting: CropPack, states: ReturnType<type
     before: g.before,
     after: g.after,
     images,
-    ...(g.paths.length > 1 ? { elements: g.paths.map((elementPath) => ({ path: elementPath })) } : {}),
+    ...(g.identical && g.paths.length > 1 ? { elements: g.paths.map((elementPath) => ({ path: elementPath })) } : {}),
     ...(resting.cropFallback || states.cropFallback ? { cropFallback: 'top-most' } : {}),
     ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
     ...(visualEvidence ? { visualEvidence, reason } : {}),
