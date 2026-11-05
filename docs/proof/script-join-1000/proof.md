@@ -960,3 +960,32 @@ bounded. No whole-header regex can backtrack across repeated comments. The
 2,130,016-byte adversarial timing fixture takes **150.9 ms wall / 146.6 ms CPU**
 for two scans in the targeted run. The combined unit suite passes **1,017/1,017**.
 Final browser/gate tails, SHA and exact-lease push are recorded in the handoff.
+
+
+The existing capture-note test caught a wording regression after the note
+refresh: [one failure / 64 passes](round15-capture-note-red.txt). The new note
+again explicitly says raw text, while listing yield, comment gaps, Unicode keys
+and 512-character bounds. No execution logic changed to clear that assertion.
+Final targeted checks pass **1,017/1,017 units** and **310/310 Chromium/Git cases**.
+All thirty shapes and all eight QA repros pass with and without yield.
+
+The [fresh JSON](round15-report.json), [Markdown](round15-report.md) and
+[stored evidence](round15-report-evidence.json) use QA's multiline Symbol-key
+method **without yield**. The fixture asserts no raw yield word and zero body
+hits on both captured revisions; both changed arguments read unmeasured with the
+generator residual. Thus the catch-all cannot hide a header-match failure. There
+are zero J2 gaps and zero blocking findings. The full 1100-pixel screenshot was
+inspected with Evidence expanded: product-state identity remains unproven,
+inventory is not checked, content/structure was not evaluated and reach remains
+incomplete. This is diagnostic attribution proof, not rendering or same-state
+certification.
+
+![A multiline computed generator key without yield is still unmeasured](round15-report-top.png)
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 gaps and unchanged
+**five declared / six complete unknown** totals. No case status or result cell
+moves to unknown; eager JSX and render-scope values remain unknown in both
+scenarios. Only the timestamp changes in the receipt. The corpus still uses
+hand-built one-line patches and selects the head unit; browser tests cover the
+real Git adapter on both sides. `demo:check` passes. Final full-gate tails and
+the exact-lease push result are recorded in the handoff.
