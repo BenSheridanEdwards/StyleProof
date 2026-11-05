@@ -2,6 +2,7 @@
 
 - **Status:** accepted (2026-10-23)
 - **Amendment (2026-11-02, #1240):** The changed-stylesheet join below is target design, not built. Until it is built (#934), StyleProof cannot list a changed stylesheet no capture served. The report names this as a run-level J1 gap that is not checked, under both levels. It prevents reach-complete but does not hold `gate`, because the report has neither the PR's changed files nor source maps.
+- **Implementation note (2026-11-05, #1001):** J3 now judges source occurrences against paired class-list deltas. Captures record no per-occurrence render provenance: no delta is `never-rendered`, a directional token-name delta is `unknown`, and no J3 unit reaches or corroborates J2. Missing vocabulary, ledgers, source ranges or pairing remain named warn-only `unmeasured` gaps.
 - **Date:** 2026-10-21
 - **Epic:** #934
 - **Depends on:** #988 reach corpus, #989 reach cost receipt, #991 served-rule ledger (merged in #1045)
@@ -30,13 +31,17 @@ evidence a real browser records during capture:
   source range; a delta for the same token from another occurrence proves
   nothing.
 
-The reach corpus (#988, `bench/reach-corpus.review.md`) measured the miss and
+The original reach corpus (#988, `bench/reach-corpus.review.md`) measured the miss and
 the joins on a fixture whose spec opens only the healthy state:
 
 | Scenario                    | Today's diff shows | Prototype reach joins                           |
 | --------------------------- | ------------------ | ----------------------------------------------- |
 | declared (healthy state)    | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (value, rendering not proved); render-scope value, eagerly built JSX element, same-line class-plus-style and same-token collision scenarios not yet measured, expected as `unknown` once PR #1031 adds them |
 | complete (all five states)  | 12 of 13 changes   | mark every rendered change reached              |
+
+The #1001 receipt now covers 18 cases (17 visual): declared shows 3/17, complete
+shows 16/17, and all 14 declared misses are named. Unknown case counts are 5/8;
+no J3 occurrence reaches without provenance. See the review for the 16-case baseline.
 
 The same corpus pins one noise case: a changed error-handler string that never
 runs during capture and has no visual effect, which J2 flags.
@@ -328,19 +333,19 @@ the evidence adds to a capture on a GitHub runner:
 - `bench/reach-corpus.mjs --check` is the oracle. Phase 1 and 2 replace its
   prototype joins with `src/` code and keep its expectations, with one change:
   the `runtime-css-in-js` scenario is expected as `unknown`, not `reached`.
-  PR #1031 / Phase 1 must also add four scenarios, not yet measured, each
+  The corpus now includes all four required scenarios, each
   expected as `unknown`: a render-scope value applied only in an unopened state
   (a component-body `faultStyle` used only by the fault overlay), an eagerly
   built JSX element that is never mounted (`const banner = <strong>` shown only
-  by `{fault && banner}`), a line where a changed class token is `reached`
+  by `{fault && banner}`), a line where a changed class token has a delta (currently `unknown` without provenance)
   but a changed style value on the same line renders only in an unopened state,
   and two module constants changing the same token `'old'`→`'new'`, one
   rendered on the healthy page and one only by the unopened fault overlay,
   where the overlay occurrence is expected as `unknown`, never `reached`. The
-  existing complete-state J3 expectations (`branch-class`, `module-constant`,
+  original complete-state J3 expectations (`branch-class`, `module-constant`,
   `colliding-constant`) stay `reached` only through per-occurrence evidence; if
   Phase 1 cannot record that evidence, they are deliberately re-expected as
-  `unknown`.
+  `unknown`. #1001 applies that re-expectation to all three cases; declared captures report `never-rendered`.
 
 ## Alternatives rejected
 

@@ -1471,11 +1471,11 @@ Matches only inside shadow roots, iframes, `ignore` regions or volatile regions 
 
 `classifyRuleReach` compares the ledgers and reports outside-only changed rules, consumers or referrers as `unmeasured`, never `reached`.
 
-When any base or head capture carries a ledger, or `changeReach: 'gate'` is enabled, the report adds a **Reach incomplete** status under the headline and a **Changed but never matched** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Outside-only changed rules, consumers or referrers appear under **Changed but unmeasured** with their reasons; they never count as reached. Missing or old ledgers and unreadable stylesheets produce named evidence gaps with remedies. A run whose changed served CSS rules all matched still names J2 findings or missing script evidence separately and remains reach-incomplete while class-list deltas and the changed-stylesheet join are unbuilt. The source column names the served sheet; source-map resolution is not recorded yet.
+When any base or head capture carries a ledger, or `changeReach: 'gate'` is enabled, the report adds a **Reach incomplete** status under the headline and a **Changed but never matched** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Outside-only changed rules, consumers or referrers appear under **Changed but unmeasured** with their reasons; they never count as reached. Missing or old ledgers and unreadable stylesheets produce named evidence gaps with remedies. A run whose changed served CSS rules all matched still names J2 findings or missing script evidence separately and remains reach-incomplete while class occurrences lack render provenance or the changed-stylesheet join remains unbuilt. The source column names the served sheet; source-map resolution is not recorded yet.
 
 `changeReach: 'warn'` is the default in `styleproof.config.ts` (or JSON): reach findings never change the verdict or exit codes, and the diff CLI output stays unchanged. Reports from captures without either a reach ledger or script evidence stay unchanged too. Opt into `changeReach: 'gate'` to hold changed J1 rules classified as `never-rendered`, `unmeasured` or `blind-channel`, plus J1 ledger gaps: missing or old ledgers, unreadable sheets, a side without captures, or incomplete ledgers. This includes legacy maps under opt-in gate; recapture missing evidence with `captureReach`. Both `styleproof-diff` and `styleproof-report` exit `1` when reach holds the run. Certify mode with `fail-on-diff: true` and without `require-approval: true` yields `CERTIFICATION_FAILED`; review-gate and migration yield `STYLE_REVIEW_REQUIRED`, cleared by the existing Approve box. Advisory mode remains non-blocking for reach findings. Approval clears the verdict, not the reach finding.
 
-The J2 script join stays warn-only; missing script evidence, class-list deltas (J3), and the not-yet-built changed-stylesheet join remain named warn-only gaps under both levels. They keep the strip at **Reach incomplete**, but do not hold the verdict. The strip and section name changed stylesheets no capture served as "not checked"; `blocking` excludes this gap.
+The J2 script join stays warn-only; missing script evidence, unavailable J3 class vocabulary/deltas/source ranges, and the not-yet-built changed-stylesheet join remain named warn-only gaps under both levels. They keep the strip at **Reach incomplete**, but do not hold the verdict. The strip and section name changed stylesheets no capture served as "not checked"; `blocking` excludes this gap.
 
 `report.json` and the report API result include `reach` when a capture carries a reach ledger or script evidence, or gate is enabled: `{ level, blocking, complete, ledger, counts, rules, unreadableSheets, scripts, scriptCounts, gaps }`. `blocking` is the held rule and ledger-gap count, always `0` under warn. `counts` has zero-filled `reached`, `never-rendered`, `unmeasured`, and `blind-channel` keys; `rules` keeps every changed rule, including reached ones. Each gap has `{ join, status, side?, kind, reason, remedy }`. `complete` remains false while evidence gaps exist. Under gate, `styleproof-diff --json` includes `reach: { level, ledger, counts, blocking }`; under warn it omits `reach` to preserve the existing receipt. A map with `reach` still diffs identically to one without at the computed-style layer. If `maxReportBytes` cannot fit the reach status, report generation fails with a request to increase the budget instead of hiding the warning. The ledger adds about 23 bytes per served rule to a gzipped map.
 
@@ -1635,7 +1635,7 @@ It does not parse values or infer rendering. Only an anchor at a script token's 
 `report.json.reach.scripts` retains bounded J2 detail, sorted by code point of source
 key, side, then numeric source positions. `scriptCounts` counts all original source units, including omitted detail,
 separately from J1's existing `counts`. Each unit names its `sourceKey`, `range`,
-base/head `side`, `execution`, unit `status`, `why`, optional `executionScope` (`line` or `preceding-anchor`), optional `changeScope: 'line'` for whole changed lines, and fixed `level: 'warn'`. Missing coverage on some captures reads unmeasured, never "not loaded". Residual naming is skipped above 128 UTF-16 code units to bound backtracking and says so; the unit remains unknown. Markdown/HTML coalesce only adjacent equal whole-line units and cap tables at 100 rows. Token ranges always retain their exact columns. JSON also coalesces only whole-line units, recording their original-unit `count`; `scriptCounts` still counts every original unit. It reserves only short count/preview notices, allocates diff findings first, then shares at most 64 KB across J2 units, gap records and full path detail within the remaining JSON byte budget. A named `J2 units truncated: N more` gap in JSON and Markdown/HTML discloses omitted units. Named `J2 gaps truncated: N more` and `J2 gap paths truncated: N more` gaps disclose omitted gap records and paths. Markdown/HTML bound gap records and path detail independently, with counts for anything omitted. Chrome, gallery and content details receive their display budget before advisory reach detail. Truncation wording says details are omitted from the named artifact; `scriptGapCount` retains the real evidence-gap count, excluding presentation notices. For older reports without that count, summaries add the omitted-record count from `J2 gaps truncated: N` to the listed real gaps; unit and path notices add nothing. The report API assessment retains full units and the serialization gaps; reach-complete remains false.
+base/head `side`, `execution`, unit `status`, `why`, optional `executionScope` (`line` or `preceding-anchor`), optional `changeScope: 'line'` for whole changed lines, and fixed `level: 'warn'`. Missing coverage on some captures reads unmeasured, never "not loaded". Residual naming is skipped above 128 UTF-16 code units to bound backtracking and says so; the unit remains unknown. Markdown/HTML coalesce only adjacent equal whole-line units and cap tables at 100 rows. Token ranges always retain their exact columns. JSON also coalesces only whole-line units, recording their original-unit `count`; `scriptCounts` still counts every original unit. It reserves only short count/preview notices, allocates diff findings first, then shares at most 64 KB across J2/J3 units, gap records and full path detail within the remaining JSON byte budget. A named `J2 units truncated: N more` gap in JSON and Markdown/HTML discloses omitted units. Named `J2 gaps truncated: N more` and `J2 gap paths truncated: N more` gaps disclose omitted gap records and paths. Markdown/HTML bound gap records and path detail independently, with counts for anything omitted. Chrome, gallery and content details receive their display budget before advisory reach detail. Truncation wording says details are omitted from the named artifact; `scriptGapCount` retains the real evidence-gap count, excluding presentation notices. For older reports without that count, summaries add the omitted-record count from `J2 gaps truncated: N` to the listed real gaps; unit and path notices add nothing. The report API assessment retains full units and the serialization gaps; reach-complete remains false.
 Markdown/HTML group them by status and name file:line:column and side:
 
 | Execution evidence                                                                 | Unit status                            |
@@ -2238,3 +2238,44 @@ consumer-owned and are not rewritten; capture still enforces the refusal policy.
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 
 Unchecked stylesheet guidance appears under **Not checked**, separate from held Reach evidence gaps, and includes the capture remedy.
+
+
+#### Class-token occurrences × class-list deltas (J3)
+
+J3 reuses the J2 Git adapter and comparison SHAs: added occurrences are judged on
+head, removed occurrences on base. Class vocabulary comes from either side's J1
+served-rule ledger. Strings/templates are class sources only when all static words
+are known class tokens, or they are in a class attribute/assignment or helper
+(`className`, `class`, `classList.*`, `clsx`, `cx`, `classnames`, `cva`, `twMerge`,
+`twJoin`, `cn`). Only vocabulary tokens enter the join; a sentence with one matching
+word is skipped. Comments, regex bodies and dynamic word fragments are excluded.
+The full git blobs and literal text are transient, never report fields. Raw changed
+columns exclude untouched words in single-line edits. Identical literal words at
+identical source positions on both sides are also excluded; this is text comparison,
+not render provenance. Multi-line replacements retain the adapter's conservative line scope.
+
+Captures pair by their capture filename key, as in the style diff. J3 uses the
+certification path correspondence and same-tag paired elements, excluding volatile
+subtrees on either side; an added/removed element alone supplies no paired delta.
+For each literal occurrence (file, side, exact UTF-16 source span), each gained head
+or lost base vocabulary token has a separate unit:
+
+- No paired element changed that token in the occurrence's direction:
+  `never-rendered` — "class token never landed on a captured element".
+- A directional delta exists: `unknown` — "class token; delta not tied to this occurrence".
+- Missing/partial ledgers, class vocabulary, source ranges or pairing: a named
+  run-level J3 `unmeasured` gap, plus unmeasured units where they can be listed.
+
+No capture records per-occurrence render provenance today. The type hook is reserved
+for it; **no J3 unit can currently be reached**, including unique tokens and
+collisions. J2 execution never upgrades J3, and J3 never upgrades J2. An overlapping
+J3 negative can lower a J2 range that ran to `never-rendered`, retaining its execution.
+A class occurrence never corroborates a different style value on the same line.
+
+`report.json.reach.classes` lists `sourceKey`, base/head `side`, literal `range`,
+`token`, `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
+numeric range and token. `classCounts` and `classGapCount` retain full counts.
+J2/J3 share at most 64 KB of detail after style findings; J3 omissions get a named
+count notice. Markdown/HTML cap J3 at 100 unit rows and 100 bounded gap rows.
+All J3 findings and gaps remain advisory under both changeReach levels and keep
+reach incomplete. The changed-stylesheet join remains separately not checked.

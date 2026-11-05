@@ -33,7 +33,7 @@
   },
   "expectations": {
     "today": "shown = today's diffStyleMaps puts a finding on the marker element (with an expected prop); missed = it does not",
-    "reach": "src/ J1 CSS and J2 source-range statuses only; token-name J3-prototype results are a separate field and never corroborate J2 (#1001 re-judges per-occurrence provenance)",
+    "reach": "src/ J1, J2 and per-occurrence J3; J3 negatives lower J2, token-name deltas remain unknown without render provenance",
     "edit": "the seeded change: each `from` must occur exactly once in the base file; the head side is base plus every case edit"
   },
   "cases": [
@@ -67,7 +67,7 @@
     {
       "id": "fault-rule",
       "category": "css",
-      "desc": "fault overlay indicator green → amber",
+      "desc": "fault overlay indicator green \u2192 amber",
       "edit": [
         {
           "file": "styles.css",
@@ -333,14 +333,18 @@
           "today": "missed",
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran"
+            "J2": "never-ran",
+            "J3": "never-rendered"
           },
-          "prototypeJ3": "never-rendered"
+          "classCount": 1
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
-          "prototypeJ3": "reached"
+          "joins": {
+            "J3": "unknown"
+          },
+          "classCount": 1
         }
       }
     },
@@ -363,16 +367,20 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "unknown",
+          "reach": "never-rendered",
           "joins": {
-            "J2": "ran"
+            "J2": "ran",
+            "J3": "never-rendered"
           },
-          "prototypeJ3": "never-rendered"
+          "classCount": 1
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
-          "prototypeJ3": "reached"
+          "joins": {
+            "J3": "unknown"
+          },
+          "classCount": 1
         }
       }
     },
@@ -395,16 +403,20 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "unknown",
+          "reach": "never-rendered",
           "joins": {
-            "J2": "ran"
+            "J2": "ran",
+            "J3": "never-rendered"
           },
-          "prototypeJ3": "never-rendered"
+          "classCount": 1
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
-          "prototypeJ3": "reached"
+          "joins": {
+            "J3": "unknown"
+          },
+          "classCount": 1
         }
       }
     },
@@ -500,6 +512,85 @@
           "joins": {
             "J2": "ran"
           }
+        }
+      }
+    },
+    {
+      "id": "same-line-class-style",
+      "category": "residual",
+      "desc": "class delta on a healthy element cannot corroborate a style value on the same line",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const mixed = <Banner className=\"same-line-old sp-mixed\" style={{ color: 'green' }} />;",
+          "to": "const mixed = <Banner className=\"same-line-new sp-mixed\" style={{ color: 'red' }} />;"
+        }
+      ],
+      "unit": {
+        "js": "const mixed"
+      },
+      "sel": ".sp-mixed",
+      "props": ["text-transform", "color"],
+      "expect": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 1
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 1
+        }
+      }
+    },
+    {
+      "id": "same-token-collision",
+      "category": "residual",
+      "desc": "two constants change the same token; healthy deltas never identify the unopened overlay occurrence",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const COLLISION_OK = 'collision-old';",
+          "to": "const COLLISION_OK = 'collision-new';"
+        },
+        {
+          "file": "app.jsx",
+          "from": "const COLLISION_FAULT = 'collision-old';",
+          "to": "const COLLISION_FAULT = 'collision-new';"
+        }
+      ],
+      "unit": {
+        "js": "const COLLISION_"
+      },
+      "sel": ".sp-collision",
+      "props": ["font-weight"],
+      "expect": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 2
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 2
         }
       }
     }

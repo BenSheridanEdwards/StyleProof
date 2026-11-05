@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
+  No directional delta reads `never-rendered`; a token-name delta stays `unknown` because captures
+  record no per-occurrence render provenance. Ordinary prose is skipped. J3 negative evidence can
+  lower J2, never upgrade it; findings and missing-evidence gaps stay warn-only at both levels,
+  with bounded report detail and full status counts (#1001).
+
 - Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
   on compared elements when the capture recorded the layer and a compared owner.
   Exact form-state probes remain available with layer metadata present, including inside

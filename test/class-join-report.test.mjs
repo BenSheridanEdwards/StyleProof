@@ -50,3 +50,33 @@ test('J3 detail and gaps use leftover JSON bytes, keeping full status counts', (
   const full = budgetScriptReach(original, reserved, 1_000_000).reach;
   assert.ok(jsonBytes(full) - jsonBytes(reserved) <= 64_000);
 });
+
+test('missing J3 inputs keep class-list deltas explicitly not checked', () => {
+  const reach = assessReachMaps([map('old')], [map('new')], 'warn');
+  assert.ok(reach.gaps.some((gap) => gap.join === 'J3' && /source ranges unavailable/.test(gap.reason)));
+  assert.match(reachStripLines(reach).join('\n'), /Class-list deltas are not checked/);
+});
+
+test('omitted J3 detail cannot retain a complete flag', () => {
+  const original = { ...assess(), complete: true, scripts: [], gaps: [] };
+  original.classes = Array.from({ length: 400 }, () => original.classes[0]);
+  const result = budgetScriptReach(original, reserveScriptNotice(original), 200);
+  assert.equal(result.reach.complete, false);
+});
+
+test('J3 gap records share the leftover budget and preserve their real count', () => {
+  const original = assess();
+  original.gaps = Array.from({ length: 300 }, (_, i) => ({
+    join: 'J3',
+    kind: 'class-list',
+    status: 'unmeasured',
+    reason: `${i}: ${'missing vocabulary '.repeat(100)}`,
+    remedy: 'recapture both revisions',
+  }));
+  original.classGapCount = 300;
+  const reserved = reserveScriptNotice(original);
+  const result = budgetScriptReach(original, reserved, 900).reach;
+  assert.equal(result.classGapCount, 300);
+  assert.ok(result.gaps.some((gap) => /300 gap\(s\) omitted/.test(gap.reason)));
+  assert.ok(jsonBytes(result) <= jsonBytes(reserved) + 900);
+});

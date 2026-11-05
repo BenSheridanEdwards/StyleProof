@@ -34,7 +34,12 @@ export function budgetClassReach(original: ReportReach, reserved: ReportReach, b
   const gapsOmitted = original.gaps.filter((gap) => gap.join === 'J3').length - gaps.length;
   if (unitsOmitted || gapsOmitted) gaps.push(notice(unitsOmitted, gapsOmitted));
   return {
-    reach: { ...reserved, classes, gaps: [...reserved.gaps.filter((gap) => gap.join !== 'J3'), ...gaps] },
+    reach: {
+      ...reserved,
+      complete: reserved.complete && unitsOmitted === 0 && gapsOmitted === 0,
+      classes,
+      gaps: [...reserved.gaps.filter((gap) => gap.join !== 'J3'), ...gaps],
+    },
     omitted: unitsOmitted + gapsOmitted,
   };
 }

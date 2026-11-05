@@ -7,6 +7,8 @@ import card from './card.module.css';
 // Module-scope class maps: these definitions run at load whether or not a branch renders them.
 const TONES = { ok: 'tone-ok', bad: 'tone-red' };
 const ALERT = { critical: 'tone-amber' };
+const COLLISION_OK = 'collision-old';
+const COLLISION_FAULT = 'collision-old';
 
 const params = new URLSearchParams(location.search);
 const probe = { fault: params.get('fault') === '1', status: params.get('status') ?? 'ok' };
@@ -52,6 +54,7 @@ function FaultOverlay() {
     h('span', { className: `${card.alert} sp-card-alert` }, 'Check probe'),
     Probe({ className: 'sp-probe' }, 'Probe B'),
     h(Indicator),
+    h('span', { className: `${COLLISION_FAULT} sp-collision-fault` }, 'Overlay collision'),
   );
 }
 
@@ -63,7 +66,12 @@ function reportError(err) {
   console.warn('render failed', err);
 }
 
+function Banner({ className, style }) {
+  return h('span', { className, ...(probe.fault ? { style: `color: ${style.color}` } : {}) }, 'Mixed');
+}
+
 function App() {
+  const mixed = <Banner className="same-line-old sp-mixed" style={{ color: 'green' }} />;
   const faultStyle = { color: 'green' };
   const banner = <span className="sp-banner">Down</span>;
   try {
@@ -71,6 +79,8 @@ function App() {
       'main',
       null,
       h('a', { className: 'link sp-link', href: '#docs' }, 'Docs'),
+      mixed,
+      h('span', { className: `${COLLISION_OK} sp-collision` }, 'Healthy collision'),
       h(Badge, { status: probe.status }),
       h('span', { className: `${probe.status === 'ok' ? TONES.ok : TONES.bad} sp-tone` }, 'Tone'),
       h('a', { className: 'tone-red sp-delete', href: '#delete' }, 'Delete'),

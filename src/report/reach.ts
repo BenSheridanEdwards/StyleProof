@@ -248,6 +248,9 @@ export function reachStripLines(reach: ReportReach): string[] {
 
   const unchecked =
     "Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS)." +
+    (reach.gaps.some((gap) => gap.join === 'J3')
+      ? ' Class-list deltas are not checked where J3 source, vocabulary or pairing evidence is unavailable; see J3 gaps.'
+      : '') +
     (reach.level === 'gate' ? " These are not held by `changeReach: 'gate'`." : '');
   const never = reach.counts['never-rendered'];
   const unmeasured = reach.counts.unmeasured;

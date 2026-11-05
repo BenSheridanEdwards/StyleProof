@@ -11,6 +11,7 @@ async function corpusProbe(mode, rootUrl) {
   const joins = await import(new URL('bench/reach-joins.mjs', rootUrl));
   const findingMatch = await import(new URL('bench/finding-match.mjs', rootUrl));
   const classifier = await import(new URL('dist/rule-reach.js', rootUrl));
+  const classClassifier = await import(new URL('dist/class-join.js', rootUrl));
   const scriptClassifier = await import(new URL('dist/script-join.js', rootUrl));
   const sourceRanges = await import(new URL('dist/script-join-git.js', rootUrl));
   const source = new URL('bench/reach-corpus.mjs', rootUrl);
@@ -105,6 +106,7 @@ async function corpusProbe(mode, rootUrl) {
     '../dist/capture.js': capture,
     '../dist/rule-reach.js': classifier,
     '../dist/script-join.js': scriptClassifier,
+    '../dist/class-join.js': classClassifier,
     '../dist/script-join-git.js': sourceRanges,
     '../dist/diff.js': { diffStyleMaps: () => [] },
     './reach-joins.mjs': { ...joins, diffHunks: () => [], lineExecution: () => new Map() },

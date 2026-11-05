@@ -1,6 +1,6 @@
 // Reach corpus (#988): on a PR whose spec only opens the healthy state, how many
 // of its visual changes does today's diff show — and do the reach joins name the
-// rest? J1 runs classifyRuleReach on the captureReach ledger; J2 runs src/script-join.ts; J3 remains a prototype.
+// rest? J1 runs classifyRuleReach on the captureReach ledger; J2 runs src/script-join.ts; J3 uses src/class-join.ts.
 //
 //   pnpm run bench:reach          # measure (writes bench/reach-corpus.results.json)
 //   pnpm run bench:reach:check    # same, exit 1 on any violated expectation
@@ -24,11 +24,12 @@ import { isDeepStrictEqual } from 'node:util';
 import { execFileSync } from 'node:child_process';
 import { captureStyleMap, trackServedRules, trackScriptReach } from '../dist/capture.js';
 import { classifyRuleReach } from '../dist/rule-reach.js';
+import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { classifyScriptReach } from '../dist/script-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 import { diffStyleMaps } from '../dist/diff.js';
 import { hasProp, markerOf, onTarget } from './finding-match.mjs';
-import { classReach, classVocabulary, diffHunks } from './reach-joins.mjs';
+import { diffHunks } from './reach-joins.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CORPUS_PATH = path.join(ROOT, 'bench', 'reach-corpus.json');
@@ -128,7 +129,7 @@ fs.rmSync(out, { recursive: true, force: true });
 // ---- one scenario: today's findings plus a reach status per changed unit ----------
 
 /** J2 then J3 for one changed line pair of app.jsx; a removed line is judged on base. */
-function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
+function jsUnit(baseLine, headLine, pick, pairs) {
   const side = headLine ? 'head' : 'base';
   const line = headLine ?? baseLine;
 
@@ -150,21 +151,23 @@ function jsUnit(baseLine, headLine, pick, vocabulary, pairs) {
   const evidence = script.units.find((unit) => unit.side === side);
   const J2 = evidence?.execution ?? 'unmeasured';
 
-  const J3 =
-    baseLine && headLine
-      ? classReach(sourceLines.base[baseLine - 1], sourceLines.head[headLine - 1], vocabulary, pairs).status
-      : 'n/a';
-
-  // Token-name deltas are displayed separately and never corroborate src J2.
-  const status = evidence?.status ?? 'unmeasured';
-
+  const j3 = classifyClassReach(
+    pick('base').map((c) => c.map),
+    pick('head').map((c) => c.map),
+    changes,
+    pairs,
+  );
+  assert.deepEqual(j3.gaps, [], 'corpus J3 evidence must have no unchecked run-level gaps');
+  const classUnits = j3.units.filter((unit) => unit.side === side);
+  const J3 = classUnits.length ? worst(classUnits) : 'n/a';
+  const status = combineClassReach(script.units, j3.units).find((unit) => unit.side === side)?.status ?? 'unmeasured';
   return {
     kind: 'js',
     key: `app.jsx:${line}`,
     text: sourceLines[side][line - 1],
     status,
-    joins: { J2 },
-    prototypeJ3: J3,
+    joins: { J2, ...(J3 !== 'n/a' ? { J3 } : {}) },
+    classUnits,
     why: evidence?.why,
     gaps: script.gaps.map(({ side, status, reason }) => ({ side, status, reason })),
   };
@@ -176,14 +179,11 @@ function evaluate(surfaceIds) {
     pick('base').map((c) => c.map),
     pick('head').map((c) => c.map),
   );
-  const vocabulary = classVocabulary(
-    SIDES.flatMap((side) => pick(side).flatMap((c) => (c.map.reach?.rules ?? []).map((r) => r.key))),
-  );
   const pairs = surfaceIds.map((id) => ({ base: caps.base[id].map, head: caps.head[id].map }));
   const units = j1.rules.map((r) => ({ kind: 'css', key: r.key, selector: r.key, status: r.status, why: r.why }));
   for (const hunk of hunks)
     for (let i = 0; i < Math.max(hunk.base.length, hunk.head.length); i++)
-      units.push(jsUnit(hunk.base[i], hunk.head[i], pick, vocabulary, pairs));
+      units.push(jsUnit(hunk.base[i], hunk.head[i], pick, pairs));
   return {
     findings: pairs.flatMap((p) => diffStyleMaps(p.base, p.head)),
     units,
@@ -226,16 +226,19 @@ for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
       ...(js && { joins: js.joins }),
       units: mine.map(
         (u) =>
-          `${u.key}: ${u.status}${u.why ? ` (${u.why})` : ''}${u.prototypeJ3 && u.prototypeJ3 !== 'n/a' ? `; J3-prototype ${u.prototypeJ3} (#1001 re-judges per-occurrence provenance)` : ''}`,
+          `${u.key}: ${u.status}${u.why ? ` (${u.why})` : ''}${u.classUnits?.length ? `; J3: ${u.classUnits.map((c) => `${c.side}:${c.range.start.line}:${c.range.start.column} ${c.token} ${c.status}`).join(', ')}` : ''}`,
       ),
     };
-    if (js?.prototypeJ3 && js.prototypeJ3 !== 'n/a') got.prototypeJ3 = js.prototypeJ3;
+    if (js) got.classUnits = mine.flatMap((unit) => unit.classUnits ?? []);
     const want = c.expect[scenario];
     const wrong = [
       ...(want.today && got.today !== want.today ? [`today ${got.today}, want ${want.today}`] : []),
       ...(got.reach !== want.reach ? [`reach ${got.reach}, want ${want.reach}`] : []),
-      ...(want.prototypeJ3 && got.prototypeJ3 !== want.prototypeJ3
-        ? [`J3-prototype ${got.prototypeJ3}, want ${want.prototypeJ3}`]
+      ...(want.classCount !== undefined && got.classUnits?.length !== want.classCount
+        ? [`J3 occurrence count ${got.classUnits?.length}, want ${want.classCount}`]
+        : []),
+      ...(want.joins?.J3 && !got.classUnits?.every((unit) => unit.status === want.joins.J3)
+        ? ['J3 occurrence statuses disagree']
         : []),
       ...Object.entries(want.joins ?? {})
         .filter(([join, status]) => got.joins?.[join] !== status)
@@ -259,7 +262,7 @@ const lines = [
   `  declared spec (${corpus.scenarios.declared.join(', ')}): today's diff shows ${shown('declared')}/${visual.length} visual changes`,
   `  reach joins name ${named.length}/${missed.length} of the misses (${missed.length - named.length} pinned residual)`,
   `  complete spec (${corpus.scenarios.complete.length} surfaces): today's diff shows ${shown('complete')}/${visual.length}`,
-  `  J2 run-level gaps: none (asserted for every source unit; not reach-complete)`,
+  `  J2/J3 run-level gaps: none (asserted for every source unit; not reach-complete)`,
   ``,
 ];
 for (const r of results)
@@ -267,7 +270,7 @@ for (const r of results)
     lines.push(
       `  ${s.ok ? '✓' : '✗'} ${r.id} [${scenario}] today ${s.today ?? 'n/a'} · reach ${s.reach}` +
         (s.joins ? ` · J2 ${s.joins.J2}` : '') +
-        (s.prototypeJ3 ? ` · J3-prototype ${s.prototypeJ3} (#1001: per-occurrence provenance pending)` : ''),
+        (s.joins?.J3 ? ` · J3 ${s.joins.J3}` : ''),
     );
 console.log(lines.join('\n'));
 
@@ -276,6 +279,8 @@ const receipt = {
   browser: `chromium ${browserVersion}`,
   fixture: corpus.fixture,
   j2Gaps: scenarioGaps,
+  j3Gaps: Object.fromEntries(Object.keys(corpus.scenarios).map((scenario) => [scenario, []])),
+  provenance: 'No per-occurrence provenance is recorded; J3 cannot reach or corroborate J2.',
   totals: {
     cases: corpus.cases.length,
     visual: visual.length,
@@ -283,6 +288,8 @@ const receipt = {
     todayShownComplete: `${shown('complete')}/${visual.length}`,
     missesNamedByReach: `${named.length}/${missed.length}`,
     residual: missed.filter((c) => !named.includes(c)).map((c) => c.id),
+    unknownDeclared: results.filter((r) => r.scenarios.declared.reach === 'unknown').length,
+    unknownComplete: results.filter((r) => r.scenarios.complete.reach === 'unknown').length,
     failed: failures,
   },
   cases: results,
