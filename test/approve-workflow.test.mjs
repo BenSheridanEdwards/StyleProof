@@ -372,38 +372,35 @@ for (const [file, workflowYml] of [
         repos: { listCommitStatusesForRef: async () => ({ data: statuses }) },
       },
     };
-    const gate = new AsyncFunction('github', 'context', 'core', script);
+    const gate = new AsyncFunction('github', 'context', 'core', 'process', script);
     const context = { repo: { owner: 'acme', repo: 'app' }, payload: { repository: { default_branch: 'main' } } };
     const core = {
       setOutput: (key, value) => {
         outputs[key] = value;
       },
     };
-    const saved = process.env.STYLEPROOF_PRIOR_STATUS;
-    process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(prior);
-    try {
-      await gate(github, context, core);
-      assert.equal(outputs.approved, 'true', 'the receipt carries forward before the untick');
-      const withdrawal = await runApprove({
-        actor: REVIEWER,
-        body: reportComment({ suffix: ' — _approved by @a-reviewer_' }),
-        latestStatuses: statuses,
-        program: reusableApproveScript({ workflowYml }),
-      });
-      assert.deepEqual(
-        withdrawal.statuses.map(({ state, description }) => ({ state, description })),
-        [{ state: 'failure', description: WITHDRAWN }],
-      );
-      statuses.unshift(...withdrawal.statuses.map((status) => ({ ...status, creator: canonical })));
-      await gate(github, context, core);
-      assert.equal(outputs.approved, 'false', 'untick during the re-run revokes the old receipt');
-      assert.equal(outputs.approver, '');
-      assert.deepEqual(withdrawal.created, []);
-      assert.equal(withdrawal.updated[0].body, reportComment());
-    } finally {
-      if (saved === undefined) delete process.env.STYLEPROOF_PRIOR_STATUS;
-      else process.env.STYLEPROOF_PRIOR_STATUS = saved;
-    }
+    const environment = {
+      GITHUB_ACTION_PATH: new URL('../', import.meta.url).pathname,
+      STYLEPROOF_STATUS_CONTEXT: 'StyleProof',
+    };
+    await gate(github, context, core, { env: environment });
+    assert.equal(outputs.approved, 'true', 'the receipt carries forward before the untick');
+    const withdrawal = await runApprove({
+      actor: REVIEWER,
+      body: reportComment({ suffix: ' — _approved by @a-reviewer_' }),
+      latestStatuses: statuses,
+      program: reusableApproveScript({ workflowYml }),
+    });
+    assert.deepEqual(
+      withdrawal.statuses.map(({ state, description }) => ({ state, description })),
+      [{ state: 'failure', description: WITHDRAWN }],
+    );
+    statuses.unshift(...withdrawal.statuses.map((status) => ({ ...status, creator: canonical })));
+    await gate(github, context, core, { env: environment });
+    assert.equal(outputs.approved, 'false', 'untick during the re-run revokes the old receipt');
+    assert.equal(outputs.approver, '');
+    assert.deepEqual(withdrawal.created, []);
+    assert.equal(withdrawal.updated[0].body, reportComment());
   });
   test(`${file}: tick refuses the withdrawn description (#1261)`, async () => {
     const result = await runApprove({

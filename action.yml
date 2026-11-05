@@ -285,7 +285,7 @@ runs:
             target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
           });
 
-    # Save sign-off evidence before pending replaces the latest status.
+    # Publish a running marker; approval consumers read live receipt history independently.
     - name: Mark review status pending
       id: review-pending
       if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory')
@@ -320,10 +320,6 @@ runs:
           });
           core.setOutput('stale-delivery', laterAttempt ? 'true' : 'false');
           if (laterAttempt) return;
-          const { data } = await github.rest.repos.listCommitStatusesForRef({
-            ...context.repo, ref: '${{ steps.context.outputs.head-sha }}', per_page: 100,
-          });
-          core.setOutput('prior-status', JSON.stringify(data.find((s) => s.context === process.env.STYLEPROOF_STATUS_CONTEXT) || null));
           await github.rest.repos.createCommitStatus({
             ...context.repo,
             sha: '${{ steps.context.outputs.head-sha }}',
@@ -721,69 +717,35 @@ runs:
           core.setOutput('data-residue-keys', JSON.stringify(dataResidueKeys));
           core.info(`StyleProof trust state: ${state}`);
 
-    # Is THIS commit's diff already signed off? Use the saved review status so a
-    # re-run after approval keeps the check green (and renders the box ticked) instead
-    # of clobbering the approval the approve workflow set. Meaningful when changed, or
+    # Is THIS commit's diff already signed off? This early read is diagnostic:
+    # comment and status writes revalidate independently. Its outputs describe
+    # this moment, rather than authorizing later writes. Meaningful when changed, or
     # for an untrusted (fork) capture, whose clean verdict also needs sign-off.
     # Every mode that sets the review status checks for a prior approval.
     - id: gate
       if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory')
       uses: actions/github-script@v9
       env:
-        STYLEPROOF_PRIOR_STATUS: ${{ steps.review-pending.outputs.prior-status }}
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
+          const { readReviewApproval } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-approval.js`);
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const untrustedCapture = '${{ steps.context.outputs.untrusted-capture }}' === 'true';
-          let approved = false;
-          let approver = '';
           const reviewDigest = '${{ steps.verdict.outputs.diff-digest }}';
+          let approval = { approved: false, approver: '' };
           if ((changed || untrustedCapture) && /^[0-9a-f]{64}$/.test(reviewDigest)) {
-            const mine = JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null');
-            // A bot identity alone is shared by every workflow token. Read back the
-            // issue-comment run named by the approval and its original status receipt.
-            const m = (mine?.description || '').match(/^Approved by @([A-Za-z0-9_-]+) \(run ([1-9][0-9]*)\)$/);
-            if (mine?.state === 'success' && m && Number.isFinite(Date.parse(mine.created_at))) {
-              try {
-                const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: m[2] });
-                const actor = run.triggering_actor?.login;
-                const start = Date.parse(run.run_started_at);
-                const end = Date.parse(run.updated_at);
-                const branch = context.payload.repository.default_branch;
-                const canonical = (status) => status?.creator?.type === 'Bot' && status.creator.login === 'github-actions[bot]';
-                const inWindow = (status) => {
-                  const created = Date.parse(status?.created_at);
-                  return canonical(status) && status.context === mine.context && status.state === 'success' && status.description === mine.description &&
-                    Number.isFinite(created) && created >= start && created <= end + 5000;
-                };
-                if (canonical(mine) && run.status === 'completed' && run.conclusion === 'success' && run.event === 'issue_comment' && branch && run.head_branch === branch &&
-                    actor?.toLowerCase() === m[1].toLowerCase() && Number.isFinite(start) &&
-                    Number.isFinite(end) && end >= start) {
-                  const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
-                    ...context.repo, run_id: m[2], per_page: 100,
-                  });
-                  const bound = artifacts.artifacts.some((artifact) => !artifact.expired &&
-                    artifact.name === `styleproof-approval-${{ steps.context.outputs.pr-number }}-${{ steps.context.outputs.head-sha }}-${reviewDigest}`);
-                  // Carry-forward statuses still need the original receipt on this SHA.
-                  const { data } = await github.rest.repos.listCommitStatusesForRef({
-                    ...context.repo, ref: '${{ steps.context.outputs.head-sha }}', per_page: 100,
-                  });
-                  const original = data.findIndex(inWindow);
-                  // An untick or a later failure revokes that receipt. Never replay
-                  // an older approval across a status that withdrew it.
-                  approved = bound && original >= 0 && data.slice(0, original).every((status) =>
-                    status.context !== mine.context ||
-                    (canonical(status) && ((status.state === 'success' && status.description === mine.description) ||
-                      (status.state === 'pending' && status.description === 'StyleProof report running — no verdict yet'))));
-                }
-              } catch { /* Missing run access or receipts cannot authorize approval. */ }
-            }
-            if (approved) approver = m[1];
+            approval = await readReviewApproval({
+              github, repository: context.repo, headCommit: '${{ steps.context.outputs.head-sha }}',
+              pullRequestNumber: Number('${{ steps.context.outputs.pr-number }}'), reviewDigest,
+              statusContext: process.env.STYLEPROOF_STATUS_CONTEXT,
+              defaultBranch: context.payload.repository.default_branch,
+            });
           }
-          core.setOutput('approved', approved ? 'true' : 'false');
-          core.setOutput('approver', approver);
+          core.setOutput('approved', approval.approved ? 'true' : 'false');
+          core.setOutput('approver', approval.approver);
 
     # Only trusted outputs decide delivery; fork captures still need review evidence.
     - id: delivery
@@ -961,6 +923,7 @@ runs:
         if-no-files-found: error
         overwrite: true
 
+    # GitHub's API cannot close the residual read→write window after these comment and status guards.
     - name: Upsert PR comment
       id: comment
       if: success() && steps.context.outputs.pr-number != '' && steps.review-pending.outputs.stale-delivery != 'true'
@@ -980,7 +943,7 @@ runs:
         retries: 3
         script: |
           const fs = require('fs');
-          const { findLaterAttemptReceipt, formatRunAttemptReceiptMarker } =
+          const { formatRunAttemptReceiptMarker } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery, buildArtifactReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
@@ -1006,32 +969,13 @@ runs:
           // Only a bot's comment is ours to edit, never a person's that quotes the marker;
           // find() keeps the oldest, so its id is stable.
           const existing = markerComments.find((c) => c.user?.type === 'Bot');
-          // Rerun-attempt ordering guard: a late delivery from an earlier attempt of THIS run
-          // must not overwrite the verdict a newer attempt already published. Its evidence is
-          // every marker comment from a bot or from an account with write access: a report
-          // posted with a personal access token is authored by its user and still counts,
-          // though it is never edited. An account without write access cannot suppress a
-          // delivery with a forged receipt.
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
-          const laterAttempt = await findLaterAttemptReceipt({
-            github, repo: context.repo, comments: markerComments, runId, runAttempt,
-            headSha: '${{ steps.context.outputs.head-sha }}',
-          });
-          if (laterAttempt) {
-            core.setOutput('stale-delivery', 'true');
-            core.info(`StyleProof: the report comment was already published by a later attempt of run ${runId} — leaving it (and the commit status) in place.`);
-            return;
-          }
           core.setOutput('stale-delivery', 'false');
-          const { data: currentPr } = await github.rest.pulls.get({ ...context.repo, pull_number: prNumber });
-          if (currentPr.head.sha !== '${{ steps.context.outputs.head-sha }}') {
-            core.info('StyleProof: the PR head moved — leaving the comment in place; this commit still gets its status.');
-            return;
-          }
-          const upsert = (body) => existing
-            ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
-            : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
+          core.setOutput('delivery-failed', 'false');
+          core.setOutput('approval-limit-reached', 'false');
+          let commentIdentifier = existing?.id;
+          let initialCommentWrite = true;
 
           const reportStorage = process.env.STYLEPROOF_REPORT_STORAGE;
           const upload = '${{ steps.delivery.outputs.upload }}' === 'true';
@@ -1086,8 +1030,6 @@ runs:
           const certifyGate = process.env.STYLEPROOF_CERTIFY_GATE === 'true';
           // Review-gate and migration modes use the approval box; advisory never shows it.
           const useReviewGate = !advisoryMode && (requireApproval || mode === 'review-gate' || migrationMode);
-          const approved = '${{ steps.gate.outputs.approved }}' === 'true';
-          const approver = '${{ steps.gate.outputs.approver }}';
           const statusContext = process.env.STYLEPROOF_STATUS_CONTEXT;
           const trustState = '${{ steps.verdict.outputs.state }}';
           // Bind approval to this exact commit so a post-report push can't inherit green.
@@ -1098,79 +1040,138 @@ runs:
           // clean verdict is advisory. In every mode that sets the review status, the comment
           // carries the approval box so a maintainer can sign it off (same logic as the status).
           const { decideReviewStatus } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-status.js`);
+          const { formatReviewApprovalLine } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-comment.js`);
           const untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
           const setsReviewStatus = requireApproval || mode === 'review-gate' || migrationMode || mode === 'advisory';
-          const untrustedReview = untrustedCapture && setsReviewStatus &&
-            decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture }).approvable;
-          // Certify mode sets no review status, so a fork capture has no approval box; it
-          // still must never read as certified, because the fork produced both map sets.
-          const untrustedCertify = untrustedCapture && !setsReviewStatus;
-          // One box signs off every change; an already-approved re-run renders it pre-ticked.
-          const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
-          const box = (useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED') || untrustedReview
-            ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
-            : [];
-          const reportJson = fs.existsSync('styleproof-report/report.json')
-            ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
-            : {};
-          const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
-          const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
-          const trustGuidance = {
-            DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
-            INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage, determinism, report/diff consistency, or Change Reach (`changeReach: \'gate\'`) evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
-            PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
-            DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
-          }[trustState];
-          const contentEvaluated = process.env.STYLEPROOF_INCLUDE_CONTENT === 'true';
-          const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
-          const migrationCleanGuidance = `_No reviewable style or structure changes detected — the **${statusContext}** check is green._`;
-          const cleanGuidance = migrationMode
-            ? migrationCleanGuidance
-            : contentEvaluated
-              ? contentChanges > 0
-                ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
-                : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
-              : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
-          const advisoryGuidance = changed
-            ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
-            : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;
-          const certifyGuidance = changed
-            ? '_Certify mode: the report shows changed or new surfaces, so the certify gate fails this job. Review them; to accept, rebuild the map with `styleproof-map` and rerun the report._'
-            : '_Certify mode: no reviewable computed-style changes — certification passes._';
-          const untrustedCertifyGuidance = `_Fork PR — these maps were captured in an untrusted job that ran the fork's code, so StyleProof cannot certify this pull request${changed && certifyGate ? '; the certify gate fails this job on the changed or new surfaces' : ''}. A maintainer must review the report before merging._`;
-          const migrationPendingGuidance = `_Migration mode: tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. The report shows **Changed styles**, **New surfaces**, and **New/removed elements**. A new push that changes styles or structure re-opens it._`;
-          const untrustedGuidance = approved
-            ? `_Fork PR — signed off by a maintainer; the **${statusContext}** check is green. A new push re-opens it._`
-            : `_Fork PR — these maps were captured in an untrusted job that ran the fork's code, so this verdict is advisory. The **${statusContext}** check stays pending until a maintainer with write access (not the pull request author) reviews the report and ticks **Approve all changes**._`;
-          const migrationApprovedGuidance = `_Migration mode: signed off — the **${statusContext}** check is green. A new push that changes styles or structure re-opens it._`;
-          const footer = [
-            '---',
-            trustGuidance || (untrustedReview
-              ? untrustedGuidance
-              : untrustedCertify
-              ? untrustedCertifyGuidance
-              : certifyGate
-              ? certifyGuidance
-              : advisoryMode
-              ? advisoryGuidance
-              : useReviewGate
-                ? !changed
-                  ? cleanGuidance
-                  : approved
-                    ? migrationMode ? migrationApprovedGuidance : `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
-                    : migrationMode ? migrationPendingGuidance : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. One tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
-                : advisoryGuidance),
-            ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
-            formatRunAttemptReceiptMarker({ runId, runAttempt }),
-            ...(upload && reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:sha256:${artifactDigest} -->`] : []),
-            // Reviewer-visible expiry disclosure (#709): the artifact link is
-            // bounded — name the bound where the download link lands.
-            ...(upload && reportStorage === 'artifact' ? [`_The report artifact expires ${process.env.STYLEPROOF_REPORT_RETENTION_DAYS} days after upload._`] : []),
-          ];
+          const renderComment = ({ approved, approver }) => {
+            const untrustedReview = untrustedCapture && setsReviewStatus &&
+              decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture }).approvable;
+            // Certify mode sets no review status, so a fork capture has no approval box; it
+            // still must never read as certified, because the fork produced both map sets.
+            const untrustedCertify = untrustedCapture && !setsReviewStatus;
+            // One box signs off every change; an already-approved re-run renders it pre-ticked.
+            const box = (useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED') || untrustedReview
+              ? ['', formatReviewApprovalLine({ approved, approver })]
+              : [];
+            const reportJson = fs.existsSync('styleproof-report/report.json')
+              ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
+              : {};
+            const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
+            const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
+            const trustGuidance = {
+              DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
+              INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
+              CERTIFICATION_FAILED: '_Coverage, determinism, report/diff consistency, or Change Reach (`changeReach: \'gate\'`) evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
+              PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
+              DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
+            }[trustState];
+            const contentEvaluated = process.env.STYLEPROOF_INCLUDE_CONTENT === 'true';
+            const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
+            const migrationCleanGuidance = `_No reviewable style or structure changes detected — the **${statusContext}** check is green._`;
+            const cleanGuidance = migrationMode
+              ? migrationCleanGuidance
+              : contentEvaluated
+                ? contentChanges > 0
+                  ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
+                  : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
+                : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
+            const advisoryGuidance = changed
+              ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
+              : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;
+            const certifyGuidance = changed
+              ? '_Certify mode: the report shows changed or new surfaces, so the certify gate fails this job. Review them; to accept, rebuild the map with `styleproof-map` and rerun the report._'
+              : '_Certify mode: no reviewable computed-style changes — certification passes._';
+            const untrustedCertifyGuidance = `_Fork PR — these maps were captured in an untrusted job that ran the fork's code, so StyleProof cannot certify this pull request${changed && certifyGate ? '; the certify gate fails this job on the changed or new surfaces' : ''}. A maintainer must review the report before merging._`;
+            const migrationPendingGuidance = `_Migration mode: tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. The report shows **Changed styles**, **New surfaces**, and **New/removed elements**. A new push that changes styles or structure re-opens it._`;
+            const untrustedGuidance = approved
+              ? `_Fork PR — signed off by a maintainer; the **${statusContext}** check is green. A new push re-opens it._`
+              : `_Fork PR — these maps were captured in an untrusted job that ran the fork's code, so this verdict is advisory. The **${statusContext}** check stays pending until a maintainer with write access (not the pull request author) reviews the report and ticks **Approve all changes**._`;
+            const migrationApprovedGuidance = `_Migration mode: signed off — the **${statusContext}** check is green. A new push that changes styles or structure re-opens it._`;
+            const footer = [
+              '---',
+              trustGuidance || (untrustedReview
+                ? untrustedGuidance
+                : untrustedCertify
+                ? untrustedCertifyGuidance
+                : certifyGate
+                ? certifyGuidance
+                : advisoryMode
+                ? advisoryGuidance
+                : useReviewGate
+                  ? !changed
+                    ? cleanGuidance
+                    : approved
+                      ? migrationMode ? migrationApprovedGuidance : `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
+                      : migrationMode ? migrationPendingGuidance : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. One tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
+                  : advisoryGuidance),
+              ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
+              formatRunAttemptReceiptMarker({ runId, runAttempt }),
+              ...(upload && reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:sha256:${artifactDigest} -->`] : []),
+              // Reviewer-visible expiry disclosure (#709): the artifact link is
+              // bounded — name the bound where the download link lands.
+              ...(upload && reportStorage === 'artifact' ? [`_The report artifact expires ${process.env.STYLEPROOF_REPORT_RETENTION_DAYS} days after upload._`] : []),
+            ];
 
-          const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
-          await upsert(body);
+            const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
+            return { body, ticked: approved && box.length > 0, approvable: box.length > 0, guidance: footer[1] };
+          };
+          const { readReviewApproval } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-approval.js`);
+          const approvalInput = {
+            github, repository: context.repo, headCommit: headSha, pullRequestNumber: prNumber,
+            statusContext, defaultBranch: context.payload.repository.default_branch,
+            reviewDigest: '${{ steps.verdict.outputs.diff-digest }}',
+          };
+          const { guardReviewWrite } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-write-guard.js`);
+          const writeGuardInput = {
+            github, core, repo: context.repo, headSha, prNumber, runId, runAttempt,
+            statusContext, commentMarker: marker,
+          };
+          const upsert = async (approval) => {
+            const rendered = renderComment(approval);
+            const guarded = await guardReviewWrite({
+              ...writeGuardInput,
+              comment: { identifier: commentIdentifier, claimExisting: initialCommentWrite },
+              ...(rendered.approvable && !rendered.ticked ? { approvalToRemove: approvalInput } : {}),
+            });
+            if (!guarded.allowed) {
+              if (guarded.approval) return upsert(guarded.approval);
+              core.setOutput('stale-delivery', guarded.superseded ? 'true' : 'false');
+              core.setOutput('delivery-failed', guarded.unavailable ? 'true' : 'false');
+              return;
+            }
+            const response = await (commentIdentifier
+              ? github.rest.issues.updateComment({ ...context.repo, comment_id: commentIdentifier, body: rendered.body })
+              : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body: rendered.body }));
+            commentIdentifier = response?.data?.id ?? commentIdentifier;
+            core.setOutput('approved', rendered.ticked ? 'true' : 'false');
+            core.setOutput('comment-identifier', String(commentIdentifier));
+            core.setOutput('approvable', rendered.approvable ? 'true' : 'false');
+            if (initialCommentWrite && rendered.approvable) {
+              core.setOutput('approved-guidance', renderComment({ approved: true, approver: '' }).guidance);
+              core.setOutput('unapproved-guidance', renderComment({ approved: false, approver: '' }).guidance);
+            }
+            initialCommentWrite = false;
+            return { approval, rendered };
+          };
+          const approval = setsReviewStatus && (changed || untrustedCapture)
+            ? await readReviewApproval(approvalInput)
+            : { approved: false, approver: '' };
+          let publication = await upsert(approval);
+          if (!publication) return;
+          let approvalStable = false;
+          for (let approvalChecks = 0; publication.rendered.ticked && approvalChecks < 5; approvalChecks += 1) {
+            const currentApproval = await readReviewApproval(approvalInput);
+            if (currentApproval.approved && currentApproval.approver === publication.approval.approver) {
+              approvalStable = true;
+              break;
+            }
+            publication = await upsert(currentApproval);
+            if (!publication) return;
+          }
+          if (publication.rendered.ticked && !approvalStable) {
+            core.warning('StyleProof: comment approval re-check limit reached — fresh sign-off required.');
+            core.setOutput('approval-limit-reached', 'true');
+          }
 
     # Review-gate and migration modes: drive a commit status the approve workflow
     # can flip, instead of failing the job. Green when nothing changed; red ("needs
@@ -1183,6 +1184,7 @@ runs:
     # "Set certify failure status" turns any failed run red.
     # Skipped when the comment step classified this delivery as a stale earlier
     # attempt, so a late attempt-1 retry cannot clobber attempt 2's status either.
+    # A re-tick whose approve run has not completed cannot be proven and may be replaced by red sign-off, which remains re-tickable.
     - name: Set review status
       id: status
       if: >-
@@ -1193,9 +1195,9 @@ runs:
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       env:
-        STYLEPROOF_PRIOR_STATUS: ${{ steps.review-pending.outputs.prior-status }}
         STYLEPROOF_MODE: ${{ inputs.mode }}
         STYLEPROOF_REQUIRE_APPROVAL: ${{ inputs.require-approval }}
+        STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
         STYLEPROOF_UNTRUSTED_CAPTURE: ${{ steps.context.outputs.untrusted-capture }}
@@ -1205,8 +1207,6 @@ runs:
         script: |
           const fs = require('fs');
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
-          const approved = '${{ steps.gate.outputs.approved }}' === 'true';
-          const approver = '${{ steps.gate.outputs.approver }}';
           const trustState = '${{ steps.verdict.outputs.state }}';
           const sha = '${{ steps.context.outputs.head-sha }}';
           // Same report target as the comment: branch blob URL, artifact entry,
@@ -1224,7 +1224,6 @@ runs:
           const { decideReviewStatus, UNTRUSTED_CAPTURE_STATUS_DESCRIPTION } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-status.js`);
           const untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
-          const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture, certify });
           const {
             formatPartialBaselineStatusDescription,
             formatDegradedBaselineStatusDescription,
@@ -1235,19 +1234,6 @@ runs:
             : {};
           const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
           const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
-          const descriptions = {
-            NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
-            STYLE_REVIEW_REQUIRED: certify
-              ? 'Style changes detected — certify mode fails on any diff'
-              : approved
-                ? JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null')?.description
-                : 'StyleProof changes need sign-off — tick the box in the report comment',
-            DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
-            INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
-            CERTIFICATION_FAILED: 'Evidence incomplete on named surface+SHA — not a base recapture failure',
-            PARTIAL_BASELINE: formatPartialBaselineStatusDescription(baselineFailures),
-            DEGRADED_BASELINE: formatDegradedBaselineStatusDescription(baseCaptureFailed),
-          };
           if (certify && context.eventName === 'workflow_run') {
             const { captureRunSuperseded } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
             const superseded = await captureRunSuperseded({ github, repo: context.repo, workflowRun: context.payload.workflow_run });
@@ -1257,7 +1243,92 @@ runs:
               return;
             }
           }
-          await github.rest.repos.createCommitStatus({
+          const { readReviewApproval } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-approval.js`);
+          const approvalInput = {
+            github, repository: context.repo, headCommit: sha,
+            pullRequestNumber: Number('${{ steps.context.outputs.pr-number }}'),
+            statusContext: process.env.STYLEPROOF_STATUS_CONTEXT,
+            defaultBranch: context.payload.repository.default_branch,
+            reviewDigest: '${{ steps.verdict.outputs.diff-digest }}',
+          };
+          let approval = !certify && (changed || untrustedCapture)
+            ? await readReviewApproval(approvalInput)
+            : { approved: false, description: '', withdrawn: false };
+          const { guardReviewWrite } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-write-guard.js`);
+          const writeGuardInput = {
+            github, core, repo: context.repo, headSha: sha,
+            prNumber: approvalInput.pullRequestNumber, runId: '${{ github.run_id }}',
+            runAttempt: '${{ github.run_attempt }}', statusContext: approvalInput.statusContext,
+            commentMarker: process.env.STYLEPROOF_COMMENT_MARKER,
+          };
+          const writeStatus = async (parameters, removesApproval = false) => {
+            const guarded = await guardReviewWrite({
+              ...writeGuardInput,
+              ...(removesApproval ? { approvalToRemove: approvalInput } : {}),
+            });
+            if (!guarded.allowed) {
+              if (!guarded.approval) {
+                core.setOutput('stale-delivery', guarded.superseded ? 'true' : 'false');
+                if (!guarded.unavailable) return;
+                return { response: await github.rest.repos.createCommitStatus(signOffRequired), state: 'failure' };
+              }
+              let latest;
+              try {
+                const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                  ...context.repo, ref: sha, per_page: 100,
+                });
+                latest = statuses.find((status) => status.context === approvalInput.statusContext);
+              } catch {
+                core.warning('StyleProof: current approval status could not be read — success write skipped.');
+                return writeStatus(signOffRequired);
+              }
+              if (latest?.state === 'success' && latest.description === guarded.approval.description) {
+                return { state: 'success', approval: guarded.approval };
+              }
+              const publication = await writeStatus({
+                ...parameters, state: 'success', description: guarded.approval.description,
+              });
+              return publication && { ...publication, approval: guarded.approval };
+            }
+            return { response: await github.rest.repos.createCommitStatus(parameters), state: parameters.state };
+          };
+          const approved = approval.approved;
+          const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture, certify });
+          const approvalRequired = decision.approvable && (untrustedCapture || !advisoryMode);
+          const signOffRequired = {
+            ...context.repo, sha, context: process.env.STYLEPROOF_STATUS_CONTEXT,
+            state: 'failure',
+            description: 'StyleProof changes need sign-off — tick the box in the report comment',
+            ...(url ? { target_url: url } : {}),
+          };
+          const approvalMissing = untrustedCapture
+            ? { ...signOffRequired, state: 'pending', description: UNTRUSTED_CAPTURE_STATUS_DESCRIPTION }
+            : signOffRequired;
+          if ('${{ steps.comment.outputs.delivery-failed }}' === 'true') {
+            const publication = await writeStatus(signOffRequired);
+            if (publication) core.setOutput('state', publication.state);
+            return;
+          }
+          // Exhaustion forces fresh sign-off; delivery ownership still guards this fail-closed write.
+          if ('${{ steps.comment.outputs.approval-limit-reached }}' === 'true') {
+            const publication = await writeStatus(approvalMissing);
+            if (publication) core.setOutput('state', publication.state);
+            return;
+          }
+          const descriptions = {
+            NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
+            STYLE_REVIEW_REQUIRED: certify
+              ? 'Style changes detected — certify mode fails on any diff'
+              : approved
+                ? approval.description
+                : 'StyleProof changes need sign-off — tick the box in the report comment',
+            DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
+            INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
+            CERTIFICATION_FAILED: 'Evidence incomplete on named surface+SHA — not a base recapture failure',
+            PARTIAL_BASELINE: formatPartialBaselineStatusDescription(baselineFailures),
+            DEGRADED_BASELINE: formatDegradedBaselineStatusDescription(baseCaptureFailed),
+          };
+          const statusParameters = {
             ...context.repo,
             sha,
             context: process.env.STYLEPROOF_STATUS_CONTEXT,
@@ -1265,13 +1336,111 @@ runs:
             description: decision.awaitingMaintainer
               ? UNTRUSTED_CAPTURE_STATUS_DESCRIPTION
               : untrustedCapture && decision.state === 'success'
-                ? JSON.parse(process.env.STYLEPROOF_PRIOR_STATUS || 'null')?.description
+                ? approval.description
                 : descriptions[trustState] || `StyleProof trust failure: ${trustState}`,
             // The approve workflow binds a tick to this target_url, so every approvable
             // pending/red status carries it.
             ...((changed || decision.awaitingMaintainer) && !approved && url ? { target_url: url } : {}),
-          });
-          core.setOutput('state', decision.state);
+          };
+          let publication = await writeStatus(statusParameters, approvalRequired && !approved);
+          if (!publication) return;
+          approval = publication.approval ?? approval;
+          // Compare against the live history without allowing our own success to mask a withdrawal.
+          if (publication.state === 'success' && approval.approved && approvalRequired) {
+            let approvalStable = false;
+            for (let approvalChecks = 0; approvalChecks < 5; approvalChecks += 1) {
+              const currentApproval = await readReviewApproval({
+                ...approvalInput, ignoredStatusIdentifier: publication.response?.data?.id,
+              });
+              if (currentApproval.approved && currentApproval.description === approval.description) {
+                approvalStable = true;
+                break;
+              }
+              publication = await writeStatus(currentApproval.approved
+                ? { ...statusParameters, state: 'success', description: currentApproval.description }
+                : approvalMissing, !currentApproval.approved);
+              if (!publication) return;
+              if (publication.state !== 'success') break;
+              approval = publication.approval ?? currentApproval;
+            }
+            if (publication.state === 'success' && !approvalStable) {
+              core.warning('StyleProof: status approval re-check limit reached — fresh sign-off required.');
+              core.setOutput('approval-limit-reached', 'true');
+              publication = await writeStatus(approvalMissing);
+              if (!publication) return;
+            }
+          }
+          core.setOutput('state', publication.state);
+
+    # Reconcile either existing render from the final status; API failures only warn.
+    - name: Reconcile review comment
+      if: >-
+        always() && steps.comment.outputs.approvable == 'true' &&
+        steps.comment.outputs.comment-identifier != '' &&
+        steps.status.outcome != 'skipped' &&
+        steps.review-pending.outputs.stale-delivery != 'true' &&
+        steps.comment.outputs.stale-delivery != 'true' &&
+        steps.status.outputs.stale-delivery != 'true'
+      uses: actions/github-script@v9
+      env:
+        STYLEPROOF_COMMENT_IDENTIFIER: ${{ steps.comment.outputs.comment-identifier }}
+        STYLEPROOF_APPROVED_GUIDANCE: ${{ steps.comment.outputs.approved-guidance }}
+        STYLEPROOF_UNAPPROVED_GUIDANCE: ${{ steps.comment.outputs.unapproved-guidance }}
+        STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
+        STYLEPROOF_COMMENT_MARKER: ${{ inputs.comment-marker }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        retries: 3
+        script: |
+          try {
+            const { readReviewApproval } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-approval.js`);
+            const { guardReviewWrite } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-write-guard.js`);
+            const { formatReviewApprovalLine } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-comment.js`);
+            const approvalInput = {
+              github, repository: context.repo, headCommit: '${{ steps.context.outputs.head-sha }}',
+              pullRequestNumber: Number('${{ steps.context.outputs.pr-number }}'),
+              statusContext: process.env.STYLEPROOF_STATUS_CONTEXT,
+              defaultBranch: context.payload.repository.default_branch,
+              reviewDigest: '${{ steps.verdict.outputs.diff-digest }}',
+            };
+            const limitReached = '${{ steps.comment.outputs.approval-limit-reached }}' === 'true' ||
+              '${{ steps.status.outputs.approval-limit-reached }}' === 'true';
+            const approval = limitReached ? { approved: false } : await readReviewApproval(approvalInput);
+            const approved = !limitReached && '${{ steps.status.outputs.state }}' === 'success' && approval.approved;
+            if (!limitReached && approved === ('${{ steps.comment.outputs.approved }}' === 'true')) return;
+            if (!approved && !limitReached) {
+              const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                ...context.repo, ref: approvalInput.headCommit, per_page: 100,
+              });
+              if (statuses.find((status) => status.context === approvalInput.statusContext)?.state === 'success') return;
+            }
+            const guarded = await guardReviewWrite({
+              github, core, repo: context.repo, headSha: approvalInput.headCommit,
+              prNumber: approvalInput.pullRequestNumber, runId: '${{ github.run_id }}',
+              runAttempt: '${{ github.run_attempt }}', statusContext: approvalInput.statusContext,
+              commentMarker: process.env.STYLEPROOF_COMMENT_MARKER,
+              comment: { identifier: Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER) },
+              ...(approved ? { approvalToGrant: approvalInput } : !limitReached ? { approvalToRemove: approvalInput } : {}),
+            });
+            if (!guarded.allowed) return;
+            const boxLine = /^- \[[ x]\] \*\*Approve all changes\*\*(?: — _approved by @[A-Za-z0-9_-]+_)?$/m;
+            if (!boxLine.test(guarded.commentBody)) return;
+            let body = guarded.commentBody.replace(boxLine, formatReviewApprovalLine({
+              approved, approver: approved ? guarded.approval.approver : '',
+            }));
+            const previousGuidance = approved ? process.env.STYLEPROOF_UNAPPROVED_GUIDANCE : process.env.STYLEPROOF_APPROVED_GUIDANCE;
+            const currentGuidance = approved ? process.env.STYLEPROOF_APPROVED_GUIDANCE : process.env.STYLEPROOF_UNAPPROVED_GUIDANCE;
+            const guidancePosition = body.lastIndexOf(previousGuidance);
+            if (guidancePosition >= 0) {
+              body = body.slice(0, guidancePosition) + currentGuidance + body.slice(guidancePosition + previousGuidance.length);
+            }
+            await github.rest.issues.updateComment({
+              ...context.repo, comment_id: Number(process.env.STYLEPROOF_COMMENT_IDENTIFIER),
+              body,
+            });
+          } catch (error) {
+            core.warning(`StyleProof: review comment reconciliation could not complete: ${error.message}`);
+          }
 
     # A failed base capture still publishes useful head evidence, but that receipt
     # is not a comparison and must never become green through reviewer approval.

@@ -49,6 +49,7 @@ function actionCommentScript({
     ['inputs.status-context', 'StyleProof'],
     ['toJSON(inputs.comment-marker)', JSON.stringify('<!-- styleproof-report -->')],
     ['steps.verdict.outputs.state', 'STYLE_REVIEW_REQUIRED'],
+    ['steps.verdict.outputs.diff-digest', 'd'.repeat(64)],
     ['steps.context.outputs.head-sha', 'c'.repeat(40)],
     ['inputs.include-content', 'false'],
     ['steps.report.outputs.content-changes', '0'],
@@ -105,6 +106,7 @@ async function executeActionComment({
     },
     rest: {
       pulls: { get: async () => ({ data: { head: { sha: 'c'.repeat(40) } } }) },
+      repos: { listCommitStatusesForRef: async () => ({ data: [] }) },
       issues: {
         listComments,
         createComment: async (input) => {
@@ -126,6 +128,7 @@ async function executeActionComment({
   const core = {
     setOutput: (name, value) => outputs.set(name, value),
     info: () => {},
+    warning: () => {},
   };
   const requireForScript = (specifier) => {
     if (specifier === 'fs') return { existsSync: () => false };
@@ -225,7 +228,8 @@ test('a contributor comment that quotes the marker is never overwritten (#968)',
 
 test('the comment upsert lists the thread through github.paginate (#968)', async () => {
   const run = await executeActionComment({ repositoryPrivate: false });
-  assert.deepEqual(run.paginated, [run.listComments]);
+  assert.ok(run.paginated.length > 0);
+  assert.ok(run.paginated.every((route) => route === run.listComments));
 });
 
 test('the oldest bot report comment keeps its id, even after a later step prefixed it (#968)', async () => {

@@ -60,6 +60,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   including `prefers-contrast` (which is not emulated). Default capture keys and
   counts stay unchanged (#1295). Print emulation also stays active at document load
   during script-reach self-checks across data URLs and cross-origin navigations.
+- Review-gate runs revalidate approval before comment and status writes, then check again
+  after ticked comments and approval-dependent success statuses. Validated re-ticks use
+  their current receipt and attribution; withdrawals require sign-off again (pending for forks).
+  Only proven supersession suppresses delivery: unreadable ownership or a missing comment
+  ends with a terminal non-green status. User receipt permission errors grant no ownership.
+  Bounded re-check exhaustion clears the box and requires fresh sign-off. Reconciliation
+  edits the live comment's existing approval controls without full-body environment values.
+  The residual read-to-write window remains because GitHub has no compare-and-set (#1296).
 
 - Capture and CI browser installation prefer the project's Playwright over a global copy on PATH (#1259).
 - Config-loading children suppress Node's generated-config module-type and type-stripping

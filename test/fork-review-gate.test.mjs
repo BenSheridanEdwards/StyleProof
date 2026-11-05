@@ -100,6 +100,8 @@ function values({
     'inputs.allow-self-approval': 'false',
     'inputs.fail-on-diff': failOnDiff ? 'true' : 'false',
     'steps.comment.outputs.stale-delivery': staleDelivery,
+    'steps.comment.outputs.approval-limit-reached': 'false',
+    'steps.comment.outputs.delivery-failed': 'false',
     'steps.review-pending.outputs.stale-delivery': reviewStale,
     'steps.certify-pending.outputs.superseded': pendingSuperseded,
     'steps.status.outputs.superseded': statusSuperseded,
@@ -140,18 +142,21 @@ function values({
 /** `prior` is what GitHub already holds for HEAD_SHA, newest first. */
 async function run(stepName, scenario, prior = [], thread = []) {
   const inputs = values(scenario);
-  inputs['steps.review-pending.outputs.prior-status'] = JSON.stringify(
-    prior[0] ?? { description: `Approved by @${scenario.approver || 'maintainer'} (run 123)` },
-  );
-
-  if (stepName === 'gate') {
-    const pending = await run('Mark review status pending', scenario, prior, thread);
-    inputs['steps.review-pending.outputs.prior-status'] = pending.outputs['prior-status'] ?? '';
-  }
-
   const { environment, program } = stepProgram(stepName, inputs);
   const statuses = scenario.statuses ?? [];
-  const storedStatuses = prior.map((status) => ({ created_at: '2026-10-20T10:00:30Z', ...status }));
+  // Approval-dependent writes now read the live receipt rather than the gate's cached output.
+  const approvalReceipts =
+    prior.length || !scenario.approved
+      ? prior
+      : [
+          {
+            context: 'StyleProof',
+            state: 'success',
+            creator: BOT,
+            description: `Approved by @${scenario.approver || 'maintainer'} (run 123)`,
+          },
+        ];
+  const storedStatuses = approvalReceipts.map((status) => ({ created_at: '2026-10-20T10:00:30Z', ...status }));
   const comments = [];
   const updated = [];
   const outputs = {};
@@ -181,7 +186,7 @@ async function run(stepName, scenario, prior = [], thread = []) {
             conclusion: 'success',
             event: 'issue_comment',
             head_branch: 'main',
-            triggering_actor: { login: prior[0]?.description?.match(/@([A-Za-z0-9_-]+)/)?.[1] },
+            triggering_actor: { login: approvalReceipts[0]?.description?.match(/@([A-Za-z0-9_-]+)/)?.[1] },
             run_started_at: '2026-10-20T10:00:00Z',
             updated_at: '2026-10-20T10:01:00Z',
           },
@@ -201,7 +206,14 @@ async function run(stepName, scenario, prior = [], thread = []) {
         createCommitStatus: async (input) => {
           await scenario.beforeStatusWrite?.(input);
           statuses.push(input);
-          storedStatuses.unshift({ ...input, creator: { login: 'github-actions[bot]', type: 'Bot' } });
+          const writtenStatus = {
+            ...input,
+            id: 1000 + statuses.length,
+            created_at: '2026-10-20T11:00:00Z',
+            creator: { login: 'github-actions[bot]', type: 'Bot' },
+          };
+          storedStatuses.unshift(writtenStatus);
+          return { data: writtenStatus };
         },
         listCommitStatusesForRef: async () => ({ data: storedStatuses }),
       },
@@ -889,7 +901,7 @@ test('the verdict step records the trusted untrusted-capture flag and the gate r
   assert.match(contextStep, /core\.setOutput\('untrusted-capture', resolved && untrustedCapture \? 'true' : 'false'\)/);
 });
 
-test('an approved rerun saves sign-off before pending, then stays green with a ticked box', async () => {
+test('an approved rerun reads live sign-off through pending and stays green with a ticked box', async () => {
   const scenario = { untrusted: false, trustState: 'STYLE_REVIEW_REQUIRED', changed: true };
 
   const prior = {
@@ -900,7 +912,7 @@ test('an approved rerun saves sign-off before pending, then stays green with a t
   };
   const pending = await run('Mark review status pending', scenario, [prior]);
   assert.equal(pending.statuses[0].state, 'pending');
-  assert.deepEqual(JSON.parse(pending.outputs['prior-status']), { created_at: '2026-10-20T10:00:30Z', ...prior });
+  assert.equal(Object.hasOwn(pending.outputs, 'prior-status'), false);
   const { gate, status } = await rerunWithChanges(prior);
   assert.deepEqual(gate, { approved: 'true', approver: 'maintainer' });
   assert.equal(status.state, 'success');

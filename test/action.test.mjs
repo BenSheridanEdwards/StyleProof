@@ -131,7 +131,7 @@ async function runActionProgram(stepName, values, { files = {}, github = {} } = 
   }
   const script = step[0].split('script: |\n')[1].replace(/\$\{\{ (.+?) \}\}/g, resolve);
   const outputs = {};
-  const core = { setOutput: (name, value) => (outputs[name] = String(value)), info() {} };
+  const core = { setOutput: (name, value) => (outputs[name] = String(value)), info() {}, warning() {} };
   const require = (name) => {
     assert.equal(name, 'fs');
     return { existsSync: (file) => Object.hasOwn(files, file), readFileSync: (file) => files[file] };
@@ -929,6 +929,7 @@ for (const storage of ['artifact', 'branch']) {
         'steps.gate.outputs.approved': 'false',
         'steps.gate.outputs.approver': '',
         'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
+        'steps.verdict.outputs.diff-digest': 'd'.repeat(64),
         'steps.context.outputs.head-sha': 'a'.repeat(40),
         'steps.report.outputs.content-changes': '0',
       };
@@ -938,6 +939,7 @@ for (const storage of ['artifact', 'branch']) {
           paginate: async () => [],
           rest: {
             issues: { createComment: async ({ body }) => comments.push(body) },
+            repos: { listCommitStatusesForRef: async () => ({ data: [] }) },
             pulls: { get: async () => ({ data: { head: { sha: 'a'.repeat(40) } } }) },
           },
         },
@@ -2101,12 +2103,12 @@ async function runGateStep(
     },
   };
   const core = { setOutput: (name, value) => (outputs[name] = value) };
-  process.env.STYLEPROOF_PRIOR_STATUS = JSON.stringify(statuses.find((s) => s.context === 'StyleProof') || null);
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-  await new AsyncFunction('github', 'context', 'core', script)(
+  await new AsyncFunction('github', 'context', 'core', 'process', script)(
     github,
     { repo: { owner: 'o', repo: 'r' }, payload: { repository: { default_branch: 'main' } } },
     core,
+    { env: { GITHUB_ACTION_PATH: new URL('../', import.meta.url).pathname, STYLEPROOF_STATUS_CONTEXT: 'StyleProof' } },
   );
   return outputs;
 }
