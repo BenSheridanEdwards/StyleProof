@@ -196,15 +196,29 @@ type CropPack = {
   reason?: string;
 };
 
+/** Visibility evidence is per region even when its images come from a shared section. */
+function unrenderedCropEvidence(
+  paths: string[],
+  region: Box | null,
+  beforeMap: StyleMap,
+  afterMap: StyleMap,
+  screenshots: Pngs,
+): Pick<CropPack, 'visualEvidence' | 'reason'> {
+  if (region && screenshots[0] && screenshots[1] && !hasExposedChangedEntry(beforeMap, afterMap, paths, screenshots))
+    return { visualEvidence: 'not-rendered', reason: MISLEADING_CROP_REASON };
+  return {};
+}
+
 /** Crop one region's pair (or explain why there is none). */
 function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, state?: string): CropPack {
   const { g, region, mapA, mapB, cg } = a;
-  if (!region || !pngA || !pngB || !hasExposedChangedEntry(mapA, mapB, g.paths, [pngA, pngB])) {
+  const evidence = unrenderedCropEvidence(g.cropPaths ?? g.paths, region, mapA, mapB, [pngA, pngB]);
+  if (!region || !pngA || !pngB || evidence.visualEvidence) {
     const note = cropNote(region, pngA, pngB);
     return {
       md: note ? ['', note] : [],
       images: {},
-      ...(pngA && pngB && region ? { visualEvidence: 'not-rendered' as const, reason: MISLEADING_CROP_REASON } : {}),
+      ...evidence,
     };
   }
   // Outline the LEAF changed elements on each side, not the merged anchor container.
@@ -333,21 +347,24 @@ function representativeSection(regionArguments: RegionArgs) {
     representative.some((finding) => finding.kind === 'state' && finding.state === state),
   );
   const stateLabel = states.length ? ` · ${states.map((state) => codeValue(`:${state}`)).join(', ')}` : '';
-  const md = ['', `### ${regionHeading([cropPaths[0]], findings)}${stateLabel}`, '', regionArguments.surfaceList];
+  const markdown = ['', `### ${regionHeading([cropPaths[0]], findings)}${stateLabel}`, '', regionArguments.surfaceList];
   const glance = propertyGlanceLine(cropFindings);
-  if (glance) md.push('', glance);
-  md.push(...spacingLines(regionArguments.spacing));
+  if (glance) markdown.push('', glance);
+  markdown.push(...spacingLines(regionArguments.spacing));
   const rest = cropFindings.filter((finding) => finding.kind !== 'state');
   const resting: CropPack = rest.length
     ? regionCrop(regionArguments, rest, regionArguments.pngs)
     : { md: [], images: {} };
-  md.push(...resting.md);
+  markdown.push(...resting.md);
   const stateImages: Record<string, CropImages> = {};
   for (const state of states) {
-    md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
+    markdown.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
     const layers = screenshotPair(regionArguments.ctx, regionArguments.cg.rep.sd.surface, `.${state}`);
     if (!layers[0] || !layers[1]) {
-      md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
+      markdown.push(
+        '',
+        `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`,
+      );
       continue;
     }
     const packed = regionCrop(
@@ -356,7 +373,7 @@ function representativeSection(regionArguments: RegionArgs) {
       layers,
       state,
     );
-    md.push(...packed.md);
+    markdown.push(...packed.md);
     if (packed.images.composite) stateImages[state] = packed.images;
   }
   const images: CropImages = [resting.images, ...Object.values(stateImages)].find((image) => image.composite) ?? {};
@@ -365,13 +382,13 @@ function representativeSection(regionArguments: RegionArgs) {
     regionArguments.g.paths.some((root) => isSameOrDescendant(finding.path, root)),
   );
   const foldedLabels = uniquePathTails(elements.map((element) => element.paths[0]));
-  md.push(
+  markdown.push(
     ...representativeCaption(shownPaths, elements.length),
     ...elementList(elements, shownPaths),
     ...regionArguments.changes([...representative, ...folded], foldedLabels),
   );
   return {
-    md,
+    md: markdown,
     regionJson: {
       paths: regionArguments.g.paths,
       representativePath: cropPaths[0],
@@ -381,7 +398,7 @@ function representativeSection(regionArguments: RegionArgs) {
       images,
       ...(Object.keys(stateImages).length ? { stateImages } : {}),
       ...(resting.visualEvidence ? { visualEvidence: resting.visualEvidence, reason: resting.reason } : {}),
-      ...(resting.omitted ? { cropOmitted: 'budget' } : {}),
+      ...(resting.omitted ? { cropOmitted: 'budget' as const } : {}),
       ...spacingJson(regionArguments.spacing),
       elements: elements.map((element) => ({ paths: element.paths, before: element.before, after: element.after })),
     },
@@ -426,10 +443,9 @@ function renderRegion(a: RegionArgs) {
       ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
       ...(visualEvidence ? { visualEvidence, reason } : {}),
       ...spacingJson(a.spacing),
+      ...(resting.omitted ? { cropOmitted: 'budget' as const } : {}),
     },
   };
-
-  if (resting.omitted) Object.assign(rendered.regionJson, { cropOmitted: 'budget' });
 
   return rendered;
 }
@@ -513,17 +529,17 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   groups = groupIdenticalRegions(groups, findings, mapA, mapB, ctx.padBy);
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups.flatMap((group) => group.elements ?? [group]));
   const claimed = new Set<SiblingSpacingChange>();
-  const renderGroup = (g: Group, claimedSpacing: Set<SiblingSpacingChange>) => {
-    const region = visible(g.after) ? g.after : g.before;
+  const renderGroup = (group: Group, claimedSpacing: Set<SiblingSpacingChange>) => {
+    const region = visible(group.after) ? group.after : group.before;
     const own = claimSpacing(
       spacing,
-      (g.elements ?? [g]).flatMap((element) => element.paths),
+      (group.elements ?? [group]).flatMap((element) => element.paths),
       claimedSpacing,
     );
 
-    return (g.elements ? representativeSection : renderRegion)({
+    return (group.elements ? representativeSection : renderRegion)({
       ctx,
-      g,
+      g: group,
       cg,
       mapA,
       mapB,
@@ -547,15 +563,16 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const legacyClaimed = new Set<SiblingSpacingChange>();
   const regions = legacyGroups.map((group, regionIndex) => {
     const own = claimSpacing(spacing, group.paths, legacyClaimed);
-    const matching = groups.findIndex(
-      (section) =>
-        JSON.stringify([section.paths, section.before, section.after]) ===
-        JSON.stringify([group.paths, group.before, group.after]),
-    );
-    if (matching >= 0) return rendered[matching].regionJson;
     const coveringSections = sections.filter((section) => section.regionIndexes.includes(regionIndex));
     const shownSection = coveringSections.find((section) => section.images.composite) ?? coveringSections[0];
-    const imageEvidence: Record<string, unknown> = shownSection ?? {};
+    const regionFindings = [...findings, ...folded].filter((finding) =>
+      group.paths.some((root) => isSameOrDescendant(finding.path, root)),
+    );
+    const { shownRest, stateOnly } = regionVisibility(cg, regionFindings);
+    const hasRestingCrop = !stateOnly && shownRest.length > 0;
+    const evidence: Pick<CropPack, 'visualEvidence' | 'reason'> = hasRestingCrop
+      ? unrenderedCropEvidence(group.paths, visible(group.after) ? group.after : group.before, mapA, mapB, pngs)
+      : {};
     const stateImages = Object.fromEntries(
       coveringSections.flatMap((section) => Object.entries(section.stateImages ?? {})),
     );
@@ -565,9 +582,8 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       after: group.after,
       images: shownSection?.images ?? {},
       ...(Object.keys(stateImages).length ? { stateImages } : {}),
-      cropOmitted: imageEvidence.cropOmitted,
-      visualEvidence: imageEvidence.visualEvidence,
-      reason: imageEvidence.reason,
+      cropOmitted: hasRestingCrop && !evidence.visualEvidence ? shownSection?.cropOmitted : undefined,
+      ...evidence,
       ...spacingJson(own),
     };
   });

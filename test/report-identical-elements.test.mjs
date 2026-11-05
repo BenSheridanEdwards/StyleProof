@@ -103,6 +103,70 @@ test('legacy regions retain unrendered evidence and reason alongside available s
   }
 });
 
+test('legacy evidence follows each member resting visibility while sharing section crops', () => {
+  for (const restingChange of [true, false]) {
+    const options = { states: true, restingChange, screenshotHeight: 150, maxCropFiles: 6 };
+    const { json: report } = render(options);
+    const surface = report.surfaces[0];
+    const section = surface.sections[0];
+    assert.ok(section.images.composite);
+    assert.equal(report.cropBudget, undefined, 'legacy evidence must not render or charge hidden crops');
+    for (let index = 1; index <= 3; index++) {
+      const baseline = render({
+        ...options,
+        count: 1,
+        pathOf: () => elementPath(index),
+        rectangleOf: () => [20, index * 90, 180, 20],
+      }).json.surfaces[0].regions[0];
+      const region = surface.regions[index - 1];
+      assert.equal(baseline.visualEvidence, restingChange && index > 1 ? 'not-rendered' : undefined);
+      assert.deepEqual(Object.keys(region).sort(), Object.keys(baseline).sort(), `element ${index}`);
+      assert.equal(region.visualEvidence, baseline.visualEvidence, `element ${index}`);
+      assert.equal(region.reason, baseline.reason, `element ${index}`);
+      assert.equal(region.cropOmitted, baseline.cropOmitted, `element ${index}`);
+      assert.deepEqual(region.images, section.images);
+      assert.deepEqual(region.stateImages, section.stateImages);
+    }
+  }
+});
+
+test('an unrendered representative does not label visible legacy members as unrendered', () => {
+  const { json: report } = render({
+    rectangleOf: (index) => [index === 1 ? -500 : 20, index * 90, 180, 20],
+  });
+  const surface = report.surfaces[0];
+  assert.equal(surface.sections[0].images.composite, undefined);
+  assert.equal(surface.sections[0].visualEvidence, 'not-rendered');
+  assert.equal(surface.regions[0].visualEvidence, 'not-rendered');
+  assert.ok(surface.regions[0].reason);
+  for (const region of surface.regions.slice(1)) {
+    assert.equal(region.visualEvidence, undefined);
+    assert.equal(region.reason, undefined);
+    assert.equal(region.cropOmitted, undefined);
+    assert.deepEqual(region.images, surface.sections[0].images);
+  }
+  assert.equal(report.cropBudget, undefined);
+});
+
+test('legacy overlap regions keep main field shape and leave grouping metadata in sections', () => {
+  for (const states of [false, true]) {
+    const baseline = render({ count: 1, overlap: true, states }).json.surfaces[0].regions[0];
+    const surface = render({ overlap: true, states }).json.surfaces[0];
+    const region = surface.regions[0];
+    const section = surface.sections[0];
+    assert.equal(surface.regions.length, 1);
+    assert.deepEqual(Object.keys(region).sort(), Object.keys(baseline).sort());
+    assert.deepEqual(region.paths, [1, 2, 3].map(elementPath));
+    assert.deepEqual(region.images, section.images);
+    for (const field of ['representativePath', 'cropPaths', 'elements', 'regionIndexes']) {
+      assert.equal(Object.hasOwn(region, field), false, field);
+      assert.equal(Object.hasOwn(section, field), true, field);
+    }
+    assert.equal(section.elements.length, 3);
+    assert.equal(section.cropPaths.length, 3);
+  }
+});
+
 test('compact grouped summaries retain a crop link for resting and interactive changes', () => {
   for (const states of [false, true])
     for (const maxReportBytes of [1500, 2000, 2500]) {

@@ -74,7 +74,7 @@ export function render({
       }
     return result;
   };
-  const dirs = pairFixture({
+  const directories = pairFixture({
     surface: 'cards@390',
     before: captureMap(false),
     after: captureMap(true),
@@ -82,14 +82,14 @@ export function render({
     afterPng: solidPng(390, screenshotHeight, [150, 30, 60]),
   });
   if (states)
-    for (const directory of [dirs.beforeDir, dirs.afterDir])
+    for (const directory of [directories.beforeDir, directories.afterDir])
       for (const state of ['hover', 'focus']) {
-        if (state === missingStateScreenshot && directory === dirs.afterDir) continue;
+        if (state === missingStateScreenshot && directory === directories.afterDir) continue;
         fs.writeFileSync(`${directory}/cards@390.${state}.png`, solidPng(390, 1200));
       }
   try {
     const result = generateStyleMapReport({
-      ...dirs,
+      ...directories,
       maxCrops,
       maxCropFiles,
       maxCropBytes,
@@ -101,6 +101,6 @@ export function render({
       json: JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')),
     };
   } finally {
-    rmTmp(dirs.root);
+    rmTmp(directories.root);
   }
 }
