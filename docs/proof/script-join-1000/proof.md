@@ -1016,3 +1016,31 @@ tests; it was replaced with the bounded attempt, preserving both expectations.
 The crafted 20k/40k input pair originally used **3,633.7 ms CPU / 3,631.3 ms wall**.
 The combined join/reach/report unit suite now passes **1,067/1,067**; final timing,
 browser proof, gate tails and exact-lease push are recorded in the handoff.
+
+
+All **24/24** new Chromium/Git cases pass. The ten escaped-header cases are
+unmeasured on both revisions with zero body hits; the two over-bound cases
+pin the intentionally undetected residual and its capture note. The crafted
+20k/40k pair now uses **1.3 ms wall / 1.3 ms CPU**. Existing regex/division,
+template, overlay, generic/assertion, token-join, F8 and report-budget units pass.
+The commit hook caught an unused test import; the test now directly asserts the
+raw detector for both revisions as well as the joined units, and all hooks pass.
+
+The [fresh report JSON](round16-report.json), [Markdown](round16-report.md) and
+[stored capture evidence](round16-report-evidence.json) use QA's braced Unicode
+method name without yield. Both captures assert zero body hits. The changed
+arguments read unmeasured with the generator residual; zero J2 gaps and zero
+blocking findings remain. The full 1100-pixel screenshot was inspected with
+Evidence expanded: product-state identity is unproven, inventory is not checked,
+content/structure was not evaluated, J1/J3 gaps remain and reach is incomplete.
+This proves advisory attribution, not rendering or same-state certification.
+
+![A braced Unicode generator name without yield is unmeasured](round16-report-top.png)
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 gaps and unchanged
+**five declared / six complete unknown** totals. No case status or result cell
+moves to unknown; eager JSX and render-scope values remain unknown in both
+scenarios. Only the timestamp changes in the receipt. The corpus still uses
+hand-built one-line patches and selects the head unit; Chromium tests cover the
+real Git adapter on both revisions. `demo:check` passes. Final gate tails and the
+exact-lease push result are recorded in the handoff.

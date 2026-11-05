@@ -124,6 +124,13 @@ Chromium/Git tests cover widened raw header shapes with/without yield, including
 all eight independent QA repros; the corpus still uses hand-built one-line patches
 and selects the head unit.
 
+Round 16 retains all 32 expectations, zero J2 gaps and unchanged five/six unknown
+totals. No case status or result cell moves to unknown; eager JSX and render-scope
+values stay unknown. Only the timestamp changes in the receipt. Unit and real
+Chromium/Git tests pin braced Unicode names and quoted line continuations without
+yield, and the documented limit for no-yield computed/generic contents above 512
+characters. The corpus uses hand-built one-line patches and selects the head unit.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry
