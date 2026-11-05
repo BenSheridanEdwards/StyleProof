@@ -80,21 +80,30 @@ The `digest` key is present only when there is at least one row.
 Identical changes to elements with the same displayed label, kind, pseudo/state
 target and summarized before/after values share one section. Its element list
 uses the shortest unique path tails, remains open through five elements, and
-folds longer lists (ten paths plus a remaining count). One top-most crop frame is
-shown per state. An existing overlap frame stays intact when its elements share
+folds longer lists (ten paths plus a remaining count). The first frame in
+top-to-bottom order with a renderable changed layer supplies the representative
+crops; an off-canvas member cannot suppress a later visible example. When no
+member can render, the report retains its not-visible explanation.
+An existing overlap frame stays intact when its elements share
 the change; an overlap frame containing different changes keeps the existing
 combined layout. Folded size/position rows remain available for every element,
 even when their values differ from the representative's.
 
 The JSON grouping is additive. `report.json` retains `surfaces[].regions[]`
 with main's original overlap/crop-cap region count, `paths`, and `before`/`after`
-boxes. Those boxes continue to enclose their paths. Every covered region retains
-`images` and available `stateImages` by referencing its sections' shown crops.
+boxes. Those boxes continue to enclose their paths. A legacy region references a
+section's shown crop only when that region's own element would have rendered in
+the corresponding screenshot layer. An unrendered resting view keeps
+`images: {}`, even if its section has a resting or hover crop. Each `stateImages`
+entry is likewise present only when that region could render in that state;
+unrendered state entries stay absent as on main. For state-only changes, `images`
+uses the first state crop eligible for that region. Shared references never
+substitute a hover crop for an unrendered resting view.
 Each legacy region's `visualEvidence` and `reason` describe its own resting
 visibility, even when its representative is visible. A state-only region does
 not acquire resting-visibility evidence. `cropOmitted` records an omitted shared
 resting crop when that region could otherwise render.
-These are representative images, not a separate crop of each legacy region's
+Eligible shared references are representative images, not a separate crop of each legacy region's
 box; `sections[]` identifies the actual crop frame. No additional crops are
 rendered for legacy geometry, so only shown crops consume the image budget or
 contribute to the omitted-crop count. Compact summaries also select their crop

@@ -12,6 +12,7 @@ export function render({
   states = false,
   restingChange = !states,
   screenshotHeight = 1200,
+  stateScreenshotHeight = 1200,
   maxCropFiles,
   maxCropBytes,
   maxReportBytes,
@@ -85,7 +86,9 @@ export function render({
     for (const directory of [directories.beforeDir, directories.afterDir])
       for (const state of ['hover', 'focus']) {
         if (state === missingStateScreenshot && directory === directories.afterDir) continue;
-        fs.writeFileSync(`${directory}/cards@390.${state}.png`, solidPng(390, 1200));
+        const height =
+          typeof stateScreenshotHeight === 'function' ? stateScreenshotHeight(state) : stateScreenshotHeight;
+        fs.writeFileSync(`${directory}/cards@390.${state}.png`, solidPng(390, height));
       }
   try {
     const result = generateStyleMapReport({

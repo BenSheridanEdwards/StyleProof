@@ -77,6 +77,7 @@ function groupIdenticalRegions(
   mapA: StyleMap,
   mapB: StyleMap,
   padBy: number,
+  canShowCrop: (group: Group) => boolean,
 ): Group[] {
   const signatures = new Map<string, Group>();
   const sections: Group[] = [];
@@ -97,6 +98,11 @@ function groupIdenticalRegions(
       existing.elements ??= [groupForPath(existing.paths[0], mapA, mapB, padBy)];
       existing.elements.push(...elements);
       existing.paths = [...existing.paths, ...group.paths];
+      if (!canShowCrop(existing) && canShowCrop(group)) {
+        existing.before = group.before;
+        existing.after = group.after;
+        existing.cropPaths = [...group.paths];
+      }
     } else {
       const section = { ...group, cropPaths: [...group.paths], ...(elements.length > 1 ? { elements } : {}) };
       signatures.set(signature, section);
@@ -207,6 +213,34 @@ function unrenderedCropEvidence(
   if (region && screenshots[0] && screenshots[1] && !hasExposedChangedEntry(beforeMap, afterMap, paths, screenshots))
     return { visualEvidence: 'not-rendered', reason: MISLEADING_CROP_REASON };
   return {};
+}
+
+/** Whether this frame has the screenshots and exposed content needed for a crop. */
+function canRenderGroupCrop(group: Group, beforeMap: StyleMap, afterMap: StyleMap, screenshots: Pngs): boolean {
+  const region = visible(group.after) ? group.after : group.before;
+  return Boolean(
+    region &&
+    screenshots[0] &&
+    screenshots[1] &&
+    !unrenderedCropEvidence(group.cropPaths ?? group.paths, region, beforeMap, afterMap, screenshots).visualEvidence,
+  );
+}
+
+/** Shared state files are eligible only for layers this legacy region could render. */
+function legacyStateImages(
+  findings: Finding[],
+  sources: (Record<string, CropImages> | undefined)[],
+  canRenderState: (state: string) => boolean,
+): Record<string, CropImages> {
+  const images: Record<string, CropImages> = {};
+  if (findings.some((finding) => finding.kind === 'dom')) return images;
+  for (const state of STATE_LAYER_NAMES) {
+    if (!findings.some((finding) => finding.kind === 'state' && finding.state === state) || !canRenderState(state))
+      continue;
+    const shared = sources.find((source) => source?.[state]?.composite)?.[state];
+    if (shared) images[state] = shared;
+  }
+  return images;
 }
 
 /** Crop one region's pair (or explain why there is none). */
@@ -389,6 +423,7 @@ function representativeSection(regionArguments: RegionArgs) {
   );
   return {
     md: markdown,
+    restingImages: resting.images,
     regionJson: {
       paths: regionArguments.g.paths,
       representativePath: cropPaths[0],
@@ -435,6 +470,7 @@ function renderRegion(a: RegionArgs) {
 
   const rendered = {
     md,
+    restingImages: resting.images,
     regionJson: {
       paths: g.paths,
       before: g.before,
@@ -526,7 +562,21 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
   groups.sort((l, r) => topY(l) - topY(r));
   const legacyGroups = groups.length > ctx.maxCrops ? collapseGroups(groups) : groups;
-  groups = groupIdenticalRegions(groups, findings, mapA, mapB, ctx.padBy);
+  const canShowCrop = (group: Group): boolean => {
+    const own = findings.filter((finding) => group.paths.some((root) => isSameOrDescendant(finding.path, root)));
+    const { shownRest, hasDom } = regionVisibility(cg, own);
+    if (shownRest.length > 0 && canRenderGroupCrop(group, mapA, mapB, pngs)) return true;
+    return (
+      !hasDom &&
+      STATE_LAYER_NAMES.some(
+        (state) =>
+          own.some((finding) => finding.kind === 'state' && finding.state === state) &&
+          canRenderGroupCrop(group, mapA, mapB, screenshotPair(ctx, sd.surface, `.${state}`)),
+      )
+    );
+  };
+  groups = groupIdenticalRegions(groups, findings, mapA, mapB, ctx.padBy, canShowCrop);
+  groups.sort((left, right) => topY(left) - topY(right));
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups.flatMap((group) => group.elements ?? [group]));
   const claimed = new Set<SiblingSpacingChange>();
   const renderGroup = (group: Group, claimedSpacing: Set<SiblingSpacingChange>) => {
@@ -563,26 +613,36 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const legacyClaimed = new Set<SiblingSpacingChange>();
   const regions = legacyGroups.map((group, regionIndex) => {
     const own = claimSpacing(spacing, group.paths, legacyClaimed);
-    const coveringSections = sections.filter((section) => section.regionIndexes.includes(regionIndex));
-    const shownSection = coveringSections.find((section) => section.images.composite) ?? coveringSections[0];
+    const coveringSections = sections.flatMap((section, index) =>
+      section.regionIndexes.includes(regionIndex) ? [{ section, restingImages: rendered[index].restingImages }] : [],
+    );
+    const shownSection = coveringSections.find((source) => source.restingImages.composite) ?? coveringSections[0];
     const regionFindings = [...findings, ...folded].filter((finding) =>
       group.paths.some((root) => isSameOrDescendant(finding.path, root)),
     );
     const { shownRest, stateOnly } = regionVisibility(cg, regionFindings);
     const hasRestingCrop = !stateOnly && shownRest.length > 0;
+    const canShowRestingCrop = hasRestingCrop && canRenderGroupCrop(group, mapA, mapB, pngs);
     const evidence: Pick<CropPack, 'visualEvidence' | 'reason'> = hasRestingCrop
       ? unrenderedCropEvidence(group.paths, visible(group.after) ? group.after : group.before, mapA, mapB, pngs)
       : {};
-    const stateImages = Object.fromEntries(
-      coveringSections.flatMap((section) => Object.entries(section.stateImages ?? {})),
+    const stateImages = legacyStateImages(
+      regionFindings,
+      coveringSections.map((source) => source.section.stateImages),
+      (state) => canRenderGroupCrop(group, mapA, mapB, screenshotPair(ctx, sd.surface, `.${state}`)),
     );
+    const images = stateOnly
+      ? (Object.values(stateImages)[0] ?? {})
+      : canShowRestingCrop
+        ? (shownSection?.restingImages ?? {})
+        : {};
     return {
       paths: group.paths,
       before: group.before,
       after: group.after,
-      images: shownSection?.images ?? {},
+      images,
       ...(Object.keys(stateImages).length ? { stateImages } : {}),
-      cropOmitted: hasRestingCrop && !evidence.visualEvidence ? shownSection?.cropOmitted : undefined,
+      cropOmitted: canShowRestingCrop ? shownSection?.section.cropOmitted : undefined,
       ...evidence,
       ...spacingJson(own),
     };

@@ -16,7 +16,7 @@ const change = (index, extra = {}) => ({
   ...extra,
 });
 
-const sections = (md) => md.match(/^### /gm) ?? [];
+const sections = (markdown) => markdown.match(/^### /gm) ?? [];
 const signatureCount = (findings) => new Set(findings.map((finding) => elementChangeSignature([finding]))).size;
 
 test('a missing focus screenshot preserves state findings, the shared table and available hover evidence', () => {
@@ -99,6 +99,7 @@ test('legacy regions retain unrendered evidence and reason alongside available s
     assert.deepEqual(Object.keys(region).sort(), Object.keys(baseline).sort());
     assert.equal(region.visualEvidence, baseline.visualEvidence);
     assert.equal(region.reason, baseline.reason);
+    assert.deepEqual(region.images, {});
     assert.deepEqual(region.stateImages, surface.sections[0].stateImages);
   }
 });
@@ -124,28 +125,75 @@ test('legacy evidence follows each member resting visibility while sharing secti
       assert.equal(region.visualEvidence, baseline.visualEvidence, `element ${index}`);
       assert.equal(region.reason, baseline.reason, `element ${index}`);
       assert.equal(region.cropOmitted, baseline.cropOmitted, `element ${index}`);
-      assert.deepEqual(region.images, section.images);
+      assert.deepEqual(region.images, baseline.images.composite ? section.images : {});
       assert.deepEqual(region.stateImages, section.stateImages);
     }
   }
 });
 
-test('an unrendered representative does not label visible legacy members as unrendered', () => {
-  const { json: report } = render({
-    rectangleOf: (index) => [index === 1 ? -500 : 20, index * 90, 180, 20],
-  });
-  const surface = report.surfaces[0];
-  assert.equal(surface.sections[0].images.composite, undefined);
-  assert.equal(surface.sections[0].visualEvidence, 'not-rendered');
-  assert.equal(surface.regions[0].visualEvidence, 'not-rendered');
-  assert.ok(surface.regions[0].reason);
-  for (const region of surface.regions.slice(1)) {
-    assert.equal(region.visualEvidence, undefined);
-    assert.equal(region.reason, undefined);
-    assert.equal(region.cropOmitted, undefined);
-    assert.deepEqual(region.images, surface.sections[0].images);
+test('the first renderable member supplies the representative crop and only eligible legacy references', () => {
+  for (const options of [{}, { states: true }, { states: true, restingChange: true }]) {
+    const { md: markdown, json: report } = render({
+      ...options,
+      rectangleOf: (index) => [index === 1 ? -500 : 20, index * 90, 180, 20],
+    });
+    const surface = report.surfaces[0];
+    const section = surface.sections[0];
+    assert.equal(section.representativePath, elementPath(2));
+    assert.deepEqual(section.cropPaths, [elementPath(2)]);
+    assert.equal(section.before.y, 168);
+    assert.ok(section.images.composite);
+    assert.ok(markdown.includes(section.images.composite));
+    assert.ok(markdown.includes(`- \`article:nth-child(2) > h2\` (shown)`));
+    assert.doesNotMatch(markdown, /not visible in the captured page/);
+    assert.deepEqual(surface.regions[0].images, {});
+    assert.equal(surface.regions[0].stateImages, undefined);
+    assert.equal(
+      surface.regions[0].visualEvidence,
+      options.states && !options.restingChange ? undefined : 'not-rendered',
+    );
+    for (const region of surface.regions.slice(1)) {
+      assert.equal(region.visualEvidence, undefined);
+      assert.equal(region.reason, undefined);
+      assert.deepEqual(region.images, section.images);
+      if (options.states) assert.deepEqual(region.stateImages, section.stateImages);
+    }
+    assert.equal(report.cropBudget, undefined);
   }
+});
+
+test('the not-visible explanation remains when no identical member can render', () => {
+  const { md: markdown, json: report } = render({ rectangleOf: (index) => [-500, index * 90, 180, 20] });
+  assert.match(markdown, /not visible in the captured page/);
+  assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
+  assert.deepEqual(report.surfaces[0].regions, []);
   assert.equal(report.cropBudget, undefined);
+});
+
+test('legacy state images are absent when only another member fits the state screenshots', () => {
+  for (const { height, expectedStates } of [
+    { height: 150, expectedStates: [] },
+    { height: (state) => (state === 'hover' ? 1200 : 150), expectedStates: ['hover'] },
+  ])
+    for (const restingChange of [false, true]) {
+      const { json: report } = render({ states: true, restingChange, stateScreenshotHeight: height });
+      const surface = report.surfaces[0];
+      assert.ok(surface.sections[0].stateImages.hover.composite);
+      assert.deepEqual(surface.regions[0].images, surface.sections[0].images);
+      for (const region of surface.regions.slice(1)) {
+        const expectedImages = restingChange
+          ? surface.sections[0].images
+          : expectedStates.length
+            ? surface.sections[0].stateImages.hover
+            : {};
+        assert.deepEqual(region.images, expectedImages);
+        assert.deepEqual(Object.keys(region.stateImages ?? {}), expectedStates);
+        if (expectedStates.length) assert.deepEqual(region.stateImages.hover, surface.sections[0].stateImages.hover);
+        assert.equal(region.visualEvidence, undefined);
+        assert.equal(region.reason, undefined);
+      }
+      assert.equal(report.cropBudget, undefined);
+    }
 });
 
 test('legacy overlap regions keep main field shape and leave grouping metadata in sections', () => {
@@ -477,7 +525,7 @@ test('retagged elements keep both source tags and both React components in the r
         ]),
       ),
     });
-  const dirs = pairFixture({
+  const directories = pairFixture({
     surface: 'labels@390',
     before: map(false),
     after: map(true),
@@ -485,14 +533,14 @@ test('retagged elements keep both source tags and both React components in the r
     afterPng: solidPng(390, 800),
   });
   try {
-    const result = generateStructuralStyleMapReportForTesting(dirs);
-    const md = fs.readFileSync(result.reportMdPath, 'utf8');
-    assert.equal(sections(md).length, 2);
-    assert.ok(md.includes('&lt;div&gt; → &lt;span&gt;'));
-    assert.ok(md.includes('&lt;p&gt; → &lt;span&gt;'));
-    assert.ok(md.includes('React component: `PromoLabel`'));
-    assert.ok(md.includes('React component: `AdLabel`'));
+    const result = generateStructuralStyleMapReportForTesting(directories);
+    const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.equal(sections(markdown).length, 2);
+    assert.ok(markdown.includes('&lt;div&gt; → &lt;span&gt;'));
+    assert.ok(markdown.includes('&lt;p&gt; → &lt;span&gt;'));
+    assert.ok(markdown.includes('React component: `PromoLabel`'));
+    assert.ok(markdown.includes('React component: `AdLabel`'));
   } finally {
-    rmTmp(dirs.root);
+    rmTmp(directories.root);
   }
 });
