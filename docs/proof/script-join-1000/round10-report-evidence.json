@@ -1,0 +1,339 @@
+{
+  "base": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.",
+      "After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.",
+      "A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof."
+    ],
+    "scripts": [
+      {
+        "url": "https://overlay.test/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.tsx",
+            "sourceKey": "app.tsx",
+            "contentHash": "7faf89af6c7d079bb5846227e0272d927839f2b3c5eeca22e77f5d89f12fe684",
+            "executed": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                1,
+                6,
+                6
+              ],
+              [
+                1,
+                13,
+                13
+              ],
+              [
+                1,
+                20,
+                20
+              ],
+              [
+                1,
+                28,
+                28
+              ],
+              [
+                1,
+                34,
+                34
+              ],
+              [
+                1,
+                38,
+                38
+              ],
+              [
+                2,
+                4,
+                4
+              ],
+              [
+                2,
+                10,
+                10
+              ],
+              [
+                2,
+                15,
+                15
+              ],
+              [
+                2,
+                20,
+                20
+              ],
+              [
+                2,
+                21,
+                21
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [
+              [
+                1,
+                43,
+                43
+              ],
+              [
+                1,
+                52,
+                52
+              ],
+              [
+                1,
+                56,
+                56
+              ],
+              [
+                1,
+                59,
+                59
+              ],
+              [
+                1,
+                61,
+                61
+              ],
+              [
+                1,
+                68,
+                68
+              ],
+              [
+                1,
+                76,
+                76
+              ],
+              [
+                1,
+                79,
+                79
+              ]
+            ],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "head": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.",
+      "After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.",
+      "A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof."
+    ],
+    "scripts": [
+      {
+        "url": "https://overlay.test/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.tsx",
+            "sourceKey": "app.tsx",
+            "contentHash": "d102a4aa7f17cf70c0d334c71a9d3231a9e5613517d9b60e587a28de595b10be",
+            "executed": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                1,
+                6,
+                6
+              ],
+              [
+                1,
+                13,
+                13
+              ],
+              [
+                1,
+                20,
+                20
+              ],
+              [
+                1,
+                28,
+                28
+              ],
+              [
+                1,
+                34,
+                34
+              ],
+              [
+                1,
+                38,
+                38
+              ],
+              [
+                2,
+                4,
+                4
+              ],
+              [
+                2,
+                10,
+                10
+              ],
+              [
+                2,
+                15,
+                15
+              ],
+              [
+                2,
+                20,
+                20
+              ],
+              [
+                2,
+                21,
+                21
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [
+              [
+                1,
+                43,
+                43
+              ],
+              [
+                1,
+                52,
+                52
+              ],
+              [
+                1,
+                56,
+                56
+              ],
+              [
+                1,
+                59,
+                59
+              ],
+              [
+                1,
+                61,
+                61
+              ],
+              [
+                1,
+                68,
+                68
+              ],
+              [
+                1,
+                76,
+                76
+              ],
+              [
+                1,
+                79,
+                79
+              ]
+            ],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "reach": {
+    "level": "warn",
+    "blocking": 0,
+    "complete": false,
+    "ledger": "complete",
+    "counts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 0,
+      "blind-channel": 0
+    },
+    "rules": [],
+    "unreadableSheets": 0,
+    "scripts": [
+      {
+        "sourceKey": "app.tsx",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 2,
+            "column": 11
+          },
+          "end": {
+            "line": 2,
+            "column": 48
+          }
+        },
+        "execution": "unmeasured",
+        "status": "unmeasured",
+        "why": "ambiguous lexical boundary; only negative preceding execution evidence is usable; preceding-anchor evidence (nearest mapped start at or before the changed range)",
+        "level": "warn",
+        "executionScope": "preceding-anchor"
+      },
+      {
+        "sourceKey": "app.tsx",
+        "side": "head",
+        "range": {
+          "start": {
+            "line": 2,
+            "column": 11
+          },
+          "end": {
+            "line": 2,
+            "column": 51
+          }
+        },
+        "execution": "unmeasured",
+        "status": "unmeasured",
+        "why": "ambiguous lexical boundary; only negative preceding execution evidence is usable; preceding-anchor evidence (nearest mapped start at or before the changed range)",
+        "level": "warn",
+        "executionScope": "preceding-anchor"
+      }
+    ],
+    "scriptCounts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 2,
+      "unknown": 0
+    },
+    "scriptGapCount": 0,
+    "gaps": [
+      {
+        "join": "J1",
+        "status": "unknown",
+        "kind": "not-built",
+        "reason": "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+        "remedy": "add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join"
+      },
+      {
+        "join": "J3",
+        "status": "unmeasured",
+        "kind": "not-built",
+        "reason": "class-list deltas are not recorded yet",
+        "remedy": "none yet: a later Change Reach phase (#934) adds it"
+      }
+    ]
+  }
+}

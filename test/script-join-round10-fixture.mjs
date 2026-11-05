@@ -12,6 +12,13 @@ export const lexicalCases = [
     name: 'an arrow in a JSX attribute cannot create a text token for removed code',
     before:
       jsxRuntime +
+      'function List({render}) { return render({label:""}); }\nwindow.result = <List render={(i)=>i.label || __DEV__ && "red"}>x</List>;',
+  },
+  {
+    name: 'a JSX attribute keeps negative evidence for its unopened OR arm',
+    browserExpected: 'never-rendered',
+    before:
+      jsxRuntime +
       'function List({render}) { return render({label:"ok"}); }\nwindow.result = <List render={(i)=>i.label || __DEV__ && "red"}>x</List>;',
   },
   {

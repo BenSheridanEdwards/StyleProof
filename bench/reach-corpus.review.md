@@ -84,6 +84,11 @@ and the zero-gap assertion unchanged. Additional real-esbuild/Chromium regressio
 cover folded template substitutions, mapped idle arms and live controls; these are
 outside the corpus's hand-built one-line patches.
 
+Round ten preserves **all 32 expectations, zero J2 gaps and the 5/6 unknown
+totals**. No case or scenario cell changes status. Eager JSX and render-scope
+values remain unknown; the additional lexical-boundary cases exercise real Git
+in the browser suite rather than changing the corpus method or expectations.
+
 ## Limits
 
 This is a synthetic fixture, not a consumer noise-rate measurement. Block entry

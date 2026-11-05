@@ -14,13 +14,13 @@ import { writeCapture } from './helpers.mjs';
 import { lexicalCases } from './script-join-round10-fixture.mjs';
 
 const scenarios = [
-  ...lexicalCases.flatMap(({ name, before, after, ambiguous }) =>
+  ...lexicalCases.flatMap(({ name, before, after, ambiguous, browserExpected }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} with minify=${minifySyntax}`,
       before,
       after,
       minifySyntax,
-      expected: 'unmeasured',
+      expected: browserExpected ?? 'unmeasured',
       ambiguous,
       count: 2,
     })),

@@ -659,3 +659,29 @@ Targeted units pass **510/510**. Fallow initially flagged cognitive complexity 2
 in the tag scanner; layout and literal skipping were separated before committing.
 No threshold, hook or test timeout was weakened. Code and red evidence are
 committed before the full checks; final gate tails and push status are in the handoff.
+
+
+The first green browser attempt had **57 passes and two failed expectations**,
+retained in [control red](round10-browser-control-red.txt). Its List supplied a
+truthy label, so V8 correctly kept negative evidence for the unopened OR arm.
+The fixture now separates that exact never-rendered control from an empty-label
+case that evaluates the emitted false arm and requires unmeasured for the removed
+literal. No source change or broad allowed-status assertion was used to clear it.
+The expanded browser run passes **61/61**, and targeted units pass **512/512**.
+
+The [report JSON](round10-report.json), [Markdown](round10-report.md) and
+[stored browser evidence](round10-report-evidence.json) capture the ambiguous
+escaped-slash case on both Git revisions. Both units remain unmeasured with the
+negative-only lexical reason, zero J2 gaps and zero blocking findings. The full
+1100-pixel screenshot was inspected with Evidence expanded. Product-state identity
+is unproven, inventory is not checked, content/structure was not evaluated, and
+reach remains incomplete. This is diagnostic proof, not rendering certification.
+
+![An ambiguous regex boundary cannot prove the removed tail ran](round10-report-top.png)
+
+
+The refreshed corpus passes **32/32 expectations**, with zero J2 run-level gaps
+and **zero case-status changes or cells moved to unknown**. Totals remain five
+declared and six complete; eager JSX and render-scope values stay unknown in both.
+All J3-prototype labels remain separate. The corpus still uses hand-built one-line
+patches; the browser regressions cover the actual Git adapter on both revisions.
