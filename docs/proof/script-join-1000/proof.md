@@ -685,3 +685,16 @@ and **zero case-status changes or cells moved to unknown**. Totals remain five
 declared and six complete; eager JSX and render-scope values stay unknown in both.
 All J3-prototype labels remain separate. The corpus still uses hand-built one-line
 patches; the browser regressions cover the actual Git adapter on both revisions.
+
+
+A further invariant check reproduced the same false-ran after JSX child
+expressions and nested closing tags. The [tail red](round10-tail-red-unit.txt)
+has **14 failures / 19 passes**, including paired backticks spanning a dead sibling.
+Text-like comment/backtick tails at those boundaries now carry negative-only
+evidence when complete element context is unavailable. This prevents a fake
+closed or unclosed template from swallowing later code. Targeted units pass
+**526/526** after that guard.
+
+The first full verify attempt stopped at anti-slop lint: a new mocked-process
+test used Reflect.apply unnecessarily. It now calls the saved function directly.
+No test or lint policy was changed; full gates are rerun on the committed fix.

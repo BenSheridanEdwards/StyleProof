@@ -2,6 +2,24 @@ const jsxRuntime =
   'const h = (tag, props, ...children) => typeof tag === "function" ? tag({...props, children}) : ({tag, props, children});\n';
 
 export const lexicalCases = [
+  {
+    name: 'paired backticks across JSX siblings cannot invent a template',
+    ambiguous: true,
+    before:
+      jsxRuntime + 'window.result=<section><p>{1}`first</p>{__DEV__ && <Debug tone="red" />}<p>`second</p></section>;',
+  },
+  ...['// TODO', '/* note', '`npm i'].flatMap((label) => [
+    {
+      name: `JSX text ${label} after a child expression cannot hide code`,
+      ambiguous: true,
+      before: jsxRuntime + `window.result=<section><p>{1}${label}</p>{__DEV__ && <Debug tone="red" />}</section>;`,
+    },
+    {
+      name: `JSX text ${label} after a closing tag cannot hide code`,
+      ambiguous: true,
+      before: jsxRuntime + `window.result=<section><p>healthy</p>${label}{__DEV__ && <Debug tone="red" />}</section>;`,
+    },
+  ]),
   ...['// TODO', '/* note', '`npm i'].map((label) => ({
     name: `JSX text ${label} cannot hide a removed sibling`,
     before:

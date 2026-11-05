@@ -24,9 +24,34 @@ function jsxTextAfter(line: string, open: number, close: number): ScriptToken | 
   return line.slice(close + 1, end).trim() ? { index: close + 1, end } : undefined;
 }
 
+function jsxBoundaryTail(text: string, start: number): ScriptToken | undefined {
+  const prefix = /^[ \t]*(?=`|\/\/|\/\*)/.exec(text.slice(start));
+  if (!prefix) return;
+  const index = start + prefix[0].length;
+  let end = index;
+  while (end < text.length && !'\r\n\u2028\u2029'.includes(text[end])) end++;
+  return { index, end, negativeOnly: true };
+}
+
+function jsxBoundary(text: string, start: number, seen: boolean): { end: number; tokens: ScriptToken[] } | undefined {
+  const closing = /^<\/(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*)?\s*>/u.exec(text.slice(start));
+  if (!closing && !(seen && text[start] === '}')) return;
+  const end = closing ? start + closing[0].length : start + 1;
+  const tail = jsxBoundaryTail(text, end);
+  return { end: tail ? tail.end - 1 : end - 1, tokens: tail ? [tail] : [] };
+}
+
 function jsxTextRanges(line: string): ScriptToken[] {
   const ranges: ScriptToken[] = [];
+  let seen = false;
   for (let cursor = 0; cursor < line.length; cursor++) {
+    const boundary = jsxBoundary(line, cursor, seen);
+    if (boundary) {
+      ranges.push(...boundary.tokens);
+      cursor = boundary.end;
+      seen = true;
+      continue;
+    }
     if (line[cursor] !== '<' || !literalMayStart(line, cursor)) continue;
     if (!/^<(?:[\p{ID_Start}_$][\p{ID_Continue}:.$-]*(?=[\s/>])|>)/u.test(line.slice(cursor))) continue;
     const close = jsxTagEnd(line, cursor);
@@ -35,6 +60,7 @@ function jsxTextRanges(line: string): ScriptToken[] {
       break;
     }
     const text = jsxTextAfter(line, cursor, close);
+    seen = true;
     cursor = text ? text.end - 1 : close;
     if (text) ranges.push(text);
   }

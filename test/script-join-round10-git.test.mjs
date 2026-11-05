@@ -71,7 +71,7 @@ for (const phase of ['root', 'diff']) {
         assert.equal(options.timeout, 60_000);
         return timeout();
       }
-      return Reflect.apply(original, childProcess, [command, args, options]);
+      return original(command, args, options);
     });
     const map = {
       scriptReach: { version: 1, status: 'measured', window: 'navigation', projectRootPrefix: '', scripts: [] },
