@@ -90,6 +90,8 @@ The JSON grouping is additive. `report.json` retains `surfaces[].regions[]`
 with main's original overlap/crop-cap region count, `paths`, and `before`/`after`
 boxes. Those boxes continue to enclose their paths. Every covered region retains
 `images` and available `stateImages` by referencing its sections' shown crops.
+The section's `cropOmitted`, `visualEvidence`, and `reason` fields are retained too
+when present; these describe the representative crop's rendering outcome.
 These are representative images, not a separate crop of each legacy region's
 box; `sections[]` identifies the actual crop frame. No additional crops are
 rendered for legacy geometry, so only shown crops consume the image budget or

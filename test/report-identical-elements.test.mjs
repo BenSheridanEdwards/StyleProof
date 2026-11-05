@@ -22,6 +22,8 @@ function render({
   overlap = false,
   overlapCount = 0,
   states = false,
+  restingChange = !states,
+  screenshotHeight = 1200,
   maxCropFiles,
   maxCropBytes,
   maxReportBytes,
@@ -47,7 +49,7 @@ function render({
               style: {
                 ...(heights ? { height: `${after ? heights[offset] : 20}px` } : {}),
                 color:
-                  after && !states
+                  after && restingChange
                     ? different && index === 3
                       ? 'rgb(0, 128, 0)'
                       : 'rgb(150, 30, 60)'
@@ -86,8 +88,8 @@ function render({
     surface: 'cards@390',
     before: captureMap(false),
     after: captureMap(true),
-    beforePng: solidPng(390, 1200),
-    afterPng: solidPng(390, 1200, [150, 30, 60]),
+    beforePng: solidPng(390, screenshotHeight),
+    afterPng: solidPng(390, screenshotHeight, [150, 30, 60]),
   });
   if (states)
     for (const directory of [dirs.beforeDir, dirs.afterDir])
@@ -123,6 +125,31 @@ test('legacy region image fields match the ungrouped renderer and reuse each sec
           assert.deepEqual(Object.keys(region.stateImages[state]), Object.keys(baseline.stateImages[state]));
       }
     }
+  }
+});
+
+test('legacy regions retain the ungrouped field shape when crops are omitted by the budget', () => {
+  const baseline = render({ count: 1, maxCropFiles: 0 }).json.surfaces[0].regions[0];
+  const surface = render({ maxCropFiles: 0 }).json.surfaces[0];
+  assert.equal(baseline.cropOmitted, 'budget');
+  for (const region of surface.regions) {
+    assert.deepEqual(Object.keys(region).sort(), Object.keys(baseline).sort());
+    assert.equal(region.cropOmitted, baseline.cropOmitted);
+    assert.deepEqual(region.images, surface.sections[0].images);
+  }
+});
+
+test('legacy regions retain unrendered evidence and reason alongside available state images', () => {
+  const options = { states: true, restingChange: true, screenshotHeight: 50 };
+  const baseline = render({ ...options, count: 1 }).json.surfaces[0].regions[0];
+  const surface = render(options).json.surfaces[0];
+  assert.equal(baseline.visualEvidence, 'not-rendered');
+  assert.ok(baseline.reason);
+  for (const region of surface.regions) {
+    assert.deepEqual(Object.keys(region).sort(), Object.keys(baseline).sort());
+    assert.equal(region.visualEvidence, baseline.visualEvidence);
+    assert.equal(region.reason, baseline.reason);
+    assert.deepEqual(region.stateImages, surface.sections[0].stateImages);
   }
 });
 

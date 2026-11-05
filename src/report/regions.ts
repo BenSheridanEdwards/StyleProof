@@ -555,6 +555,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     if (matching >= 0) return rendered[matching].regionJson;
     const coveringSections = sections.filter((section) => section.regionIndexes.includes(regionIndex));
     const shownSection = coveringSections.find((section) => section.images.composite) ?? coveringSections[0];
+    const imageEvidence: Record<string, unknown> = shownSection ?? {};
     const stateImages = Object.fromEntries(
       coveringSections.flatMap((section) => Object.entries(section.stateImages ?? {})),
     );
@@ -564,6 +565,9 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       after: group.after,
       images: shownSection?.images ?? {},
       ...(Object.keys(stateImages).length ? { stateImages } : {}),
+      cropOmitted: imageEvidence.cropOmitted,
+      visualEvidence: imageEvidence.visualEvidence,
+      reason: imageEvidence.reason,
       ...spacingJson(own),
     };
   });
