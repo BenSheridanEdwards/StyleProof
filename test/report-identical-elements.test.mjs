@@ -1,13 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { generateStyleMapReport, generateStructuralStyleMapReportForTesting } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting } from '../dist/report.js';
 import { elementChangeSignature } from '../dist/report/identical-elements.js';
 import { propertyGlanceLine } from '../dist/report/markdown.js';
-import { ReportMarkdown } from '../dist/report/sections.js';
 import { makeMap, pairFixture, rmTmp, solidPng } from './helpers.mjs';
+import { elementPath, render } from './report-grouped-fixture.mjs';
 
-const elementPath = (index) => `html > body > article:nth-child(${index}) > h2`;
 const change = (index, extra = {}) => ({
   kind: 'style',
   path: elementPath(index),
@@ -16,107 +15,6 @@ const change = (index, extra = {}) => ({
   props: [{ prop: 'color', before: 'rgb(30, 60, 120)', after: 'rgb(150, 30, 60)' }],
   ...extra,
 });
-
-function render({
-  count = 3,
-  different = false,
-  overlap = false,
-  overlapCount = 0,
-  states = false,
-  restingChange = !states,
-  screenshotHeight = 1200,
-  maxCropFiles,
-  maxCropBytes,
-  maxReportBytes,
-  maxJsonBytes,
-  maxCrops = 30,
-  heights,
-  pathOf = elementPath,
-  targetOf,
-  rectangleOf,
-  missingStateScreenshot,
-} = {}) {
-  const map = (after) =>
-    makeMap({
-      elements: Object.fromEntries(
-        Array.from({ length: count }, (_, offset) => {
-          const index = offset + 1;
-          return [
-            pathOf(index),
-            {
-              tag: 'h2',
-              cls: 'card-title',
-              rect: rectangleOf
-                ? rectangleOf(index)
-                : [20, overlap || index <= overlapCount ? 20 : index * 90, 180, 20],
-              style: {
-                ...(heights ? { height: `${after ? heights[offset] : 20}px` } : {}),
-                color:
-                  after && restingChange
-                    ? different && index === 3
-                      ? 'rgb(0, 128, 0)'
-                      : 'rgb(150, 30, 60)'
-                    : 'rgb(30, 60, 120)',
-              },
-            },
-          ];
-        }),
-      ),
-      states: states
-        ? Object.fromEntries(
-            Array.from({ length: count }, (_, offset) => {
-              const owner = pathOf(offset + 1);
-              const target = targetOf ? targetOf(owner, offset + 1) : owner;
-              return [
-                owner,
-                {
-                  hover: { [target]: { 'background-color': after ? 'rgb(255, 0, 0)' : 'rgb(0, 0, 255)' } },
-                  focus: { [owner]: { 'outline-width': after ? '3px' : '1px' } },
-                },
-              ];
-            }),
-          )
-        : {},
-    });
-  const captureMap = (after) => {
-    const result = map(after);
-    if (targetOf)
-      for (let index = 1; index <= count; index++) {
-        const target = targetOf(pathOf(index), index);
-        result.elements[target] = { tag: 'span', cls: '', rect: [20, index * 90, 20, 20], style: {} };
-      }
-    return result;
-  };
-  const dirs = pairFixture({
-    surface: 'cards@390',
-    before: captureMap(false),
-    after: captureMap(true),
-    beforePng: solidPng(390, screenshotHeight),
-    afterPng: solidPng(390, screenshotHeight, [150, 30, 60]),
-  });
-  if (states)
-    for (const directory of [dirs.beforeDir, dirs.afterDir])
-      for (const state of ['hover', 'focus']) {
-        if (state === missingStateScreenshot && directory === dirs.afterDir) continue;
-        fs.writeFileSync(`${directory}/cards@390.${state}.png`, solidPng(390, 1200));
-      }
-  try {
-    const result = generateStyleMapReport({
-      ...dirs,
-      maxCrops,
-      maxCropFiles,
-      maxCropBytes,
-      maxReportBytes,
-      maxJsonBytes,
-    });
-    return {
-      md: fs.readFileSync(result.reportMdPath, 'utf8'),
-      json: JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')),
-    };
-  } finally {
-    rmTmp(dirs.root);
-  }
-}
 
 const sections = (md) => md.match(/^### /gm) ?? [];
 const signatureCount = (findings) => new Set(findings.map((finding) => elementChangeSignature([finding]))).size;
@@ -160,67 +58,6 @@ test('identical changes separated by another change share the earliest frame and
   assert.notEqual(surface.regions[0].images.composite, surface.regions[1].images.composite);
   assert.match(markdown, /Showing 1 of 2 elements/);
   assert.equal(report.counts.style, 3);
-});
-
-test('JSON finding limits preserve grouped membership, crop omissions and comparison truth', () => {
-  const options = { states: true, maxCropFiles: 0 };
-  const full = render(options).json;
-  for (const maxJsonBytes of [1, Buffer.byteLength(JSON.stringify(full, null, 2)) - 300]) {
-    const { md: markdown, json: capped } = render({ ...options, maxJsonBytes });
-    assert.deepEqual(capped.counts, full.counts);
-    assert.deepEqual(capped.comparison, full.comparison);
-    assert.deepEqual(capped.cropBudget, full.cropBudget);
-    assert.deepEqual(capped.surfaces[0].regions, full.surfaces[0].regions);
-    assert.deepEqual(capped.surfaces[0].sections, full.surfaces[0].sections);
-    assert.deepEqual(capped.surfaces[0].findings, []);
-    assert.equal(capped.surfaces[0].findingsOmitted, full.surfaces[0].findings.length);
-    assert.equal(capped.findingsBudget.maxBytes, maxJsonBytes);
-    assert.equal(capped.findingsBudget.listed, 0);
-    assert.equal(capped.findingsBudget.omitted, capped.findingsBudget.total);
-    assert.match(markdown, /omitted from report.json at its byte budget/);
-    assert.match(markdown, /original diff input/);
-  }
-});
-
-test('a Unicode report cap keeps an intact first section, remaining crop links and its evidence tail', () => {
-  const report = new ReportMarkdown(1400);
-  report.lines.push('# 变化报告');
-  report.append(['', '## Cards']);
-  report.detail(['', '### 标题一', 'First complete property table'], '- first — [crop](crops/first.png)');
-  for (const name of ['second', 'third']) {
-    report.detail(['', `### ${name}`, '属性变化'.repeat(500)], `- ${name} — [crop](crops/${name}.png)`);
-  }
-  report.finish(['', 'EVIDENCE: 身份尚未验证']);
-  const markdown = report.lines.join('\n') + '\n';
-  assert.ok(Buffer.byteLength(markdown) <= 1400);
-  assert.match(markdown, /### 标题一\nFirst complete property table/);
-  assert.ok(!markdown.includes('- first — [crop]'));
-  assert.match(markdown, /summarized to keep this report renderable/);
-  for (const name of ['second', 'third']) assert.ok(markdown.includes(`- ${name} — [crop](crops/${name}.png)`));
-  assert.ok(!markdown.includes('属性变化'));
-  assert.ok(markdown.endsWith('EVIDENCE: 身份尚未验证\n'));
-});
-
-test('a tight Unicode cap counts undisplayed sections and explicitly replaces oversized evidence', () => {
-  for (const budget of [800, 500]) {
-    const report = new ReportMarkdown(budget);
-    report.lines.push('# 变化报告');
-    const summaries = ['first', 'second', 'third'].map(
-      (name) => `- ${name}: ${'标题'.repeat(28)} — [crop](crops/${name}.png)`,
-    );
-    for (const summary of summaries) report.detail(['', '### Full detail', '属性'.repeat(1000)], summary);
-    report.finish(['', 'EVIDENCE: ' + '证据'.repeat(1000)]);
-    const markdown = report.lines.join('\n') + '\n';
-    const displayed = summaries.filter((summary) => markdown.includes(summary)).length;
-    assert.ok(Buffer.byteLength(markdown) <= budget);
-    assert.ok(displayed > 0 && displayed < summaries.length);
-    assert.ok(markdown.includes(`…and ${summaries.length - displayed} more section(s) not listed here`));
-    if (budget === 500) assert.match(markdown, /Inline detail omitted at the 500-byte display budget/);
-    else assert.match(markdown, /summarized to keep this report renderable/);
-    assert.ok(markdown.includes(`Evidence (warnings & failures) omitted at the ${budget}-byte display budget`));
-    assert.ok(!markdown.includes('### Full detail'));
-    assert.ok(!markdown.includes('EVIDENCE:'));
-  }
 });
 
 test('legacy region image fields match the ungrouped renderer and reuse each section crop', () => {
