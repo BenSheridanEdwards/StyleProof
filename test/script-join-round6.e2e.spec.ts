@@ -13,6 +13,26 @@ import { generateStyleMapReport } from '../dist/report.js';
 import { writeCapture } from './helpers.mjs';
 
 const scenarios = [
+  ...tokenCases
+    .filter((entry) => entry.template)
+    .map(({ name, before, after, foldedAlways }) => ({
+      name: name + ' retains idle substitution evidence without minification',
+      before,
+      after,
+      minifySyntax: false,
+      expected: foldedAlways ? 'unmeasured' : 'never-rendered',
+      idle: !foldedAlways,
+      count: 2,
+    })),
+  ...[false, true].map((minifySyntax) => ({
+    name: `a live template substitution keeps ran with minify=${minifySyntax}`,
+    before: 'window.result = `btn ${window.input ?? "red"}`;',
+    after: 'window.result = `btn ${window.input ?? "orange"}`;',
+    minifySyntax,
+    expected: 'unknown',
+    live: true,
+    count: 2,
+  })),
   ...residualCases.flatMap(({ name, before, residual }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} reports its residual with minify=${minifySyntax}`,
@@ -178,6 +198,10 @@ for (const scenario of scenarios) {
       expect(units.every((unit) => unit.execution === 'unmeasured')).toBe(true);
       expect(units.every((unit) => unit.why.includes('it may have been removed by the bundler'))).toBe(true);
     }
+    if ('idle' in scenario && scenario.idle) {
+      expect(units.every((unit) => ['never-ran', 'partly-ran'].includes(unit.execution))).toBe(true);
+    }
+    if ('live' in scenario) expect(units.every((unit) => unit.execution === 'ran')).toBe(true);
     if ('residual' in scenario) {
       maps.forEach((map, i) => writeCapture(dirs[i], 'home@1280', map, null));
       const previous = process.cwd();

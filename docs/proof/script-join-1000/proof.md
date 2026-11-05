@@ -561,3 +561,32 @@ cause of the earlier timeout remains unproven on this shared host.
 
 Final verification, corpus and enforced pre-push browser tails are reported in
 the handoff. No hooks or gates are bypassed.
+
+
+## Round 9: separate template substitutions
+
+Rebased onto `e5415aec3` (declared media environments). Three option-forwarding
+conflicts and one import conflict retain both upstream media-state handling and
+J2 project-root provenance. The two combined call sites are formatted normally.
+
+The retained [unit red](round9-red-unit.txt) has **20 failures / 35 passes**.
+Real esbuild regressions include the folded class template, conditional call
+argument, side-effecting arm, template on its own call line, two templates on one
+line, logical-AND folding and two multiline substitution layouts. The minified
+repros cannot inherit the live opening backtick. Substitutions that remain mapped
+in unminified output retain never-ran/partly-ran evidence. esbuild removes the
+logical-AND arm under define even without minification; that case requires
+unmeasured in both modes, with an explicit generated-code assertion.
+
+The lexer retains the head chunk through `${` as a token, then lexes the
+substitution expression normally. Middle/tail chunks are delimiters: no positive
+execution, while the join still keeps raw negative/mixed anchors inside them.
+Substitution-free templates stay atomic. A brace-depth stack handles nested
+objects/templates; strings, regexes and comments cannot close a substitution.
+Lexical controls cover escaped interpolation, multiple substitutions and multiline
+text. Live substitutions retain their own mapped starts and ran/unknown status.
+
+Targeted unit checks pass **533/533**, including existing script reach, range
+trimming, report, media and runner tests. Code and retained red evidence are
+committed before the heavier checks to survive a reboot. Full gate tails and
+publication status are reported in the handoff; no hook or timeout is weakened.

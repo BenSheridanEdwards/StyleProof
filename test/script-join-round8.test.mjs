@@ -131,7 +131,7 @@ for (const scenario of tokenCases) {
       { base: scenario.before, head: scenario.after },
       'app.tsx',
     );
-    assert.ok(changes.every((change) => change.changeScope === 'line'));
+    if (!scenario.template) assert.ok(changes.every((change) => change.changeScope === 'line'));
     const result = classifyScriptReach([maps[0]], [maps[1]], changes);
     assert.equal(result.units.length, 2);
     assert.deepEqual(

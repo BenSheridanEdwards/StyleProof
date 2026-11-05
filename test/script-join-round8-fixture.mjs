@@ -21,9 +21,73 @@ export const tokenCases = [
     after: 'window.style = isProd ? "calmer" : "debug-orange";',
     removed: ['debug-red', 'debug-orange'],
   },
+  ...[
+    [
+      'a folded template class substitution',
+      'const cls = `btn ${process.env.NODE_ENV !== "production" ? "debug-red" : ""}`; window.result = cls;',
+      'debug-red',
+      'debug-orange',
+    ],
+    [
+      'a folded template call substitution',
+      'function sink(x) { window.result = x; } sink(`color: ${__DEV__ ? "red" : "blue"}`);',
+      'red',
+      'orange',
+    ],
+    [
+      'a folded template side effect',
+      'function warn(x) { window.warned = x; } window.result = `v${P === "production" ? "" : warn("red")}`;',
+      'red',
+      'orange',
+    ],
+    [
+      'a template on its own call line',
+      'function sink(x) { window.result = x; }\nsink(\n  `color: ${__DEV__ ? "red" : "blue"}`\n);',
+      'red',
+      'orange',
+    ],
+    [
+      'the second template on one line',
+      'window.result = [`a${window.input}`, `b${__DEV__ ? "red" : ""}`];',
+      'red',
+      'orange',
+    ],
+    [
+      'a folded logical template substitution',
+      'function dbg(x) { window.debug = x; } window.result = `x${P !== "production" && dbg("red")}`;',
+      'red',
+      'orange',
+    ],
+    [
+      'a multiline template substitution',
+      'window.result = `color:\n${__DEV__ ? "red" : "blue"}\ntail`;',
+      'red',
+      'orange',
+    ],
+    [
+      'a substitution expression on its own line',
+      'window.result = `color: ${\n  __DEV__ ? "red" : "blue"\n} tail`;',
+      'red',
+      'orange',
+    ],
+  ].map(([name, before, from, to]) => ({
+    name,
+    before,
+    after: before.replace(`"${from}"`, `"${to}"`),
+    removed: [`"${from}"`, `"${to}"`],
+    template: true,
+    foldedAlways: name === 'a folded logical template substitution',
+    from,
+    to,
+  })),
 ];
 
-export const tokenDefines = { 'process.env.NODE_ENV': '"production"', isProd: 'true' };
+export const tokenDefines = {
+  'process.env.NODE_ENV': '"production"',
+  isProd: 'true',
+  __DEV__: 'false',
+  P: '"production"',
+};
 
 export const residualCases = [
   {

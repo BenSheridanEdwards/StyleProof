@@ -1,0 +1,544 @@
+✔ an eager JSX element keeps its executable starts with V8 count 0 (46.489875ms)
+✔ an eager JSX element keeps its executable starts with V8 count 1 (9.469542ms)
+✔ JSX closing-tag names are delimiter syntax while strings and following code keep tokens (0.218709ms)
+✔ supplied function default names its residual with minify=false (8.154417ms)
+✔ supplied function default names its residual with minify=true (5.1365ms)
+✔ supplied arrow default names its residual with minify=false (6.0605ms)
+✔ supplied arrow default names its residual with minify=true (3.333625ms)
+✔ code after a throwing call names its residual with minify=false (1.712375ms)
+✔ code after a throwing call names its residual with minify=true (3.328292ms)
+✔ a live closing brace cannot prove the eliminated development arm ran with real esbuild mappings (4.829417ms)
+✔ the eliminated development arm stays unmeasured after a line break with real esbuild mappings (8.342666ms)
+✔ a two-token ternary edit cannot borrow the surviving arm execution with real esbuild mappings (10.629958ms)
+✖ a folded template class substitution with real esbuild mappings (9.175458ms)
+✖ a folded template call substitution with real esbuild mappings (6.089542ms)
+✖ a folded template side effect with real esbuild mappings (4.664792ms)
+✖ a template on its own call line with real esbuild mappings (3.458125ms)
+✖ the second template on one line with real esbuild mappings (7.54025ms)
+✖ a folded logical template substitution with real esbuild mappings (9.44725ms)
+✔ a multiline template substitution with real esbuild mappings (3.233208ms)
+✔ a substitution expression on its own line with real esbuild mappings (7.38825ms)
+✔ token evidence for }, reads unmeasured (0.191167ms)
+✔ token evidence for foo(); removed; reads unmeasured (0.053542ms)
+✔ token evidence for foo(); bar; reads ran (0.049625ms)
+✔ token evidence for }; idle; reads never-ran (0.051583ms)
+✔ the capture notes retain optional-chain continuation and merged-arm attribution limits (4.841875ms)
+✔ token columns stay on the changed JavaScript line after "\r" (8.079584ms)
+✔ token columns stay on the changed JavaScript line after "
+" (19.2305ms)
+✔ token columns stay on the changed JavaScript line after "
+" (3.357333ms)
+✔ a folded template class substitution cannot borrow the template head with minify=false (68.244959ms)
+✖ a folded template class substitution cannot borrow the template head with minify=true (18.617083ms)
+✔ a folded template call substitution cannot borrow the template head with minify=false (18.957084ms)
+✖ a folded template call substitution cannot borrow the template head with minify=true (8.536583ms)
+✔ a folded template side effect cannot borrow the template head with minify=false (14.861083ms)
+✖ a folded template side effect cannot borrow the template head with minify=true (6.255375ms)
+✔ a template on its own call line cannot borrow the template head with minify=false (4.863ms)
+✖ a template on its own call line cannot borrow the template head with minify=true (3.266292ms)
+✔ the second template on one line cannot borrow the template head with minify=false (3.877084ms)
+✖ the second template on one line cannot borrow the template head with minify=true (16.949042ms)
+✖ a folded logical template substitution cannot borrow the template head with minify=false (15.740208ms)
+✖ a folded logical template substitution cannot borrow the template head with minify=true (3.877625ms)
+✔ a multiline template substitution cannot borrow the template head with minify=false (6.87725ms)
+✔ a multiline template substitution cannot borrow the template head with minify=true (4.646084ms)
+✔ a substitution expression on its own line cannot borrow the template head with minify=false (9.98775ms)
+✔ a substitution expression on its own line cannot borrow the template head with minify=true (8.710375ms)
+✔ a live template substitution keeps its own execution start with minify=false (14.013875ms)
+✔ a live template substitution keeps its own execution start with minify=true (3.080208ms)
+✖ template lexical pieces preserve expression starts in "`btn ${flag ? \"red\" : \"blue\"} tail`" (1.475ms)
+✖ template lexical pieces preserve expression starts in "`a${one} middle ${two} tail`" (0.324792ms)
+✖ template lexical pieces preserve expression starts in "`a${{ key: \"red\" }.key} tail`" (0.175ms)
+✖ template lexical pieces preserve expression starts in "`a${`b${flag ? \"red\" : \"blue\"}`} tail`" (0.1125ms)
+✖ template lexical pieces preserve expression starts in "`a${/}/.test(\"}\") ? \"red\" : \"blue\"} tail`" (2.429917ms)
+✖ template lexical pieces preserve expression starts in "`a${/* } */ flag ? \"red\" : \"blue\"} tail`" (0.102792ms)
+✖ template lexical pieces preserve expression starts in "`a\n${flag ? \"red\" : \"blue\"}\ntail`" (0.095875ms)
+✔ template lexical pieces preserve expression starts in "`plain text`" (0.09425ms)
+✔ template lexical pieces preserve expression starts in "`escaped \\${plain}`" (0.020208ms)
+ℹ tests 55
+ℹ suites 0
+ℹ pass 35
+ℹ fail 20
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 484.52425
+
+✖ failing tests:
+
+test at test/script-join-round8.test.mjs:103:3
+✖ a folded template class substitution with real esbuild mappings (9.175458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:137:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:103:3
+✖ a folded template call substitution with real esbuild mappings (6.089542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:137:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:103:3
+✖ a folded template side effect with real esbuild mappings (4.664792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:137:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:103:3
+✖ a template on its own call line with real esbuild mappings (3.458125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:137:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:103:3
+✖ the second template on one line with real esbuild mappings (7.54025ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:137:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:103:3
+✖ a folded logical template substitution with real esbuild mappings (9.44725ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'unknown',
+  +   'unknown'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:137:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unknown', 'unknown' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:14:5
+✖ a folded template class substitution cannot borrow the template head with minify=true (18.617083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:29:51)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:14:5
+✖ a folded template call substitution cannot borrow the template head with minify=true (8.536583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:29:51)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:14:5
+✖ a folded template side effect cannot borrow the template head with minify=true (6.255375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:29:51)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:14:5
+✖ a template on its own call line cannot borrow the template head with minify=true (3.266292ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:29:51)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:14:5
+✖ the second template on one line cannot borrow the template head with minify=true (16.949042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:29:51)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:14:5
+✖ a folded logical template substitution cannot borrow the template head with minify=false (15.740208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:29:51)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:14:5
+✖ a folded logical template substitution cannot borrow the template head with minify=true (3.877625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:29:51)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:61:3
+✖ template lexical pieces preserve expression starts in "`btn ${flag ? \"red\" : \"blue\"} tail`" (1.475ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '`btn ${flag ? "red" : "blue"} tail`'
+  -   '`btn ${',
+  -   'flag',
+  -   '"red"',
+  -   '"blue"'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:62:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '`btn ${flag ? "red" : "blue"} tail`' ],
+    expected: [ '`btn ${', 'flag', '"red"', '"blue"' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:61:3
+✖ template lexical pieces preserve expression starts in "`a${one} middle ${two} tail`" (0.324792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '`a${one} middle ${two} tail`'
+  -   '`a${',
+  -   'one',
+  -   'two'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:62:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '`a${one} middle ${two} tail`' ],
+    expected: [ '`a${', 'one', 'two' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:61:3
+✖ template lexical pieces preserve expression starts in "`a${{ key: \"red\" }.key} tail`" (0.175ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '`a${{ key: "red" }.key} tail`'
+  -   '`a${',
+  -   'key',
+  -   '"red"',
+  -   'key'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:62:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '`a${{ key: "red" }.key} tail`' ],
+    expected: [ '`a${', 'key', '"red"', 'key' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:61:3
+✖ template lexical pieces preserve expression starts in "`a${`b${flag ? \"red\" : \"blue\"}`} tail`" (0.1125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '`a${`',
+  +   'b$',
+  -   '`a${',
+  -   '`b${',
+      'flag',
+      '"red"',
+      '"blue"',
+  +   '`} tail`'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:62:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '`a${`', 'b$', 'flag', '"red"', '"blue"', '`} tail`' ],
+    expected: [ '`a${', '`b${', 'flag', '"red"', '"blue"' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:61:3
+✖ template lexical pieces preserve expression starts in "`a${/}/.test(\"}\") ? \"red\" : \"blue\"} tail`" (2.429917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '`a${/}/.test("}") ? "red" : "blue"} tail`'
+  -   '`a${',
+  -   '/}/',
+  -   'test',
+  -   '"}"',
+  -   '"red"',
+  -   '"blue"'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:62:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '`a${/}/.test("}") ? "red" : "blue"} tail`' ],
+    expected: [ '`a${', '/}/', 'test', '"}"', '"red"', '"blue"' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:61:3
+✖ template lexical pieces preserve expression starts in "`a${/* } */ flag ? \"red\" : \"blue\"} tail`" (0.102792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '`a${/* } */ flag ? "red" : "blue"} tail`'
+  -   '`a${',
+  -   'flag',
+  -   '"red"',
+  -   '"blue"'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:62:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '`a${/* } */ flag ? "red" : "blue"} tail`' ],
+    expected: [ '`a${', 'flag', '"red"', '"blue"' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round9.test.mjs:61:3
+✖ template lexical pieces preserve expression starts in "`a\n${flag ? \"red\" : \"blue\"}\ntail`" (0.095875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '`a\n${flag ? "red" : "blue"}\ntail`'
+  -   '`a\n${',
+  -   'flag',
+  -   '"red"',
+  -   '"blue"'
+    ]
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round9.test.mjs:62:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '`a\n${flag ? "red" : "blue"}\ntail`' ],
+    expected: [ '`a\n${', 'flag', '"red"', '"blue"' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
