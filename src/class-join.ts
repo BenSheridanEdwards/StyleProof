@@ -13,12 +13,15 @@ import {
 } from './class-join-literals.js';
 import { correspondBeforeMap } from './path-correspondence.js';
 import { isUnder } from './capture/shared.js';
+import { scopedRangeLookup } from './class-join-index.js';
 
 export type ClassUnit = {
   sourceKey: string;
   side: 'base' | 'head';
   range: SourceSpan;
   token: string;
+  /** Only explicit class contexts may supply negative evidence to J2. Missing on legacy units. */
+  explicit?: boolean;
   /** Token-name movement only; never occurrence provenance. */
   delta?: 'gained' | 'lost';
   status: 'reached' | 'never-rendered' | 'unknown' | 'unmeasured';
@@ -111,31 +114,50 @@ function presentTokens(maps: readonly StyleMap[]): Set<string> {
   );
 }
 type LiteralIndex = ReturnType<typeof indexClassLiterals>;
-type JoinContext = { vocabulary: Set<string>; deltas: Deltas; present: Deltas; gaps: ClassJoinGap[] };
-function affects(gap: ClassJoinGap, change: ScriptChange, range: SourceSpan): boolean {
+type JoinContext = {
+  vocabulary: Set<string>;
+  deltas: Deltas;
+  present: Deltas;
+  complete: Record<'base' | 'head', boolean>;
+  gap: ReturnType<typeof scopedRangeLookup>;
+};
+function presenceComplete(maps: readonly StyleMap[]): boolean {
   return (
-    (!gap.side || gap.side === change.side) &&
-    (!gap.paths || gap.paths.includes(change.sourceKey)) &&
-    (!gap.range || spansOverlap(gap.range, range))
+    maps.length > 0 &&
+    maps.every((map) => {
+      const facts = map.classPresence;
+      return (
+        !!map.elements &&
+        !map.volatile?.length &&
+        facts?.version === 1 &&
+        facts.ignored === false &&
+        facts.shadowHosts === 0 &&
+        facts.frames === 0
+      );
+    })
   );
 }
 function classUnit(change: ScriptChange, literal: ClassLiteral, token: string, context: JoinContext): ClassUnit {
-  const unmeasured = !!change.unmeasuredReason || context.gaps.some((gap) => affects(gap, change, literal.range));
+  const unmeasured = !!change.unmeasuredReason || context.gap({ ...change, range: literal.range });
   const present = context.present[change.side].has(token);
+  const absent = !present && context.complete[change.side];
   return {
     sourceKey: change.sourceKey,
     side: change.side,
     range: literal.range,
     token,
+    explicit: literal.explicit,
     ...(context.deltas[change.side].has(token)
       ? { delta: change.side === 'head' ? ('gained' as const) : ('lost' as const) }
       : {}),
-    status: unmeasured ? 'unmeasured' : present ? 'unknown' : 'never-rendered',
+    status: unmeasured ? 'unmeasured' : absent ? 'never-rendered' : 'unknown',
     why: unmeasured
       ? 'class-list or source evidence unavailable; see J3 run-level gaps'
       : present
         ? 'token present on a captured element; not tied to this occurrence'
-        : 'class token never landed on a captured element',
+        : absent
+          ? 'class token never landed on a captured element'
+          : 'token absence unproven; capture omitted elements or lacks omission metadata',
     level: 'warn',
   };
 }
@@ -185,10 +207,15 @@ function unitsForChange(
       (word) =>
         context.vocabulary.has(word.token) &&
         !unchanged.has(wordKey(word, current)) &&
-        spansOverlap(word.range, change.classRange ?? change.range),
+        touches(word.range, change.classRange ?? change.range),
     );
     return [...new Set(words.map((word) => word.token))].map((token) => classUnit(change, literal, token, context));
   });
+}
+/** A deletion/insertion can leave a zero-width column range at the word's edge. */
+function touches(a: SourceSpan, b: SourceSpan): boolean {
+  const compare = (x: SourceSpan['start'], y: SourceSpan['start']) => x.line - y.line || x.column - y.column;
+  return compare(a.start, b.end) <= 0 && compare(b.start, a.end) <= 0;
 }
 function extractionGaps(
   change: ScriptChange,
@@ -198,7 +225,7 @@ function extractionGaps(
 ): ClassJoinGap[] {
   const stable = unchangedLiterals(change, index, opposite);
   return literalsInChange(change, index)
-    .filter((literal) => literal.explicit && !stable.has(literal))
+    .filter((literal) => literal.explicit && (!stable.has(literal) || literal.residual))
     .flatMap((literal) => {
       const known = literalsInChange({ range: literal.range }, index).some((entry) =>
         entry.words.some((word) => vocabulary.has(word.token)),
@@ -266,7 +293,8 @@ export function classifyClassReach(
     vocabulary,
     deltas,
     present: { base: presentTokens(base), head: presentTokens(head) },
-    gaps: uniqueGaps,
+    complete: { base: presenceComplete(base), head: presenceComplete(head) },
+    gap: scopedRangeLookup(uniqueGaps),
   };
   const units = changes.flatMap((change) =>
     unitsForChange(change, indexed(change), change.classCounterpart ? indexed(change, true) : undefined, context),
@@ -283,15 +311,11 @@ export function classifyClassReach(
 
 /** Negative evidence can lower J2; neither execution nor an unresolved delta supplies rendering proof. */
 export function combineClassReach(scripts: readonly ScriptUnit[], classes: readonly ClassUnit[]): ScriptUnit[] {
+  const negative = scopedRangeLookup(
+    classes.filter((entry) => entry.status === 'never-rendered' && entry.explicit === true),
+  );
   return scripts.map((unit) => {
-    const negative = classes.some(
-      (entry) =>
-        entry.status === 'never-rendered' &&
-        entry.sourceKey === unit.sourceKey &&
-        entry.side === unit.side &&
-        spansOverlap(entry.range, unit.range),
-    );
-    return negative && unit.status !== 'never-rendered'
+    return negative(unit) && unit.status !== 'never-rendered'
       ? { ...unit, status: 'never-rendered', why: `${unit.why}; J3: class token never landed on a captured element` }
       : unit;
   });

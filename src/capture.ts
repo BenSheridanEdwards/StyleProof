@@ -424,6 +424,12 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),
+    classPresence: {
+      version: 1,
+      ignored: !!options.ignore?.length || base.ignored,
+      shadowHosts: base.shadowHosts,
+      frames: base.frames,
+    },
     ...(read.liveCandidates.length ? { liveCandidates: read.liveCandidates } : {}),
     ...(overlays.length ? { overlays } : {}),
     ...(Object.keys(tokens).length ? { tokens } : {}),

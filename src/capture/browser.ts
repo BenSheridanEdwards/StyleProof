@@ -151,6 +151,8 @@ export type PageCapture = {
   elements: Record<string, ElementEntry>;
   shadowHosts: number;
   sameOriginFrames: number;
+  frames: number;
+  ignored: boolean;
   scrollX: number;
   scrollY: number;
   documentHeight: number;
@@ -321,12 +323,19 @@ export function capturePage({
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
   let shadowHosts = 0;
   let sameOriginFrames = 0;
+  let frames = 0;
+  let ignored = false;
   for (const el of all) {
-    if (el === frame || (skipSel && el.matches(skipSel))) continue;
+    if (el === frame || el.hasAttribute('data-styleproof-hover-sink')) continue;
     const tag = el.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'noscript') continue;
+    if (['script', 'style', 'link', 'noscript', 'meta', 'title', 'base', 'template'].includes(tag)) continue;
+    if (skipSel && el.matches(skipSel)) {
+      ignored = true;
+      continue;
+    }
     if (!motionOnly && (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) shadowHosts++;
     if (!motionOnly && (tag === 'iframe' || tag === 'frame')) {
+      frames++;
       try {
         if ((el as HTMLIFrameElement).contentDocument) sameOriginFrames++;
       } catch {
@@ -388,7 +397,7 @@ export function capturePage({
   }
   frame.remove();
   assertFrozen();
-  return { defaults, elements, shadowHosts, sameOriginFrames, scrollX, scrollY, documentHeight };
+  return { defaults, elements, shadowHosts, sameOriginFrames, frames, ignored, scrollX, scrollY, documentHeight };
 }
 
 /** Poll using the capture function installed in this settle's non-enumerable window store. */

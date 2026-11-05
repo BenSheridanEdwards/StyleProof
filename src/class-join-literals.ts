@@ -22,7 +22,7 @@ export type ClassLiteral = {
   residual?: string;
 };
 const helper = /(?:\b(?:clsx|cx|classnames|classNames|cva|twMerge|twJoin|cn)|\bclassList\s*\.\s*\w+)\s*$/;
-const attribute = /\bclass(?:Name)?\s*[:=]\s*$/;
+const attribute = /\bclass(?:Name|List)?\s*[:=]\s*$/;
 const comparePosition = (a: SourcePosition, b: SourcePosition) => a.line - b.line || a.column - b.column;
 export const spansOverlap = (a: SourceSpan, b: SourceSpan): boolean =>
   comparePosition(a.start, b.end) < 0 && comparePosition(b.start, a.end) < 0;
@@ -34,9 +34,24 @@ type Frame = {
   own: boolean;
   valueStart?: number;
   measured?: boolean;
+  residual?: string;
+  cva?: 'call' | 'options' | 'variants' | 'values' | 'excluded';
 };
 type Scan = { source: ClassSource; key: string; frames: Frame[]; prefix: string; literals: ClassLiteral[] };
-const explicit = (scan: Scan) => scan.frames.some((frame) => frame.inherited || frame.value);
+const explicit = (scan: Scan) => {
+  const frame = scan.frames.at(-1)!;
+  if (frame.cva) return frame.value || frame.cva === 'call' || frame.cva === 'values';
+  return scan.frames.some((frame) => frame.inherited || frame.value);
+};
+
+function cvaContext(scan: Scan, char: string): Frame['cva'] {
+  if (/\bcva\s*$/.test(scan.prefix)) return 'call';
+  const parent = scan.frames.at(-1)!.cva;
+  if (parent === 'call') return char === '{' ? 'options' : 'values';
+  if (parent === 'options') return /\bvariants\s*:\s*$/.test(scan.prefix) ? 'variants' : 'excluded';
+  if (parent === 'variants') return 'values';
+  return parent;
+}
 
 function addLiteral(scan: Scan, token: ScriptToken, inherited = explicit(scan)): number {
   const { source } = scan,
@@ -50,17 +65,33 @@ function addLiteral(scan: Scan, token: ScriptToken, inherited = explicit(scan)):
     return literal.end;
   }
   const isClass = inherited || attribute.test(scan.prefix);
+  const cva = scan.frames.at(-1)!.cva;
+  const cvaKey = cva && !scan.prefix.trim() && /^\s*:/.test(text.slice(literal.end, literal.end + 128));
+  if (cva && (!isClass || cvaKey)) {
+    scan.prefix += ' value ';
+    return literal.end;
+  }
+  pushLiteral(scan, token, literal, isClass);
+  scan.prefix += ' value ';
+  return literal.end;
+}
+function pushLiteral(scan: Scan, token: ScriptToken, literal: ReturnType<typeof literalAt>, isClass: boolean): void {
+  const { source } = scan,
+    { text } = source;
+  const concatenated = /\+\s*$/.test(scan.prefix) || /^\s*\+/.test(text.slice(literal.end, literal.end + 128));
+  const residual = concatenated
+    ? 'dynamic class concatenation fragment excluded'
+    : literal.substitutions.some((part) => !part.whole)
+      ? 'dynamic class template fragment excluded'
+      : undefined;
+  if (isClass && residual) for (const frame of scan.frames) if (frame.own || frame.value) frame.residual = residual;
   scan.literals.push({
     range: sourceSpan(source, token.index, literal.end),
     words: classWords(source, literal.parts),
     explicit: isClass,
-    ...(literal.substitutions.some((part) => !part.whole)
-      ? { residual: 'dynamic class template fragment excluded' }
-      : {}),
+    ...(residual ? { residual } : {}),
   });
   addSubstitutionLiterals(scan, literal.substitutions, isClass);
-  scan.prefix += ' value ';
-  return literal.end;
 }
 function addSubstitutionLiterals(
   scan: Scan,
@@ -81,15 +112,17 @@ function addSubstitutionLiterals(
 }
 function flushValue(scan: Scan, cursor: number): void {
   const frame = scan.frames.at(-1)!;
-  if (frame.valueStart !== undefined && !frame.measured)
+  if (frame.valueStart !== undefined && (!frame.measured || frame.residual))
     scan.literals.push({
       range: sourceSpan(scan.source, frame.valueStart, cursor),
       words: [],
       explicit: true,
       context: true,
+      ...(frame.residual ? { residual: frame.residual } : {}),
     });
   frame.valueStart = undefined;
   frame.measured = false;
+  if (!frame.own) frame.residual = undefined;
 }
 function closeFrame(scan: Scan, cursor: number): void {
   if (scan.frames.length <= 1) return;
@@ -101,13 +134,15 @@ function closeFrame(scan: Scan, cursor: number): void {
       words: [],
       explicit: true,
       context: true,
+      ...(frame.residual ? { residual: frame.residual } : {}),
     });
 }
 function delimiter(char: string, cursor: number, scan: Scan): void {
   if ('([{'.includes(char)) {
     const own = helper.test(scan.prefix) || attribute.test(scan.prefix);
+    const cva = cvaContext(scan, char);
     if (own) scan.frames.at(-1)!.measured = true;
-    scan.frames.push({ inherited: explicit(scan) || own, value: false, own, start: cursor });
+    scan.frames.push({ inherited: explicit(scan) || own, value: false, own, start: cursor, cva });
     scan.prefix = '';
   } else if (')]}'.includes(char)) {
     closeFrame(scan, cursor);
@@ -130,6 +165,7 @@ function ordinaryToken(scan: Scan, token: ScriptToken): void {
   const raw = scan.source.text.slice(token.index, token.end);
   if (
     explicit(scan) &&
+    !scan.frames.at(-1)!.cva &&
     !scan.prefix.trim() &&
     /^[\w$-]+$/.test(raw) &&
     /^\s*:/.test(scan.source.text.slice(token.end, token.end + 128))

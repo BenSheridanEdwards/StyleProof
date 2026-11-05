@@ -21,6 +21,8 @@ for (const scenario of ['control', 'ticker', 'ignore', 'shadow', 'frame'])
         ...(scenario === 'ignore' ? { ignore: ['.ad'] } : {}),
         stabilize: scenario === 'ticker' ? { interval: 25, quietFor: 200, timeout: 650 } : false,
       });
+      if (scenario === 'control')
+        expect(map.classPresence).toEqual({ version: 1, ignored: false, shadowHosts: 0, frames: 0 });
       if (scenario === 'ticker') {
         expect(map.volatile?.length).toBeGreaterThan(0);
         expect(Object.values(map.elements).some((entry) => entry.tag === 'time')).toBe(false);

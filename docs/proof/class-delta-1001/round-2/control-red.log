@@ -1,0 +1,38 @@
+Already up to date
+Done in 54ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:30508) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with control (123ms)
+
+
+  1) [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with control 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "frames": 0,
+    -   "ignored": false,
+    +   "ignored": true,
+        "shadowHosts": 0,
+        "version": 1,
+      }
+
+      22 |         stabilize: scenario === 'ticker' ? { interval: 25, quietFor: 200, timeout: 650 } : false,
+      23 |       });
+    > 24 |       if (scenario === 'control') expect(map.classPresence).toEqual({ version: 1, ignored: false, shadowHosts: 0, frames: 0 });
+         |                                                             ^
+      25 |       if (scenario === 'ticker') {
+      26 |         expect(map.volatile?.length).toBeGreaterThan(0);
+      27 |         expect(Object.values(map.elements).some((entry) => entry.tag === 'time')).toBe(false);
+        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round2.e2e.spec.ts:24:61
+
+    Error Context: test-results/test-class-join-round2.e2e-5059c--stays-unknown-with-control-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with control 

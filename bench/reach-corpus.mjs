@@ -168,6 +168,7 @@ function jsUnit(baseLine, headLine, pick, pairs) {
     status,
     joins: { J2, ...(J3 !== 'n/a' ? { J3 } : {}) },
     classUnits,
+    baseClassUnits: j3.units.filter((unit) => unit.side === 'base'),
     why: evidence?.why,
     gaps: script.gaps.map(({ side, status, reason }) => ({ side, status, reason })),
   };
@@ -203,6 +204,16 @@ const worst = (units) =>
 const failures = [];
 const scenarioGaps = {};
 const results = corpus.cases.map((c) => ({ id: c.id, category: c.category, desc: c.desc, scenarios: {} }));
+function classErrors(units, count, status, side = '') {
+  return [
+    ...(count !== undefined && units?.length !== count
+      ? [`${side}J3 occurrence count ${units?.length}, want ${count}`]
+      : []),
+    ...(status && !units?.every((unit) => unit.status === status)
+      ? [`${side}J3 occurrence statuses disagree, want ${status}`]
+      : []),
+  ];
+}
 for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
   const { findings, units, ledger, unreadableSheets } = evaluate(surfaceIds);
   scenarioGaps[scenario] = units.find((unit) => unit.kind === 'js')?.gaps ?? [];
@@ -229,17 +240,16 @@ for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
           `${u.key}: ${u.status}${u.why ? ` (${u.why})` : ''}${u.classUnits?.length ? `; J3: ${u.classUnits.map((c) => `${c.side}:${c.range.start.line}:${c.range.start.column} ${c.token} ${c.status}`).join(', ')}` : ''}`,
       ),
     };
-    if (js) got.classUnits = mine.flatMap((unit) => unit.classUnits ?? []);
+    if (js) {
+      got.classUnits = mine.flatMap((unit) => unit.classUnits ?? []);
+      got.baseClassUnits = mine.flatMap((unit) => unit.baseClassUnits ?? []);
+    }
     const want = c.expect[scenario];
     const wrong = [
       ...(want.today && got.today !== want.today ? [`today ${got.today}, want ${want.today}`] : []),
       ...(got.reach !== want.reach ? [`reach ${got.reach}, want ${want.reach}`] : []),
-      ...(want.classCount !== undefined && got.classUnits?.length !== want.classCount
-        ? [`J3 occurrence count ${got.classUnits?.length}, want ${want.classCount}`]
-        : []),
-      ...(want.joins?.J3 && !got.classUnits?.every((unit) => unit.status === want.joins.J3)
-        ? ['J3 occurrence statuses disagree']
-        : []),
+      ...classErrors(got.classUnits, want.classCount, want.joins?.J3),
+      ...classErrors(got.baseClassUnits, want.baseClassCount, want.baseJ3, 'base '),
       ...Object.entries(want.joins ?? {})
         .filter(([join, status]) => got.joins?.[join] !== status)
         .map(([join, status]) => `${join} ${got.joins?.[join]}, want ${status}`),

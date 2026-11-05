@@ -6,6 +6,7 @@ import { changedScriptRanges } from '../dist/script-join-git.js';
 const map = (cls = '', extra = {}) => ({
   defaults: {},
   states: {},
+  classPresence: { version: 1, ignored: false, shadowHosts: 0, frames: 0 },
   elements: { body: { tag: 'body', cls, style: {} } },
   reach: {
     version: 2,
@@ -33,10 +34,10 @@ test('a token-name delta never reaches any occurrence, including a unique token'
   assert.deepEqual(result.units[1].range, { start: { line: 1, column: 10 }, end: { line: 1, column: 15 } });
 });
 
-test('absence from every captured element on its side is negative even when J2 ran', () => {
-  const result = classify("const C = 'old';", "const C = 'new';", map(''), map(''));
+test('explicit class absence from a complete capture is negative even when J2 ran', () => {
+  const result = classify("el.className = 'old';", "el.className = 'new';", map(''), map(''));
   assert.ok(result.units.every((u) => u.status === 'never-rendered'));
-  const scripts = changes("const C = 'old';", "const C = 'new';").map((c) => ({
+  const scripts = changes("el.className = 'old';", "el.className = 'new';").map((c) => ({
     ...c,
     execution: 'ran',
     status: 'unknown',
@@ -45,7 +46,7 @@ test('absence from every captured element on its side is negative even when J2 r
   }));
   const combined = combineClassReach(scripts, result.units);
   assert.ok(combined.every((u) => u.status === 'never-rendered' && u.execution === 'ran'));
-  const unresolved = classify("const C = 'old';", "const C = 'new';");
+  const unresolved = classify("el.className = 'old';", "el.className = 'new';");
   assert.ok(combineClassReach(scripts, unresolved.units).every((u) => u.status === 'unknown'));
 });
 

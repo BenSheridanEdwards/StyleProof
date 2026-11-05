@@ -152,6 +152,7 @@ test('16k scoped gaps and negative lookups stay below one second', (t) => {
   const classifiedMs = performance.now() - start;
   assert.equal(result.units.length, count);
   assert.equal(result.gaps.length, count);
+  assert.ok(result.units.every((u) => u.status === 'never-rendered'));
   const negatives = result.units.map((u) => ({ ...u, explicit: true, status: 'never-rendered' }));
   const begin = performance.now();
   const combined = combineClassReach(scripts(changes), negatives);

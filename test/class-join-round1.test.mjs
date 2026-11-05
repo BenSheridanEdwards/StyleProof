@@ -9,6 +9,7 @@ const vocabulary = '.old.new.keep.btn.primary.item.known.other';
 const capture = (cls = '', extra = {}) => ({
   defaults: {},
   states: {},
+  classPresence: { version: 1, ignored: false, shadowHosts: 0, frames: 0 },
   elements: { body: { tag: 'body', cls, style: {} } },
   reach: { version: 2, scope: 'compared', sheets: ['app.css'], rules: [{ key: vocabulary, hash: 'same', sheet: 0 }] },
   ...extra,
