@@ -182,10 +182,21 @@ the evidence adds to a capture on a GitHub runner:
      V8 also reports **bodies of generator / async-generator functions that were called but never iterated**
      as executed: creating an iterator can give the whole function count 1 with
      no inner idle range, even though its body never entered. The join downgrades
-     `ran` to `unmeasured` when a generator function or method header appears in
-     the changed text or its bounded preceding context, naming this residual.
-     Actually iterated generator bodies also stay unmeasured under this
-     conservative rule, including when same-range corroboration is available.
+     `ran` to `unmeasured` based on the entire source file on the side judged,
+     not a changed-line window. Any change in a file that contains a recognised
+     generator header reads unmeasured when its evidence would otherwise read ran,
+     including changes outside the generator. This intentionally includes ordinary
+     functions and values in the same file and actually iterated generators, even
+     when same-range corroboration is available. Negative or missing evidence
+     retains its existing status. Recognised headers are `function*` / `function *`
+     (including async and expression forms), and `*` method markers with an
+     optional run of `static`, `public`, `private`, `protected`, `override`,
+     `abstract`, `readonly`, `declare` and `async`, followed by an identifier,
+     computed `[...]` key, private `#name`, quoted name or numeric name. The
+     template-, regex- and comment-aware lexer ignores stars in strings,
+     comments, regex bodies and literal template chunks; substitutions are code.
+     Each full blob is scanned once. The bounded context remains only for
+     parameter residual naming.
    - **J2 source-map attribution.** A minifier can merge equivalent arms
      (`flag ? one : one` → `one`) or hoist a shared call
      (`flag ? sink(a) : sink(b)` → `sink(flag ? a : b)`). The source-map anchor

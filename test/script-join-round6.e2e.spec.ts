@@ -14,8 +14,23 @@ import { writeCapture } from './helpers.mjs';
 import { lexicalCases } from './script-join-round10-fixture.mjs';
 import { assertionCases, genericControl, parameterCases } from './script-join-round11-fixture.mjs';
 import { generatorCases, generatorResidual, methodDefaults, tsxGenerics } from './script-join-round12-fixture.mjs';
+import { generatorFileCases } from './script-join-round13-fixture.mjs';
 
 const scenarios = [
+  ...generatorFileCases.flatMap(({ name, before, after, hits }) =>
+    [false, true].map((minifySyntax) => ({
+      name: `${name} whole-file generator residual with minify=${minifySyntax}`,
+      before,
+      after,
+      hits,
+      generator: true,
+      residual: generatorResidual,
+      sourceKey: 'app.ts',
+      minifySyntax,
+      expected: 'unmeasured',
+      count: 2,
+    })),
+  ),
   ...generatorCases.flatMap(({ name, before, after, hits }) =>
     [false, true].map((minifySyntax) => ({
       name: `${name} names its V8 residual with minify=${minifySyntax}`,

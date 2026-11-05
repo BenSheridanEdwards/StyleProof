@@ -1,0 +1,1149 @@
+✖ QA static method downgrades every file change under {} (14.591792ms)
+✖ QA async method without whitespace downgrades every file change under {} (2.252042ms)
+✔ QA ordinary function in a generator file downgrades every file change under {} (1.160333ms)
+✖ a static generator downgrades every file change under {} (1.561417ms)
+✖ a static async generator downgrades every file change under {} (2.017291ms)
+✖ a computed generator downgrades every file change under {} (1.360333ms)
+✖ a computed async generator downgrades every file change under {} (0.895458ms)
+✖ a private-name generator downgrades every file change under {} (0.847208ms)
+✖ a quoted-name generator downgrades every file change under {} (1.332292ms)
+✔ a numeric-name generator downgrades every file change under {} (0.961917ms)
+✖ a public generator downgrades every file change under {} (1.308375ms)
+✖ a private async generator downgrades every file change under {} (1.022542ms)
+✖ adjacent generator methods on one line downgrades every file change under {} (0.670208ms)
+✖ a long saga body downgrades every file change under {} (0.967208ms)
+✔ a generator expression downgrades every file change under {} (0.686833ms)
+✔ an async generator expression downgrades every file change under {} (0.89ms)
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {} (0.767041ms)
+✖ QA static method downgrades every file change under {"minifySyntax":true} (1.601708ms)
+✖ QA async method without whitespace downgrades every file change under {"minifySyntax":true} (1.220917ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minifySyntax":true} (0.57675ms)
+✖ a static generator downgrades every file change under {"minifySyntax":true} (0.932375ms)
+✖ a static async generator downgrades every file change under {"minifySyntax":true} (0.625542ms)
+✖ a computed generator downgrades every file change under {"minifySyntax":true} (1.041375ms)
+✖ a computed async generator downgrades every file change under {"minifySyntax":true} (1.217167ms)
+✖ a private-name generator downgrades every file change under {"minifySyntax":true} (0.773417ms)
+✖ a quoted-name generator downgrades every file change under {"minifySyntax":true} (0.920917ms)
+✔ a numeric-name generator downgrades every file change under {"minifySyntax":true} (0.561125ms)
+✖ a public generator downgrades every file change under {"minifySyntax":true} (0.898916ms)
+✖ a private async generator downgrades every file change under {"minifySyntax":true} (0.643709ms)
+✖ adjacent generator methods on one line downgrades every file change under {"minifySyntax":true} (0.910125ms)
+✖ a long saga body downgrades every file change under {"minifySyntax":true} (0.566125ms)
+✔ a generator expression downgrades every file change under {"minifySyntax":true} (0.759584ms)
+✔ an async generator expression downgrades every file change under {"minifySyntax":true} (0.61025ms)
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {"minifySyntax":true} (1.099291ms)
+✖ QA static method downgrades every file change under {"minifyWhitespace":true} (0.661792ms)
+✖ QA async method without whitespace downgrades every file change under {"minifyWhitespace":true} (0.897125ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minifyWhitespace":true} (0.796709ms)
+✖ a static generator downgrades every file change under {"minifyWhitespace":true} (0.693291ms)
+✖ a static async generator downgrades every file change under {"minifyWhitespace":true} (0.964417ms)
+✖ a computed generator downgrades every file change under {"minifyWhitespace":true} (0.572041ms)
+✖ a computed async generator downgrades every file change under {"minifyWhitespace":true} (0.826417ms)
+✖ a private-name generator downgrades every file change under {"minifyWhitespace":true} (1.065916ms)
+✖ a quoted-name generator downgrades every file change under {"minifyWhitespace":true} (0.575125ms)
+✔ a numeric-name generator downgrades every file change under {"minifyWhitespace":true} (0.801625ms)
+✖ a public generator downgrades every file change under {"minifyWhitespace":true} (0.871791ms)
+✖ a private async generator downgrades every file change under {"minifyWhitespace":true} (0.658791ms)
+✖ adjacent generator methods on one line downgrades every file change under {"minifyWhitespace":true} (0.553208ms)
+✖ a long saga body downgrades every file change under {"minifyWhitespace":true} (0.739208ms)
+✔ a generator expression downgrades every file change under {"minifyWhitespace":true} (0.656292ms)
+✔ an async generator expression downgrades every file change under {"minifyWhitespace":true} (0.765042ms)
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {"minifyWhitespace":true} (0.445708ms)
+✖ QA static method downgrades every file change under {"minify":true} (1.534625ms)
+✖ QA async method without whitespace downgrades every file change under {"minify":true} (0.919542ms)
+✔ QA ordinary function in a generator file downgrades every file change under {"minify":true} (0.564167ms)
+✖ a static generator downgrades every file change under {"minify":true} (0.960375ms)
+✖ a static async generator downgrades every file change under {"minify":true} (0.793916ms)
+✖ a computed generator downgrades every file change under {"minify":true} (0.672833ms)
+✖ a computed async generator downgrades every file change under {"minify":true} (1.076417ms)
+✖ a private-name generator downgrades every file change under {"minify":true} (0.638209ms)
+✖ a quoted-name generator downgrades every file change under {"minify":true} (1.144667ms)
+✔ a numeric-name generator downgrades every file change under {"minify":true} (0.892208ms)
+✖ a public generator downgrades every file change under {"minify":true} (0.622334ms)
+✖ a private async generator downgrades every file change under {"minify":true} (1.013333ms)
+✖ adjacent generator methods on one line downgrades every file change under {"minify":true} (0.961791ms)
+✖ a long saga body downgrades every file change under {"minify":true} (0.534292ms)
+✔ a generator expression downgrades every file change under {"minify":true} (0.847417ms)
+✔ an async generator expression downgrades every file change under {"minify":true} (0.821375ms)
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {"minify":true} (0.599625ms)
+✖ non-generator syntax cannot downgrade a live value: const a = 2, b = (c) => c; window.value = a *b(1); (0.760584ms)
+✖ non-generator syntax cannot downgrade a live value: window.value = "function* fake() {}"; window.result = sink(1); (0.784708ms)
+✖ non-generator syntax cannot downgrade a live value: window.value = `class D { static *s() {} }`; window.result = sink(1); (0.621541ms)
+✖ non-generator syntax cannot downgrade a live value: window.value = /function*|*foo()/.source; window.result = sink(1); (1.1055ms)
+✖ non-generator syntax cannot downgrade a live value: /* function* fake() {} */ window.result = sink(1); (0.667167ms)
+✖ non-generator syntax cannot downgrade a live value: // class D { static *s() {} }
+window.result = sink(1); (0.868166ms)
+✖ base and head keep their own whole-file generator flag (0.615625ms)
+ℹ tests 75
+ℹ suites 0
+ℹ pass 16
+ℹ fail 59
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 164.615084
+
+✖ failing tests:
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA static method downgrades every file change under {} (14.591792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA async method without whitespace downgrades every file change under {} (2.252042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static generator downgrades every file change under {} (1.561417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static async generator downgrades every file change under {} (2.017291ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed generator downgrades every file change under {} (1.360333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed async generator downgrades every file change under {} (0.895458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private-name generator downgrades every file change under {} (0.847208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a quoted-name generator downgrades every file change under {} (1.332292ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a public generator downgrades every file change under {} (1.308375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private async generator downgrades every file change under {} (1.022542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ adjacent generator methods on one line downgrades every file change under {} (0.670208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a long saga body downgrades every file change under {} (0.967208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {} (0.767041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA static method downgrades every file change under {"minifySyntax":true} (1.601708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA async method without whitespace downgrades every file change under {"minifySyntax":true} (1.220917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static generator downgrades every file change under {"minifySyntax":true} (0.932375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static async generator downgrades every file change under {"minifySyntax":true} (0.625542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed generator downgrades every file change under {"minifySyntax":true} (1.041375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed async generator downgrades every file change under {"minifySyntax":true} (1.217167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private-name generator downgrades every file change under {"minifySyntax":true} (0.773417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a quoted-name generator downgrades every file change under {"minifySyntax":true} (0.920917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a public generator downgrades every file change under {"minifySyntax":true} (0.898916ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private async generator downgrades every file change under {"minifySyntax":true} (0.643709ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ adjacent generator methods on one line downgrades every file change under {"minifySyntax":true} (0.910125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a long saga body downgrades every file change under {"minifySyntax":true} (0.566125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {"minifySyntax":true} (1.099291ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA static method downgrades every file change under {"minifyWhitespace":true} (0.661792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA async method without whitespace downgrades every file change under {"minifyWhitespace":true} (0.897125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static generator downgrades every file change under {"minifyWhitespace":true} (0.693291ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static async generator downgrades every file change under {"minifyWhitespace":true} (0.964417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed generator downgrades every file change under {"minifyWhitespace":true} (0.572041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed async generator downgrades every file change under {"minifyWhitespace":true} (0.826417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private-name generator downgrades every file change under {"minifyWhitespace":true} (1.065916ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a quoted-name generator downgrades every file change under {"minifyWhitespace":true} (0.575125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a public generator downgrades every file change under {"minifyWhitespace":true} (0.871791ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private async generator downgrades every file change under {"minifyWhitespace":true} (0.658791ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ adjacent generator methods on one line downgrades every file change under {"minifyWhitespace":true} (0.553208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a long saga body downgrades every file change under {"minifyWhitespace":true} (0.739208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {"minifyWhitespace":true} (0.445708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA static method downgrades every file change under {"minify":true} (1.534625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ QA async method without whitespace downgrades every file change under {"minify":true} (0.919542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static generator downgrades every file change under {"minify":true} (0.960375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a static async generator downgrades every file change under {"minify":true} (0.793916ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed generator downgrades every file change under {"minify":true} (0.672833ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a computed async generator downgrades every file change under {"minify":true} (1.076417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private-name generator downgrades every file change under {"minify":true} (0.638209ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a quoted-name generator downgrades every file change under {"minify":true} (1.144667ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a public generator downgrades every file change under {"minify":true} (0.622334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a private async generator downgrades every file change under {"minify":true} (1.013333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ adjacent generator methods on one line downgrades every file change under {"minify":true} (0.961791ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ a long saga body downgrades every file change under {"minify":true} (0.534292ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:37:5
+✖ an ordinary value elsewhere in a generator file downgrades every file change under {"minify":true} (0.599625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.why.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:40:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:50:3
+✖ non-generator syntax cannot downgrade a live value: const a = 2, b = (c) => c; window.value = a *b(1); (0.760584ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === false))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:54:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:50:3
+✖ non-generator syntax cannot downgrade a live value: window.value = "function* fake() {}"; window.result = sink(1); (0.784708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === false))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:54:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:50:3
+✖ non-generator syntax cannot downgrade a live value: window.value = `class D { static *s() {} }`; window.result = sink(1); (0.621541ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === false))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:54:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:50:3
+✖ non-generator syntax cannot downgrade a live value: window.value = /function*|*foo()/.source; window.result = sink(1); (1.1055ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === false))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:54:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:50:3
+✖ non-generator syntax cannot downgrade a live value: /* function* fake() {} */ window.result = sink(1); (0.667167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === false))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:54:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:50:3
+✖ non-generator syntax cannot downgrade a live value: // class D { static *s() {} }
+window.result = sink(1); (0.868166ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.every((change) => change.generatorFile === false))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:54:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round13.test.mjs:60:1
+✖ base and head keep their own whole-file generator flag (0.615625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(changes.filter((change) => change.side === 'base').every((change) => change.generatorFile === true))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round13.test.mjs:65:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

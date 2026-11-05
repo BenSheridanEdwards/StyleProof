@@ -1,5 +1,6 @@
 /** Conservative lexical ranges: ambiguous slash expressions remain ordinary code. */
 export type ScriptToken = { index: number; end: number; negativeOnly?: true };
+export type ScriptLexeme = { value: string; key?: true };
 
 const TOKEN =
   /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|(?<regexp>\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\[\r\n])+\/[dgimsuvy]*)|0[xXoObB][\dA-Fa-f_]+n?|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?n?|\.\d[\d_]*(?:[eE][+-]?\d[\d_]*)?|#?[\p{ID_Start}_$][\p{ID_Continue}$]*/uy;
@@ -185,6 +186,33 @@ function ordinaryToken(text: string, start: number, matcher: RegExp): ScriptToke
     return /\/\/|\/\*|\\\//.test(candidate) ? negativeTail(text, start) : undefined;
   }
   return { index: start, end: start + match[0].length };
+}
+
+/** Syntax for conservative header recognition; quoted/template/regex contents are opaque. */
+export function scriptLexemes(text: string): ScriptLexeme[] {
+  const result: ScriptLexeme[] = [],
+    substitutions: number[] = [];
+  const matcher = new RegExp(TOKEN);
+  let cursor = 0;
+  while (cursor < text.length) {
+    const piece = templatePiece(text, cursor, substitutions);
+    if (piece) {
+      if (piece.tokens.length) result.push({ value: '', key: true });
+      cursor = piece.end;
+      continue;
+    }
+    matcher.lastIndex = cursor;
+    const match = matcher.exec(text);
+    if (match) {
+      const literal = match.groups?.regexp || /^['"\d.]/.test(match[0]);
+      result.push(literal ? { value: '', key: true } : { value: match[0], key: true });
+      cursor += match[0].length;
+      continue;
+    }
+    if (!/\s/.test(text[cursor])) result.push({ value: text[cursor] });
+    cursor++;
+  }
+  return result;
 }
 
 export function scriptTokens(line: string, sourceKey = '', language?: 'ts'): ScriptToken[] {

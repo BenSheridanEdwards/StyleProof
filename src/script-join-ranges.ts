@@ -3,6 +3,7 @@ import { sha256 } from './node-util.js';
 import type { ScriptChange } from './script-join.js';
 import type { SourcePosition } from './script-reach.js';
 import { scriptTokens, type ScriptToken } from './script-join-tokens.js';
+import { sourceContainsGenerator } from './script-join-generators.js';
 
 export type ScriptTexts = { base: string; head: string };
 
@@ -14,6 +15,7 @@ type Source = {
   jsStarts: number[];
   hash: string;
   typescript: Set<number>;
+  generatorFile: boolean;
 };
 
 /** Index embedded TS blocks once; their HTML container's extension is not a JS dialect. */
@@ -57,6 +59,7 @@ function sourceOf(text: string, sourceKey: string): Source {
     jsStarts,
     hash: sha256(text),
     typescript: typescriptLines(text, gitStarts, sourceKey),
+    generatorFile: sourceContainsGenerator(text),
   };
 }
 
@@ -180,6 +183,7 @@ function changedLine(
       range,
       contentHash: source.hash,
       text: original,
+      generatorFile: source.generatorFile,
       parameterContext: {
         before: source.text
           .slice(source.jsStarts[Math.max(0, range.start.line - 5)], source.jsStarts[range.start.line - 1])

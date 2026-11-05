@@ -9,6 +9,7 @@ import type { StyleMap } from './capture.js';
 import type { SourcePosition, SourceSpan } from './script-reach.js';
 import { parameterResiduals } from './script-join-parameters.js';
 import { GENERATOR_BODY_RESIDUAL } from './script-reach-storage.js';
+import { sourceContainsGenerator } from './script-join-generators.js';
 
 export type ScriptChange = {
   sourceKey: string;
@@ -20,6 +21,8 @@ export type ScriptChange = {
   text: string;
   /** Bounded preceding source lines used only to name parameter residuals. Never persisted. */
   parameterContext?: { before: string; after: string };
+  /** File-wide lexical flag from this side's full source blob. Never persisted. */
+  generatorFile?: boolean;
   /** Embedded TypeScript blocks do not use JSX lexical rules. Never persisted. */
   language?: 'ts';
   /** The entire changed line, rather than a trimmed token range. */
@@ -32,7 +35,7 @@ export type ScriptExecution = 'ran' | 'never-ran' | 'partly-ran' | 'not-loaded' 
 
 export type ScriptUnit = Omit<
   ScriptChange,
-  'text' | 'parameterContext' | 'language' | 'contentHash' | 'unmeasuredReason'
+  'text' | 'parameterContext' | 'generatorFile' | 'language' | 'contentHash' | 'unmeasuredReason'
 > & {
   execution: ScriptExecution;
   status: 'reached' | 'never-rendered' | 'unmeasured' | 'unknown';
@@ -222,12 +225,11 @@ function positiveExecution(
   change: ScriptChange,
   proofs: readonly SourceCorroboration[],
 ): Pick<ScriptUnit, 'execution' | 'status' | 'why'> {
-  const context = (change.parameterContext?.before ?? '') + change.text;
-  if (/\bfunction\s*\*|(?:^|[{};,\n])\s*(?:async\s+)?\*\s*[\w$]+\s*\(/.test(context))
+  if (change.generatorFile ?? sourceContainsGenerator(change.text))
     return {
       execution: 'unmeasured',
       status: 'unmeasured',
-      why: `J2 block-entry residual: ${GENERATOR_BODY_RESIDUAL}; V8 iterator creation cannot prove body entry; recognized generator bodies stay unmeasured even when iterated`,
+      why: `J2 block-entry residual: ${GENERATOR_BODY_RESIDUAL}; V8 iterator creation cannot prove body entry; ran evidence anywhere in a file containing a recognised generator header stays unmeasured, including changes outside the generator`,
     };
   const corroborated = proofs.some(
     (proof) =>

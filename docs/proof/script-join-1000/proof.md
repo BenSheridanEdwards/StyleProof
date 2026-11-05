@@ -815,3 +815,25 @@ cells moved to unknown. Eager JSX and render-scope values stay unknown in both
 scenarios. Only the timestamp changes in the receipt. The corpus still uses
 hand-built one-line patches and selects the head unit; the browser tests use the
 real Git adapter on both revisions. `demo:check` also passes.
+
+
+## Round 13: whole-file generator recognition
+
+Fetch/rebase found main `bff724ee5` already included. Retained
+[unit red](round13-red-unit.txt) has **59 failures / 16 passes**;
+[real-Chromium red](round13-red-browser.txt) has **26 failures / eight passes**.
+Every requested header has an isolated esbuild fixture: static/async, computed
+Symbol keys, private, quoted and numeric names, public/private modifiers, adjacent
+methods, function expressions and a long saga with six body lines before the edit.
+QA's exact static and `async*method()` repros are included.
+
+The source blob is lexed once per side, with comments, quoted strings, regex bodies
+and template chunks opaque; substitutions remain code. Function-star tokens and
+method-star markers with modifier runs and all documented key forms set a private
+file flag. Every otherwise-ran change in that file becomes unmeasured before
+corroboration, including changes outside the generator. QA's ordinary `plain()`
+example and a distant top-level value pin that intentional over-flagging.
+Multiplication `a *b(c)` and fake headers in literal/comment text remain controls.
+Base and head retain their own flags, which never enter report units. Parameter
+naming keeps its existing bounded context. The combined unit run passes **686/686**.
+Final browser/gate tails, SHA and lease-protected push are recorded in the handoff.
