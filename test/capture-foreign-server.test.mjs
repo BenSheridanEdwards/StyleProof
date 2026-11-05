@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 import { test } from 'node:test';
 import { CLI_SPAWN_TIMEOUT_MS, childTimeoutError, mkNonGitTmp, rmTmp } from './helpers.mjs';
 
@@ -240,16 +241,35 @@ test('capture awaits a promise config and refuses its busy server', async (t) =>
   assert.deepEqual(wrappers(dir), []);
 });
 
-test('capture preserves Playwright rejection of a function config', async (t) => {
-  const { dir, config, options, marker, stop } = await fixture(t);
-  await stop();
-  fs.writeFileSync(config, `export default () => ({ ${options} });`);
-  const capture = await runCapture(dir);
-  assert.notEqual(capture.status, 0, capture.output);
-  assert.match(capture.output, /must export a single object/);
-  assert.equal(fs.existsSync(marker), false);
-  assert.deepEqual(wrappers(dir), []);
-});
+for (const [kind, value, diagnostic] of [
+  ['function export', '() => ({})', /must export a single object/],
+  ['negative timeout', '{ timeout: -1 }', /timeout.*non-negative number/],
+]) {
+  test(`capture names the consumer config for ${kind} validation errors`, async (t) => {
+    const { dir: fixtureDir, config: defaultConfig, marker, stop } = await fixture(t);
+    await stop();
+    const dir = fs.realpathSync(fixtureDir);
+    let config = fs.realpathSync(defaultConfig);
+    const args = [];
+    if (kind === 'negative timeout') {
+      const folder = path.join(dir, 'configs');
+      fs.mkdirSync(folder);
+      config = path.join(folder, 'consumer-$&.config.ts');
+      args.push('--', '--config', config);
+    }
+    fs.writeFileSync(config, `export default ${value};`);
+    const capture = await runCapture(dir, args);
+    assert.notEqual(capture.status, 0, capture.output);
+    assert.match(capture.output, diagnostic);
+    assert.ok(
+      stripVTControlCharacters(capture.output).includes(`Error: ${path.relative(dir, config)}:`),
+      `validation error names the selected consumer config without a duplicated prefix\n${capture.output}`,
+    );
+    assert.doesNotMatch(capture.output, /\.styleproof-capture-/);
+    assert.equal(fs.existsSync(marker), false);
+    assert.deepEqual(wrappers(dir), []);
+  });
+}
 
 test('capture reports a missing config without a stack trace', async (t) => {
   const { dir, marker, stop } = await fixture(t);
