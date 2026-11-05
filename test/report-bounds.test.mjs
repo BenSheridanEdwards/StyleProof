@@ -295,7 +295,7 @@ test('report headline and global chrome use surface-base counts with variant det
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### '));
-  assert.match(summary, /2 changed surface bases \(4 variants\) with an existing baseline/);
+  assert.match(summary, /on 2 surfaces \(4 variants, /);
   assert.doesNotMatch(summary, /Surface base.*@width/);
   assert.match(summary, /changes need review|change needs review/);
   assert.match(md, /## 🧱 Global chrome change — across all 2 captured surface base\(s\)/);
@@ -332,7 +332,7 @@ test('report headline counts live-state variants under metadata.surfaceKey produ
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### ') >= 0 ? md.indexOf('\n### ') : md.length);
-  assert.match(summary, /1 changed surface base \(2 variants\) with an existing baseline/);
+  assert.match(summary, /on 1 surface \(2 variants, /);
   rmTmp(root);
 });
 

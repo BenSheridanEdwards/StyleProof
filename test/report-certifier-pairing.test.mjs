@@ -101,7 +101,8 @@ for (const [name, banners, cards, descendants] of [
       const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
       const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-      assert.equal((md.match(/`#ffffff` → `#ff0000`/g) ?? []).length, cards + Number(descendants));
+      assert.equal((md.match(/`#ffffff` → `#ff0000`/g) ?? []).length, 1 + Number(descendants));
+      if (cards > 1) assert.ok(md.includes(`${cards} elements restyled`));
       assert.doesNotMatch(md, /(?:section\.card|span\.label)[^\n]*(?:removed|added)/);
       assert.equal(certifier.counts.style, cards + Number(descendants));
       assert.equal(report.counts.style, certifier.counts.style);

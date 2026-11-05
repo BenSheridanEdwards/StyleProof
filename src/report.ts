@@ -130,7 +130,7 @@ export type ReportOptions = {
   maxHeight?: number;
   /** Changed-element footprint (px) at or below which a magnified zoom crop is added (default 64; 0 disables). */
   zoomBelow?: number;
-  /** Max crop regions per surface before collapsing into one union crop (default 8). */
+  /** Max exposed crop regions per surface before collapsing into one union crop (default 8). */
   maxCrops?: number;
   /** Whole-report crop ceilings (default 60 files / 900_000 bytes). Zero disables crops. */
   maxCropFiles?: number;
@@ -544,9 +544,16 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const md = new ReportMarkdown(opts.maxReportBytes ?? DEFAULT_MAX_REPORT_BYTES);
   const headline = reportHeadline({
     changeGroups: view.changeGroups,
+    distinctChangeCount: digest.reduce(
+      (count, row) => count + (row.status === 'changed' ? (row.sentences?.length ?? 0) : 1),
+      0,
+    ),
     missing: view.missing,
     shown: view.shown,
-    changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
+    changedScope: countChangedSurfaceScope(
+      [...view.changeGroups, ...view.missing.map(({ sd }) => ({ surfaces: [sd.surface] }))],
+      surfaceKeyOf,
+    ),
     whatChanged: digestLines(digest),
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,

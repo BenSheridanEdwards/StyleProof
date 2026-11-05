@@ -1,7 +1,7 @@
 import { summarizeComparability, type ProductStateComparabilityStatus } from './comparability-status.js';
 import { type DiffCounts, type Finding, type PropChange } from './diff.js';
 import { trackCount } from './describe.js';
-import { isNonValue, summarizeProps } from './prop-summary.js';
+import { isNonValue, prettyLabel, summarizeProps } from './prop-summary.js';
 import { emptyLiveTextAudit, isLiveTextGeometryPath, liveTextPathsOn, type LiveTextAudit } from './live-text.js';
 
 /**
@@ -33,6 +33,15 @@ const stateTarget = (f: Extract<Finding, { kind: 'state' }>): string =>
 
 /** Canonical signature of a surface's findings: surfaces that changed the same way share one section. */
 export function signatureOf(findings: Finding[]): string {
+  return signatureWithValues(findings, sigValue);
+}
+
+/** Exact displayed values, including folded geometry that varies between captures. */
+export function exactSignatureOf(findings: Finding[]): string {
+  return signatureWithValues(findings, (change) => `${change.prop}=${change.before}>${change.after}`);
+}
+
+function signatureWithValues(findings: Finding[], valueOf: (change: PropChange) => string): string {
   return JSON.stringify(
     findings
       .map((f) => ({
@@ -40,10 +49,38 @@ export function signatureOf(findings: Finding[]): string {
         k: f.kind,
         // A state's target element: the same :hover restyling different elements is two changes.
         t: f.kind === 'dom' ? f.change : f.kind === 'state' ? stateTarget(f) : (f.pseudo ?? ''),
-        v: f.kind === 'dom' ? '' : summarizeProps(f.props).map(sigValue).join('|'),
+        v: f.kind === 'dom' ? '' : summarizeProps(f.props).map(valueOf).join('|'),
       }))
       .sort((a, b) => `${a.p}|${a.k}|${a.t}`.localeCompare(`${b.p}|${b.k}|${b.t}`)),
   );
+}
+
+/** Identical element changes, ignoring location but retaining labels, layers and values. */
+export function groupByElementChange(findings: Finding[]): Finding[][] {
+  const groups = new Map<string, Finding[]>();
+  for (const element of groupByPath(findings)) {
+    const normalized = element.map((finding): Finding => ({
+      ...finding,
+      path: prettyLabel(finding.path, finding.cls),
+      ...(finding.kind === 'state'
+        ? {
+            sub:
+              finding.sub === finding.path
+                ? prettyLabel(finding.path, finding.cls)
+                : finding.sub.startsWith(`${finding.path} > `) || finding.sub.startsWith(`${finding.path}::`)
+                  ? `${prettyLabel(finding.path, finding.cls)}${finding.sub.slice(finding.path.length)}`
+                  : finding.sub,
+          }
+        : {}),
+      ...(finding.kind !== 'dom' ? { props: [...finding.props].sort((a, b) => a.prop.localeCompare(b.prop)) } : {}),
+    }));
+    // DOM inventories carry identity/component details beyond a style signature.
+    const identity = element.some((finding) => finding.kind === 'dom') ? element[0].path : '';
+    // Within one capture, grid tracks need identical values, not just the same track count.
+    const key = `${identity}|${exactSignatureOf(normalized)}`;
+    groups.set(key, [...(groups.get(key) ?? []), ...element]);
+  }
+  return [...groups.values()];
 }
 
 const plural = (c: number, w: string) => `${c} ${w}${c === 1 ? '' : 's'}`;

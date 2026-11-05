@@ -56,13 +56,63 @@ visual changes and kept the check red. A reviewer ticks **Approve all changes**
 to sign off that commit. Any later push that changes the evidence reopens the
 gate.
 
-Below the headline count, the comment lists **What changed**. Each one-sided
-surface gets a row with its status. Each change gets a row that names up to
-three elements and what happened to them, and counts the rest as
-`+N more element(s)`. After ten rows, `…and N more changes` counts what is left.
-`report.json` records the same rows under `digest`, as
-`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more }`.
-The key is present only when there is at least one row.
+Below the headline count, the comment lists **What changed**. The list uses
+one plain-English line per change: an element noun, a value-free description,
+and an element count. Surface names appear only when several changed surface
+bases need distinguishing. Matching descriptions merge into one line with
+their distinct elements counted together, including changes from separate groups or pseudo-elements.
+Each one-sided surface keeps its status row. After ten displayed lines,
+`…and N more changes` counts the remaining lines after merging.
+
+`report.json` preserves the legacy `digest` rows and their fields:
+`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more, foldedRows? }`.
+The additive `sentences` array contains the plain-English summaries on changed
+rows. Merged sentences appear on the first matching row; later matching rows
+may have an empty array. The legacy `elements` and `more` fields retain their
+existing element-list limits. Counts identify each element by its path within a
+surface base, so widths and separate change groups do not multiply it. The
+headline counts all distinct changed sentences and one-sided surface rows,
+including those beyond the ten-line display cap.
+The `digest` key is present only when there is at least one row.
+
+### Combined element sections
+
+Identical element changes share one counted section, one property table and a
+combined crop per resting or interactive state. The optional highlight view marks
+each element. Unreadable unions use the top-most element and explain the fallback.
+The folded element list runs top to bottom and uses the shortest path suffix unique
+within the section; it lists at most ten entries and counts any remainder. Folded
+geometry blocks carry that same element tail beside their values, including when
+only one matching element has a folded row. Crops union exposed members only; the
+caption separately counts elements outside the screenshot or otherwise unexposed.
+A top-most fallback is reserved for an unreadable union of exposed members.
+
+`report.json` keeps main's `surfaces[].regions` anchors: the same number and
+order of regions, the same `paths`, and the same padded `before` / `after` boxes,
+including main's outermost-path and crop-count collapse rules. Their `images`,
+`stateImages`, `cropOmitted`, and `visualEvidence` describe the displayed section's
+evidence; several original regions can reference the same combined crop. Keeping
+these anchors does not render extra files or spend the crop budget again.
+
+When grouping or membership changes the layout, an additive `surfaces[].sections`
+list describes the displayed sections. Each section has `regionIndexes` linking
+to the original regions, its covered `paths` (including folded descendants), and
+the section's union `before` / `after` geometry and image references. The indices
+can be empty when main had no exposed anchor. Combined sections add
+`elements: [{ path }]`; mixed sections omit `elements`. An unreadable union adds
+`cropFallback: "top-most"`. The list is omitted when the original regions already
+describe the unchanged layout, avoiding duplicate metadata under the JSON budget.
+Consumers use `sections` when present and otherwise use `regions` for the layout.
+Counts and original findings remain unchanged.
+
+The displayed crop-count threshold still collapses excess exposed sections into
+one union crop, and zero allows one crop. Unexposed sections do not consume a
+visible crop slot. If an exposed union exceeds about 2.5 capture viewport heights,
+spans distant page areas, or cannot fit the crop dimensions, the picture falls back
+to the top-most frame. A long spread list can therefore say "marks 1 of 12"; its
+list and property evidence still cover all twelve elements. Overlapping mixed
+changes keep their existing layout and do not combine with matching changes
+elsewhere.
 
 ### A safety policy blocks
 
@@ -2071,7 +2121,7 @@ consumer-owned and are not rewritten; capture still enforces the refusal policy.
 | `--out <dir>`              | `styleproof-report` | Output directory.                                                                                                                            |
 | `--image-base-url <url>`   | relative            | Prefix for image URLs in `report.md`.                                                                                                        |
 | `--pad <px>`               | `12`                | Padding around changed rects when cropping.                                                                                                  |
-| `--max-crops <n>`          | `8`                 | Max crop regions per surface before collapsing.                                                                                              |
+| `--max-crops <n>`          | `8`                 | Max exposed crop regions per surface before collapsing into one union crop; zero still permits one.                                                                                              |
 | `--max-crop-files <n>`     | `60`                | Whole-report crop file ceiling; non-negative safe integer, `0` disables crops. Budget omissions are named; findings stay listed and counted. |
 | `--max-crop-bytes <bytes>` | `5000000`           | Hard whole-report crop byte ceiling; non-negative safe integer, `0` disables crops.                                                          |
 | `--fold-details-at <n>`    | `0`                 | Row count at which a crop's property tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds.                       |
