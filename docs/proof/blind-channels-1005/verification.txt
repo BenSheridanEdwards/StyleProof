@@ -1,0 +1,62 @@
+Runtime code head: d6f70bb43a460cc79ee60391dee3f8b7834ab418
+
+Design: captureVisualChannels is opt-in. Existing defaults and certify verdicts stay unchanged. Legacy comparisons skip both channels and name the limit. The optional visualChannels.version=1 dictionary stores canonical bodies once by [name,SHA-256], with property-layer references. No global map schema bump or runtime dependency.
+Normalisation: percentage selectors, sorted CSSOM declarations, repeated blocks kept in cascade order. SHA-256 for data URIs; same-origin HTTP(S) sources retain pathname/query/fragment; empty currentSrc stays empty; no query stripping. Missing/unreadable or ambiguous untraversed tree scopes stay unknown. Self-check includes dictionaries and all references/sources.
+
+Red to green: initially 2 unit tests and 4 Chromium scenarios failed; the slotted-scope regression also failed before its fix. All 7 new unit tests and 12 new Chromium scenarios now pass. Red output is retained alongside this receipt, with checkout paths replaced by <checkout>.
+
+Detection before: 46/46 detect, 7/7 clean, 3/3 blind. After: 48/48 detect, 7/7 clean, 1/1 blind. blind-keyframes and blind-img-src detect; blind-aria-label stays blind.
+Reach before/after: declared 3/17 shown, complete 16/17 shown; 14/14 declared misses named; unknown counts 7/8, all expectations unchanged. J1 keyframes stay blind-channel; this option does not change reference classification. Matched changed font faces get surface-specific warn-only --pixels advice.
+
+Earlier attempts: a concurrent full browser run had one existing J2 git-source-diff-unavailable failure; the isolated scenario and final full browser run passed unchanged. A concurrent verify attempt had one existing J3 scaling timing failure (ratio 19.746 vs limit 8); the unchanged file passed 21/21 in isolation and the final verify passed 6601/6601. No thresholds/configuration were weakened. The browser skip is the non-Chromium evidence scenario in the Chromium project.
+
+Generated-report.txt is from real Chromium captures and reports both channel changes as reviewable style findings. It retains its product-state warning. No visual layout change is claimed; browser behavior and report text are the proof.
+
+Actual command tails follow:
+
+pnpm run verify (exit 0)
+✔ release installs without dependency scripts and never persists the checkout token (0.100958ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.120958ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.237125ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (1.799542ms)
+ℹ tests 6601
+ℹ suites 32
+ℹ pass 6601
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 257902.8
+
+pnpm run test:e2e (exit 0)
+  ✓  1226 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (647ms)
+  ✓  1227 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (660ms)
+  ✓  1228 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (654ms)
+  ✓  1229 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (653ms)
+
+  Slow test file: [chromium] › test/script-join-round6.e2e.spec.ts (5.7m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 skipped
+  1228 passed (8.9m)
+
+pnpm run bench:reach:check (exit 0)
+  ✓ render-scope-value [declared] today missed · reach unknown · J2 ran
+  ✓ render-scope-value [complete] today shown · reach unknown · J2 ran
+  ✓ eager-jsx-element [declared] today missed · reach unknown · J2 ran
+  ✓ eager-jsx-element [complete] today shown · reach unknown · J2 ran
+  ✓ same-line-class-style [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-line-class-style [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [complete] today shown · reach unknown · J2 ran · J3 unknown
+
+node bench/detection-rate.mjs --check (exit 0)
+  ✓ clean-duplicate-decl [no-op] identical value redeclared — zero findings
+  ✓ clean-visibility-default [no-op] explicit default visibility — zero findings
+  ✓ clean-display-same [no-op] block redeclared on a block box — zero findings
+  ✓ blind-keyframes [visual-channel] referenced @keyframes body rewritten, animation-name unchanged (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-img-src [visual-channel] img currentSrc swapped blue to red (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-aria-label [blind] aria-label added — accessibility metadata is outside style evidence — zero findings
+  ✓ dom-link-href [dom] link href change — href is in the anchor element fingerprint, so the element re-keys as removed+added — 5 finding(s) on target
+  ✓ text-title [dom] title copy change — advisory text layer, captured when captureText is on — 1 finding(s) on target
+
+receipt → bench/detection-corpus.results.json

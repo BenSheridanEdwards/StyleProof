@@ -1,0 +1,16 @@
+  ✓   2 [chromium] › test/blind-channels.e2e.spec.ts:37:1 › inactive media/supports and losing cascade layers cannot replace the winning keyframes (189ms)
+  ✓   3 [chromium] › test/blind-channels.e2e.spec.ts:61:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical (395ms)
+  ✓   4 [chromium] › test/blind-channels.e2e.spec.ts:74:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured (147ms)
+  ✓   5 [chromium] › test/blind-channels.e2e.spec.ts:89:1 › pseudo-elements and forced-state references report their own keyframes body (174ms)
+  ✓   6 [chromium] › test/blind-channels.e2e.spec.ts:108:1 › same-origin currentSrc ignores host/port and retains query and fragment identity (198ms)
+  ✓   7 [chromium] › test/blind-channels.e2e.spec.ts:130:1 › unreadable cross-origin stylesheet records unknown, never an invented winning body (102ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   8 [chromium] › test/blind-channels.e2e.spec.ts:145:1 › shadow-root keyframes cannot override document names; untraversed internals remain outside capture (146ms)
+  ✓   9 [chromium] › test/blind-channels.e2e.spec.ts:159:1 › self-check rejects keyframe/currentSrc drift and missing evidence (146ms)
+  ✓  10 [chromium] › test/blind-channels.e2e.spec.ts:172:1 › multiple animation names retain quoted commas and escaped identifiers (110ms)
+  ✓  11 [chromium] › test/blind-channels.e2e.spec.ts:188:1 › a missing active stylesheet makes the referenced keyframes unknown (105ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  12 [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope (102ms)
+
+  12 passed (2.5s)

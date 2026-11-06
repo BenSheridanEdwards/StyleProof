@@ -1,0 +1,16 @@
+  ✓  1219 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (680ms)
+  ✓  1220 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (662ms)
+  ✓  1221 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (650ms)
+  ✓  1222 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (646ms)
+  ✓  1223 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (657ms)
+  ✓  1224 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (675ms)
+  ✓  1225 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (662ms)
+  ✓  1226 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (647ms)
+  ✓  1227 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (660ms)
+  ✓  1228 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (654ms)
+  ✓  1229 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (653ms)
+
+  Slow test file: [chromium] › test/script-join-round6.e2e.spec.ts (5.7m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 skipped
+  1228 passed (8.9m)

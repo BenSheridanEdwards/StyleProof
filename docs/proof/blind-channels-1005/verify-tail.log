@@ -1,0 +1,12 @@
+✔ release installs without dependency scripts and never persists the checkout token (0.100958ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.120958ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.237125ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (1.799542ms)
+ℹ tests 6601
+ℹ suites 32
+ℹ pass 6601
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 257902.8
