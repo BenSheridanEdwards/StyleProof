@@ -1,0 +1,40 @@
+Already up to date
+Done in 62ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:93707) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  1 [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope (151ms)
+
+
+  1) [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+      Array [
+        Object {
+    +     "body": "100% { opacity: 0.1; }",
+    +     "hash": "5c0b2e5aa9cdb714b44a112598e4a8c838ee8a48e82ef07b7f56f6b7f51044b6",
+          "name": "pulse",
+    -     "status": "unknown",
+    +     "status": "known",
+        },
+      ]
+
+      209 |     </script>`,
+      210 |   );
+    > 211 |   expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'pulse', status: 'unknown' }]);
+          |                                                        ^
+      212 | });
+      213 |
+        at <checkout>/test/blind-channels.e2e.spec.ts:211:56
+
+    Error Context: test-results/test-blind-channels.e2e-sl-f86f6-y-from-the-wrong-tree-scope-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope 

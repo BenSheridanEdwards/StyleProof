@@ -185,12 +185,12 @@ export function installVisualChannels(enabled: boolean): void {
       ? `${url.pathname}${url.search}${url.hash}`
       : source;
   };
-  const layerProperties = (element: Element, pseudo: string, rules: Rules, shadow?: Rules): Props => {
+  const layerProperties = (element: Element, pseudo: string, rules: Rules, scopes: Rules[]): Props => {
     const values: Props = {};
     if (!pseudo && element instanceof HTMLImageElement) values['img currentSrc'] = imageSource(element);
     for (const name of namesOf(getComputedStyle(element, pseudo || null).animationName)) {
       const winner = rules.winners.get(name);
-      const unknown = rules.unknown || shadow?.unknown || shadow?.winners.has(name);
+      const unknown = rules.unknown || scopes.some((scope) => scope.unknown || scope.winners.has(name));
       values[`animation keyframes (${name})`] = unknown || !winner ? reference(name) : winner.id;
     }
     return values;
@@ -210,13 +210,16 @@ export function installVisualChannels(enabled: boolean): void {
     try {
       for (const element of elements) {
         const root = element.getRootNode() as Document | ShadowRoot;
-        // Hosts can reference tree-scoped names, but their internals remain untraversed.
-        const shadow = element.shadowRoot ? rootRules(element.shadowRoot) : undefined;
+        // Hosts/slotted nodes can reference tree-scoped names; stylesheet provenance is not captured.
+        const scopes: Rules[] = [];
+        if (element.shadowRoot) scopes.push(rootRules(element.shadowRoot));
+        const slotRoot = element.assignedSlot?.getRootNode();
+        if (slotRoot instanceof ShadowRoot) scopes.push(rootRules(slotRoot));
         const rules = rootRules(root);
         output.set(
           element,
           Object.fromEntries(
-            ['', ...pseudos].map((pseudo) => [pseudo, layerProperties(element, pseudo, rules, shadow)]),
+            ['', ...pseudos].map((pseudo) => [pseudo, layerProperties(element, pseudo, rules, scopes)]),
           ),
         );
       }

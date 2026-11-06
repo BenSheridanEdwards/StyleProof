@@ -1476,7 +1476,7 @@ keyframe blocks keep their order because duplicate offsets cascade. Resolution
 uses CSSOM, currently applying media/supports and normal cascade layers, imports,
 disabled sheets and stylesheet order. Missing/unreadable rules or unsupported
 conditional scopes record `unknown`; the comparison skips them and names the
-limit. Shadow roots and frames remain untraversed. Shadow-host names that could
+limit. Shadow roots and frames remain untraversed. Host/slotted names that could
 refer to an untraversed root stay unknown. No animation progress is recorded.
 
 Same-origin HTTP(S) sources become pathname + query + fragment, so different

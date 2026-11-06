@@ -198,3 +198,15 @@ test('a missing active stylesheet makes the referenced keyframes unknown', async
   const map = await captureStyleMap(page, options);
   expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'pulse', status: 'unknown' }]);
 });
+
+test('slotted light-DOM names never claim a body from the wrong tree scope', async ({ page }) => {
+  const map = await capture(
+    page,
+    `<!doctype html><style>@keyframes pulse {to{opacity:.1}}</style>
+    <section id="host"><i class="target">slotted</i></section><script>
+    document.querySelector('#host').attachShadow({mode:'open'}).innerHTML =
+      '<style>@keyframes pulse {to{opacity:.8}} ::slotted(i) {animation:pulse 10s infinite}</style><slot></slot>';
+    </script>`,
+  );
+  expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'pulse', status: 'unknown' }]);
+});

@@ -612,7 +612,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     { ledger: confidenceLedger, summary: confidence },
     elevation.chrome.count,
   );
-  certIssues.push(...visualChannelEvidenceLines(ctx));
+  for (const line of visualChannelEvidenceLines(ctx)) certIssues.push(line);
   // "Nothing else" when restyles exist but no advisory content / inventory issues.
   const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
   if (
