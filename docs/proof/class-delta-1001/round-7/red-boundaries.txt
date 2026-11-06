@@ -62,9 +62,9 @@ el.className='old'; (0.097458ms)
 test at test/class-join-round7.test.mjs:67:3
 ✖ runtime boundary keeps positive values: const cfg = { as: { class: 'old' } }; (1.835042ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -83,9 +83,9 @@ test at test/class-join-round7.test.mjs:67:3
 test at test/class-join-round7.test.mjs:67:3
 ✖ runtime boundary keeps positive values: const cfg = { implements: { class: 'old' } }; (0.196ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -105,9 +105,9 @@ test at test/class-join-round7.test.mjs:67:3
 ✖ runtime boundary keeps positive values: type X = { class: 'type' }
 el.className='old'; (0.117792ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -127,9 +127,9 @@ test at test/class-join-round7.test.mjs:67:3
 ✖ runtime boundary keeps positive values: let p: Record<K, { class: 'type' }>
 el.className='old'; (0.10475ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -149,9 +149,9 @@ test at test/class-join-round7.test.mjs:67:3
 ✖ runtime boundary keeps positive values: const p = value as { class: 'type' }
 el.className='old'; (0.097458ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)

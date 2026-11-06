@@ -484,9 +484,9 @@ test at test/class-join-round7.test.mjs:41:3
 test at test/class-join-round7.test.mjs:62:3
 ✖ runtime boundary keeps positive values: switch(k) { default: { el.className='old'; } } (1.4615ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -505,9 +505,9 @@ test at test/class-join-round7.test.mjs:62:3
 test at test/class-join-round7.test.mjs:62:3
 ✖ runtime boundary keeps positive values: switch(k) { case A: { el.className='old'; } } (0.1595ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -526,9 +526,9 @@ test at test/class-join-round7.test.mjs:62:3
 test at test/class-join-round7.test.mjs:62:3
 ✖ runtime boundary keeps positive values: switch(k) { case K.A: { el.className='old'; } } (0.077834ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -547,9 +547,9 @@ test at test/class-join-round7.test.mjs:62:3
 test at test/class-join-round7.test.mjs:62:3
 ✖ runtime boundary keeps positive values: outer: { el.className='old'; } (0.060708ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -568,9 +568,9 @@ test at test/class-join-round7.test.mjs:62:3
 test at test/class-join-round7.test.mjs:62:3
 ✖ runtime boundary keeps positive values: $: { el.className='old'; } (0.077167ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -589,9 +589,9 @@ test at test/class-join-round7.test.mjs:62:3
 test at test/class-join-round7.test.mjs:66:1
 ✖ a bracket cap drops the entire unfinished statement but keeps earlier statements (0.158041ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(!literals.some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:70:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -631,7 +631,7 @@ test at test/class-join-round7.test.mjs:125:1
 ✖ dev-only TypeScript AST oracle: 8000 nested type-position literals have zero positive roles (126.051ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
   + [
   +   "function f<T = { class: 'old' }>() {}",
   +   "new Map<string, { className: 'old' }>();",
@@ -645,7 +645,7 @@ test at test/class-join-round7.test.mjs:125:1
   +   "const p = value satisfies ({ class: 'old' });"
   + ]
   - []
-  
+
       at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:184:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)

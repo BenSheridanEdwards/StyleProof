@@ -595,13 +595,17 @@ window.result = sink(1); (1.5045ms)
 ✔ an unterminated ' is one character before "\n" (0.276125ms)
 ✔ an unterminated ' is one character before "\r" (0.022042ms)
 ✔ an unterminated ' is one character before "\r\n" (0.016917ms)
-✔ an unterminated ' is one character before " " (1.260792ms)
-✔ an unterminated ' is one character before " " (0.022708ms)
+✔ an unterminated ' is one character before "
+" (1.260792ms)
+✔ an unterminated ' is one character before "
+" (0.022708ms)
 ✔ an unterminated " is one character before "\n" (0.0255ms)
 ✔ an unterminated " is one character before "\r" (0.017792ms)
 ✔ an unterminated " is one character before "\r\n" (0.019042ms)
-✔ an unterminated " is one character before " " (0.0205ms)
-✔ an unterminated " is one character before " " (0.020208ms)
+✔ an unterminated " is one character before "
+" (0.0205ms)
+✔ an unterminated " is one character before "
+" (0.020208ms)
 ✔ inline JSX cannot create a quoted token crossing its line (0.10725ms)
 ✔ multiline JSX cannot create a quoted token crossing its line (0.035125ms)
 ✔ realistic component cannot create a quoted token crossing its line (0.037125ms)
@@ -891,14 +895,22 @@ window.result = sink(1); (1.5045ms)
 ✔ " quoted continuation "\r\n" is flagged under {"minifySyntax":true} (2.11425ms)
 ✔ " quoted continuation "\r\n" is flagged under {"minifyWhitespace":true} (2.430875ms)
 ✔ " quoted continuation "\r\n" is flagged under {"minify":true} (1.856417ms)
-✔ ' quoted continuation " " is flagged under {} (2.071375ms)
-✔ ' quoted continuation " " is flagged under {"minifySyntax":true} (3.214708ms)
-✔ ' quoted continuation " " is flagged under {"minifyWhitespace":true} (6.440083ms)
-✔ ' quoted continuation " " is flagged under {"minify":true} (3.107125ms)
-✔ " quoted continuation " " is flagged under {} (2.836167ms)
-✔ " quoted continuation " " is flagged under {"minifySyntax":true} (1.36075ms)
-✔ " quoted continuation " " is flagged under {"minifyWhitespace":true} (2.905083ms)
-✔ " quoted continuation " " is flagged under {"minify":true} (3.684667ms)
+✔ ' quoted continuation "
+" is flagged under {} (2.071375ms)
+✔ ' quoted continuation "
+" is flagged under {"minifySyntax":true} (3.214708ms)
+✔ ' quoted continuation "
+" is flagged under {"minifyWhitespace":true} (6.440083ms)
+✔ ' quoted continuation "
+" is flagged under {"minify":true} (3.107125ms)
+✔ " quoted continuation "
+" is flagged under {} (2.836167ms)
+✔ " quoted continuation "
+" is flagged under {"minifySyntax":true} (1.36075ms)
+✔ " quoted continuation "
+" is flagged under {"minifyWhitespace":true} (2.905083ms)
+✔ " quoted continuation "
+" is flagged under {"minify":true} (3.684667ms)
 ✔ QA computed key above bound retains the documented residual under {} (2.883875ms)
 ✔ QA computed key above bound retains the documented residual under {"minifySyntax":true} (16.691291ms)
 ✔ QA computed key above bound retains the documented residual under {"minifyWhitespace":true} (3.231666ms)
@@ -931,8 +943,10 @@ window.result = sink(1); (1.5045ms)
 ✔ a capped slash stops its negative tail at "\n" (0.170375ms)
 ✔ a capped slash stops its negative tail at "\r" (0.063ms)
 ✔ a capped slash stops its negative tail at "\r\n" (0.061666ms)
-✔ a capped slash stops its negative tail at " " (2.556958ms)
-✔ a capped slash stops its negative tail at " " (0.096958ms)
+✔ a capped slash stops its negative tail at "
+" (2.556958ms)
+✔ a capped slash stops its negative tail at "
+" (0.096958ms)
 ✔ a long division line supplies negative-only evidence after the slash (0.121375ms)
 ✔ one column-zero map retains a hidden ternary branch for whole-line and token changes (2.70575ms)
 ✔ column-zero-only evidence always discloses line scope even when its anchor is inside the range (0.149917ms)
@@ -1114,8 +1128,10 @@ window.result = sink(1); (1.5045ms)
 ✔ token evidence for }; idle; reads never-ran (0.527958ms)
 ✔ the capture notes retain optional-chain continuation and merged-arm attribution limits (0.313708ms)
 ✔ token columns stay on the changed JavaScript line after "\r" (2.163917ms)
-✔ token columns stay on the changed JavaScript line after " " (4.896917ms)
-✔ token columns stay on the changed JavaScript line after " " (3.562292ms)
+✔ token columns stay on the changed JavaScript line after "
+" (4.896917ms)
+✔ token columns stay on the changed JavaScript line after "
+" (3.562292ms)
 ✔ a folded template class substitution cannot borrow the template head with minify=false (13.20575ms)
 ✔ a folded template class substitution cannot borrow the template head with minify=true (3.751542ms)
 ✔ a folded template call substitution cannot borrow the template head with minify=false (2.577584ms)
