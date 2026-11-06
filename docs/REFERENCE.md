@@ -1491,6 +1491,7 @@ after all unreadable sheets, or a stronger known layer than an opaque import's l
 The comparison skips unknowns and names the
 limit. Shadow roots and frames remain untraversed. Host/slotted names that could
 refer to an untraversed root stay unknown, including every root in a re-slot chain.
+Unknown and definite absence have distinct references, even for the same name.
 A live browser animation with no readable winner also stays unknown (for example,
 a name from a closed root). No animation progress is recorded. Capture emulates
 `prefers-reduced-motion: reduce`: keyframes gated on `no-preference`, including
@@ -1517,7 +1518,7 @@ stable marker `(blob URL; not compared)` with a named **not compared (blob URL)*
 report limit: no per-run UUID or blob bytes are stored or compared. Empty
 lazy/unloaded sources remain empty in the map; either side empty skips that image
 comparison and the report names **not compared (unloaded image)**, including empty
-versus empty. A complete image with no `src`/`srcset` records `(no source)`, so
+versus empty. These image limits cover resting and captured forced-state layers. A complete image with no `src`/`srcset` records `(no source)`, so
 removing a loaded source is compared. Self-check compares the shared
 dictionary and every property-layer reference/source, including missing or unknown
 evidence the compatibility diff skips. Body storage is shared across elements.

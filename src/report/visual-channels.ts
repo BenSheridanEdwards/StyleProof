@@ -4,19 +4,29 @@ import { codeValue } from '../code-span.js';
 import type { StyleMap } from '../capture/types.js';
 import type { RenderCtx } from './shared.js';
 
+function imageSources(map: StyleMap): [string, string][] {
+  const sources: [string, string][] = [];
+  for (const [path, element] of Object.entries(map.elements)) {
+    const source = element.style['img currentSrc'];
+    if (element.tag === 'img' && source !== undefined) sources.push([path, source]);
+  }
+  for (const states of Object.values(map.states))
+    for (const targets of Object.values(states))
+      for (const [path, properties] of Object.entries(targets)) {
+        const source = properties['img currentSrc'];
+        if (source !== undefined) sources.push([path, source]);
+      }
+  return sources;
+}
+
 function imageEvidenceLines(before: StyleMap, after: StyleMap, surface: string): string[] {
   const lines: string[] = [];
+  const sources = [...imageSources(before), ...imageSources(after)];
   for (const [value, reason] of [
     ['', 'unloaded image'],
     ['(blob URL; not compared)', 'blob URL'],
   ]) {
-    const images = new Set(
-      [before, after].flatMap((map) =>
-        Object.entries(map.elements)
-          .filter(([, element]) => element.tag === 'img' && element.style['img currentSrc'] === value)
-          .map(([path]) => path),
-      ),
-    );
+    const images = new Set(sources.filter(([, source]) => source === value).map(([path]) => path));
     if (images.size)
       lines.push(
         `- ${codeValue(surface)}: img currentSrc not compared (${reason}) on ${images.size} captured image(s).`,

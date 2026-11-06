@@ -217,3 +217,23 @@ test('loaded image to complete no-source is compared; unloaded lazy image remain
   expect(changes(before, lazy).map((property) => property.prop)).not.toContain('img currentSrc');
   expect(report(before, lazy)).toContain('not compared (unloaded image)');
 });
+
+for (const shadowFirst of [false, true]) {
+  test(`definite absence and unknown scope have distinct references (shadow first: ${shadowFirst})`, async ({
+    page,
+  }) => {
+    const absent = '<div class="absent">absent</div>';
+    const shadow = '<x-scope><span>slotted</span></x-scope>';
+    const map = await capture(
+      page,
+      `<style>.absent{animation:deep 1s infinite}</style>${shadowFirst ? shadow + absent : absent + shadow}<script>
+      customElements.define('x-scope', class extends HTMLElement { constructor(){ super(); this.attachShadow({mode:'open'}).innerHTML = '<style>@keyframes deep{to{opacity:.5}} ::slotted(*){animation:deep 1s infinite}</style><slot></slot>'; } });
+    </script>`,
+    );
+    const absentElement = Object.values(map.elements).find((element) => element.cls === 'absent')!;
+    const slotted = Object.values(map.elements).find((element) => element.tag === 'span')!;
+    expect(map.visualChannels!.keyframes[absentElement.style['animation keyframes (deep)']].status).toBe('none');
+    expect(map.visualChannels!.keyframes[slotted.style['animation keyframes (deep)']].status).toBe('unknown');
+    expect(report(map, map)).toContain('unknown; not compared');
+  });
+}

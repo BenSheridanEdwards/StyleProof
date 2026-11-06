@@ -1,24 +1,25 @@
 Already up to date
-Done in 57ms using pnpm v11.7.0
+Done in 88ms using pnpm v11.7.0
 $ node scripts/run-node-test.mjs test/blind-channels-round1.test.mjs test/blind-channels-round2.test.mjs test/blind-channels.test.mjs
-✔ both sides opted out produce no visual-channel evidence block (7.251625ms)
-✔ one-sided channel marker names the limit and leaves the following warning a separate paragraph (6.626459ms)
-✔ unloaded sources are skipped on either side, including empty against empty, with a named limit (8.213333ms)
-✔ proved keyframes absence is a normal compared change; unreadable stays unknown (0.275125ms)
-✔ blob sources are stable skipped evidence on either side with a named report limit (14.678334ms)
-✔ a complete image with no source is compared, rather than skipped as unloaded (0.184209ms)
-✔ runner defaults visual channels off and forwards the explicit opt-in (0.670709ms)
-✔ legacy maps skip keyframes and currentSrc on either side without hiding CSS changes (0.860125ms)
-✔ keyframe references compare canonical bodies, even if reference IDs agree (0.117709ms)
-✔ unknown keyframes do not fabricate a body difference (0.135542ms)
-✔ report recommends pixels for matched fonts without legacy notices when both channel captures are off (20.053167ms)
-✔ new channel findings reach report reviewable counts without being advisory (7.481ms)
-✔ self-check includes skipped unknown and missing visual-channel evidence (0.371791ms)
-ℹ tests 13
+✔ both sides opted out produce no visual-channel evidence block (7.480625ms)
+✔ one-sided channel marker names the limit and leaves the following warning a separate paragraph (10.000292ms)
+✔ unloaded sources are skipped on either side, including empty against empty, with a named limit (12.419125ms)
+✔ proved keyframes absence is a normal compared change; unreadable stays unknown (0.291542ms)
+✔ blob sources are stable skipped evidence on either side with a named report limit (24.36875ms)
+✔ a complete image with no source is compared, rather than skipped as unloaded (1.007625ms)
+✔ image comparison limits also name skipped sources captured only in forced states (6.801625ms)
+✔ runner defaults visual channels off and forwards the explicit opt-in (0.713625ms)
+✔ legacy maps skip keyframes and currentSrc on either side without hiding CSS changes (0.888292ms)
+✔ keyframe references compare canonical bodies, even if reference IDs agree (0.1215ms)
+✔ unknown keyframes do not fabricate a body difference (0.140625ms)
+✔ report recommends pixels for matched fonts without legacy notices when both channel captures are off (38.004291ms)
+✔ new channel findings reach report reviewable counts without being advisory (7.701541ms)
+✔ self-check includes skipped unknown and missing visual-channel evidence (0.423625ms)
+ℹ tests 14
 ℹ suites 0
-ℹ pass 13
+ℹ pass 14
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 134.615833
+ℹ duration_ms 249.218708

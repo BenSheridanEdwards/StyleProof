@@ -1,0 +1,37 @@
+Already up to date
+Done in 126ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/class-join-round6.test.mjs
+✔ inline type has no positive class role: function f(e: { class: 'old'; id: string }) {} (2.224875ms)
+✔ inline type has no positive class role: const p: { className: 'old' } = value; (0.32675ms)
+✔ inline type has no positive class role: (p: { className: 'old' }) => p; (0.901625ms)
+✔ inline type has no positive class role: let cols: { class: 'old' }[]; (0.360583ms)
+✔ inline type has no positive class role: (r): { class: 'old' } => r; (0.54675ms)
+✔ inline type has no positive class role: function f(e?: { class: 'old' }) {} (0.407375ms)
+✔ inline type has no positive class role: const f = (e?: { className: 'old' }) => e; (0.308625ms)
+✔ inline type has no positive class role: let p!: { class: 'old' }; (0.275625ms)
+✔ inline type has no positive class role: function f({id}: { class: 'old' }) {} (2.238125ms)
+✔ inline type has no positive class role: const cfg = { method(r): { class: 'old' } { return r; } }; (0.969333ms)
+✔ inline type has no positive class role: function f<T extends { class: 'old' }>(p: T) {} (0.715208ms)
+✔ inline type has no positive class role: const p = value as { class: 'old' }; (0.112417ms)
+✔ inline type has no positive class role: const p = value satisfies { class: 'old' }; (0.055625ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { row: { class: 'old' } }; (0.193833ms)
+✔ runtime property/ternary colon keeps class values: const cfg = on ? value : { class: 'old' }; (0.060334ms)
+✔ runtime property/ternary colon keeps class values: const cfg = on ? get() : { class: 'old' }; (0.110875ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { row: on ? value : { class: 'old' } }; (0.057875ms)
+✔ runtime property/ternary colon keeps class values: h('div', { class: 'old' }); (0.077917ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { [key]: { class: 'old' } }; (0.065542ms)
+✔ a bracket cap preserves completed positive roots before the incomplete frame (1.285792ms)
+✔ the depth gap covers unread words in an incomplete enclosing helper (0.588583ms)
+✔ flat else-if arms scale linearly to ten thousand without a depth gap (315.159625ms)
+ℹ {"name":"flat else-if extraction","n":2500,"largeN":10000,"warmupsPerSize":1,"samples":[[21.466791999999998,8.07570800000002,30.023833000000025],[42.416583,61.475292000000024,64.64408399999996]],"medianN":21.466791999999998,"median4N":61.475292000000024,"ratio":2.863739118541794}
+✔ pinned residual: receiver-only changes retain no J3 occurrence (10.011208ms)
+✔ pinned QA residual: unchanged neighbouring words can mask changed occurrences (0.453292ms)
+✔ a substitution bracket cap covers its unread positive prefix (1.848084ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 470.249417

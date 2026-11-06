@@ -1,0 +1,54 @@
+Already up to date
+Done in 109ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:79313) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  1 [chromium] › test/blind-channels-round2.e2e.spec.ts:222:3 › definite absence and unknown scope have distinct references (shadow first: false) (247ms)
+(node:79323) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  2 [chromium] › test/blind-channels-round2.e2e.spec.ts:222:3 › definite absence and unknown scope have distinct references (shadow first: true) (203ms)
+
+
+  1) [chromium] › test/blind-channels-round2.e2e.spec.ts:222:3 › definite absence and unknown scope have distinct references (shadow first: false)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "none"
+
+      234 |     const slotted = Object.values(map.elements).find((element) => element.tag === 'span')!;
+      235 |     expect(map.visualChannels!.keyframes[absentElement.style['animation keyframes (deep)']].status).toBe('none');
+    > 236 |     expect(map.visualChannels!.keyframes[slotted.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                               ^
+      237 |     expect(report(map, map)).toContain('unknown; not compared');
+      238 |   });
+      239 | }
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:236:95
+
+    Error Context: test-results/test-blind-channels-round2-652dd-erences-shadow-first-false--chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round2.e2e.spec.ts:222:3 › definite absence and unknown scope have distinct references (shadow first: true)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "none"
+    Received: "unknown"
+
+      233 |     const absentElement = Object.values(map.elements).find((element) => element.cls === 'absent')!;
+      234 |     const slotted = Object.values(map.elements).find((element) => element.tag === 'span')!;
+    > 235 |     expect(map.visualChannels!.keyframes[absentElement.style['animation keyframes (deep)']].status).toBe('none');
+          |                                                                                                     ^
+      236 |     expect(map.visualChannels!.keyframes[slotted.style['animation keyframes (deep)']].status).toBe('unknown');
+      237 |     expect(report(map, map)).toContain('unknown; not compared');
+      238 |   });
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:235:101
+
+    Error Context: test-results/test-blind-channels-round2-f5233-ferences-shadow-first-true--chromium/error-context.md
+
+  2 failed
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:222:3 › definite absence and unknown scope have distinct references (shadow first: false)
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:222:3 › definite absence and unknown scope have distinct references (shadow first: true)

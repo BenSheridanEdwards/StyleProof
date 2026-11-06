@@ -35,3 +35,23 @@ test('a complete image with no source is compared, rather than skipped as unload
     { prop: 'img currentSrc', before: '/a.png', after: '(no source)' },
   ]);
 });
+
+test('image comparison limits also name skipped sources captured only in forced states', () => {
+  for (const [value, reason] of [
+    ['(blob URL; not compared)', 'blob URL'],
+    ['', 'unloaded image'],
+  ]) {
+    const before = map('/a.png');
+    const after = map('/a.png');
+    before.states = { image: { hover: { image: { 'img currentSrc': '/a.png' } } } };
+    after.states = { image: { hover: { image: { 'img currentSrc': value } } } };
+    assert.deepEqual(diffStyleMaps(before, after), []);
+    const fixture = pairFixture({ surface: 'home@800', before, after });
+    try {
+      const text = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
+      assert.ok(text.includes(`not compared (${reason}) on 1 captured image(s)`));
+    } finally {
+      rmTmp(fixture.root);
+    }
+  }
+});

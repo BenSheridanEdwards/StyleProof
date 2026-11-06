@@ -16,7 +16,7 @@ export function installVisualChannels(enabled: boolean): void {
   const ids = new Map<string, string>();
   target.__spChannelBodies = bodies;
   const reference = (name: string, body?: string | null): string => {
-    const key = JSON.stringify([name, body]);
+    const key = JSON.stringify([name, body === null ? 'none' : body === undefined ? 'unknown' : 'known', body]);
     let id = ids.get(key);
     if (id === undefined) {
       id = String(bodies.length);

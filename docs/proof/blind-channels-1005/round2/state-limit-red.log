@@ -1,0 +1,38 @@
+Already up to date
+Done in 160ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/blind-channels-round2.test.mjs
+✔ blob sources are stable skipped evidence on either side with a named report limit (21.359292ms)
+✔ a complete image with no source is compared, rather than skipped as unloaded (0.219625ms)
+✖ image comparison limits also name skipped sources captured only in forced states (9.58175ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 2
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 176.234333
+
+✖ failing tests:
+
+test at test/blind-channels-round2.test.mjs:39:1
+✖ image comparison limits also name skipped sources captured only in forced states (9.58175ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(text.includes(`not compared (${reason}) on 1 captured image(s)`))
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round2.test.mjs:52:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.
