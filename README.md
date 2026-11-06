@@ -656,6 +656,14 @@ The same summary lands machine-readably in `report.json` (`confidence`).
 
 ## The boundary
 
+`captureVisualChannels: true` in `defineStyleMapCapture` (or `captureStyleMap`)
+adds referenced `@keyframes` bodies and resolved `img.currentSrc` to the normal
+diff, approvals, budgets and certification verdict. It is off by default so an
+upgrade preserves existing verdicts. Both sides must opt in; older maps name
+these channels as not compared. See [visual channels](docs/REFERENCE.md#optional-keyframes-and-image-sources).
+Matched changed font faces get a surface-specific `--pixels` recommendation;
+it does not change the verdict.
+
 StyleProof certifies only what it captured: a surface that was never captured
 has no base and no head map, so its change can never appear in a diff and the
 gate stays green having never looked at it. The coverage guard

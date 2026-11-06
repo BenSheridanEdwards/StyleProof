@@ -1,0 +1,54 @@
+## 🗺️ StyleProof report
+
+⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
+
+**1 change needs review**
+
+**1 distinct change** (2 computed-style difference(s)) in 1 changed surface base with an existing baseline.
+
+**What changed**
+
+- `home @ 800` — **`img`** +1 more · **`span.badge`** +1 more
+
+## Changes
+
+### `img` + 1 more · 2 elements restyled
+
+_home @ 800_
+
+`img currentSrc` `data:sha256:c0610d4072b54594821b0d82b3a5c7db153b46f3c99a8b3e87175c770bbe1b0b` → `data:sha256:a0afdd1d0e50e67184c9cc036840ed8e44ec3d27c17f49de9b958c4191e09453`<br>
+`animation keyframes (pulse)` `0% { opacity: 0; } 100% { opacity: 1; }` → `0% { opacity: 0; } 100% { opacity: 0.2; }`
+
+_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._
+
+- +1 more _(×2)_
+
+<details>
+<summary>Show all 2 property changes</summary>
+
+**`img`**
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `img currentSrc` | `data:sha256:c0610d4072b54594821b0d82b3a5c7db153b46f3c99a8b3e87175c770bbe1b0b` | `data:sha256:a0afdd1d0e50e67184c9cc036840ed8e44ec3d27c17f49de9b958c4191e09453` |
+
+**Badge** `span.badge`
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `animation keyframes (pulse)` | `0% { opacity: 0; } 100% { opacity: 1; }` | `0% { opacity: 0; } 100% { opacity: 0.2; }` |
+
+</details>
+
+_Nothing else — no other element or inventory changes in this compare._
+
+<details>
+<summary>Evidence (warnings & failures)</summary>
+
+⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.
+
+</details>

@@ -12,7 +12,7 @@ so — and when nothing changed, does it stay quiet?_
 - `bench/detection-rate.mjs` — the real product path, nothing synthetic:
   Chromium renders each mutated page, `captureStyleMap` captures it, and
   `diffStyleMaps` (plus `diffContentMaps` for the opt-in advisory text layer)
-  diffs it against the baseline.
+  diffs it against the baseline. Captures enable `captureVisualChannels: true`.
 - Before any case runs, the baseline is captured twice and must self-diff to
   zero — a nondeterministic fixture aborts the run rather than producing noise.
 
@@ -30,24 +30,29 @@ Each case declares an expectation:
 
 | Outcome   | Score | Meaning                                            |
 | --------- | ----- | -------------------------------------------------- |
-| `detect`  | 46/46 | Every seeded observable change surfaced on target. |
+| `detect`  | 48/48 | Every seeded observable change surfaced on target. |
 | `clean`   | 7/7   | Computed-identical changes produced zero findings. |
-| `blind`   | 3/3   | Documented boundaries held.                        |
+| `blind`   | 1/1   | Documented boundaries held.                        |
 | **Total** | 56/56 | Zero false positives, zero misses.                 |
 
 ## What this proves — and what it doesn't
 
 **Proven:** on a deterministic fixture, the certification diff catches
 realistic color, typography, spacing, layout, forced-state (`:hover`, `:focus`),
-pseudo-element, and `href`-identity changes — named down to the computed
+pseudo-element, referenced keyframes body, image source, and `href`-identity changes — named down to the computed
 property — and stays silent on computed-identical CSS rewrites.
 
 **Documented boundaries (`blind`, by design):**
 
-- `@keyframes` internals — keyframe bodies are not computed styles.
-- `img src` swaps — element attributes (except identity candidates like `href`)
-  are outside style evidence.
 - `aria-label` — accessibility metadata is outside style evidence.
+
+**Before/after (#1005):** the 56 cases previously measured 46 detect, 7 clean,
+3 blind. With the new opt-in channel enabled, `blind-keyframes` and `blind-img-src`
+now detect on their original marked elements with `animation keyframes (pulse)`
+and `img currentSrc` labels. `blind-aria-label` remains blind. The receipt has
+48/48 detect, 7/7 clean and 1/1 blind, with no failures. Default captures retain
+the previous boundary; the option expands ordinary findings and can change a
+consumer's verdict only after both sides opt in.
 
 **Notes:**
 

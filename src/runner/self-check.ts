@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { isDeepStrictEqual } from 'node:util';
+import { assertDeterministicVisualChannels } from '../visual-channels.js';
 import { scriptExecutionProjection } from '../script-reach.js';
 import { captureStyleMap } from '../capture.js';
 import type { ServedRuleTracker } from '../capture/reach.js';
@@ -224,6 +225,7 @@ export async function assertDeterministic(
   }
   if (settings.captureScriptReach) assertDeterministicScriptReach(first, again, surface.key);
   if (settings.captureReach) assertDeterministicReach(first, again, surface.key);
+  if (settings.captureVisualChannels) assertDeterministicVisualChannels(first, again, surface.key);
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     throw new Error(

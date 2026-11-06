@@ -101,6 +101,12 @@ export type CapturedOverlay = {
  * Shadow DOM and iframe content are NOT traversed (warned at capture time).
  */
 export type StyleMap = {
+  /** Opt-in deterministic visual channels. Absent on legacy/default captures; never infer evidence from absence. */
+  visualChannels?: {
+    version: 1;
+    /** Shared by property-layer references; key is JSON [name, SHA-256] (or [name, "unknown"]). */
+    keyframes: Record<string, { name: string; status: 'known' | 'unknown'; body?: string; hash?: string }>;
+  };
   /** Runner-supplied context; ignored by the certification diff. */
   metadata?: CaptureMetadata;
   /**
@@ -240,6 +246,8 @@ export type CaptureOptions = {
   captureComponent?: boolean;
   /** Opt-in Change Reach ledger: record served CSS rules and which matched into `StyleMap.reach` (default off). */
   captureReach?: boolean;
+  /** Opt-in keyframes bodies and img currentSrc. Findings participate in certification (default off). */
+  captureVisualChannels?: boolean;
   /** Opt-in binary script coverage resolved to original sources (default off). */
   captureScriptReach?: boolean;
   /** Arm trackScriptReach(page) before navigation; absent trackers produce unmeasured evidence. */

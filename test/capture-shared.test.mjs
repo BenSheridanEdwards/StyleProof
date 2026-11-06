@@ -64,6 +64,7 @@ function capturePageHarness() {
       let result;
       switch (fn.name) {
         case 'collectMediaTexts':
+        case 'installVisualChannels':
         case 'freezeMotion':
         case 'unfreezeMotion':
         case 'capturePage':

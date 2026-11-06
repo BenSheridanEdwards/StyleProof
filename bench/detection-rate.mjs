@@ -65,9 +65,9 @@ await page.setViewportSize({ width: 1280, height: 900 });
 const bases = {};
 for (const captureText of [false, true]) {
   await page.goto(FIXTURE_URL, { waitUntil: 'load' });
-  const a = await captureStyleMap(page, { captureText });
+  const a = await captureStyleMap(page, { captureText, captureVisualChannels: true });
   await page.reload({ waitUntil: 'load' });
-  const b = await captureStyleMap(page, { captureText });
+  const b = await captureStyleMap(page, { captureText, captureVisualChannels: true });
   const selfFindings = diffStyleMaps(a, b);
   if (selfFindings.length) {
     console.error(
@@ -82,7 +82,7 @@ const results = [];
 for (const c of corpus.cases) {
   const captureText = c.captureText ?? false;
   await page.goto(caseUrl(c), { waitUntil: 'load' });
-  const map = await captureStyleMap(page, { captureText });
+  const map = await captureStyleMap(page, { captureText, captureVisualChannels: true });
   // captureText cases also run the advisory content diff (diffContentMaps) —
   // the layer styleproof-report renders for text changes. Advisory findings
   // never gate, but the corpus measures whether they surface.

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { visualChannelEvidenceLines } from './report/visual-channels.js';
 import path from 'node:path';
 import { foldedGeometryFindings } from './report/markdown.js';
 import { createCropBudget } from './report/crop-budget.js';
@@ -611,6 +612,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     { ledger: confidenceLedger, summary: confidence },
     elevation.chrome.count,
   );
+  certIssues.push(...visualChannelEvidenceLines(ctx));
   // "Nothing else" when restyles exist but no advisory content / inventory issues.
   const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
   if (

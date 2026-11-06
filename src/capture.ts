@@ -3,6 +3,8 @@
 // stays comparable. Public entry; the machinery lives under src/capture/.
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { installVisualChannels, type VisualChannelWindow } from './capture/visual-channels.js';
+import { finalizeVisualChannels, isChannelProperty } from './visual-channels.js';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
 import { restoreDeclaredMediaState } from './media-states.js';
 import { GENERATED_ID_SOURCES } from './generated-id.js';
@@ -321,6 +323,7 @@ function mergeMotion(elements: Elements, motion: PageCapture['elements']): void 
     if (!m) continue;
     Object.assign(entry.style, m.style);
     for (const [ps, props] of Object.entries(m.pseudo ?? {})) {
+      if (Object.keys(props).some(isChannelProperty)) (entry.pseudo ??= {})[ps] ??= {};
       if (entry.pseudo?.[ps]) Object.assign(entry.pseudo[ps], props);
     }
   }
@@ -477,6 +480,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   }
 
   await page.evaluate(injectPathOf, GENERATED_ID_SOURCES);
+  await page.evaluate(installVisualChannels, options.captureVisualChannels === true);
   // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(freezeMotion, FREEZE_CSS);
@@ -535,6 +539,10 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     }
     // Matches outside the compared elements do not count as reached (#993).
     const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements), map) } : map;
+    if (options.captureVisualChannels) {
+      const bodies = await page.evaluate(() => (window as Window & VisualChannelWindow).__spChannelBodies ?? []);
+      finalizeVisualChannels(result, bodies);
+    }
     await attachScriptReach(result, options);
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
     await page.evaluate(unfreezeMotion, true);

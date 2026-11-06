@@ -1453,6 +1453,45 @@ Capture reads the React fiber in-page (`__reactFiber$*`/`__reactProps$*` on Reac
 
 Like the content layer it is **advisory**: never fed to the certification diff or the gate, so captures stay deterministic. Component names are mangled in minified production builds, so it's most useful against a dev / non-minified target; on a non-React page the fiber keys are absent and the field is simply omitted.
 
+## Optional: keyframes and image sources
+
+```ts
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureVisualChannels: true });
+```
+
+Off by default, `captureVisualChannels` records referenced `@keyframes` bodies and
+`img.currentSrc`, including the image selected by `srcset`/`picture`. Changes flow
+through the ordinary findings, approvals, budgets, certify and review-gate paths.
+Opt in on both base and head to expand what the gate compares; upgrading alone
+keeps existing verdicts. A missing channel marker on either map skips both new
+channels and the report names **not compared (map predates keyframes/currentSrc
+capture)**. Older maps remain loadable; no existing schema version changes.
+
+Each enabled map adds `visualChannels: { version: 1, keyframes }`. The dictionary
+stores bodies once, keyed by JSON `[name, SHA-256]`; property layers carry those
+references under `animation keyframes (name)`. `img currentSrc` is stored directly
+in the image's style layer. Reports expand changed references to canonical bodies.
+Selectors use percentages and declarations use code-point property order; repeated
+keyframe blocks keep their order because duplicate offsets cascade. Resolution
+uses CSSOM, currently applying media/supports and normal cascade layers, imports,
+disabled sheets and stylesheet order. Missing/unreadable rules or unsupported
+conditional scopes record `unknown`; the comparison skips them and names the
+limit. Shadow roots and frames remain untraversed. Shadow-host names that could
+refer to an untraversed root stay unknown. No animation progress is recorded.
+
+Same-origin HTTP(S) sources become pathname + query + fragment, so different
+base/head hosts and ports do not create differences. External URLs keep their
+identity. No query parameters are stripped: StyleProof has no applicable URL
+volatility rule. Data URIs become `data:sha256:<digest>`; empty lazy/unloaded
+sources remain empty and are compared as such. Self-check compares the shared
+dictionary and every property-layer reference/source, including missing or unknown
+evidence the compatibility diff skips. Body storage is shared across elements.
+
+This option does not change J1 reference classification: keyframes remain
+`blind-channel` in Change Reach. A changed `@font-face` referenced by a matched
+rule (the same J1 blind-channel case) gets a surface-specific `--pixels`
+recommendation in report evidence. It is advice only and never changes a verdict.
+
 ## Optional: served-rule ledger (Change Reach, opt-in)
 
 Change Reach ([#934](https://github.com/BenSheridanEdwards/StyleProof/issues/934)) names changed served CSS rules that no captured state matched on compared elements. Off by default, opt in with `captureReach`:

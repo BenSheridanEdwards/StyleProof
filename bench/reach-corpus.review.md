@@ -115,3 +115,9 @@ match origin/main, with pngjs as the sole runtime dependency.
 Round six retains every corpus status/count and the 7/8 unknown totals. Inline
 type scopes, completed-prefix preservation and iterative flat ternary chains do
 not change this fixture; independent base removals and zero J2/J3 gaps still pass.
+
+Issue #1005 keeps this corpus's capture settings and all expectations unchanged.
+The new `captureVisualChannels` option is off here; J1 reference classification
+is unchanged. In particular, keyframes stay `blind-channel` in both scenarios,
+with declared/complete shown counts 3/17 and 16/17 and unknown counts 7/8.
+The detection corpus separately enables the option and measures body findings.

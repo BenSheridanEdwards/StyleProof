@@ -21,6 +21,7 @@ import {
 } from './map-store.js';
 export type { BaselineFailureReceipt } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
+import { channelValuesDiffer, comparableVisualChannels, isChannelProperty } from './visual-channels.js';
 import { GENERATED_PSEUDOS, INHERITED_PROPERTIES, CURRENTCOLOR_PROPERTIES } from './pseudo-references.js';
 import { addCounts, countFindings } from './findings-clean.js';
 import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
@@ -137,6 +138,10 @@ function diffProps(
     if (prop.startsWith('--')) continue;
     const before = propsA[prop] ?? fallbackA[prop] ?? unsetA;
     const after = propsB[prop] ?? fallbackB[prop] ?? unsetB;
+    if (isChannelProperty(prop)) {
+      if (channelValuesDiffer(prop, before, after, unsetA, unsetB)) changed.push({ prop, before, after });
+      continue;
+    }
     // Compare by CANONICAL value so a browser/build-tool serialization change is
     // not a change; the report still shows the real strings.
     if (!styleValuesEqual(before, after)) changed.push({ prop, before, after });
@@ -540,6 +545,11 @@ function diffStyleMapsWithStateLayers(
   options: DiffStyleOptions,
   uncomparedLayers: readonly string[],
 ): Finding[] {
+  const channelsCompared = before.visualChannels?.version === 1 && after.visualChannels?.version === 1;
+  if (before.visualChannels || after.visualChannels) {
+    before = comparableVisualChannels(before, channelsCompared);
+    after = comparableVisualChannels(after, channelsCompared);
+  }
   // Live regions flagged nondeterministic on EITHER side never diff, in any layer.
   const volatile = volatilePaths(before, after);
   const live = (elementPath: string) => !volatile.length || !isUnder(elementPath, volatile);

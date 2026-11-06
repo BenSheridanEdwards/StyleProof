@@ -1,0 +1,48 @@
+import { captureKeysIn } from '../capture.js';
+import { classifyRuleReach } from '../rule-reach.js';
+import { codeValue } from '../code-span.js';
+import type { RenderCtx } from './shared.js';
+
+/** Evidence limits and raster advice are report-only: neither can change the verdict. */
+export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
+  const base = new Set(captureKeysIn(ctx.beforeDir));
+  const lines: string[] = [];
+  let legacy = 0;
+  for (const surface of captureKeysIn(ctx.afterDir)
+    .filter((key) => base.has(key))
+    .sort()) {
+    const before = ctx.load(ctx.beforeDir, surface);
+    const after = ctx.load(ctx.afterDir, surface);
+    if (before.visualChannels?.version !== 1 || after.visualChannels?.version !== 1) {
+      legacy++;
+    } else {
+      const unknown = [
+        ...new Set(
+          [before, after].flatMap((map) =>
+            Object.values(map.visualChannels!.keyframes)
+              .filter((body) => body.status === 'unknown')
+              .map((body) => body.name),
+          ),
+        ),
+      ].sort();
+      for (const name of unknown)
+        lines.push(
+          `- ${codeValue(surface)}: animation keyframes ${codeValue(name)} unknown; not compared (unreadable, missing or unsupported stylesheet scope).`,
+        );
+    }
+    const fonts = classifyRuleReach([before], [after]).rules.filter(
+      (rule) =>
+        /(?:^| > )@font-face(?: #\d+)?$/.test(rule.key) &&
+        (rule.status === 'reached' || rule.status === 'blind-channel'),
+    );
+    if (fonts.length)
+      lines.push(
+        `- ${codeValue(surface)}: a changed \`@font-face\` is referenced by a matched rule; run \`--pixels\` for this surface to inspect glyph changes (recommendation only).`,
+      );
+  }
+  if (legacy)
+    lines.unshift(
+      `- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on ${legacy} paired capture(s); recapture both sides with \`captureVisualChannels: true\`.`,
+    );
+  return lines.length ? ['', '**Visual channel evidence limits and recommendations**', '', ...lines] : [];
+}

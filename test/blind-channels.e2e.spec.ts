@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { captureStyleMap, diffStyleMaps } from '../dist/index.js';
+import { assertDeterministicVisualChannels } from '../dist/visual-channels.js';
 
 const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
 const animation = (body: string, extra = '') => `<!doctype html><style>
@@ -102,4 +103,98 @@ test('pseudo-elements and forced-state references report their own keyframes bod
         finding.props.some((p) => p.prop === 'animation keyframes (pulse)'),
     ),
   ).toBe(true);
+});
+
+test('same-origin currentSrc ignores host/port and retains query and fragment identity', async ({ page }) => {
+  await page.route('http://**/*', async (route) => {
+    if (route.request().resourceType() === 'image')
+      return route.fulfill({
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>',
+      });
+    return route.fulfill({
+      contentType: 'text/html',
+      body: '<img class="target" width="10" height="10" src="/image.svg?version=1#part">',
+    });
+  });
+  await page.goto('http://base.test:1234/');
+  const before = await captureStyleMap(page, options);
+  await page.goto('http://head.test:9876/');
+  const after = await captureStyleMap(page, options);
+  expect(Object.values(after.elements).find((entry) => entry.tag === 'img')!.style['img currentSrc']).toBe(
+    '/image.svg?version=1#part',
+  );
+  expect(diffStyleMaps(before, after)).toEqual([]);
+});
+
+test('unreadable cross-origin stylesheet records unknown, never an invented winning body', async ({ page }) => {
+  await page.route('http://**/*', (route) =>
+    route.request().resourceType() === 'stylesheet'
+      ? route.fulfill({ contentType: 'text/css', body: '@keyframes pulse { to { opacity: .1; } }' })
+      : route.fulfill({
+          contentType: 'text/html',
+          body: animation('to { opacity: 1; }') + '<link rel="stylesheet" href="http://other.test/style.css">',
+        }),
+  );
+  await page.goto('http://base.test/');
+  const map = await captureStyleMap(page, options);
+  expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'pulse', status: 'unknown' }]);
+  expect(diffStyleMaps(map, map)).toEqual([]);
+});
+
+test('shadow-root keyframes cannot override document names; untraversed internals remain outside capture', async ({
+  page,
+}) => {
+  const markup = (opacity: string) =>
+    animation('to { opacity: 1; }') +
+    `<section id="host"></section><script>
+    document.querySelector('#host').attachShadow({mode:'open'}).innerHTML = '<style>@keyframes pulse { to { opacity: ${opacity}; } } i { animation: pulse 10s infinite; }</style><i>inside</i>';
+  </script>`;
+  const before = await capture(page, markup('.1'));
+  const after = await capture(page, markup('.2'));
+  expect(props(before, after)).toEqual([]);
+  expect(Object.values(after.visualChannels!.keyframes).every((rule) => !rule.body?.includes('0.2'))).toBe(true);
+});
+
+test('self-check rejects keyframe/currentSrc drift and missing evidence', async ({ page }) => {
+  const before = await capture(page, animation('to { opacity: 1; }'));
+  const after = await capture(page, animation('to { opacity: .2; }'));
+  expect(() => assertDeterministicVisualChannels(before, before, 'home')).not.toThrow();
+  expect(() => assertDeterministicVisualChannels(before, after, 'home')).toThrow(/self-check failed/);
+  const missing = structuredClone(before);
+  delete missing.visualChannels;
+  expect(() => assertDeterministicVisualChannels(before, missing, 'home')).toThrow(/evidence changed or is missing/);
+  const image = structuredClone(before);
+  image.elements.body.style['img currentSrc'] = '/different.png';
+  expect(() => assertDeterministicVisualChannels(before, image, 'home')).toThrow(/self-check failed/);
+});
+
+test('multiple animation names retain quoted commas and escaped identifiers', async ({ page }) => {
+  const markup = (opacity: string) =>
+    animation(
+      'to { opacity: 1; }',
+      `
+    @keyframes "has,comma" { to { opacity: ${opacity}; } }
+    @keyframes esc\\61 ped { to { color: red; } }
+    .target { animation-name: pulse, "has,comma", escaped; }
+  `,
+    );
+  const before = await capture(page, markup('1'));
+  const after = await capture(page, markup('.2'));
+  expect(props(before, after).map((p) => p.prop)).toEqual(['animation keyframes (has,comma)']);
+  expect(Object.values(after.visualChannels!.keyframes).every((body) => body.status === 'known')).toBe(true);
+});
+
+test('a missing active stylesheet makes the referenced keyframes unknown', async ({ page }) => {
+  await page.route('http://**/*', (route) =>
+    route.request().resourceType() === 'stylesheet'
+      ? route.abort()
+      : route.fulfill({
+          contentType: 'text/html',
+          body: animation('to { opacity: 1; }') + '<link rel="stylesheet" href="/missing.css">',
+        }),
+  );
+  await page.goto('http://fixture.test/');
+  const map = await captureStyleMap(page, options);
+  expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'pulse', status: 'unknown' }]);
 });

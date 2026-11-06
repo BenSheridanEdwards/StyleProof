@@ -2,6 +2,7 @@
 // Each must stay self-contained: no module-scope helpers, imports, or closures.
 import type { CapturedOverlay, ElementEntry, LiveRegionCandidate, Props } from './types.js';
 import type { PseudoReferences } from '../pseudo-references.js';
+import type { VisualChannelWindow } from './visual-channels.js';
 
 /** In-page shape of the window after {@link injectPathOf} runs. */
 type WithPathOf = { __spPathOf?: (el: Element) => string; __spCreatePathOf?: () => (el: Element) => string };
@@ -328,6 +329,10 @@ export function capturePage({
   };
   const elements: Record<string, ElementEntry> = {};
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
+  const channelWindow = window as Window & VisualChannelWindow;
+  const channels = motionOnly
+    ? channelWindow.__spReadChannels?.(all, [...PSEUDOS, ...pseudoReferences.generated])
+    : undefined;
   let shadowHosts = 0;
   let sameOriginFrames = 0;
   let ignored = false;
@@ -353,6 +358,7 @@ export function capturePage({
       cls: el.getAttribute('class') || '',
       style: snap(usedStyle, defaultFor(tag)),
     };
+    Object.assign(entry.style, channels?.get(el)?.['']);
     if (!motionOnly) {
       const typedComputedStyle = el.computedStyleMap?.();
       if (typedComputedStyle) {
@@ -391,11 +397,13 @@ export function capturePage({
       const cs = getComputedStyle(el, ps);
       if ((ps === '::before' || ps === '::after') && cs.getPropertyValue('content') === 'none') continue;
       const props = snap(cs, defaultFor(tag, ps));
+      Object.assign(props, channels?.get(el)?.[ps]);
       if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
     }
     for (const ps of pseudoReferences.generated) {
       if (!generates(el, ps, usedStyle.display)) continue;
       const props = overridesOf(el, tag, ps, usedStyle);
+      Object.assign(props, channels?.get(el)?.[ps]);
       if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
     }
     elements[pathOf(el)] = entry;
@@ -765,6 +773,10 @@ export function snapSubtree(
   }
 
   const baseline = stateWindow[baselineKey];
+  const channels = (window as Window & VisualChannelWindow).__spReadChannels?.(
+    elements.map(({ element }) => element),
+    ['::before', '::after', '::placeholder', '::marker'],
+  );
   const result: Record<string, Record<string, string>> = {};
   // Typed OM computed horizontal margins prove an `auto` margin whose used px only echoes a
   // state's width change (#917). One unsupported element drops the proof for the whole read.
@@ -814,6 +826,10 @@ export function snapSubtree(
         const property = style.item(index);
         if (/^(transition|animation)/.test(property)) continue;
         const value = style.getPropertyValue(property);
+        present.add(property);
+        if (saveBaseline || resting[property] !== value) properties[property] = value;
+      }
+      for (const [property, value] of Object.entries(channels?.get(element)?.[pseudo ?? ''] ?? {})) {
         present.add(property);
         if (saveBaseline || resting[property] !== value) properties[property] = value;
       }

@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Opt-in `captureVisualChannels` compares referenced keyframes bodies and resolved
+  image sources through normal findings, approvals, budgets and verdicts (#1005).
+  Shared canonical bodies and hashed data URIs keep maps bounded; self-check
+  includes the evidence. Legacy maps skip both channels with a named report limit.
+  Matched changed font faces get surface-specific `--pixels` advice. Defaults and
+  J1 blind-channel classification stay unchanged; no runtime dependency is added.
+
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.

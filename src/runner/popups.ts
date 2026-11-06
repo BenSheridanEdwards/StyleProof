@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { assertDeterministicVisualChannels } from '../visual-channels.js';
 import { trackScriptReach, type ScriptReachTracker } from '../capture/script-reach.js';
 import {
   captureStyleMap,
@@ -160,6 +161,7 @@ async function assertPopupDeterministic(
     const again = await captureOpenedPopupMap({ ...run, scriptReach }, popupId);
     if (run.s.captureScriptReach) assertDeterministicScriptReach(first, again, `${run.surface.key}-${popupId}`);
     if (run.s.captureReach) assertDeterministicReach(first, again, `${run.surface.key}-${popupId}`);
+    if (run.s.captureVisualChannels) assertDeterministicVisualChannels(first, again, `${run.surface.key}-${popupId}`);
     const drift = diffStyleMaps(first, again);
     if (drift.length) {
       throw new Error(
