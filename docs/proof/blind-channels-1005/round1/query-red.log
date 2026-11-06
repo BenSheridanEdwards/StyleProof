@@ -1,0 +1,39 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:2624) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round1.e2e.spec.ts:137:1 › redaction preserves benign raw query spelling when a credential parameter disappears (179ms)
+
+
+  1) [chromium] › test/blind-channels-round1.e2e.spec.ts:137:1 › redaction preserves benign raw query spelling when a credential parameter disappears
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 7
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "after": "http://assets.test/a.svg?asset=a%20b",
+    +     "before": "http://assets.test/a.svg?asset=a+b",
+    +     "prop": "img currentSrc",
+    +   },
+    + ]
+
+      147 |   );
+      148 |   const after = await capture(page, '<img width="10" height="10" src="http://assets.test/a.svg?asset=a%20b">');
+    > 149 |   expect(changes(before, after)).toEqual([]);
+          |                                  ^
+      150 |   expect(Object.values(before.elements).find((element) => element.tag === 'img')!.style['img currentSrc']).toBe(
+      151 |     'http://assets.test/a.svg?asset=a%20b',
+      152 |   );
+        at <checkout>/test/blind-channels-round1.e2e.spec.ts:149:34
+
+    Error Context: test-results/test-blind-channels-round1-b5152-ential-parameter-disappears-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:137:1 › redaction preserves benign raw query spelling when a credential parameter disappears

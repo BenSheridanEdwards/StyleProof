@@ -134,6 +134,24 @@ test('credential query fields are removed from stored sources but benign paramet
   expect(changes(before, after).map((p) => p.prop)).toContain('img currentSrc');
 });
 
+test('redaction preserves benign raw query spelling when a credential parameter disappears', async ({ page }) => {
+  await page.route('http://**/*', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>',
+    }),
+  );
+  const before = await capture(
+    page,
+    '<img width="10" height="10" src="http://assets.test/a.svg?asset=a%20b&%74oken=fixture-sensitive">',
+  );
+  const after = await capture(page, '<img width="10" height="10" src="http://assets.test/a.svg?asset=a%20b">');
+  expect(changes(before, after)).toEqual([]);
+  expect(Object.values(before.elements).find((element) => element.tag === 'img')!.style['img currentSrc']).toBe(
+    'http://assets.test/a.svg?asset=a%20b',
+  );
+});
+
 for (const ruleCount of [5000, 20000]) {
   test(`channel CSSOM cost is one root walk per capture with ${ruleCount} rules`, async ({ page }) => {
     await page.setContent(markup('@keyframes pulse{to{opacity:1}}' + '.unrelated{color:red}'.repeat(ruleCount)));
