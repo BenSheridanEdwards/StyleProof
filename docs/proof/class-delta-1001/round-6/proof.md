@@ -1,8 +1,9 @@
 # J3 round-six correction (#1001)
 
 Baseline: dd080f3add12ea88a12ca3f6b2b8ba9254aac797. Fetched/rebased onto origin/main
-(0cc4bd2dc); already current. Regression checkpoint: e266ac3e3. Final source:
-8ba4baa25e2c27bdff1322a881bab863151fd38f. Hooks remain enabled; no PR is opened.
+(0cc4bd2dc); already current. Regression checkpoint: e266ac3e3. Type/depth source:
+8ba4baa25e2c27bdff1322a881bab863151fd38f. Allocation follow-up / final source:
+a6de615f63c58d72c8a57040dc538f94af696b34. Hooks remain enabled; no PR is opened.
 
 ## Changes
 
@@ -61,13 +62,22 @@ The first Fallow run rejected the combined ternary scanner for cognitive complex
 scan/emission helpers cleared the unchanged threshold. All hooks run normally;
 no tests, limits or gate configuration were weakened.
 
+## Push timing rejection and allocation follow-up
+
+The first normal pre-push hook rejected two existing one-second guards under its
+full concurrent unit run: scoped classification took 1233.94 ms and whole-hunk
+classification 1144.32 ms ([real rejection](push-timing-red.txt)). The remote branch
+remained dd080f3ad. No hook or assertion was bypassed. The follow-up avoids child
+arrays for leaf tokens, generic queues for terminal values and property-name
+decoding outside assignment/property roots. It preserves type/role decisions,
+configuration exclusions and depth checks. All 1,093 focused tests and the real
+Chromium refactor pass again ([focused](green-perf-focused.txt),
+[Chromium](green-perf-e2e.txt)). The same full gates are rerun below.
+
 ## Final verification
 
 pnpm run verify passes **6,313 tests**, zero failures/skips, with type/lint/format,
-privacy, context and suppression checks ([real tail](verify-tail.txt)). Its timing
-receipts: 1 MB strings/templates 179/264 ms; 16,000 scoped units classify/combine
-in 298/7 ms; whole-hunk classification 392 ms; 10,000 ternary arms 47 ms.
-Every timing bound stays 1,000 ms.
+privacy, context and suppression checks ([real tail](verify-tail.txt)).
 
 pnpm run bench:reach:check passes all **36 scenario checks**, including independent
 base removals, with no J2/J3 gaps ([real tail](bench-tail.txt)). The remeasured
@@ -93,14 +103,16 @@ stylesheet join. This is diagnostic proof, not a certification claim. Video is
 not applicable: no animated/interactive UI changed; the real-capture regression
 and generated report establish the classification behaviour.
 
-Full pnpm run test:e2e --workers=4 passes **1,211 cases in 8.2 minutes**, zero
-failures, with one existing skip ([real tail](e2e-tail.txt)): the unsupported-state
-case at test/cross-element-state.e2e.spec.ts:112 requires a non-Chromium project.
-No existing skip or assertion was changed. Verify and E2E launch loads were
-1.91 and 2.93; all heavy launches were below 60.
+The rerun after the allocation follow-up passes all 6,313 unit tests and all
+1,211 Chromium cases in 8.2 minutes, with one existing non-Chromium skip
+([verify tail](verify-tail.txt), [browser tail](e2e-tail.txt)). The same 36 corpus
+checks pass; no source or dependency changes follow these gates. The current
+16,000-line guards measure 290 ms scoped classification and 431 ms whole-hunk
+classification. The 1s limits and test concurrency are unchanged.
 
-No source edits follow these gates. The receipt commit contains only proof/method
-notes, README clarification and the measured corpus timestamp. Push uses the exact
-dd080f3add12ea88a12ca3f6b2b8ba9254aac797 lease with normal hooks. Raw red/green
-logs, load samples, intermediate Fallow/fixture runs and the copied real-capture
-Git fixture are retained in the local round-six handoff.
+The existing skip is test/cross-element-state.e2e.spec.ts:112, which requires a
+non-Chromium project. No skip or assertion was weakened. Final verify/E2E launch
+loads were 1.67/3.10, below 60. The first push was rejected locally; the remote
+remained dd080f3ad, so the retry uses the same exact supplied
+dd080f3add12ea88a12ca3f6b2b8ba9254aac797 lease with normal hooks. Raw logs and
+intermediate runs are retained in the round-six local handoff.
