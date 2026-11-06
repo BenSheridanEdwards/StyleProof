@@ -1,0 +1,61 @@
+Already up to date
+Done in 70ms using pnpm v11.7.0
+
+Running 45 tests using 2 workers
+
+(node:69199) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:69198) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   1 [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes deleted is proved absent rather than unknown (144ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   2 [chromium] › test/blind-channels-round2.e2e.spec.ts:31:1 › every root in a re-slot chain keeps untraversed keyframes unknown, never definite none (195ms)
+  ✓   3 [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes non-applying media is proved absent rather than unknown (142ms)
+  ✓   4 [chromium] › test/blind-channels-round2.e2e.spec.ts:47:1 › a closed slotted root cannot produce a false definite absence (115ms)
+  ✓   5 [chromium] › test/blind-channels-round1.e2e.spec.ts:31:1 › timeline range selectors retain their identity and never collapse to NaN (114ms)
+  ✓   6 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves background-position var substitution (152ms)
+  ✓   7 [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise reorder (142ms)
+  ✓   8 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves margin var deletion (134ms)
+  ✓   9 [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise split lists (144ms)
+  ✓  10 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves timing function groups (126ms)
+  ✓  11 [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise merge declarations (145ms)
+  ✓  12 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves composition groups (113ms)
+  ✓  14 [chromium] › test/blind-channels-round2.e2e.spec.ts:102:3 › equivalent keyframes stay clean for var shorthand split and merge (142ms)
+  ✓  13 [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise duplicate cascade (146ms)
+  ✓  16 [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise range reorder (125ms)
+  ✓  15 [chromium] › test/blind-channels-round2.e2e.spec.ts:102:3 › equivalent keyframes stay clean for var shorthand later wins (128ms)
+  ✓  17 [chromium] › test/blind-channels-round2.e2e.spec.ts:102:3 › equivalent keyframes stay clean for matching timing groups merge (142ms)
+  ✓  18 [chromium] › test/blind-channels-round1.e2e.spec.ts:55:1 › merging duplicate offsets still detects a changed effective property (142ms)
+  ✓  20 [chromium] › test/blind-channels-round2.e2e.spec.ts:102:3 › equivalent keyframes stay clean for quoted semicolon and var fallback (141ms)
+  ✓  19 [chromium] › test/blind-channels-round1.e2e.spec.ts:61:1 › a readable unlayered winner after an opaque sheet is compared; an opaque later sheet stays unknown (147ms)
+  ✓  22 [chromium] › test/blind-channels-round1.e2e.spec.ts:81:1 › an opaque imported layer cannot beat a readable later layer (103ms)
+  ✓  21 [chromium] › test/blind-channels-round2.e2e.spec.ts:110:1 › identical blob images are stable skipped evidence without exposing per-run URLs (150ms)
+  ✓  23 [chromium] › test/blind-channels-round1.e2e.spec.ts:97:1 › credential query fields are removed from stored sources but benign parameters and external hosts retain identity (165ms)
+  ✓  24 [chromium] › test/blind-channels-round2.e2e.spec.ts:150:3 › S3 v2 credential rotations expose no credential text in map or report (197ms)
+  ✓  25 [chromium] › test/blind-channels-round1.e2e.spec.ts:137:1 › redaction preserves benign raw query spelling when a credential parameter disappears (129ms)
+  ✓  27 [chromium] › test/blind-channels-round1.e2e.spec.ts:156:3 › channel CSSOM cost is one root walk per capture with 5000 rules (38ms)
+  ✓  28 [chromium] › test/blind-channels-round1.e2e.spec.ts:156:3 › channel CSSOM cost is one root walk per capture with 20000 rules (50ms)
+  ✓  26 [chromium] › test/blind-channels-round2.e2e.spec.ts:150:3 › S3 v4 credential rotations expose no credential text in map or report (186ms)
+  ✓  29 [chromium] › test/blind-channels.e2e.spec.ts:18:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged (175ms)
+  ✓  30 [chromium] › test/blind-channels-round2.e2e.spec.ts:150:3 › GCS v4 credential rotations expose no credential text in map or report (200ms)
+  ✓  31 [chromium] › test/blind-channels.e2e.spec.ts:37:1 › inactive media/supports and losing cascade layers cannot replace the winning keyframes (201ms)
+  ✓  32 [chromium] › test/blind-channels-round2.e2e.spec.ts:150:3 › Azure SAS credential rotations expose no credential text in map or report (177ms)
+  ✓  34 [chromium] › test/blind-channels-round2.e2e.spec.ts:150:3 › CloudFront credential rotations expose no credential text in map or report (165ms)
+  ✓  33 [chromium] › test/blind-channels.e2e.spec.ts:61:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical (374ms)
+  ✓  36 [chromium] › test/blind-channels.e2e.spec.ts:74:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured (159ms)
+  ✓  37 [chromium] › test/blind-channels.e2e.spec.ts:89:1 › pseudo-elements and forced-state references report their own keyframes body (201ms)
+  ✓  38 [chromium] › test/blind-channels.e2e.spec.ts:108:1 › same-origin currentSrc ignores host/port and retains query and fragment identity (196ms)
+  ✓  39 [chromium] › test/blind-channels.e2e.spec.ts:130:1 › unreadable cross-origin stylesheet records unknown, never an invented winning body (103ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  40 [chromium] › test/blind-channels.e2e.spec.ts:145:1 › shadow-root keyframes cannot override document names; untraversed internals remain outside capture (154ms)
+  ✓  41 [chromium] › test/blind-channels.e2e.spec.ts:159:1 › self-check rejects keyframe/currentSrc drift and missing evidence (146ms)
+  ✓  35 [chromium] › test/blind-channels-round2.e2e.spec.ts:170:1 › unsigned query fields keep identity without provider signature markers (1.3s)
+  ✓  42 [chromium] › test/blind-channels.e2e.spec.ts:172:1 › multiple animation names retain quoted commas and escaped identifiers (144ms)
+  ✓  44 [chromium] › test/blind-channels.e2e.spec.ts:188:1 › a missing active stylesheet makes the referenced keyframes unknown (123ms)
+  ✓  43 [chromium] › test/blind-channels-round2.e2e.spec.ts:200:1 › loaded image to complete no-source is compared; unloaded lazy image remains skipped (274ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  45 [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope (132ms)
+
+  45 passed (4.6s)

@@ -15,7 +15,16 @@ export function channelValuesDiffer(
   unsetB: string,
 ): boolean {
   if (before === '(keyframes unknown; not compared)' || after === '(keyframes unknown; not compared)') return false;
-  if (property === 'img currentSrc' && (!before || !after || before === unsetA || after === unsetB)) return false;
+  if (
+    property === 'img currentSrc' &&
+    (!before ||
+      !after ||
+      before === unsetA ||
+      after === unsetB ||
+      before === '(blob URL; not compared)' ||
+      after === '(blob URL; not compared)')
+  )
+    return false;
   return before !== after;
 }
 

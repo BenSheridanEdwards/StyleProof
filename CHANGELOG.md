@@ -18,6 +18,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   CSSOM resolution is cached per root per capture and preserves provable winners
   over opaque sheets. Unloaded images get a named skip, signed-URL credential
   parameters are removed, and reports with both sides opted out stay unchanged.
+  Re-slot chains keep untraversed animation scopes unknown; keyframe merging preserves
+  `var()` shorthands and distinct timing/composition groups. Blob images have a named
+  comparison limit; complete images without a source remain compared. S3/GCS/Azure
+  credential rotations are redacted without hiding unsigned query changes.
 
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;

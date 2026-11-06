@@ -211,7 +211,7 @@ test('loaded image to complete no-source is compared; unloaded lazy image remain
   expect(report(before, after)).not.toContain('unloaded image');
   const lazy = await capture(
     page,
-    '<img loading="lazy" style="position:absolute;top:99999px" width="10" height="10" src="http://assets.test/a.svg">',
+    '<img loading="lazy" style="position:absolute;top:99999px" width="10" height="10" src="http://assets.test/lazy.svg">',
   );
   expect(sourceOf(lazy)).toBe('');
   expect(changes(before, lazy).map((property) => property.prop)).not.toContain('img currentSrc');

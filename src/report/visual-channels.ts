@@ -1,7 +1,29 @@
 import { captureKeysIn } from '../capture.js';
 import { classifyRuleReach } from '../rule-reach.js';
 import { codeValue } from '../code-span.js';
+import type { StyleMap } from '../capture/types.js';
 import type { RenderCtx } from './shared.js';
+
+function imageEvidenceLines(before: StyleMap, after: StyleMap, surface: string): string[] {
+  const lines: string[] = [];
+  for (const [value, reason] of [
+    ['', 'unloaded image'],
+    ['(blob URL; not compared)', 'blob URL'],
+  ]) {
+    const images = new Set(
+      [before, after].flatMap((map) =>
+        Object.entries(map.elements)
+          .filter(([, element]) => element.tag === 'img' && element.style['img currentSrc'] === value)
+          .map(([path]) => path),
+      ),
+    );
+    if (images.size)
+      lines.push(
+        `- ${codeValue(surface)}: img currentSrc not compared (${reason}) on ${images.size} captured image(s).`,
+      );
+  }
+  return lines;
+}
 
 /** Evidence limits and raster advice are report-only: neither can change the verdict. */
 export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
@@ -31,17 +53,7 @@ export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
         lines.push(
           `- ${codeValue(surface)}: animation keyframes ${codeValue(name)} unknown; not compared (unreadable, missing or unsupported stylesheet scope).`,
         );
-      const unloaded = new Set(
-        [before, after].flatMap((map) =>
-          Object.entries(map.elements)
-            .filter(([, element]) => element.tag === 'img' && element.style['img currentSrc'] === '')
-            .map(([path]) => path),
-        ),
-      );
-      if (unloaded.size)
-        lines.push(
-          `- ${codeValue(surface)}: img currentSrc not compared (unloaded image) on ${unloaded.size} captured image(s).`,
-        );
+      for (const line of imageEvidenceLines(before, after, surface)) lines.push(line);
     }
     const fonts = classifyRuleReach([before], [after]).rules.filter(
       (rule) => /(?:^| > )@font-face(?: #\d+)?$/.test(rule.key) && rule.status === 'blind-channel',

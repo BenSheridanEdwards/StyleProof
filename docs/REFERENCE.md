@@ -1475,8 +1475,11 @@ references under `animation keyframes (name)`. `img currentSrc` is stored direct
 in the image's style layer. Reports expand changed references to canonical bodies.
 `from`/`to` become `0%`/`100%`, plain percentages are normalised, and timeline-range
 selectors retain their CSSOM spelling. Selector lists expand to individual offsets;
-duplicate offsets merge declarations in source order (later wins per property),
-then offsets and declarations sort deterministically. Reordering independent blocks
+entries merge in source order (later wins per property) only when offset,
+`animation-timing-function`, and `animation-composition` match. CSSOM declaration
+text preserves pending `var()` shorthands. Offsets and declarations sort
+deterministically; distinct timing/composition groups at the same offset retain
+their source order. Reordering independent blocks
 or merging/splitting equivalent blocks therefore stays clean. Resolution
 uses CSSOM, currently applying media/supports and normal cascade layers, imports,
 disabled sheets and stylesheet order, cached once per root for each capture.
@@ -1487,17 +1490,35 @@ remain `unknown` unless a readable winner provably outranks them: an unlayered r
 after all unreadable sheets, or a stronger known layer than an opaque import's layer.
 The comparison skips unknowns and names the
 limit. Shadow roots and frames remain untraversed. Host/slotted names that could
-refer to an untraversed root stay unknown. No animation progress is recorded.
+refer to an untraversed root stay unknown, including every root in a re-slot chain.
+A live browser animation with no readable winner also stays unknown (for example,
+a name from a closed root). No animation progress is recorded. Capture emulates
+`prefers-reduced-motion: reduce`: keyframes gated on `no-preference`, including
+Tailwind `motion-safe:`, record `none` in that environment. Changing only those
+gated bodies is not compared; this capture does not exercise normal-motion playback.
 
 Same-origin HTTP(S) sources become pathname + query + fragment, so different
 base/head hosts and ports do not create differences. External URLs keep their
 identity: cross-origin asset host differences are findings under the same-environment
-comparison rule. Known credential/signature query parameters are removed, case-insensitively:
-`X-Amz-*`, `Signature`, `token`, `access_token`, `sig`, SAS `se`/`sp`/`sv`,
-`Expires`, `Key-Pair-Id`, and `Policy`. Other parameters and fragments retain identity.
-Data URIs become `data:sha256:<digest>`; empty lazy/unloaded sources remain empty
-in the map, but either side empty skips that image comparison and the report names
-**not compared (unloaded image)**, including empty versus empty. Self-check compares the shared
+comparison rule. Credential/signature query parameters are removed case-insensitively,
+without re-encoding retained parameters. Provider markers bound the removal:
+
+- S3 V4 `X-Amz-Signature` or `X-Amz-Credential` removes `X-Amz-*`;
+  GCS V4 `X-Goog-Signature` or `X-Goog-Credential` removes `X-Goog-*`.
+- `Signature`, `Key-Pair-Id`, or `AWSAccessKeyId` removes those fields plus
+  `Expires` and `Policy` (S3 V2/CloudFront).
+- `sig` removes Azure SAS fields `sig`, `se`, `sp`, `sv`, `st`, `sr`, `ss`, `srt`,
+  `si`, `skt`, `ske`, `skoid`, `sktid`, `sks`, `skv`, `sdd`, and `spr`.
+- Generic `token` and `access_token` are always removed.
+
+Unsigned parameters such as `?sp=1`, other parameters, and fragments retain
+identity. Data URIs become `data:sha256:<digest>`. Blob URLs are stored as the
+stable marker `(blob URL; not compared)` with a named **not compared (blob URL)**
+report limit: no per-run UUID or blob bytes are stored or compared. Empty
+lazy/unloaded sources remain empty in the map; either side empty skips that image
+comparison and the report names **not compared (unloaded image)**, including empty
+versus empty. A complete image with no `src`/`srcset` records `(no source)`, so
+removing a loaded source is compared. Self-check compares the shared
 dictionary and every property-layer reference/source, including missing or unknown
 evidence the compatibility diff skips. Body storage is shared across elements.
 

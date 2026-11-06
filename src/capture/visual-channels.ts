@@ -39,32 +39,58 @@ export function installVisualChannels(enabled: boolean): void {
     if (plainA !== plainB) return plainA ? -1 : 1;
     return a < b ? -1 : a > b ? 1 : 0;
   };
-  const mergeFrame = (offsets: Map<string, CSSStyleDeclaration>, frame: CSSKeyframeRule): void => {
+  type Frame = { offset: string; declarations: CSSStyleDeclaration };
+  const mergeFrame = (frames: Map<string, Frame>, frame: CSSKeyframeRule): void => {
     for (const offset of frame.keyText.split(',').map(offsetOf)) {
-      let declarations = offsets.get(offset);
-      if (!declarations) offsets.set(offset, (declarations = document.createElement('span').style));
-      for (const property of Array.from(frame.style))
-        declarations.setProperty(
-          property,
-          frame.style.getPropertyValue(property),
-          frame.style.getPropertyPriority(property),
-        );
+      const key = JSON.stringify([
+        offset,
+        frame.style.getPropertyValue('animation-timing-function'),
+        frame.style.getPropertyValue('animation-composition'),
+      ]);
+      let merged = frames.get(key);
+      if (!merged) frames.set(key, (merged = { offset, declarations: document.createElement('span').style }));
+      // Pending var() shorthands expose empty longhands. CSS text preserves them while applying the cascade.
+      merged.declarations.cssText += ' ' + frame.style.cssText;
     }
   };
+  // Split CSSOM text without splitting quoted/escaped content or function arguments.
+  const splitTokens = (text: string, separator: string): string[] => {
+    const tokens: string[] = [];
+    let start = 0;
+    let quote = '';
+    let depth = 0;
+    for (let index = 0; index < text.length; index++) {
+      const character = text[index];
+      if (character === '\\') {
+        index++;
+        continue;
+      }
+      if (quote) {
+        if (character === quote) quote = '';
+      } else if (character === '"' || character === "'") quote = character;
+      else if ('([{'.includes(character)) depth++;
+      else if (')]}'.includes(character)) depth--;
+      else if (character === separator && !depth) {
+        tokens.push(text.slice(start, index));
+        start = index + 1;
+      }
+    }
+    tokens.push(text.slice(start));
+    return tokens;
+  };
   const declarationText = (style: CSSStyleDeclaration): string =>
-    Array.from(style)
+    splitTokens(style.cssText, ';')
+      .map((declaration) => declaration.trim())
+      .filter(Boolean)
       .sort()
-      .map(
-        (property) =>
-          `${property}: ${style.getPropertyValue(property)}${style.getPropertyPriority(property) ? ' !important' : ''};`,
-      )
+      .map((declaration) => `${declaration};`)
       .join(' ');
   const canonicalBody = (rule: CSSKeyframesRule): string => {
-    const offsets = new Map<string, CSSStyleDeclaration>();
-    for (const child of Array.from(rule.cssRules)) mergeFrame(offsets, child as CSSKeyframeRule);
-    return [...offsets.keys()]
-      .sort(offsetOrder)
-      .map((offset) => `${offset} { ${declarationText(offsets.get(offset)!)} }`)
+    const frames = new Map<string, Frame>();
+    for (const child of Array.from(rule.cssRules)) mergeFrame(frames, child as CSSKeyframeRule);
+    return [...frames.values()]
+      .sort((a, b) => offsetOrder(a.offset, b.offset))
+      .map((frame) => `${frame.offset} { ${declarationText(frame.declarations)} }`)
       .join(' ');
   };
 
@@ -217,40 +243,13 @@ export function installVisualChannels(enabled: boolean): void {
     const winner = rules.winners.get(name);
     return rules.opaque.some((opaque) => couldContain(opaque, name) && (!winner || !beatsOpaque(winner, opaque)));
   };
-  // Animation names can be strings containing commas or escapes; do not split their contents.
-  const splitNames = (text: string): string[] => {
-    const tokens: string[] = [];
-    let start = 0;
-    let quote = '';
-    for (let index = 0; index < text.length; index++) {
-      const character = text[index];
-      if (character === '\\') {
-        index++;
-        continue;
-      }
-      if (quote) {
-        if (character === quote) quote = '';
-        continue;
-      }
-      if (character === '"' || character === "'") {
-        quote = character;
-        continue;
-      }
-      if (character === ',') {
-        tokens.push(text.slice(start, index));
-        start = index + 1;
-      }
-    }
-    tokens.push(text.slice(start));
-    return tokens;
-  };
   const escapeCharacter = (_: string, hex: string, character: string): string => {
     if (!hex) return character;
     const point = Number.parseInt(hex, 16);
     return !point || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff) ? '\ufffd' : String.fromCodePoint(point);
   };
   const namesOf = (text: string): string[] =>
-    splitNames(text).flatMap((token) => {
+    splitTokens(text, ',').flatMap((token) => {
       const value = token.trim();
       if (!value || value === 'none') return [];
       const unquoted = /^("|').*\1$/.test(value) ? value.slice(1, -1) : value;
@@ -258,11 +257,26 @@ export function installVisualChannels(enabled: boolean): void {
     });
   const imageSource = (element: HTMLImageElement): string => {
     const source = element.currentSrc;
-    const url = source ? new URL(source, document.baseURI) : undefined;
-    if (!url || !/^https?:$/.test(url.protocol)) return source;
-    const sensitive = /^(?:x-amz-.*|signature|token|access_token|sig|se|sp|sv|expires|key-pair-id|policy)$/i;
+    if (!source)
+      return element.complete && !element.getAttribute('src') && !element.getAttribute('srcset') ? '(no source)' : '';
+    const url = new URL(source, document.baseURI);
+    if (url.protocol === 'blob:') return '(blob URL; not compared)';
+    if (!/^https?:$/.test(url.protocol)) return source;
     const query = url.search.slice(1).split('&');
-    const retained = query.filter((part) => !sensitive.test(new URLSearchParams('?' + part).keys().next().value ?? ''));
+    const names = query.map((part) => (new URLSearchParams('?' + part).keys().next().value ?? '').toLowerCase());
+    const has = (name: string): boolean => names.includes(name);
+    const aws = has('x-amz-signature') || has('x-amz-credential');
+    const google = has('x-goog-signature') || has('x-goog-credential');
+    const signed = has('signature') || has('key-pair-id') || has('awsaccesskeyid');
+    const sas = has('sig');
+    const retained = query.filter((_, index) => {
+      const name = names[index];
+      if (name === 'token' || name === 'access_token') return false;
+      if (aws && name.startsWith('x-amz-')) return false;
+      if (google && name.startsWith('x-goog-')) return false;
+      if (signed && /^(?:signature|key-pair-id|awsaccesskeyid|expires|policy)$/.test(name)) return false;
+      return !(sas && /^(?:sig|se|sp|sv|st|sr|ss|srt|si|skt|ske|skoid|sktid|sks|skv|sdd|spr)$/.test(name));
+    });
     // Keep the original spelling/order of every non-credential field; URLSearchParams.delete re-encodes it.
     if (retained.length !== query.length) url.search = retained.join('&');
     return url.origin === location.origin ? `${url.pathname}${url.search}${url.hash}` : url.href;
@@ -272,7 +286,12 @@ export function installVisualChannels(enabled: boolean): void {
     if (!pseudo && element instanceof HTMLImageElement) values['img currentSrc'] = imageSource(element);
     for (const name of namesOf(getComputedStyle(element, pseudo || null).animationName)) {
       const winner = rules.winners.get(name);
+      // A live name absent from readable rules may come from a closed root or a later stylesheet mutation.
       const unknown =
+        (!winner &&
+          element
+            .getAnimations()
+            .some((animation) => animation instanceof CSSAnimation && animation.animationName === name)) ||
         ambiguous(rules, name) ||
         scopes.some((scope) => scope.winners.has(name) || scope.opaque.some((item) => couldContain(item, name)));
       values[`animation keyframes (${name})`] = unknown ? reference(name) : (winner?.id ?? reference(name, null));
@@ -291,8 +310,10 @@ export function installVisualChannels(enabled: boolean): void {
         // Hosts/slotted nodes can reference tree-scoped names; stylesheet provenance is not captured.
         const scopes: Rules[] = [];
         if (element.shadowRoot) scopes.push(rootRules(element.shadowRoot));
-        const slotRoot = element.assignedSlot?.getRootNode();
-        if (slotRoot instanceof ShadowRoot) scopes.push(rootRules(slotRoot));
+        for (let slot = element.assignedSlot; slot; slot = slot.assignedSlot) {
+          const slotRoot = slot.getRootNode();
+          if (slotRoot instanceof ShadowRoot) scopes.push(rootRules(slotRoot));
+        }
         const rules = rootRules(root);
         output.set(
           element,
