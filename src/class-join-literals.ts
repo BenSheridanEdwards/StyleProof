@@ -3,6 +3,7 @@ import type { SourcePosition, SourceSpan } from './script-reach.js';
 import type { ScriptToken } from './script-join-tokens.js';
 import type { ScriptChange } from './script-join.js';
 import { classSource, classWords, commentEnd, literalAt, sourceSpan, type ClassSource } from './class-join-source.js';
+import { callRole, classAttribute, delimiterEnds, followedBy, nonValue } from './class-join-context.js';
 import { bindingLiteral, svelteDirectives } from './class-join-bindings.js';
 
 export type ClassWord = { token: string; range: SourceSpan };
@@ -15,8 +16,6 @@ export type ClassLiteral = {
   context?: boolean;
   residual?: string;
 };
-const helper = /\b(?:clsx|cx|classnames|classNames|cva|twMerge|twJoin|cn)\s*$/;
-const attribute = /(?<![\w-])class(?:Name|List)?\s*[:=]\s*$/;
 const comparePosition = (a: SourcePosition, b: SourcePosition) => a.line - b.line || a.column - b.column;
 export const spansOverlap = (a: SourceSpan, b: SourceSpan): boolean =>
   comparePosition(a.start, b.end) < 0 && comparePosition(b.start, a.end) < 0;
@@ -35,8 +34,16 @@ type Frame = {
   blocked?: boolean;
   method?: string;
   argument?: number;
+  indexed?: boolean;
 };
-type Scan = { source: ClassSource; key: string; frames: Frame[]; prefix: string; literals: ClassLiteral[] };
+type Scan = {
+  source: ClassSource;
+  key: string;
+  frames: Frame[];
+  prefix: string;
+  literals: ClassLiteral[];
+  ends?: Map<number, number>;
+};
 const explicit = (scan: Scan) => {
   const frame = scan.frames.at(-1)!;
   if (frame.blocked) return false;
@@ -62,13 +69,26 @@ function addLiteral(scan: Scan, token: ScriptToken, inherited = explicit(scan)):
     { text } = source;
   const literal = literalAt(source, token);
   if (inherited) scan.frames.at(-1)!.measured = true;
+  if (literal.limit) {
+    scan.literals.push({
+      range: sourceSpan(source, token.index, literal.end),
+      words: [],
+      explicit: inherited,
+      context: true,
+      residual: 'template nesting depth limit (128) exceeded',
+    });
+    return literal.end;
+  }
   if (text[literal.end - 1] !== text[token.index]) return literal.end;
   const binding = bindingLiteral(source, token.index, literal.end, scan.key, readExpression);
   if (binding) {
     scan.literals.push(...binding);
     return literal.end;
   }
-  const isClass = !scan.frames.at(-1)!.blocked && (inherited || attribute.test(scan.prefix));
+  const isClass =
+    !scan.frames.at(-1)!.blocked &&
+    (inherited || classAttribute(scan.prefix)) &&
+    !nonValue(source, scan.prefix, { start: token.index, end: literal.end }, !!scan.frames.at(-1)!.indexed);
   const cva = scan.frames.at(-1)!.cva;
   const cvaKey = cva && !scan.prefix.trim() && /^\s*:/.test(text.slice(literal.end, literal.end + 128));
   if (cva && (!isClass || cvaKey)) {
@@ -151,11 +171,15 @@ function closeFrame(scan: Scan, cursor: number): void {
 }
 function openFrame(char: string, cursor: number, scan: Scan): void {
   const parent = scan.frames.at(-1)!;
-  const method = char === '(' ? /\bclassList\s*\.\s*(\w+)\s*$/.exec(scan.prefix)?.[1] : undefined;
-  const own = helper.test(scan.prefix) || attribute.test(scan.prefix) || method === 'add' || method === 'replace';
-  const call = char === '(' && !own && !method && /[\w$)\]]\s*$/.test(scan.prefix);
+  const { method, own, call } = callRole(scan.prefix, char);
+  const close = scan.ends?.get(cursor);
+  const receiver = char === '[' && followedBy(scan.source, close, /^\s*\)*\s*(?:\?\.|\.)\s*[\w$]+\s*\(/);
+  const indexed = char === '{' && followedBy(scan.source, close, /^\s*\)*\s*\[/);
   const blocked =
-    !!parent.blocked || (!!parent.method && !explicit(scan)) || (call && (!!parent.classContext || explicit(scan)));
+    receiver ||
+    !!parent.blocked ||
+    (!!parent.method && !explicit(scan)) ||
+    (call && (!!parent.classContext || explicit(scan)));
   const cva = cvaContext(scan, char);
   if (own) parent.measured = true;
   scan.frames.push({
@@ -169,6 +193,7 @@ function openFrame(char: string, cursor: number, scan: Scan): void {
     blocked,
     method,
     argument: 0,
+    indexed,
   });
   scan.prefix = '';
 }
@@ -184,10 +209,13 @@ function delimiter(char: string, cursor: number, scan: Scan): void {
     scan.frames.at(-1)!.value = false;
     if (char === ',' && scan.frames.at(-1)!.method) scan.frames.at(-1)!.argument!++;
   } else {
-    if ((char === ':' || char === '=') && /^[\s\w.$-]+$/.test(scan.prefix)) {
+    if (
+      (char === ':' || (char === '=' && !/[=!]$/.test(scan.prefix.trim()) && scan.source.text[cursor + 1] !== '=')) &&
+      /^[\s\w.$-]+$/.test(scan.prefix)
+    ) {
       flushValue(scan, cursor);
       const frame = scan.frames.at(-1)!;
-      frame.value = attribute.test(scan.prefix + char);
+      frame.value = classAttribute(scan.prefix + char);
       if (frame.value) frame.valueStart = cursor + 1;
     }
     scan.prefix = (scan.prefix + char).slice(-256);
@@ -205,7 +233,8 @@ function ordinaryToken(scan: Scan, token: ScriptToken): void {
     scan.literals.push({
       range: sourceSpan(scan.source, token.index, token.end),
       words: classWords(scan.source, [{ start: token.index, end: token.end }]),
-      explicit: true,
+      explicit: !scan.frames.at(-1)!.indexed,
+      classContext: true,
     });
   scan.prefix += raw;
 }
@@ -228,6 +257,7 @@ export function classLiterals(text: string, sourceKey: string): ClassLiteral[] {
 function scanRange(scan: Scan, start: number, end: number): void {
   const { source } = scan,
     { text } = source;
+  scan.ends = delimiterEnds(source, start, end);
   for (let cursor = start; cursor < end; cursor++) {
     const comment = commentEnd(text, cursor);
     if (comment !== undefined) {

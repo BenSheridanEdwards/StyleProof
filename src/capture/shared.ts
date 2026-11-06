@@ -17,8 +17,9 @@ export function skipSelector(ignore: string[]): string {
   return ignore.length ? ignore.map((s) => `${s}, :is(${s}) *`).join(', ') : '';
 }
 /** Non-rendered/framework-owned regions intentionally outside compared app elements. */
+export const ROUTE_ANNOUNCERS = ['next-route-announcer', '[id="__next-route-announcer__"]'];
 export const FRAMEWORK_IGNORE = [
-  ...'meta title link script style base noscript template next-route-announcer'.split(' '),
-  '[id="__next-route-announcer__"]',
+  ...'meta title link script style base noscript template'.split(' '),
+  ...ROUTE_ANNOUNCERS,
   '[data-styleproof-hover-sink]',
 ];

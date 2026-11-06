@@ -141,6 +141,8 @@ export function injectPathOf(generatedIdSources: string[]): void {
 export type CaptureArgs = {
   skipSel: string;
   frameworkSkipSel?: string;
+  captureClassPresence?: boolean;
+  routeAnnouncerSel?: string;
   motionOnly: boolean;
   captureText: boolean;
   captureComponent?: boolean;
@@ -165,6 +167,8 @@ export type PageCapture = {
 export function capturePage({
   skipSel,
   frameworkSkipSel,
+  captureClassPresence = false,
+  routeAnnouncerSel = '',
   motionOnly,
   captureText,
   captureComponent,
@@ -330,7 +334,7 @@ export function capturePage({
   for (const el of all) {
     if (el === frame) continue;
     if (skipSel && el.matches(skipSel)) {
-      if (!frameworkSkipSel || !el.matches(frameworkSkipSel)) ignored = true;
+      if (captureClassPresence && (!frameworkSkipSel || !el.matches(frameworkSkipSel))) ignored = true;
       continue;
     }
     const tag = el.tagName.toLowerCase();
@@ -398,8 +402,21 @@ export function capturePage({
   }
   frame.remove();
   assertFrozen();
-  const frames = document.querySelectorAll('iframe, frame, object, embed').length;
-  const outsideBody = document.querySelectorAll('html > :not(head):not(body)').length;
+  const frames = captureClassPresence ? document.querySelectorAll('iframe, frame, object, embed').length : 0;
+  const omitted = new Set<Element>();
+  if (captureClassPresence) {
+    for (const el of document.querySelectorAll('html > :not(head):not(body)')) omitted.add(el);
+    for (const el of document.querySelectorAll('head, head *')) {
+      const author =
+        el !== document.head &&
+        !el.matches('meta, link, script, style, title, base, noscript, template') &&
+        (!frameworkSkipSel || !el.matches(frameworkSkipSel));
+      if (author || getComputedStyle(el).display !== 'none') omitted.add(el);
+    }
+    // Framework ownership covers the announcer host and shadow tree, not author light DOM.
+    if (routeAnnouncerSel) for (const el of document.querySelectorAll(`:is(${routeAnnouncerSel}) *`)) omitted.add(el);
+  }
+  const outsideBody = omitted.size;
   return {
     defaults,
     elements,

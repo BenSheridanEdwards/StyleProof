@@ -11,17 +11,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
   Version-2 capture omission facts cover volatile/ignored regions, html children outside head/body,
-  object/embed documents and open/closed author roots verified through CDP when captureReach is enabled. Version-1/missing facts,
+  omitted head content, route-announcer light-DOM author children, object/embed documents and open/closed author roots verified through CDP when captureReach is enabled. Version-1/missing facts,
   unmatched surfaces and changing self-check facts keep absence unknown. Framework exemptions are shared. Captures record no per-occurrence render provenance. Ordinary
   prose is skipped. Only positive class values can lower J2, never upgrade it; query/removal/toggle
-  classList arguments, nested unrelated calls and data-class attributes stay J3-only; findings and missing-evidence gaps stay warn-only at both levels,
+  classList arguments, nested unrelated/method calls, comparison operands, case labels, receiver-array/lookup keys, dataset assignments and data-class attributes stay J3-only; findings and missing-evidence gaps stay warn-only at both levels,
   with bounded report detail and full status counts. Pure additions/deletions retain their occurrences;
   replacement exclusions use hunk-aligned lines. CSS escapes, simple Vue/Svelte bindings, helper
   object keys and nested templates are supported; fragments are excluded and unresolved explicit
   class contexts get scoped gaps, including concatenated fragments. Solid classList keys and cva variant
   values are read; cva keys are excluded. Zero-width edits retain both tokens; aligned unchanged neighbours can shift columns without being flagged,
   while reordered class words remain measured. Source positions, template
-  walks, scoped gaps and negative joins are indexed; the corpus checks base removals too (#1001).
+  walks, scoped gaps and negative joins are indexed; template nesting over 128 levels gets a named gap. Literal insertion preserves unchanged token strings on counterpart lines. Omission facts are collected/written only with captureReach, preserving default capture output. Plain `{ class: 'economy' }` data objects remain explicit to support Vue h() props, a documented lexical ambiguity; the corpus checks base removals too (#1001).
 
 - Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
   on compared elements when the capture recorded the layer and a compared owner.

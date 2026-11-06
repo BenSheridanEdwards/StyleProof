@@ -1,6 +1,6 @@
 /** CDP sees closed author shadow roots that DOM shadowRoot cannot expose. */
 import type { CDPSession, Page } from '@playwright/test';
-import { FRAMEWORK_IGNORE } from './shared.js';
+import { FRAMEWORK_IGNORE, ROUTE_ANNOUNCERS } from './shared.js';
 import { registerStyleProofSession } from './script-coverage-ownership.js';
 
 type Node = {
@@ -12,11 +12,11 @@ type Node = {
   shadowRoots?: Node[];
   contentDocument?: Node;
 };
-function frameworkNode(node: Node): boolean {
+function frameworkNode(node: Node, selectors = FRAMEWORK_IGNORE): boolean {
   const attributes = new Map<string, string>();
   for (let i = 0; i < (node.attributes?.length ?? 0); i += 2)
     attributes.set(node.attributes![i], node.attributes![i + 1]);
-  return FRAMEWORK_IGNORE.some((selector) => {
+  return selectors.some((selector) => {
     const attribute = /^\[([\w-]+)(?:="([^"]*)")?\]$/.exec(selector);
     return attribute
       ? attributes.has(attribute[1]) && (attribute[2] === undefined || attributes.get(attribute[1]) === attribute[2])
@@ -28,6 +28,10 @@ function authorRoots(root: Node): number {
   const pending = [root];
   while (pending.length) {
     const node = pending.pop()!;
+    if (frameworkNode(node, ROUTE_ANNOUNCERS)) {
+      pending.push(...(node.children ?? []));
+      continue;
+    }
     if (frameworkNode(node) || node.shadowRootType === 'user-agent') continue;
     if (node.shadowRootType) count++;
     pending.push(...(node.children ?? []), ...(node.shadowRoots ?? []));

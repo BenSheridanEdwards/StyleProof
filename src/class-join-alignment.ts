@@ -12,14 +12,38 @@ function aligned(change: ScriptChange, index: Index, opposite?: Index): [ClassLi
   const other = literalsInChange({ range: change.classCounterpart.range }, opposite).filter(
     (literal) => !literal.context,
   );
-  return current.flatMap((literal, i) => {
-    const counterpart = other[i];
-    return counterpart &&
-      literal.explicit === counterpart.explicit &&
-      (literal.explicit || !!literal.classContext === !!counterpart.classContext)
-      ? [[literal, counterpart] as [ClassLiteral, ClassLiteral]]
-      : [];
+  const key = (literal: ClassLiteral) =>
+    JSON.stringify([literal.explicit, literal.explicit || !!literal.classContext, literal.words.map((w) => w.token)]);
+  const positions = new Map<string, { indices: number[]; next: number }>();
+  other.forEach((literal, i) => {
+    const entry = positions.get(key(literal)) ?? { indices: [], next: 0 };
+    entry.indices.push(i);
+    positions.set(key(literal), entry);
   });
+  const used = new Set<number>(),
+    matched = new Set<ClassLiteral>();
+  const pairs: [ClassLiteral, ClassLiteral][] = [];
+  for (const literal of current) {
+    const entry = positions.get(key(literal));
+    if (!literal.words.length || !entry || entry.next === entry.indices.length) continue;
+    const i = entry.indices[entry.next++];
+    used.add(i);
+    matched.add(literal);
+    pairs.push([literal, other[i]]);
+  }
+  const remaining = other.filter((_, i) => !used.has(i));
+  current
+    .filter((literal) => !matched.has(literal))
+    .forEach((literal, i) => {
+      const counterpart = remaining[i];
+      if (
+        counterpart &&
+        literal.explicit === counterpart.explicit &&
+        (literal.explicit || !!literal.classContext === !!counterpart.classContext)
+      )
+        pairs.push([literal, counterpart]);
+    });
+  return pairs;
 }
 export function unchangedLiterals(change: ScriptChange, index: Index, opposite?: Index): Set<ClassLiteral> {
   return new Set(

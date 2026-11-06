@@ -26,7 +26,7 @@ import { alignRectsToFullPageGeometry } from './capture/full-page.js';
 import { trackInflightRequests } from './capture/network.js';
 import { trackServedRules } from './capture/reach.js';
 import { attachScriptReach } from './capture/script-reach.js';
-import { FRAMEWORK_IGNORE, isUnder, skipSelector, warn } from './capture/shared.js';
+import { FRAMEWORK_IGNORE, ROUTE_ANNOUNCERS, isUnder, skipSelector, warn } from './capture/shared.js';
 import { captureAuthorShadowRoots } from './capture/class-presence.js';
 import type {
   CaptureOptions,
@@ -418,14 +418,18 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),
-    classPresence: {
-      version: 2,
-      ignored: !!options.ignore?.length || base.ignored,
-      shadowHosts: Math.max(base.shadowHosts, shadowRoots ?? 0),
-      frames: base.frames,
-      outsideBody: base.outsideBody,
-      ...(shadowRoots !== undefined ? { shadowRootsVerified: true as const } : {}),
-    },
+    ...(options.captureReach
+      ? {
+          classPresence: {
+            version: 2 as const,
+            ignored: !!options.ignore?.length || base.ignored,
+            shadowHosts: Math.max(base.shadowHosts, shadowRoots ?? 0),
+            frames: base.frames,
+            outsideBody: base.outsideBody,
+            ...(shadowRoots !== undefined ? { shadowRootsVerified: true as const } : {}),
+          },
+        }
+      : {}),
     ...(read.liveCandidates.length ? { liveCandidates: read.liveCandidates } : {}),
     ...(overlays.length ? { overlays } : {}),
     ...(Object.keys(tokens).length ? { tokens } : {}),
@@ -446,6 +450,8 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const args = {
     skipSel,
     frameworkSkipSel: skipSelector(FRAMEWORK_IGNORE),
+    captureClassPresence: !!options.captureReach,
+    routeAnnouncerSel: ROUTE_ANNOUNCERS.join(', '),
     motionOnly: false,
     captureText,
     pseudoReferences: PSEUDO_REFERENCES,
