@@ -189,6 +189,9 @@ test('report parity: identical surfaces produce matching JSON and Markdown verdi
         json.comparison.rawCounts?.dom === 0);
 
     assert.ok(isIdentical, 'JSON should report no changes (identical or unproven with zero diffs)');
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.match(md, /No reviewable computed-style changes among semantically matched elements/);
+    assert.doesNotMatch(md, /\*\*\d+ changes? needs? review\*\*/);
     assert.equal(json.baselineFailures.length, 0);
     assert.equal(json.partialBaseline, false);
   } finally {
@@ -243,8 +246,10 @@ test('report parity: changed surfaces produce consistent counts', async () => {
     assert.notEqual(comparisonStatus, 'identical', 'should have changes');
     assert.ok(json.surfaces.length > 0, 'JSON should list surfaces');
 
-    const hasChangeIndicator = /change/i.test(md) || /differ/i.test(md) || json.surfaces.length > 0;
-    assert.ok(hasChangeIndicator, 'Markdown should indicate changes');
+    assert.equal(json.comparison.reviewableCounts.style, 2);
+    assert.equal(json.comparison.reviewableChangedSurfaces, 2);
+    assert.match(md, /\*\*2 changes need review\*\*/);
+    assert.match(md, /2 computed-style difference\(s\).*2 changed surface bases/);
   } finally {
     rmTmp(tmp);
   }
@@ -280,9 +285,10 @@ test('report parity: new surfaces (head-only) are classified correctly', async (
     const md = fs.readFileSync(result.reportMdPath, 'utf8');
 
     const newSurface = json.surfaces?.find((s) => s.surface === 'brand-new@1280');
-    const hasNewSurfaceInMd = /new surface/i.test(md) || /brand-new/i.test(md);
-
-    assert.ok(newSurface || hasNewSurfaceInMd, 'new surface should be reported');
+    assert.ok(newSurface, 'JSON should list the new surface');
+    assert.equal(json.comparison.newSurfaces, 1);
+    assert.match(md, /\*\*1 new surface\(s\)\*\*/);
+    assert.match(md, /### `brand-new@1280` · new surface/);
   } finally {
     rmTmp(tmp);
   }
@@ -320,7 +326,11 @@ test('report parity: JSON surfaces array and Markdown surface sections align', a
     const jsonSurfaceCount = json.surfaces?.length ?? 0;
     const mdSurfaceMentions = ['alpha', 'beta', 'gamma'].filter((name) => md.includes(name)).length;
 
-    assert.ok(jsonSurfaceCount > 0 || mdSurfaceMentions > 0, 'surfaces should be present in both formats');
+    assert.equal(jsonSurfaceCount, 1, 'JSON folds shared chrome into one representative surface');
+    assert.equal(json.comparison.rawChangedSurfaces, 3);
+    assert.equal(mdSurfaceMentions, 3, 'Markdown names all surfaces covered by the shared chrome change');
+    assert.match(md, /Global chrome change — across all 3 captured surface base\(s\)/);
+    assert.match(md, /alpha @ 1280/);
   } finally {
     rmTmp(tmp);
   }
