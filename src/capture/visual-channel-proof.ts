@@ -1,6 +1,8 @@
 import type { CDPSession, Page } from '@playwright/test';
 import {
   canonicalEngineKeyframes,
+  contextRelativeValue,
+  contextDependentKeyframes,
   normalizeImageSource,
   orderIndependentFrames,
   orderFrameGroup,
@@ -38,6 +40,8 @@ function authorHosts(root: BoundaryNode): number[] {
 export async function installVisualChannelValues(page: Page): Promise<void> {
   await page.evaluate(
     captureExpression(`window.__spChannelValues = {
+    contextRelativeValue: (${contextRelativeValue.toString()}),
+    contextDependentKeyframes: (frames) => (${contextDependentKeyframes.toString()})(frames, window.__spChannelValues.contextRelativeValue),
     frameDependencies: (${frameDependencies.toString()}),
     orderFrameGroup: (group) => (${orderFrameGroup.toString()})(group, window.__spChannelValues.frameDependencies),
     orderIndependentFrames: (frames) => (${orderIndependentFrames.toString()})(frames, window.__spChannelValues.orderFrameGroup),

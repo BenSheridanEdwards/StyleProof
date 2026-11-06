@@ -177,10 +177,10 @@ test('self-check rejects keyframe/currentSrc drift and missing evidence', async 
 test('multiple animation names retain quoted commas and escaped identifiers', async ({ page }) => {
   const markup = (opacity: string) =>
     animation(
-      'to { opacity: 1; }',
+      'from { opacity: 0; } to { opacity: 1; }',
       `
-    @keyframes "has,comma" { to { opacity: ${opacity}; } }
-    @keyframes esc\\61 ped { to { color: red; } }
+    @keyframes "has,comma" { from { opacity: 0; } to { opacity: ${opacity}; } }
+    @keyframes esc\\61 ped { from { color: blue; } to { color: red; } }
     .target { animation-name: pulse, "has,comma", escaped; }
   `,
     );

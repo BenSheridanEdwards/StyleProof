@@ -1495,7 +1495,8 @@ winner. The CSSOM name/layer index respects applying media/supports, normal casc
 layers, imports, disabled sheets and stylesheet order, cached per root per capture.
 Provenance is refreshed for resting and forced reads on a separate session. The
 full author-root traversal is cached per capture rather than repeated for each
-forced-state scope. Identical duplicate definitions stay comparable. A loaded
+forced-state scope. `__spChannelHostsChecked` scans shadow hosts once per capture, so
+a closed-root host created after the resting read is not marked. Identical duplicate definitions stay comparable. A loaded
 opaque stylesheet does not taint a readable winner when the live model and
 matched-rule provenance agree; missing/unloaded sheets remain unknown. Missing,
 unreadable, mismatched or unavailable evidence stays `unknown`, named **keyframes
@@ -1509,11 +1510,13 @@ unambiguous scope records definite `none` (displayed as `(no @keyframes)`). This
 compares referenced rule deletion and non-applying media. A known CSSOM definition
 without a usable live model stays unknown. Empty or unusable engine frames,
 unrepresentable timeline ranges, and keyframes that animate custom properties
-whose complete model is unavailable also stay unknown. A `var()`-dependent model
-also stays unknown when the element or an ancestor has a custom-property animation,
-including paused animations: its substituted values could depend on progress.
-Non-CSS animation inputs (including Web Animations and transitions) have no
-verified CSSOM declarations and conservatively hold `var()` consumers unknown. In particular, Chromium
+whose complete model is unavailable also stay unknown. A model using context-relative values (`var()`, `currentColor`, relative lengths,
+percentages, inheritance or implicit endpoints) stays unknown when another running
+or paused animation/transition can drive the element's context. The flat index
+counts CSS, Web Animation and transition effects on the originating element and
+its pseudo-elements, and on ancestors; the consumer's own effect is excluded.
+A lone relative animation remains comparable when no other context input is live.
+In particular, Chromium
 can omit animated custom-property declarations and expose progress-dependent
 substitutions; we do not guess those bodies. Unknown and none have distinct
 references even for the same name. Implicit from/to frames contain the element's

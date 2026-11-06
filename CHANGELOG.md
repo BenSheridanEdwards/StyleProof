@@ -7,30 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Opt-in `captureVisualChannels` compares referenced keyframes bodies and resolved
-  image sources through normal findings, approvals, budgets and verdicts (#1005).
-  Shared canonical bodies and hashed data URIs keep maps bounded; self-check
-  includes the evidence. Legacy maps skip both channels with a named report limit.
-  Matched changed font faces get surface-specific `--pixels` advice. Defaults and
-  J1 blind-channel classification stay unchanged; no runtime dependency is added.
-  Referenced rule deletion and inactive media now compare as definite absence;
-  effective offsets canonicalise timeline ranges, lists, order and duplicate declarations.
-  CSSOM resolution is cached per root per capture and preserves provable winners
-  over opaque sheets. Unloaded images get a named skip, signed-URL credential
-  parameters are removed, and reports with both sides opted out stay unchanged.
-  Re-slot chains keep untraversed animation scopes unknown; keyframe merging preserves
-  `var()` shorthands and distinct timing/composition groups. Blob images have a named
-  comparison limit; complete images without a source remain compared. S3/GCS/Azure
-  credential rotations are redacted without hiding unsigned query changes.
-  Live engine keyframes now supply computed values and effective frame order,
-  with read-only source cross-checks and closed-root scope verification. Ambiguous
-  or incomplete models stay unknown. Bunny and Akamai signing rotations are
-  redacted; unsigned expiry and public Google identities retain source identity.
-  Flat animation indexing and cached author-root traversal keep capture scalable.
-  Model reads precede protocol work without pausing the page. Animated variable
-  inputs stay unknown; disjoint timing groups canonicalise independently. Loaded
-  opaque sheets and identical duplicates no longer taint verified winners.
-  Signature markers remove shared expiry fields, including Cloudflare Images; Meta CDN fields remain source identity.
+- Opt-in `captureVisualChannels` adds referenced animation models and resolved image
+  sources to ordinary findings and self-checks (#1005). Engine-derived keyframes
+  preserve effective timing and declaration precedence; untraversed, ambiguous or
+  animated context-dependent inputs stay explicitly unknown. Shared bodies and
+  hashed data URIs keep storage bounded. Signed-source credentials are removed;
+  unloaded/blob images and legacy maps have named comparison limits. Matched
+  changed font faces get surface-specific `--pixels` advice. Defaults, J1 reach
+  classification and dependencies stay unchanged.
 
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;

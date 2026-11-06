@@ -49,7 +49,7 @@ for (const inherited of [false, true])
     }
     expect(maps[0].visualChannels).toEqual(maps[2].visualChannels);
   });
-test('T2 disjoint reorder stays clean and shared-property timing order still flags', async ({ page }) => {
+test('T2 disjoint-property timing groups remain clean when reordered', async ({ page }) => {
   const frames = [
     '50%{opacity:1;animation-timing-function:steps(1)}',
     '50%{transform:translateX(30px);animation-timing-function:ease-in}',

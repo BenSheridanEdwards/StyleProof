@@ -155,3 +155,39 @@ export function normalizeImageSource(source: string, origin: string, base: strin
   if (retained.length !== query.length) url.search = retained.join('&');
   return url.origin === origin ? `${url.pathname}${url.search}${url.hash}` : url.href;
 }
+
+/** Context-sensitive values cannot be proved independent of another live effect. */
+export function contextRelativeValue(value: string): boolean {
+  const text = value.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '').replace(/url\([^)]*\)/gi, '');
+  return (
+    /%|\b(?:var|env|attr|anchor(?:-size)?|calc-size|light-dark)\s*\(/i.test(text) ||
+    /\b(?:currentcolor|inherit|unset|revert(?:-layer)?|auto|normal|larger|smaller|bolder|lighter|min-content|max-content|fit-content|stretch|canvas(?:text)?|buttonface|buttontext|buttonborder|field(?:text)?|highlight(?:text)?|selecteditem(?:text)?|mark(?:text)?|graytext|accentcolor(?:text)?|linktext|visitedtext|activetext)\b/i.test(
+      text,
+    ) ||
+    /(?:^|[^\w.-])[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:r?em|r?ex|r?ch|r?cap|r?ic|r?lh|(?:[sld]?v)(?:w|h|i|b|min|max)|cq(?:w|h|i|b|min|max))(?![\w-])/i.test(
+      text,
+    )
+  );
+}
+
+type ContextFrame = { keyText: string; cssText: string; properties: readonly (readonly [string, string])[] };
+/** Includes implicit endpoints, whose values come from the element's underlying context. */
+export function contextDependentKeyframes(
+  frames: readonly ContextFrame[],
+  relative: typeof contextRelativeValue = contextRelativeValue,
+): boolean {
+  if (frames.some((frame) => relative(frame.cssText) || frame.properties.some(([, value]) => relative(value))))
+    return true;
+  const endpoints = new Map<string, number>();
+  for (const frame of frames) {
+    const mask = frame.keyText.split(',').reduce((bits, key) => {
+      const token = key.trim().toLowerCase();
+      return bits | (/^(?:from|0(?:\.0+)?%)$/.test(token) ? 1 : /^(?:to|100(?:\.0+)?%)$/.test(token) ? 2 : 0);
+    }, 0);
+    for (const [property] of frame.properties) {
+      if (property.startsWith('animation-')) continue;
+      endpoints.set(property, (endpoints.get(property) ?? 0) | mask);
+    }
+  }
+  return [...endpoints.values()].some((mask) => mask !== 3);
+}

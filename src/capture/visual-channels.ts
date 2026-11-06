@@ -268,17 +268,25 @@ export function installVisualChannels(enabled: boolean): void {
     }
     return complete;
   };
-  const variables = new WeakMap<CSSKeyframesRule, boolean>();
-  const usesVariables = (rule: CSSKeyframesRule): boolean => {
-    let result = variables.get(rule);
+  const contextual = new WeakMap<CSSKeyframesRule, boolean>();
+  const needsContext = (rule: CSSKeyframesRule): boolean => {
+    let result = contextual.get(rule);
     if (result === undefined) {
-      result = Array.from(rule.cssRules).some((frame) => /\bvar\s*\(/i.test((frame as CSSKeyframeRule).style.cssText));
-      variables.set(rule, result);
+      result = values.contextDependentKeyframes(
+        Array.from(rule.cssRules, (frame) => {
+          const { keyText, style } = frame as CSSKeyframeRule;
+          return {
+            keyText,
+            cssText: style.cssText,
+            properties: Array.from(style, (name) => [name, style.getPropertyValue(name)] as const),
+          };
+        }),
+      );
+      contextual.set(rule, result);
     }
     return result;
   };
   const sources = new Map<string, string | undefined>();
-  const sourceCustom = new Map<string, boolean>();
   let restoreFreeze: (() => void) | undefined;
   const untraversed = (element: Element): boolean => {
     const pending = [element];
@@ -294,10 +302,10 @@ export function installVisualChannels(enabled: boolean): void {
     }
     return false;
   };
-  type Model = { name: string; body?: string };
+  type Model = { name: string; body?: string; active: boolean };
   type AnimationIndex = {
     targets: Map<Element, Map<string, Model[]>>;
-    custom: WeakSet<Element>;
+    counts: WeakMap<Element, number>;
     inherited: WeakMap<Element, boolean>;
   };
   const readModel = (effect: KeyframeEffect): string | undefined => {
@@ -308,65 +316,53 @@ export function installVisualChannels(enabled: boolean): void {
     }
   };
   const readAnimationIndex = (): AnimationIndex | undefined => {
-    const index: AnimationIndex = { targets: new Map(), custom: new WeakSet(), inherited: new WeakMap() };
+    const index: AnimationIndex = { targets: new Map(), counts: new WeakMap(), inherited: new WeakMap() };
     try {
       for (const animation of document.getAnimations()) {
         if (!(animation.effect instanceof KeyframeEffect)) continue;
         const element = animation.effect.target;
         if (!(element instanceof Element)) continue;
-        if (!(animation instanceof CSSAnimation)) {
-          // Its declarations have no CSSOM provenance; a var() consumer cannot assume static inputs.
-          index.custom.add(element);
-          continue;
-        }
+        const active = animation.playState === 'running' || animation.playState === 'paused';
+        if (active) index.counts.set(element, (index.counts.get(element) ?? 0) + 1);
+        if (!(animation instanceof CSSAnimation)) continue;
         const name = animation.animationName;
         const pseudo = animation.effect.pseudoElement ?? '';
         const byPseudo = index.targets.get(element) ?? new Map<string, Model[]>();
         const models = byPseudo.get(pseudo) ?? [];
-        models.push({ name, body: readModel(animation.effect) });
+        models.push({ name, body: readModel(animation.effect), active });
         byPseudo.set(pseudo, models);
         index.targets.set(element, byPseudo);
-        const rule = rootRules(element.getRootNode() as Document | ShadowRoot).winners.get(name)?.rule;
-        if (!pseudo && rule && !modelComplete(rule)) index.custom.add(element);
       }
       return index;
     } catch {
       return undefined;
     }
   };
-  const unprovenInput = (element: Element, index: AnimationIndex): boolean => {
-    const rules = rootRules(element.getRootNode() as Document | ShadowRoot);
-    return (index.targets.get(element)?.get('') ?? []).some(({ name }) => {
-      const winner = rules.winners.get(name);
-      const matched = !!winner && sourceFingerprint(winner.rule) === sources.get(name);
-      return sourceCustom.get(name) !== false || ambiguous(rules, name, matched);
-    });
-  };
-  const animatedInput = (element: Element, index: AnimationIndex): boolean => {
+  const activeAncestor = (element: Element | null, index: AnimationIndex): boolean => {
     const path: Element[] = [];
-    let node: Element | null = element;
     let result = false;
-    while (node) {
+    for (let node = element; node; node = node.parentElement) {
       const cached = index.inherited.get(node);
       if (cached !== undefined) {
         result = cached;
         break;
       }
       path.push(node);
-      if (index.custom.has(node) || unprovenInput(node, index)) {
+      if ((index.counts.get(node) ?? 0) > 0) {
         result = true;
         break;
       }
-      node = node.parentElement;
     }
-    for (const ancestor of path) index.inherited.set(ancestor, result);
+    for (const node of path) index.inherited.set(node, result);
     return result;
   };
+  const otherInput = (element: Element, index: AnimationIndex, live: Model[] | undefined): boolean =>
+    (index.counts.get(element) ?? 0) > (live?.some((model) => model.active) ? 1 : 0) ||
+    activeAncestor(element.parentElement, index);
   let prepared: AnimationIndex | undefined;
   target.__spChannelHosts = new WeakSet();
   target.__spBeginChannelProof = (unfreeze = false) => {
     sources.clear();
-    sourceCustom.clear();
     target.__spChannelNodes = new Map();
     target.__spChannelScopesVerified = false;
     const w = window as Window & { __spFreeze?: CSSStyleSheet; __spAssertFrozen?: () => void };
@@ -406,11 +402,9 @@ export function installVisualChannels(enabled: boolean): void {
       const rule = sheet.cssRules[0];
       if (rule instanceof CSSKeyframesRule) {
         sources.set(name, sourceFingerprint(rule));
-        sourceCustom.set(name, !modelComplete(rule));
       }
     } catch {
       sources.delete(name);
-      sourceCustom.delete(name);
     }
   };
   target.__spFinishChannelProof = (verified, sheets) => {
@@ -456,7 +450,7 @@ export function installVisualChannels(enabled: boolean): void {
         verified: target.__spChannelScopesVerified === true,
         complete:
           !winner ||
-          (modelComplete(winner.rule) && !(usesVariables(winner.rule) && (!index || animatedInput(element, index)))),
+          (modelComplete(winner.rule) && !(needsContext(winner.rule) && (!index || otherInput(element, index, live)))),
       });
       properties[`animation keyframes (${name})`] = reference(name, resolved);
     }
