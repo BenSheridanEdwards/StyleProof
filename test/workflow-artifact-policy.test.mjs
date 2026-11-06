@@ -46,7 +46,7 @@ test('browser shard upload contains only the three JSON receipts needed by e2e-e
     '.styleproof/ci/inventory.json',
     '.styleproof/ci/shard.json',
   ]);
-  assert.match(workflow.jobs['e2e-evidence'].steps.at(-1).run, /verify-e2e-shards\.mjs .* 6$/);
+  assert.match(workflow.jobs['e2e-evidence'].steps.at(-1).run, /verify-e2e-shards\.mjs .* 7$/);
 });
 
 test('dogfood inherits the 14-day Action report retention default', () => {
