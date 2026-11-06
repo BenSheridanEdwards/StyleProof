@@ -1,0 +1,10 @@
+SELF-CHECK PASS C-var control (QA r4 #2 shape)
+## C-var control (QA r4 #2 shape): keyframes findings 0 []; other findings 0; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+SELF-CHECK PASS C-em parent font-size animation
+## C-em parent font-size animation: keyframes findings 0 []; other findings 0; statuses drive:known,pulse:unknown | drive:known,pulse:unknown
+SELF-CHECK PASS C-em self font-size animation
+## C-em self font-size animation: keyframes findings 0 []; other findings 0; statuses drive:known,pulse:unknown | drive:known,pulse:unknown
+SELF-CHECK PASS C-currentColor parent color animation
+## C-currentColor parent color animation: keyframes findings 0 []; other findings 0; statuses drive:known,pulse:unknown | drive:known,pulse:unknown
+SELF-CHECK PASS T-em paused transition on parent font-size
+## T-em paused transition on parent font-size: keyframes findings 0 []; other findings 0; statuses pulse:unknown | pulse:unknown

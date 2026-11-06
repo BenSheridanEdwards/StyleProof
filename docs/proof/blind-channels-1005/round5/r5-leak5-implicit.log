@@ -1,0 +1,6 @@
+## implicit-from opacity stabilize:false: keyframes findings 0; other findings 0; channel evidence equal
+    [["known",["\"opacity\":\"0.2\"","\"opacity\":\"0.5\""]]]
+    [["known",["\"opacity\":\"0.2\"","\"opacity\":\"0.5\""]]]
+## implicit-from opacity stabilize:true: keyframes findings 0; other findings 0; channel evidence equal
+    [["known",["\"opacity\":\"0.2\"","\"opacity\":\"0.5\""]]]
+    [["known",["\"opacity\":\"0.2\"","\"opacity\":\"0.5\""]]]

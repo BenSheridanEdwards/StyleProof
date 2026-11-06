@@ -1,0 +1,40 @@
+SELF-CHECK PASS E1 WAAPI font-size on self, em consumer
+## E1 WAAPI font-size on self, em consumer: keyframes findings 0
+   other findings: body > div:nth-child(1) > div:nth-child(1) font-size: 12px -> 28px
+   t=100 [["pulse","unknown",""]]
+   t=900 [["pulse","unknown",""]]
+SELF-CHECK PASS E2 WAAPI font-size on parent, em consumer
+## E2 WAAPI font-size on parent, em consumer: keyframes findings 0
+   other findings: body > div:nth-child(1) font-size: 12px -> 28px | body > div:nth-child(1) > div:nth-child(1) font-size: 12px -> 28px
+   t=100 [["pulse","unknown",""]]
+   t=900 [["pulse","unknown",""]]
+SELF-CHECK PASS E3 WAAPI color on parent, currentColor consumer
+## E3 WAAPI color on parent, currentColor consumer: keyframes findings 0
+   other findings: body > div:nth-child(1) border-block-end-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) border-block-start-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) border-bottom-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) border-inline-end-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) border-inline-start-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) border-left-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) border-right-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) border-top-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) caret-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) column-rule-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) outline-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) row-rule-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) text-decoration-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) text-emphasis-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) -webkit-text-fill-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) -webkit-text-stroke-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-block-end-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-block-start-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-bottom-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-inline-end-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-inline-start-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-left-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-right-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) border-top-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) caret-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) column-rule-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) outline-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) row-rule-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) text-decoration-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) text-emphasis-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) -webkit-text-fill-color: rgb(230, 0, 26) -> rgb(26, 0, 230) | body > div:nth-child(1) > div:nth-child(1) -webkit-text-stroke-color: rgb(230, 0, 26) -> rgb(26, 0, 230)
+   t=100 [["pulse","unknown",""]]
+   t=900 [["pulse","unknown",""]]
+SELF-CHECK PASS E4 WAAPI width on parent, % consumer
+## E4 WAAPI width on parent, % consumer: keyframes findings 0
+   other findings: body > div:nth-child(1) inline-size: 120px -> 280px | body > div:nth-child(1) width: 120px -> 280px
+   t=100 [["pulse","unknown",""]]
+   t=900 [["pulse","unknown",""]]
+SELF-CHECK PASS E5 inline !important font-size anim + em consumer
+## E5 inline !important font-size anim + em consumer: keyframes findings 0
+   other findings: body > div:nth-child(1) > div:nth-child(1) font-size: 12px -> 28px | body > div:nth-child(1) > div:nth-child(1) margin-inline-start: 2.4px -> 50.4px | body > div:nth-child(1) > div:nth-child(1) margin-left: 2.4px -> 50.4px
+   t=100 [["grow","known","[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"fontSize\":\"10px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0"],["pulse","unknown",""]]
+   t=900 [["grow","known","[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"fontSize\":\"10px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0"],["pulse","unknown",""]]
+SELF-CHECK PASS E6 inline !important custom anim (control, expect unknown)
+## E6 inline !important custom anim (control, expect unknown): keyframes findings 0
+   other findings: body > div:nth-child(1) > div:nth-child(1) margin-inline-start: 1.1px -> 17.1px | body > div:nth-child(1) > div:nth-child(1) margin-left: 1.1px -> 17.1px
+   t=100 [["custom","unknown",""],["pulse","unknown",""]]
+   t=900 [["custom","unknown",""],["pulse","unknown",""]]
+SELF-CHECK PASS E7 WAAPI --x on self, unregistered var consumer
+## E7 WAAPI --x on self, unregistered var consumer: keyframes findings 0
+   other findings: none
+   t=100 [["pulse","unknown",""]]
+   t=900 [["pulse","unknown",""]]
+SELF-CHECK PASS E8 transition on font-size, em consumer
+## E8 transition on font-size, em consumer: keyframes findings 0
+   other findings: none
+   t=100 [["pulse","unknown",""]]
+   t=900 [["pulse","unknown",""]]

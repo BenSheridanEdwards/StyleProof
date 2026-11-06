@@ -1,0 +1,11 @@
+R1 Bunny token+expires rotate (expect 0)                         findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+R2 Akamai hdnts rotate (expect 0, no hmac persisted)             findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+R3 Akamai __token__ rotate                                       findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+R4 GCS V2 GoogleAccessId+Expires+Signature rotate (expect 0)     findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?GoogleAccessId=sa%40p.iam"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?GoogleAccessId=sa%40p.iam"}}
+R5 S3 presigned + real w=100->200 (expect 1, w only)             findings 1 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?w=100"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?w=200"}}
+R6 Azure SAS + real v change (expect 1)                          findings 1 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?v=1"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?v=2"}}
+R7 percent-encoded key name x%2Damz%2Dsignature rotate (expect 0) findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+R8 Expires only, unsigned, real change (expect 1)                findings 1 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?expires=1"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?expires=2"}}
+R9 Google Maps key= (persisted?)                                 findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?size=10x10&key=AIzaSyFAKEFAKE"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?size=10x10&key=AIzaSyFAKEFAKE"}}
+R10 CloudFront Policy/Signature/Key-Pair-Id rotate (expect 0)    findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+R11 order + encoding preserved: a=1%20&b=+ (expect 0 vs same)    findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?b=%2B&a=1%20"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?b=%2B&a=1%20"}}

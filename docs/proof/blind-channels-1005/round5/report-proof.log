@@ -1,0 +1,33 @@
+{"changedSurfaces":1,"newSurfaces":0,"oneSidedSurfaces":0,"totalFindings":1,"contentChanges":0,"comparison":{"rawCounts":{"dom":0,"style":1,"state":0},"reviewableCounts":{"dom":0,"style":1,"state":0},"newSurfaces":0,"removedSurfaces":0,"rawChangedSurfaces":1,"reviewableChangedSurfaces":1,"hasReviewableEvidence":true,"rawOnlyNoReviewable":false,"contentGeometryUncertain":false,"liveTextFreezeViolated":false,"incomparableSurfaces":0,"unprovenSurfaces":1,"requiredUnprovenSurfaces":0,"globalRequiredUnprovenSurfaces":0,"status":"unproven","requireStateIdentity":false,"blocksCertification":false,"counts":{"comparable":0,"incomparable":0,"unproven":1,"notRequired":0,"requiredUnproven":0,"globalRequiredUnproven":0}},"comparability":[{"surface":"home@1000","status":"unproven","required":false,"reason":"state-identity-missing"}],"reportConsistency":{"ok":true,"reason":"aligned"},"baselineFailures":[],"partialBaseline":false,"confidence":{"counts":{"inaccessible":0,"unproven-determinism":0,"excluded-with-reason":0,"unknown":0,"captured":0},"completeness":"unknown"},"headOnlyVolatile":[],"baseOnlyVolatile":[],"reportMdPath":"<round5-proof>/report-proof/report/report.md","reportJsonPath":"<round5-proof>/report-proof/report/report.json","reportHtmlPath":"<round5-proof>/report-proof/report/report.html"}
+🗺️ StyleProof report
+
+⚠️ Product-state identity unproven (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
+
+1 change needs review
+
+1 distinct change (1 computed-style difference(s)) in 1 changed surface base with an existing baseline.
+
+What changed
+
+home @ 1000 — div.target +1 more
+Changes
+Target div.target · 1 element restyled
+
+home @ 1000
+
+animation keyframes (pulse) …ginBottom":"7px","marginLeft":"3px","marginRight":"7px","marginTop":"7px"}] → …ginBottom":"15px","marginLeft":"3px","marginRight":"15px","marginTop":"15px"}]
+
+◀ before · after ▶ — home @ 1000
+Show highlight overlay
+div.target — +1 more
+Show the property change
+
+Nothing else — no other element or inventory changes in this compare.
+
+Evidence (warnings & failures)
+
+Visual channel evidence limits and recommendations
+
+home@1000: animation keyframes driven unknown; not compared (keyframes resolution ambiguous: unreadable, untraversed or unavailable engine/source evidence).
+
+⚠️ Product-state comparison — unproven on 1 paired capture(s) with no product-state declared.

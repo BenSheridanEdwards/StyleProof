@@ -1,0 +1,2 @@
+{"frames":["0 linear none","0.5 steps(1) ","0.5 linear translateX(30px)","1 linear translateX(60px)"],"at750":"matrix(1, 0, 0, 1, 45, 0)"}
+{"frames":["0 linear none","0.5 steps(1) translateX(30px)","1 linear translateX(60px)"],"at750":"matrix(1, 0, 0, 1, 30, 0)"}

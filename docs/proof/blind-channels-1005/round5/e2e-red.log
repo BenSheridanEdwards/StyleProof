@@ -1,0 +1,286 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 14 tests using 1 worker
+
+(node:84251) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › em-parent holds sampled context unknown (176ms)
+(node:84256) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › em-self holds sampled context unknown (187ms)
+(node:84261) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › currentColor-parent holds sampled context unknown (186ms)
+(node:84266) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › color-explicit holds sampled context unknown (178ms)
+(node:84274) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › paused-transition holds sampled context unknown (150ms)
+(node:84279) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › before custom-property input is unknown (important=false) (217ms)
+(node:84290) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › before custom-property input is unknown (important=true) (215ms)
+(node:84298) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › after custom-property input is unknown (important=false) (218ms)
+(node:84332) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › after custom-property input is unknown (important=true) (193ms)
+(node:84362) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › marker custom-property input is unknown (important=false) (213ms)
+(node:84371) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › marker custom-property input is unknown (important=true) (197ms)
+(node:84376) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/blind-channels-round5.e2e.spec.ts:84:3 › running color transition is clean with stabilize=false (1.2s)
+(node:84439) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  13 [chromium] › test/blind-channels-round5.e2e.spec.ts:84:3 › running color transition is clean with stabilize=true (2.4s)
+  ✓  14 [chromium] › test/blind-channels-round5.e2e.spec.ts:108:1 › a lone relative animation and fixed explicit bodies remain compared (232ms)
+
+
+  1) [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › em-parent holds sampled context unknown
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      52 |     }
+      53 |     for (const map of maps)
+    > 54 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      55 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], label)).not.toThrow();
+      56 |     expect(
+      57 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:54:100
+
+    Error Context: test-results/test-blind-channels-round5-3bd39-lds-sampled-context-unknown-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › em-self holds sampled context unknown
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      52 |     }
+      53 |     for (const map of maps)
+    > 54 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      55 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], label)).not.toThrow();
+      56 |     expect(
+      57 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:54:100
+
+    Error Context: test-results/test-blind-channels-round5-e8420-lds-sampled-context-unknown-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › currentColor-parent holds sampled context unknown
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      52 |     }
+      53 |     for (const map of maps)
+    > 54 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      55 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], label)).not.toThrow();
+      56 |     expect(
+      57 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:54:100
+
+    Error Context: test-results/test-blind-channels-round5-af530-lds-sampled-context-unknown-chromium/error-context.md
+
+  4) [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › color-explicit holds sampled context unknown
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      52 |     }
+      53 |     for (const map of maps)
+    > 54 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      55 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], label)).not.toThrow();
+      56 |     expect(
+      57 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:54:100
+
+    Error Context: test-results/test-blind-channels-round5-a466c-lds-sampled-context-unknown-chromium/error-context.md
+
+  5) [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › paused-transition holds sampled context unknown
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      52 |     }
+      53 |     for (const map of maps)
+    > 54 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      55 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], label)).not.toThrow();
+      56 |     expect(
+      57 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:54:100
+
+    Error Context: test-results/test-blind-channels-round5-83b50-lds-sampled-context-unknown-chromium/error-context.md
+
+  6) [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › before custom-property input is unknown (important=false)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      78 |       }
+      79 |       for (const map of maps)
+    > 80 |         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                      ^
+      81 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], pseudo)).not.toThrow();
+      82 |     });
+      83 | for (const stabilize of [false, true])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:80:102
+
+    Error Context: test-results/test-blind-channels-round5-fa504-is-unknown-important-false--chromium/error-context.md
+
+  7) [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › before custom-property input is unknown (important=true)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      78 |       }
+      79 |       for (const map of maps)
+    > 80 |         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                      ^
+      81 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], pseudo)).not.toThrow();
+      82 |     });
+      83 | for (const stabilize of [false, true])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:80:102
+
+    Error Context: test-results/test-blind-channels-round5-3a857--is-unknown-important-true--chromium/error-context.md
+
+  8) [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › after custom-property input is unknown (important=false)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      78 |       }
+      79 |       for (const map of maps)
+    > 80 |         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                      ^
+      81 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], pseudo)).not.toThrow();
+      82 |     });
+      83 | for (const stabilize of [false, true])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:80:102
+
+    Error Context: test-results/test-blind-channels-round5-e76e7-is-unknown-important-false--chromium/error-context.md
+
+  9) [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › after custom-property input is unknown (important=true)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      78 |       }
+      79 |       for (const map of maps)
+    > 80 |         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                      ^
+      81 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], pseudo)).not.toThrow();
+      82 |     });
+      83 | for (const stabilize of [false, true])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:80:102
+
+    Error Context: test-results/test-blind-channels-round5-6be41--is-unknown-important-true--chromium/error-context.md
+
+  10) [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › marker custom-property input is unknown (important=false)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      78 |       }
+      79 |       for (const map of maps)
+    > 80 |         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                      ^
+      81 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], pseudo)).not.toThrow();
+      82 |     });
+      83 | for (const stabilize of [false, true])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:80:102
+
+    Error Context: test-results/test-blind-channels-round5-fbe66-is-unknown-important-false--chromium/error-context.md
+
+  11) [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › marker custom-property input is unknown (important=true)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      78 |       }
+      79 |       for (const map of maps)
+    > 80 |         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                      ^
+      81 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], pseudo)).not.toThrow();
+      82 |     });
+      83 | for (const stabilize of [false, true])
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:80:102
+
+    Error Context: test-results/test-blind-channels-round5-105eb--is-unknown-important-true--chromium/error-context.md
+
+  12) [chromium] › test/blind-channels-round5.e2e.spec.ts:84:3 › running color transition is clean with stabilize=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 7
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "after": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"outlineColor\":\"rgb(179, 0, 76)\",\"outlineStyle\":\"none\",\"outlineWidth\":\"3px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"outlineColor\":\"rgb(179, 0, 76)\",\"outlineStyle\":\"solid\",\"outlineWidth\":\"2px\"}]",
+    +     "before": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"outlineColor\":\"rgb(244, 0, 11)\",\"outlineStyle\":\"none\",\"outlineWidth\":\"3px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"outlineColor\":\"rgb(244, 0, 11)\",\"outlineStyle\":\"solid\",\"outlineWidth\":\"2px\"}]",
+    +     "prop": "animation keyframes (pulse)",
+    +   },
+    + ]
+
+      100 |         .flatMap((f) => (f.kind === 'dom' ? [] : f.props))
+      101 |         .filter((p) => p.prop === 'animation keyframes (pulse)'),
+    > 102 |     ).toEqual([]);
+          |       ^
+      103 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], 'theme')).not.toThrow();
+      104 |     if (!stabilize)
+      105 |       for (const map of maps)
+        at <checkout>/test/blind-channels-round5.e2e.spec.ts:102:7
+
+    Error Context: test-results/test-blind-channels-round5-69710--clean-with-stabilize-false-chromium/error-context.md
+
+  12 failed
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › em-parent holds sampled context unknown
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › em-self holds sampled context unknown
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › currentColor-parent holds sampled context unknown
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › color-explicit holds sampled context unknown
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:33:3 › paused-transition holds sampled context unknown
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › before custom-property input is unknown (important=false)
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › before custom-property input is unknown (important=true)
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › after custom-property input is unknown (important=false)
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › after custom-property input is unknown (important=true)
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › marker custom-property input is unknown (important=false)
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:64:5 › marker custom-property input is unknown (important=true)
+    [chromium] › test/blind-channels-round5.e2e.spec.ts:84:3 › running color transition is clean with stabilize=false
+  2 passed (11.2s)

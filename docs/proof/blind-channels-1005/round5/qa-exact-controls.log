@@ -1,0 +1,5 @@
+{"label":"non-neighbouring","expected":1,"findings":1,"renderEqual":false,"at500":[["0.8","none"],["0.7","none"]]}
+{"label":"delete-only","expected":0,"findings":0,"renderEqual":true,"at500":[["0.8","none"],["0.8","none"]]}
+{"label":"disjoint","expected":0,"findings":0,"renderEqual":true,"at500":[["1","matrix(1, 0, 0, 1, 30, 0)"],["1","matrix(1, 0, 0, 1, 30, 0)"]]}
+{"parity":{},"identical":true,"bytes":[82625,82625]}
+{"parity":{"captureReach":true},"identical":true,"bytes":[83586,83586]}

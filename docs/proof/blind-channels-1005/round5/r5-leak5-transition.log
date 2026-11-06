@@ -1,0 +1,12 @@
+## currentColor stabilize:false: keyframes findings 0; other findings 0; channel evidence equal
+    [["unknown",null]]
+    [["unknown",null]]
+## currentColor stabilize:true: keyframes findings 0; other findings 0; channel evidence equal
+    [["known",["\"outlineColor\":\"rgb(0, 0, 255)\""]]]
+    [["known",["\"outlineColor\":\"rgb(0, 0, 255)\""]]]
+## em stabilize:false: keyframes findings 0; other findings 0; channel evidence equal
+    [["unknown",null]]
+    [["unknown",null]]
+## em stabilize:true: keyframes findings 0; other findings 0; channel evidence equal
+    [["known",["\"marginLeft\":\"60px\""]]]
+    [["known",["\"marginLeft\":\"60px\""]]]

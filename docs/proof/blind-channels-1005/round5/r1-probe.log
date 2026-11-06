@@ -1,0 +1,125 @@
+
+## 1 body change: 1 finding(s)
+   body > div:nth-child(1) animation keyframes (pulse): [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo
+   base kf: {"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacit
+   head kf: {"[\"pulse\",\"96cb8344c87737c0fc81244dcddfd9f2d3ef8c2ca91fd244e259637777313536\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacit
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"96cb8344c87737c0fc81244dcddfd9f2d3ef8c2ca91fd244e259637777313536\"]"}}
+
+## 2 keyframes rule deleted (animation-name unchanged): 1 finding(s)
+   body > div:nth-child(1) animation keyframes (pulse): [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo -> (no @keyframes)
+   base kf: {"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacit
+   head kf: {"[\"pulse\",\"none\"]":{"name":"pulse","status":"none"}}
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"none\"]"}}
+
+## 3 keyframes moved into non-applying @media: 1 finding(s)
+   body > div:nth-child(1) animation keyframes (pulse): [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo -> (no @keyframes)
+   base kf: {"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacit
+   head kf: {"[\"pulse\",\"none\"]":{"name":"pulse","status":"none"}}
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"none\"]"}}
+
+## 4 timeline-range selector changed: 0 finding(s)
+   base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+   head kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}}
+
+## 5 frames reordered (identical rendering): 0 finding(s)
+   base kf: {"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacit
+   head kf: {"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacit
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"bcf57d1afc39cbc60aa5c785ef78e52df8ac687a5414929b9173f234cf2c759b\"]"}}
+
+## 6 layer: change in LOSING layer a (b declared later wins) - expect 0: 0 finding(s)
+   base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opa
+   head kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opa
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}}
+
+## 7 unlayered beats layered; change unlayered - expect 1: 1 finding(s)
+   body > div:nth-child(1) animation keyframes (pulse): [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo
+   base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opa
+   head kf: {"[\"pulse\",\"59fb7b7a4229ec9b4e16def0c46ccd6e367a50469e7a1c7bd399d98a03939c1a\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opa
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"59fb7b7a4229ec9b4e16def0c46ccd6e367a50469e7a1c7bd399d98a03939c1a\"]"}}
+
+## 8 cross-origin no-CORS sheet present; body changed: 1 finding(s)
+   body > div:nth-child(1) animation keyframes (pulse): [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo
+   base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opa
+   head kf: {"[\"pulse\",\"6729f1511514b4d906f1a1592055a1ddc9a732c126fd9c1d46daf406b4539014\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opa
+   base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"6729f1511514b4d906f1a1592055a1ddc9a732c126fd9c1d46daf406b4539014\"]"}}
+
+## 9 ::before keyframes body change: 1 finding(s)
+   body > div:nth-child(1) animation keyframes (glow): [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo
+   base kf: {"[\"glow\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"glow","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opaci
+   head kf: {"[\"glow\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"glow","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opaci
+   base ch: {"body > div:nth-child(1)":{"::before animation keyframes (glow)":"[\"glow\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}}
+   head ch: {"body > div:nth-child(1)":{"::before animation keyframes (glow)":"[\"glow\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}}
+
+## 10 :hover-only animation body change: 1 finding(s)
+   body > button:nth-child(1) animation keyframes (hv): [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","compo
+   base kf: {"[\"hv\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"hv","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\"
+   head kf: {"[\"hv\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"hv","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\"
+   base ch: {}
+   head ch: {}
+
+## 11 same-origin img, different host/port base vs head - expect 0: 0 finding(s)
+   base kf: {}
+   head kf: {}
+   base ch: {"body > img:nth-child(1)":{"img currentSrc":"/i.png?v=1#f"}}
+   head ch: {"body > img:nth-child(1)":{"img currentSrc":"/i.png?v=1#f"}}
+
+## 12 cross-origin asset host whose port differs with environment: 1 finding(s)
+   body > img:nth-child(1) img currentSrc: http://127.0.0.1:18612/i.png -> http://127.0.0.1:18613/i.png
+   base kf: {}
+   head kf: {}
+   base ch: {"body > img:nth-child(1)":{"img currentSrc":"http://127.0.0.1:18612/i.png"}}
+   head ch: {"body > img:nth-child(1)":{"img currentSrc":"http://127.0.0.1:18613/i.png"}}
+
+## 13 img src swap: 1 finding(s)
+   body > img:nth-child(1) img currentSrc: /a.png -> /b.png
+   base kf: {}
+   head kf: {}
+   base ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+   head ch: {"body > img:nth-child(1)":{"img currentSrc":"/b.png"}}
+
+## 14 srcset 2x candidate changed (DPR1 so 1x shown) - expect 0: 0 finding(s)
+   base kf: {}
+   head kf: {}
+   base ch: {"body > img:nth-child(1)":{"img currentSrc":"/a1.png"}}
+   head ch: {"body > img:nth-child(1)":{"img currentSrc":"/a1.png"}}
+
+## 15 picture source swap: 1 finding(s)
+   body > picture:nth-child(1) > img:nth-child(2) img currentSrc: /p1.png -> /p2.png
+   base kf: {}
+   head kf: {}
+   base ch: {"body > picture:nth-child(1) > img:nth-child(2)":{"img currentSrc":"/p1.png"}}
+   head ch: {"body > picture:nth-child(1) > img:nth-child(2)":{"img currentSrc":"/p2.png"}}
+
+## 16 lazy below-fold img swap: 0 finding(s)
+   base kf: {}
+   head kf: {}
+   base ch: {"body > img:nth-child(2)":{"img currentSrc":""}}
+   head ch: {"body > img:nth-child(2)":{"img currentSrc":""}}
+
+## 17 data URI swap: 1 finding(s)
+   body > img:nth-child(1) img currentSrc: data:sha256:75525b0e827275b178140dabe3411b92f0d56b4d57793c50 -> data:sha256:2559565d6fe695d7c1e1c05f31aa6a3bf5988166d82e7675
+   base kf: {}
+   head kf: {}
+   base ch: {"body > img:nth-child(1)":{"img currentSrc":"data:sha256:75525b0e827275b178140dabe3411b92f0d56b4d57793c509329fa0d4ec33d7c"}}
+   head ch: {"body > img:nth-child(1)":{"img currentSrc":"data:sha256:2559565d6fe695d7c1e1c05f31aa6a3bf5988166d82e76753fe07d48c1f66067"}}
+
+## 18 legacy base, opted-in head - expect 0: 0 finding(s)
+   base kf: null
+   head kf: {"[\"pulse\",\"6729f1511514b4d906f1a1592055a1ddc9a732c126fd9c1d46daf406b4539014\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opa
+   base ch: {}
+   head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"6729f1511514b4d906f1a1592055a1ddc9a732c126fd9c1d46daf406b4539014\"]"},"body > img:nth-child(2)":{"img currentSrc":"/b.png"}}
+
+## 19 determinism, same build twice: equal = true findings 0
+
+## 20 size: 2000 animated elements, off 1736573B 2307ms, on 1952618B 2397ms, bodies 5
+
+## 21 option off vs main: main==main true  branch==main true 83353 83353
