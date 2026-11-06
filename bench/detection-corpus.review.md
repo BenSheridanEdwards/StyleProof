@@ -61,6 +61,12 @@ models are explicitly unknown; this fixture does not certify those channels.
 The exact red/green logs and reviewer-probe qualifications are recorded in
 [`round3/verification.txt`](../docs/proof/blind-channels-1005/round3/verification.txt).
 
+Round 4 revalidated the same expectations after indexed, synchronous model reads,
+commuting timing-group canonicalisation, and animated-input unknown guards. The
+receipt remains 48 / 7 / 1. Literal gate tails, all r1–r4 probe outputs and the
+known redaction/model residuals are in
+[`round4/verification.txt`](../docs/proof/blind-channels-1005/round4/verification.txt).
+
 **Notes:**
 
 - A copy (`textContent`) change is caught by the _advisory_ layer when captured

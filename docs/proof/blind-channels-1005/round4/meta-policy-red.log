@@ -1,0 +1,45 @@
+Already up to date
+Done in 106ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/blind-channels-round4.test.mjs
+✔ disjoint timing groups commute while shared-property groups retain order (1.170208ms)
+✔ signing marker sig removes rotation fields but retains content identity (0.5385ms)
+✔ signing marker Signature removes rotation fields but retains content identity (0.13025ms)
+✔ signing marker token removes rotation fields but retains content identity (0.136167ms)
+✔ signing marker hdnts removes rotation fields but retains content identity (0.110042ms)
+✔ signing marker __token__ removes rotation fields but retains content identity (0.079417ms)
+✔ signing marker x-other-signature removes rotation fields but retains content identity (0.098ms)
+✔ signing marker X-Amz-Signature removes rotation fields but retains content identity (0.084667ms)
+✔ signing marker X-Goog-Signature removes rotation fields but retains content identity (0.37325ms)
+✔ unsigned rotation-like parameters retain identity (1.221125ms)
+✖ Meta CDN oh/oe rotation remains source identity (1.835083ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 10
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 156.811666
+
+✖ failing tests:
+
+test at test/blind-channels-round4.test.mjs:44:1
+✖ Meta CDN oh/oe rotation remains source identity (1.835083ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to:
+
+  'https://asset.test/a.png'
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:52:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png',
+    expected: 'https://asset.test/a.png',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.

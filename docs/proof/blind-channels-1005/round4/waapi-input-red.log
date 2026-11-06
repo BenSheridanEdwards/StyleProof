@@ -1,0 +1,30 @@
+Already up to date
+Done in 64ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:3639) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round4.e2e.spec.ts:166:1 › a paused Web Animation driving a variable input cannot produce known time-dependent endpoints (145ms)
+
+
+  1) [chromium] › test/blind-channels-round4.e2e.spec.ts:166:1 › a paused Web Animation driving a variable input cannot produce known time-dependent endpoints
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      181 |     const map = await captureStyleMap(page, options);
+      182 |     evidence.push(map.visualChannels);
+    > 183 |     expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe('unknown');
+          |                                                                                                        ^
+      184 |   }
+      185 |   expect(evidence[0]).toEqual(evidence[1]);
+      186 | });
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:183:104
+
+    Error Context: ../../../../Codex/blind-channels-1005-round4/waapi-test-results/test-blind-channels-round4-a9773-wn-time-dependent-endpoints-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:166:1 › a paused Web Animation driving a variable input cannot produce known time-dependent endpoints

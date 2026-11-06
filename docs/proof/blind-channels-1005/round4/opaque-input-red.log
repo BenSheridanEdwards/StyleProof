@@ -1,0 +1,29 @@
+Already up to date
+Done in 57ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:43949) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round4.e2e.spec.ts:151:1 › a variable consumer stays unknown when an opaque ancestor animation drives its input (172ms)
+
+
+  1) [chromium] › test/blind-channels-round4.e2e.spec.ts:151:1 › a variable consumer stays unknown when an opaque ancestor animation drives its input
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      161 |   await page.goto('http://fixture.test/');
+      162 |   const map = await captureStyleMap(page, options);
+    > 163 |   expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe('unknown');
+          |                                                                                                      ^
+      164 | });
+      165 |
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:163:102
+
+    Error Context: test-results/test-blind-channels-round4-d761b--animation-drives-its-input-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:151:1 › a variable consumer stays unknown when an opaque ancestor animation drives its input

@@ -1,0 +1,51 @@
+Already up to date
+Done in 54ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:48238) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round4.e2e.spec.ts:110:1 › forced-state reads traverse the full author-root tree only once per capture (967ms)
+(node:48317) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/blind-channels-round4.e2e.spec.ts:133:1 › engine and matched source agreement overrides an unreadable later sheet (154ms)
+
+
+  1) [chromium] › test/blind-channels-round4.e2e.spec.ts:110:1 › forced-state reads traverse the full author-root tree only once per capture
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    34
+
+      126 |   try {
+      127 |     await captureStyleMap(page, { captureVisualChannels: true, stabilize: false });
+    > 128 |     expect(deep).toBeLessThanOrEqual(1);
+          |                  ^
+      129 |   } finally {
+      130 |     context.newCDPSession = native;
+      131 |   }
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:128:18
+
+    Error Context: test-results/test-blind-channels-round4-c2417--tree-only-once-per-capture-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round4.e2e.spec.ts:133:1 › engine and matched source agreement overrides an unreadable later sheet
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "known"
+    Received: "unknown"
+
+      143 |   await page.goto('http://fixture.test/');
+      144 |   const map = await captureStyleMap(page, options);
+    > 145 |   expect(Object.values(map.visualChannels!.keyframes)[0].status).toBe('known');
+          |                                                                  ^
+      146 | });
+      147 |
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:145:66
+
+    Error Context: test-results/test-blind-channels-round4-7cbe1-s-an-unreadable-later-sheet-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:110:1 › forced-state reads traverse the full author-root tree only once per capture
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:133:1 › engine and matched source agreement overrides an unreadable later sheet

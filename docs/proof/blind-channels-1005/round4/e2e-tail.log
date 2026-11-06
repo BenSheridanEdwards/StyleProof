@@ -1,0 +1,18 @@
+  ✓  1311 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a folded logical template substitution in real Chromium through git (632ms)
+  ✓  1312 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a multiline template substitution in real Chromium through git (643ms)
+  ✓  1313 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a substitution expression on its own line in real Chromium through git (663ms)
+  ✓  1314 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (649ms)
+  ✓  1315 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (648ms)
+  ✓  1316 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (642ms)
+  ✓  1317 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (645ms)
+  ✓  1318 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (654ms)
+  ✓  1319 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (637ms)
+  ✓  1320 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (636ms)
+  ✓  1321 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (633ms)
+  ✓  1322 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (634ms)
+  ✓  1323 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (636ms)
+  ✓  1324 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (637ms)
+  ✓  1325 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (646ms)
+
+  1 skipped
+  1324 passed (7.3m)

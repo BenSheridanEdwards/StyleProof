@@ -1,0 +1,124 @@
+Round 4 runtime code: cc1652021f247bc79bb9897c50e5c2784f2feb05
+Reviewed remote / pinned push lease: dbb92ea517213ce8ce4554114b3242e80ee1fca5
+Rebased base: 4b298c004727c9ef955a72bd487ab7a36523f09f (origin/main remained unchanged on the subsequent fetch).
+
+Design and changes:
+- captureVisualChannels stays opt-in/off by default, with no map schema bump, dependency change or default verdict expansion. Existing v1 name/hash references and shared bodies remain.
+- A single flat document animation index, keyed by effect.target and pseudoElement, replaces Element.getAnimations calls. Synchronous model snapshots precede protocol work, so finishing animations cannot change the model's liveness between reads. The full author-root traversal is cached once per capture; later sessions initialise only a depth-0 document root.
+- No pause/play/currentTime mutation is used. The initial motion unfreeze and model read share one synchronous evaluation; default-off still calls the original unfreeze reader. Later protocol calls carry the captured models forward.
+- var() consumers stay unknown for animated custom-property inputs on the element or ancestors. Matched-rule declarations are inspected even for opaque-sheet inputs. Missing/ambiguous input declarations also hold the consumer unknown. Non-CSS animations, including Web Animations/transitions, have unverified declarations and conservatively hold variable consumers unknown.
+- Same-offset frames form dependency edges only for shared computed properties; a heap selects a canonical topological order. Disjoint groups commute, shared-property groups preserve relative engine order. Property keys and equivalent easing remain normalised. No CSSOM declaration merging replaces engine values.
+- Identical CSSOM duplicate definitions no longer cause unknown. Loaded opaque sheets can be overridden only by engine/source agreement; CDP loaded-sheet headers distinguish a failed sheet (which Chromium may expose through a SecurityError-throwing CSSStyleSheet) from a loaded cross-origin sheet. Missing, untraversed, mismatched, conditional/ambiguous or unavailable evidence stays unknown.
+- Signature markers sig/signature/token/hdnts/__token__/x-*-signature also remove exp/expires/expiry/se/st. Provider-specific prior redaction is retained. Per the user's correction, Meta oh/oe remain stored; their rotation may find a difference. Unsigned/Firebase token is still dropped, Maps key and GoogleAccessId remain stored. No new standalone provider marker was added.
+- REFERENCE documents implicit endpoint values: element-only opacity/timing changes can also appear under animation keyframes (name). It also records the explicit unknown and signing residuals.
+
+Test-first and controls:
+The initial new Chromium run reproduced 7 failures. Separate red runs reproduce repeated deep root traversal and the opaque later-sheet case (2 failures), a Meta-retention regression against the earlier build, the opaque animated-input consumer, and the paused Web Animation input. The pure unit red reproduces commuting-group and rotating-field failures. Red output is adjacent; source/test commits were made early with hooks enabled.
+T2 reversed is clean. QA's exact three-block -> two-block same-property timing fixture still flags (.8 -> .7 at 500ms). Deleting only the first .5 steps block stays clean; adjacent duplicates and cross-offset reorder stay clean. These controls are pinned in the round3/round4 Chromium tests. Display:none and animation:g 1s,g 2s are explicitly pinned unknown. Closed roots, var shorthand/longhand and logical/physical precedence retain prior tests.
+The added complete-capture scaling test covers 500/1000/2000 animated elements using Chromium thread CPU time, warmed minima, 5 measured samples per endpoint, the unchanged <8 4N/N bound, and a 60s wall guard. A structural test asserts zero native Element.getAnimations calls. Another asserts at most one deep DOM.getDocument per capture.
+
+Verification history:
+Normal pre-commit hooks first rejected a test diagnostic console warning, then canonical-order complexity. The diagnostic and helper structure were corrected under unchanged checks. A later input-guard commit was rejected at cognitive complexity 16; extracting the error-contained model read resolved it. One refactor build caught a flatMap callback receiving an index as its optional dependency argument; an explicit callback fixed it. No suppression, baseline, threshold, gate or hook configuration was changed.
+An exploratory direct-reader microbenchmark measured an 8.81 ratio; the committed required cost test measures the complete capture, matching the requested operation, with the original <8 bound unchanged. Passing earlier gate runs are retained as history after the policy/input source changes; only final-code gate tails are appended below.
+One report regeneration attempt against the compiled artifact lacked test/helpers.mjs. It was rerun against the checkout with identical compiled code. The fresh final render is byte-identical to the inspected render (SHA-256 b2a82d29046afc7f77cac4337310efc87c0b92657032205a9e69b8c9ff8471ac).
+
+Proof and limits:
+The report shows an ordinary computed engine-body change and named unknowns for variable-input models. Its product-state identity warning remains visible: this is visual-only diagnostic proof, not a certified same-state comparison. Video is not applicable to model capture; browser assertions and QA's sampled-rendering probe verify the timing controls directly.
+The 600-skeleton/20-target cost fixture reaches the existing 32000-element forced-state scan budget with the option both off and on. Its timings do not claim complete state coverage. The raw warning is retained.
+An earlier run observed load above 60 while already-started checks were executing. Further heavy launches were held by the guards until load dropped. Final heavy commands and the push have launch guards below 60; the probe manifest records each launch load.
+
+Probe method:
+All r1-r4 entry points run unmodified against an immutable compiled copy of the final runtime code; build-binding-final.json records the runtime SHA and artifact hashes in the archived full proof. Independent probe groups use distinct ports (r2/r3 remain sequential). Support harnesses and duplicated port-shifted copies are not separate entry points. The final manifest distinguishes successful execution from interpretation of older expected labels.
+Final probe results (23 command runs, all exit 0, all bound to the runtime SHA above):
+r1: body/deletion/inactive-media/layer/pseudo/hover/image/source-set/picture/data/legacy/determinism/default-parity checks retain their outcomes. #4 timeline ranges are deliberately unknown; #16 unloaded lazy sources are skipped with a named limit. The 2000-element size fixture still stores five shared bodies.
+r2: var shorthands/deletion, timing split-vs-merge, signed providers, unsigned sp, imports/adopted sheets, duplicate-offset effective cascade and loaded->no-source all retain expected findings/controls. Untraversed/conditional/opaque-without-agreement scopes stay unknown. The mouseenter injector in A never runs during CDP-forced hover (r3 a-hover confirms false); definite none reflects the actual captured state. No hidden shadow body is claimed compared.
+r3: LP1-LP3 and V1-V3 each detect; V4/Q1 are clean. T1 and C1 detect; T2 and equivalent easing T3 are clean. S1-S10 stay unknown without borrowing document bodies. K1 remains explicitly unknown for an omitted animated-custom-property model. Both default parity modes are byte-identical to independently compiled origin/main.
+r4: all reset sizes (30/900/3000/9000 nodes) have six known captures and zero self-check failures. All entrance-animation race cases also have six known captures and zero consecutive failures. Duplicated definitions and four realistic variants have no unknown-rate regression: 0/27 refs unknown in every variant, each changed pulse body gives 20 findings. Display:none and duplicated animation names with distinct timings remain unknown. Implicit endpoint/timing findings B1/B3 are documented; B2 easing and B4 equivalent vw expressions are clean.
+Redaction: Cloudflare and Google Cloud CDN rotations are clean; benign Imgix w changes find a difference. Per the corrected policy, Meta oh/oe produces one finding. Token-only unsigned/Firebase changes stay ignored. Standalone X-Amz-Security-Token has no provider signature/credential marker and remains a finding under the unchanged marker boundary; normal signed S3 V4 cases redact it. Maps key remains stored. Raw output retains these residuals rather than relabelling every older probe expectation as passing.
+Side effects: both normal and inline-important CSS animations are running after capture in both modes. Observed event counts were off: 4 starts/2 cancels; on: 3 starts/1 cancel (both 5 iterations). Counts depend on scheduling, and the opt-in did not add starts/cancels in this run. The existing live-region and untraversed-shadow warnings remain visible in the raw output.
+QA exact fixtures: T2 has identical opacity/transform at all 1001 integer-ms samples and zero findings. The corrected shared-property timing fixture still renders .8 -> .7 and detects; delete-only stays clean in the Chromium suite. CSS self/ancestor variable inputs at 0/300/900ms all give identical unknown channel evidence. Additional opaque and Web Animation input regressions are pinned in the E2E suite.
+
+Final measured source-CC capture costs: 250/500/1000/2000 elements on = 726/787/1085/2351ms, off = 759/773/1090/2274ms. The same 2000-element reviewed baseline was 54.2s in Opus and 56.202s median in QA. Final 600-skeleton/20-button on = 14685ms, off = 10565ms; both final modes hit the pre-existing scan budget. The separate native-API probe still demonstrates the browser's costly per-element method (55310ms at 2000 vs a 31ms flat index); product capture calls the native Element method zero times. These are controlled fixture diagnostics, not performance or coverage certification of an app.
+
+
+Final runtime gates: verify exit 0 (6669 tests, zero failures/skips); full Chromium exit 0 (1324 passed, one expected non-Chromium evidence skip). The full browser run includes all 108 blind-channel cases, including the Web Animation guard. The complete-capture minimum thread-CPU ratio is 4.357126572958751, below the unchanged <8 bound. Reach, detection and demo checks exit 0.
+Corpus before -> after: the reviewed dbb baseline and final runtime both have 48/48 detect, 7/7 clean, 1/1 blind (56 cases); keyframes/img source detect, aria-label remains blind. Reach stays 18 cases (17 visual), declared 3/17 shown, complete 16/17 shown, all 14/14 declared misses named, unknown case counts 7/8. J1 keyframes stays blind-channel. Original pre-1005 main was 46 detect / 7 clean / 3 blind, as recorded in the existing corpus review.
+Default parity remains byte-identical to main for {} and captureReach:true (109707 / 110596 bytes). Dependency manifests, default demo Markdown/HTML, enforcement configuration and hooks have no diff against origin/main. All issue proof logs have trailing whitespace removed; staged, working-tree and full origin/main...HEAD whitespace checks are repeated before push.
+Final command launch one-minute loads: verify 4.51; E2E 6.54; reach 2.44; detection 2.25; demo 2.62. The final probe manifest records every launch below 60. No PR is opened; hosted required CI is not claimed for a branch-only push (CI runs on PRs and main pushes).
+
+Actual command tails:
+
+$ pnpm run verify (exit 0)
+  ✔ store-dogfood.yml (0.308291ms)
+✔ main commits get their own concurrency group so queued main runs are not dropped; manual dogfood runs stay independent (1.26025ms)
+✔ release runs serialize without cancelling an in-flight publish (0.058834ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.095417ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.088ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.772375ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.106708ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.272875ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.6595ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (1.516667ms)
+ℹ tests 6669
+ℹ suites 32
+ℹ pass 6669
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 294613.721584
+
+$ pnpm run test:e2e (exit 0)
+  ✓  1311 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a folded logical template substitution in real Chromium through git (632ms)
+  ✓  1312 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a multiline template substitution in real Chromium through git (643ms)
+  ✓  1313 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a substitution expression on its own line in real Chromium through git (663ms)
+  ✓  1314 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (649ms)
+  ✓  1315 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (648ms)
+  ✓  1316 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (642ms)
+  ✓  1317 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (645ms)
+  ✓  1318 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (654ms)
+  ✓  1319 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (637ms)
+  ✓  1320 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (636ms)
+  ✓  1321 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (633ms)
+  ✓  1322 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (634ms)
+  ✓  1323 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (636ms)
+  ✓  1324 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (637ms)
+  ✓  1325 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (646ms)
+
+  1 skipped
+  1324 passed (7.3m)
+
+$ pnpm run bench:reach:check (exit 0)
+  ✓ colliding-constant [declared] today missed · reach unknown · J2 ran · J3 unknown
+  ✓ colliding-constant [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ error-handler [declared] today n/a · reach never-rendered · J2 never-ran
+  ✓ error-handler [complete] today n/a · reach never-rendered · J2 never-ran
+  ✓ render-scope-value [declared] today missed · reach unknown · J2 ran
+  ✓ render-scope-value [complete] today shown · reach unknown · J2 ran
+  ✓ eager-jsx-element [declared] today missed · reach unknown · J2 ran
+  ✓ eager-jsx-element [complete] today shown · reach unknown · J2 ran
+  ✓ same-line-class-style [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-line-class-style [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [complete] today shown · reach unknown · J2 ran · J3 unknown
+
+$ node bench/detection-rate.mjs --check (exit 0)
+  ✓ clean-weight-alias [no-op] 700 → bold alias — zero findings
+  ✓ clean-var-equivalent [no-op] direct colour → identical via custom property — zero findings
+  ✓ clean-duplicate-decl [no-op] identical value redeclared — zero findings
+  ✓ clean-visibility-default [no-op] explicit default visibility — zero findings
+  ✓ clean-display-same [no-op] block redeclared on a block box — zero findings
+  ✓ blind-keyframes [visual-channel] referenced @keyframes body rewritten, animation-name unchanged (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-img-src [visual-channel] img currentSrc swapped blue to red (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-aria-label [blind] aria-label added — accessibility metadata is outside style evidence — zero findings
+  ✓ dom-link-href [dom] link href change — href is in the anchor element fingerprint, so the element re-keys as removed+added — 5 finding(s) on target
+  ✓ text-title [dom] title copy change — advisory text layer, captured when captureText is on — 1 finding(s) on target
+
+receipt → bench/detection-corpus.results.json
+
+$ pnpm run demo:check (exit 0)
+Already up to date
+Done in 56ms using pnpm v11.7.0
+$ pnpm run build && node scripts/demo-report.mjs --check
+$ tsc
+styleproof: docs/demo/ is up to date.

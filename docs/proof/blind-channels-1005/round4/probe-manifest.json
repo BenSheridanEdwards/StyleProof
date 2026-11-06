@@ -1,0 +1,163 @@
+[
+  {
+    "name": "r4-scale",
+    "exit": 0,
+    "seconds": 10.404,
+    "load": 4.50537109375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r1-probe",
+    "exit": 0,
+    "seconds": 32.524,
+    "load": 4.50537109375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r1-cost-5000",
+    "exit": 0,
+    "seconds": 5.285,
+    "load": 7.416015625,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r1-cost-20000",
+    "exit": 0,
+    "seconds": 5.513,
+    "load": 8.18310546875,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r2-probe2",
+    "exit": 0,
+    "seconds": 43.58,
+    "load": 4.50537109375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r2-reslot",
+    "exit": 0,
+    "seconds": 0.932,
+    "load": 9.048828125,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r2-timing",
+    "exit": 0,
+    "seconds": 0.759,
+    "load": 9.048828125,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-getanimations-cost",
+    "exit": 0,
+    "seconds": 61.016,
+    "load": 4.50537109375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "qa-exact",
+    "exit": 0,
+    "seconds": 1.713,
+    "load": 12.9384765625,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-states-cost",
+    "exit": 0,
+    "seconds": 60.485,
+    "load": 6.4189453125,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r3-probe3",
+    "exit": 0,
+    "seconds": 33.356,
+    "load": 9.048828125,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r3-redact",
+    "exit": 0,
+    "seconds": 17.463,
+    "load": 13.9462890625,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r3-cssom",
+    "exit": 0,
+    "seconds": 0.606,
+    "load": 16.333984375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r3-getkeyframes",
+    "exit": 0,
+    "seconds": 0.708,
+    "load": 16.333984375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r3-render-truth",
+    "exit": 0,
+    "seconds": 1.107,
+    "load": 16.333984375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r3-a-hover",
+    "exit": 0,
+    "seconds": 2.928,
+    "load": 16.333984375,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r3-parity",
+    "exit": 0,
+    "seconds": 3.846,
+    "load": 16.38720703125,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-race-reset",
+    "exit": 0,
+    "seconds": 93.592,
+    "load": 14.203125,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-redact4",
+    "exit": 0,
+    "seconds": 9.723,
+    "load": 20.22705078125,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-realistic",
+    "exit": 0,
+    "seconds": 9.874,
+    "load": 19.04150390625,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-side-effects",
+    "exit": 0,
+    "seconds": 12.412,
+    "load": 18.400390625,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-probe4",
+    "exit": 0,
+    "seconds": 113.913,
+    "load": 18.54150390625,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  },
+  {
+    "name": "r4-race",
+    "exit": 0,
+    "seconds": 257.238,
+    "load": 7.1513671875,
+    "runtimeHead": "cc1652021f247bc79bb9897c50e5c2784f2feb05"
+  }
+]

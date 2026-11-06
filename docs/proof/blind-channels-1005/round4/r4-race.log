@@ -1,0 +1,4 @@
+## 150ms enter, 3k nodes: known(2847ms) known(2798ms) known(2763ms) known(2749ms) known(2734ms) known(2742ms) | consecutive self-check failures 0/5
+## 150ms enter, 9k nodes: known(8451ms) known(8470ms) known(8766ms) known(8597ms) known(8546ms) known(8521ms) | consecutive self-check failures 0/5
+## 200ms enter (shadcn dialog/popover), 15k nodes: known(14881ms) known(15033ms) known(15088ms) known(16001ms) known(16622ms) known(17857ms) | consecutive self-check failures 0/5
+## 300ms enter, 15k nodes: known(16436ms) known(15760ms) known(15289ms) known(15859ms) known(15021ms) known(14901ms) | consecutive self-check failures 0/5

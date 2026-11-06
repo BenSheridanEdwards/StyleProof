@@ -1,0 +1,14 @@
+Already up to date
+Done in 64ms using pnpm v11.7.0
+
+Running 5 tests using 1 worker
+
+(node:8424) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/blind-channels-round4.e2e.spec.ts:35:3 › animated custom-property input stays unknown (self) (245ms)
+  ✓  2 [chromium] › test/blind-channels-round4.e2e.spec.ts:35:3 › animated custom-property input stays unknown (ancestor) (213ms)
+  ✓  3 [chromium] › test/blind-channels-round4.e2e.spec.ts:129:1 › engine and matched source agreement overrides an unreadable later sheet (126ms)
+  ✓  4 [chromium] › test/blind-channels-round4.e2e.spec.ts:151:1 › a variable consumer stays unknown when an opaque ancestor animation drives its input (149ms)
+  ✓  5 [chromium] › test/blind-channels-round4.e2e.spec.ts:166:1 › a paused Web Animation driving a variable input cannot produce known time-dependent endpoints (151ms)
+
+  5 passed (1.8s)

@@ -1,0 +1,4 @@
+QA T2: 1001/1001 rendered samples identical; 0 findings; known bodies equal
+QA animated input (self): 0/300/900ms all unknown; evidence identical
+QA animated input (ancestor): 0/300/900ms all unknown; evidence identical
+QA shared-property timing: .8 -> .7 at 500ms; finding preserved
