@@ -259,3 +259,21 @@ test('cva selection data cannot introduce a positive nested helper root', () => 
     JSON.stringify(result),
   );
 });
+
+for (const [before, after] of [
+  ['old', 'new'],
+  ['new', 'old'],
+])
+  test(`a multiline literal cannot match ${before} outside its replacement hunk`, () => {
+    const base = `el.className = \`card\n${before}\nold\`;`,
+      head = `el.className = \`card\n${after}\nold\`;`;
+    const changes = changedScriptRanges(`@@ -2 +2 @@\n-${before}\n+${after}\n`, { base, head }, 'app.tsx');
+    const result = judge(base, head, changes);
+    assert.deepEqual(
+      result.units.map((u) => [u.side, u.token]),
+      [
+        ['base', before],
+        ['head', after],
+      ],
+    );
+  });
