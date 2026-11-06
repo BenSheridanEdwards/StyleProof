@@ -1,0 +1,8 @@
+  ✓  1207 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (631ms)
+  ✓  1208 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (639ms)
+  ✓  1209 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (639ms)
+  ✓  1210 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (633ms)
+  ✓  1211 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (637ms)
+
+  1 skipped
+  1210 passed (8.2m)

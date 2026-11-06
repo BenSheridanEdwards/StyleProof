@@ -1,0 +1,19 @@
+{
+  "sourceHead": "949871eefb38916bcf1b78b3fbb08b587bab6e26",
+  "base": "0cc4bd2dc9178a1941afcdbc68ae086edbb63a7e",
+  "packageDiffEmpty": true,
+  "runtimeDependencies": {
+    "pngjs": "^7.0.0"
+  },
+  "roundFiveTestsUnchanged": true,
+  "blobs": {
+    "package.json": {
+      "base": "60eba6f0bfd5fc6992f852f0c56c3c8911711429",
+      "head": "60eba6f0bfd5fc6992f852f0c56c3c8911711429"
+    },
+    "pnpm-lock.yaml": {
+      "base": "c239aa21018e675ae437b58022479d4fe6735382",
+      "head": "c239aa21018e675ae437b58022479d4fe6735382"
+    }
+  }
+}

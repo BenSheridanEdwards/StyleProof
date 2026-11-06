@@ -1,5 +1,9 @@
 # J3 review corrections, round five (#1001)
 
+> Superseded: this implementation was rejected for adding runtime dependencies.
+> These artifacts retain the historical run. The dependency-free replacement is
+> documented in [the correction proof](../no-runtime-deps/proof.md).
+
 Review baseline: `ae5480987afff646756f108a2f7cd346a770c1df`. Fetched and rebased
 onto latest origin/main (`0cc4bd2dc`); already current. Test-first checkpoint:
 `01135cb9c`; initial implementation: `ba7525a92`; boundary regression:

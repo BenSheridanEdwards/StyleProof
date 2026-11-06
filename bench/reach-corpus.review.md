@@ -105,3 +105,9 @@ Round five preserves every round-four case, J3/base-removal status and count, wi
 7/8 unknown totals and zero J2/J3 gaps. The positive AST role allow-list and ordered
 whole-hunk token/role/slot matching do not change this fixture. The measured
 receipt differs only in its generation timestamp.
+
+The dependency-free correction replaces the Babel role reader with the existing
+lexer and an in-repo bounded bracket/work stack. Its receipt matches round five
+exactly except the generation timestamp: all 36 scenario cells, base removals,
+zero J2/J3 gaps and 7/8 unknown totals are unchanged. Runtime dependency files
+match origin/main, with pngjs as the sole runtime dependency.
