@@ -1,0 +1,77 @@
+Round 1 runtime code head: 2702bdd1cd22a90d6754a5b5ad8a7eeaad7fde9d
+Rebased first onto fetched origin/main (6694a77bb7fa92155df6a62fe8f65116e020a99e); Git reported already up to date.
+Reviewed remote head / required push lease: 284f9ee22edeffb4fd057ae433491d4d6aa848b2.
+
+All ten review items:
+1. Fully readable, unambiguous roots record definite none for absent keyframes; deletion/inactive media now compare as (no @keyframes).
+2. Only from/to and plain percentages normalise numerically. Timeline-range keyText keeps its CSSOM identity.
+3. Selector lists expand; duplicate offsets merge later declarations per property; effective offsets and declarations sort. Reorder/merge/split remain clean; real changes detect.
+4. Legacy limit is named only for one-sided channel capture. Both-off reports add no false limit. The evidence block ends with a blank line. Demo artifacts match origin/main and demo:check passes.
+5. A later unlayered readable winner or a provably stronger layer can outrank an opaque sheet/import; other uncertainty stays unknown.
+6. Either source empty skips img currentSrc and names not compared (unloaded image), even empty/empty. Self-check still includes the evidence.
+7. Known signature/credential query fields are removed case-insensitively; other raw query bytes/order and fragments remain unchanged. Data URIs stay hashed. External asset host differences remain findings under the documented same-environment rule.
+8. CSSOM resolution is cached per root per capture. Typed container/scope handling avoids leaf cssText serialization. Work-count tests at 5k/20k rules prove one sheet read, zero repeat reads over twenty calls, and zero cssText serializations. Original reviewer cost driver run unchanged with four hover targets; both short off/on pairs are retained in cost-before.log/cost-after.log. These are diagnostic timings, not a general capacity guarantee.
+9. Font advice uses the actual blind-channel status, requires captureReach ledgers on both sides, names the surface, and never changes verdicts.
+10. REFERENCE explicitly says J1 keyframes remain conservatively blind-channel with captureReach and captureVisualChannels both enabled. No issue filed.
+
+Red to green: four new unit tests and thirteen of fourteen initial Chromium scenarios failed before implementation. A further query-spelling regression reproduced %20 -> + noise and failed before its fix. All eleven focused unit tests and all twenty-seven combined channel Chromium scenarios pass (fifteen round-1 browser scenarios including a positive control). Red outputs are retained with checkout paths redacted and trailing whitespace removed.
+
+Corpus before/after reviewed head: detection 48/48 detect, 7/7 clean, 1/1 blind (56 cases), unchanged. blind-keyframes and blind-img-src detect; blind-aria-label stays blind. Reach declared 3/17 shown, complete 16/17 shown, 14/14 declared misses named, unknown counts 7/8, all expectations unchanged. Keyframes stays blind-channel.
+
+Hygiene: every log under this issue's proof directory was stripped of trailing whitespace. git diff --check origin/main...HEAD and git diff --check pass on the runtime head. Demo files and dependency manifests match origin/main. No runtime dependency or gate configuration changed.
+
+Earlier invalid run: an isolated Playwright invocation was mistakenly started alongside a full suite. Its shared default test-results cleanup removed active J2 Git fixtures, causing two unrelated failures (missing/dirty base SHA and missing working directory). The final gates below were rerun strictly sequentially; no J2 production code or thresholds changed. The one final browser skip is the existing non-Chromium evidence test in the Chromium project.
+
+Generated-report.txt is from real Chromium maps: deletion is a reviewable keyframes finding, unloaded images have a named limit, and the product-state warning remains visible. Reviewer source probes were copied before their temporary location could be swept, with a separate permanent local handoff copy.
+
+Actual final command tails:
+
+pnpm run verify (exit 0)
+✔ release installs without dependency scripts and never persists the checkout token (0.095958ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.113542ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.224167ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (0.967708ms)
+ℹ tests 6607
+ℹ suites 32
+ℹ pass 6607
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 255252.01975
+
+
+pnpm run test:e2e (exit 0)
+  ✓  1239 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (661ms)
+  ✓  1240 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (660ms)
+  ✓  1241 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (659ms)
+  ✓  1242 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (651ms)
+  ✓  1243 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (648ms)
+  ✓  1244 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (671ms)
+
+  1 skipped
+  1243 passed (7.2m)
+
+
+pnpm run bench:reach:check (exit 0)
+  ✓ render-scope-value [declared] today missed · reach unknown · J2 ran
+  ✓ render-scope-value [complete] today shown · reach unknown · J2 ran
+  ✓ eager-jsx-element [declared] today missed · reach unknown · J2 ran
+  ✓ eager-jsx-element [complete] today shown · reach unknown · J2 ran
+  ✓ same-line-class-style [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-line-class-style [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [complete] today shown · reach unknown · J2 ran · J3 unknown
+
+
+node bench/detection-rate.mjs --check (exit 0)
+  ✓ clean-duplicate-decl [no-op] identical value redeclared — zero findings
+  ✓ clean-visibility-default [no-op] explicit default visibility — zero findings
+  ✓ clean-display-same [no-op] block redeclared on a block box — zero findings
+  ✓ blind-keyframes [visual-channel] referenced @keyframes body rewritten, animation-name unchanged (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-img-src [visual-channel] img currentSrc swapped blue to red (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-aria-label [blind] aria-label added — accessibility metadata is outside style evidence — zero findings
+  ✓ dom-link-href [dom] link href change — href is in the anchor element fingerprint, so the element re-keys as removed+added — 5 finding(s) on target
+  ✓ text-title [dom] title copy change — advisory text layer, captured when captureText is on — 1 finding(s) on target
+
+receipt → bench/detection-corpus.results.json
