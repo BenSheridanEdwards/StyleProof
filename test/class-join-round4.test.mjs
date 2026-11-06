@@ -37,6 +37,8 @@ for (const [name, expression, positive] of [
   ['lookup quoted key', "el.className = ({ 'TOKEN': 'card btn' })[size]", false],
   ['lookup identifier key', "el.className = ({ TOKEN: 'card btn' })[size]", false],
   ['lookup direct key', "cn({ TOKEN: 'card' }[size])", false],
+  ['computed lookup key', "cn(classes['TOKEN'])", false],
+  ['dataset lookup key in class expression', '<div className={el.dataset["TOKEN"] = "card"}/>', false],
   ['receiver array', "cn([a, 'TOKEN'].includes(b) && 'btn')", false],
   ['optional receiver array', "cn(['TOKEN'])", true],
   ['computed method call', "cn(utils['pick']('TOKEN'))", false],
@@ -49,6 +51,9 @@ for (const [name, expression, positive] of [
   ['dataset bracket double', 'el.dataset["class"] = "TOKEN"', false],
   ['helper object key', 'clsx({ TOKEN: on })', true],
   ['helper quoted key', "clsx({ 'TOKEN': on })", true],
+  ['JSX following style', '<Banner className="card" style={{ color: "TOKEN" }}/>', false],
+  ['JSX following attribute', '<div className={on ? "card" : "btn"} title={"TOKEN"}/>', false],
+  ['ternary alternate', "el.className = on ? 'card' : 'TOKEN'", true],
   ['ternary result', "el.className = on ? 'TOKEN' : 'card'", true],
   ['and result', "cn(on && 'TOKEN')", true],
   ['lookup object value', "el.className = ({ size: 'TOKEN' })[size]", true],
@@ -172,5 +177,18 @@ test('older version-two facts without document-boundary verification cannot prov
   assert.ok(
     result.units.every((u) => u.status === 'unknown'),
     JSON.stringify(result.units),
+  );
+});
+
+test('queried-element class assignments retain unresolved-value gaps', () => {
+  const base = "document.querySelector('main').className = 'old';";
+  const head = "const CLS = 'old'; document.querySelector('main').className = CLS;";
+  const changes = changedScriptRanges(`@@ -1 +1 @@\n-${base}\n+${head}\n`, { base, head }, 'app.tsx');
+  const before = map(),
+    after = map();
+  const result = classifyClassReach([before], [after], changes, [{ base: before, head: after }]);
+  assert.ok(
+    result.gaps.some((g) => g.side === 'head' && g.paths?.includes('app.tsx')),
+    JSON.stringify(result.gaps),
   );
 });

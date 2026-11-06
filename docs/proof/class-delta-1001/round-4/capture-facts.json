@@ -5,6 +5,7 @@
     "shadowHosts": 0,
     "frames": 0,
     "outsideBody": 0,
+    "documentBoundsVerified": true,
     "shadowRootsVerified": true
   },
   {
@@ -13,6 +14,7 @@
     "shadowHosts": 0,
     "frames": 0,
     "outsideBody": 0,
+    "documentBoundsVerified": true,
     "shadowRootsVerified": true
   }
 ]

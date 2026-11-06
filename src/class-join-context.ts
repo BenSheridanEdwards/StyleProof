@@ -53,3 +53,9 @@ export function callRole(prefix: string, char: string): { method?: string; own: 
   const own = helper || classAttribute(prefix) || method === 'add' || method === 'replace';
   return { method, own, call: char === '(' && !own && !method && /[\w$)\]]\s*$/.test(prefix) };
 }
+
+/** Object colons and assignment equals delimit values; ternary colons and comparisons do not. */
+export function beginsValue(prefix: string, char: string, next: string): boolean {
+  if (char === ':') return /^[\s\w.$-]+$/.test(prefix);
+  return char === '=' && next !== '=' && !/[=!]$/.test(prefix.trim()) && /[\w.$-]+\s*$/.test(prefix);
+}

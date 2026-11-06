@@ -3,7 +3,7 @@ import type { SourcePosition, SourceSpan } from './script-reach.js';
 import type { ScriptToken } from './script-join-tokens.js';
 import type { ScriptChange } from './script-join.js';
 import { classSource, classWords, commentEnd, literalAt, sourceSpan, type ClassSource } from './class-join-source.js';
-import { callRole, classAttribute, delimiterEnds, followedBy, nonValue } from './class-join-context.js';
+import { beginsValue, callRole, classAttribute, delimiterEnds, followedBy, nonValue } from './class-join-context.js';
 import { bindingLiteral, svelteDirectives } from './class-join-bindings.js';
 
 export type ClassWord = { token: string; range: SourceSpan };
@@ -173,7 +173,9 @@ function openFrame(char: string, cursor: number, scan: Scan): void {
   const parent = scan.frames.at(-1)!;
   const { method, own, call } = callRole(scan.prefix, char);
   const close = scan.ends?.get(cursor);
-  const receiver = char === '[' && followedBy(scan.source, close, /^\s*\)*\s*(?:\?\.|\.)\s*[\w$]+\s*\(/);
+  const receiver =
+    char === '[' &&
+    (/[\w$)\]]\s*$/.test(scan.prefix) || followedBy(scan.source, close, /^\s*\)*\s*(?:\?\.|\.)\s*[\w$]+\s*\(/));
   const indexed = char === '{' && followedBy(scan.source, close, /^\s*\)*\s*\[/);
   const blocked =
     receiver ||
@@ -210,10 +212,7 @@ function delimiter(char: string, cursor: number, scan: Scan): void {
     scan.frames.at(-1)!.value = false;
     if (char === ',' && scan.frames.at(-1)!.method) scan.frames.at(-1)!.argument!++;
   } else {
-    if (
-      (char === ':' || (char === '=' && !/[=!]$/.test(scan.prefix.trim()) && scan.source.text[cursor + 1] !== '=')) &&
-      /^[\s\w.$-]+$/.test(scan.prefix)
-    ) {
+    if (beginsValue(scan.prefix, char, scan.source.text[cursor + 1])) {
       flushValue(scan, cursor);
       const frame = scan.frames.at(-1)!;
       frame.value = classAttribute(scan.prefix + char);

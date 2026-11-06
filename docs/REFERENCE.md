@@ -2325,7 +2325,8 @@ keys (bare or quoted) and default variant selections are excluded. Compound vari
 conditions are excluded; literal `class`/`className` values can still be read.
 Template nesting is capped at 128 levels. Exceeding the cap records a named
 extraction gap for the affected side/file/range, rather than throwing or supplying
-negative evidence from a partially read template.
+negative evidence from a partially read template. The capped template and the
+remaining blob are covered by the gap rather than read further.
 Substitution literals adjoining static text are dynamic fragments, not whole tokens:
 `` `${flag ? 'old' : 'keep'}-suffix` `` never contributes the token `old`.
 String concatenation such as `className={'card card--' + tone}` emits a named
