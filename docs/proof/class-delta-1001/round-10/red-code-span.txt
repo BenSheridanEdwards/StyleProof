@@ -1,0 +1,21 @@
+✖ codeValue handles many disjoint backtick runs without spreading arguments (2.81375ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 78.215459
+
+✖ failing tests:
+
+test at test/class-join-round10.test.mjs:21:1
+✖ codeValue handles many disjoint backtick runs without spreading arguments (2.81375ms)
+  RangeError [Error]: Maximum call stack size exceeded
+      at codeValue (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/dist/code-span.js:18:29)
+      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:23:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
