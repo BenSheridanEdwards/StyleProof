@@ -1,0 +1,662 @@
+✖ nested type has no positive role: let m: Record<string, { className: 'old' }>; (1.885667ms)
+✖ nested type has no positive role: function f(e: Record<K, { class: 'old' }>) {} (0.207917ms)
+✖ nested type has no positive role: new Map<string, { class: 'old' }>(); (0.103ms)
+✖ nested type has no positive role: foo<A, { class: 'old' }>(x); (0.081959ms)
+✖ nested type has no positive role: function f(e: [{ class: 'old' }]) {} (0.097917ms)
+✖ nested type has no positive role: let t: [A, { class: 'old' }]; (0.078708ms)
+✔ nested type has no positive role: let t: [a: string, b?: { class: 'old' }]; (0.091917ms)
+✖ nested type has no positive role: const t = x as ({ class: 'old' }); (0.214167ms)
+✖ nested type has no positive role: const t = x as [{ class: 'old' }]; (0.147541ms)
+✖ nested type has no positive role: const t = x as Map<K, { class: 'old' }>; (0.147125ms)
+✖ nested type has no positive role: const t = x satisfies Record<K, { class: 'old' }>; (0.103375ms)
+✖ nested type has no positive role: let x: A extends B ? { class: 'old' } : C; (0.06675ms)
+✖ nested type has no positive role: let x: A extends B ? C : { class: 'old' }; (0.053458ms)
+✖ nested type has no positive role: function f<G = { class: 'old' }>() {} (0.060125ms)
+✖ nested type has no positive role: const [a]: [{ class: 'old' }] = v; (0.0575ms)
+✖ nested type has no positive role: type X = [{ class: 'old' }]; (0.069083ms)
+✖ nested type has no positive role: type X = ({ class: 'old' }); (0.046209ms)
+✔ nested type has no positive role: interface X { prop: Record<K, { class: 'old' }> } (0.041459ms)
+✔ nested type has no positive role: class X implements Record<K, { class: 'old' }> {} (0.036625ms)
+✔ nested type has no positive role: const f = <T extends { class: 'old' }>(x: T) => x; (0.062666ms)
+✖ nested type has no positive role: function f(): Record<K, { class: 'old' }> { return value; } (0.049666ms)
+✖ nested type has no positive role: let a: ({ class: 'old' } | [{ className: 'old' }]) & A; (0.093792ms)
+✖ nested type has no positive role: type C<T> = T extends {class:'old'} ? {className:'old'} : never; (0.064ms)
+✖ nested type has no positive role: let p: string extends unknown ? {class:'old'} : {className:'old'}; (0.045208ms)
+✖ nested type has no positive role: const p=value as ({class:'old'} & {inner:{className:'old'}}); (0.060541ms)
+✖ nested type has no positive role: const p:readonly [{class:'old'},{className:'old'}?]=value; (0.042834ms)
+✖ nested type has no positive role: function f<T={inner:{class:'old'}}>(p:T) {} (0.039083ms)
+✖ nested type has no positive role: function f<X,Y,T extends (X extends Y ? {class:'old'} : {className:'old'})>() {} (0.046959ms)
+✖ runtime boundary keeps positive values: switch(k) { default: { el.className='old'; } } (1.4615ms)
+✖ runtime boundary keeps positive values: switch(k) { case A: { el.className='old'; } } (0.1595ms)
+✖ runtime boundary keeps positive values: switch(k) { case K.A: { el.className='old'; } } (0.077834ms)
+✖ runtime boundary keeps positive values: outer: { el.className='old'; } (0.060708ms)
+✖ runtime boundary keeps positive values: $: { el.className='old'; } (0.077167ms)
+✔ runtime boundary keeps positive values: let x: Record<K, { class: 'type' }> = { class: 'old' }; (0.043917ms)
+✔ runtime boundary keeps positive values: function f(e: Record<K, { class: 'type' }>) { el.className='old'; } (0.061333ms)
+✔ runtime boundary keeps positive values: function f(): Record<K, { class: 'type' }> { el.className='old'; return value; } (0.053917ms)
+✔ runtime boundary keeps positive values: const f = (e: Record<K, { class: 'type' }>) => ({ class: 'old' }); (0.040334ms)
+✔ runtime boundary keeps positive values: const cfg = on ? value : { class: 'old' }; (0.033833ms)
+✖ a bracket cap drops the entire unfinished statement but keeps earlier statements (0.158041ms)
+✖ nested inline type evidence cannot lower a same-line visual-change J2 range (1.844708ms)
+✖ dev-only TypeScript AST oracle: 8000 nested type-position literals have zero positive roles (126.051ms)
+ℹ {"checkedTypeLiterals":8011,"falsePositives":4129,"falsePositiveExamples":["function f<T = { class: 'old' }>() {}","new Map<string, { className: 'old' }>();","foo<A, { class: 'old' }>(x);","const [a]: [{ className: 'old' }] = value;","let p: ({ className: 'old' }) = value;","function f(e: ({ class: 'old' })) {}","const f = (e?: ({ className: 'old' })) => e;","function f(): ({ class: 'old' }) { return value; }","const p = value as ({ className: 'old' });","const p = value satisfies ({ class: 'old' });"]}
+ℹ tests 41
+ℹ suites 0
+ℹ pass 9
+ℹ fail 32
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 300.929416
+
+✖ failing tests:
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: let m: Record<string, { className: 'old' }>; (1.885667ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":35},"end":{"line":1,"column":40}},"words":[{"token":"old","range":{"start":{"line":1,"column":36},"end":{"line":1,"column":39}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: function f(e: Record<K, { class: 'old' }>) {} (0.207917ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":33},"end":{"line":1,"column":38}},"words":[{"token":"old","range":{"start":{"line":1,"column":34},"end":{"line":1,"column":37}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: new Map<string, { class: 'old' }>(); (0.103ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":25},"end":{"line":1,"column":30}},"words":[{"token":"old","range":{"start":{"line":1,"column":26},"end":{"line":1,"column":29}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: foo<A, { class: 'old' }>(x); (0.081959ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":16},"end":{"line":1,"column":21}},"words":[{"token":"old","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":20}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: function f(e: [{ class: 'old' }]) {} (0.097917ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":24},"end":{"line":1,"column":29}},"words":[{"token":"old","range":{"start":{"line":1,"column":25},"end":{"line":1,"column":28}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: let t: [A, { class: 'old' }]; (0.078708ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":20},"end":{"line":1,"column":25}},"words":[{"token":"old","range":{"start":{"line":1,"column":21},"end":{"line":1,"column":24}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: const t = x as ({ class: 'old' }); (0.214167ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":25},"end":{"line":1,"column":30}},"words":[{"token":"old","range":{"start":{"line":1,"column":26},"end":{"line":1,"column":29}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: const t = x as [{ class: 'old' }]; (0.147541ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":25},"end":{"line":1,"column":30}},"words":[{"token":"old","range":{"start":{"line":1,"column":26},"end":{"line":1,"column":29}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: const t = x as Map<K, { class: 'old' }>; (0.147125ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":31},"end":{"line":1,"column":36}},"words":[{"token":"old","range":{"start":{"line":1,"column":32},"end":{"line":1,"column":35}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: const t = x satisfies Record<K, { class: 'old' }>; (0.103375ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":41},"end":{"line":1,"column":46}},"words":[{"token":"old","range":{"start":{"line":1,"column":42},"end":{"line":1,"column":45}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: let x: A extends B ? { class: 'old' } : C; (0.06675ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":30},"end":{"line":1,"column":35}},"words":[{"token":"old","range":{"start":{"line":1,"column":31},"end":{"line":1,"column":34}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: let x: A extends B ? C : { class: 'old' }; (0.053458ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":34},"end":{"line":1,"column":39}},"words":[{"token":"old","range":{"start":{"line":1,"column":35},"end":{"line":1,"column":38}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: function f<G = { class: 'old' }>() {} (0.060125ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":24},"end":{"line":1,"column":29}},"words":[{"token":"old","range":{"start":{"line":1,"column":25},"end":{"line":1,"column":28}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: const [a]: [{ class: 'old' }] = v; (0.0575ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":21},"end":{"line":1,"column":26}},"words":[{"token":"old","range":{"start":{"line":1,"column":22},"end":{"line":1,"column":25}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: type X = [{ class: 'old' }]; (0.069083ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":19},"end":{"line":1,"column":24}},"words":[{"token":"old","range":{"start":{"line":1,"column":20},"end":{"line":1,"column":23}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: type X = ({ class: 'old' }); (0.046209ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":19},"end":{"line":1,"column":24}},"words":[{"token":"old","range":{"start":{"line":1,"column":20},"end":{"line":1,"column":23}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: function f(): Record<K, { class: 'old' }> { return value; } (0.049666ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":33},"end":{"line":1,"column":38}},"words":[{"token":"old","range":{"start":{"line":1,"column":34},"end":{"line":1,"column":37}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: let a: ({ class: 'old' } | [{ className: 'old' }]) & A; (0.093792ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":17},"end":{"line":1,"column":22}},"words":[{"token":"old","range":{"start":{"line":1,"column":18},"end":{"line":1,"column":21}}}],"explicit":true,"role":"class-value:class-value","classContext":true},{"range":{"start":{"line":1,"column":41},"end":{"line":1,"column":46}},"words":[{"token":"old","range":{"start":{"line":1,"column":42},"end":{"line":1,"column":45}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: type C<T> = T extends {class:'old'} ? {className:'old'} : never; (0.064ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":29},"end":{"line":1,"column":34}},"words":[{"token":"old","range":{"start":{"line":1,"column":30},"end":{"line":1,"column":33}}}],"explicit":false,"classContext":false},{"range":{"start":{"line":1,"column":49},"end":{"line":1,"column":54}},"words":[{"token":"old","range":{"start":{"line":1,"column":50},"end":{"line":1,"column":53}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: let p: string extends unknown ? {class:'old'} : {className:'old'}; (0.045208ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":39},"end":{"line":1,"column":44}},"words":[{"token":"old","range":{"start":{"line":1,"column":40},"end":{"line":1,"column":43}}}],"explicit":true,"role":"class-value:class-value","classContext":true},{"range":{"start":{"line":1,"column":59},"end":{"line":1,"column":64}},"words":[{"token":"old","range":{"start":{"line":1,"column":60},"end":{"line":1,"column":63}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: const p=value as ({class:'old'} & {inner:{className:'old'}}); (0.060541ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":25},"end":{"line":1,"column":30}},"words":[{"token":"old","range":{"start":{"line":1,"column":26},"end":{"line":1,"column":29}}}],"explicit":true,"role":"class-value:class-value","classContext":true},{"range":{"start":{"line":1,"column":52},"end":{"line":1,"column":57}},"words":[{"token":"old","range":{"start":{"line":1,"column":53},"end":{"line":1,"column":56}}}],"explicit":false,"classContext":false}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: const p:readonly [{class:'old'},{className:'old'}?]=value; (0.042834ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":25},"end":{"line":1,"column":30}},"words":[{"token":"old","range":{"start":{"line":1,"column":26},"end":{"line":1,"column":29}}}],"explicit":true,"role":"class-value:class-value","classContext":true},{"range":{"start":{"line":1,"column":43},"end":{"line":1,"column":48}},"words":[{"token":"old","range":{"start":{"line":1,"column":44},"end":{"line":1,"column":47}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: function f<T={inner:{class:'old'}}>(p:T) {} (0.039083ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":27},"end":{"line":1,"column":32}},"words":[{"token":"old","range":{"start":{"line":1,"column":28},"end":{"line":1,"column":31}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:41:3
+✖ nested type has no positive role: function f<X,Y,T extends (X extends Y ? {class:'old'} : {className:'old'})>() {} (0.046959ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":47},"end":{"line":1,"column":52}},"words":[{"token":"old","range":{"start":{"line":1,"column":48},"end":{"line":1,"column":51}}}],"explicit":true,"role":"class-value:class-value","classContext":true},{"range":{"start":{"line":1,"column":67},"end":{"line":1,"column":72}},"words":[{"token":"old","range":{"start":{"line":1,"column":68},"end":{"line":1,"column":71}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:44:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:62:3
+✖ runtime boundary keeps positive values: switch(k) { default: { el.className='old'; } } (1.4615ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:62:3
+✖ runtime boundary keeps positive values: switch(k) { case A: { el.className='old'; } } (0.1595ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:62:3
+✖ runtime boundary keeps positive values: switch(k) { case K.A: { el.className='old'; } } (0.077834ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:62:3
+✖ runtime boundary keeps positive values: outer: { el.className='old'; } (0.060708ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:62:3
+✖ runtime boundary keeps positive values: $: { el.className='old'; } (0.077167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:66:1
+✖ a bracket cap drops the entire unfinished statement but keeps earlier statements (0.158041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(!literals.some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:70:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:119:1
+✖ nested inline type evidence cannot lower a same-line visual-change J2 range (1.844708ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.ts","side":"base","range":{"start":{"line":1,"column":19},"end":{"line":1,"column":24}},"token":"old","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.ts","side":"head","range":{"start":{"line":1,"column":38},"end":{"line":1,"column":43}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at join (file://<worktree>/test/class-join-round7.test.mjs:102:10)
+      at assertTypeJoin (file://<worktree>/test/class-join-round7.test.mjs:77:18)
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:122:3)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:125:1
+✖ dev-only TypeScript AST oracle: 8000 nested type-position literals have zero positive roles (126.051ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   "function f<T = { class: 'old' }>() {}",
+  +   "new Map<string, { className: 'old' }>();",
+  +   "foo<A, { class: 'old' }>(x);",
+  +   "const [a]: [{ className: 'old' }] = value;",
+  +   "let p: ({ className: 'old' }) = value;",
+  +   "function f(e: ({ class: 'old' })) {}",
+  +   "const f = (e?: ({ className: 'old' })) => e;",
+  +   "function f(): ({ class: 'old' }) { return value; }",
+  +   "const p = value as ({ className: 'old' });",
+  +   "const p = value satisfies ({ class: 'old' });"
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:184:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ "function f<T = { class: 'old' }>() {}", "new Map<string, { className: 'old' }>();", "foo<A, { class: 'old' }>(x);", "const [a]: [{ className: 'old' }] = value;", "let p: ({ className: 'old' }) = value;", "function f(e: ({ class: 'old' })) {}", "const f = (e?: ({ className: 'old' })) => e;", "function f(): ({ class: 'old' }) { return value; }", "const p = value as ({ className: 'old' });", "const p = value satisfies ({ class: 'old' });" ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

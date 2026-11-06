@@ -1,0 +1,168 @@
+✔ nested type has no positive role: let m: Record<string, { className: 'old' }>; (1.755792ms)
+✔ nested type has no positive role: function f(e: Record<K, { class: 'old' }>) {} (0.256667ms)
+✔ nested type has no positive role: new Map<string, { class: 'old' }>(); (0.09775ms)
+✔ nested type has no positive role: foo<A, { class: 'old' }>(x); (0.074291ms)
+✔ nested type has no positive role: function f(e: [{ class: 'old' }]) {} (0.079916ms)
+✔ nested type has no positive role: let t: [A, { class: 'old' }]; (0.08925ms)
+✔ nested type has no positive role: let t: [a: string, b?: { class: 'old' }]; (0.061292ms)
+✔ nested type has no positive role: const t = x as ({ class: 'old' }); (0.07475ms)
+✔ nested type has no positive role: const t = x as [{ class: 'old' }]; (0.079291ms)
+✔ nested type has no positive role: const t = x as Map<K, { class: 'old' }>; (0.104583ms)
+✔ nested type has no positive role: const t = x satisfies Record<K, { class: 'old' }>; (0.071708ms)
+✔ nested type has no positive role: let x: A extends B ? { class: 'old' } : C; (0.056375ms)
+✔ nested type has no positive role: let x: A extends B ? C : { class: 'old' }; (0.047625ms)
+✔ nested type has no positive role: function f<G = { class: 'old' }>() {} (0.047459ms)
+✔ nested type has no positive role: const [a]: [{ class: 'old' }] = v; (0.045125ms)
+✔ nested type has no positive role: type X = [{ class: 'old' }]; (0.04075ms)
+✔ nested type has no positive role: type X = ({ class: 'old' }); (0.040375ms)
+✔ nested type has no positive role: interface X { prop: Record<K, { class: 'old' }> } (0.046125ms)
+✔ nested type has no positive role: class X implements Record<K, { class: 'old' }> {} (0.057083ms)
+✔ nested type has no positive role: const f = <T extends { class: 'old' }>(x: T) => x; (0.0735ms)
+✔ nested type has no positive role: function f(): Record<K, { class: 'old' }> { return value; } (0.045666ms)
+✔ nested type has no positive role: let a: ({ class: 'old' } | [{ className: 'old' }]) & A; (0.058792ms)
+✔ nested type has no positive role: type C<T> = T extends {class:'old'} ? {className:'old'} : never; (0.0415ms)
+✔ nested type has no positive role: let p: string extends unknown ? {class:'old'} : {className:'old'}; (0.034875ms)
+✔ nested type has no positive role: const p=value as ({class:'old'} & {inner:{className:'old'}}); (0.037208ms)
+✔ nested type has no positive role: const p:readonly [{class:'old'},{className:'old'}?]=value; (0.033042ms)
+✔ nested type has no positive role: function f<T={inner:{class:'old'}}>(p:T) {} (0.037958ms)
+✔ nested type has no positive role: function f<X,Y,T extends (X extends Y ? {class:'old'} : {className:'old'})>() {} (0.037417ms)
+✔ runtime boundary keeps positive values: switch(k) { default: { el.className='old'; } } (0.156708ms)
+✔ runtime boundary keeps positive values: switch(k) { case A: { el.className='old'; } } (0.0555ms)
+✔ runtime boundary keeps positive values: switch(k) { case K.A: { el.className='old'; } } (0.040166ms)
+✔ runtime boundary keeps positive values: outer: { el.className='old'; } (0.0315ms)
+✔ runtime boundary keeps positive values: $: { el.className='old'; } (0.027083ms)
+✔ runtime boundary keeps positive values: let x: Record<K, { class: 'type' }> = { class: 'old' }; (0.040125ms)
+✔ runtime boundary keeps positive values: function f(e: Record<K, { class: 'type' }>) { el.className='old'; } (0.045041ms)
+✔ runtime boundary keeps positive values: function f(): Record<K, { class: 'type' }> { el.className='old'; return value; } (0.050917ms)
+✔ runtime boundary keeps positive values: const f = (e: Record<K, { class: 'type' }>) => ({ class: 'old' }); (0.048875ms)
+✖ runtime boundary keeps positive values: const cfg = { as: { class: 'old' } }; (1.835042ms)
+✖ runtime boundary keeps positive values: const cfg = { implements: { class: 'old' } }; (0.196ms)
+✖ runtime boundary keeps positive values: type X = { class: 'type' }
+el.className='old'; (0.117792ms)
+✖ runtime boundary keeps positive values: let p: Record<K, { class: 'type' }>
+el.className='old'; (0.10475ms)
+✖ runtime boundary keeps positive values: const p = value as { class: 'type' }
+el.className='old'; (0.097458ms)
+✔ runtime boundary keeps positive values: const cfg = on ? value : { class: 'old' }; (0.052083ms)
+✔ a bracket cap drops the entire unfinished statement but keeps earlier statements (0.378791ms)
+✔ nested inline type evidence cannot lower a same-line visual-change J2 range (1.867792ms)
+✔ dev-only TypeScript AST oracle: 8000 nested type-position literals have zero positive roles (131.311959ms)
+ℹ {"checkedTypeLiterals":8011,"falsePositives":0,"falsePositiveExamples":[]}
+ℹ tests 46
+ℹ suites 0
+ℹ pass 41
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 312.58875
+
+✖ failing tests:
+
+test at test/class-join-round7.test.mjs:67:3
+✖ runtime boundary keeps positive values: const cfg = { as: { class: 'old' } }; (1.835042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:67:3
+✖ runtime boundary keeps positive values: const cfg = { implements: { class: 'old' } }; (0.196ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:67:3
+✖ runtime boundary keeps positive values: type X = { class: 'type' }
+el.className='old'; (0.117792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:67:3
+✖ runtime boundary keeps positive values: let p: Record<K, { class: 'type' }>
+el.className='old'; (0.10475ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:67:3
+✖ runtime boundary keeps positive values: const p = value as { class: 'type' }
+el.className='old'; (0.097458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+  
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
