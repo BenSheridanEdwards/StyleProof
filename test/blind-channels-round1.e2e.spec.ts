@@ -57,9 +57,7 @@ test('merging duplicate offsets still detects a changed effective property', asy
   expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
 });
 
-test('a readable unlayered winner after an opaque sheet is compared; an opaque later sheet stays unknown', async ({
-  page,
-}) => {
+test('matched engine source verifies a readable winner before or after an opaque sheet', async ({ page }) => {
   let sheetAfter = false;
   await page.route('http://**/*', (route) => {
     if (route.request().resourceType() === 'stylesheet')
@@ -73,8 +71,8 @@ test('a readable unlayered winner after an opaque sheet is compared; an opaque l
   expect(Object.values(known.visualChannels!.keyframes)[0].status).toBe('known');
   sheetAfter = true;
   await page.goto('http://fixture.test/');
-  const unknown = await captureStyleMap(page, options);
-  expect(Object.values(unknown.visualChannels!.keyframes)[0].status).toBe('unknown');
+  const after = await captureStyleMap(page, options);
+  expect(Object.values(after.visualChannels!.keyframes)[0].status).toBe('known');
 });
 
 test('an opaque imported layer cannot beat a readable later layer', async ({ page }) => {

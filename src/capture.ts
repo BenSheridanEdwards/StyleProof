@@ -452,6 +452,11 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   };
 }
 
+async function prepareMotionRead(page: Page, channels: boolean): Promise<void> {
+  if (channels) await prepareVisualChannelSources(page, true);
+  else await page.evaluate(unfreezeMotion, true);
+}
+
 /**
  * Capture the page's complete style map. Drive the page to the state first; by default
  * the capture settles it and excludes live regions (see `stabilize`).
@@ -510,8 +515,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
 
   // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
   // mounts during the settle must be seen), then the freeze is re-applied for every other read.
-  await page.evaluate(unfreezeMotion, true);
-  if (options.captureVisualChannels) await prepareVisualChannelSources(page);
+  await prepareMotionRead(page, options.captureVisualChannels === true);
   const motion = (
     await page.evaluate(capturePage, {
       skipSel,

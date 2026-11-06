@@ -1,5 +1,12 @@
 import type { CDPSession, Page } from '@playwright/test';
-import { canonicalEngineKeyframes, normalizeImageSource, resolveEngineBody } from './visual-channel-values.js';
+import {
+  canonicalEngineKeyframes,
+  normalizeImageSource,
+  orderIndependentFrames,
+  orderFrameGroup,
+  frameDependencies,
+  resolveEngineBody,
+} from './visual-channel-values.js';
 import { captureExpression } from './script-evaluation.js';
 import { registerStyleProofSession } from './script-coverage-ownership.js';
 
@@ -31,7 +38,10 @@ function authorHosts(root: BoundaryNode): number[] {
 export async function installVisualChannelValues(page: Page): Promise<void> {
   await page.evaluate(
     captureExpression(`window.__spChannelValues = {
-    canonicalEngineKeyframes: (${canonicalEngineKeyframes.toString()}),
+    frameDependencies: (${frameDependencies.toString()}),
+    orderFrameGroup: (group) => (${orderFrameGroup.toString()})(group, window.__spChannelValues.frameDependencies),
+    orderIndependentFrames: (frames) => (${orderIndependentFrames.toString()})(frames, window.__spChannelValues.orderFrameGroup),
+    canonicalEngineKeyframes: (frames) => (${canonicalEngineKeyframes.toString()})(frames, window.__spChannelValues.orderIndependentFrames),
     normalizeImageSource: (${normalizeImageSource.toString()}),
     resolveEngineBody: (${resolveEngineBody.toString()})
   }; void 0;`),
@@ -113,13 +123,17 @@ async function recordMatchedSources(client: CDPSession): Promise<void> {
 }
 
 /** Refresh read-only engine provenance while the motion freeze is temporarily lifted. */
-async function refreshVisualChannelSources(client: CDPSession): Promise<void> {
+async function refreshVisualChannelSources(client: CDPSession, unfreeze: boolean, sheets: Set<string>): Promise<void> {
   let verified = false;
   try {
-    await client.send('Runtime.evaluate', { expression: captureExpression('window.__spBeginChannelProof(); void 0;') });
-    const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
+    const { result } = await client.send('Runtime.evaluate', {
+      expression: captureExpression(`window.__spBeginChannelProof(${unfreeze}); !!window.__spChannelHostsChecked`),
+      returnByValue: true,
+    });
+    const checked = result.value === true;
+    const { root } = await client.send('DOM.getDocument', { depth: checked ? 0 : -1, pierce: true });
     if (root.nodeType !== 9) throw new Error('missing document boundary');
-    await markAuthorHosts(client, root as BoundaryNode);
+    if (!checked) await markAuthorHosts(client, root as BoundaryNode);
     await recordMatchedSources(client);
     verified = true;
   } catch {
@@ -127,19 +141,25 @@ async function refreshVisualChannelSources(client: CDPSession): Promise<void> {
   } finally {
     await client
       .send('Runtime.evaluate', {
-        expression: captureExpression(`window.__spFinishChannelProof(${verified}); void 0;`),
+        expression: captureExpression(
+          `window.__spFinishChannelProof(${verified}, ${JSON.stringify([...sheets])}); void 0;`,
+        ),
       })
       .catch(() => {});
   }
 }
 
-export async function prepareVisualChannelSources(page: Page): Promise<void> {
+export async function prepareVisualChannelSources(page: Page, unfreeze = false): Promise<void> {
   let client: CDPSession | undefined;
   try {
     client = registerStyleProofSession(await page.context().newCDPSession(page));
+    const sheets = new Set<string>();
+    client.on('CSS.styleSheetAdded', ({ header }) => {
+      if (header.sourceURL) sheets.add(header.sourceURL);
+    });
     await client.send('DOM.enable');
     await client.send('CSS.enable');
-    await refreshVisualChannelSources(client);
+    await refreshVisualChannelSources(client, unfreeze, sheets);
   } catch {
     // The installer starts unverified; unsupported readers stay unknown.
   } finally {

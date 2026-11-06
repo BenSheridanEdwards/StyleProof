@@ -1,5 +1,8 @@
 /** Pure, self-contained functions; also installed in the browser from their source. */
-export function canonicalEngineKeyframes(frames: readonly unknown[]): string | undefined {
+export function canonicalEngineKeyframes(
+  frames: readonly unknown[],
+  order: typeof orderIndependentFrames = orderIndependentFrames,
+): string | undefined {
   const aliases: Record<string, string> = {
     ease: 'cubic-bezier(0.25,0.1,0.25,1)',
     'ease-in': 'cubic-bezier(0.42,0,1,1)',
@@ -26,7 +29,84 @@ export function canonicalEngineKeyframes(frames: readonly unknown[]): string | u
       ...Object.fromEntries(properties.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
     });
   }
-  return JSON.stringify(result);
+  return JSON.stringify(order(result));
+}
+
+/** Lexicographically order commuting frames; shared properties retain their engine order. */
+export function orderIndependentFrames(
+  frames: Record<string, unknown>[],
+  order: typeof orderFrameGroup = orderFrameGroup,
+): Record<string, unknown>[] {
+  const groups = new Map<unknown, Record<string, unknown>[]>();
+  for (const frame of frames) {
+    const group = groups.get(frame.offset) ?? [];
+    group.push(frame);
+    groups.set(frame.offset, group);
+  }
+  return [...groups.values()].flatMap((group) => order(group));
+}
+
+/** Canonical topological order within one offset, with an edge per shared property. */
+export function orderFrameGroup(
+  group: Record<string, unknown>[],
+  dependencies: typeof frameDependencies = frameDependencies,
+): Record<string, unknown>[] {
+  const result: Record<string, unknown>[] = [];
+  const keys = group.map((frame) => JSON.stringify(frame));
+  const { edges, indegree } = dependencies(group);
+  const ready: number[] = [];
+  const less = (a: number, b: number): boolean => keys[a] < keys[b] || (keys[a] === keys[b] && a < b);
+  const push = (value: number): void => {
+    let index = ready.length;
+    ready.push(value);
+    while (index > 0) {
+      const parent = (index - 1) >>> 1;
+      if (!less(value, ready[parent])) break;
+      ready[index] = ready[parent];
+      index = parent;
+    }
+    ready[index] = value;
+  };
+  const pop = (): number => {
+    const first = ready[0];
+    const last = ready.pop()!;
+    if (!ready.length) return first;
+    let index = 0;
+    while (index * 2 + 1 < ready.length) {
+      let child = index * 2 + 1;
+      if (child + 1 < ready.length && less(ready[child + 1], ready[child])) child++;
+      if (!less(ready[child], last)) break;
+      ready[index] = ready[child];
+      index = child;
+    }
+    ready[index] = last;
+    return first;
+  };
+  for (const [index, count] of indegree.entries()) if (count === 0) push(index);
+  while (ready.length) {
+    const index = pop();
+    result.push(group[index]);
+    for (const next of edges[index]) if (--indegree[next] === 0) push(next);
+  }
+  return result;
+}
+
+/** Only adjacent occurrences per property need edges to preserve all dependent order. */
+export function frameDependencies(group: Record<string, unknown>[]): { edges: Set<number>[]; indegree: number[] } {
+  const edges = group.map(() => new Set<number>());
+  const indegree = group.map(() => 0);
+  const previous = new Map<string, number>();
+  for (const [index, frame] of group.entries())
+    for (const property of Object.keys(frame)) {
+      if (['offset', 'easing', 'composite'].includes(property)) continue;
+      const prior = previous.get(property);
+      if (prior !== undefined && !edges[prior].has(index)) {
+        edges[prior].add(index);
+        indegree[index]++;
+      }
+      previous.set(property, index);
+    }
+  return { edges, indegree };
 }
 
 /** Unknown is undefined; only a verified absence is null. */
@@ -59,11 +139,15 @@ export function normalizeImageSource(source: string, origin: string, base: strin
   const google = has('x-goog-signature') || has('x-goog-credential');
   const signed = has('signature') || has('key-pair-id');
   const sas = has('sig');
-  const bunny = has('token');
+  const marker = names.some(
+    (name) => /^(?:sig|signature|token|hdnts|__token__|oh|key-pair-id)$/.test(name) || /^x-.+-signature$/.test(name),
+  );
   const retained = query.filter((_, index) => {
     const name = names[index];
-    if (['token', 'access_token', 'awsaccesskeyid', 'hdnts', '__token__'].includes(name)) return false;
-    if (bunny && (name === 'expires' || name === 'exp')) return false;
+    if (['token', 'access_token', 'awsaccesskeyid', 'hdnts', '__token__', 'x-amz-security-token'].includes(name))
+      return false;
+    if (marker && /^(?:exp|expires|expiry|se|st|oe|oh)$/.test(name)) return false;
+    if (/^x-.+-signature$/.test(name)) return false;
     if (aws && name.startsWith('x-amz-')) return false;
     if (google && name.startsWith('x-goog-')) return false;
     if (signed && /^(?:signature|key-pair-id|expires|policy)$/.test(name)) return false;

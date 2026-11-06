@@ -1478,18 +1478,26 @@ stored directly in the image's style layer. Reports expand references to bodies.
 For live CSS animations, bodies come from `CSSAnimation.effect.getKeyframes()`:
 engine offsets, easing, composition and computed properties, in engine order.
 The engine substitutes `var()` shorthands and resolves logical/physical declaration
-precedence. We do not merge or reorder same-offset timing groups. Property keys
+precedence. Same-offset groups with disjoint computed property sets sort canonically; groups
+that share a property retain their relative engine order. This keeps equivalent
+reorders clean while preserving effective timing-group precedence. Property keys
 within each computed frame sort deterministically; equivalent standard easing
 keywords and cubic-bezier spellings normalise to one value. Pseudo animations are
 indexed once from the document's animation list by their originating element and
 `pseudoElement` (Chromium excludes them from `getAnimations({subtree:false})`).
-CSS animations are paused while reading their models; current time, progress and
-sampled rendered values are not stored.
+Models are read synchronously when the motion freeze is lifted, before protocol
+round trips. One flat document animation index serves elements and pseudo-elements
+for each read; there are no per-element animation-list queries or pause/play
+mutations. Current time, progress and sampled rendered values are not stored.
 
 A read-only CDP matched-rule check verifies the engine's source against the CSSOM
 winner. The CSSOM name/layer index respects applying media/supports, normal cascade
 layers, imports, disabled sheets and stylesheet order, cached per root per capture.
-Provenance is refreshed for resting and forced reads on a separate session. Missing,
+Provenance is refreshed for resting and forced reads on a separate session. The
+full author-root traversal is cached per capture rather than repeated for each
+forced-state scope. Identical duplicate definitions stay comparable. A loaded
+opaque stylesheet does not taint a readable winner when the live model and
+matched-rule provenance agree; missing/unloaded sheets remain unknown. Missing,
 unreadable, mismatched or unavailable evidence stays `unknown`, named **keyframes
 resolution ambiguous** in the report. CDP also verifies author shadow hosts,
 including closed roots. Any untraversed root in the element, assigned-slot or host
@@ -1501,10 +1509,14 @@ unambiguous scope records definite `none` (displayed as `(no @keyframes)`). This
 compares referenced rule deletion and non-applying media. A known CSSOM definition
 without a usable live model stays unknown. Empty or unusable engine frames,
 unrepresentable timeline ranges, and keyframes that animate custom properties
-whose complete model is unavailable also stay unknown. In particular, Chromium
+whose complete model is unavailable also stay unknown. A `var()`-dependent model
+also stays unknown when the element or an ancestor has a custom-property animation,
+including paused animations: its substituted values could depend on progress. In particular, Chromium
 can omit animated custom-property declarations and expose progress-dependent
 substitutions; we do not guess those bodies. Unknown and none have distinct
-references even for the same name.
+references even for the same name. Implicit from/to frames contain the element's
+own underlying computed values. An element-only opacity or animation-timing
+change can therefore also appear as an `animation keyframes (name)` finding.
 
 Capture emulates `prefers-reduced-motion: reduce`: keyframes gated on
 `no-preference`, including Tailwind `motion-safe:`, record `none` in that
@@ -1523,9 +1535,13 @@ without re-encoding retained parameters. Provider markers bound the removal:
   (S3 V2/CloudFront).
 - `sig` removes Azure SAS fields `sig`, `se`, `sp`, `sv`, `st`, `sr`, `ss`, `srt`,
   `si`, `skt`, `ske`, `skoid`, `sktid`, `sks`, `skv`, `sdd`, and `spr`.
-- `token`, `access_token`, `AWSAccessKeyId`, Akamai `hdnts` and `__token__` are
-  always removed. Bunny `token` also marks `expires`/`exp` as rotating fields. An access-key
-  field alone does not remove unsigned `Expires` or `Policy` fields.
+- `token`, `access_token`, `AWSAccessKeyId`, `X-Amz-Security-Token`, Akamai
+  `hdnts` and `__token__` are always removed.
+- Any signing marker (`sig`, `Signature`, `token`, `hdnts`, `__token__`,
+  `Key-Pair-Id`, `x-*-signature`, or Meta CDN `oh`) also removes rotation fields
+  `exp`, `expires`, `expiry`, `se`, `st`, `oe`, and `oh`. This includes Cloudflare
+  Images, Bunny and Meta CDN rotations. Generic `x-*-signature` fields are removed.
+  An access-key field alone does not remove unsigned expiry or `Policy` fields.
 
 Unsigned parameters such as `?sp=1`, other parameters, and fragments retain
 identity. GCS V2 `GoogleAccessId` and Google Maps `key=` remain stored as

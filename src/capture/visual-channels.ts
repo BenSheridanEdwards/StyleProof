@@ -7,10 +7,12 @@ export type VisualChannelWindow = {
   __spChannelNodes?: Map<number, Element>;
   __spChannelHosts?: WeakSet<Element>;
   __spChannelScopesVerified?: boolean;
-  __spBeginChannelProof?: () => void;
+  __spBeginChannelProof?: (unfreeze?: boolean) => void;
+  __spChannelHostsChecked?: boolean;
+  __spChannelSheets?: Set<string>;
   __spChannelRequests?: () => { id: number; name: string; pseudo: string }[];
   __spRecordChannelSource?: (name: string, text: string | undefined) => void;
-  __spFinishChannelProof?: (verified: boolean) => void;
+  __spFinishChannelProof?: (verified: boolean, sheets?: string[]) => void;
   __spChannelBodies?: ChannelBody[];
   __spReadChannels?: (elements: Element[], pseudos: string[]) => Map<Element, Record<string, Props>>;
 };
@@ -27,6 +29,8 @@ export function installVisualChannels(enabled: boolean): void {
   delete target.__spChannelNodes;
   delete target.__spChannelHosts;
   delete target.__spChannelScopesVerified;
+  delete target.__spChannelHostsChecked;
+  delete target.__spChannelSheets;
   if (!enabled) {
     delete target.__spChannelValues;
     return;
@@ -86,12 +90,10 @@ export function installVisualChannels(enabled: boolean): void {
     return tokens;
   };
   type Winner = { rule: CSSKeyframesRule; layer: number[]; order: number };
-  type Opaque = { layer: number[]; order: number; names?: Set<string> };
+  type Opaque = { layer: number[]; order: number; names?: Set<string>; engine?: string };
   type Rules = {
     winners: Map<string, Winner>;
     opaque: Opaque[];
-    candidates: Map<string, CSSKeyframesRule[]>;
-    collisions: Map<string, boolean>;
   };
   // Normal cascade layers: later siblings win, and a parent's unlayered rules win over its children.
   const wins = (next: number[], previous: number[]): boolean => {
@@ -103,7 +105,7 @@ export function installVisualChannels(enabled: boolean): void {
     return true;
   };
   const rulesFor = (root: Document | ShadowRoot): Rules => {
-    const result: Rules = { winners: new Map(), opaque: [], candidates: new Map(), collisions: new Map() };
+    const result: Rules = { winners: new Map(), opaque: [] };
     const layers = new Map<string, Map<string, number>>();
     const visiting = new Set<CSSStyleSheet>();
     let anonymous = 0;
@@ -120,8 +122,8 @@ export function installVisualChannels(enabled: boolean): void {
         if (!siblings.has(name)) siblings.set(name, siblings.size);
         return siblings.get(name)!;
       });
-    const opaque = (path: string[], names?: Set<string>): void => {
-      result.opaque.push({ layer: rank(path), order: order++, ...(names ? { names } : {}) });
+    const opaque = (path: string[], names?: Set<string>, engine?: string): void => {
+      result.opaque.push({ layer: rank(path), order: order++, ...(names ? { names } : {}), engine });
     };
     const conditionalRules = (rule: CSSRule): CSSRuleList | undefined => {
       if (typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule) return rule.cssRules;
@@ -159,9 +161,6 @@ export function installVisualChannels(enabled: boolean): void {
       sheet(rule.styleSheet, next);
     };
     const recordKeyframes = (rule: CSSKeyframesRule, path: string[]): void => {
-      const candidates = result.candidates.get(rule.name) ?? [];
-      candidates.push(rule);
-      result.candidates.set(rule.name, candidates);
       const layer = rank(path);
       const position = order++;
       const previous = result.winners.get(rule.name);
@@ -208,7 +207,7 @@ export function installVisualChannels(enabled: boolean): void {
       try {
         visit(styleSheet.cssRules, path);
       } catch {
-        opaque(path);
+        opaque(path, undefined, styleSheet.href ?? undefined);
       } finally {
         visiting.delete(styleSheet);
       }
@@ -237,9 +236,14 @@ export function installVisualChannels(enabled: boolean): void {
     if (!wins(winner.layer, opaque.layer)) return false;
     return !wins(opaque.layer, winner.layer) || winner.order > opaque.order;
   };
-  const ambiguous = (rules: Rules, name: string): boolean => {
+  const ambiguous = (rules: Rules, name: string, matched = false): boolean => {
     const winner = rules.winners.get(name);
-    return rules.opaque.some((opaque) => couldContain(opaque, name) && (!winner || !beatsOpaque(winner, opaque)));
+    return rules.opaque.some(
+      (opaque) =>
+        !(matched && opaque.engine && target.__spChannelSheets?.has(opaque.engine)) &&
+        couldContain(opaque, name) &&
+        (!winner || !beatsOpaque(winner, opaque)),
+    );
   };
   const escapeCharacter = (_: string, hex: string, character: string): string => {
     if (!hex) return character;
@@ -264,6 +268,15 @@ export function installVisualChannels(enabled: boolean): void {
     }
     return complete;
   };
+  const variables = new WeakMap<CSSKeyframesRule, boolean>();
+  const usesVariables = (rule: CSSKeyframesRule): boolean => {
+    let result = variables.get(rule);
+    if (result === undefined) {
+      result = Array.from(rule.cssRules).some((frame) => /\bvar\s*\(/i.test((frame as CSSKeyframeRule).style.cssText));
+      variables.set(rule, result);
+    }
+    return result;
+  };
   const sources = new Map<string, string | undefined>();
   let restoreFreeze: (() => void) | undefined;
   const untraversed = (element: Element): boolean => {
@@ -280,30 +293,92 @@ export function installVisualChannels(enabled: boolean): void {
     }
     return false;
   };
-  target.__spBeginChannelProof = () => {
+  type Model = { name: string; body?: string };
+  type AnimationIndex = {
+    targets: Map<Element, Map<string, Model[]>>;
+    custom: WeakSet<Element>;
+    inherited: WeakMap<Element, boolean>;
+  };
+  const readAnimationIndex = (): AnimationIndex | undefined => {
+    const index: AnimationIndex = { targets: new Map(), custom: new WeakSet(), inherited: new WeakMap() };
+    try {
+      for (const animation of document.getAnimations()) {
+        if (!(animation instanceof CSSAnimation) || !(animation.effect instanceof KeyframeEffect)) continue;
+        const element = animation.effect.target;
+        if (!(element instanceof Element)) continue;
+        const name = animation.animationName;
+        const pseudo = animation.effect.pseudoElement ?? '';
+        const byPseudo = index.targets.get(element) ?? new Map<string, Model[]>();
+        const models = byPseudo.get(pseudo) ?? [];
+        let body: string | undefined;
+        try {
+          body = values.canonicalEngineKeyframes(animation.effect.getKeyframes());
+        } catch {
+          /* unavailable model */
+        }
+        models.push({ name, body });
+        byPseudo.set(pseudo, models);
+        index.targets.set(element, byPseudo);
+        const rule = rootRules(element.getRootNode() as Document | ShadowRoot).winners.get(name)?.rule;
+        if (!pseudo && rule && !modelComplete(rule)) index.custom.add(element);
+      }
+      return index;
+    } catch {
+      return undefined;
+    }
+  };
+  const animatedInput = (element: Element, index: AnimationIndex): boolean => {
+    const path: Element[] = [];
+    let node: Element | null = element;
+    let result = false;
+    while (node) {
+      const cached = index.inherited.get(node);
+      if (cached !== undefined) {
+        result = cached;
+        break;
+      }
+      path.push(node);
+      if (index.custom.has(node)) {
+        result = true;
+        break;
+      }
+      node = node.parentElement;
+    }
+    for (const ancestor of path) index.inherited.set(ancestor, result);
+    return result;
+  };
+  let prepared: AnimationIndex | undefined;
+  target.__spChannelHosts = new WeakSet();
+  target.__spBeginChannelProof = (unfreeze = false) => {
     sources.clear();
     target.__spChannelNodes = new Map();
-    target.__spChannelHosts = new WeakSet();
     target.__spChannelScopesVerified = false;
-    const freeze = (window as Window & { __spFreeze?: CSSStyleSheet }).__spFreeze;
+    const w = window as Window & { __spFreeze?: CSSStyleSheet; __spAssertFrozen?: () => void };
+    const freeze = w.__spFreeze;
     const disabled = freeze?.disabled;
-    if (freeze) freeze.disabled = true;
+    if (unfreeze) {
+      w.__spAssertFrozen?.();
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => sheet !== freeze);
+      delete w.__spAssertFrozen;
+    } else if (freeze) freeze.disabled = true;
+    // Models and request identities are collected before the first protocol round trip.
+    // Reading keyframes needs no pause, and never samples currentTime or progress.
+    prepared = readAnimationIndex();
     restoreFreeze = () => {
       if (freeze) freeze.disabled = disabled!;
     };
   };
   target.__spChannelRequests = () => {
     const requests = new Map<string, { id: number; name: string; pseudo: string }>();
-    for (const animation of document.getAnimations()) {
-      if (animation instanceof CSSAnimation) animation.pause();
-      if (!(animation instanceof CSSAnimation) || !(animation.effect instanceof KeyframeEffect)) continue;
-      const element = animation.effect.target;
-      if (!(element instanceof Element) || element.getRootNode() !== document || untraversed(element)) continue;
-      const pseudo = animation.effect.pseudoElement ?? '';
-      if (requests.has(animation.animationName) && pseudo) continue;
-      const id = target.__spChannelNodes!.size;
-      target.__spChannelNodes!.set(id, element);
-      requests.set(animation.animationName, { id, name: animation.animationName, pseudo });
+    for (const [element, byPseudo] of prepared?.targets ?? []) {
+      if (element.getRootNode() !== document || untraversed(element)) continue;
+      for (const [pseudo, models] of byPseudo)
+        for (const { name } of models) {
+          if (requests.has(name)) continue;
+          const id = target.__spChannelNodes!.size;
+          target.__spChannelNodes!.set(id, element);
+          requests.set(name, { id, name, pseudo });
+        }
     }
     return [...requests.values()];
   };
@@ -318,63 +393,23 @@ export function installVisualChannels(enabled: boolean): void {
       sources.delete(name);
     }
   };
-  target.__spFinishChannelProof = (verified) => {
+  target.__spFinishChannelProof = (verified, sheets) => {
+    target.__spChannelSheets = new Set(sheets ?? []);
     target.__spChannelScopesVerified = verified;
+    if (verified) target.__spChannelHostsChecked = true;
     target.__spChannelNodes?.clear();
     restoreFreeze?.();
     restoreFreeze = undefined;
   };
-  const collides = (rules: Rules, name: string, winner: Winner): boolean => {
-    let collision = rules.collisions.get(name);
-    if (collision === undefined) {
-      const expected = sourceFingerprint(winner.rule);
-      collision = (rules.candidates.get(name) ?? []).some(
-        (rule) => rule !== winner.rule && sourceFingerprint(rule) === expected,
-      );
-      rules.collisions.set(name, collision);
-    }
-    return collision;
-  };
-  type PseudoAnimations = WeakMap<Element, Map<string, CSSAnimation[]>>;
-  const engineBody = (animations: CSSAnimation[] | undefined): string | undefined => {
-    if (!animations?.length) return undefined;
-    const bodies: string[] = [];
-    try {
-      for (const animation of animations) {
-        const body = values.canonicalEngineKeyframes((animation.effect as KeyframeEffect).getKeyframes());
-        if (body === undefined) return undefined;
-        bodies.push(body);
-      }
-    } catch {
-      return undefined;
-    }
-    return bodies.length === 1 ? bodies[0] : '[' + bodies.join(',') + ']';
-  };
-  const liveAnimations = (
-    element: Element,
-    pseudo: string,
-    index: PseudoAnimations | undefined,
-  ): CSSAnimation[] | undefined => {
-    if (pseudo) return index?.get(element)?.get(pseudo) ?? (index ? [] : undefined);
-    try {
-      return element
-        .getAnimations({ subtree: false })
-        .filter(
-          (animation): animation is CSSAnimation =>
-            animation instanceof CSSAnimation &&
-            animation.effect instanceof KeyframeEffect &&
-            animation.effect.target === element &&
-            !animation.effect.pseudoElement,
-        );
-    } catch {
-      return undefined;
-    }
+  const engineBody = (models: Model[] | undefined): string | undefined => {
+    if (!models?.length || models.some((model) => model.body === undefined)) return undefined;
+    return models.length === 1 ? models[0].body : '[' + models.map((model) => model.body).join(',') + ']';
   };
   const layerProperties = (
     element: Element,
     pseudo: string,
     rules: Rules,
-    pseudoAnimations: WeakMap<Element, Map<string, CSSAnimation[]>> | undefined,
+    index: AnimationIndex | undefined,
   ): Props => {
     const properties: Props = {};
     if (!pseudo && element instanceof HTMLImageElement)
@@ -386,18 +421,22 @@ export function installVisualChannels(enabled: boolean): void {
       );
     const names = new Set(namesOf(getComputedStyle(element, pseudo || null).animationName));
     if (!names.size) return properties;
-    const animations = liveAnimations(element, pseudo, pseudoAnimations);
+    const animations = index?.targets.get(element)?.get(pseudo) ?? (index ? [] : undefined);
     for (const name of names) {
       const winner = rules.winners.get(name);
-      const live = animations?.filter((animation) => animation.animationName === name);
+      const live = animations?.filter((animation) => animation.name === name);
       const resolved = values.resolveEngineBody({
         body: engineBody(live),
         hasLive: animations === undefined || !!live?.length,
         expected: winner ? sourceFingerprint(winner.rule) : undefined,
         matched: sources.get(name),
-        ambiguous: untraversed(element) || ambiguous(rules, name) || (!!winner && collides(rules, name, winner)),
+        ambiguous:
+          untraversed(element) ||
+          ambiguous(rules, name, !!live?.length && !!winner && sourceFingerprint(winner.rule) === sources.get(name)),
         verified: target.__spChannelScopesVerified === true,
-        complete: !winner || modelComplete(winner.rule),
+        complete:
+          !winner ||
+          (modelComplete(winner.rule) && !(usesVariables(winner.rule) && (!index || animatedInput(element, index)))),
       });
       properties[`animation keyframes (${name})`] = reference(name, resolved);
     }
@@ -410,37 +449,15 @@ export function installVisualChannels(enabled: boolean): void {
     // Read only names while unfrozen, then restore before any used styles/geometry are read.
     if (freeze) freeze.disabled = true;
     try {
-      // Chromium excludes pseudo animations from Element.getAnimations({subtree:false}).
-      // Index one flat engine read by the originating element, avoiding subtree scans per pseudo.
-      let pseudoAnimations: WeakMap<Element, Map<string, CSSAnimation[]>> | undefined = new WeakMap();
-      try {
-        for (const animation of document.getAnimations()) {
-          if (animation instanceof CSSAnimation) animation.pause();
-          if (
-            !(animation instanceof CSSAnimation) ||
-            !(animation.effect instanceof KeyframeEffect) ||
-            !animation.effect.pseudoElement
-          )
-            continue;
-          const element = animation.effect.target;
-          if (!(element instanceof Element)) continue;
-          const byPseudo = pseudoAnimations.get(element) ?? new Map<string, CSSAnimation[]>();
-          const pseudo = animation.effect.pseudoElement;
-          const animations = byPseudo.get(pseudo) ?? [];
-          animations.push(animation);
-          byPseudo.set(pseudo, animations);
-          pseudoAnimations.set(element, byPseudo);
-        }
-      } catch {
-        pseudoAnimations = undefined;
-      }
+      const index = prepared ?? readAnimationIndex();
+      prepared = undefined;
       for (const element of elements) {
         const root = element.getRootNode() as Document | ShadowRoot;
         const rules = rootRules(root);
         output.set(
           element,
           Object.fromEntries(
-            ['', ...pseudos].map((pseudo) => [pseudo, layerProperties(element, pseudo, rules, pseudoAnimations)]),
+            ['', ...pseudos].map((pseudo) => [pseudo, layerProperties(element, pseudo, rules, index)]),
           ),
         );
       }

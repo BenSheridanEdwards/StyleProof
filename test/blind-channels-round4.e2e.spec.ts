@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test';
 import { captureStyleMap, diffStyleMaps } from '../dist/index.js';
-import { installVisualChannelValues } from '../dist/capture/visual-channel-proof.js';
-import { installVisualChannels } from '../dist/capture/visual-channels.js';
 import { assertBrowserLinearScaling } from './browser-linearity-helper.mjs';
 const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
 const css = '@keyframes pulse{from{opacity:0}to{opacity:.5}} .a{animation:pulse 1s infinite paused}';
@@ -75,19 +73,17 @@ test('capture does not pause an inline important animation', async ({ page }) =>
   await captureStyleMap(page, options);
   expect(await page.evaluate(() => document.getAnimations().map((a) => a.playState))).not.toContain('paused');
 });
-test('animated element scans scale linearly at 500, 1000 and 2000 elements', async ({ page }) => {
+test('animated element captures scale linearly at 500, 1000 and 2000 elements', async ({ page }) => {
   test.setTimeout(180_000);
   const client = await page.context().newCDPSession(page);
   const prepare = async (n: number) => {
     await page.setContent(`<style>${css}</style>` + '<div class=a>x</div>'.repeat(n));
-    await installVisualChannelValues(page);
-    await page.evaluate(installVisualChannels, true);
   };
-  const run = () =>
-    page.evaluate(() => {
-      const w = window as Window & { __spReadChannels: (e: Element[], p: string[]) => Map<Element, unknown> };
-      return w.__spReadChannels([...document.querySelectorAll('.a')], []).size;
-    });
+  const run = async () => {
+    const map = await captureStyleMap(page, options);
+    expect(Object.values(map.visualChannels!.keyframes)[0].status).toBe('known');
+    return Object.values(map.elements).filter((element) => element.cls === 'a').length;
+  };
   try {
     await prepare(1000);
     expect(await run()).toBe(1000);
@@ -95,7 +91,7 @@ test('animated element scans scale linearly at 500, 1000 and 2000 elements', asy
       { diagnostic: (message: string) => process.stdout.write(message + '\n') },
       {
         client,
-        name: 'Chromium channel scan',
+        name: 'Chromium animated capture',
         n: 500,
         prepare,
         run,
