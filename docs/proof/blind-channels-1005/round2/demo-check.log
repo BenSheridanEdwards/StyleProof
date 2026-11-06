@@ -1,0 +1,5 @@
+Already up to date
+Done in 63ms using pnpm v11.7.0
+$ pnpm run build && node scripts/demo-report.mjs --check
+$ tsc
+styleproof: docs/demo/ is up to date.

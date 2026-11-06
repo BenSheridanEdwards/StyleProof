@@ -1,0 +1,16 @@
+✔ release runs serialize without cancelling an in-flight publish (0.045333ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.090167ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.083334ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.672708ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.099417ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.117917ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.227041ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (0.9505ms)
+ℹ tests 6611
+ℹ suites 32
+ℹ pass 6611
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 337119.374875

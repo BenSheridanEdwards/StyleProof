@@ -1,0 +1,92 @@
+Round 2 runtime code: 16d8a5ce1fb596b4a404b64827da54319c81a90a
+Reviewed remote / pinned push lease: e319da319abdcdf4373bca4ac46971dc26f7a83e
+Rebased onto latest origin/main: 6694a77bb7fa92155df6a62fe8f65116e020a99e (unchanged on the later fetch).
+
+Design: captureVisualChannels remains opt-in, off by default. No default capture/verdict expansion, schema bump, runtime dependency, or gate configuration change. Demo reports and dependency manifests match origin/main. Shared visualChannels v1 bodies retain JSON [name, SHA-256] references; none and unknown are explicit statuses. Provisional cache keys now distinguish unknown from none as well.
+
+Round 2 changes:
+1. Follow every assignedSlot root in a re-slot chain. Untraversed scopes stay unknown, not definite none. A live CSS animation with no readable winner also stays unknown, covering the closed-slot repro.
+2. Merge declarations through CSS text, retaining pending var() shorthands. The tokenizer preserves quoted/escaped semicolons and function contents before sorting declarations.
+3. Merge only matching (offset, animation-timing-function, animation-composition) groups. Distinct groups at the same offset keep source order. Selector lists, offsets and duplicate declaration cascade retain round-1 coverage.
+4. Blob URLs become a stable not-compared marker with a named report limit. No blob UUID or bytes are stored. S3 v2/v4, GCS v4, Azure SAS and CloudFront signed fields are removed without retaining credential values in maps or reports.
+5. Provider marker parameters bound redaction; unsigned sp/se/sv/st/etc, Expires/Policy and provider date fields retain identity. Non-credential raw query spelling, order, fragments and external asset hosts retain identity.
+6. REFERENCE records prefers-reduced-motion: reduce and no-preference / motion-safe keyframes limitations. It retains captureReach-on-both-sides requirements for font pixels advice and conservative J1 keyframes classification.
+7. Complete images with no src/srcset record (no source), compared against loaded sources; lazy/unloaded images remain skipped with a named limit.
+
+Additional audit fixes: unknown and none no longer collide in the provisional reference cache; skipped image limits include forced-state layers. Duplicate-offset CSS text is collected then applied once per group, avoiding cumulative reparsing. The deterministic 1,000-frame cost test asserts one assignment and fewer than 20,000 input characters. The 5k/20k CSSOM cache tests still assert one root walk, no further walks across 20 reads, and no CSSRule.cssText serialisation.
+
+Test-first proof: initial Chromium red run reproduced 12 failures; scope identity added two red cases and merge cost added one. Unit red runs reproduce blob skip/report and forced-state limit failures. Current focused set passes 48 Chromium cases and 39 unit tests (14 channel tests plus 25 unchanged class-join timing/regression tests). Red/green logs are adjacent to this receipt.
+
+Original main baseline (#1005): 46 detect / 7 clean / 3 blind -> 48 detect / 7 clean / 1 blind, as recorded in bench/detection-corpus.review.md.
+
+Round-2 corpora before -> after: detection 48/48 detect, 7/7 clean, 1/1 blind (56 cases), unchanged. blind-keyframes and blind-img-src detect; blind-aria-label stays blind. Reach has 18 cases (17 visual): declared 3/17 shown, complete 16/17 shown, all 14/14 declared misses named, unknown case counts 7/8. Every reach expectation remains green; keyframes remains blind-channel.
+
+Verification history: the first two standard verify runs failed only unchanged class-join-round6 timing assertions, at ratios 40.9763749103 and 8.8002053071 against limit 8. The isolated file passed 25 tests (ratio 2.8637391185); the final standard verify run passed all 6,611 tests. No assertion or threshold was modified. A proposed NODE_OPTIONS concurrency setting was rejected by Node and was not applied to any gate. The first implementation pre-commit failed on scanner duplication/report complexity; extracting the shared tokenizer and image-limit helper resolved both under unchanged hooks.
+
+Report proof: report/report.md and its adjacent crops come from fresh Chromium captures. rendered-report.png shows the var() body change, loaded-source removal, named blob limit, and the product-state identity warning. Product-state identity is unproven: this specimen is visual-only, not a certified same-state comparison. Credential text is absent. Video is not applicable to this capture/diff implementation: animation progress is intentionally excluded; Chromium assertions and the generated report provide behavioral proof. The regenerated screenshot on the final runtime code is byte-identical to the inspected image.
+
+Hygiene: every issue proof log is stripped of trailing whitespace. Working-tree and origin/main...HEAD whitespace checks pass. Hooks remain enabled. Heavy commands were started only after a one-minute load guard below 60. No PR is opened by this task.
+
+Final full browser result: 1,264 passed, 1 expected skip (test/cross-element-state.e2e.spec.ts:112, non-Chromium evidence scenario in the Chromium project).
+
+Actual command tails on the final runtime code:
+
+$ pnpm run verify (exit 0)
+✔ release runs serialize without cancelling an in-flight publish (0.045333ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.090167ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.083334ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.672708ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.099417ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.117917ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.227041ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (0.9505ms)
+ℹ tests 6611
+ℹ suites 32
+ℹ pass 6611
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 337119.374875
+
+$ pnpm run test:e2e (exit 0)
+  ✓  1259 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (753ms)
+  ✓  1260 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (736ms)
+  ✓  1261 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (728ms)
+  ✓  1262 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (727ms)
+  ✓  1263 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (757ms)
+  ✓  1264 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (740ms)
+  ✓  1265 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (735ms)
+
+  Slow test file: [chromium] › test/script-join-round6.e2e.spec.ts (6.4m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 skipped
+  1264 passed (9.4m)
+
+$ pnpm run bench:reach:check (exit 0)
+  ✓ colliding-constant [declared] today missed · reach unknown · J2 ran · J3 unknown
+  ✓ colliding-constant [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ error-handler [declared] today n/a · reach never-rendered · J2 never-ran
+  ✓ error-handler [complete] today n/a · reach never-rendered · J2 never-ran
+  ✓ render-scope-value [declared] today missed · reach unknown · J2 ran
+  ✓ render-scope-value [complete] today shown · reach unknown · J2 ran
+  ✓ eager-jsx-element [declared] today missed · reach unknown · J2 ran
+  ✓ eager-jsx-element [complete] today shown · reach unknown · J2 ran
+  ✓ same-line-class-style [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-line-class-style [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [complete] today shown · reach unknown · J2 ran · J3 unknown
+
+$ node bench/detection-rate.mjs --check (exit 0)
+  ✓ clean-weight-alias [no-op] 700 → bold alias — zero findings
+  ✓ clean-var-equivalent [no-op] direct colour → identical via custom property — zero findings
+  ✓ clean-duplicate-decl [no-op] identical value redeclared — zero findings
+  ✓ clean-visibility-default [no-op] explicit default visibility — zero findings
+  ✓ clean-display-same [no-op] block redeclared on a block box — zero findings
+  ✓ blind-keyframes [visual-channel] referenced @keyframes body rewritten, animation-name unchanged (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-img-src [visual-channel] img currentSrc swapped blue to red (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-aria-label [blind] aria-label added — accessibility metadata is outside style evidence — zero findings
+  ✓ dom-link-href [dom] link href change — href is in the anchor element fingerprint, so the element re-keys as removed+added — 5 finding(s) on target
+  ✓ text-title [dom] title copy change — advisory text layer, captured when captureText is on — 1 finding(s) on target
+
+receipt → bench/detection-corpus.results.json
