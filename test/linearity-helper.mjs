@@ -12,7 +12,7 @@ export function assertLinearScaling(t, { name, n, make, run, check }) {
     const ms = performance.now() - started;
     const cpu = process.cpuUsage(startedCpu);
     check(result, input, size);
-    assert.ok(ms < 10_000, `${name}: ${size} exceeded the 10 s hang guard (${ms} ms)`);
+    assert.ok(ms < 60_000, `${name}: ${size} exceeded the 60 s wall-clock guard (${ms} ms)`);
     return (cpu.user + cpu.system) / 1000;
   };
   // CPU time excludes scheduling delays; minima reduce noise from GC and background V8 work.

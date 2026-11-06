@@ -73,6 +73,15 @@ test('scheduler delays do not inflate the CPU scaling ratio', (t) => {
   assert.equal(diagnostics[0].ratio, 4);
 });
 
-test('the ten second hang guard still rejects a slow sample', (t) => {
-  assert.throws(() => measureWithDurations(t, [25, 100, 10000], [25, 100, 25]), /10 s hang guard/);
+test('a slow linear sample below sixty seconds is accepted', (t) => {
+  const { diagnostics } = measureWithDurations(
+    t,
+    Array.from({ length: 6 }, () => [25, 10330]).flat(),
+    Array.from({ length: 6 }, () => [25, 100]).flat(),
+  );
+  assert.equal(diagnostics[0].ratio, 4);
+});
+
+test('the sixty second wall-clock guard still rejects a slow sample', (t) => {
+  assert.throws(() => measureWithDurations(t, [25, 100, 60000], [25, 100, 25]), /60 s wall-clock guard/);
 });
