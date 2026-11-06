@@ -92,7 +92,19 @@ function positiveTasks(reader: RoleReader, task: RoleTask): RoleTask[] {
   }
   return expressionTasks(task) ?? opaqueTasks(reader, task);
 }
+/** Terminal values need no work queue; an identifier supplies no static class word. */
+function literalTask(reader: RoleReader, tasks: RoleTask[]): boolean {
+  if (reader.limit !== undefined || tasks.length !== 1) return false;
+  const task = tasks[0],
+    node = task.nodes[0];
+  if (task.config || task.depth >= ROLE_DEPTH || task.nodes.length !== 1) return false;
+  if (node.kind === 'word') return true;
+  if (node.kind !== 'literal' || node.literal?.substitutions.length) return false;
+  record(reader, node, task.role);
+  return true;
+}
 export function walkValues(reader: RoleReader, tasks: RoleTask[]): void {
+  if (literalTask(reader, tasks)) return;
   const pending = tasks.slice().reverse();
   while (pending.length && reader.limit === undefined) {
     const task = pending.pop()!;

@@ -1,0 +1,70 @@
+✔ coverage merges three shards and remains required (984.620708ms)
+✔ CI runs E2E in parallel without deleting unit, platform, or determinism evidence (1.141125ms)
+✔ repository workflows upload only consumed coverage, browser shards and approval receipts (1.649ms)
+✔ gitleaks keeps its full-history fail-closed scan without uploading an unread SARIF artifact (0.172166ms)
+✔ the Node quick check runs a few fast Node-sensitive files that exist (0.084875ms)
+✔ the build matrix tests the exact Node floor every manifest declares (0.764666ms)
+✔ CI runs a small non-Linux CLI smoke without the browser suite (0.072667ms)
+✔ workflows that can run on main never unconditionally cancel in-progress runs (0.816375ms)
+▶ main commits get their own concurrency group so queued main runs are not dropped; manual dogfood runs stay independent
+  ✔ ci.yml (0.117333ms)
+  ✔ codeql.yml (0.083625ms)
+  ✔ secret-scan.yml (0.033709ms)
+  ✔ store-dogfood.yml (0.047042ms)
+✔ main commits get their own concurrency group so queued main runs are not dropped; manual dogfood runs stay independent (0.465791ms)
+✔ release runs serialize without cancelling an in-flight publish (0.039375ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.087209ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.073625ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.612ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.094916ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.109458ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.237958ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (0.910083ms)
+ℹ tests 6313
+ℹ suites 32
+ℹ pass 6311
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 114193.23525
+
+✖ failing tests:
+
+test at test/class-join-round2.test.mjs:159:1
+✖ 16k scoped gaps and negative lookups stay below one second (1349.643084ms)
+  AssertionError [ERR_ASSERTION]: classify: 1233.9440829999999ms
+      at TestContext.<anonymous> (<workspace>/test/class-join-round2.test.mjs:182:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:196:1
+✖ replacement-hunk matching is cached for sixteen thousand changed lines (1484.840083ms)
+  AssertionError [ERR_ASSERTION]: {"count":16000,"ms":1144.315667}
+      at TestContext.<anonymous> (<workspace>/test/class-join-round5.test.mjs:208:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+husky - pre-push script failed (code 1)
+error: failed to push some refs to 'https://github.com/BenSheridanEdwards/StyleProof.git'

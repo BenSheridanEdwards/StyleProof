@@ -2,6 +2,7 @@
 import { classWords, type ClassSource } from './class-join-source.js';
 import { tokenSpan, type RoleToken } from './class-join-role-tokens.js';
 import type { PositiveRole, RoleTask } from './class-join-role-types.js';
+const rootSeparators = new Set(['=', ':']);
 const helpers = new Set(['clsx', 'cx', 'classnames', 'classNames', 'cva', 'twMerge', 'twJoin', 'cn']);
 export const helperName = (name: string): boolean => helpers.has(name);
 export function propertyName(token: RoleToken | undefined, source: ClassSource): string | undefined {
@@ -30,6 +31,7 @@ export function valueEnd(nodes: RoleToken[], start: number): number {
   return end;
 }
 export function rootValue(source: ClassSource, nodes: RoleToken[], index: number, object: boolean) {
+  if (!rootSeparators.has(nodes[index + 1]?.text)) return;
   const node = nodes[index],
     name = propertyName(node, source);
   if (!name || !['class', 'className', 'classList'].includes(name)) return;

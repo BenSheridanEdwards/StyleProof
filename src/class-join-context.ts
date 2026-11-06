@@ -48,10 +48,14 @@ function annotationStep(header: Header, nodes: RoleToken[], index: number): void
   if (header.conditionals > 0) header.conditionals--;
 }
 function headerStep(header: Header, nodes: RoleToken[], index: number): void {
-  annotationStep(header, nodes, index);
-  header.scope = declarationHeader(nodes, index) ?? header.scope;
   const node = nodes[index];
-  if (!header.scope || node.kind !== 'operator') return;
+  if (node.kind === 'word') {
+    header.scope = declarationHeader(nodes, index) ?? header.scope;
+    return;
+  }
+  if (node.kind !== 'operator') return;
+  annotationStep(header, nodes, index);
+  if (!header.scope) return;
   if (node.text === '<') header.angles++;
   if (/^>{1,3}$/.test(node.text)) header.angles = Math.max(0, header.angles - node.text.length);
   if (node.text === ';') header.scope = undefined;
@@ -94,7 +98,9 @@ function discoverPart(reader: RoleReader, part: Discovery, pending: Discovery[])
       i = end - 1;
       continue;
     }
-    pending.push(...discoveryChildren(reader, part, i, header));
+    const node = part.nodes[i];
+    if (node.children || node.literal?.substitutions.length)
+      pending.push(...discoveryChildren(reader, part, i, header));
   }
 }
 function discover(reader: RoleReader, nodes: RoleToken[]): void {

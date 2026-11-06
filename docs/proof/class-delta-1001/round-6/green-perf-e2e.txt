@@ -1,0 +1,10 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:65979) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/class-join-round6.e2e.spec.ts:10:1 › real Git/Chromium inline type-alias refactor cannot lower J2 (787ms)
+
+  1 passed (2.1s)
