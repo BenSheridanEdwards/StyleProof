@@ -1,0 +1,453 @@
+✖ codeValue handles many disjoint backtick runs without spreading arguments (2.638459ms)
+✖ closed-root inventory traverses a wide CDP document without argument spreading (7.672084ms)
+✖ compact runtime angles stay runtime: ts el.className=n<lo?'a':n>=hi?'b':'c'; (1.91875ms)
+✖ compact runtime angles stay runtime: tsx el.className=n<lo?'a':n>=hi?'b':'c'; (0.399959ms)
+✖ compact runtime angles stay runtime: vue el.className=n<lo?'a':n>=hi?'b':'c'; (0.715666ms)
+✖ compact runtime angles stay runtime: svelte el.className=n<lo?'a':n>=hi?'b':'c'; (0.292625ms)
+✖ compact runtime angles stay runtime: ts cn(a<b?'a':'b',c>=d&&'c'); (0.286833ms)
+✖ compact runtime angles stay runtime: tsx cn(a<b?'a':'b',c>=d&&'c'); (0.123125ms)
+✖ compact runtime angles stay runtime: vue cn(a<b?'a':'b',c>=d&&'c'); (0.191041ms)
+✖ compact runtime angles stay runtime: svelte cn(a<b?'a':'b',c>=d&&'c'); (0.216791ms)
+✖ compact runtime angles stay runtime: ts s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.137792ms)
+✖ compact runtime angles stay runtime: tsx s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.125125ms)
+✖ compact runtime angles stay runtime: vue s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.129667ms)
+✖ compact runtime angles stay runtime: svelte s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.1085ms)
+✖ unresolved gaps aggregate per file/side with exact counts and bounded deterministic samples (5.865416ms)
+✖ production array append and maximum calls never spread data into function arguments (125.964ms)
+▶ four-megabyte template file classifies, assesses captured directories and writes a CLI report
+  ✖ classifyClassReach bounds unresolved detail before report assessment (3268.685875ms)
+  ✖ assessReachDirs succeeds at the default warn level (5376.56625ms)
+  ✖ styleproof-report exits zero and writes budgeted report artifacts (5455.66325ms)
+✖ four-megabyte template file classifies, assesses captured directories and writes a CLI report (14503.812416ms)
+ℹ {"bytes":4194326,"lines":110377,"unresolved":331131}
+ℹ tests 20
+ℹ suites 0
+ℹ pass 0
+ℹ fail 20
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14891.459458
+
+✖ failing tests:
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:23:1
+✖ codeValue handles many disjoint backtick runs without spreading arguments (2.638459ms)
+  RangeError [Error]: Maximum call stack size exceeded
+      at codeValue (dist/code-span.js:18:29)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:25:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:27:1
+✖ closed-root inventory traverses a wide CDP document without argument spreading (7.672084ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 150000
+
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:38:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 150000,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: ts el.className=n<lo?'a':n>=hi?'b':'c'; (1.91875ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: tsx el.className=n<lo?'a':n>=hi?'b':'c'; (0.399959ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: vue el.className=n<lo?'a':n>=hi?'b':'c'; (0.715666ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: svelte el.className=n<lo?'a':n>=hi?'b':'c'; (0.292625ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: ts cn(a<b?'a':'b',c>=d&&'c'); (0.286833ms)
+  AssertionError [ERR_ASSERTION]: c
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: tsx cn(a<b?'a':'b',c>=d&&'c'); (0.123125ms)
+  AssertionError [ERR_ASSERTION]: c
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: vue cn(a<b?'a':'b',c>=d&&'c'); (0.191041ms)
+  AssertionError [ERR_ASSERTION]: c
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: svelte cn(a<b?'a':'b',c>=d&&'c'); (0.216791ms)
+  AssertionError [ERR_ASSERTION]: c
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: ts s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.137792ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: tsx s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.125125ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: vue s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.129667ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:59:5
+✖ compact runtime angles stay runtime: svelte s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.1085ms)
+  AssertionError [ERR_ASSERTION]: a
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:63:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:69:1
+✖ unresolved gaps aggregate per file/side with exact counts and bounded deterministic samples (5.865416ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  180 !== 3
+
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:73:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 180,
+    expected: 3,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:102:1
+✖ production array append and maximum calls never spread data into function arguments (125.964ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   'capture.ts',
+  +   'code-span.ts',
+  +   'determinism-oracle.ts',
+  +   'report-prune.ts',
+  +   'report.ts',
+  +   'runner/crawl-capture.ts',
+  +   'report/content-layer.ts',
+  +   'report/content-layer.ts',
+  +   'report/crop-pair.ts',
+  +   'report/crop-pair.ts',
+  +   'report/headline.ts',
+  +   'report/headline.ts',
+  +   'report/headline.ts',
+  +   'report/headline.ts',
+  +   'report/headline.ts',
+  +   'report/headline.ts',
+  +   'report/markdown.ts',
+  +   'report/markdown.ts',
+  +   'report/migration-gallery.ts',
+  +   'report/reach.ts',
+  +   'report/reach.ts',
+  +   'report/reach.ts',
+  +   'report/reach.ts',
+  +   'report/reach.ts',
+  +   'report/reach.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/regions.ts',
+  +   'report/sections.ts',
+  +   'crawl/sweep.ts',
+  +   'config/load-ts.ts',
+  +   'config/load.ts',
+  +   'config/spec.ts',
+  +   'capture/class-presence.ts',
+  +   'capture/class-presence.ts',
+  +   'capture/reach.ts',
+  +   'capture/reach.ts',
+  +   'capture/reach.ts',
+  +   'capture/reach.ts'
+  + ]
+  - []
+
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:129:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [
+      'capture.ts',                  'code-span.ts',
+      'determinism-oracle.ts',       'report-prune.ts',
+      'report.ts',                   'runner/crawl-capture.ts',
+      'report/content-layer.ts',     'report/content-layer.ts',
+      'report/crop-pair.ts',         'report/crop-pair.ts',
+      'report/headline.ts',          'report/headline.ts',
+      'report/headline.ts',          'report/headline.ts',
+      'report/headline.ts',          'report/headline.ts',
+      'report/markdown.ts',          'report/markdown.ts',
+      'report/migration-gallery.ts', 'report/reach.ts',
+      'report/reach.ts',             'report/reach.ts',
+      'report/reach.ts',             'report/reach.ts',
+      'report/reach.ts',             'report/regions.ts',
+      'report/regions.ts',           'report/regions.ts',
+      'report/regions.ts',           'report/regions.ts',
+      'report/regions.ts',           'report/regions.ts',
+      'report/regions.ts',           'report/regions.ts',
+      'report/regions.ts',           'report/sections.ts',
+      'crawl/sweep.ts',              'config/load-ts.ts',
+      'config/load.ts',              'config/spec.ts',
+      'capture/class-presence.ts',   'capture/class-presence.ts',
+      'capture/reach.ts',            'capture/reach.ts',
+      'capture/reach.ts',            'capture/reach.ts'
+    ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:162:13
+✖ classifyClassReach bounds unresolved detail before report assessment (3268.685875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  331131 !== 1
+
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:164:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at TestContext.test (node:internal/test_runner/test:400:20)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:162:13)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 331131,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:168:13
+✖ assessReachDirs succeeds at the default warn level (5376.56625ms)
+  RangeError [Error]: Maximum call stack size exceeded
+      at assessReachMaps (dist/report/reach.js:69:10)
+      at assessReach (dist/report/reach.js:113:12)
+      at assessReachDirs (dist/report/reach.js:121:12)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:172:24)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at TestContext.test (node:internal/test_runner/test:400:20)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:168:13)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+
+test at ../../../../Codex/class-delta-1001-r10/baseline/test/class-join-round10.test.mjs:181:13
+✖ styleproof-report exits zero and writes budgeted report artifacts (5455.66325ms)
+  AssertionError [ERR_ASSERTION]: Maximum call stack size exceeded
+
+
+  2 !== 0
+
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:197:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at TestContext.test (node:internal/test_runner/test:400:20)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:181:13)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

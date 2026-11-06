@@ -31,7 +31,7 @@
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: ts el.className=n<lo?'a':n>=hi?'b':'c'; (2.32425ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)
@@ -47,7 +47,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: tsx el.className=n<lo?'a':n>=hi?'b':'c'; (0.387833ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -65,7 +65,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: vue el.className=n<lo?'a':n>=hi?'b':'c'; (0.783333ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -83,7 +83,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: svelte el.className=n<lo?'a':n>=hi?'b':'c'; (0.311958ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -101,7 +101,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: ts cn(a<b?'a':'b',c>=d&&'c'); (0.276708ms)
   AssertionError [ERR_ASSERTION]: c
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -119,7 +119,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: tsx cn(a<b?'a':'b',c>=d&&'c'); (0.120917ms)
   AssertionError [ERR_ASSERTION]: c
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -137,7 +137,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: vue cn(a<b?'a':'b',c>=d&&'c'); (0.177875ms)
   AssertionError [ERR_ASSERTION]: c
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -155,7 +155,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: svelte cn(a<b?'a':'b',c>=d&&'c'); (0.1815ms)
   AssertionError [ERR_ASSERTION]: c
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -173,7 +173,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: ts s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.126ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -191,7 +191,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: tsx s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.134291ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -209,7 +209,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: vue s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.126625ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -227,7 +227,7 @@ test at test/class-join-round10.test.mjs:38:5
 test at test/class-join-round10.test.mjs:38:5
 ✖ compact runtime angles stay runtime: svelte s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.123833ms)
   AssertionError [ERR_ASSERTION]: a
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:42:16)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:42:16)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -248,7 +248,7 @@ test at test/class-join-round10.test.mjs:48:1
 
   180 !== 3
 
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:52:10)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:52:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -269,12 +269,12 @@ test at test/class-join-round10.test.mjs:102:13
 
   331131 !== 1
 
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:104:14)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:104:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)
       at TestContext.test (node:internal/test_runner/test:400:20)
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:102:13)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:102:13)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -290,15 +290,15 @@ test at test/class-join-round10.test.mjs:102:13
 test at test/class-join-round10.test.mjs:108:13
 ✖ assessReachDirs succeeds at the default warn level (5535.327125ms)
   RangeError [Error]: Maximum call stack size exceeded
-      at assessReachMaps (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/dist/report/reach.js:69:10)
-      at assessReach (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/dist/report/reach.js:113:12)
-      at assessReachDirs (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/dist/report/reach.js:121:12)
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:112:24)
+      at assessReachMaps (dist/report/reach.js:69:10)
+      at assessReach (dist/report/reach.js:113:12)
+      at assessReachDirs (dist/report/reach.js:121:12)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:112:24)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)
       at TestContext.test (node:internal/test_runner/test:400:20)
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:108:13)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:108:13)
       at async Test.run (node:internal/test_runner/test:1409:7)
 
 test at test/class-join-round10.test.mjs:121:13
@@ -308,12 +308,12 @@ test at test/class-join-round10.test.mjs:121:13
 
   2 !== 0
 
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:128:14)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:128:14)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)
       at TestContext.test (node:internal/test_runner/test:400:20)
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round10.test.mjs:121:13)
+      at TestContext.<anonymous> (test/class-join-round10.test.mjs:121:13)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
     generatedMessage: false,
