@@ -4,7 +4,9 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import ts from 'typescript';
 import { classLiterals } from '../dist/class-join-literals.js';
+import { captureAuthorShadowRoots } from '../dist/capture/class-presence.js';
 import { codeValue } from '../dist/code-span.js';
 import { classifyClassReach } from '../dist/class-join.js';
 import { assessReachDirs } from '../dist/report/reach.js';
@@ -21,6 +23,20 @@ const map = {
 test('codeValue handles many disjoint backtick runs without spreading arguments', () => {
   const value = '`x'.repeat(150000);
   assert.equal(codeValue(value), '`` ' + value + ' ``');
+});
+test('closed-root inventory traverses a wide CDP document without argument spreading', async () => {
+  const author = { shadowRootType: 'closed' };
+  const root = { nodeType: 9, children: Array.from({ length: 150000 }, () => ({ shadowRoots: [author] })) };
+  let detached = false;
+  const client = {
+    send: async () => ({ root }),
+    detach: async () => {
+      detached = true;
+    },
+  };
+  const page = { context: () => ({ newCDPSession: async () => client }) };
+  assert.equal(await captureAuthorShadowRoots(page), 150000);
+  assert.equal(detached, true);
 });
 const change = (text, sourceKey = 'app.ts', side = 'head') => ({
   text,
@@ -72,6 +88,45 @@ test('unresolved gaps aggregate per file/side with exact counts and bounded dete
   );
   assert.equal(mixed.units.length, 1);
   assert.equal(mixed.units[0].status, 'unknown', 'an unrelated unresolved expression does not broaden range evidence');
+  const nested = classifyClassReach(
+    [map],
+    [map],
+    [change('el.className=`known ${on?"missing":"other"}`;\n'.repeat(20))],
+    [{ base: map, head: map }],
+  );
+  assert.equal(nested.units.length, 20);
+  assert.ok(nested.units.every((u) => u.status === 'unknown'));
+  assert.deepEqual(nested.gaps, [], 'a known enclosing class value retains its existing evidence');
+});
+
+test('production array append and maximum calls never spread data into function arguments', () => {
+  const base = fileURLToPath(new URL('../src', import.meta.url)),
+    pending = [base],
+    unsafe = [];
+  while (pending.length) {
+    const dir = pending.pop();
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const name = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(name);
+        continue;
+      }
+      if (!name.endsWith('.ts')) continue;
+      const tree = ts.createSourceFile(name, fs.readFileSync(name, 'utf8'), ts.ScriptTarget.Latest, true);
+      const visit = (node) => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isPropertyAccessExpression(node.expression) &&
+          ['push', 'unshift', 'concat', 'max', 'min'].includes(node.expression.name.text) &&
+          node.arguments.some(ts.isSpreadElement)
+        )
+          unsafe.push(path.relative(base, name));
+        ts.forEachChild(node, visit);
+      };
+      visit(tree);
+    }
+  }
+  assert.deepEqual(unsafe, []);
 });
 
 test(
@@ -127,7 +182,16 @@ test(
       const out = path.join(root, 'report');
       const child = spawnSyncToCompletion(
         process.execPath,
-        [fileURLToPath(new URL('../bin/styleproof-report.mjs', import.meta.url)), ...dirs, '--out', out],
+        [
+          fileURLToPath(new URL('../bin/styleproof-report.mjs', import.meta.url)),
+          ...dirs,
+          '--out',
+          out,
+          '--expected-before-sha',
+          base,
+          '--expected-after-sha',
+          head,
+        ],
         { cwd: root, encoding: 'utf8', timeout: 60000, maxBuffer: 1024 * 1024 },
       );
       assert.equal(child.status, 0, child.stderr + child.stdout);

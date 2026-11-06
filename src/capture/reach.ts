@@ -298,7 +298,7 @@ function candidateNames(value: string, allowVars = false): string[] {
     if (unsupportedFunction(token.text, functionName, allowVars)) unknown('unsupported font or animation dependency');
     if (token.identifier && !functionName) {
       run.push(token.text);
-      names.push(...identifierSuffixes(run));
+      identifierSuffixes(run).forEach((appended) => names.push(appended));
     } else {
       run = [];
     }
@@ -494,7 +494,7 @@ function referencedNames(values: [string, string][]): {
     if (font) {
       if (/^font$/i.test(property)) adjacencies.push(fontAdjacency(value));
       else guardVarAdjacency(value);
-      vars.push(...varReads(value));
+      varReads(value).forEach((appended) => vars.push(appended));
     }
     const candidates = candidateNames(value, font);
     if (/^font-family$/i.test(property) && !/\/\*|\(/.test(value)) return commaValues(value).map(fontFamily);
@@ -581,7 +581,7 @@ function fontVarRefs(entries: ServedEntry[], registrations: [string, string][] =
       for (const [, value] of values.filter(([property]) => property === name)) {
         guardVarAdjacency(value);
         candidateNames(value, true).forEach((candidate) => names.add(candidate));
-        pending.push(...varReads(value));
+        varReads(value).forEach((appended) => pending.push(appended));
       }
     }
     if (names.size) entry.rule.refs = [...names].sort();
@@ -795,7 +795,7 @@ function selectorProbe(
     if (!pseudo) return undefined;
     if (pseudo.end > i) {
       forced ||= pseudo.forced;
-      elements.push(...pseudo.elements);
+      pseudo.elements.forEach((appended) => elements.push(appended));
       i = remove(pseudo.end);
       continue;
     }

@@ -163,7 +163,8 @@ function missingSurfaceSummaryLines(missing: PreparedSurface[], failures: Surfac
   for (const [status, text] of MISSING_SUMMARY) {
     const matching = missing.filter((p) => oneSidedStatus(p, failures) === status);
     if (matching.length === 0) continue;
-    md.push(text(matching.length, newSurfaceSummary(matching)), ...(status === 'new' ? [] : ['']));
+    md.push(text(matching.length, newSurfaceSummary(matching)));
+    (status === 'new' ? [] : ['']).forEach((appended) => md.push(appended));
   }
   return md;
 }
@@ -192,7 +193,10 @@ function consistencyFailureLines(input: HeadlineInput): string[] | undefined {
     '',
     remediation,
   ];
-  if (input.baseline.failures.length > 0) md.push('', ...baselineFailureSummaryLines(input.baseline.failures));
+  if (input.baseline.failures.length > 0) {
+    md.push('');
+    baselineFailureSummaryLines(input.baseline.failures).forEach((appended) => md.push(appended));
+  }
   return md;
 }
 
@@ -272,8 +276,8 @@ function summaryLines(input: HeadlineInput): string[] {
     ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
   ];
   if (changeGroups.length > 0) {
+    (md.length > 0 && md[md.length - 1] !== '' ? [''] : []).forEach((appended) => md.push(appended));
     md.push(
-      ...(md.length > 0 && md[md.length - 1] !== '' ? [''] : []),
       distinctChangeLine(
         changeGroups.length,
         shown,
@@ -287,7 +291,10 @@ function summaryLines(input: HeadlineInput): string[] {
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
-  if (input.whatChanged.length > 0) md.push(...(md[md.length - 1] === '' ? [] : ['']), ...input.whatChanged);
+  if (input.whatChanged.length > 0) {
+    (md[md.length - 1] === '' ? [] : ['']).forEach((appended) => md.push(appended));
+    input.whatChanged.forEach((appended) => md.push(appended));
+  }
   if (input.volatileCount > 0) {
     const candidates = input.liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`
@@ -302,8 +309,13 @@ export function reportHeadline(input: HeadlineInput): string[] {
     md.push(
       '',
       `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
-      ...headOnly.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
-      ...(headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []),
+    );
+    headOnly
+      .slice(0, 20)
+      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
+      .forEach((appended) => md.push(appended));
+    (headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []).forEach(
+      (appended) => md.push(appended),
     );
   }
   const baseOnly = input.baseOnlyVolatile ?? [];
@@ -311,8 +323,13 @@ export function reportHeadline(input: HeadlineInput): string[] {
     md.push(
       '',
       `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
-      ...baseOnly.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
-      ...(baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []),
+    );
+    baseOnly
+      .slice(0, 20)
+      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
+      .forEach((appended) => md.push(appended));
+    (baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []).forEach(
+      (appended) => md.push(appended),
     );
   }
   return [...md, ...contentNoteLines(input)];

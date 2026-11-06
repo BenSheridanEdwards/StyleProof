@@ -69,7 +69,8 @@ export function unloadableStyleProofConfigMessage(filePath: string, error: unkno
         return root;
       }
     });
-    lines.push('  searched package roots:', ...[...new Set(roots)].map((root) => `    ${root}`));
+    lines.push('  searched package roots:');
+    [...new Set(roots)].map((root) => `    ${root}`).forEach((appended) => lines.push(appended));
   }
   lines.push(
     '  Next: run on a Node that can evaluate TypeScript with the styleproof package resolvable, ' +

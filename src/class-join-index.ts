@@ -1,7 +1,13 @@
 /** Boolean range evidence, grouped by side/file and merged for logarithmic overlap lookup. */
 import type { SourcePosition, SourceSpan } from './script-reach.js';
 
-type Evidence = { sourceKey?: string; paths?: string[]; side?: 'base' | 'head'; range?: SourceSpan };
+type Evidence = {
+  sourceKey?: string;
+  paths?: string[];
+  side?: 'base' | 'head';
+  range?: SourceSpan;
+  ranges?: readonly SourceSpan[];
+};
 type Bucket = { all: boolean; ranges: SourceSpan[] };
 const compare = (a: SourcePosition, b: SourcePosition) => a.line - b.line || a.column - b.column;
 const key = (file: string, side: string) => `${side}\u0000${file}`;
@@ -36,7 +42,8 @@ export function scopedRangeLookup(
     for (const file of entry.paths ?? [entry.sourceKey ?? '*']) {
       const name = key(file, entry.side ?? '*');
       const bucket = buckets.get(name) ?? { all: false, ranges: [] };
-      if (entry.range) bucket.ranges.push(entry.range);
+      if (entry.ranges) entry.ranges.forEach((range) => bucket.ranges.push(range));
+      else if (entry.range) bucket.ranges.push(entry.range);
       else bucket.all = true;
       buckets.set(name, bucket);
     }

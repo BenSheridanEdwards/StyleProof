@@ -8,6 +8,7 @@ import { correspondBeforeMap } from './path-correspondence.js';
 import { isUnder } from './capture/shared.js';
 import { scopedRangeLookup } from './class-join-index.js';
 import { unchangedLiterals, unchangedWords } from './class-join-alignment.js';
+import { unresolvedClassGaps } from './class-join-gaps.js';
 
 export type ClassUnit = {
   sourceKey: string;
@@ -26,6 +27,10 @@ export type ClassUnit = {
 };
 export type ClassJoinGap = {
   range?: SourceSpan;
+  /** Unresolved expressions are summarized once per source file and side. */
+  occurrenceCount?: number;
+  /** First ten ranges in source order; detail remains subject to the report budget. */
+  sampleRanges?: SourceSpan[];
   paths?: string[];
   pathCount?: number;
   join: 'J3';
@@ -204,6 +209,7 @@ function extractionGaps(
   index: LiteralIndex,
   vocabulary: Set<string>,
   opposite: LiteralIndex | undefined,
+  unresolved: (change: ScriptChange, range: SourceSpan) => void,
 ): ClassJoinGap[] {
   const stable = unchangedLiterals(change, index, opposite);
   return literalsInChange(change, index)
@@ -213,6 +219,10 @@ function extractionGaps(
         (entry) => entry.explicit && entry.words.some((word) => vocabulary.has(word.token)),
       );
       if (known && !literal.residual) return [];
+      if (!literal.residual) {
+        unresolved(change, literal.range);
+        return [];
+      }
       return [
         {
           ...classJoinGap(
@@ -241,6 +251,7 @@ export function classifyClassReach(
   const deltas: Deltas = { base: new Set(), head: new Set() };
   for (const pair of pairs) pairDeltas(pair, deltas);
   const cache = new Map<string, LiteralIndex>();
+  const unresolved = unresolvedClassGaps(classJoinGap);
   const indexed = (change: ScriptChange, opposite = false): LiteralIndex => {
     const key = `${change.sourceKey}\u0000${change.side}\u0000${opposite ? 'opposite' : change.contentHash}`;
     if (!cache.has(key))
@@ -264,6 +275,7 @@ export function classifyClassReach(
       indexed(change),
       vocabulary,
       change.classCounterpart ? indexed(change, true) : undefined,
+      unresolved.add,
     ).forEach((gap) => gaps.push(gap));
   }
   const uniqueGaps = [...new Map(gaps.map((gap) => [JSON.stringify(gap), gap])).values()].sort((a, b) =>
@@ -275,7 +287,7 @@ export function classifyClassReach(
     deltas,
     present: { base: presentTokens(base), head: presentTokens(head) },
     complete: { base: paired && presenceComplete(base), head: paired && presenceComplete(head) },
-    gap: scopedRangeLookup(uniqueGaps),
+    gap: scopedRangeLookup([...uniqueGaps, ...unresolved.evidence()]),
   };
   const units = changes.flatMap((change) =>
     unitsForChange(change, indexed(change), change.classCounterpart ? indexed(change, true) : undefined, context),
@@ -286,7 +298,9 @@ export function classifyClassReach(
         units.map((unit) => [JSON.stringify([unit.sourceKey, unit.side, unit.range, unit.token]), unit]),
       ).values(),
     ].sort((a, b) => compareScriptRanges(a, b) || compareSourceKeys(a.token, b.token)),
-    gaps: uniqueGaps,
+    gaps: [...uniqueGaps, ...unresolved.summaries()].sort((a, b) =>
+      compareSourceKeys(JSON.stringify(a), JSON.stringify(b)),
+    ),
   };
 }
 

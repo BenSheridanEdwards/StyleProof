@@ -29,12 +29,13 @@ function authorRoots(root: Node): number {
   while (pending.length) {
     const node = pending.pop()!;
     if (frameworkNode(node, ROUTE_ANNOUNCERS)) {
-      pending.push(...(node.children ?? []));
+      (node.children ?? []).forEach((appended) => pending.push(appended));
       continue;
     }
     if (frameworkNode(node) || node.shadowRootType === 'user-agent') continue;
     if (node.shadowRootType) count++;
-    pending.push(...(node.children ?? []), ...(node.shadowRoots ?? []));
+    (node.children ?? []).forEach((appended) => pending.push(appended));
+    (node.shadowRoots ?? []).forEach((appended) => pending.push(appended));
     if (node.contentDocument) pending.push(node.contentDocument);
   }
   return count;

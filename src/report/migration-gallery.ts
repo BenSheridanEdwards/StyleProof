@@ -54,29 +54,27 @@ export function renderMigrationGallerySections(g: MigrationGallery): string[] {
         'Changed styles, New surfaces, and New/removed elements._',
     );
   }
-  md.push(
-    ...section(
-      `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
-      `_${g.changedStyles.length} surface(s) with computed-style differences._`,
-      g.changedStyles.map(({ surface, findingCount }) => `- \`${safeKey(surface)}\` · ${findingCount} finding(s)`),
-    ),
-    ...section(
-      `### 🆕 ${MIGRATION_GALLERY_LABELS.newSurfaces}`,
-      `_${g.newSurfaces.length} surface(s) present only in head capture (genuinely new)._`,
-      g.newSurfaces.map(({ surface }) => `- \`${safeKey(surface)}\``),
-    ),
-    ...section(
-      `### 🧱 ${MIGRATION_GALLERY_LABELS.newRemovedElements}`,
-      '_Element-level structure changes within surfaces. Elevated from advisory — reviewable in migration mode._',
-      g.newRemovedElements.map(({ surface, added, removed, retagged }) => {
-        const parts = [
-          [added, 'added'],
-          [removed, 'removed'],
-          [retagged, 'retagged'],
-        ].filter(([n]) => (n as number) > 0);
-        return `- \`${safeKey(surface)}\` · ${parts.map(([n, label]) => `${n} ${label}`).join(', ')}`;
-      }),
-    ),
-  );
+  section(
+    `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
+    `_${g.changedStyles.length} surface(s) with computed-style differences._`,
+    g.changedStyles.map(({ surface, findingCount }) => `- \`${safeKey(surface)}\` · ${findingCount} finding(s)`),
+  ).forEach((appended) => md.push(appended));
+  section(
+    `### 🆕 ${MIGRATION_GALLERY_LABELS.newSurfaces}`,
+    `_${g.newSurfaces.length} surface(s) present only in head capture (genuinely new)._`,
+    g.newSurfaces.map(({ surface }) => `- \`${safeKey(surface)}\``),
+  ).forEach((appended) => md.push(appended));
+  section(
+    `### 🧱 ${MIGRATION_GALLERY_LABELS.newRemovedElements}`,
+    '_Element-level structure changes within surfaces. Elevated from advisory — reviewable in migration mode._',
+    g.newRemovedElements.map(({ surface, added, removed, retagged }) => {
+      const parts = [
+        [added, 'added'],
+        [removed, 'removed'],
+        [retagged, 'retagged'],
+      ].filter(([n]) => (n as number) > 0);
+      return `- \`${safeKey(surface)}\` · ${parts.map(([n, label]) => `${n} ${label}`).join(', ')}`;
+    }),
+  ).forEach((appended) => md.push(appended));
   return md;
 }

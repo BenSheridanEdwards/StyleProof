@@ -2425,10 +2425,7 @@ properties cannot lower J2. Initializers, parameter separators, semicolons,
 recognized statement ends and function bodies resume runtime discovery.
 Property-value and runtime ternary colons retain class values; case/default and
 statement labels (including Svelte `$:`) retain runtime blocks. ASI declaration
-starters include abstract/declare/enum/namespace when followed by a word. Compact type closers (`>=`, `>>=`, `>>>=`) at a matched type-angle boundary
-separate the closer from the initializer; ordinary unmatched comparison/shift
-operators remain operators. Bulk extraction uses iteration instead of unbounded
-function-argument spreads, including large templates. Balanced angles are bounded
+starters include abstract/declare/enum/namespace when followed by a word. Compact type closers (`>=`, `>>=`, `>>>=`) separate the closer from the initializer only when the matching angle has a type root (an annotation, alias, declaration or generic parameter position). Runtime comparisons such as `n<lo?'a':n>=hi?'b':'c'` remain operators. Extraction, capture traversal and report assembly use iteration instead of unbounded function-argument spreads, including large templates and backtick-heavy Markdown values. Balanced angles are bounded
 by statement ends, runtime operators and declarator
 commas. Parenthesized arrow return annotations resume their runtime body at the
 final arrow; ASI boundaries and parenthesized/call case labels retain runtime
@@ -2460,7 +2457,7 @@ A class occurrence never corroborates a different style value on the same line.
 
 `report.json.reach.classes` lists `sourceKey`, base/head `side`, literal `range`,
 `token`, `explicit` (positive class value versus J3-only candidate), optional token-name `delta` (`gained`/`lost`), `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
-numeric range and token. `classCounts` and `classGapCount` retain full counts.
+numeric range and token. `classCounts` retains unit counts; `classGapCount` counts run-level gap records before presentation truncation. Explicit expressions with no served class tokens produce one unresolved gap per source file and side, with `occurrenceCount` for distinct unresolved ranges and `sampleRanges` containing the first ten ranges in numeric source order. Exact ranges remain internal for classification, so aggregation does not broaden the gap to unrelated units. Recognized fragment/depth gaps remain separately named. Samples and summaries share the existing detail budget; a truncation notice names any omitted gap records.
 J2/J3 share at most 64 KB of detail after style findings; J3 omissions get a named
 count notice. Markdown/HTML cap J3 at 100 unit rows and 100 bounded gap rows.
 All J3 findings and gaps remain advisory under both changeReach levels and keep

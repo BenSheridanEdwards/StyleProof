@@ -125,7 +125,7 @@ async function readPullRequests(api: GitHubApi, state: 'open' | 'closed'): Promi
   const result: PullRequest[] = [];
   for (let page = 1; ; page += 1) {
     const pulls = await api<PullRequest[]>('GET', `/pulls?state=${state}&per_page=100&page=${page}`);
-    result.push(...pulls);
+    pulls.forEach((appended) => result.push(appended));
     if (pulls.length < 100) break;
   }
   return result;

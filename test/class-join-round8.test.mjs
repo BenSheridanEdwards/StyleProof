@@ -135,9 +135,9 @@ test('reviewer AST sample bounds type positives and runtime misses in all four l
   const limits = { ts: 0, tsx: 0.06, vue: 0.01, svelte: 0.01 };
   const expectedMisses = {
     ts: { hiddenWithGap: 0, hiddenNoGap: 0, nonExplicit: 0 },
-    tsx: { hiddenWithGap: 59, hiddenNoGap: 75, nonExplicit: 90 },
-    vue: { hiddenWithGap: 6, hiddenNoGap: 2, nonExplicit: 0 },
-    svelte: { hiddenWithGap: 20, hiddenNoGap: 5, nonExplicit: 0 },
+    tsx: { hiddenWithGap: 61, hiddenNoGap: 77, nonExplicit: 95 },
+    vue: { hiddenWithGap: 19, hiddenNoGap: 5, nonExplicit: 0 },
+    svelte: { hiddenWithGap: 16, hiddenNoGap: 5, nonExplicit: 0 },
   };
   const failed = [];
   for (const [kind, result] of Object.entries(summary)) {

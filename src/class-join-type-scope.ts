@@ -147,22 +147,12 @@ function angleEnds(nodes: RoleToken[], text: string): Map<number, number> {
   }
   return ends;
 }
-/** Split a compact closer/initializer only when it closes a bounded type-angle. */
-function normalizedAngles(nodes: RoleToken[], text: string): Map<number, number> {
-  const ends = angleEnds(nodes, text);
-  const compact = new Set([...ends.values()].filter((index) => nodes[index].text.endsWith('=')));
-  if (!compact.size) return ends;
-  const expanded = nodes.flatMap((node, index) =>
-    compact.has(index)
-      ? [
-          { ...node, text: node.text.slice(0, -1), end: node.end - 1 },
-          { start: node.end - 1, end: node.end, text: '=', kind: 'operator' as const },
-        ]
-      : node,
-  );
+/** Rebuild once after type-mode classification; runtime comparisons are never split. */
+function normalizedAngles(nodes: RoleToken[], closers: Map<number, RoleToken>): void {
+  if (!closers.size) return;
+  const expanded = nodes.flatMap((node, index) => (closers.has(index) ? [closers.get(index)!, node] : node));
   nodes.length = 0;
   for (const node of expanded) nodes.push(node);
-  return angleEnds(nodes, text);
 }
 function annotation(frame: Frame, state: Cursor, index: number): boolean {
   const nodes = frame.nodes,
@@ -286,16 +276,39 @@ function markAngles(frame: Frame, state: Cursor, index: number, end: number): vo
   for (let j = index; j <= end; j++) frame.nodes[j].typeOnly = true;
   if (state.mode) state.mode.operand = false;
 }
+/** A compact close needs a type root, rather than an arbitrary earlier less-than. */
+function typeAngle(frame: Frame, state: Cursor, index: number): boolean {
+  return (
+    !!state.mode ||
+    !!state.alias ||
+    !!state.functionHeader ||
+    !!state.classHeader ||
+    parameterAngles(frame.nodes, index)
+  );
+}
+function visitAngle(frame: Frame, state: Cursor, index: number, end: number, closers: Map<number, RoleToken>): boolean {
+  const closer = frame.nodes[end],
+    compact = closer.text.endsWith('=');
+  if (compact && !typeAngle(frame, state, index)) return false;
+  markAngles(frame, state, index, end);
+  if (compact) {
+    closers.set(end, { ...closer, text: closer.text.slice(0, -1), end: closer.end - 1 });
+    Object.assign(closer, { text: '=', start: closer.end - 1, typeOnly: false });
+    if (state.mode) typeStep(state, closer, undefined, false);
+    runtimeStep(frame, state, end);
+  }
+  return true;
+}
 function markFrame(frame: Frame, pending: Frame[], text: string): void {
   const state: Cursor = { conditionals: 0 },
-    angles = normalizedAngles(frame.nodes, text),
+    angles = angleEnds(frame.nodes, text),
+    closers = new Map<number, RoleToken>(),
     arrows = functionArrows(frame.nodes);
   for (let i = 0; i < frame.nodes.length; i++) {
     const node = frame.nodes[i],
       end = angles.get(i);
     statementBoundary(frame, state, i, text);
-    if (end !== undefined) {
-      markAngles(frame, state, i, end);
+    if (end !== undefined && visitAngle(frame, state, i, end, closers)) {
       i = end;
       continue;
     }
@@ -303,6 +316,7 @@ function markFrame(frame: Frame, pending: Frame[], text: string): void {
     runtimeStep(frame, state, i);
     if (node.children) pending.push(childFrame(frame, state, i));
   }
+  normalizedAngles(frame.nodes, closers);
 }
 export function markTypeScopes(nodes: RoleToken[], text: string): void {
   if (!nodes.length || !typeSyntax.test(text.slice(nodes[0].start, nodes.at(-1)!.end))) return;

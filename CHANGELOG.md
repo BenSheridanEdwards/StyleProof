@@ -35,7 +35,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Angle matching stops at statement/operator/declarator boundaries; opaque TSX generic prefixes use
   the existing TS lexer in J3. Both-direction oracle tests pin type negatives, runtime positives and separate hidden/gap counts.
   Compact type closers separate initialization, ASI declaration starters resume runtime discovery,
-  and bulk joins avoid unbounded argument spreads on multi-megabyte inputs.
+  and runtime compact comparisons remain operators. Capture, report assembly and Markdown escaping avoid unbounded argument spreads on multi-megabyte inputs. Unresolved explicit contexts collapse to one gap per file and side with a distinct occurrence count and ten sampled ranges, preserving exact internal range evidence and the existing report budget.
   Unsupported lexical forms may still omit occurrences and gaps, a documented checking limit. Bracket caps discard
   the unfinished statement back to the previous top-level semicolon, preserve earlier
   statement roles, and cover the unread remainder through EOF where class-role analysis runs. Template depth

@@ -235,7 +235,10 @@ async function stabilizePage(
 
       const end = realNow();
 
-      const lastPoll = Math.max(...lastChangedAt.values());
+      let lastPoll = -Infinity;
+      lastChangedAt.forEach((at) => {
+        lastPoll = Math.max(lastPoll, at);
+      });
       volatile = [...lastChangedAt].flatMap(([p, at]) =>
         (at === lastPoll && changedAgain.has(p)) || end - at <= quietFor ? [p] : [],
       );

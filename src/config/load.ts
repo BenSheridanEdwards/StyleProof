@@ -194,7 +194,7 @@ export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofCo
       const skippedConfig = reportDiscoveryRefusal(dir, `unsafe folder ${dir}: ${reason}`);
       return { searched, skippedConfig };
     }
-    searched.push(...CONFIG_FILENAMES.map((filename) => path.join(dir, filename)));
+    CONFIG_FILENAMES.map((filename) => path.join(dir, filename)).forEach((appended) => searched.push(appended));
     const location = locationAt(dir);
     if (location) return { location, searched };
     if (endsDiscovery(dir, windowsBoundary)) {

@@ -121,9 +121,9 @@ export function assessReachMaps(
         'changed source ranges unavailable; captureScriptReach and clean captured git revisions are required to list class occurrences',
       ),
     );
-  classReach.gaps.push(
-    ...diff.gaps.map((gap) => classJoinGap(`changed class occurrences unmeasured: ${gap.reason}`, gap.side)),
-  );
+  diff.gaps
+    .map((gap) => classJoinGap(`changed class occurrences unmeasured: ${gap.reason}`, gap.side))
+    .forEach((appended) => classReach.gaps.push(appended));
   const script = classifyScriptReach(
     base,
     head,
@@ -153,7 +153,7 @@ export function assessReachMaps(
       "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
     remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
   });
-  gaps.push(...classReach.gaps);
+  classReach.gaps.forEach((appended) => gaps.push(appended));
   const counts: ReportReach['counts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 };
   for (const rule of result.rules) counts[rule.status]++;
   const scriptCounts: ReportReach['scriptCounts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, unknown: 0 };
@@ -279,8 +279,8 @@ export function reachStripLines(reach: ReportReach): string[] {
     parts.push(`${blind} changed in a channel computed styles cannot hold`);
     remedies.push('review the changes under **Changed in a channel computed styles cannot hold**');
   }
-  parts.push(...ledger.map(gapReason));
-  remedies.push(...ledger.map((gap) => gap.remedy));
+  ledger.map(gapReason).forEach((appended) => parts.push(appended));
+  ledger.map((gap) => gap.remedy).forEach((appended) => remedies.push(appended));
   return [
     '',
     `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. ${reach.blocking > 0 ? unchecked.replace(" These are not held by `changeReach: 'gate'`.", " The findings above are held by `changeReach: 'gate'`; the unchecked items are not.") : unchecked}`,
@@ -401,17 +401,13 @@ function scriptSectionLines(reach: ReportReach): string[] {
     const hidden = ranges.slice(group.length);
 
     if (!ranges.length) continue;
-    lines.push(
-      '',
-      `**${status}**`,
-      '',
-      '| Source | Side | Execution | Why |',
-      '| --- | --- | --- | --- |',
-      ...group.map(
+    lines.push('', `**${status}**`, '', '| Source | Side | Execution | Why |', '| --- | --- | --- | --- |');
+    group
+      .map(
         (unit) =>
           `| ${codeValue(`${unit.sourceKey}:${unit.range.start.line}:${unit.range.start.column}-${unit.range.end.line}:${unit.range.end.column}${unit.count > 1 ? ` (${unit.count} units)` : ''}`)} | ${unit.side} | ${unit.execution} | ${escapeInlineMarkdown(unit.why)} |`,
-      ),
-    );
+      )
+      .forEach((appended) => lines.push(appended));
     if (hidden.length)
       lines.push(
         '',
@@ -419,7 +415,10 @@ function scriptSectionLines(reach: ReportReach): string[] {
       );
   }
 
-  if (gaps.length) lines.push('', '**J2 run-level gaps (unmeasured)**', '', ...scriptGapLines(gaps));
+  if (gaps.length) {
+    lines.push('', '**J2 run-level gaps (unmeasured)**', '');
+    scriptGapLines(gaps).forEach((appended) => lines.push(appended));
+  }
 
   return lines;
 }
