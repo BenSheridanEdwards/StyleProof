@@ -49,7 +49,7 @@ Public logs normalize checkout paths and trailing whitespace only.
 
 [Focused green](focused.log): 1,045 tests pass, including all 36 new unit tests,
 existing J2 regressions and capture's DOM-work contract. [Chromium green](capture-green.log):
-all 22 cases pass, including 14 new cases covering omissions, non-positive classList
+all 23 cases pass, including 15 new cases covering omissions, non-positive classList
 refactors, framework exemptions with open/closed roots, UA roots and a head iframe.
 The Vue/Svelte reader is pure source logic and is covered by exported-classifier
 unit tests; no framework application or product UI layout changed.
@@ -110,7 +110,7 @@ below supersedes that failed push attempt.
 - `pnpm run bench:reach:check`: all 36 scenario expectations pass, including base
   removal counts/statuses. [Real tail](bench-tail.log).
 - `pnpm run demo:check`: the checked-in demo remains current.
-- The focused browser run passes all 22 cases. The full `pnpm run test:e2e
+- The focused browser run passes all 23 cases. The full `pnpm run test:e2e
 --workers=4` gate runs through the normal pre-push hook; its exact-head output
   accompanies the final handoff instead of being committed after that hook.
 

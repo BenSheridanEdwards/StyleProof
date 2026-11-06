@@ -1,37 +1,38 @@
 Already up to date
 Done in 58ms using pnpm v11.7.0
 
-Running 22 tests using 1 worker
+Running 23 tests using 1 worker
 
-(node:51034) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:56274) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
-  ✓   1 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with control (163ms)
+  ✓   1 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with control (175ms)
 styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
 styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
   ✓   2 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ticker (1.5s)
-  ✓   3 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ignore (145ms)
+  ✓   3 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ignore (155ms)
 styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
 styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
   ✓   4 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with shadow (153ms)
 styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
 styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
-  ✓   5 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with frame (170ms)
-  ✓   6 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for html child (135ms)
-  ✓   7 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for closed shadow (131ms)
-  ✓   8 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for object document (165ms)
-  ✓   9 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for embed document (147ms)
-  ✓  10 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture remove('clock') refactor cannot lower J2 (121ms)
-  ✓  11 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture contains('clock') refactor cannot lower J2 (117ms)
-  ✓  12 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture toggle('clock', false) refactor cannot lower J2 (124ms)
-  ✓  13 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture replace('clock', 'card') refactor cannot lower J2 (132ms)
-  ✓  14 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <next-route-announcer></next-route-announcer> (92ms)
-  ✓  15 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <div id="__next-route-announcer__"></div> (75ms)
-  ✓  16 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <next-route-announcer></next-route-announcer><script>document.querySelector("next-route-announcer").attachShadow({mode:"open"}).innerHTML="<span>Announcement</span>";</script> (90ms)
-  ✓  17 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <div id="__next-route-announcer__"></div><script>document.querySelector("div").attachShadow({mode:"closed"}).innerHTML="<span>Announcement</span>";</script> (95ms)
-  ✓  18 [chromium] › test/class-join-round3.e2e.spec.ts:121:1 › user-agent shadow roots do not prevent absence proof (108ms)
-  ✓  19 [chromium] › test/class-join-round3.e2e.spec.ts:136:1 › an untraversed frame outside body is also an omission (79ms)
-  ✓  20 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 unopened constant is never-rendered (834ms)
-  ✓  21 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 collision stays unknown (844ms)
-  ✓  22 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 class-preserving refactor stays unknown (830ms)
+  ✓   5 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with frame (169ms)
+  ✓   6 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for html child (140ms)
+  ✓   7 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for closed shadow (157ms)
+  ✓   8 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for object document (149ms)
+  ✓   9 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for embed document (163ms)
+  ✓  10 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture remove('clock') refactor cannot lower J2 (128ms)
+  ✓  11 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture contains('clock') refactor cannot lower J2 (114ms)
+  ✓  12 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture toggle('clock', false) refactor cannot lower J2 (112ms)
+  ✓  13 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture replace('clock', 'card') refactor cannot lower J2 (133ms)
+  ✓  14 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <next-route-announcer></next-route-announcer> (96ms)
+  ✓  15 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <div id="__next-route-announcer__"></div> (74ms)
+  ✓  16 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <next-route-announcer></next-route-announcer><script>document.querySelector("next-route-announcer").attachShadow({mode:"open"}).innerHTML="<span>Announcement</span>";</script> (75ms)
+  ✓  17 [chromium] › test/class-join-round3.e2e.spec.ts:106:3 › framework exemption permits absence: <div id="__next-route-announcer__"></div><script>document.querySelector("div").attachShadow({mode:"closed"}).innerHTML="<span>Announcement</span>";</script> (80ms)
+  ✓  18 [chromium] › test/class-join-round3.e2e.spec.ts:121:1 › user-agent shadow roots do not prevent absence proof (86ms)
+  ✓  19 [chromium] › test/class-join-round3.e2e.spec.ts:136:1 › an untraversed frame outside body is also an omission (77ms)
+  ✓  20 [chromium] › test/class-join-round3.e2e.spec.ts:153:1 › Change Reach off adds no CDP probe and cannot verify class absence (69ms)
+  ✓  21 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 unopened constant is never-rendered (832ms)
+  ✓  22 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 collision stays unknown (841ms)
+  ✓  23 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 class-preserving refactor stays unknown (824ms)
 
-  22 passed (6.7s)
+  23 passed (6.8s)
