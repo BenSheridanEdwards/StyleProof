@@ -93,3 +93,10 @@ and other ADR attribution joins remain unbuilt.
 Round three retains the measured 7/8 unknown totals and all combined/J3 corpus
 statuses. The capture/context fixes do not change this fully paired fixture;
 base-removal counts/statuses remain independently asserted.
+
+Round four preserves every round-three corpus status and the 7/8 unknown totals.
+Predicate/lookup literals and dataset assignments cannot lower J2; unchanged class
+arguments survive inserted constants. Omission facts are opt-in, and complete facts
+now verify head content and announcer author children. Older version-2 facts without
+document-boundary verification remain conservative. This fixture has no such
+omissions, and the independent base-removal checks continue to pass.
