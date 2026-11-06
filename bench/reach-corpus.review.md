@@ -111,3 +111,7 @@ lexer and an in-repo bounded bracket/work stack. Its receipt matches round five
 exactly except the generation timestamp: all 36 scenario cells, base removals,
 zero J2/J3 gaps and 7/8 unknown totals are unchanged. Runtime dependency files
 match origin/main, with pngjs as the sole runtime dependency.
+
+Round six retains every corpus status/count and the 7/8 unknown totals. Inline
+type scopes, completed-prefix preservation and iterative flat ternary chains do
+not change this fixture; independent base removals and zero J2/J3 gaps still pass.
