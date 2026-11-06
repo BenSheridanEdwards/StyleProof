@@ -39,8 +39,9 @@ export function installVisualChannels(enabled: boolean): void {
     if (plainA !== plainB) return plainA ? -1 : 1;
     return a < b ? -1 : a > b ? 1 : 0;
   };
-  type Frame = { offset: string; declarations: CSSStyleDeclaration };
+  type Frame = { offset: string; parts: string[] };
   const mergeFrame = (frames: Map<string, Frame>, frame: CSSKeyframeRule): void => {
+    const text = frame.style.cssText;
     for (const offset of frame.keyText.split(',').map(offsetOf)) {
       const key = JSON.stringify([
         offset,
@@ -48,9 +49,9 @@ export function installVisualChannels(enabled: boolean): void {
         frame.style.getPropertyValue('animation-composition'),
       ]);
       let merged = frames.get(key);
-      if (!merged) frames.set(key, (merged = { offset, declarations: document.createElement('span').style }));
+      if (!merged) frames.set(key, (merged = { offset, parts: [] }));
       // Pending var() shorthands expose empty longhands. CSS text preserves them while applying the cascade.
-      merged.declarations.cssText += ' ' + frame.style.cssText;
+      merged.parts.push(text);
     }
   };
   // Split CSSOM text without splitting quoted/escaped content or function arguments.
@@ -90,7 +91,11 @@ export function installVisualChannels(enabled: boolean): void {
     for (const child of Array.from(rule.cssRules)) mergeFrame(frames, child as CSSKeyframeRule);
     return [...frames.values()]
       .sort((a, b) => offsetOrder(a.offset, b.offset))
-      .map((frame) => `${frame.offset} { ${declarationText(frame.declarations)} }`)
+      .map((frame) => {
+        const declarations = document.createElement('span').style;
+        declarations.cssText = frame.parts.join(' ');
+        return `${frame.offset} { ${declarationText(declarations)} }`;
+      })
       .join(' ');
   };
 

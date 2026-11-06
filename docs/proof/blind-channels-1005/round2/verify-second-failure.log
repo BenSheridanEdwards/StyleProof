@@ -1,0 +1,44 @@
+  ✔ ci.yml (0.126875ms)
+  ✔ codeql.yml (0.092459ms)
+  ✔ secret-scan.yml (0.053166ms)
+  ✔ store-dogfood.yml (0.076125ms)
+✔ main commits get their own concurrency group so queued main runs are not dropped; manual dogfood runs stay independent (0.559542ms)
+✔ release runs serialize without cancelling an in-flight publish (0.045792ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.088833ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.1ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.752ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.099541ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.1305ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.226417ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (1.447208ms)
+ℹ tests 6611
+ℹ suites 32
+ℹ pass 6610
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 319793.556125
+
+✖ failing tests:
+
+test at test/class-join-round6.test.mjs:63:1
+✖ flat else-if arms scale linearly to ten thousand without a depth gap (346.326625ms)
+  AssertionError [ERR_ASSERTION]: flat else-if extraction: 4N/N median ratio must be < 8; {"name":"flat else-if extraction","n":2500,"largeN":10000,"warmupsPerSize":1,"samples":[[6.6670839999999885,15.981666999999959,5.063499999999976],[86.77283299999999,42.07183299999997,58.671708000000024]],"medianN":6.6670839999999885,"median4N":58.671708000000024,"ratio":8.800205307147792}
+      at assertLinearScaling (file://<checkout>/test/linearity-helper.mjs:25:10)
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round6.test.mjs:64:3)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Test failed. See above for more details.
+[ELIFECYCLE] Command failed with exit code 1.

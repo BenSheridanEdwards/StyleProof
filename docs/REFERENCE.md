@@ -1477,7 +1477,8 @@ in the image's style layer. Reports expand changed references to canonical bodie
 selectors retain their CSSOM spelling. Selector lists expand to individual offsets;
 entries merge in source order (later wins per property) only when offset,
 `animation-timing-function`, and `animation-composition` match. CSSOM declaration
-text preserves pending `var()` shorthands. Offsets and declarations sort
+text preserves pending `var()` shorthands, batched into one CSSOM assignment per
+offset/timing/composition group to avoid reparsing a growing declaration list. Offsets and declarations sort
 deterministically; distinct timing/composition groups at the same offset retain
 their source order. Reordering independent blocks
 or merging/splitting equivalent blocks therefore stays clean. Resolution

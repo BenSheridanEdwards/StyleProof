@@ -1,0 +1,30 @@
+Already up to date
+Done in 59ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:70126) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round2.e2e.spec.ts:242:1 › duplicate-offset merge applies CSS text once per group with linear input work (255ms)
+
+
+  1) [chromium] › test/blind-channels-round2.e2e.spec.ts:242:1 › duplicate-offset merge applies CSS text once per group with linear input work
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 1000
+
+      262 |     }
+      263 |   });
+    > 264 |   expect(work.writes).toBe(1);
+          |                       ^
+      265 |   expect(work.characters).toBeLessThan(20000);
+      266 | });
+      267 |
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:264:23
+
+    Error Context: test-results/test-blind-channels-round2-8930b-roup-with-linear-input-work-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:242:1 › duplicate-offset merge applies CSS text once per group with linear input work

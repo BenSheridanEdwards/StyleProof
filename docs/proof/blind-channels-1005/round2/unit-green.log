@@ -1,25 +1,51 @@
 Already up to date
-Done in 88ms using pnpm v11.7.0
-$ node scripts/run-node-test.mjs test/blind-channels-round1.test.mjs test/blind-channels-round2.test.mjs test/blind-channels.test.mjs
-✔ both sides opted out produce no visual-channel evidence block (7.480625ms)
-✔ one-sided channel marker names the limit and leaves the following warning a separate paragraph (10.000292ms)
-✔ unloaded sources are skipped on either side, including empty against empty, with a named limit (12.419125ms)
-✔ proved keyframes absence is a normal compared change; unreadable stays unknown (0.291542ms)
-✔ blob sources are stable skipped evidence on either side with a named report limit (24.36875ms)
-✔ a complete image with no source is compared, rather than skipped as unloaded (1.007625ms)
-✔ image comparison limits also name skipped sources captured only in forced states (6.801625ms)
-✔ runner defaults visual channels off and forwards the explicit opt-in (0.713625ms)
-✔ legacy maps skip keyframes and currentSrc on either side without hiding CSS changes (0.888292ms)
-✔ keyframe references compare canonical bodies, even if reference IDs agree (0.1215ms)
-✔ unknown keyframes do not fabricate a body difference (0.140625ms)
-✔ report recommends pixels for matched fonts without legacy notices when both channel captures are off (38.004291ms)
-✔ new channel findings reach report reviewable counts without being advisory (7.701541ms)
-✔ self-check includes skipped unknown and missing visual-channel evidence (0.423625ms)
-ℹ tests 14
+Done in 61ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/blind-channels-round1.test.mjs test/blind-channels-round2.test.mjs test/blind-channels.test.mjs test/class-join-round6.test.mjs
+✔ both sides opted out produce no visual-channel evidence block (7.707292ms)
+✔ one-sided channel marker names the limit and leaves the following warning a separate paragraph (9.352417ms)
+✔ unloaded sources are skipped on either side, including empty against empty, with a named limit (11.43875ms)
+✔ proved keyframes absence is a normal compared change; unreadable stays unknown (0.290791ms)
+✔ blob sources are stable skipped evidence on either side with a named report limit (16.861584ms)
+✔ a complete image with no source is compared, rather than skipped as unloaded (0.228875ms)
+✔ image comparison limits also name skipped sources captured only in forced states (7.786458ms)
+✔ runner defaults visual channels off and forwards the explicit opt-in (0.702208ms)
+✔ legacy maps skip keyframes and currentSrc on either side without hiding CSS changes (0.895417ms)
+✔ keyframe references compare canonical bodies, even if reference IDs agree (0.122666ms)
+✔ unknown keyframes do not fabricate a body difference (0.136292ms)
+✔ report recommends pixels for matched fonts without legacy notices when both channel captures are off (24.654666ms)
+✔ new channel findings reach report reviewable counts without being advisory (12.20775ms)
+✔ self-check includes skipped unknown and missing visual-channel evidence (0.476791ms)
+✔ inline type has no positive class role: function f(e: { class: 'old'; id: string }) {} (2.323917ms)
+✔ inline type has no positive class role: const p: { className: 'old' } = value; (0.338083ms)
+✔ inline type has no positive class role: (p: { className: 'old' }) => p; (0.481791ms)
+✔ inline type has no positive class role: let cols: { class: 'old' }[]; (0.131083ms)
+✔ inline type has no positive class role: (r): { class: 'old' } => r; (0.154292ms)
+✔ inline type has no positive class role: function f(e?: { class: 'old' }) {} (0.141417ms)
+✔ inline type has no positive class role: const f = (e?: { className: 'old' }) => e; (0.115167ms)
+✔ inline type has no positive class role: let p!: { class: 'old' }; (0.11275ms)
+✔ inline type has no positive class role: function f({id}: { class: 'old' }) {} (0.561708ms)
+✔ inline type has no positive class role: const cfg = { method(r): { class: 'old' } { return r; } }; (0.361583ms)
+✔ inline type has no positive class role: function f<T extends { class: 'old' }>(p: T) {} (0.227625ms)
+✔ inline type has no positive class role: const p = value as { class: 'old' }; (0.070916ms)
+✔ inline type has no positive class role: const p = value satisfies { class: 'old' }; (0.047209ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { row: { class: 'old' } }; (0.180334ms)
+✔ runtime property/ternary colon keeps class values: const cfg = on ? value : { class: 'old' }; (0.059958ms)
+✔ runtime property/ternary colon keeps class values: const cfg = on ? get() : { class: 'old' }; (0.084708ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { row: on ? value : { class: 'old' } }; (0.0705ms)
+✔ runtime property/ternary colon keeps class values: h('div', { class: 'old' }); (0.078666ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { [key]: { class: 'old' } }; (0.0915ms)
+✔ a bracket cap preserves completed positive roots before the incomplete frame (1.048417ms)
+✔ the depth gap covers unread words in an incomplete enclosing helper (0.565833ms)
+✔ flat else-if arms scale linearly to ten thousand without a depth gap (171.979583ms)
+ℹ {"name":"flat else-if extraction","n":2500,"largeN":10000,"warmupsPerSize":1,"samples":[[7.603584000000012,6.7932500000000005,4.447749999999985],[27.988499999999988,24.234125000000006,22.394000000000005]],"medianN":6.7932500000000005,"median4N":24.234125000000006,"ratio":3.5673830640709534}
+✔ pinned residual: receiver-only changes retain no J3 occurrence (2.382708ms)
+✔ pinned QA residual: unchanged neighbouring words can mask changed occurrences (0.377791ms)
+✔ a substitution bracket cap covers its unread positive prefix (1.697458ms)
+ℹ tests 39
 ℹ suites 0
-ℹ pass 14
+ℹ pass 39
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 249.218708
+ℹ duration_ms 293.267916
