@@ -33,7 +33,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   return types and assertions non-explicit, including generic constraints/defaults. Runtime
   initializers, parenthesized arrow returns, ASI statements and case-expression blocks keep positive class values.
   Angle matching stops at statement/operator/declarator boundaries; opaque TSX generic prefixes use
-  the existing TS lexer in J3. Both-direction oracle tests pin type negatives and runtime positives.
+  the existing TS lexer in J3. Both-direction oracle tests pin type negatives, runtime positives and separate hidden/gap counts.
+  Compact type closers separate initialization, ASI declaration starters resume runtime discovery,
+  and bulk joins avoid unbounded argument spreads on multi-megabyte inputs.
   Unsupported lexical forms may still omit occurrences and gaps, a documented checking limit. Bracket caps discard
   the unfinished statement back to the previous top-level semicolon, preserve earlier
   statement roles, and cover the unread remainder through EOF where class-role analysis runs. Template depth

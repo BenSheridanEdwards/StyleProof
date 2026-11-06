@@ -42,6 +42,7 @@ const statementWords = new Set([
   'new',
   'this',
 ]);
+const declarationStarters = new Set(['abstract', 'declare', 'enum', 'namespace']);
 const angleStops = new Set([
   ';',
   '&&',
@@ -69,6 +70,7 @@ function runtimeStart(nodes: RoleToken[], index: number): boolean {
     node.text === '{' ||
     declarations.has(node.text) ||
     statementWords.has(node.text) ||
+    (declarationStarters.has(node.text) && nodes[index + 1]?.kind === 'word') ||
     (node.kind === 'word' && ['.', '=', '(', '!', '[', '?.', ':'].includes(nodes[index + 1]?.text))
   );
 }
@@ -132,8 +134,9 @@ function angleEnds(nodes: RoleToken[], text: string): Map<number, number> {
     const node = nodes[i];
     if (stack.length && angleBoundary(nodes, i, text, stack.at(-1)!)) stack.length = 0;
     if (node.text === '<') stack.push(i);
-    else if (/^>{1,3}$/.test(node.text)) {
-      for (let j = 0; j < node.text.length && stack.length; j++) ends.set(stack.pop()!, i);
+    else if (/^>{1,3}=?$/.test(node.text)) {
+      const count = node.text.replace('=', '').length;
+      for (let j = 0; j < count && stack.length; j++) ends.set(stack.pop()!, i);
     } else if (
       node.attribute &&
       nodes[i + 1]?.text === '=' &&
@@ -143,6 +146,23 @@ function angleEnds(nodes: RoleToken[], text: string): Map<number, number> {
     }
   }
   return ends;
+}
+/** Split a compact closer/initializer only when it closes a bounded type-angle. */
+function normalizedAngles(nodes: RoleToken[], text: string): Map<number, number> {
+  const ends = angleEnds(nodes, text);
+  const compact = new Set([...ends.values()].filter((index) => nodes[index].text.endsWith('=')));
+  if (!compact.size) return ends;
+  const expanded = nodes.flatMap((node, index) =>
+    compact.has(index)
+      ? [
+          { ...node, text: node.text.slice(0, -1), end: node.end - 1 },
+          { start: node.end - 1, end: node.end, text: '=', kind: 'operator' as const },
+        ]
+      : node,
+  );
+  nodes.length = 0;
+  for (const node of expanded) nodes.push(node);
+  return angleEnds(nodes, text);
 }
 function annotation(frame: Frame, state: Cursor, index: number): boolean {
   const nodes = frame.nodes,
@@ -268,7 +288,7 @@ function markAngles(frame: Frame, state: Cursor, index: number, end: number): vo
 }
 function markFrame(frame: Frame, pending: Frame[], text: string): void {
   const state: Cursor = { conditionals: 0 },
-    angles = angleEnds(frame.nodes, text),
+    angles = normalizedAngles(frame.nodes, text),
     arrows = functionArrows(frame.nodes);
   for (let i = 0; i < frame.nodes.length; i++) {
     const node = frame.nodes[i],

@@ -57,7 +57,7 @@ export function markupExpressions(
     const open = match.index + match[0].length - 1,
       end = braceEnd(source, open);
     parts.push({ start: open, end: end + 1 });
-    literals.push(...read(source, open + 1, end));
+    read(source, open + 1, end).forEach((literal) => literals.push(literal));
     literals.push({
       range: sourceSpan(source, open, Math.min(end + 1, source.text.length)),
       words: [],

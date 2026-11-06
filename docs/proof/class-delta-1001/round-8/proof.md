@@ -71,16 +71,40 @@ per language per seed: 48,000 accepted programs total. TypeScript AST positions
 are the oracle; runtime src never imports TypeScript. [Machine-readable counts](oracle.json)
 and the [matched-seed chart](oracle.html) retain denominators and residuals.
 
-| Language | Type positives / type literals, all 3 seeds | Runtime misses / positives, all 3 seeds | Baseline runtime misses, seed 1 | Fixed runtime misses, seed 1 |
+| Language | Type positives / type literals, all 3 seeds | Runtime misses / positives, all 3 seeds | 6dc28f5 runtime misses, seed 1 | Fixed runtime misses, seed 1 |
 | --- | --- | --- | --- | --- |
-| TS | 0 / 164,225 | 1 / 49,806 | 943 / 16,640 | 0 / 16,640 |
-| TSX | 0 / 165,362 | 2,513 / 50,467 | 3,166 / 16,946 | 836 / 16,946 |
-| Vue | 0 / 162,662 | 152 / 50,205 | 975 / 16,833 | 55 / 16,833 |
-| Svelte | 0 / 164,215 | 193 / 50,151 | 1,044 / 16,863 | 63 / 16,863 |
+| TS | 0 / 164,225 | 1 / 49,806 | 866 / 16,640 | 0 / 16,640 |
+| TSX | 0 / 165,362 | 2,513 / 50,467 | 3,237 / 16,946 | 836 / 16,946 |
+| Vue | 0 / 162,662 | 152 / 50,205 | 1,001 / 16,833 | 55 / 16,833 |
+| Svelte | 0 / 164,215 | 193 / 50,151 | 1,016 / 16,863 | 63 / 16,863 |
+
+Misses are separated below: hidden-with-gap means no word occurrence was emitted
+but a named extraction/unresolved-context gap covers its AST position;
+hidden-no-gap has neither; non-explicit retains the word without a positive role.
+Gap coverage uses the complete generated-token vocabulary, with source ranges
+translated through SFC prefixes. No capture/ledger gap is fabricated. These are
+three-seed counts over the same programs; 6dc28f5 is the comparison baseline.
+
+| Language | 6dc28f5: gap / no gap / non-explicit | Round 8: gap / no gap / non-explicit |
+| --- | --- | --- |
+| TS | 0 / 0 / 2,688 | 0 / 0 / 1 |
+| TSX | 679 / 868 / 8,220 | 632 / 915 / 966 |
+| VUE | 94 / 58 / 2,729 | 102 / 50 / 0 |
+| SVELTE | 137 / 56 / 2,687 | 147 / 46 / 0 |
+
+Hidden totals do not increase versus 6dc28f5, but TSX has 47 more hidden-no-gap
+cases and 47 fewer with-gap cases. The absence of a row/gap is not checking proof.
+The pre-existing J2 lexer causes include TSX `/>` being read as a regex after `}`,
+plain `<G>(e...) =>` being read as markup in SFCs, and template-literal types
+interacting with the template reader. The TSX slash/regex defect is deferred to a
+follow-up issue; round nine changes only safe token accumulation in that lexer.
+Round nine records current counts and pins each kind's hidden counts separately
+from retained-but-non-explicit counts. Its ASI fix also removes two non-explicit
+misses; the historical round-eight totals below remain unchanged.
 
 Total type positives: 0 / 656,464. Runtime misses: 2,859 / 200,629; no throws.
 These are finite sample results, not a claim of full language coverage. The
-baseline seed-one type sample also has zero positives; the separately pinned
+round-seven implementation-base seed-one type sample also has zero positives; the separately pinned
 nested TSX extends defect is reproduced by its regression and fixed.
 
 The in-repo dev-only copy is formatted and removes one unused generator parameter

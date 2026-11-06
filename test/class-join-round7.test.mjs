@@ -6,6 +6,13 @@ import { classLiterals } from '../dist/class-join-literals.js';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 
+const compactForms = [
+  "type Compact<T>=T extends {class:'old'}?{className:'old'}:never;",
+  "type Compact<T=A<B>>=T extends {class:'old'}?{className:'old'}:never;",
+  "type Compact<T=A<B<C>>>=T extends {class:'old'}?{className:'old'}:never;",
+  "let p:A<{class:'old'}>=value;",
+  "function f<T>(p:A<{class:'old'}>=value) {}",
+];
 const qaForms = [
   "type C<T> = T extends {class:'old'} ? {className:'old'} : never;",
   "let p: string extends unknown ? {class:'old'} : {className:'old'};",
@@ -48,7 +55,7 @@ const typeForms = [
   "function f(): Record<K, { class: 'old' }> { return value; }",
   "let a: ({ class: 'old' } | [{ className: 'old' }]) & A;",
 ];
-for (const source of [...typeForms, ...qaForms])
+for (const source of [...typeForms, ...qaForms, ...compactForms])
   test(`nested type has no positive role: ${source}`, () => {
     const found = classLiterals(source, 'app.ts').filter((l) => l.words.some((w) => w.token === 'old'));
     assert.ok(found.length);
@@ -178,10 +185,12 @@ test('dev-only two-way TS oracle: nested types stay negative and supported runti
   let runtimeChecked = 0;
   let falseNegatives = 0;
   const missed = [];
-  for (let i = 0; i < 8000 + qaForms.length; i++) {
+  for (let i = 0; i < 8000 + qaForms.length + compactForms.length; i++) {
     const leaf = i % 2 ? "{ class: 'old' }" : "{ className: 'old' }";
     const value = nests[Math.floor(i / 16) % nests.length](nests[Math.floor(i / 160) % nests.length](leaf));
-    const typeSource = i < 8000 ? wrappers[i % wrappers.length](value) : qaForms[i - 8000];
+    const typeSource = (
+      i < 8000 ? wrappers[i % wrappers.length](value) : [...qaForms, ...compactForms][i - 8000]
+    ).replace(/>\s+=/g, '>=');
     const kind = ['ts', 'tsx', 'vue', 'svelte'][i % 4];
     const jsx = [
       `const view = <div className="rt${i} js-hook"/>;`,

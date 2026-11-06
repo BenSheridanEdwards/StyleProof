@@ -133,9 +133,23 @@ test('reviewer AST sample bounds type positives and runtime misses in all four l
   assert.equal(child.status, 0, child.stderr);
   const { summary } = JSON.parse(child.stdout);
   const limits = { ts: 0, tsx: 0.06, vue: 0.01, svelte: 0.01 };
+  const expectedMisses = {
+    ts: { hiddenWithGap: 0, hiddenNoGap: 0, nonExplicit: 0 },
+    tsx: { hiddenWithGap: 59, hiddenNoGap: 75, nonExplicit: 90 },
+    vue: { hiddenWithGap: 6, hiddenNoGap: 2, nonExplicit: 0 },
+    svelte: { hiddenWithGap: 20, hiddenNoGap: 5, nonExplicit: 0 },
+  };
   const failed = [];
   for (const [kind, result] of Object.entries(summary)) {
     assert.ok(result.typeLits > 0 && result.rtLits > 0);
+    const hidden = { hiddenWithGap: result.hiddenWithGap, hiddenNoGap: result.hiddenNoGap };
+    assert.deepEqual(
+      hidden,
+      { hiddenWithGap: expectedMisses[kind].hiddenWithGap, hiddenNoGap: expectedMisses[kind].hiddenNoGap },
+      kind,
+    );
+    assert.equal(result.nonExplicit, expectedMisses[kind].nonExplicit, kind);
+    assert.equal(result.fn, result.hiddenWithGap + result.hiddenNoGap + result.nonExplicit);
     if (result.errors || result.fp || result.fn / result.rtLits > limits[kind]) failed.push(kind);
     t.diagnostic(
       JSON.stringify({
@@ -144,6 +158,9 @@ test('reviewer AST sample bounds type positives and runtime misses in all four l
         falsePositives: result.fp,
         runtimeLiterals: result.rtLits,
         falseNegatives: result.fn,
+        hiddenWithGap: result.hiddenWithGap,
+        hiddenNoGap: result.hiddenNoGap,
+        nonExplicit: result.nonExplicit,
         maximumMissRate: limits[kind],
       }),
     );

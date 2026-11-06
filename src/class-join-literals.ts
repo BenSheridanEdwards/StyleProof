@@ -43,7 +43,7 @@ function sourceLiterals(source: ClassSource): RawLiteral[] {
       const literal = literalAt(source, token);
       cursor = literal.end;
       found.push({ start: token.index, literal });
-      if (!literal.limit) pending.push(...literal.substitutions.filter((p) => p.whole));
+      if (!literal.limit) literal.substitutions.filter((p) => p.whole).forEach((p) => pending.push(p));
     }
   }
   return found;
@@ -117,7 +117,7 @@ function readLiterals(source: ClassSource, key: string, expression = false): Cla
     }),
   ];
   const reader: Reader = { source, key, roles, scripts, markupParts: markup.parts };
-  literals.push(...raw.flatMap((entry) => qualify(reader, entry)));
+  for (const entry of raw) for (const literal of qualify(reader, entry)) literals.push(literal);
   appendRoles(literals, source, roles);
   return literals.sort(
     (a, b) => comparePosition(a.range.start, b.range.start) || comparePosition(a.range.end, b.range.end),

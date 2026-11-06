@@ -214,20 +214,45 @@ function oracle(code) {
   const sk = kind === 'tsx' ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const tree = ts.createSourceFile(kind === 'tsx' ? 'a.tsx' : 'a.ts', code, ts.ScriptTarget.Latest, true, sk);
   if (tree.parseDiagnostics.length) return;
-  const typed = new Map();
+  const typed = new Map(),
+    positions = new Map();
   const pending = [{ node: tree, type: false }];
   while (pending.length) {
     const { node, type } = pending.pop();
     const inType = type || ts.isTypeNode(node);
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)) {
       const m = /^(ty|rt)\d+/.exec(node.text);
-      if (m) typed.set(m[0], inType);
+      if (m) {
+        typed.set(m[0], inType);
+        positions.set(m[0], node.getStart(tree));
+      }
     }
     ts.forEachChild(node, (child) => {
       pending.push({ node: child, type: inType });
     });
   }
-  return typed;
+  return { typed, positions };
+}
+// Match the extractor's named failures and unresolved explicit contexts against
+// the complete generated-token vocabulary; capture/ledger gaps are not invented.
+function extractionRanges(literals, text, vocabulary) {
+  const lines = [0];
+  for (const match of text.matchAll(/\r\n|[\r\n\u2028\u2029]/g)) lines.push(match.index + match[0].length);
+  const at = (p) => lines[p.line - 1] + p.column;
+  const ranges = literals.map((literal) => ({ literal, start: at(literal.range.start), end: at(literal.range.end) }));
+  return ranges.filter(({ literal, start, end }) => {
+    if (literal.extractionGap) return true;
+    if (!literal.explicit) return false;
+    if (literal.residual) return true;
+    if (!literal.context) return false;
+    return !ranges.some(
+      (entry) =>
+        entry.start < end &&
+        start < entry.end &&
+        entry.literal.explicit &&
+        entry.literal.words.some((word) => vocabulary.has(word.token)),
+    );
+  });
 }
 const stats = {};
 for (const k of kinds) {
@@ -239,6 +264,10 @@ for (const k of kinds) {
     fp: 0,
     rtLits: 0,
     fn: 0,
+    hiddenWithGap: 0,
+    hiddenNoGap: 0,
+    nonExplicit: 0,
+    missEx: { hiddenWithGap: [], hiddenNoGap: [], nonExplicit: [] },
     rtInType: 0,
     fpEx: [],
     fnEx: [],
@@ -246,14 +275,15 @@ for (const k of kinds) {
   });
   while (st.programs < N) {
     const code = program();
-    const typed = oracle(code);
-    if (!typed) {
+    const observed = oracle(code);
+    if (!observed) {
       st.rejected++;
       if (st.rejected > N * 20) throw new Error('too many rejects');
       continue;
     }
+    const { typed, positions } = observed;
     st.programs++;
-    const { file, text } = wrap(code);
+    const { file, text, offset } = wrap(code);
     let lits;
     try {
       lits = classLiterals(text, file);
@@ -262,6 +292,7 @@ for (const k of kinds) {
       if (st.fpEx.length < 3) st.fpEx.push('THROW ' + e.message + ' :: ' + code);
       continue;
     }
+    const gaps = extractionRanges(lits, text, typed);
     const explicit = new Map();
     for (const l of lits)
       for (const w of l.words) {
@@ -284,6 +315,14 @@ for (const k of kinds) {
         }
         if (!explicit.get(tok)) {
           st.fn++;
+          const position = offset + positions.get(tok) + 1;
+          const miss = explicit.has(tok)
+            ? 'nonExplicit'
+            : gaps.some((gap) => gap.start <= position && position < gap.end)
+              ? 'hiddenWithGap'
+              : 'hiddenNoGap';
+          st[miss]++;
+          if (st.missEx[miss].length < 3) st.missEx[miss].push(`${tok} :: ${code}`);
           const lb = label.get(tok);
           (st.byFrag ??= {})[lb] = (st.byFrag[lb] ?? 0) + 1;
           if (st.fnEx.length < 12 && (!process.env.FNLABEL || new RegExp(process.env.FNLABEL).test(label.get(tok))))

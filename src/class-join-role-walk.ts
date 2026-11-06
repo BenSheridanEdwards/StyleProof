@@ -48,7 +48,7 @@ function opaqueTasks(reader: RoleReader, task: RoleTask): RoleTask[] {
     if (node.typeOnly) continue;
     record(reader, node, undefined, task.config === 'excluded', key);
     if (node.children) result.push({ nodes: node.children, depth: task.depth + 1, config: task.config });
-    if (node.literal) result.push(...templateTasks(reader, node, { ...task, role: undefined }));
+    if (node.literal) templateTasks(reader, node, { ...task, role: undefined }).forEach((child) => result.push(child));
   }
   return result;
 }

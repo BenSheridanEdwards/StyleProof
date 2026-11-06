@@ -259,14 +259,12 @@ export function classifyClassReach(
   };
   for (const change of changes) {
     if (change.unmeasuredReason) gaps.push(classJoinGap(change.unmeasuredReason, change.side, change.sourceKey));
-    gaps.push(
-      ...extractionGaps(
-        change,
-        indexed(change),
-        vocabulary,
-        change.classCounterpart ? indexed(change, true) : undefined,
-      ),
-    );
+    extractionGaps(
+      change,
+      indexed(change),
+      vocabulary,
+      change.classCounterpart ? indexed(change, true) : undefined,
+    ).forEach((gap) => gaps.push(gap));
   }
   const uniqueGaps = [...new Map(gaps.map((gap) => [JSON.stringify(gap), gap])).values()].sort((a, b) =>
     compareSourceKeys(JSON.stringify(a), JSON.stringify(b)),

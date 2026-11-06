@@ -20,7 +20,7 @@ function svelteParts(
     const before = source.text.slice(from, open);
     parts.push({ start: from, end: open - (before.match(/\S+$/)?.[0].length ?? 0) });
     if ((open === start || /\s/.test(source.text[open - 1])) && (close === end || /\s/.test(source.text[close])))
-      literals.push(...readExpression(source, open + 1, close - 1));
+      readExpression(source, open + 1, close - 1).forEach((literal) => literals.push(literal));
     from = close;
     while (from < end && !/\s/.test(source.text[from])) from++;
   }

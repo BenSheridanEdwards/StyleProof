@@ -2424,7 +2424,12 @@ union/intersection and conditional types keep that mode; their class-shaped
 properties cannot lower J2. Initializers, parameter separators, semicolons,
 recognized statement ends and function bodies resume runtime discovery.
 Property-value and runtime ternary colons retain class values; case/default and
-statement labels (including Svelte `$:`) retain runtime blocks. Balanced angles are bounded by statement ends, runtime operators and declarator
+statement labels (including Svelte `$:`) retain runtime blocks. ASI declaration
+starters include abstract/declare/enum/namespace when followed by a word. Compact type closers (`>=`, `>>=`, `>>>=`) at a matched type-angle boundary
+separate the closer from the initializer; ordinary unmatched comparison/shift
+operators remain operators. Bulk extraction uses iteration instead of unbounded
+function-argument spreads, including large templates. Balanced angles are bounded
+by statement ends, runtime operators and declarator
 commas. Parenthesized arrow return annotations resume their runtime body at the
 final arrow; ASI boundaries and parenthesized/call case labels retain runtime
 values. Generic `<Ident extends` prefixes are re-lexed with the existing TS lexer
@@ -2433,7 +2438,10 @@ Residual lexical ambiguities still exist: a balanced comparison that resembles
 type arguments, opaque JSX text, unsupported syntax or receiver/data-flow
 ambiguities can omit a candidate and its gap. No gap is guaranteed for every
 unsupported expression, and absence from the J3 list does not prove the line was
-checked. Recognized depth limits and recognized unresolved/fragment contexts
+checked. Pre-existing J2 lexer limits include TSX `/>` read as a regex after `}`,
+plain `<G>(e...) =>` read as markup in SFCs, and template-literal types interacting
+with template extraction. The slash/regex ambiguity is deferred to a follow-up;
+this change only makes its token accumulation safe for large inputs. Recognized depth limits and recognized unresolved/fragment contexts
 produce named gaps; untouched J2 evidence remains conservative. The reader does
 not type-check bindings or promise full JS/TS grammar coverage. Malformed brackets produce a
 named extraction gap; unknown expressions never inherit explicit evidence.

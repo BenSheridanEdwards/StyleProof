@@ -6,6 +6,7 @@ import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 
 const types = [
+  "function f<T extends A<B>={class:'tk-old'}>() {}",
   "type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never;",
   "type C<T=A<B>>=T extends {class:'tk-old'}?{className:'tk-old'}:never;",
   "type C<T=A<B<C>>>=T extends {class:'tk-old'}?{className:'tk-old'}:never;",
@@ -77,6 +78,7 @@ for (const source of [
   "let x:A<B>={class:'runtime'};",
   "function f<T>(x:A<B>={class:'runtime'}) {}",
   "const f=<T,>(x:A<B>={class:'runtime'})=>x;",
+  "function f<T extends A<B>=C>() { el.className='runtime'; }",
   "const n = x>=1; const s=x>>=1; el.className='runtime';",
   "const n = x<y; const s=x>=1; el.className='runtime';",
 ])
@@ -87,7 +89,7 @@ for (const source of [
 for (const start of [
   "abstract class X { m() { el.className='runtime'; } }",
   "declare namespace X { const p: {class:'tk-old'}; }\nel.className='runtime';",
-  "enum X { A }; el.className='runtime';",
+  "enum X { A=(el.className='runtime',1) }",
   "namespace X { el.className='runtime'; }",
 ])
   test(`ASI alias terminates before declaration starter: ${start}`, () => {

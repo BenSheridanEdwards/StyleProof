@@ -88,7 +88,7 @@ function discoverPart(reader: RoleReader, part: Discovery, pending: Discovery[])
     }
     const node = part.nodes[i];
     if (node.children || node.literal?.substitutions.length)
-      pending.push(...discoveryChildren(reader, part, i, header));
+      discoveryChildren(reader, part, i, header).forEach((child) => pending.push(child));
   }
 }
 function discover(reader: RoleReader, nodes: RoleToken[]): void {
@@ -120,8 +120,8 @@ function scriptRoles(source: ClassSource, scripts: NonNullable<ReturnType<typeof
         ...(state.bareEnd !== undefined ? { bareEnd: state.bareEnd + part.start } : {}),
         ...(state.end !== undefined ? { end: state.end + part.start } : {}),
       });
-    combined.contexts.push(
-      ...local.contexts.map((c) => ({ ...c, start: c.start + part.start, end: c.end + part.start })),
+    local.contexts.forEach((c) =>
+      combined.contexts.push({ ...c, start: c.start + part.start, end: c.end + part.start }),
     );
     if (local.failed)
       combined.contexts.push({

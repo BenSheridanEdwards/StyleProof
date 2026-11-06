@@ -290,7 +290,7 @@ export function changedScriptRanges(patch: string, texts: ScriptTexts, sourceKey
   let position: { base: number; head: number } | undefined;
   let block: ChangedLines = { base: [], head: [] };
   const flush = () => {
-    changes.push(...blockChanges(block, sources, sourceKey));
+    blockChanges(block, sources, sourceKey).forEach((change) => changes.push(change));
     block = { base: [], head: [] };
   };
   for (const line of patch.split('\n')) {
