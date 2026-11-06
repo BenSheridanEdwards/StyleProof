@@ -1,0 +1,278 @@
+Already up to date
+Done in 52ms using pnpm v11.7.0
+
+Running 15 tests using 1 worker
+
+(node:48131) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tag to call (159ms)
+(node:48137) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list in to hasOwn (167ms)
+(node:48143) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tagged CSS (158ms)
+(node:48149) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional call (169ms)
+(node:48161) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list non-null call (166ms)
+(node:48167) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list generic call (166ms)
+(node:48177) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list comments (162ms)
+(node:48184) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional lookup (162ms)
+(node:48190) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list cast lookup (167ms)
+(node:48201) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list satisfies lookup (163ms)
+(node:48207) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list relational (164ms)
+(node:48213) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list arrow body (167ms)
+(node:48220) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  13 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list false and control (157ms)
+  ✓  14 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list ternary control (146ms)
+  ✓  15 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list helper key control (140ms)
+
+
+  1) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tag to call ───
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-904ec-mium-allow-list-tag-to-call-chromium/error-context.md
+
+  2) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list in to hasOwn ──
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-90364-ium-allow-list-in-to-hasOwn-chromium/error-context.md
+
+  3) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tagged CSS ────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-e3b09-omium-allow-list-tagged-CSS-chromium/error-context.md
+
+  4) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional call ─
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-27ab0-um-allow-list-optional-call-chromium/error-context.md
+
+  5) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list non-null call ─
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-e5ca6-um-allow-list-non-null-call-chromium/error-context.md
+
+  6) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list generic call ──
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-10faa-ium-allow-list-generic-call-chromium/error-context.md
+
+  7) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list comments ──────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-real-Chromium-allow-list-comments-chromium/error-context.md
+
+  8) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional lookup
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-cbec3--allow-list-optional-lookup-chromium/error-context.md
+
+  9) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list cast lookup ───
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-9d4bd-mium-allow-list-cast-lookup-chromium/error-context.md
+
+  10) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list satisfies lookup
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-a7eee-allow-list-satisfies-lookup-chromium/error-context.md
+
+  11) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list relational ───
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-39f8c-omium-allow-list-relational-chromium/error-context.md
+
+  12) [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list arrow body ───
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      66 |     }));
+      67 |     if (positive) expect(result.units.some((u) => u.explicit && u.status === 'never-rendered')).toBe(true);
+    > 68 |     else expect(result.units.every((u) => !u.explicit || u.status !== 'never-rendered')).toBe(true);
+         |                                                                                          ^
+      69 |     expect(
+      70 |       combineClassReach(j2, result.units).every((u) => u.status === (positive ? 'never-rendered' : 'reached')),
+      71 |     ).toBe(true);
+        at test/class-join-round5.e2e.spec.ts:68:90
+
+    Error Context: test-results/test-class-join-round5.e2e-80692-omium-allow-list-arrow-body-chromium/error-context.md
+
+  12 failed
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tag to call ────
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list in to hasOwn ───
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tagged CSS ─────
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional call ──
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list non-null call ──
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list generic call ───
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list comments ───────
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional lookup
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list cast lookup ────
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list satisfies lookup
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list relational ─────
+    [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list arrow body ─────
+  3 passed (6.2s)
