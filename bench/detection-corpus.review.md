@@ -54,6 +54,13 @@ and `img currentSrc` labels. `blind-aria-label` remains blind. The receipt has
 the previous boundary; the option expands ordinary findings and can change a
 consumer's verdict only after both sides opt in.
 
+Round 3 re-ran this corpus after switching keyframe bodies to the live engine
+model and checking its source against the CSSOM winner. The receipt remains
+48 detect / 7 clean / 1 blind. Untraversed shadow scopes and incomplete engine
+models are explicitly unknown; this fixture does not certify those channels.
+The exact red/green logs and reviewer-probe qualifications are recorded in
+[`round3/verification.txt`](../docs/proof/blind-channels-1005/round3/verification.txt).
+
 **Notes:**
 
 - A copy (`textContent`) change is caught by the _advisory_ layer when captured

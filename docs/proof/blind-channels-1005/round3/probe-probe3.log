@@ -1,0 +1,155 @@
+
+## LP1 same block: margin-left then margin-inline-start -> swapped order (renders 25px -> 3px; expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginLeft":" -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginLeft":"
+    base kf: {"[\"pulse\",\"95e84582dad2e199f1488bc1e9d0c5686dc69baa336f2afae8c39e07a1e726b9\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginLeft\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginLeft\":\"25px\"}]","hash":"95e84582dad2e199f1488bc1e9d0c5686dc69baa336f2afae8c39e07a1e726b9"
+    head kf: {"[\"pulse\",\"faa7ca5ce40747f6fa72e63c6759eb6e687fbd38378c917d24c5d1d04afa632e\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginLeft\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginLeft\":\"3px\"}]","hash":"faa7ca5ce40747f6fa72e63c6759eb6e687fbd38378c917d24c5d1d04afa632e",
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"95e84582dad2e199f1488bc1e9d0c5686dc69baa336f2afae8c39e07a1e726b9\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"faa7ca5ce40747f6fa72e63c6759eb6e687fbd38378c917d24c5d1d04afa632e\"]"}} {}
+
+## LP2 duplicate blocks: physical then logical -> logical then physical (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginLeft":" -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginLeft":"
+    base kf: {"[\"pulse\",\"95e84582dad2e199f1488bc1e9d0c5686dc69baa336f2afae8c39e07a1e726b9\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginLeft\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginLeft\":\"25px\"}]","hash":"95e84582dad2e199f1488bc1e9d0c5686dc69baa336f2afae8c39e07a1e726b9"
+    head kf: {"[\"pulse\",\"faa7ca5ce40747f6fa72e63c6759eb6e687fbd38378c917d24c5d1d04afa632e\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginLeft\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginLeft\":\"3px\"}]","hash":"faa7ca5ce40747f6fa72e63c6759eb6e687fbd38378c917d24c5d1d04afa632e",
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"95e84582dad2e199f1488bc1e9d0c5686dc69baa336f2afae8c39e07a1e726b9\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"faa7ca5ce40747f6fa72e63c6759eb6e687fbd38378c917d24c5d1d04afa632e\"]"}} {}
+
+## LP3 inset shorthand vs inset-inline-start order (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","left":"auto"} -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","left":"auto"}
+    base kf: {"[\"pulse\",\"d6c127a77a2d6781207c615ece280dfe8211d453a3b0296758f9f7172db0d54a\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"left\":\"auto\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"left\":\"2px\"}]","hash":"d6c127a77a2d6781207c615ece280dfe8211d453a3b0296758f9f7172db0d54a","status":"k
+    head kf: {"[\"pulse\",\"c0c6e57d70d5a1f70c5af919a0018ff78a6d22eea902d3ea3c4f3adcb7daf325\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"left\":\"auto\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"left\":\"20px\"}]","hash":"c0c6e57d70d5a1f70c5af919a0018ff78a6d22eea902d3ea3c4f3adcb7daf325","status":"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"d6c127a77a2d6781207c615ece280dfe8211d453a3b0296758f9f7172db0d54a\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"c0c6e57d70d5a1f70c5af919a0018ff78a6d22eea902d3ea3c4f3adcb7daf325\"]"}} {}
+
+## V1 same block var() shorthand + longhand: var(--m) -> var(--n) (margin-top 7 -> 15; expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginBottom" -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginBottom"
+    base kf: {"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginBottom\":\"0px\",\"marginLeft\":\"0px\",\"marginRight\":\"0px\",\"marginTop\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginBottom\":\"7px\",\"ma
+    head kf: {"[\"pulse\",\"a2bdf82c6cd755d4ff86a70b112812a0d9fec2fc67c5e8539be6145521667200\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginBottom\":\"0px\",\"marginLeft\":\"0px\",\"marginRight\":\"0px\",\"marginTop\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginBottom\":\"15px\",\"m
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"a2bdf82c6cd755d4ff86a70b112812a0d9fec2fc67c5e8539be6145521667200\"]"}} {}
+
+## V2 merged duplicate: to{margin:var(--m)} to{margin-left:3px} -> var(--n) (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginBottom" -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginBottom"
+    base kf: {"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginBottom\":\"0px\",\"marginLeft\":\"0px\",\"marginRight\":\"0px\",\"marginTop\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginBottom\":\"7px\",\"ma
+    head kf: {"[\"pulse\",\"a2bdf82c6cd755d4ff86a70b112812a0d9fec2fc67c5e8539be6145521667200\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginBottom\":\"0px\",\"marginLeft\":\"0px\",\"marginRight\":\"0px\",\"marginTop\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginBottom\":\"15px\",\"m
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"a2bdf82c6cd755d4ff86a70b112812a0d9fec2fc67c5e8539be6145521667200\"]"}} {}
+
+## V3 border var shorthand + border-left-color: var(--b1) -> var(--b2): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","borderBottomC -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","borderBottomC
+    base kf: {"[\"pulse\",\"67a2f9953743a6c3b18e315992602c27f211e57da59bf4418b349f021f96dbae\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"borderBottomColor\":\"rgb(0, 0, 0)\",\"borderBottomStyle\":\"none\",\"borderBottomWidth\":\"3px\",\"borderImageOutset\":\"0\",\"borderImageRepeat\":\"stretch\",\"borderImageSlice\":\"100%\",\"borderImageS
+    head kf: {"[\"pulse\",\"12772ccf9412d3e5624ba3644db07c9f03a123119112c49a3f2c250c34c9ad73\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"borderBottomColor\":\"rgb(0, 0, 0)\",\"borderBottomStyle\":\"none\",\"borderBottomWidth\":\"3px\",\"borderImageOutset\":\"0\",\"borderImageRepeat\":\"stretch\",\"borderImageSlice\":\"100%\",\"borderImageS
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"67a2f9953743a6c3b18e315992602c27f211e57da59bf4418b349f021f96dbae\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"12772ccf9412d3e5624ba3644db07c9f03a123119112c49a3f2c250c34c9ad73\"]"}} {}
+
+## V4 stable: var shorthand + longhand, identical both sides (expect 0): 0 finding(s)
+    base kf: {"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginBottom\":\"0px\",\"marginLeft\":\"0px\",\"marginRight\":\"0px\",\"marginTop\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginBottom\":\"7px\",\"ma
+    head kf: {"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginBottom\":\"0px\",\"marginLeft\":\"0px\",\"marginRight\":\"0px\",\"marginTop\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginBottom\":\"7px\",\"ma
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"dbb17b484eefe6431e1f6d69d1937412ee5846e4090e10ba87cbd51199cbd6a2\"]"}} {}
+
+## T1 timing group: same offset, blocks swap timing (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1", -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1",
+    base kf: {"[\"pulse\",\"f6b8d9c6f77906c9e3393c9251adfd9c2ce12654b4f3249147248d41e1a5734c\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"composite\":\"auto\",\"opacity\":\"1\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.42,0,1,1)\",\"composite\":\"auto\",\"t
+    head kf: {"[\"pulse\",\"f174b5ffb5fcce1d3f36302a5de8f9d51f86138e4f9a3ea62ca08f0c46f57b28\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.42,0,1,1)\",\"composite\":\"auto\",\"opacity\":\"1\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"composite\":\"auto\",\"t
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"f6b8d9c6f77906c9e3393c9251adfd9c2ce12654b4f3249147248d41e1a5734c\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"f174b5ffb5fcce1d3f36302a5de8f9d51f86138e4f9a3ea62ca08f0c46f57b28\"]"}} {}
+
+## T2 timing groups reordered at same offset, same pairs (renders same? expect 0): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1", -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1",
+    base kf: {"[\"pulse\",\"f6b8d9c6f77906c9e3393c9251adfd9c2ce12654b4f3249147248d41e1a5734c\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"composite\":\"auto\",\"opacity\":\"1\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.42,0,1,1)\",\"composite\":\"auto\",\"t
+    head kf: {"[\"pulse\",\"72b57cda15b11b9e55d21eb5fd4181a364f571ea943c0d6c02954dae5b4e8ab1\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.42,0,1,1)\",\"composite\":\"auto\",\"transform\":\"translateX(30px)\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"composi
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"f6b8d9c6f77906c9e3393c9251adfd9c2ce12654b4f3249147248d41e1a5734c\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"72b57cda15b11b9e55d21eb5fd4181a364f571ea943c0d6c02954dae5b4e8ab1\"]"}} {}
+
+## T3 timing spelled ease vs cubic-bezier(.25,.1,.25,1) (equivalent; expect 0 ideally): 0 finding(s)
+    base kf: {"[\"pulse\",\"854078fed42f2410f01176bc46fcd22dc214f515c618dde0317f3dfd5e5a1a6e\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\"
+    head kf: {"[\"pulse\",\"854078fed42f2410f01176bc46fcd22dc214f515c618dde0317f3dfd5e5a1a6e\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"854078fed42f2410f01176bc46fcd22dc214f515c618dde0317f3dfd5e5a1a6e\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"854078fed42f2410f01176bc46fcd22dc214f515c618dde0317f3dfd5e5a1a6e\"]"}} {}
+
+## C1 composition add vs replace (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","transform":"n -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","transform":"n
+    base kf: {"[\"pulse\",\"bc217dbeb707a642e3166f5536d2f1b9b860aaedb4747599177333a63e9aac6b\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"transform\":\"none\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"add\",\"transform\":\"translateX(5px)\"}]","hash":"bc217dbeb707a642e3166f5536d2f1b9b860aaedb4747599177333a6
+    head kf: {"[\"pulse\",\"027b29ae5efd4fedc6e31f1a30b551d9017c7e852ab95e321d085f7f63a3b432\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"transform\":\"none\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"transform\":\"translateX(5px)\"}]","hash":"027b29ae5efd4fedc6e31f1a30b551d9017c7e852ab95e321d08
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"bc217dbeb707a642e3166f5536d2f1b9b860aaedb4747599177333a63e9aac6b\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"027b29ae5efd4fedc6e31f1a30b551d9017c7e852ab95e321d085f7f63a3b432\"]"}} {}
+
+## K1 custom prop in keyframe changes (expect 1): 0 finding(s)
+    base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    head kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+
+## Q1 string with semicolon/brace in content (stable; expect 0): 0 finding(s)
+    base kf: {"[\"pulse\",\"e232397871553ce04ddce2f4f07d3df644d289e25510b8074248920e9c7d4412\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"fontFamily\":\"Times\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"fontFamily\":\"\\\"a;b}c\\\", serif\",\"opacity\":\"0.5\"}]","hash":"e23239787
+    head kf: {"[\"pulse\",\"e232397871553ce04ddce2f4f07d3df644d289e25510b8074248920e9c7d4412\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"fontFamily\":\"Times\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"fontFamily\":\"\\\"a;b}c\\\", serif\",\"opacity\":\"0.5\"}]","hash":"e23239787
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"e232397871553ce04ddce2f4f07d3df644d289e25510b8074248920e9c7d4412\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"e232397871553ce04ddce2f4f07d3df644d289e25510b8074248920e9c7d4412\"]"}} {}
+
+## S1 CLOSED root ::slotted(deep) + doc has @keyframes deep; only DOC body changes (renders same; expect 0): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+
+## S2 CLOSED root ::slotted(deep) + doc deep; only SHADOW body changes (renders differently; expect finding or unknown): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+
+## S3 CLOSED :host animation + doc deep; only DOC body changes (expect 0): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-c:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-c:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+
+## S4 CLOSED :host animation + doc deep; only SHADOW body changes (expect finding/unknown): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-c:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-c:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+
+## S5 CLOSED :host, no doc keyframes, shadow body changes (expect unknown not none): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-c:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-c:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+
+## S6 open outer -> CLOSED inner ::slotted, doc deep; DOC body changes (expect 0): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-out:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-out:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+
+## S7 open outer -> CLOSED inner ::slotted, doc deep; inner body changes (expect finding/unknown): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-out:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-out:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+
+## S8 CLOSED outer -> open inner ::slotted, doc deep; inner body changes: 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-out:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-out:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+
+## S9 open root ADOPTED sheet ::slotted deep + doc deep; doc changes (expect 0): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+
+## S10 open root ADOPTED ::slotted; adopted body changes (expect finding/unknown): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-c:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}

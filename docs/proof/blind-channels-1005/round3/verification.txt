@@ -1,0 +1,105 @@
+Round 3 runtime code: b77b2faa801a03f678e1ae1e3a8eac45d0730657.
+Reviewed remote / pinned push lease: 97b4535411b767e4100f1a8c2e54eccf9ceb7cba
+Rebased onto origin/main: 4b298c004727c9ef955a72bd487ab7a36523f09f (#1305 timing-test stabilisation).
+
+Design: captureVisualChannels stays opt-in, off by default. No schema bump, runtime dependency, gate change or default verdict expansion. Existing visualChannels v1 stores bodies once by JSON [name, SHA-256] references. Bodies now contain canonical JSON from live CSSAnimation.effect.getKeyframes(): engine order, offsets, easing, composite and computed property values. Stable computed-property key ordering and standard easing aliases are the only body normalisation; timing/progress is not stored. Native models resolve var() and physical/logical precedence. CSSOM winner fingerprints are cross-checked against read-only CDP matched-rule provenance. The root CSSOM index and source fingerprints are cached for the capture; separate provenance sessions preserve forced-state frontend node identities.
+
+Closed/untraversed element/slot/host scopes, unreadable sheets, missing/mismatched source or unavailable/incomplete engine models stay unknown with the named 'keyframes resolution ambiguous' report limit. They never use an outer known body or definite none. Only fully readable, verified scopes with no live animation and no applicable winner prove none. Animated custom-property declarations omitted by Chromium cannot be represented completely and stay unknown. Unrepresentable timeline ranges also stay unknown. Blob bytes are never read.
+
+Signing normalisation: Bunny token removes expires/exp alongside token; Akamai hdnts/__token__ are always removed. Existing provider-marker boundaries, benign raw query spelling, unsigned expiry/SAS-short-name identity and external host identity remain. GCS V2 GoogleAccessId and Maps key remain non-rotating source identities, documented explicitly. Data sources are hashed, same-origin sources path-relative, unloaded/blob images skipped with named limits, and complete images without a source compare as (no source).
+
+Test-first: the initial Chromium run had 21 failures / 16 passes on the old implementation. The initial new-module unit red is structural; unit-semantic-red.log separately reproduces three real signing failures against the extracted old normalizer. qa-timing-old-red.log executes the old 97b453541 installer on the clarified QA fixture: base opacity .8, head .7 at 500ms, identical old hashes, failing inequality assertion. The positive fixture is three source blocks (.5 steps, .7 linear, .8 steps) versus two (.8 steps, .7 linear). Deleting only the first .5 block is a separate negative control and stays clean. The new engine order distinguishes the positive fixture. Adjacent duplicates, across-offset reorder and equivalent easing remain clean. Focused final runs pass 94 Chromium tests and 138 selected unit/capture tests; full gate totals follow below.
+
+Reviewer scripts: all supplied entry points ran against the built branch (probe3, redact, cssom, getkeyframes, render-truth, a-hover, parity). harness is a support module, not a standalone entry point. LP1-LP3, V1-V3, T1 and C1 each produce findings; V4, T3 and Q1 are clean. S1-S10 are explicitly unknown, never document-body substitutions. R1-R11 produce the stated rotation/identity results; R9 retains the identical Maps key as documented. a-hover records none because CDP forced hover does not dispatch mouseenter and its injection never runs. parity is byte-identical to main for default capture and captureReach:true with visual channels off (109707 and 110596 bytes after removing only capture timestamp/UUID).
+
+Two probe qualifications are explicit: T2 yields one finding because engine frame order differs; the implementation preserves the requested engine-order model rather than guessing that those groups commute. K1 yields zero findings plus unknown because Chromium omits animated custom-property declarations and can expose progress-dependent substitutions. It does not claim a complete compared model. Raw outputs are adjacent.
+
+Report proof: report/report.md, its crops and rendered-report.png come from fresh Chromium captures on the runtime code. The inspected render shows the var() computed-body finding, the unknown deep scope limit, and the product-state identity-unproven warning. It is visual-only evidence, not a certified same-state compare. Video is not applicable: capture stores model keyframes, not animation playback; browser tests verify engine frames and the .8/.7 QA values directly.
+
+Baseline receipts: round2/detection-after.log and round2/reach-after.log record reviewed head 97b453541's corpus numbers. Before #1005 main had 46 detect / 7 clean / 3 blind; the issue changed this to 48 / 7 / 1, preserving blind-aria-label. Round-3 before/after and final command tails follow below.
+
+Round-3 corpus before -> after: detection stays 48/48 detect, 7/7 clean, 1/1 blind (56 cases), all expectations passing. Reach stays 18 cases (17 visual): declared 3/17 shown, complete 16/17 shown, all 14/14 declared misses named, unknown case counts 7 declared / 8 complete. Keyframes stays J1 blind-channel; no reach expectation changed.
+
+Final runtime gate results: verify exit 0, 6,656 tests passing, zero failures/skips. Full Chromium e2e exits 0: 1,310 passed, one expected skip (cross-element-state non-Chromium evidence scenario in the Chromium project). Detection, reach and demo checks exit 0. The #1305 stabilised timing tests pass unchanged. Dependency manifests, demo report Markdown/HTML, enforcement files and hooks have no diff against origin/main. Default parity is separately proven above.
+
+Command launch one-minute loads: verify 2.37; detection 8.86; full e2e 3.85; reach 3.41; demo 3.50. All are under 60; the push has its own guard.
+
+
+Hygiene: all issue proof logs have trailing whitespace removed. Working-tree, staged and full origin/main...HEAD whitespace checks pass; the full branch check is repeated after the proof commit and before push. All hooks remain enabled (.husky/_). No PR is opened. CI is configured for pull_request and main pushes, so no hosted required result is claimed for this branch-only push.
+
+Actual command tails (not reconstructed summaries):
+
+$ pnpm run verify (exit 0)
+  ✔ store-dogfood.yml (0.050458ms)
+✔ main commits get their own concurrency group so queued main runs are not dropped; manual dogfood runs stay independent (0.50775ms)
+✔ release runs serialize without cancelling an in-flight publish (0.056ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.08925ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.079459ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.702583ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.099ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.116542ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.228ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (1.081375ms)
+ℹ tests 6656
+ℹ suites 32
+ℹ pass 6656
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 256754.103792
+
+$ pnpm run test:e2e (exit 0)
+  ✓  1297 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a folded logical template substitution in real Chromium through git (648ms)
+  ✓  1298 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a multiline template substitution in real Chromium through git (650ms)
+  ✓  1299 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a substitution expression on its own line in real Chromium through git (645ms)
+  ✓  1300 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (648ms)
+  ✓  1301 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (655ms)
+  ✓  1302 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (636ms)
+  ✓  1303 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (632ms)
+  ✓  1304 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (643ms)
+  ✓  1305 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (649ms)
+  ✓  1306 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (635ms)
+  ✓  1307 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (641ms)
+  ✓  1308 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (641ms)
+  ✓  1309 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (685ms)
+  ✓  1310 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (639ms)
+  ✓  1311 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (643ms)
+
+  1 skipped
+  1310 passed (7.2m)
+
+$ pnpm run bench:reach:check (exit 0)
+  ✓ colliding-constant [declared] today missed · reach unknown · J2 ran · J3 unknown
+  ✓ colliding-constant [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ error-handler [declared] today n/a · reach never-rendered · J2 never-ran
+  ✓ error-handler [complete] today n/a · reach never-rendered · J2 never-ran
+  ✓ render-scope-value [declared] today missed · reach unknown · J2 ran
+  ✓ render-scope-value [complete] today shown · reach unknown · J2 ran
+  ✓ eager-jsx-element [declared] today missed · reach unknown · J2 ran
+  ✓ eager-jsx-element [complete] today shown · reach unknown · J2 ran
+  ✓ same-line-class-style [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-line-class-style [complete] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [declared] today shown · reach unknown · J2 ran · J3 unknown
+  ✓ same-token-collision [complete] today shown · reach unknown · J2 ran · J3 unknown
+
+$ node bench/detection-rate.mjs --check (exit 0)
+  ✓ clean-weight-alias [no-op] 700 → bold alias — zero findings
+  ✓ clean-var-equivalent [no-op] direct colour → identical via custom property — zero findings
+  ✓ clean-duplicate-decl [no-op] identical value redeclared — zero findings
+  ✓ clean-visibility-default [no-op] explicit default visibility — zero findings
+  ✓ clean-display-same [no-op] block redeclared on a block box — zero findings
+  ✓ blind-keyframes [visual-channel] referenced @keyframes body rewritten, animation-name unchanged (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-img-src [visual-channel] img currentSrc swapped blue to red (captureVisualChannels) — 1 finding(s) on target
+  ✓ blind-aria-label [blind] aria-label added — accessibility metadata is outside style evidence — zero findings
+  ✓ dom-link-href [dom] link href change — href is in the anchor element fingerprint, so the element re-keys as removed+added — 5 finding(s) on target
+  ✓ text-title [dom] title copy change — advisory text layer, captured when captureText is on — 1 finding(s) on target
+
+receipt → bench/detection-corpus.results.json
+
+$ pnpm run demo:check (exit 0)
+Already up to date
+Done in 61ms using pnpm v11.7.0
+$ pnpm run build && node scripts/demo-report.mjs --check
+$ tsc
+styleproof: docs/demo/ is up to date.

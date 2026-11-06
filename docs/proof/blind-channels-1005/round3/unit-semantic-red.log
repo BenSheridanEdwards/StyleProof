@@ -1,0 +1,106 @@
+Already up to date
+Done in 53ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/blind-channels-round3.test.mjs
+✔ engine values retain V1 margin shorthand with physical override (0.591042ms)
+✔ engine values retain V2 split margin shorthand with physical override (0.059875ms)
+✔ engine values retain V3 border shorthand with color override (0.103208ms)
+✔ engine values retain LP1 physical then logical (0.050583ms)
+✔ engine values retain LP2 split physical then logical (0.063208ms)
+✔ engine values retain LP3 inset physical then logical (0.034167ms)
+✔ S1 closed slotted doc change cannot publish an outer body (0.0755ms)
+✔ S2 closed slotted body change cannot publish an outer body (0.047042ms)
+✔ S3 closed host doc change cannot publish an outer body (0.2665ms)
+✔ S4 closed host body change cannot publish an outer body (0.440042ms)
+✔ S5 closed host no doc rule cannot publish an outer body (0.091042ms)
+✔ S6 mixed doc change cannot publish an outer body (0.037125ms)
+✔ S7 mixed body change cannot publish an outer body (0.024833ms)
+✔ S8 closed outer cannot publish an outer body (0.016916ms)
+✔ non-adjacent matching timing groups retain engine sequence order (0.092625ms)
+✔ engine-normalised adjacent groups and declaration key order stay equivalent (0.080667ms)
+✔ equivalent easing aliases canonicalise identically (0.029375ms)
+✔ missing, unusable or mismatched engine evidence never invents a body (0.042958ms)
+✖ R1 Bunny (0.473ms)
+✖ R2 Akamai (0.101292ms)
+✖ R3 Akamai token (0.130208ms)
+✔ R4 GCS V2 (0.086958ms)
+✔ R5 S3 identity (0.065542ms)
+✔ R6 SAS identity (0.069666ms)
+✔ R7 encoded signature (0.035125ms)
+✔ R8 unsigned expiry (0.028166ms)
+✔ R9 maps identity (0.0285ms)
+✔ R10 CloudFront (0.019125ms)
+✔ R11 encoding (0.028375ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 26
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.715709
+
+✖ failing tests:
+
+test at test/blind-channels-round3.test.mjs:129:3
+✖ R1 Bunny (0.473ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round3.test.mjs:142:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round3.test.mjs:129:3
+✖ R2 Akamai (0.101292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round3.test.mjs:142:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round3.test.mjs:129:3
+✖ R3 Akamai token (0.130208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round3.test.mjs:142:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.

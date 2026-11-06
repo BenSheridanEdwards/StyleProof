@@ -1,0 +1,87 @@
+[
+  {
+    "body": "0% { opacity: 0; } 50% { animation-timing-function: steps(1); opacity: 0.8; } 50% { animation-timing-function: linear; opacity: 0.7; } 100% { opacity: 1; }",
+    "frames": [
+      {
+        "offset": 0,
+        "easing": "linear",
+        "composite": "auto",
+        "opacity": "0",
+        "computedOffset": 0
+      },
+      {
+        "offset": 0.5,
+        "easing": "linear",
+        "composite": "auto",
+        "opacity": "0.7",
+        "computedOffset": 0.5
+      },
+      {
+        "offset": 0.5,
+        "easing": "steps(1)",
+        "composite": "auto",
+        "opacity": "0.8",
+        "computedOffset": 0.5
+      },
+      {
+        "offset": 1,
+        "easing": "linear",
+        "composite": "auto",
+        "opacity": "1",
+        "computedOffset": 1
+      }
+    ],
+    "opacity": "0.8",
+    "hash": "dac61e3fe1655c4bfc2f172368e699e3cf442e3d4a56a396569856e29b60b6b0"
+  },
+  {
+    "body": "0% { opacity: 0; } 50% { animation-timing-function: steps(1); opacity: 0.8; } 50% { animation-timing-function: linear; opacity: 0.7; } 100% { opacity: 1; }",
+    "frames": [
+      {
+        "offset": 0,
+        "easing": "linear",
+        "composite": "auto",
+        "opacity": "0",
+        "computedOffset": 0
+      },
+      {
+        "offset": 0.5,
+        "easing": "steps(1)",
+        "composite": "auto",
+        "opacity": "0.8",
+        "computedOffset": 0.5
+      },
+      {
+        "offset": 0.5,
+        "easing": "linear",
+        "composite": "auto",
+        "opacity": "0.7",
+        "computedOffset": 0.5
+      },
+      {
+        "offset": 1,
+        "easing": "linear",
+        "composite": "auto",
+        "opacity": "1",
+        "computedOffset": 1
+      }
+    ],
+    "opacity": "0.7",
+    "hash": "dac61e3fe1655c4bfc2f172368e699e3cf442e3d4a56a396569856e29b60b6b0"
+  }
+]
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: old canonical body must distinguish the verified .8 -> .7 rendering change
+    at file://<run>/qa-timing-old-red.mjs:15:74 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'dac61e3fe1655c4bfc2f172368e699e3cf442e3d4a56a396569856e29b60b6b0',
+  expected: 'dac61e3fe1655c4bfc2f172368e699e3cf442e3d4a56a396569856e29b60b6b0',
+  operator: 'notStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.12.1
