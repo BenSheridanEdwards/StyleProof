@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { captureStyleMap, diffStyleMaps } from '../dist/index.js';
+import { installVisualChannelValues } from '../dist/capture/visual-channel-proof.js';
 import { installVisualChannels, type VisualChannelWindow } from '../dist/capture/visual-channels.js';
 
 const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
@@ -20,20 +21,18 @@ for (const [name, head] of [
     const before = await capture(page, markup('@keyframes pulse{to{opacity:.2}}'));
     const after = await capture(page, markup(head));
     expect(Object.values(after.visualChannels!.keyframes)).toEqual([{ name: 'pulse', status: 'none' }]);
-    expect(changes(before, after)).toContainEqual({
-      prop: 'animation keyframes (pulse)',
-      before: '100% { opacity: 0.2; }',
-      after: '(no @keyframes)',
-    });
+    const finding = changes(before, after).find((property) => property.prop === 'animation keyframes (pulse)');
+    expect(finding?.after).toBe('(no @keyframes)');
+    expect(JSON.parse(finding!.before).at(-1).opacity).toBe('0.2');
   });
 }
 
-test('timeline range selectors retain their identity and never collapse to NaN', async ({ page }) => {
+test('unusable timeline-range engine frames stay unknown and never collapse to NaN', async ({ page }) => {
   const before = await capture(page, markup('@keyframes pulse{entry 10%{opacity:.2}}'));
   const after = await capture(page, markup('@keyframes pulse{cover 10%{opacity:.2}}'));
-  expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
-  expect(JSON.stringify(before.visualChannels)).toContain('entry 10%');
-  expect(JSON.stringify(after.visualChannels)).toContain('cover 10%');
+  expect(changes(before, after)).toEqual([]);
+  expect(Object.values(before.visualChannels!.keyframes)[0].status).toBe('unknown');
+  expect(Object.values(after.visualChannels!.keyframes)[0].status).toBe('unknown');
   expect(JSON.stringify(after.visualChannels)).not.toContain('NaN');
 });
 
@@ -156,6 +155,7 @@ for (const ruleCount of [5000, 20000]) {
   test(`channel CSSOM cost is one root walk per capture with ${ruleCount} rules`, async ({ page }) => {
     await page.setContent(markup('@keyframes pulse{to{opacity:1}}' + '.unrelated{color:red}'.repeat(ruleCount)));
     expect(await page.evaluate(() => document.styleSheets[0].cssRules.length)).toBe(ruleCount + 2);
+    await installVisualChannelValues(page);
     await page.evaluate(installVisualChannels, true);
     const counts = await page.evaluate(() => {
       const sheet = Object.getOwnPropertyDescriptor(CSSStyleSheet.prototype, 'cssRules')!;

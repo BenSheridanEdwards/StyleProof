@@ -21,8 +21,8 @@ for (const [name, a, b] of [
   ['LP3', 'to{inset-inline-start:20px;left:2px}', 'to{left:2px;inset-inline-start:20px}'],
   [
     'non-adjacent timing',
-    '50%{animation-timing-function:steps(1);opacity:.5}50%{animation-timing-function:linear;opacity:.7}50%{animation-timing-function:steps(1);opacity:.8}',
-    '50%{animation-timing-function:linear;opacity:.7}50%{animation-timing-function:steps(1);opacity:.8}',
+    '0%{opacity:0}50%{animation-timing-function:steps(1);opacity:.5}50%{animation-timing-function:linear;opacity:.7}50%{animation-timing-function:steps(1);opacity:.8}100%{opacity:1}',
+    '0%{opacity:0}50%{animation-timing-function:steps(1);opacity:.8}50%{animation-timing-function:linear;opacity:.7}100%{opacity:1}',
   ],
   [
     'T1',
@@ -34,14 +34,32 @@ for (const [name, a, b] of [
     'to{transform:translateX(5px);animation-composition:add}',
     'to{transform:translateX(5px);animation-composition:replace}',
   ],
-  ['K1', 'to{--x:10px;margin-left:var(--x)}', 'to{--x:20px;margin-left:var(--x)}'],
 ])
   test(`${name} uses the live engine body`, async ({ page }) => {
     const before = await capture(page, markup(a));
     const after = await capture(page, markup(b));
     expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
   });
+test('K1 animated custom properties omitted by the engine model stay unknown', async ({ page }) => {
+  const before = await capture(page, markup('to{--x:10px;margin-left:var(--x)}'));
+  const after = await capture(page, markup('to{--x:20px;margin-left:var(--x)}'));
+  for (const map of [before, after]) expect(Object.values(map.visualChannels!.keyframes)[0].status).toBe('unknown');
+  const fixture = pairFixture({ surface: 'home@800', before, after });
+  try {
+    expect(fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8')).toContain(
+      'keyframes resolution ambiguous',
+    );
+  } finally {
+    rmTmp(fixture.root);
+  }
+});
+
 for (const [name, a, b] of [
+  [
+    'deleting only the first timing duplicate',
+    '0%{opacity:0}50%{animation-timing-function:steps(1);opacity:.5}50%{animation-timing-function:linear;opacity:.7}50%{animation-timing-function:steps(1);opacity:.8}100%{opacity:1}',
+    '0%{opacity:0}50%{animation-timing-function:linear;opacity:.7}50%{animation-timing-function:steps(1);opacity:.8}100%{opacity:1}',
+  ],
   ['V4 stable', 'to{margin:var(--m);margin-left:3px}', 'to{margin:var(--m);margin-left:3px}'],
   [
     'adjacent timing',
@@ -71,7 +89,7 @@ function shadow(modes: string[], value: string, doc: string, host = false) {
         : `<x-level-${i + 1}><slot></slot></x-level-${i + 1}>`;
     script += `customElements.define('x-level-${i}',class extends HTMLElement{constructor(){super();this.attachShadow({mode:'${modes[i]}'}).innerHTML=${JSON.stringify(inner)}}});`;
   }
-  return `<style>@keyframes deep{to{opacity:${doc}}}.control{animation:deep 1s infinite paused}</style><script>${script}</script><x-level-0>${host ? '' : '<span class=light>light</span>'}</x-level-0><div class=control>control</div>`;
+  return `<style>${doc ? `@keyframes deep{to{opacity:${doc}}}` : ''}.control{animation:deep 1s infinite paused}</style><script>${script}</script><x-level-0>${host ? '' : '<span class=light>light</span>'}</x-level-0><div class=control>control</div>`;
 }
 for (const [label, modes, host, docChange] of [
   ['S1', ['closed'], false, true],
@@ -160,4 +178,55 @@ for (const [label, a, b, equal] of [
     } finally {
       rmTmp(fixture.root);
     }
+  });
+
+for (const fault of ['body mismatch', 'missing winner', 'unavailable frames']) {
+  test(`engine source cross-check names ${fault} as unknown`, async ({ page }) => {
+    await page.setContent(markup('to{opacity:.5}'));
+    await page.evaluate((fault) => {
+      const sheet = document.styleSheets[0];
+      const rule = Array.from(sheet.cssRules).find((rule) => rule instanceof CSSKeyframesRule) as CSSKeyframesRule;
+      if (fault === 'body mismatch') {
+        const style = (rule.cssRules[0] as CSSKeyframeRule).style;
+        Object.defineProperty(style, 'cssText', { get: () => 'opacity: 0.9;' });
+      } else if (fault === 'missing winner') {
+        const rules = Array.from(sheet.cssRules).filter((rule) => !(rule instanceof CSSKeyframesRule));
+        Object.defineProperty(sheet, 'cssRules', { get: () => rules });
+      } else
+        KeyframeEffect.prototype.getKeyframes = () => {
+          throw new Error('unavailable model');
+        };
+    }, fault);
+    const map = await captureStyleMap(page, options);
+    expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'pulse', status: 'unknown' }]);
+  });
+}
+
+test('canonical engine bodies contain no sampled progress', async ({ page }) => {
+  const map = await capture(page, markup('from{opacity:0}to{opacity:.5;margin:var(--m);margin-left:3px}'));
+  const bodies = await page.locator('.a').evaluate((element) => {
+    const animation = element.getAnimations()[0];
+    const results = [];
+    for (const time of [0, 300, 900]) {
+      animation.currentTime = time;
+      getComputedStyle(element).getPropertyValue('opacity');
+      results.push(JSON.stringify(animation.effect!.getKeyframes()));
+    }
+    return results;
+  });
+  expect(new Set(bodies).size).toBe(1);
+  expect(Object.values(map.visualChannels!.keyframes)[0].status).toBe('known');
+});
+
+for (const documentChanges of [false, true])
+  test(`adopted slotted scope stays unknown when ${documentChanges ? 'document' : 'shadow'} body changes`, async ({
+    page,
+  }) => {
+    const html = (doc: string, shadow: string) =>
+      `<style>@keyframes deep{to{opacity:${doc}}}</style><script>customElements.define('x-adopted',class extends HTMLElement{constructor(){super();const r=this.attachShadow({mode:'open'});const s=new CSSStyleSheet();s.replaceSync('@keyframes deep{to{opacity:${shadow}}}::slotted(*){animation:deep 1s infinite paused}');r.adoptedStyleSheets=[s];r.innerHTML='<slot></slot>'}})</script><x-adopted><span>light</span></x-adopted>`;
+    const a = await capture(page, html('.1', '.5'));
+    const b = await capture(page, html(documentChanges ? '.9' : '.1', documentChanges ? '.5' : '.8'));
+    for (const map of [a, b])
+      expect(Object.values(map.visualChannels!.keyframes).every((rule) => rule.status === 'unknown')).toBe(true);
+    expect(changes(a, b)).toEqual([]);
   });

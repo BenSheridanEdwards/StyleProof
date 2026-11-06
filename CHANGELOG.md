@@ -22,6 +22,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `var()` shorthands and distinct timing/composition groups. Blob images have a named
   comparison limit; complete images without a source remain compared. S3/GCS/Azure
   credential rotations are redacted without hiding unsigned query changes.
+  Live engine keyframes now supply computed values and effective frame order,
+  with read-only source cross-checks and closed-root scope verification. Ambiguous
+  or incomplete models stay unknown. Bunny and Akamai signing rotations are
+  redacted; unsigned expiry and public Google identities retain source identity.
 
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;

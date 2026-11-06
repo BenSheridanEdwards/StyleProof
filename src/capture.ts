@@ -3,6 +3,7 @@
 // stays comparable. Public entry; the machinery lives under src/capture/.
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { installVisualChannelValues, prepareVisualChannelSources } from './capture/visual-channel-proof.js';
 import { installVisualChannels, type VisualChannelWindow } from './capture/visual-channels.js';
 import { finalizeVisualChannels, isChannelProperty } from './visual-channels.js';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
@@ -350,7 +351,14 @@ async function captureStateLayer(
     );
     return { states: {}, stateLayers: [], statesSkipped: true };
   }
-  const forced = await captureForcedStates(page, ignore, options.maxInteractive ?? 800, limits, volatile);
+  const forced = await captureForcedStates(
+    page,
+    ignore,
+    options.maxInteractive ?? 800,
+    limits,
+    volatile,
+    options.captureVisualChannels === true,
+  );
   const proof = forced.stateComputedValueStyle;
   return {
     states: forced.states,
@@ -480,6 +488,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   }
 
   await page.evaluate(injectPathOf, GENERATED_ID_SOURCES);
+  if (options.captureVisualChannels) await installVisualChannelValues(page);
   await page.evaluate(installVisualChannels, options.captureVisualChannels === true);
   // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -502,6 +511,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
   // mounts during the settle must be seen), then the freeze is re-applied for every other read.
   await page.evaluate(unfreezeMotion, true);
+  if (options.captureVisualChannels) await prepareVisualChannelSources(page);
   const motion = (
     await page.evaluate(capturePage, {
       skipSel,

@@ -1470,34 +1470,46 @@ font-face advice can still appear when both sides carry reach evidence. Older ma
 loadable; no existing schema version changes.
 
 Each enabled map adds `visualChannels: { version: 1, keyframes }`. The dictionary
-stores bodies once, keyed by JSON `[name, SHA-256]`; property layers carry those
-references under `animation keyframes (name)`. `img currentSrc` is stored directly
-in the image's style layer. Reports expand changed references to canonical bodies.
-`from`/`to` become `0%`/`100%`, plain percentages are normalised, and timeline-range
-selectors retain their CSSOM spelling. Selector lists expand to individual offsets;
-entries merge in source order (later wins per property) only when offset,
-`animation-timing-function`, and `animation-composition` match. CSSOM declaration
-text preserves pending `var()` shorthands, batched into one CSSOM assignment per
-offset/timing/composition group to avoid reparsing a growing declaration list. Offsets and declarations sort
-deterministically; distinct timing/composition groups at the same offset retain
-their source order. Reordering independent blocks
-or merging/splitting equivalent blocks therefore stays clean. Resolution
-uses CSSOM, currently applying media/supports and normal cascade layers, imports,
-disabled sheets and stylesheet order, cached once per root for each capture.
-No winning rule in a fully readable, unambiguous scope records definite `none`
-(displayed as `(no @keyframes)`), so deleting a referenced rule or moving it into
-non-applying media is compared. Unreadable sheets or unsupported conditional scopes
-remain `unknown` unless a readable winner provably outranks them: an unlayered rule
-after all unreadable sheets, or a stronger known layer than an opaque import's layer.
-The comparison skips unknowns and names the
-limit. Shadow roots and frames remain untraversed. Host/slotted names that could
-refer to an untraversed root stay unknown, including every root in a re-slot chain.
-Unknown and definite absence have distinct references, even for the same name.
-A live browser animation with no readable winner also stays unknown (for example,
-a name from a closed root). No animation progress is recorded. Capture emulates
-`prefers-reduced-motion: reduce`: keyframes gated on `no-preference`, including
-Tailwind `motion-safe:`, record `none` in that environment. Changing only those
-gated bodies is not compared; this capture does not exercise normal-motion playback.
+stores each distinct computed body once, keyed by JSON `[name, SHA-256]`; property
+layers carry references under `animation keyframes (name)`. Different computed
+contexts can produce different hashes for the same name. `img currentSrc` is
+stored directly in the image's style layer. Reports expand references to bodies.
+
+For live CSS animations, bodies come from `CSSAnimation.effect.getKeyframes()`:
+engine offsets, easing, composition and computed properties, in engine order.
+The engine substitutes `var()` shorthands and resolves logical/physical declaration
+precedence. We do not merge or reorder same-offset timing groups. Property keys
+within each computed frame sort deterministically; equivalent standard easing
+keywords and cubic-bezier spellings normalise to one value. Pseudo animations are
+indexed once from the document's animation list by their originating element and
+`pseudoElement` (Chromium excludes them from `getAnimations({subtree:false})`).
+CSS animations are paused while reading their models; current time, progress and
+sampled rendered values are not stored.
+
+A read-only CDP matched-rule check verifies the engine's source against the CSSOM
+winner. The CSSOM name/layer index respects applying media/supports, normal cascade
+layers, imports, disabled sheets and stylesheet order, cached per root per capture.
+Provenance is refreshed for resting and forced reads on a separate session. Missing,
+unreadable, mismatched or unavailable evidence stays `unknown`, named **keyframes
+resolution ambiguous** in the report. CDP also verifies author shadow hosts,
+including closed roots. Any untraversed root in the element, assigned-slot or host
+scope chain stays unknown; an outer document body is never substituted for it.
+Shadow roots and frames remain untraversed by the element capture.
+
+Only no live animation plus no winning rule in a fully readable, verified,
+unambiguous scope records definite `none` (displayed as `(no @keyframes)`). This
+compares referenced rule deletion and non-applying media. A known CSSOM definition
+without a usable live model stays unknown. Empty or unusable engine frames,
+unrepresentable timeline ranges, and keyframes that animate custom properties
+whose complete model is unavailable also stay unknown. In particular, Chromium
+can omit animated custom-property declarations and expose progress-dependent
+substitutions; we do not guess those bodies. Unknown and none have distinct
+references even for the same name.
+
+Capture emulates `prefers-reduced-motion: reduce`: keyframes gated on
+`no-preference`, including Tailwind `motion-safe:`, record `none` in that
+environment. Changing only those gated bodies is not compared; this capture does
+not exercise normal-motion playback.
 
 Same-origin HTTP(S) sources become pathname + query + fragment, so different
 base/head hosts and ports do not create differences. External URLs keep their
@@ -1511,11 +1523,14 @@ without re-encoding retained parameters. Provider markers bound the removal:
   (S3 V2/CloudFront).
 - `sig` removes Azure SAS fields `sig`, `se`, `sp`, `sv`, `st`, `sr`, `ss`, `srt`,
   `si`, `skt`, `ske`, `skoid`, `sktid`, `sks`, `skv`, `sdd`, and `spr`.
-- `token`, `access_token`, and `AWSAccessKeyId` are always removed. An access-key
+- `token`, `access_token`, `AWSAccessKeyId`, Akamai `hdnts` and `__token__` are
+  always removed. Bunny `token` also marks `expires`/`exp` as rotating fields. An access-key
   field alone does not remove unsigned `Expires` or `Policy` fields.
 
 Unsigned parameters such as `?sp=1`, other parameters, and fragments retain
-identity. Data URIs become `data:sha256:<digest>`. Blob URLs are stored as the
+identity. GCS V2 `GoogleAccessId` and Google Maps `key=` remain stored as
+non-rotating source identities; changing either is a finding. An unsigned
+`expires`/`exp` change also retains identity. Data URIs become `data:sha256:<digest>`. Blob URLs are stored as the
 stable marker `(blob URL; not compared)` with a named **not compared (blob URL)**
 report limit: no per-run UUID or blob bytes are stored or compared. Empty
 lazy/unloaded sources remain empty in the map; either side empty skips that image

@@ -61,7 +61,7 @@ export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
       ].sort();
       for (const name of unknown)
         lines.push(
-          `- ${codeValue(surface)}: animation keyframes ${codeValue(name)} unknown; not compared (unreadable, missing or unsupported stylesheet scope).`,
+          `- ${codeValue(surface)}: animation keyframes ${codeValue(name)} unknown; not compared (keyframes resolution ambiguous: unreadable, untraversed or unavailable engine/source evidence).`,
         );
       for (const line of imageEvidenceLines(before, after, surface)) lines.push(line);
     }

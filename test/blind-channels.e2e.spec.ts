@@ -154,7 +154,11 @@ test('shadow-root keyframes cannot override document names; untraversed internal
   const before = await capture(page, markup('.1'));
   const after = await capture(page, markup('.2'));
   expect(props(before, after)).toEqual([]);
-  expect(Object.values(after.visualChannels!.keyframes).every((rule) => !rule.body?.includes('0.2'))).toBe(true);
+  expect(
+    Object.values(after.visualChannels!.keyframes).every(
+      (rule) => rule.status === 'known' && JSON.parse(rule.body!).at(-1).opacity === '1',
+    ),
+  ).toBe(true);
 });
 
 test('self-check rejects keyframe/currentSrc drift and missing evidence', async ({ page }) => {

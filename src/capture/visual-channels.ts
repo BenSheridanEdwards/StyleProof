@@ -1,7 +1,16 @@
+import type * as ChannelValues from './visual-channel-values.js';
 import type { Props } from './types.js';
 
 export type ChannelBody = { name: string; body?: string; status?: 'none' };
 export type VisualChannelWindow = {
+  __spChannelValues?: typeof ChannelValues;
+  __spChannelNodes?: Map<number, Element>;
+  __spChannelHosts?: WeakSet<Element>;
+  __spChannelScopesVerified?: boolean;
+  __spBeginChannelProof?: () => void;
+  __spChannelRequests?: () => { id: number; name: string; pseudo: string }[];
+  __spRecordChannelSource?: (name: string, text: string | undefined) => void;
+  __spFinishChannelProof?: (verified: boolean) => void;
   __spChannelBodies?: ChannelBody[];
   __spReadChannels?: (elements: Element[], pseudos: string[]) => Map<Element, Record<string, Props>>;
 };
@@ -11,7 +20,17 @@ export function installVisualChannels(enabled: boolean): void {
   const target = window as Window & VisualChannelWindow;
   delete target.__spReadChannels;
   delete target.__spChannelBodies;
-  if (!enabled) return;
+  delete target.__spBeginChannelProof;
+  delete target.__spChannelRequests;
+  delete target.__spRecordChannelSource;
+  delete target.__spFinishChannelProof;
+  delete target.__spChannelNodes;
+  delete target.__spChannelHosts;
+  delete target.__spChannelScopesVerified;
+  if (!enabled) {
+    delete target.__spChannelValues;
+    return;
+  }
   const bodies: ChannelBody[] = [];
   const ids = new Map<string, string>();
   target.__spChannelBodies = bodies;
@@ -25,34 +44,21 @@ export function installVisualChannels(enabled: boolean): void {
     }
     return id;
   };
-  const percentage = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/i;
-  const offsetOf = (text: string): string => {
-    const value = text.trim();
-    if (value === 'from') return '0%';
-    if (value === 'to') return '100%';
-    return percentage.test(value) ? `${Number(value.slice(0, -1))}%` : value;
-  };
-  const offsetOrder = (a: string, b: string): number => {
-    const plainA = percentage.test(a),
-      plainB = percentage.test(b);
-    if (plainA && plainB) return Number.parseFloat(a) - Number.parseFloat(b);
-    if (plainA !== plainB) return plainA ? -1 : 1;
-    return a < b ? -1 : a > b ? 1 : 0;
-  };
-  type Frame = { offset: string; parts: string[] };
-  const mergeFrame = (frames: Map<string, Frame>, frame: CSSKeyframeRule): void => {
-    const text = frame.style.cssText;
-    for (const offset of frame.keyText.split(',').map(offsetOf)) {
-      const key = JSON.stringify([
-        offset,
-        frame.style.getPropertyValue('animation-timing-function'),
-        frame.style.getPropertyValue('animation-composition'),
-      ]);
-      let merged = frames.get(key);
-      if (!merged) frames.set(key, (merged = { offset, parts: [] }));
-      // Pending var() shorthands expose empty longhands. CSS text preserves them while applying the cascade.
-      merged.parts.push(text);
+  const values = target.__spChannelValues;
+  if (!values) throw new Error('styleproof: visual channel values are unavailable');
+  const fingerprints = new WeakMap<CSSKeyframesRule, string>();
+  const sourceFingerprint = (rule: CSSKeyframesRule): string => {
+    let text = fingerprints.get(rule);
+    if (text === undefined) {
+      text = JSON.stringify(
+        Array.from(rule.cssRules).map((frame) => {
+          const keyframe = frame as CSSKeyframeRule;
+          return [keyframe.keyText, keyframe.style.cssText];
+        }),
+      );
+      fingerprints.set(rule, text);
     }
+    return text;
   };
   // Split CSSOM text without splitting quoted/escaped content or function arguments.
   const splitTokens = (text: string, separator: string): string[] => {
@@ -79,29 +85,14 @@ export function installVisualChannels(enabled: boolean): void {
     tokens.push(text.slice(start));
     return tokens;
   };
-  const declarationText = (style: CSSStyleDeclaration): string =>
-    splitTokens(style.cssText, ';')
-      .map((declaration) => declaration.trim())
-      .filter(Boolean)
-      .sort()
-      .map((declaration) => `${declaration};`)
-      .join(' ');
-  const canonicalBody = (rule: CSSKeyframesRule): string => {
-    const frames = new Map<string, Frame>();
-    for (const child of Array.from(rule.cssRules)) mergeFrame(frames, child as CSSKeyframeRule);
-    return [...frames.values()]
-      .sort((a, b) => offsetOrder(a.offset, b.offset))
-      .map((frame) => {
-        const declarations = document.createElement('span').style;
-        declarations.cssText = frame.parts.join(' ');
-        return `${frame.offset} { ${declarationText(declarations)} }`;
-      })
-      .join(' ');
-  };
-
-  type Winner = { id: string; layer: number[]; order: number };
+  type Winner = { rule: CSSKeyframesRule; layer: number[]; order: number };
   type Opaque = { layer: number[]; order: number; names?: Set<string> };
-  type Rules = { winners: Map<string, Winner>; opaque: Opaque[] };
+  type Rules = {
+    winners: Map<string, Winner>;
+    opaque: Opaque[];
+    candidates: Map<string, CSSKeyframesRule[]>;
+    collisions: Map<string, boolean>;
+  };
   // Normal cascade layers: later siblings win, and a parent's unlayered rules win over its children.
   const wins = (next: number[], previous: number[]): boolean => {
     for (let index = 0; index < Math.max(next.length, previous.length); index++) {
@@ -112,7 +103,7 @@ export function installVisualChannels(enabled: boolean): void {
     return true;
   };
   const rulesFor = (root: Document | ShadowRoot): Rules => {
-    const result: Rules = { winners: new Map(), opaque: [] };
+    const result: Rules = { winners: new Map(), opaque: [], candidates: new Map(), collisions: new Map() };
     const layers = new Map<string, Map<string, number>>();
     const visiting = new Set<CSSStyleSheet>();
     let anonymous = 0;
@@ -168,11 +159,13 @@ export function installVisualChannels(enabled: boolean): void {
       sheet(rule.styleSheet, next);
     };
     const recordKeyframes = (rule: CSSKeyframesRule, path: string[]): void => {
+      const candidates = result.candidates.get(rule.name) ?? [];
+      candidates.push(rule);
+      result.candidates.set(rule.name, candidates);
       const layer = rank(path);
       const position = order++;
       const previous = result.winners.get(rule.name);
-      if (!previous || wins(layer, previous.layer))
-        result.winners.set(rule.name, { id: reference(rule.name, canonicalBody(rule)), layer, order: position });
+      if (!previous || wins(layer, previous.layer)) result.winners.set(rule.name, { rule, layer, order: position });
     };
     const visitRule = (rule: CSSRule, path: string[]): void => {
       if (rule instanceof CSSKeyframesRule) return recordKeyframes(rule, path);
@@ -260,47 +253,155 @@ export function installVisualChannels(enabled: boolean): void {
       const unquoted = /^("|').*\1$/.test(value) ? value.slice(1, -1) : value;
       return [unquoted.replace(/\\([0-9a-f]{1,6})\s?|\\([^\r\n])/gi, escapeCharacter)];
     });
-  const imageSource = (element: HTMLImageElement): string => {
-    const source = element.currentSrc;
-    if (!source) return element.complete ? '(no source)' : '';
-    const url = new URL(source, document.baseURI);
-    if (url.protocol === 'blob:') return '(blob URL; not compared)';
-    if (!/^https?:$/.test(url.protocol)) return source;
-    const query = url.search.slice(1).split('&');
-    const names = query.map((part) => (new URLSearchParams('?' + part).keys().next().value ?? '').toLowerCase());
-    const has = (name: string): boolean => names.includes(name);
-    const aws = has('x-amz-signature') || has('x-amz-credential');
-    const google = has('x-goog-signature') || has('x-goog-credential');
-    const signed = has('signature') || has('key-pair-id');
-    const sas = has('sig');
-    const retained = query.filter((_, index) => {
-      const name = names[index];
-      if (name === 'token' || name === 'access_token' || name === 'awsaccesskeyid') return false;
-      if (aws && name.startsWith('x-amz-')) return false;
-      if (google && name.startsWith('x-goog-')) return false;
-      if (signed && /^(?:signature|key-pair-id|expires|policy)$/.test(name)) return false;
-      return !(sas && /^(?:sig|se|sp|sv|st|sr|ss|srt|si|skt|ske|skoid|sktid|sks|skv|sdd|spr)$/.test(name));
-    });
-    // Keep the original spelling/order of every non-credential field; URLSearchParams.delete re-encodes it.
-    if (retained.length !== query.length) url.search = retained.join('&');
-    return url.origin === location.origin ? `${url.pathname}${url.search}${url.hash}` : url.href;
-  };
-  const layerProperties = (element: Element, pseudo: string, rules: Rules, scopes: Rules[]): Props => {
-    const values: Props = {};
-    if (!pseudo && element instanceof HTMLImageElement) values['img currentSrc'] = imageSource(element);
-    for (const name of namesOf(getComputedStyle(element, pseudo || null).animationName)) {
-      const winner = rules.winners.get(name);
-      // A live name absent from readable rules may come from a closed root or a later stylesheet mutation.
-      const unknown =
-        (!winner &&
-          element
-            .getAnimations()
-            .some((animation) => animation instanceof CSSAnimation && animation.animationName === name)) ||
-        ambiguous(rules, name) ||
-        scopes.some((scope) => scope.winners.has(name) || scope.opaque.some((item) => couldContain(item, name)));
-      values[`animation keyframes (${name})`] = unknown ? reference(name) : (winner?.id ?? reference(name, null));
+  const completeModels = new WeakMap<CSSKeyframesRule, boolean>();
+  const modelComplete = (rule: CSSKeyframesRule): boolean => {
+    let complete = completeModels.get(rule);
+    if (complete === undefined) {
+      complete = !Array.from(rule.cssRules).some((frame) =>
+        Array.from((frame as CSSKeyframeRule).style).some((property) => property.startsWith('--')),
+      );
+      completeModels.set(rule, complete);
     }
-    return values;
+    return complete;
+  };
+  const sources = new Map<string, string | undefined>();
+  let restoreFreeze: (() => void) | undefined;
+  const untraversed = (element: Element): boolean => {
+    const pending = [element];
+    const seen = new Set<Element>();
+    while (pending.length) {
+      const node = pending.pop()!;
+      if (seen.has(node)) continue;
+      seen.add(node);
+      if (node.getRootNode() instanceof ShadowRoot || node.shadowRoot || target.__spChannelHosts?.has(node))
+        return true;
+      if (node.assignedSlot) pending.push(node.assignedSlot);
+      if (node.parentElement) pending.push(node.parentElement);
+    }
+    return false;
+  };
+  target.__spBeginChannelProof = () => {
+    sources.clear();
+    target.__spChannelNodes = new Map();
+    target.__spChannelHosts = new WeakSet();
+    target.__spChannelScopesVerified = false;
+    const freeze = (window as Window & { __spFreeze?: CSSStyleSheet }).__spFreeze;
+    const disabled = freeze?.disabled;
+    if (freeze) freeze.disabled = true;
+    restoreFreeze = () => {
+      if (freeze) freeze.disabled = disabled!;
+    };
+  };
+  target.__spChannelRequests = () => {
+    const requests = new Map<string, { id: number; name: string; pseudo: string }>();
+    for (const animation of document.getAnimations()) {
+      if (animation instanceof CSSAnimation) animation.pause();
+      if (!(animation instanceof CSSAnimation) || !(animation.effect instanceof KeyframeEffect)) continue;
+      const element = animation.effect.target;
+      if (!(element instanceof Element) || element.getRootNode() !== document || untraversed(element)) continue;
+      const pseudo = animation.effect.pseudoElement ?? '';
+      if (requests.has(animation.animationName) && pseudo) continue;
+      const id = target.__spChannelNodes!.size;
+      target.__spChannelNodes!.set(id, element);
+      requests.set(animation.animationName, { id, name: animation.animationName, pseudo });
+    }
+    return [...requests.values()];
+  };
+  target.__spRecordChannelSource = (name, text) => {
+    if (text === undefined) return;
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(text);
+      const rule = sheet.cssRules[0];
+      if (rule instanceof CSSKeyframesRule) sources.set(name, sourceFingerprint(rule));
+    } catch {
+      sources.delete(name);
+    }
+  };
+  target.__spFinishChannelProof = (verified) => {
+    target.__spChannelScopesVerified = verified;
+    target.__spChannelNodes?.clear();
+    restoreFreeze?.();
+    restoreFreeze = undefined;
+  };
+  const collides = (rules: Rules, name: string, winner: Winner): boolean => {
+    let collision = rules.collisions.get(name);
+    if (collision === undefined) {
+      const expected = sourceFingerprint(winner.rule);
+      collision = (rules.candidates.get(name) ?? []).some(
+        (rule) => rule !== winner.rule && sourceFingerprint(rule) === expected,
+      );
+      rules.collisions.set(name, collision);
+    }
+    return collision;
+  };
+  type PseudoAnimations = WeakMap<Element, Map<string, CSSAnimation[]>>;
+  const engineBody = (animations: CSSAnimation[] | undefined): string | undefined => {
+    if (!animations?.length) return undefined;
+    const bodies: string[] = [];
+    try {
+      for (const animation of animations) {
+        const body = values.canonicalEngineKeyframes((animation.effect as KeyframeEffect).getKeyframes());
+        if (body === undefined) return undefined;
+        bodies.push(body);
+      }
+    } catch {
+      return undefined;
+    }
+    return bodies.length === 1 ? bodies[0] : '[' + bodies.join(',') + ']';
+  };
+  const liveAnimations = (
+    element: Element,
+    pseudo: string,
+    index: PseudoAnimations | undefined,
+  ): CSSAnimation[] | undefined => {
+    if (pseudo) return index?.get(element)?.get(pseudo) ?? (index ? [] : undefined);
+    try {
+      return element
+        .getAnimations({ subtree: false })
+        .filter(
+          (animation): animation is CSSAnimation =>
+            animation instanceof CSSAnimation &&
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect.target === element &&
+            !animation.effect.pseudoElement,
+        );
+    } catch {
+      return undefined;
+    }
+  };
+  const layerProperties = (
+    element: Element,
+    pseudo: string,
+    rules: Rules,
+    pseudoAnimations: WeakMap<Element, Map<string, CSSAnimation[]>> | undefined,
+  ): Props => {
+    const properties: Props = {};
+    if (!pseudo && element instanceof HTMLImageElement)
+      properties['img currentSrc'] = values.normalizeImageSource(
+        element.currentSrc,
+        location.origin,
+        document.baseURI,
+        element.complete,
+      );
+    const names = new Set(namesOf(getComputedStyle(element, pseudo || null).animationName));
+    if (!names.size) return properties;
+    const animations = liveAnimations(element, pseudo, pseudoAnimations);
+    for (const name of names) {
+      const winner = rules.winners.get(name);
+      const live = animations?.filter((animation) => animation.animationName === name);
+      const resolved = values.resolveEngineBody({
+        body: engineBody(live),
+        hasLive: animations === undefined || !!live?.length,
+        expected: winner ? sourceFingerprint(winner.rule) : undefined,
+        matched: sources.get(name),
+        ambiguous: untraversed(element) || ambiguous(rules, name) || (!!winner && collides(rules, name, winner)),
+        verified: target.__spChannelScopesVerified === true,
+        complete: !winner || modelComplete(winner.rule),
+      });
+      properties[`animation keyframes (${name})`] = reference(name, resolved);
+    }
+    return properties;
   };
   target.__spReadChannels = (elements, pseudos) => {
     const output = new Map<Element, Record<string, Props>>();
@@ -309,20 +410,37 @@ export function installVisualChannels(enabled: boolean): void {
     // Read only names while unfrozen, then restore before any used styles/geometry are read.
     if (freeze) freeze.disabled = true;
     try {
+      // Chromium excludes pseudo animations from Element.getAnimations({subtree:false}).
+      // Index one flat engine read by the originating element, avoiding subtree scans per pseudo.
+      let pseudoAnimations: WeakMap<Element, Map<string, CSSAnimation[]>> | undefined = new WeakMap();
+      try {
+        for (const animation of document.getAnimations()) {
+          if (animation instanceof CSSAnimation) animation.pause();
+          if (
+            !(animation instanceof CSSAnimation) ||
+            !(animation.effect instanceof KeyframeEffect) ||
+            !animation.effect.pseudoElement
+          )
+            continue;
+          const element = animation.effect.target;
+          if (!(element instanceof Element)) continue;
+          const byPseudo = pseudoAnimations.get(element) ?? new Map<string, CSSAnimation[]>();
+          const pseudo = animation.effect.pseudoElement;
+          const animations = byPseudo.get(pseudo) ?? [];
+          animations.push(animation);
+          byPseudo.set(pseudo, animations);
+          pseudoAnimations.set(element, byPseudo);
+        }
+      } catch {
+        pseudoAnimations = undefined;
+      }
       for (const element of elements) {
         const root = element.getRootNode() as Document | ShadowRoot;
-        // Hosts/slotted nodes can reference tree-scoped names; stylesheet provenance is not captured.
-        const scopes: Rules[] = [];
-        if (element.shadowRoot) scopes.push(rootRules(element.shadowRoot));
-        for (let slot = element.assignedSlot; slot; slot = slot.assignedSlot) {
-          const slotRoot = slot.getRootNode();
-          if (slotRoot instanceof ShadowRoot) scopes.push(rootRules(slotRoot));
-        }
         const rules = rootRules(root);
         output.set(
           element,
           Object.fromEntries(
-            ['', ...pseudos].map((pseudo) => [pseudo, layerProperties(element, pseudo, rules, scopes)]),
+            ['', ...pseudos].map((pseudo) => [pseudo, layerProperties(element, pseudo, rules, pseudoAnimations)]),
           ),
         );
       }

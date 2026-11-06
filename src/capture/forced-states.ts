@@ -1,5 +1,6 @@
 // Forced interactive and form pseudo-classes via CDP: no real mouse or focus is involved, and
 // parent-state descendant rules still apply.
+import { prepareVisualChannelSources } from './visual-channel-proof.js';
 import { captureExpression } from './script-evaluation.js';
 import type { CDPSession, Page } from '@playwright/test';
 import filesystem from 'node:fs';
@@ -178,7 +179,10 @@ async function snapStateScopeInSession(
   args: StateScopeArgs,
   snapshotKey: string,
   settleSelector?: string,
+  visualChannels = false,
+  page?: Page,
 ): Promise<SessionScopeResult> {
+  if (visualChannels && page) await prepareVisualChannelSources(page);
   const snapshot = `window[${codeLiteral(snapshotKey)}](${codeLiteral(args)})`;
   // Keep force -> liveness -> style flush -> snapshot on the same CDP session.
   // Also settle the preceding target's reset before reading this target.
@@ -226,6 +230,8 @@ type ForcedStateCaptureContext = {
   /** Elements each read compares; `'document'` unless `forcedStateScope: 'stylesheet'` proved a narrower one. */
   readScope: ForcedStateReadScope;
   sharedBaseline: boolean;
+  visualChannels: boolean;
+  page: Page;
   restingCounts?: number[];
   warnings: string[];
   pendingSettle?: PendingSettle;
@@ -257,7 +263,14 @@ function scopeArgs(context: ForcedStateCaptureContext, selector: string, saveBas
 async function readScope(context: ForcedStateCaptureContext, args: StateScopeArgs): Promise<SessionScopeResult> {
   const pending = context.pendingSettle;
   context.pendingSettle = undefined;
-  const read = await snapStateScopeInSession(context.session.client, args, context.snapshotKey, pending?.selector);
+  const read = await snapStateScopeInSession(
+    context.session.client,
+    args,
+    context.snapshotKey,
+    pending?.selector,
+    context.visualChannels,
+    context.page,
+  );
 
   if (pending) commitSettle(context, pending, read.settled === true);
   context.scanWorkRemaining -= read.scanned;
@@ -611,6 +624,7 @@ async function sessionBaseline(
   check = false,
   formSweep = false,
 ): Promise<boolean | number[]> {
+  if (context.visualChannels) await prepareVisualChannelSources(context.page);
   const args: StateScopeArgs = {
     ...scopeArgs(context, targets.map(({ id }) => `[${STATE_ID_ATTR}="${id}"]`).join(','), true),
     maxElements: formSweep ? context.limits.maxFormStateScanWork : context.limits.maxForcedStateScanWork,
@@ -662,6 +676,7 @@ export async function captureForcedStates(
   maxInteractive: number,
   limits: Required<ForcedStateLimits>,
   skipPaths: string[] = [],
+  visualChannels = false,
 ): Promise<{
   states: StyleMap['states'];
   stateLayers: string[];
@@ -701,6 +716,8 @@ export async function captureForcedStates(
         limits,
         readScope: readScopes.legacy,
         sharedBaseline: false,
+        visualChannels,
+        page,
         warnings: [],
         pendingSettle: undefined,
       };
@@ -745,6 +762,8 @@ export async function captureForcedStates(
           // the original per-target baselines, with the original budget and target order.
           Object.assign(context, {
             sharedBaseline: false,
+            visualChannels,
+            page,
             restingCounts: undefined,
             states: {},
             stateComputedValueStyle: {},

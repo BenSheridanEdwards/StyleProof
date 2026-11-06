@@ -143,3 +143,77 @@ for (const [label, a, b, equal] of [
     assert.doesNotMatch(before + after, /first|second|hmac/);
   });
 }
+
+test('an incomplete animated-custom-property model is unknown, not a guessed computed body', () => {
+  assert.equal(
+    resolveEngineBody({
+      body: 'frames',
+      hasLive: true,
+      expected: 'source',
+      matched: 'source',
+      verified: true,
+      ambiguous: false,
+      complete: false,
+    }),
+    undefined,
+  );
+});
+
+test('T1 swapped timing and C1 composition remain observable engine differences', () => {
+  const opacity = frame({ opacity: '1' }, 'steps(1)', 0.5);
+  const transform = frame({ transform: 'translateX(30px)' }, 'ease-in', 0.5);
+  assert.notEqual(
+    canonicalEngineKeyframes([opacity, transform]),
+    canonicalEngineKeyframes([
+      { ...opacity, easing: 'ease-in' },
+      { ...transform, easing: 'steps(1)' },
+    ]),
+  );
+  assert.notEqual(
+    canonicalEngineKeyframes([frame({ transform: 'translateX(5px)' }, 'linear', 1, 'add')]),
+    canonicalEngineKeyframes([frame({ transform: 'translateX(5px)' }, 'linear', 1, 'replace')]),
+  );
+});
+test('Q1 string contents remain intact while computed property keys sort', () => {
+  const a = canonicalEngineKeyframes([frame({ fontFamily: '"a;b}c", serif', opacity: '.5' })]);
+  const b = canonicalEngineKeyframes([frame({ opacity: '.5', fontFamily: '"a;b}c", serif' })]);
+  assert.equal(a, b);
+  assert.equal(JSON.parse(a)[0].fontFamily, '"a;b}c", serif');
+});
+test('a verified document winner remains known outside shadow scope chains', () => {
+  const body = canonicalEngineKeyframes([frame({ opacity: '.1' })]);
+  assert.equal(
+    resolveEngineBody({
+      body,
+      hasLive: true,
+      expected: 'document',
+      matched: 'document',
+      verified: true,
+      ambiguous: false,
+    }),
+    body,
+  );
+});
+for (const scope of ['S9 adopted doc change', 'S10 adopted body change', 'three-level mixed chain'])
+  test(scope, () => {
+    assert.equal(
+      resolveEngineBody({
+        body: 'engine',
+        hasLive: true,
+        expected: 'document',
+        matched: 'shadow',
+        verified: true,
+        ambiguous: true,
+      }),
+      undefined,
+    );
+  });
+test('non-rotating Google identifiers remain source identity', () => {
+  const source = normalizeImageSource(
+    'http://fixture.test/a.png?GoogleAccessId=public&key=public',
+    'http://fixture.test',
+    'http://fixture.test/',
+    true,
+  );
+  assert.equal(source, '/a.png?GoogleAccessId=public&key=public');
+});

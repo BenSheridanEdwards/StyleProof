@@ -1,13 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { captureStyleMap, diffStyleMaps, generateStyleMapReport } from '../dist/index.js';
+import { installVisualChannelValues } from '../dist/capture/visual-channel-proof.js';
 import { installVisualChannels, type VisualChannelWindow } from '../dist/capture/visual-channels.js';
 import { assertDeterministicVisualChannels } from '../dist/visual-channels.js';
 import { pairFixture, rmTmp } from './helpers.mjs';
 
 const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
 const markup = (body: string) =>
-  `<!doctype html><style>@keyframes pulse{${body}}.target{animation:pulse 10s infinite;width:10px;height:10px}</style><div class="target"></div>`;
+  `<!doctype html><style>:root{--a:0px 0px;--b:40px 40px}@keyframes pulse{${body}}.target{animation:pulse 10s infinite;width:10px;height:10px}</style><div class="target"></div>`;
 async function capture(page: Page, html: string) {
   await page.setContent(html);
   return captureStyleMap(page, options);
@@ -239,11 +240,20 @@ for (const shadowFirst of [false, true]) {
   });
 }
 
-test('duplicate-offset merge applies CSS text once per group with linear input work', async ({ page }) => {
-  await page.setContent(markup(Array.from({ length: 1000 }, (_, index) => `100%{--p-${index}:${index}}`).join('')));
+test('engine keyframes need no cumulative CSS declaration rewriting', async ({ page }) => {
+  await page.setContent(
+    markup(Array.from({ length: 1000 }, (_, index) => `100%{--p-${index}:${index};opacity:.5}`).join('')),
+  );
+  await installVisualChannelValues(page);
   await page.evaluate(installVisualChannels, true);
   const work = await page.evaluate(() => {
     const descriptor = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, 'cssText')!;
+    const originalFrames = KeyframeEffect.prototype.getKeyframes;
+    let reads = 0;
+    KeyframeEffect.prototype.getKeyframes = function () {
+      reads++;
+      return originalFrames.call(this);
+    };
     let writes = 0;
     let characters = 0;
     Object.defineProperty(CSSStyleDeclaration.prototype, 'cssText', {
@@ -256,13 +266,15 @@ test('duplicate-offset merge applies CSS text once per group with linear input w
     });
     try {
       (window as Window & VisualChannelWindow).__spReadChannels!([document.querySelector('.target')!], []);
-      return { writes, characters };
+      return { writes, characters, reads };
     } finally {
       Object.defineProperty(CSSStyleDeclaration.prototype, 'cssText', descriptor);
+      KeyframeEffect.prototype.getKeyframes = originalFrames;
     }
   });
-  expect(work.writes).toBe(1);
-  expect(work.characters).toBeLessThan(20000);
+  expect(work.writes).toBe(0);
+  expect(work.characters).toBe(0);
+  expect(work.reads).toBe(1);
 });
 
 test('an access-key field alone is redacted without hiding unsigned Expires or Policy identity', async ({ page }) => {
