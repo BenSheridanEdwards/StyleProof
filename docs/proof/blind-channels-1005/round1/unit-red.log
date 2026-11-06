@@ -1,0 +1,149 @@
+✖ both sides opted out produce no visual-channel evidence block (7.233416ms)
+✖ one-sided channel marker names the limit and leaves the following warning a separate paragraph (2.637583ms)
+✖ unloaded sources are skipped on either side, including empty against empty, with a named limit (0.424916ms)
+✖ proved keyframes absence is a normal compared change; unreadable stays unknown (0.169583ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 112.772333
+
+✖ failing tests:
+
+test at test/blind-channels-round1.test.mjs:24:1
+✖ both sides opted out produce no visual-channel evidence block (7.233416ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /Visual channel evidence|map predates/. Input:
+  
+  '## 🗺️ StyleProof report\n' +
+    '\n' +
+    '⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.\n' +
+    '\n' +
+    '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.\n' +
+    '\n' +
+    '<details>\n' +
+    '<summary>Evidence (warnings & failures)</summary>\n' +
+    '\n' +
+    '**Visual channel evidence limits and recommendations**\n' +
+    '\n' +
+    '- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on 1 paired capture(s); recapture both sides with `captureVisualChannels: true`.\n' +
+    '⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.\n' +
+    '\n' +
+    '</details>\n'
+  
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:26:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '## 🗺️ StyleProof report\n\n⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.\n\n✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.\n\n<details>\n<summary>Evidence (warnings & failures)</summary>\n\n**Visual channel evidence limits and recommendations**\n\n- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on 1 paired capture(s); recapture both sides with `captureVisualChannels: true`.\n⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.\n\n</details>\n',
+    expected: /Visual channel evidence|map predates/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round1.test.mjs:29:1
+✖ one-sided channel marker names the limit and leaves the following warning a separate paragraph (2.637583ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /recapture both sides[^\n]+\n\n⚠️/. Input:
+  
+  '## 🗺️ StyleProof report\n' +
+    '\n' +
+    '⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.\n' +
+    '\n' +
+    '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.\n' +
+    '\n' +
+    '<details>\n' +
+    '<summary>Evidence (warnings & failures)</summary>\n' +
+    '\n' +
+    '**Visual channel evidence limits and recommendations**\n' +
+    '\n' +
+    '- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on 1 paired capture(s); recapture both sides with `captureVisualChannels: true`.\n' +
+    '⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.\n' +
+    '\n' +
+    '</details>\n'
+  
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:37:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '## 🗺️ StyleProof report\n\n⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.\n\n✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.\n\n<details>\n<summary>Evidence (warnings & failures)</summary>\n\n**Visual channel evidence limits and recommendations**\n\n- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on 1 paired capture(s); recapture both sides with `captureVisualChannels: true`.\n⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.\n\n</details>\n',
+    expected: /recapture both sides[^\n]+\n\n⚠️/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round1.test.mjs:41:1
+✖ unloaded sources are skipped on either side, including empty against empty, with a named limit (0.424916ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   {
+  +     cls: 'asset',
+  +     contentLengthSignal: 'unknown',
+  +     kind: 'style',
+  +     path: 'image',
+  +     props: [
+  +       {
+  +         after: '/a.png',
+  +         before: '',
+  +         prop: 'img currentSrc'
+  +       }
+  +     ],
+  +     pseudo: null
+  +   }
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:47:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { kind: 'style', path: 'image', cls: 'asset', pseudo: null, props: [Array], contentLengthSignal: 'unknown' } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round1.test.mjs:52:1
+✖ proved keyframes absence is a normal compared change; unreadable stays unknown (0.169583ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + undefined
+  - [
+  -   {
+  -     after: '(no @keyframes)',
+  -     before: '100% { opacity: 1; }',
+  -     prop: 'animation keyframes (pulse)'
+  -   }
+  - ]
+  
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:61:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: [ { prop: 'animation keyframes (pulse)', before: '100% { opacity: 1; }', after: '(no @keyframes)' } ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
