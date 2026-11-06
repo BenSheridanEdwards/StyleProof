@@ -1,0 +1,30 @@
+Already up to date
+Done in 54ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:86316) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/class-join-round9.e2e.spec.ts:10:1 › real Git/Chromium compact type alias cannot lower the red-to-blue J2 range (859ms)
+
+
+  1) [chromium] › test/class-join-round9.e2e.spec.ts:10:1 › real Git/Chromium compact type alias cannot lower the red-to-blue J2 range
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      71 |     expect(head.length).toBeGreaterThan(0);
+      72 |     fs.writeFileSync(path.join(root, 'reach.json'), JSON.stringify(report, null, 2));
+    > 73 |     expect(head.every((u) => u.status !== 'never-rendered')).toBe(true);
+         |                                                              ^
+      74 |     expect(report.classes.every((u) => !u.explicit)).toBe(true);
+      75 |   } finally {
+      76 |     process.chdir(previous);
+        at <worktree>/test/class-join-round9.e2e.spec.ts:73:62
+
+    Error Context: test-results/test-class-join-round9.e2e-76349-er-the-red-to-blue-J2-range-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/class-join-round9.e2e.spec.ts:10:1 › real Git/Chromium compact type alias cannot lower the red-to-blue J2 range

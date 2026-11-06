@@ -104,7 +104,7 @@ misses; the historical round-eight totals below remain unchanged.
 
 Total type positives: 0 / 656,464. Runtime misses: 2,859 / 200,629; no throws.
 These are finite sample results, not a claim of full language coverage. The
-round-seven implementation-base seed-one type sample also has zero positives; the separately pinned
+round-eight implementation base fa8f46a8c has zero positives in its seed-one type sample; the separately pinned
 nested TSX extends defect is reproduced by its regression and fixed.
 
 The in-repo dev-only copy is formatted and removes one unused generator parameter
