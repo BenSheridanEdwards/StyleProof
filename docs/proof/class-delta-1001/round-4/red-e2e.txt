@@ -32,7 +32,7 @@ Running 9 tests using 1 worker
   ✘  9 [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ['TOKEN'].includes(state) ? 'tab tab-on' : 'tab' (191ms)
 
 
-  1) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head rendered child 
+  1) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head rendered child
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -46,11 +46,11 @@ Running 9 tests using 1 worker
       35 |     expect(
       36 |       maps.every(
       37 |         (m) => (m.classPresence?.outsideBody ?? 0) > 0 || Object.values(m.elements).some((e) => e.cls === 'clock'),
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:34:63
+        at test/class-join-round4.e2e.spec.ts:34:63
 
     Error Context: test-results/test-class-join-round4.e2e-2aba3-absence-head-rendered-child-chromium/error-context.md
 
-  2) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head hidden child 
+  2) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head hidden child
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -64,11 +64,11 @@ Running 9 tests using 1 worker
       35 |     expect(
       36 |       maps.every(
       37 |         (m) => (m.classPresence?.outsideBody ?? 0) > 0 || Object.values(m.elements).some((e) => e.cls === 'clock'),
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:34:63
+        at test/class-join-round4.e2e.spec.ts:34:63
 
     Error Context: test-results/test-class-join-round4.e2e-bbfce-e-absence-head-hidden-child-chromium/error-context.md
 
-  3) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head visible framework node 
+  3) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head visible framework node
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -82,11 +82,11 @@ Running 9 tests using 1 worker
       35 |     expect(
       36 |       maps.every(
       37 |         (m) => (m.classPresence?.outsideBody ?? 0) > 0 || Object.values(m.elements).some((e) => e.cls === 'clock'),
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:34:63
+        at test/class-join-round4.e2e.spec.ts:34:63
 
     Error Context: test-results/test-class-join-round4.e2e-0f26a-head-visible-framework-node-chromium/error-context.md
 
-  4) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route tag light child 
+  4) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route tag light child
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -100,11 +100,11 @@ Running 9 tests using 1 worker
       35 |     expect(
       36 |       maps.every(
       37 |         (m) => (m.classPresence?.outsideBody ?? 0) > 0 || Object.values(m.elements).some((e) => e.cls === 'clock'),
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:34:63
+        at test/class-join-round4.e2e.spec.ts:34:63
 
     Error Context: test-results/test-class-join-round4.e2e-7a9c4-sence-route-tag-light-child-chromium/error-context.md
 
-  5) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route id light child 
+  5) [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route id light child
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -118,11 +118,11 @@ Running 9 tests using 1 worker
       35 |     expect(
       36 |       maps.every(
       37 |         (m) => (m.classPresence?.outsideBody ?? 0) > 0 || Object.values(m.elements).some((e) => e.cls === 'clock'),
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:34:63
+        at test/class-join-round4.e2e.spec.ts:34:63
 
     Error Context: test-results/test-class-join-round4.e2e-29256-bsence-route-id-light-child-chromium/error-context.md
 
-  6) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: clsx('tab', state === 'TOKEN' && 'tab-on') 
+  6) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: clsx('tab', state === 'TOKEN' && 'tab-on')
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -136,11 +136,11 @@ Running 9 tests using 1 worker
       64 |     const j2 = changes.map(({ sourceKey, side, range }) => ({
       65 |       sourceKey,
       66 |       side,
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:63:52
+        at test/class-join-round4.e2e.spec.ts:63:52
 
     Error Context: test-results/test-class-join-round4.e2e-63ba8-lsx-tab-state-TOKEN-tab-on--chromium/error-context.md
 
-  7) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: state === 'TOKEN' ? 'tab tab-on' : 'tab' 
+  7) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: state === 'TOKEN' ? 'tab tab-on' : 'tab'
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -154,11 +154,11 @@ Running 9 tests using 1 worker
       64 |     const j2 = changes.map(({ sourceKey, side, range }) => ({
       65 |       sourceKey,
       66 |       side,
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:63:52
+        at test/class-join-round4.e2e.spec.ts:63:52
 
     Error Context: test-results/test-class-join-round4.e2e-9b238-state-TOKEN-tab-tab-on-tab--chromium/error-context.md
 
-  8) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ({ TOKEN: 'tab tab-on' })[size] 
+  8) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ({ TOKEN: 'tab tab-on' })[size]
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -172,11 +172,11 @@ Running 9 tests using 1 worker
       64 |     const j2 = changes.map(({ sourceKey, side, range }) => ({
       65 |       sourceKey,
       66 |       side,
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:63:52
+        at test/class-join-round4.e2e.spec.ts:63:52
 
     Error Context: test-results/test-class-join-round4.e2e-5e680-r-J2-TOKEN-tab-tab-on-size--chromium/error-context.md
 
-  9) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ['TOKEN'].includes(state) ? 'tab tab-on' : 'tab' 
+  9) [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ['TOKEN'].includes(state) ? 'tab tab-on' : 'tab'
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -190,17 +190,17 @@ Running 9 tests using 1 worker
       64 |     const j2 = changes.map(({ sourceKey, side, range }) => ({
       65 |       sourceKey,
       66 |       side,
-        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:63:52
+        at test/class-join-round4.e2e.spec.ts:63:52
 
     Error Context: test-results/test-class-join-round4.e2e-8f8d3-ludes-state-tab-tab-on-tab--chromium/error-context.md
 
   9 failed
-    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head rendered child 
-    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head hidden child 
-    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head visible framework node 
-    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route tag light child 
-    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route id light child 
-    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: clsx('tab', state === 'TOKEN' && 'tab-on') 
-    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: state === 'TOKEN' ? 'tab tab-on' : 'tab' 
-    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ({ TOKEN: 'tab tab-on' })[size] 
-    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ['TOKEN'].includes(state) ? 'tab tab-on' : 'tab' 
+    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head rendered child
+    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head hidden child
+    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: head visible framework node
+    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route tag light child
+    [chromium] › test/class-join-round4.e2e.spec.ts:22:3 › real capture cannot prove absence: route id light child
+    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: clsx('tab', state === 'TOKEN' && 'tab-on')
+    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: state === 'TOKEN' ? 'tab tab-on' : 'tab'
+    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ({ TOKEN: 'tab tab-on' })[size]
+    [chromium] › test/class-join-round4.e2e.spec.ts:48:3 › real capture predicates cannot lower J2: ['TOKEN'].includes(state) ? 'tab tab-on' : 'tab'

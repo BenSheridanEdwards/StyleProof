@@ -202,7 +202,8 @@ function delimiter(char: string, cursor: number, scan: Scan): void {
     openFrame(char, cursor, scan);
   } else if (')]}'.includes(char)) {
     closeFrame(scan, cursor);
-    scan.prefix = '';
+    // Retain a completed receiver so computed/wrapped calls still form call barriers.
+    scan.prefix = char;
   } else if (',;>'.includes(char)) {
     flushValue(scan, cursor);
     scan.prefix = '';

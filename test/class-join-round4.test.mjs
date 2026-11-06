@@ -31,6 +31,8 @@ for (const [name, expression, positive] of [
   ['lookup direct key', "cn({ TOKEN: 'card' }[size])", false],
   ['receiver array', "cn([a, 'TOKEN'].includes(b) && 'btn')", false],
   ['optional receiver array', "cn(['TOKEN'])", true],
+  ['computed method call', "cn(utils['pick']('TOKEN'))", false],
+  ['wrapped method call', "cn((utils.pick)('TOKEN'))", false],
   ['method call', "cn(utils.pick('TOKEN'))", false],
   ['method named helper', "cn(utils.clsx('TOKEN'))", false],
   ['case label', "cn(() => { switch (state) { case 'TOKEN': return 'card'; } })", false],

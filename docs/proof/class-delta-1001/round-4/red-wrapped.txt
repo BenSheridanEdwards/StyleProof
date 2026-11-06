@@ -15,7 +15,7 @@
 test at test/class-join-round4.test.mjs:52:3
 ✖ parenthesized right operand: J3 only (3.899209ms)
   AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":14},"end":{"line":1,"column":19}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":14},"end":{"line":1,"column":19}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.test.mjs:60:12)
+      at TestContext.<anonymous> (test/class-join-round4.test.mjs:60:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)
@@ -31,7 +31,7 @@ test at test/class-join-round4.test.mjs:52:3
 test at test/class-join-round4.test.mjs:52:3
 ✖ parenthesized left operand: J3 only (0.617791ms)
   AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":4},"end":{"line":1,"column":9}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":4},"end":{"line":1,"column":9}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.test.mjs:60:12)
+      at TestContext.<anonymous> (test/class-join-round4.test.mjs:60:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -49,7 +49,7 @@ test at test/class-join-round4.test.mjs:52:3
 test at test/class-join-round4.test.mjs:52:3
 ✖ dataset bracket in helper: J3 only (0.492625ms)
   AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":25},"end":{"line":1,"column":30}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":25},"end":{"line":1,"column":30}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
-      at TestContext.<anonymous> (file:///Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.test.mjs:60:12)
+      at TestContext.<anonymous> (test/class-join-round4.test.mjs:60:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
