@@ -29,17 +29,44 @@ const binary = new Set([
   'satisfies',
 ]);
 const assignments = new Set(['=', '+=', '-=', '*=', '/=', '%=', '&&=', '||=', '??=', '=>', ',', ';']);
-function ternary(nodes: RoleToken[]): { question: number; colon: number } | undefined {
-  let question = -1,
-    depth = 0;
-  for (let i = 0; i < nodes.length; i++) {
-    if (nodes[i].text === '?') {
-      if (question < 0) question = i;
-      depth++;
-    }
-    if (nodes[i].text === ':' && --depth === 0 && question >= 0)
-      return question > 0 && i > question + 1 && i < nodes.length - 1 ? { question, colon: i } : undefined;
+type TernaryArm = { from: number; question: number; arm: number; nesting: number };
+function appendArm(task: RoleTask, tasks: RoleTask[], state: TernaryArm, colon: number): void {
+  tasks.push({ nodes: task.nodes.slice(state.from, state.question), depth: task.depth + 1 });
+  tasks.push({
+    nodes: task.nodes.slice(state.question + 1, colon),
+    depth: task.depth + 1,
+    role: childRole(task.role!, 'ternary-result', state.arm === 0 ? 'ternary:then' : `ternary:else:${state.arm}:then`),
+  });
+  state.from = colon + 1;
+  state.arm++;
+}
+function scanArm(task: RoleTask, tasks: RoleTask[], state: TernaryArm, index: number): boolean {
+  const text = task.nodes[index].text;
+  if (text === '?') {
+    if (state.nesting === 0) state.question = index;
+    state.nesting++;
+    return true;
   }
+  if (text !== ':') return true;
+  if (state.nesting === 0) return false;
+  if (--state.nesting !== 0) return true;
+  if (state.question <= state.from || index <= state.question + 1 || index >= task.nodes.length - 1) return false;
+  appendArm(task, tasks, state, index);
+  return true;
+}
+/** Flatten only alternate chains; actual nested result expressions keep their depth. */
+function ternary(task: RoleTask): RoleTask[] | undefined {
+  const { nodes, role, depth } = task;
+  const tasks: RoleTask[] = [];
+  const state: TernaryArm = { from: 0, question: -1, arm: 0, nesting: 0 };
+  for (let i = 0; i < nodes.length; i++) if (!scanArm(task, tasks, state, i)) return;
+  if (!state.arm || state.nesting !== 0) return;
+  tasks.push({
+    nodes: nodes.slice(state.from),
+    depth: depth + 1,
+    role: childRole(role!, 'ternary-result', state.arm === 1 ? 'ternary:else' : `ternary:else:${state.arm - 1}`),
+  });
+  return tasks;
 }
 function logical(nodes: RoleToken[]): number {
   let and = -1,
@@ -53,21 +80,8 @@ function logical(nodes: RoleToken[]): number {
 export function expressionTasks(task: RoleTask): RoleTask[] | undefined {
   const { nodes, role, depth } = task;
   if (!role || nodes.some((n) => assignments.has(n.text))) return;
-  const branch = ternary(nodes);
-  if (branch)
-    return [
-      { nodes: nodes.slice(0, branch.question), depth: depth + 1 },
-      {
-        nodes: nodes.slice(branch.question + 1, branch.colon),
-        depth: depth + 1,
-        role: childRole(role, 'ternary-result', 'ternary:then'),
-      },
-      {
-        nodes: nodes.slice(branch.colon + 1),
-        depth: depth + 1,
-        role: childRole(role, 'ternary-result', 'ternary:else'),
-      },
-    ];
+  const branch = ternary(task);
+  if (branch) return branch;
   const join = logical(nodes);
   if (join >= 0)
     return [

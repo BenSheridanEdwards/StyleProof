@@ -33,7 +33,7 @@ type TokenStack = { nodes: RoleToken[]; open: string; start: number }[];
 type TokenCursor = { cursor: number; stack: TokenStack; markupDepth?: number; limit?: number; failed?: true };
 function bracket(state: TokenCursor, text: string): boolean {
   if ('([{'.includes(text)) {
-    if (state.stack.length >= ROLE_DEPTH) state.limit = state.cursor;
+    if (state.stack.length >= ROLE_DEPTH) state.limit = state.stack[1]?.start ?? state.cursor;
     else state.stack.push({ nodes: [], open: text, start: state.cursor++ });
     return true;
   }
@@ -86,7 +86,7 @@ export function roleTokens(source: ClassSource, range: Part = { start: 0, end: s
   const nodes: RoleToken[] = [],
     state: TokenCursor = { cursor: range.start, stack: [{ nodes, open: '', start: range.start }] };
   while (state.cursor < range.end && state.limit === undefined && !state.failed) tokenStep(source, state);
-  if (state.limit !== undefined) return { nodes: [], limit: state.limit };
+  if (state.limit !== undefined) return { nodes, limit: state.limit };
   return state.failed || state.stack.length !== 1 ? { nodes: [], failed: true } : { nodes };
 }
 export function splitTokens(nodes: RoleToken[], separator = ','): RoleToken[][] {

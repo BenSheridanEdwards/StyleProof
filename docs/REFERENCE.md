@@ -2347,7 +2347,18 @@ inside template substitutions. Ordinary prose outside class contexts is skipped.
 A remaining token-alignment residual can exclude a newly introduced occurrence:
 base `const A='tone'` → head `const B='tone'` plus `const A='tone2'` can align the
 identical token/role/slot and exclude `tone`, even though its binding changed.
-This reader does not establish binding identity. Shadow content and embedded
+This reader does not establish binding or receiver identity. Two further pinned
+alignment residuals lose negative evidence:
+
+- `el1.className='card'` → `el2.className='card'` can exclude both occurrences:
+  token/role/slot equality does not track the changed receiver.
+- Base `el.className='old'; other.className='old new';` → head
+  `el.className='new'; other.className='old new';` can match the changed words to
+  the unchanged neighbour's words. With both elements detached, J3 emits zero
+  units and zero gaps; J2 stays unknown. The ordered matcher does not track
+  assignment identity within the line.
+
+Shadow content and embedded
 documents remain untraversed; their omission facts prevent false absence proof.
 Line starts are precomputed for binary position lookup, and substitution token scans
 are restricted to their own template ranges; the regression suite bounds 1 MB string
@@ -2404,9 +2415,19 @@ configuration data is excluded. Framework scripts and simple bindings are parsed
 separately; complex directives/frontmatter, custom syntax, spreads and data flow
 remain residuals. This is a conservative expression reader, not a full JS/TS
 parser: function/method parameters and type-only bodies supply no positive roles,
-and ambiguous call/declaration forms stay J3-only. Malformed brackets produce a
+and ambiguous call/declaration forms stay J3-only. Inline type annotations after
+binding/parameter names (including optional `?:`), return types, generic `extends`
+constraints, and `as`/`satisfies` object types are type scope. Property-value and
+ternary colons retain runtime class values. Malformed brackets produce a
 named extraction gap; unknown expressions never inherit explicit evidence.
-Bracket and expression nesting are capped at 128, with a named gap through EOF. JSX literal escapes/entities use
+Bracket and expression nesting are capped at 128 only when role analysis runs:
+files with recognized class syntax, or explicit class-binding expressions. Files
+without class syntax do not guarantee a bracket-depth gap. Completed roots before
+a bracket cap keep their roles; the gap covers the first unfinished frame through
+EOF (the entire unread expression within a template substitution). Flat else-if
+ternary chains are walked iteratively without increasing depth per alternate or
+building an unbounded role path. Template depth always produces its named gap,
+including outside class contexts. JSX literal escapes/entities use
 decoded values. Encoded component markup and escaped dynamic-template text produce
 named conservative gaps rather than guessing a runtime token.
 A class occurrence never corroborates a different style value on the same line.

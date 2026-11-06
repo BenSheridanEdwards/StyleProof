@@ -7,7 +7,7 @@ import { captureStyleMap, trackScriptReach, trackServedRules, saveStyleMap } fro
 import { assessReachDirs } from '../dist/report/reach.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
-test('real Git/Chromium inline type-alias refactor cannot lower executed J2', async ({ context }, testInfo) => {
+test('real Git/Chromium inline type-alias refactor cannot lower J2', async ({ context }, testInfo) => {
   const root = testInfo.outputPath('repository');
   fs.mkdirSync(root, { recursive: true });
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
@@ -42,6 +42,7 @@ test('real Git/Chromium inline type-alias refactor cannot lower executed J2', as
       servedRules = await trackServedRules(page);
     try {
       await page.goto('https://inline.test/');
+      expect(await page.evaluate(() => document.body.dataset.mode)).toBe('old');
       const map = await captureStyleMap(page, {
         captureReach: true,
         captureScriptReach: true,
@@ -64,9 +65,10 @@ test('real Git/Chromium inline type-alias refactor cannot lower executed J2', as
   try {
     process.chdir(root);
     const report = assessReachDirs(dirs[0], dirs[1], 'gate')!;
-    const ran = report.scripts.filter((u) => u.side === 'head' && u.execution === 'ran');
-    expect(ran.length).toBeGreaterThan(0);
-    expect(ran.every((u) => u.status === 'unknown')).toBe(true);
+    const head = report.scripts.filter((u) => u.side === 'head');
+    expect(head.length).toBeGreaterThan(0);
+    // Erased type tokens remain unmeasured in J2, even though the handler ran.
+    expect(head.every((u) => u.status === 'unmeasured')).toBe(true);
     expect(report.classes.every((u) => !u.explicit)).toBe(true);
   } finally {
     process.chdir(previous);

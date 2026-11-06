@@ -142,7 +142,7 @@ export function decodeAttribute(reader: RoleReader, node: RoleToken): void {
 }
 export function readRolePart(reader: RoleReader, part: Part): RoleToken[] {
   const parsed = roleTokens(reader.source, part);
-  if (parsed.limit !== undefined) depthGap(reader, parsed.limit);
+  if (parsed.limit !== undefined) depthGap(reader, part.start);
   if (parsed.failed)
     reader.result.contexts.push({
       ...part,

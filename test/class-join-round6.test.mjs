@@ -114,3 +114,10 @@ test('pinned residual: receiver-only changes retain no J3 occurrence', () => {
 test('pinned QA residual: unchanged neighbouring words can mask changed occurrences', () => {
   residual("el.className='old'; other.className='old new';", "el.className='new'; other.className='old new';");
 });
+
+test('a substitution bracket cap covers its unread positive prefix', () => {
+  const source = "el.className=`${on?'old':fn(" + '('.repeat(6000) + 'x' + ')'.repeat(6000) + ')}`;';
+  const gap = classLiterals(source, 'app.ts').find((l) => l.extractionGap && /depth.*limit/.test(l.residual));
+  assert.ok(gap);
+  assert.ok(gap.range.start.column <= source.indexOf("'old'"), JSON.stringify(gap));
+});

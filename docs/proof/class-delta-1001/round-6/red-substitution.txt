@@ -1,0 +1,27 @@
+✖ a substitution bracket cap covers its unread positive prefix (4.160166ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.441958
+
+✖ failing tests:
+
+test at test/class-join-round6.test.mjs:118:1
+✖ a substitution bracket cap covers its unread positive prefix (4.160166ms)
+  AssertionError [ERR_ASSERTION]: {"range":{"start":{"line":1,"column":154},"end":{"line":1,"column":12033}},"words":[],"explicit":false,"context":true,"residual":"class role nesting depth limit (128) exceeded","extractionGap":true}
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:122:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

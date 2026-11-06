@@ -29,6 +29,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   variant values are supported. Fragments and unresolved explicit contexts get scoped gaps. Template
   depth limits always cover the capped template through EOF, even outside class contexts. JSX values
   use decoded spelling; encoded component markup and escaped dynamic templates stay unmeasured.
+  Inline type annotations, return types, extends constraints and as/satisfies object types stay
+  non-explicit; runtime property/ternary values remain positive. Bracket caps preserve completed
+  prefix roles and cover unread frames through EOF where class-role analysis runs. Template depth
+  gaps remain unconditional, and flat else-if chains do not consume nesting depth.
   Source positions, template walks, hunk matches, scoped gaps and negative joins are indexed.
   Omission facts remain opt-in, preserving default capture output. Plain `{ class: 'economy' }`
   properties remain explicit for Vue h() props, a documented data-object/type/name ambiguity;

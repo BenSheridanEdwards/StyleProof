@@ -1,5 +1,5 @@
 /** Grant explicit evidence only through approved roles in the existing lexer. */
-import { classListMethod, callTasks, helperName, rootValue, objectGroup } from './class-join-role-roots.js';
+import { classListMethod, callTasks, helperName, rootValue, objectGroup, typeGroup } from './class-join-role-roots.js';
 import { roleTokens, splitTokens, type RoleToken } from './class-join-role-tokens.js';
 import { decodeAttribute, depthGap, readRolePart, walkValues, type RoleReader } from './class-join-role-walk.js';
 import type { ClassRoles } from './class-join-role-types.js';
@@ -33,14 +33,22 @@ function valueRoot(reader: RoleReader, nodes: RoleToken[], index: number, object
   return root.end;
 }
 type Discovery = { nodes: RoleToken[]; parent: string; object: boolean; scope?: 'class' | 'type' };
-type Header = { scope?: 'class' | 'type'; angles: number };
+type Header = { scope?: 'class' | 'type'; angles: number; conditionals: number; annotation?: boolean };
 function declarationHeader(nodes: RoleToken[], index: number): Header['scope'] {
   const node = nodes[index];
   if (node.kind !== 'word' || nodes[index + 1]?.text === ':' || nodes[index - 1]?.text === '.') return;
   if (node.text === 'class') return 'class';
   if ((node.text === 'interface' || node.text === 'type') && nodes[index + 1]?.kind === 'word') return 'type';
 }
+function annotationStep(header: Header, nodes: RoleToken[], index: number): void {
+  const text = nodes[index].text;
+  if (text === '?' && nodes[index + 1]?.text !== ':') header.conditionals++;
+  if (text !== ':') return;
+  header.annotation = header.conditionals === 0;
+  if (header.conditionals > 0) header.conditionals--;
+}
 function headerStep(header: Header, nodes: RoleToken[], index: number): void {
+  annotationStep(header, nodes, index);
   header.scope = declarationHeader(nodes, index) ?? header.scope;
   const node = nodes[index];
   if (!header.scope || node.kind !== 'operator') return;
@@ -56,7 +64,11 @@ function discoveryChildren(reader: RoleReader, part: Discovery, index: number, h
           nodes: node.children,
           parent: node.text,
           object: objectGroup(part.nodes, index, part.parent),
-          scope: node.text === '{' ? header.scope : undefined,
+          scope: typeGroup(part.nodes, index, part.object, !!header.annotation)
+            ? 'type'
+            : node.text === '{'
+              ? header.scope
+              : undefined,
         },
       ]
     : [];
@@ -72,7 +84,7 @@ function discoveryChildren(reader: RoleReader, part: Discovery, index: number, h
 }
 function discoverPart(reader: RoleReader, part: Discovery, pending: Discovery[]): void {
   if (part.scope === 'type') return;
-  const header: Header = { angles: 0 };
+  const header: Header = { angles: 0, conditionals: 0 };
   for (let i = 0; i < part.nodes.length && reader.limit === undefined; i++) {
     headerStep(header, part.nodes, i);
     const end =
@@ -142,15 +154,12 @@ export function classRoles(source: ClassSource, key: string, expression = false)
   )
     return result;
   const parsed = roleTokens(source);
-  if (parsed.limit !== undefined) {
-    depthGap(reader, parsed.limit);
-    return result;
-  }
   if (parsed.failed) return { ...result, failed: true };
   if (expression)
     walkValues(reader, [
       { nodes: parsed.nodes, role: { kind: 'class-value', slot: 'class-value', containers: true }, depth: 0 },
     ]);
   else discover(reader, parsed.nodes);
+  if (parsed.limit !== undefined) depthGap(reader, parsed.limit);
   return result;
 }
