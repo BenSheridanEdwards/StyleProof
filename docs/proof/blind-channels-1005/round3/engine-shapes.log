@@ -1,0 +1,4 @@
+closed slotted   [[{"offset":0,"easing":"ease","composite":"replace","opacity":"1","computedOffset":0},{"offset":1,"easing":"ease","composite":"auto","opacity":"0.5","computedOffset":1}]]
+LP1 base         [[{"offset":0,"easing":"ease","composite":"replace","marginLeft":"0px","computedOffset":0},{"offset":1,"easing":"ease","composite":"auto","marginLeft":"25px","computedOffset":1}]]
+LP1 head         [[{"offset":0,"easing":"ease","composite":"replace","marginLeft":"0px","computedOffset":0},{"offset":1,"easing":"ease","composite":"auto","marginLeft":"3px","computedOffset":1}]]
+V1 base          [[{"offset":0,"easing":"ease","composite":"replace","marginLeft":"0px","marginRight":"0px","marginTop":"0px","marginBottom":"0px","computedOffset":0},{"offset":1,"easing":"ease","composite":"auto","marginLeft":"3px","marginRight":"7px","marginTop":"7px","marginBottom":"7px","computedOffset":1}]]

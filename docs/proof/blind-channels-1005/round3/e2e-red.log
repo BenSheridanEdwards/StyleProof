@@ -1,0 +1,515 @@
+Already up to date
+Done in 54ms using pnpm v11.7.0
+
+Running 37 tests using 1 worker
+
+(node:900) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V1 uses the live engine body (146ms)
+(node:905) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V2 uses the live engine body (129ms)
+(node:913) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V3 uses the live engine body (150ms)
+(node:925) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP1 uses the live engine body (147ms)
+(node:932) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP2 uses the live engine body (170ms)
+(node:938) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP3 uses the live engine body (170ms)
+(node:943) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   7 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › non-adjacent timing uses the live engine body (160ms)
+  ✓   8 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › T1 uses the live engine body (117ms)
+  ✓   9 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › C1 uses the live engine body (123ms)
+  ✓  10 [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › K1 uses the live engine body (125ms)
+  ✓  11 [chromium] › test/blind-channels-round3.e2e.spec.ts:59:3 › V4 stable stays clean (127ms)
+  ✓  12 [chromium] › test/blind-channels-round3.e2e.spec.ts:59:3 › adjacent timing stays clean (124ms)
+  ✓  13 [chromium] › test/blind-channels-round3.e2e.spec.ts:59:3 › offset reorder stays clean (126ms)
+  ✘  14 [chromium] › test/blind-channels-round3.e2e.spec.ts:59:3 › T3 easing stays clean (118ms)
+(node:955) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 [chromium] › test/blind-channels-round3.e2e.spec.ts:59:3 › Q1 quoted content stays clean (164ms)
+  ✘  16 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S1 never borrows an outer keyframes body (167ms)
+(node:969) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S2 never borrows an outer keyframes body (157ms)
+(node:982) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S3 never borrows an outer keyframes body (150ms)
+(node:987) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  19 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S4 never borrows an outer keyframes body (150ms)
+(node:992) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  20 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S5 never borrows an outer keyframes body (152ms)
+(node:997) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  21 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S6 never borrows an outer keyframes body (186ms)
+(node:1028) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  22 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S7 never borrows an outer keyframes body (183ms)
+(node:1063) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  23 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S8 never borrows an outer keyframes body (185ms)
+(node:1070) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  24 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › three mixed never borrows an outer keyframes body (168ms)
+(node:1076) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  25 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › three mixed reversed never borrows an outer keyframes body (184ms)
+(node:1081) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  26 [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › open-only never borrows an outer keyframes body (188ms)
+(node:1086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  27 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R1 Bunny (173ms)
+(node:1091) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  28 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R2 Akamai (171ms)
+(node:1096) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  29 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R3 Akamai token (174ms)
+(node:1101) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  30 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R4 GCS V2 (174ms)
+  ✓  31 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R5 S3 identity (131ms)
+  ✓  32 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R6 SAS identity (129ms)
+  ✓  33 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R7 encoded signature (127ms)
+  ✓  34 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R8 unsigned expiry (131ms)
+  ✓  35 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R9 Maps identity (126ms)
+  ✓  36 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R10 CloudFront (128ms)
+  ✓  37 [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R11 encoding (128ms)
+
+
+  1) [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V1 uses the live engine body ───────
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      40 |     const before = await capture(page, markup(a));
+      41 |     const after = await capture(page, markup(b));
+    > 42 |     expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
+         |                                                       ^
+      43 |   });
+      44 | for (const [name, a, b] of [
+      45 |   ['V4 stable', 'to{margin:var(--m);margin-left:3px}', 'to{margin:var(--m);margin-left:3px}'],
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:42:55
+
+    Error Context: test-results/test-blind-channels-round3.e2e-V1-uses-the-live-engine-body-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V2 uses the live engine body ───────
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      40 |     const before = await capture(page, markup(a));
+      41 |     const after = await capture(page, markup(b));
+    > 42 |     expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
+         |                                                       ^
+      43 |   });
+      44 | for (const [name, a, b] of [
+      45 |   ['V4 stable', 'to{margin:var(--m);margin-left:3px}', 'to{margin:var(--m);margin-left:3px}'],
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:42:55
+
+    Error Context: test-results/test-blind-channels-round3.e2e-V2-uses-the-live-engine-body-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V3 uses the live engine body ───────
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      40 |     const before = await capture(page, markup(a));
+      41 |     const after = await capture(page, markup(b));
+    > 42 |     expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
+         |                                                       ^
+      43 |   });
+      44 | for (const [name, a, b] of [
+      45 |   ['V4 stable', 'to{margin:var(--m);margin-left:3px}', 'to{margin:var(--m);margin-left:3px}'],
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:42:55
+
+    Error Context: test-results/test-blind-channels-round3.e2e-V3-uses-the-live-engine-body-chromium/error-context.md
+
+  4) [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP1 uses the live engine body ──────
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      40 |     const before = await capture(page, markup(a));
+      41 |     const after = await capture(page, markup(b));
+    > 42 |     expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
+         |                                                       ^
+      43 |   });
+      44 | for (const [name, a, b] of [
+      45 |   ['V4 stable', 'to{margin:var(--m);margin-left:3px}', 'to{margin:var(--m);margin-left:3px}'],
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:42:55
+
+    Error Context: test-results/test-blind-channels-round3.e2e-LP1-uses-the-live-engine-body-chromium/error-context.md
+
+  5) [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP2 uses the live engine body ──────
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      40 |     const before = await capture(page, markup(a));
+      41 |     const after = await capture(page, markup(b));
+    > 42 |     expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
+         |                                                       ^
+      43 |   });
+      44 | for (const [name, a, b] of [
+      45 |   ['V4 stable', 'to{margin:var(--m);margin-left:3px}', 'to{margin:var(--m);margin-left:3px}'],
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:42:55
+
+    Error Context: test-results/test-blind-channels-round3.e2e-LP2-uses-the-live-engine-body-chromium/error-context.md
+
+  6) [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP3 uses the live engine body ──────
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      40 |     const before = await capture(page, markup(a));
+      41 |     const after = await capture(page, markup(b));
+    > 42 |     expect(changes(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
+         |                                                       ^
+      43 |   });
+      44 | for (const [name, a, b] of [
+      45 |   ['V4 stable', 'to{margin:var(--m);margin-left:3px}', 'to{margin:var(--m);margin-left:3px}'],
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:42:55
+
+    Error Context: test-results/test-blind-channels-round3.e2e-LP3-uses-the-live-engine-body-chromium/error-context.md
+
+  7) [chromium] › test/blind-channels-round3.e2e.spec.ts:59:3 › T3 easing stays clean ──────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 7
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "after": "50% { animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1); opacity: 0.5; }",
+    +     "before": "50% { animation-timing-function: ease; opacity: 0.5; }",
+    +     "prop": "animation keyframes (pulse)",
+    +   },
+    + ]
+
+      60 |     const aMap = await capture(page, markup(a));
+      61 |     const bMap = await capture(page, markup(b));
+    > 62 |     expect(changes(aMap, bMap)).toEqual([]);
+         |                                 ^
+      63 |     expect(aMap.visualChannels).toEqual(bMap.visualChannels);
+      64 |   });
+      65 | function shadow(modes: string[], value: string, doc: string, host = false) {
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:62:33
+
+    Error Context: test-results/test-blind-channels-round3.e2e-T3-easing-stays-clean-chromium/error-context.md
+
+  8) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S1 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-5d334-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  9) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S2 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-58257-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  10) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S3 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-ebc53-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  11) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S4 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-c0430-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  12) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S5 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-f0632-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  13) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S6 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-871af-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  14) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S7 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-f0e90-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  15) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S8 never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-a6f81-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  16) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › three mixed never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-af3e2-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  17) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › three mixed reversed never borrows an outer keyframes body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+       95 |     for (const map of [a, b]) {
+       96 |       const target = Object.values(map.elements).find((e) => (host ? e.tag === 'x-level-0' : e.cls === 'light'))!;
+    >  97 |       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
+          |                                                                                                ^
+       98 |       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
+       99 |       if (label !== 'S5')
+      100 |         expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:97:96
+
+    Error Context: test-results/test-blind-channels-round3-f3dd4-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  18) [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › open-only never borrows an outer keyframes body
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected substring: "keyframes resolution ambiguous"
+    Received string:    "## 🗺️ StyleProof report·
+    ⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.·
+    ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.·
+    <details>
+    <summary>Evidence (warnings & failures)</summary>·
+    **Visual channel evidence limits and recommendations**·
+    - `home@800`: animation keyframes `deep` unknown; not compared (unreadable, missing or unsupported stylesheet scope).·
+    ⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.·
+    </details>
+    "
+
+      102 |     const fixture = pairFixture({ surface: 'home@800', before: a, after: b });
+      103 |     try {
+    > 104 |       expect(fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8')).toContain(
+          |                                                                                     ^
+      105 |         'keyframes resolution ambiguous',
+      106 |       );
+      107 |     } finally {
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:104:85
+
+    Error Context: test-results/test-blind-channels-round3-3f5fc-ows-an-outer-keyframes-body-chromium/error-context.md
+
+  19) [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R1 Bunny ─────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      151 |     const before = await capture(page, html(a));
+      152 |     const after = await capture(page, html(b));
+    > 153 |     expect(changes(before, after).some((p) => p.prop === 'img currentSrc')).toBe(!equal);
+          |                                                                             ^
+      154 |     expect(JSON.stringify([before, after])).not.toMatch(/fixture-first|fixture-second|hmac/);
+      155 |     const fixture = pairFixture({ surface: 'home@800', before, after });
+      156 |     try {
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:153:77
+
+    Error Context: test-results/test-blind-channels-round3.e2e-R1-Bunny-chromium/error-context.md
+
+  20) [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R2 Akamai ────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      151 |     const before = await capture(page, html(a));
+      152 |     const after = await capture(page, html(b));
+    > 153 |     expect(changes(before, after).some((p) => p.prop === 'img currentSrc')).toBe(!equal);
+          |                                                                             ^
+      154 |     expect(JSON.stringify([before, after])).not.toMatch(/fixture-first|fixture-second|hmac/);
+      155 |     const fixture = pairFixture({ surface: 'home@800', before, after });
+      156 |     try {
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:153:77
+
+    Error Context: test-results/test-blind-channels-round3.e2e-R2-Akamai-chromium/error-context.md
+
+  21) [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R3 Akamai token ──────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      151 |     const before = await capture(page, html(a));
+      152 |     const after = await capture(page, html(b));
+    > 153 |     expect(changes(before, after).some((p) => p.prop === 'img currentSrc')).toBe(!equal);
+          |                                                                             ^
+      154 |     expect(JSON.stringify([before, after])).not.toMatch(/fixture-first|fixture-second|hmac/);
+      155 |     const fixture = pairFixture({ surface: 'home@800', before, after });
+      156 |     try {
+        at <checkout>/test/blind-channels-round3.e2e.spec.ts:153:77
+
+    Error Context: test-results/test-blind-channels-round3.e2e-R3-Akamai-token-chromium/error-context.md
+
+  21 failed
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V1 uses the live engine body ────────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V2 uses the live engine body ────────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › V3 uses the live engine body ────────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP1 uses the live engine body ───────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP2 uses the live engine body ───────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:39:3 › LP3 uses the live engine body ───────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:59:3 › T3 easing stays clean ───────────────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S1 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S2 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S3 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S4 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S5 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S6 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S7 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › S8 never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › three mixed never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › three mixed reversed never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:89:3 › open-only never borrows an outer keyframes body
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R1 Bunny ───────────────────────────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R2 Akamai ──────────────────────────
+    [chromium] › test/blind-channels-round3.e2e.spec.ts:143:3 › R3 Akamai token ────────────────────
+  16 passed (13.7s)
