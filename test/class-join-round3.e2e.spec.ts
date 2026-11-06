@@ -149,3 +149,20 @@ test('an untraversed frame outside body is also an omission', async ({ page }) =
     classifyClassReach([map], [map], changes, [{ base: map, head: map }]).units.every((u) => u.status === 'unknown'),
   ).toBe(true);
 });
+
+test('Change Reach off adds no CDP probe and cannot verify class absence', async ({ page, context }) => {
+  await page.setContent('<body>Stable</body>');
+  const create = context.newCDPSession.bind(context);
+  let calls = 0;
+  context.newCDPSession = async (...args) => {
+    calls++;
+    return create(...args);
+  };
+  try {
+    const map = await captureStyleMap(page, { captureStates: false, stabilize: false });
+    expect(calls).toBe(0);
+    expect(map.classPresence?.shadowRootsVerified).toBeUndefined();
+  } finally {
+    context.newCDPSession = create;
+  }
+});

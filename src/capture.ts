@@ -388,7 +388,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
 
   const { states, stateLayers, stateLayerOmissions, stateTargets, statesSkipped, stateComputedValueStyle } =
     await captureStateLayer(page, options, read.limits, read.ignore, volatile);
-  const shadowRoots = await captureAuthorShadowRoots(page);
+  const shadowRoots = options.captureReach ? await captureAuthorShadowRoots(page) : undefined;
   // Chromium clears print emulation when the forced-state reader detaches its CDP session.
   await restoreDeclaredMediaState(page, options.metadata);
   const tokens = await page.evaluate(capturePageTokens);

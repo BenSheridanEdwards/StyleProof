@@ -23,6 +23,8 @@ No breaking API change, reached path, J2 upgrade or verdict change is introduced
   including Next announcers and their shadow roots. The internal UA-default iframe
   is removed before document counts are read. CDP sessions are registered as
   StyleProof-owned, read without profiling changes, and detached in cleanup.
+  The probe runs only with captureReach; ordinary captures retain the existing
+  CDP command/cleanup contract and cannot prove absence without verification.
 - Self-check compares omission facts and marks the retained first map unstable
   whenever they differ. A later cleaner read cannot clear uncertainty, in either
   direction. The existing CSS-ledger self-check remains unchanged. Facts can vary
@@ -93,6 +95,13 @@ The unresolved head assignment retains its scoped gap. Product-state identity,
 inventory and changed-stylesheet caveats stay visible. The expanded report was
 inspected at 1440 CSS pixels. No motion/video proof applies to this static refactor;
 the real capture tests verify the boundary behavior.
+
+The [first full browser hook](browser-gate-red-tail.log) found seven CDP round-trip/cleanup assertion failures:
+the new probe had also run with Change Reach disabled. It is now gated on
+captureReach; the existing assertions are retained unchanged. The new opt-out
+[red test](probe-off-red.log) also proves the default should open no CDP probe.
+All nine targeted [round-trip/cleanup tests pass](probe-gate-green.log). Final gate evidence
+below supersedes that failed push attempt.
 
 ## Final verification
 

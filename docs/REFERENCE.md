@@ -2278,9 +2278,12 @@ For each changed class-token occurrence (file, side, exact UTF-16 source span):
   Frames include iframe/frame/object/embed elements throughout the main document,
   including cross-origin frames. `outsideBody` counts html children other than head
   and body; these children are not traversed. CDP
-  `DOM.getDocument({depth:-1, pierce:true})` verifies open and closed author roots;
+  With `captureReach`, `DOM.getDocument({depth:-1, pierce:true})` verifies open and
+  closed author roots;
   user-agent roots are excluded. An unsupported/failed probe omits verification,
-  never invents a verified zero. Only verified zero counts can support absence.
+  never invents a verified zero. With Change Reach off the probe is skipped,
+  preserving the default capture's CDP round-trip contract; verification stays missing.
+  Only verified zero counts can support absence.
   FRAMEWORK_IGNORE is shared by capture and omission checks, including Next route
   announcers, the hover sink and other deliberately excluded framework regions.
   The temporary UA-default iframe is removed before frame counts are recorded.

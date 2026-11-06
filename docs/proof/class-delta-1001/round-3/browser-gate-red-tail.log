@@ -1,0 +1,26 @@
+    Received: 2
+
+      862 |     expect(map.states, `${mode} replacement does not target a different element`).toEqual({});
+      863 |     expect(map.statesSkipped, `${mode} replacement marks the forced-state layer uncertified`).toBe(true);
+    > 864 |     expect(probe.detachCount, `${mode} replacement detaches the CDP session`).toBe(1);
+          |                                                                               ^
+      865 |     expect(await page.locator('[data-styleproof-state-id]').count(), `${mode} replacement marks were cleared`).toBe(0);
+      866 |   }
+      867 | });
+        at <checkout>/test/smoke.e2e.spec.ts:864:79
+
+    Error Context: test-results/test-smoke.e2e-missing-or--5030e-unded-forced-state-evidence-chromium/error-context.md
+
+  7 failed
+    [chromium] › test/forced-state-roundtrips.e2e.spec.ts:94:3 › coalesces pre-read barriers without dropping state coverage: document
+    [chromium] › test/forced-state-roundtrips.e2e.spec.ts:94:3 › coalesces pre-read barriers without dropping state coverage: stylesheet
+    [chromium] › test/forced-state-roundtrips.e2e.spec.ts:94:3 › coalesces pre-read barriers without dropping state coverage: fallback
+    [chromium] › test/forced-state-roundtrips.e2e.spec.ts:184:1 › subtree scope shares one resting baseline: call sequence
+    [chromium] › test/forced-state-roundtrips.e2e.spec.ts:424:3 › cleans the applied state when the pre-read target is removed
+    [chromium] › test/smoke.e2e.spec.ts:537:1 › forced-state maps recover the same uniquely marked element after its node is replaced
+    [chromium] › test/smoke.e2e.spec.ts:851:1 › missing or ambiguous marked replacements fail closed with bounded forced-state evidence
+  1 skipped
+  1177 passed (6.6m)
+[ELIFECYCLE] Command failed with exit code 1.
+husky - pre-push script failed (code 1)
+error: failed to push some refs to 'https://github.com/BenSheridanEdwards/StyleProof.git'
