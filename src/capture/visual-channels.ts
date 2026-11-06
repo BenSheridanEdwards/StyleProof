@@ -278,6 +278,7 @@ export function installVisualChannels(enabled: boolean): void {
     return result;
   };
   const sources = new Map<string, string | undefined>();
+  const sourceCustom = new Map<string, boolean>();
   let restoreFreeze: (() => void) | undefined;
   const untraversed = (element: Element): boolean => {
     const pending = [element];
@@ -327,6 +328,14 @@ export function installVisualChannels(enabled: boolean): void {
       return undefined;
     }
   };
+  const unprovenInput = (element: Element, index: AnimationIndex): boolean => {
+    const rules = rootRules(element.getRootNode() as Document | ShadowRoot);
+    return (index.targets.get(element)?.get('') ?? []).some(({ name }) => {
+      const winner = rules.winners.get(name);
+      const matched = !!winner && sourceFingerprint(winner.rule) === sources.get(name);
+      return sourceCustom.get(name) !== false || ambiguous(rules, name, matched);
+    });
+  };
   const animatedInput = (element: Element, index: AnimationIndex): boolean => {
     const path: Element[] = [];
     let node: Element | null = element;
@@ -338,7 +347,7 @@ export function installVisualChannels(enabled: boolean): void {
         break;
       }
       path.push(node);
-      if (index.custom.has(node)) {
+      if (index.custom.has(node) || unprovenInput(node, index)) {
         result = true;
         break;
       }
@@ -351,6 +360,7 @@ export function installVisualChannels(enabled: boolean): void {
   target.__spChannelHosts = new WeakSet();
   target.__spBeginChannelProof = (unfreeze = false) => {
     sources.clear();
+    sourceCustom.clear();
     target.__spChannelNodes = new Map();
     target.__spChannelScopesVerified = false;
     const w = window as Window & { __spFreeze?: CSSStyleSheet; __spAssertFrozen?: () => void };
@@ -388,9 +398,13 @@ export function installVisualChannels(enabled: boolean): void {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(text);
       const rule = sheet.cssRules[0];
-      if (rule instanceof CSSKeyframesRule) sources.set(name, sourceFingerprint(rule));
+      if (rule instanceof CSSKeyframesRule) {
+        sources.set(name, sourceFingerprint(rule));
+        sourceCustom.set(name, !modelComplete(rule));
+      }
     } catch {
       sources.delete(name);
+      sourceCustom.delete(name);
     }
   };
   target.__spFinishChannelProof = (verified, sheets) => {

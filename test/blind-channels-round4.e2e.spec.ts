@@ -147,3 +147,18 @@ for (const style of ['display:none;animation:g 1s infinite', 'animation:g 1s,g 2
     const map = await captureStyleMap(page, options);
     expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'g', status: 'unknown' }]);
   });
+
+test('a variable consumer stays unknown when an opaque ancestor animation drives its input', async ({ page }) => {
+  await page.route('http://fixture.test/', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: `<style>@property --x{syntax:'<length>';inherits:true;initial-value:0px}@keyframes pulse{to{margin-left:var(--x)}}.parent{animation:custom 1s linear infinite paused}.a{animation:pulse 1s linear infinite paused}</style><link rel=stylesheet href="http://other.test/custom.css"><div class=parent><div class=a>x</div></div>`,
+    }),
+  );
+  await page.route('http://other.test/custom.css', (route) =>
+    route.fulfill({ contentType: 'text/css', body: '@keyframes custom{from{--x:10px}to{--x:20px}}' }),
+  );
+  await page.goto('http://fixture.test/');
+  const map = await captureStyleMap(page, options);
+  expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe('unknown');
+});
