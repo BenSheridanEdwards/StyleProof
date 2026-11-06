@@ -18,7 +18,9 @@ export type VisualChannelWindow = {
 };
 
 /** Installed once per capture; serialized into the page, with no module closures. */
-export function installVisualChannels(enabled: boolean): void {
+export function installVisualChannels(options: boolean | { enabled: boolean; retainInputs: boolean }): void {
+  const enabled = typeof options === 'boolean' ? options : options.enabled;
+  const retainInputs = typeof options !== 'boolean' && options.retainInputs;
   const target = window as Window & VisualChannelWindow;
   delete target.__spReadChannels;
   delete target.__spChannelBodies;
@@ -338,6 +340,10 @@ export function installVisualChannels(enabled: boolean): void {
       return undefined;
     }
   };
+  // With settling disabled, retain inputs seen before the capture freeze can finish/cancel them.
+  const initial = retainInputs ? readAnimationIndex() : undefined;
+  const count = (element: Element, index: AnimationIndex): number =>
+    Math.max(index.counts.get(element) ?? 0, initial?.counts.get(element) ?? 0);
   const activeAncestor = (element: Element | null, index: AnimationIndex): boolean => {
     const path: Element[] = [];
     let result = false;
@@ -348,7 +354,7 @@ export function installVisualChannels(enabled: boolean): void {
         break;
       }
       path.push(node);
-      if ((index.counts.get(node) ?? 0) > 0) {
+      if (count(node, index) > 0) {
         result = true;
         break;
       }
@@ -357,7 +363,8 @@ export function installVisualChannels(enabled: boolean): void {
     return result;
   };
   const otherInput = (element: Element, index: AnimationIndex, live: Model[] | undefined): boolean =>
-    (index.counts.get(element) ?? 0) > (live?.some((model) => model.active) ? 1 : 0) ||
+    (retainInputs && !initial) ||
+    count(element, index) > (live?.some((model) => model.active) ? 1 : 0) ||
     activeAncestor(element.parentElement, index);
   let prepared: AnimationIndex | undefined;
   target.__spChannelHosts = new WeakSet();

@@ -1515,7 +1515,9 @@ percentages, inheritance or implicit endpoints) stays unknown when another runni
 or paused animation/transition can drive the element's context. The flat index
 counts CSS, Web Animation and transition effects on the originating element and
 its pseudo-elements, and on ancestors; the consumer's own effect is excluded.
-A lone relative animation remains comparable when no other context input is live.
+With `stabilize:false`, inputs present before the capture freeze are retained for
+the capture, even if the freeze finishes or cancels a transition. A lone relative
+animation remains comparable when no other context input is live.
 In particular, Chromium
 can omit animated custom-property declarations and expose progress-dependent
 substitutions; we do not guess those bodies. Unknown and none have distinct

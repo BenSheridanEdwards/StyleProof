@@ -85,30 +85,39 @@ for (const pseudo of ['before', 'after', 'marker'])
       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], pseudo)).not.toThrow();
     });
 for (const stabilize of [false, true])
-  test(`running color transition is clean with stabilize=${stabilize}`, async ({ page }) => {
-    const maps = [];
-    for (const delay of [100, 900]) {
-      await page.setContent(
-        '<style>@keyframes pulse{to{outline:2px solid currentColor}}.p{color:red;transition:color 3s linear}.p.dark{color:blue}.a{animation:pulse 1s linear infinite}</style><div class=p><div class=a>x</div></div>',
-      );
-      await page.evaluate(() => {
-        const p = document.querySelector('.p')!;
-        void getComputedStyle(p).color;
-        p.classList.add('dark');
-      });
-      await page.waitForTimeout(delay);
-      maps.push(await captureStyleMap(page, { ...options, stabilize }));
-    }
-    expect(
-      diffStyleMaps(maps[0], maps[1])
-        .flatMap((f) => (f.kind === 'dom' ? [] : f.props))
-        .filter((p) => p.prop === 'animation keyframes (pulse)'),
-    ).toEqual([]);
-    expect(() => assertDeterministicVisualChannels(maps[0], maps[1], 'theme')).not.toThrow();
-    if (!stabilize)
-      for (const map of maps)
-        expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
-  });
+  for (const property of ['color', 'font-size'])
+    test(`running ${property} transition is clean with stabilize=${stabilize}`, async ({ page }) => {
+      const maps = [];
+      for (const delay of [100, 900]) {
+        const style =
+          property === 'color'
+            ? '@keyframes pulse{to{outline:2px solid currentColor}}.p{color:red;transition:color 3s linear}.p.dark{color:blue}'
+            : '@keyframes pulse{to{margin-left:2em}}.p{font-size:10px;transition:font-size 3s linear}.p.dark{font-size:30px}';
+        await page.goto('about:blank');
+        await page.setContent(
+          `<style>${style}.a{animation:pulse 1s linear infinite}</style><div class=p><div class=a>x</div></div>`,
+        );
+        await page.evaluate((property) => {
+          const p = document.querySelector('.p')!;
+          void getComputedStyle(p).getPropertyValue(property);
+          p.classList.add('dark');
+          void getComputedStyle(p).getPropertyValue(property);
+          if (!document.getAnimations().some((a) => a instanceof CSSTransition))
+            throw new Error('fixture must create a live transition');
+        }, property);
+        await page.waitForTimeout(delay);
+        maps.push(await captureStyleMap(page, { ...options, stabilize }));
+      }
+      expect(
+        diffStyleMaps(maps[0], maps[1])
+          .flatMap((f) => (f.kind === 'dom' ? [] : f.props))
+          .filter((p) => p.prop === 'animation keyframes (pulse)'),
+      ).toEqual([]);
+      expect(() => assertDeterministicVisualChannels(maps[0], maps[1], 'theme')).not.toThrow();
+      if (!stabilize)
+        for (const map of maps)
+          expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+    });
 test('a lone relative animation and fixed explicit bodies remain compared', async ({ page }) => {
   for (const [a, b] of [
     ['2em', '3em'],

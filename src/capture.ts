@@ -494,7 +494,10 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
 
   await page.evaluate(injectPathOf, GENERATED_ID_SOURCES);
   if (options.captureVisualChannels) await installVisualChannelValues(page);
-  await page.evaluate(installVisualChannels, options.captureVisualChannels === true);
+  await page.evaluate(installVisualChannels, {
+    enabled: options.captureVisualChannels === true,
+    retainInputs: options.stabilize === false,
+  });
   // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(freezeMotion, FREEZE_CSS);
