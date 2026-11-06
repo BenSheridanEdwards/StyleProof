@@ -2275,7 +2275,9 @@ For each changed class-token occurrence (file, side, exact UTF-16 source span):
   Version-1 maps and maps without complete facts remain conservative.
 
   Only `captureReach: true` captures collect and persist optional `classPresence` version 2: `ignored` (without selector
-  text), `shadowHosts`, `frames`, `outsideBody` and `shadowRootsVerified`.
+  text), `shadowHosts`, `frames`, `outsideBody`, `documentBoundsVerified` and `shadowRootsVerified`.
+  Older version-2 maps without document-boundary verification also keep absence
+  unknown; their counts predate the head/announcer-light-DOM scan.
   Frames include iframe/frame/object/embed elements throughout the main document,
   including cross-origin frames. `outsideBody` counts html children other than head
   and body, non-framework head descendants other than metadata/resource tags

@@ -426,6 +426,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
             shadowHosts: Math.max(base.shadowHosts, shadowRoots ?? 0),
             frames: base.frames,
             outsideBody: base.outsideBody,
+            documentBoundsVerified: true as const,
             ...(shadowRoots !== undefined ? { shadowRootsVerified: true as const } : {}),
           },
         }

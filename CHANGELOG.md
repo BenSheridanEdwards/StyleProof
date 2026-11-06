@@ -12,7 +12,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
   Version-2 capture omission facts cover volatile/ignored regions, html children outside head/body,
   omitted head content, route-announcer light-DOM author children, object/embed documents and open/closed author roots verified through CDP when captureReach is enabled. Version-1/missing facts,
-  unmatched surfaces and changing self-check facts keep absence unknown. Framework exemptions are shared. Captures record no per-occurrence render provenance. Ordinary
+  older version-2 maps without document-boundary verification, unmatched surfaces and changing self-check facts keep absence unknown. Framework exemptions are shared. Captures record no per-occurrence render provenance. Ordinary
   prose is skipped. Only positive class values can lower J2, never upgrade it; query/removal/toggle
   classList arguments, nested unrelated/method calls, comparison operands, case labels, receiver-array/lookup keys, dataset assignments and data-class attributes stay J3-only; findings and missing-evidence gaps stay warn-only at both levels,
   with bounded report detail and full status counts. Pure additions/deletions retain their occurrences;

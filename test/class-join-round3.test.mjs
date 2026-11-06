@@ -5,7 +5,15 @@ import { changedScriptRanges } from '../dist/script-join-git.js';
 import { assertDeterministicReach } from '../dist/runner/self-check.js';
 import { captureAuthorShadowRoots } from '../dist/capture/class-presence.js';
 
-const facts = { version: 2, ignored: false, shadowHosts: 0, frames: 0, outsideBody: 0, shadowRootsVerified: true };
+const facts = {
+  version: 2,
+  ignored: false,
+  shadowHosts: 0,
+  frames: 0,
+  outsideBody: 0,
+  shadowRootsVerified: true,
+  documentBoundsVerified: true,
+};
 const map = (extra = {}) => ({
   defaults: {},
   states: {},

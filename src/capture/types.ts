@@ -149,6 +149,8 @@ export type StyleMap = {
     frames: number;
     outsideBody?: number;
     shadowRootsVerified?: true;
+    /** Head/outside-body and framework light-DOM omissions were checked. */
+    documentBoundsVerified?: true;
     unstable?: true;
   };
   /** Semantic live-region candidates (`aria-live`, `role=status`, …). Diagnostics only. */

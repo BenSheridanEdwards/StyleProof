@@ -8,7 +8,15 @@ const map = () => ({
   defaults: {},
   states: {},
   elements: {},
-  classPresence: { version: 2, ignored: false, shadowHosts: 0, frames: 0, outsideBody: 0, shadowRootsVerified: true },
+  classPresence: {
+    version: 2,
+    ignored: false,
+    shadowHosts: 0,
+    frames: 0,
+    outsideBody: 0,
+    shadowRootsVerified: true,
+    documentBoundsVerified: true,
+  },
   reach: {
     version: 2,
     scope: 'compared',
@@ -149,5 +157,20 @@ test('additional identical class literals retain their new occurrence', () => {
   assert.deepEqual(
     result.units.map((u) => [u.side, u.token]),
     [['head', 'card']],
+  );
+});
+
+test('older version-two facts without document-boundary verification cannot prove absence', () => {
+  const base = "el.className='old'",
+    head = "el.className='new'";
+  const before = map(),
+    after = map();
+  delete before.classPresence.documentBoundsVerified;
+  delete after.classPresence.documentBoundsVerified;
+  const changes = changedScriptRanges(`@@ -1 +1 @@\n-${base}\n+${head}\n`, { base, head }, 'app.tsx');
+  const result = classifyClassReach([before], [after], changes, [{ base: before, head: after }]);
+  assert.ok(
+    result.units.every((u) => u.status === 'unknown'),
+    JSON.stringify(result.units),
   );
 });

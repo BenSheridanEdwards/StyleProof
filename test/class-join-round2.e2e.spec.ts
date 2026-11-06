@@ -29,6 +29,7 @@ for (const scenario of ['control', 'ticker', 'ignore', 'shadow', 'frame'])
           frames: 0,
           outsideBody: 0,
           shadowRootsVerified: true,
+          documentBoundsVerified: true,
         });
       if (scenario === 'ticker') {
         expect(map.volatile?.length).toBeGreaterThan(0);

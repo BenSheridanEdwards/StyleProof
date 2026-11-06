@@ -125,6 +125,7 @@ function presenceComplete(maps: readonly StyleMap[]): boolean {
         !map.volatile?.length &&
         facts?.version === 2 &&
         facts.shadowRootsVerified === true &&
+        facts.documentBoundsVerified === true &&
         facts.outsideBody === 0 &&
         !facts.unstable &&
         facts.ignored === false &&
