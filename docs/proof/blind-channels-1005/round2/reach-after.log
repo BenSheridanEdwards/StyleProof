@@ -1,5 +1,5 @@
 Already up to date
-Done in 58ms using pnpm v11.7.0
+Done in 131ms using pnpm v11.7.0
 $ pnpm run build && node bench/reach-corpus.mjs --check
 $ tsc
 StyleProof reach corpus — 18 changes on bench/fixtures/reach (17 visual)

@@ -1,4 +1,4 @@
-Round 2 runtime code: 16d8a5ce1fb596b4a404b64827da54319c81a90a
+Round 2 runtime code: fbb6b101788c4dc05f0b2cd102efb12012271f90
 Reviewed remote / pinned push lease: e319da319abdcdf4373bca4ac46971dc26f7a83e
 Rebased onto latest origin/main: 6694a77bb7fa92155df6a62fe8f65116e020a99e (unchanged on the later fetch).
 
@@ -9,13 +9,13 @@ Round 2 changes:
 2. Merge declarations through CSS text, retaining pending var() shorthands. The tokenizer preserves quoted/escaped semicolons and function contents before sorting declarations.
 3. Merge only matching (offset, animation-timing-function, animation-composition) groups. Distinct groups at the same offset keep source order. Selector lists, offsets and duplicate declaration cascade retain round-1 coverage.
 4. Blob URLs become a stable not-compared marker with a named report limit. No blob UUID or bytes are stored. S3 v2/v4, GCS v4, Azure SAS and CloudFront signed fields are removed without retaining credential values in maps or reports.
-5. Provider marker parameters bound redaction; unsigned sp/se/sv/st/etc, Expires/Policy and provider date fields retain identity. Non-credential raw query spelling, order, fragments and external asset hosts retain identity.
+5. Provider marker parameters bound redaction; unsigned sp/se/sv/st/etc, Expires/Policy and provider date fields retain identity. AWSAccessKeyId is always removed, but only Signature or Key-Pair-Id permits removing generic Expires/Policy. Non-credential raw query spelling, order, fragments and external asset hosts retain identity.
 6. REFERENCE records prefers-reduced-motion: reduce and no-preference / motion-safe keyframes limitations. It retains captureReach-on-both-sides requirements for font pixels advice and conservative J1 keyframes classification.
-7. Complete images with no src/srcset record (no source), compared against loaded sources; lazy/unloaded images remain skipped with a named limit.
+7. Complete images with no selected source record (no source), including an invalid srcset with no usable candidate, compared against loaded sources; lazy/unloaded images remain skipped with a named limit.
 
 Additional audit fixes: unknown and none no longer collide in the provisional reference cache; skipped image limits include forced-state layers. Duplicate-offset CSS text is collected then applied once per group, avoiding cumulative reparsing. The deterministic 1,000-frame cost test asserts one assignment and fewer than 20,000 input characters. The 5k/20k CSSOM cache tests still assert one root walk, no further walks across 20 reads, and no CSSRule.cssText serialisation.
 
-Test-first proof: initial Chromium red run reproduced 12 failures; scope identity added two red cases and merge cost added one. Unit red runs reproduce blob skip/report and forced-state limit failures. Current focused set passes 48 Chromium cases and 39 unit tests (14 channel tests plus 25 unchanged class-join timing/regression tests). Red/green logs are adjacent to this receipt.
+Test-first proof: initial Chromium red run reproduced 12 failures; scope identity added two red cases, merge cost added one, and access-key/complete-srcset edges added two. Unit red runs reproduce blob skip/report and forced-state limit failures. Current focused set passes 50 Chromium cases and 39 unit tests (14 channel tests plus 25 unchanged class-join timing/regression tests). The earlier lazy-image fixture used an unresolvable relative URL on about:blank; its replacement uses a valid absolute URL and asserts complete === false, proving a genuinely unloaded image. Red/green logs are adjacent to this receipt.
 
 Original main baseline (#1005): 46 detect / 7 clean / 3 blind -> 48 detect / 7 clean / 1 blind, as recorded in bench/detection-corpus.review.md.
 
@@ -27,19 +27,19 @@ Report proof: report/report.md and its adjacent crops come from fresh Chromium c
 
 Hygiene: every issue proof log is stripped of trailing whitespace. Working-tree and origin/main...HEAD whitespace checks pass. Hooks remain enabled. Heavy commands were started only after a one-minute load guard below 60. No PR is opened by this task.
 
-Final full browser result: 1,264 passed, 1 expected skip (test/cross-element-state.e2e.spec.ts:112, non-Chromium evidence scenario in the Chromium project).
+Final full browser result: 1,266 passed, 1 expected skip (test/cross-element-state.e2e.spec.ts:112, non-Chromium evidence scenario in the Chromium project).
 
 Actual command tails on the final runtime code:
 
 $ pnpm run verify (exit 0)
-✔ release runs serialize without cancelling an in-flight publish (0.045333ms)
-✔ release completion requires npm, tag, and GitHub Release receipts (0.090167ms)
-✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.083334ms)
-✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.672708ms)
-✔ release installs without dependency scripts and never persists the checkout token (0.099417ms)
-✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.117917ms)
-✔ every release tag push carries explicit, step-scoped credentials (0.227041ms)
-✔ third-party actions are pinned to a full commit SHA with the tag in a comment (0.9505ms)
+✔ release runs serialize without cancelling an in-flight publish (0.047291ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.0905ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.08725ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (1.012375ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.2035ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.271041ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.31875ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (2.563333ms)
 ℹ tests 6611
 ℹ suites 32
 ℹ pass 6611
@@ -47,21 +47,21 @@ $ pnpm run verify (exit 0)
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 337119.374875
+ℹ duration_ms 304849.339958
 
 $ pnpm run test:e2e (exit 0)
-  ✓  1259 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (753ms)
-  ✓  1260 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (736ms)
-  ✓  1261 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (728ms)
-  ✓  1262 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (727ms)
-  ✓  1263 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (757ms)
-  ✓  1264 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (740ms)
-  ✓  1265 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (735ms)
+  ✓  1259 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (640ms)
+  ✓  1260 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (648ms)
+  ✓  1261 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (660ms)
+  ✓  1262 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (645ms)
+  ✓  1263 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (647ms)
+  ✓  1264 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (656ms)
+  ✓  1265 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (1.2s)
+  ✓  1266 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (1.3s)
+  ✓  1267 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (930ms)
 
-  Slow test file: [chromium] › test/script-join-round6.e2e.spec.ts (6.4m)
-  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
   1 skipped
-  1264 passed (9.4m)
+  1266 passed (7.4m)
 
 $ pnpm run bench:reach:check (exit 0)
   ✓ colliding-constant [declared] today missed · reach unknown · J2 ran · J3 unknown
@@ -90,3 +90,9 @@ $ node bench/detection-rate.mjs --check (exit 0)
   ✓ text-title [dom] title copy change — advisory text layer, captured when captureText is on — 1 finding(s) on target
 
 receipt → bench/detection-corpus.results.json
+
+Observed load at launch (one-minute values below 60):
+reach: 17:25  up 1 day, 17:36, 1 user, load averages: 5.06 11.01 17.16
+detection: 17:25  up 1 day, 17:36, 1 user, load averages: 15.41 13.05 17.72
+verify: 17:26  up 1 day, 17:38, 1 user, load averages: 15.65 13.93 17.73
+e2e: 17:32  up 1 day, 17:43, 1 user, load averages: 8.57 17.06 18.60
