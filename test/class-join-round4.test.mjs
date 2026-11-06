@@ -79,7 +79,7 @@ test('deep nested templates record a named gap instead of exhausting the stack',
     after = map();
   const result = classifyClassReach([before], [after], changes, [{ base: before, head: after }]);
   assert.ok(
-    result.gaps.some((g) => /template.*(?:depth|nesting).*limit/i.test(g.why)),
+    result.gaps.some((g) => /template.*(?:depth|nesting).*limit/i.test(g.reason)),
     JSON.stringify(result.gaps),
   );
   assert.ok(result.units.every((u) => u.status !== 'never-rendered'));
@@ -106,4 +106,43 @@ test('route announcers exempt their shadow tree but not light-DOM author childre
     }),
   };
   assert.equal(await captureAuthorShadowRoots(page), 1);
+});
+
+for (const [name, head] of [
+  ['constant before', "const K = 'new'; cn('card', t(K));"],
+  ['constant after', "cn('card', t(K)); const K = 'new';"],
+])
+  test(`unchanged literals survive inserted literals: ${name}`, () => {
+    const base = "cn('card', t('new'));";
+    const changes = changedScriptRanges(`@@ -1 +1 @@\n-${base}\n+${head}\n`, { base, head }, 'app.tsx');
+    const before = map(),
+      after = map();
+    const result = classifyClassReach([before], [after], changes, [{ base: before, head: after }]);
+    assert.ok(
+      result.units.every((u) => u.token !== 'card'),
+      JSON.stringify(result.units),
+    );
+    const j2 = changes.map(({ sourceKey, side, range }) => ({
+      sourceKey,
+      side,
+      range,
+      execution: 'ran',
+      status: 'reached',
+      why: 'executed',
+      level: 'warn',
+    }));
+    assert.ok(combineClassReach(j2, result.units).every((u) => u.status === 'reached'));
+  });
+
+test('additional identical class literals retain their new occurrence', () => {
+  const base = "cn('card')",
+    head = "cn('card', 'card')";
+  const changes = changedScriptRanges(`@@ -1 +1 @@\n-${base}\n+${head}\n`, { base, head }, 'app.tsx');
+  const before = map(),
+    after = map();
+  const result = classifyClassReach([before], [after], changes, [{ base: before, head: after }]);
+  assert.deepEqual(
+    result.units.map((u) => [u.side, u.token]),
+    [['head', 'card']],
+  );
 });

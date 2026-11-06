@@ -72,3 +72,18 @@ for (const expression of [
     }));
     expect(combineClassReach(j2, result.units).every((u) => u.status === 'reached')).toBe(true);
   });
+
+test('default capture retains the pre-J3 output shape', async ({ page }) => {
+  await page.setContent('<p>Hello</p>');
+  const result = await captureStyleMap(page);
+  expect(Object.keys(result).sort()).toEqual([
+    'defaults',
+    'elements',
+    'stateComputedValueStyle',
+    'stateLayers',
+    'stateTargets',
+    'states',
+    'viewport',
+  ]);
+  expect(result).not.toHaveProperty('classPresence');
+});

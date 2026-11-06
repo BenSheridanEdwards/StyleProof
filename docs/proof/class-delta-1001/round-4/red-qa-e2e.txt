@@ -1,0 +1,41 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:76465) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/class-join-round4.e2e.spec.ts:76:1 › default capture retains the pre-J3 output shape (738ms)
+
+
+  1) [chromium] › test/class-join-round4.e2e.spec.ts:76:1 › default capture retains the pre-J3 output shape 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 4
+
+      Array [
+    +   "classPresence",
+        "defaults",
+        "elements",
+    +   "stateComputedValueStyle",
+        "stateLayers",
+    +   "stateTargets",
+        "states",
+    +   "viewport",
+      ]
+
+      77 |   await page.setContent('<p>Hello</p>');
+      78 |   const result = await captureStyleMap(page);
+    > 79 |   expect(Object.keys(result).sort()).toEqual(['defaults', 'elements', 'stateLayers', 'states']);
+         |                                      ^
+      80 |   expect(result).not.toHaveProperty('classPresence');
+      81 | });
+      82 |
+        at /Users/chief/Mini/T3/Worktrees/StyleProof/t3-aa032a27/test/class-join-round4.e2e.spec.ts:79:38
+
+    Error Context: test-results/test-class-join-round4.e2e-7c32e-ins-the-pre-J3-output-shape-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/class-join-round4.e2e.spec.ts:76:1 › default capture retains the pre-J3 output shape 
