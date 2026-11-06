@@ -270,24 +270,6 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
     }
     return complete;
   };
-  const contextual = new WeakMap<CSSKeyframesRule, boolean>();
-  const needsContext = (rule: CSSKeyframesRule): boolean => {
-    let result = contextual.get(rule);
-    if (result === undefined) {
-      result = values.contextDependentKeyframes(
-        Array.from(rule.cssRules, (frame) => {
-          const { keyText, style } = frame as CSSKeyframeRule;
-          return {
-            keyText,
-            cssText: style.cssText,
-            properties: Array.from(style, (name) => [name, style.getPropertyValue(name)] as const),
-          };
-        }),
-      );
-      contextual.set(rule, result);
-    }
-    return result;
-  };
   const sources = new Map<string, string | undefined>();
   let restoreFreeze: (() => void) | undefined;
   const untraversed = (element: Element): boolean => {
@@ -304,11 +286,9 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
     }
     return false;
   };
-  type Model = { name: string; body?: string; active: boolean };
+  type Model = { name: string; body?: string };
   type AnimationIndex = {
     targets: Map<Element, Map<string, Model[]>>;
-    counts: WeakMap<Element, number>;
-    inherited: WeakMap<Element, boolean>;
   };
   const readModel = (effect: KeyframeEffect): string | undefined => {
     try {
@@ -318,20 +298,18 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
     }
   };
   const readAnimationIndex = (): AnimationIndex | undefined => {
-    const index: AnimationIndex = { targets: new Map(), counts: new WeakMap(), inherited: new WeakMap() };
+    const index: AnimationIndex = { targets: new Map() };
     try {
       for (const animation of document.getAnimations()) {
         if (!(animation.effect instanceof KeyframeEffect)) continue;
         const element = animation.effect.target;
         if (!(element instanceof Element)) continue;
-        const active = animation.playState === 'running' || animation.playState === 'paused';
-        if (active) index.counts.set(element, (index.counts.get(element) ?? 0) + 1);
         if (!(animation instanceof CSSAnimation)) continue;
         const name = animation.animationName;
         const pseudo = animation.effect.pseudoElement ?? '';
         const byPseudo = index.targets.get(element) ?? new Map<string, Model[]>();
         const models = byPseudo.get(pseudo) ?? [];
-        models.push({ name, body: readModel(animation.effect), active });
+        models.push({ name, body: readModel(animation.effect) });
         byPseudo.set(pseudo, models);
         index.targets.set(element, byPseudo);
       }
@@ -340,32 +318,25 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       return undefined;
     }
   };
-  // With settling disabled, retain inputs seen before the capture freeze can finish/cancel them.
-  const initial = retainInputs ? readAnimationIndex() : undefined;
-  const count = (element: Element, index: AnimationIndex): number =>
-    Math.max(index.counts.get(element) ?? 0, initial?.counts.get(element) ?? 0);
-  const activeAncestor = (element: Element | null, index: AnimationIndex): boolean => {
-    const path: Element[] = [];
-    let result = false;
-    for (let node = element; node; node = node.parentElement) {
-      const cached = index.inherited.get(node);
-      if (cached !== undefined) {
-        result = cached;
-        break;
-      }
-      path.push(node);
-      if (count(node, index) > 0) {
-        result = true;
-        break;
-      }
+  const readInputs = (): boolean | undefined => {
+    try {
+      return document.getAnimations().some((animation) => {
+        if (!retainInputs && (animation instanceof CSSAnimation || animation instanceof CSSTransition)) return false;
+        const timing = animation.effect?.getComputedTiming();
+        if (!timing) return animation.playState === 'running' || animation.playState === 'paused';
+        return values.motionInProgress(animation.playState, {
+          ...timing,
+          activeDuration: Number(timing.activeDuration),
+          localTime: typeof timing.localTime === 'number' || timing.localTime === null ? timing.localTime : undefined,
+          endTime: typeof timing.endTime === 'number' ? timing.endTime : undefined,
+        });
+      });
+    } catch {
+      return undefined;
     }
-    for (const node of path) index.inherited.set(node, result);
-    return result;
   };
-  const otherInput = (element: Element, index: AnimationIndex, live: Model[] | undefined): boolean =>
-    (retainInputs && !initial) ||
-    count(element, index) > (live?.some((model) => model.active) ? 1 : 0) ||
-    activeAncestor(element.parentElement, index);
+  const initial = retainInputs ? readInputs() : false;
+  let held = false;
   let prepared: AnimationIndex | undefined;
   target.__spChannelHosts = new WeakSet();
   target.__spBeginChannelProof = (unfreeze = false) => {
@@ -375,6 +346,8 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
     const w = window as Window & { __spFreeze?: CSSStyleSheet; __spAssertFrozen?: () => void };
     const freeze = w.__spFreeze;
     const disabled = freeze?.disabled;
+    // Read the frozen document before lifting it: recreated CSS motion is not input evidence.
+    held ||= values.holdKeyframes(retainInputs, initial, readInputs());
     if (unfreeze) {
       w.__spAssertFrozen?.();
       document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => sheet !== freeze);
@@ -455,9 +428,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
           untraversed(element) ||
           ambiguous(rules, name, !!live?.length && !!winner && sourceFingerprint(winner.rule) === sources.get(name)),
         verified: target.__spChannelScopesVerified === true,
-        complete:
-          !winner ||
-          (modelComplete(winner.rule) && !(needsContext(winner.rule) && (!index || otherInput(element, index, live)))),
+        complete: !held && (!winner || modelComplete(winner.rule)),
       });
       properties[`animation keyframes (${name})`] = reference(name, resolved);
     }

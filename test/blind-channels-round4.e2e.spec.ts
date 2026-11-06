@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { captureStyleMap, diffStyleMaps } from '../dist/index.js';
 import { assertBrowserLinearScaling } from './browser-linearity-helper.mjs';
-const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
+const options = { captureVisualChannels: true, captureStates: false };
 const css = '@keyframes pulse{from{opacity:0}to{opacity:.5}} .a{animation:pulse 1s infinite paused}';
 test('one flat animation index per channel read, without per-element native lookups', async ({ page }) => {
   await page.setContent(`<style>${css}</style>` + '<div class=a>x</div>'.repeat(40));
@@ -41,7 +41,7 @@ for (const inherited of [false, true])
       await page.evaluate((time) => {
         for (const a of document.getAnimations()) a.currentTime = time;
       }, time);
-      const map = await captureStyleMap(page, options);
+      const map = await captureStyleMap(page, { ...options, stabilize: false });
       maps.push(map);
       expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe(
         'unknown',
@@ -159,7 +159,7 @@ test('a variable consumer stays unknown when an opaque ancestor animation drives
     route.fulfill({ contentType: 'text/css', body: '@keyframes custom{from{--x:10px}to{--x:20px}}' }),
   );
   await page.goto('http://fixture.test/');
-  const map = await captureStyleMap(page, options);
+  const map = await captureStyleMap(page, { ...options, stabilize: false });
   expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe('unknown');
 });
 

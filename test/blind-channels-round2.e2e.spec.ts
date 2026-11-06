@@ -6,7 +6,8 @@ import { installVisualChannels, type VisualChannelWindow } from '../dist/capture
 import { assertDeterministicVisualChannels } from '../dist/visual-channels.js';
 import { pairFixture, rmTmp } from './helpers.mjs';
 
-const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
+// Canonical/source comparisons use settling; unstabilized relative models have document-wide limits.
+const options = { captureVisualChannels: true, captureStates: false };
 const markup = (body: string) =>
   `<!doctype html><style>:root{--a:0px 0px;--b:40px 40px}@keyframes pulse{${body}}.target{animation:pulse 10s infinite;width:10px;height:10px}</style><div class="target"></div>`;
 async function capture(page: Page, html: string) {

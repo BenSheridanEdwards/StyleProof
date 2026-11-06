@@ -3,7 +3,8 @@ import { captureStyleMap, diffStyleMaps } from '../dist/index.js';
 import { installVisualChannelValues } from '../dist/capture/visual-channel-proof.js';
 import { installVisualChannels, type VisualChannelWindow } from '../dist/capture/visual-channels.js';
 
-const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
+// Canonical/source comparisons use settling; unstabilized relative models have document-wide limits.
+const options = { captureVisualChannels: true, captureStates: false };
 const markup = (frames: string) =>
   `<!doctype html><style>${frames}.target{animation:pulse 10s infinite;width:10px;height:10px}</style><div class="target"></div>`;
 async function capture(page: Page, html: string) {

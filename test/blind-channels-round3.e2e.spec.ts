@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { captureStyleMap, diffStyleMaps, generateStyleMapReport } from '../dist/index.js';
 import { pairFixture, rmTmp } from './helpers.mjs';
-const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
+// Canonical/source comparisons use settling; unstabilized relative models have document-wide limits.
+const options = { captureVisualChannels: true, captureStates: false };
 async function capture(page: Page, html: string) {
   await page.goto('about:blank');
   await page.setContent(html);

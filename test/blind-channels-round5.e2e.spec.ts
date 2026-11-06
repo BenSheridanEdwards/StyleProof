@@ -118,7 +118,7 @@ for (const stabilize of [false, true])
         for (const map of maps)
           expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
     });
-test('a lone relative animation and fixed explicit bodies remain compared', async ({ page }) => {
+test('stabilized relative and fixed explicit bodies remain compared', async ({ page }) => {
   for (const [a, b] of [
     ['2em', '3em'],
     ['20px', '30px'],
@@ -128,7 +128,7 @@ test('a lone relative animation and fixed explicit bodies remain compared', asyn
       await page.setContent(
         `<style>@keyframes pulse{from{margin-left:0px}to{margin-left:${value}}}.a{animation:pulse 1s infinite paused}</style><div class=a>x</div>`,
       );
-      maps.push(await captureStyleMap(page, options));
+      maps.push(await captureStyleMap(page, { ...options, stabilize: true }));
     }
     expect(
       diffStyleMaps(maps[0], maps[1])

@@ -1510,14 +1510,21 @@ unambiguous scope records definite `none` (displayed as `(no @keyframes)`). This
 compares referenced rule deletion and non-applying media. A known CSSOM definition
 without a usable live model stays unknown. Empty or unusable engine frames,
 unrepresentable timeline ranges, and keyframes that animate custom properties
-whose complete model is unavailable also stay unknown. A model using context-relative values (`var()`, `currentColor`, relative lengths,
-percentages, inheritance or implicit endpoints) stays unknown when another running
-or paused animation/transition can drive the element's context. The flat index
-counts CSS, Web Animation and transition effects on the originating element and
-its pseudo-elements, and on ancestors; the consumer's own effect is excluded.
-With `stabilize:false`, inputs present before the capture freeze are retained for
-the capture, even if the freeze finishes or cancels a transition. A lone relative
-animation remains comparable when no other context input is live.
+whose complete model is unavailable also stay unknown. Default stabilization restarts CSS animations and transitions at t=0. Those
+recreated effects never taint keyframe evidence, including a formerly finished
+entrance animation with forwards/both fill. Only effects still in progress in the
+frozen document, such as surviving Web Animations, hold bodies unknown. Liveness
+is read before lifting the freeze, not from recreated CSS animations. Finished,
+idle and paused-at-end effects do not count.
+
+With `stabilize:false`, if any animation or transition is in progress anywhere in
+the resting document, **every keyframe body is unknown**. Running effects and
+paused active intervals count, including the consumer itself, pseudo-elements and
+siblings. No value-token classification or DOM dependency walk proves safety:
+the engine can supply dependencies absent from the source. Pre-freeze inputs are
+retained for the capture even if freezing cancels or finishes them. When nothing
+is in progress, bodies stay comparable, including static em/currentColor/var()
+models. This is an explicit `stabilize:false` limitation, not proof of equality.
 In particular, Chromium
 can omit animated custom-property declarations and expose progress-dependent
 substitutions; we do not guess those bodies. Unknown and none have distinct

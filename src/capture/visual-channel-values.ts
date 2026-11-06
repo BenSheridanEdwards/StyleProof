@@ -156,38 +156,36 @@ export function normalizeImageSource(source: string, origin: string, base: strin
   return url.origin === origin ? `${url.pathname}${url.search}${url.hash}` : url.href;
 }
 
-/** Context-sensitive values cannot be proved independent of another live effect. */
-export function contextRelativeValue(value: string): boolean {
-  const text = value.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '').replace(/url\([^)]*\)/gi, '');
-  return (
-    /%|\b(?:var|env|attr|anchor(?:-size)?|calc-size|light-dark)\s*\(/i.test(text) ||
-    /\b(?:currentcolor|inherit|unset|revert(?:-layer)?|auto|normal|larger|smaller|bolder|lighter|min-content|max-content|fit-content|stretch|canvas(?:text)?|buttonface|buttontext|buttonborder|field(?:text)?|highlight(?:text)?|selecteditem(?:text)?|mark(?:text)?|graytext|accentcolor(?:text)?|linktext|visitedtext|activetext)\b/i.test(
-      text,
-    ) ||
-    /(?:^|[^\w.-])[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:r?em|r?ex|r?ch|r?cap|r?ic|r?lh|(?:[sld]?v)(?:w|h|i|b|min|max)|cq(?:w|h|i|b|min|max))(?![\w-])/i.test(
-      text,
-    )
-  );
+/** Running effects and paused active intervals are live; filled endpoints are not. */
+export function motionInProgress(
+  state: string,
+  timing: {
+    progress?: number | null;
+    localTime?: number | null;
+    delay?: number;
+    activeDuration: number;
+    endTime?: number;
+  },
+): boolean {
+  if (state === 'running') return true;
+  if (state !== 'paused') return false;
+  if (
+    timing.progress === undefined ||
+    timing.localTime === undefined ||
+    timing.delay === undefined ||
+    timing.endTime === undefined
+  )
+    return true;
+  if (timing.progress === null || timing.localTime === null) return false;
+  const end = Math.min(timing.delay + timing.activeDuration, timing.endTime);
+  return Number.isNaN(end) || (timing.localTime >= timing.delay && timing.localTime < end);
 }
 
-type ContextFrame = { keyText: string; cssText: string; properties: readonly (readonly [string, string])[] };
-/** Includes implicit endpoints, whose values come from the element's underlying context. */
-export function contextDependentKeyframes(
-  frames: readonly ContextFrame[],
-  relative: typeof contextRelativeValue = contextRelativeValue,
+/** Missing liveness evidence is never permission to compare an engine model. */
+export function holdKeyframes(
+  unstabilized: boolean,
+  initial: boolean | undefined,
+  surviving: boolean | undefined,
 ): boolean {
-  if (frames.some((frame) => relative(frame.cssText) || frame.properties.some(([, value]) => relative(value))))
-    return true;
-  const endpoints = new Map<string, number>();
-  for (const frame of frames) {
-    const mask = frame.keyText.split(',').reduce((bits, key) => {
-      const token = key.trim().toLowerCase();
-      return bits | (/^(?:from|0(?:\.0+)?%)$/.test(token) ? 1 : /^(?:to|100(?:\.0+)?%)$/.test(token) ? 2 : 0);
-    }, 0);
-    for (const [property] of frame.properties) {
-      if (property.startsWith('animation-')) continue;
-      endpoints.set(property, (endpoints.get(property) ?? 0) | mask);
-    }
-  }
-  return [...endpoints.values()].some((mask) => mask !== 3);
+  return surviving !== false || (unstabilized && initial !== false);
 }

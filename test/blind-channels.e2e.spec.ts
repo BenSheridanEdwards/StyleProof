@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import { captureStyleMap, diffStyleMaps } from '../dist/index.js';
 import { assertDeterministicVisualChannels } from '../dist/visual-channels.js';
 
-const options = { captureVisualChannels: true, captureStates: false, stabilize: false };
+// Canonical/source comparisons use settling; unstabilized relative models have document-wide limits.
+const options = { captureVisualChannels: true, captureStates: false };
 const animation = (body: string, extra = '') => `<!doctype html><style>
   @keyframes pulse { ${body} }
   .target { animation: pulse 10s infinite; width: 10px; height: 10px; }
