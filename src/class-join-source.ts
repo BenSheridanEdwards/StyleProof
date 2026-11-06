@@ -11,8 +11,25 @@ export type ClassSource = {
   literals: Map<number, Literal>;
   nesting: number;
 };
+/** J2 keeps generic-looking JSX lexemes opaque; J3 needs their nested type groups. */
+function genericLexeme(text: string, token: ScriptToken): boolean {
+  return !!token.negativeOnly && /^<[\w$]+(?:\s+extends\b|\s*,)/.test(text.slice(token.index, token.end));
+}
+function classTokens(text: string, key: string): ScriptToken[] {
+  const tokens = scriptTokens(text, key);
+  if (!tokens.some((t) => genericLexeme(text, t))) return tokens;
+  return tokens.flatMap((token) =>
+    genericLexeme(text, token)
+      ? scriptTokens(text.slice(token.index, token.end), '', 'ts').map((t) => ({
+          ...t,
+          index: t.index + token.index,
+          end: t.end + token.index,
+        }))
+      : token,
+  );
+}
 export function classSource(text: string, key: string): ClassSource {
-  const tokens = scriptTokens(text, key),
+  const tokens = classTokens(text, key),
     lines = [0];
   for (const match of text.matchAll(/\r\n|[\n\r\u2028\u2029]/g)) lines.push(match.index + match[0].length);
   return { text, tokens, byStart: new Map(tokens.map((t) => [t.index, t])), lines, literals: new Map(), nesting: 0 };

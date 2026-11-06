@@ -29,7 +29,8 @@ function markupStart(source: ClassSource, start: number, previous?: RoleToken): 
   const prefix =
     !previous ||
     ['=', '(', '[', '{', ',', ':', '?', '=>', ';', '>', 'return', '&&', '||', '??'].includes(previous.text);
-  return prefix && /^<[\w.-]+\s/.test(source.text.slice(start));
+  const following = source.text.slice(start);
+  return prefix && /^<[\w.-]+\s/.test(following) && !/^<[\w.-]+\s+extends\b/.test(following);
 }
 type TokenStack = { nodes: RoleToken[]; open: string; start: number }[];
 type TokenCursor = { cursor: number; stack: TokenStack; markupDepth?: number; limit?: number; failed?: true };

@@ -93,8 +93,17 @@ test('TSX extends never enters markup mode inside generic type parameters', () =
 });
 
 test('parenthesized arrow return keeps both dynamic-fragment gaps', () => {
-  const source = 'const f = (): (() => void) => { el.className=`tk-old ${x}`; return f; };';
+  const source = 'const f = (): (() => void) => { el.className=`tk-old${x}`; return f; };';
   const result = join(source, source.replace('tk-old', 'tk-new'), 'app.ts');
   assert.equal(result.gaps.length, 2);
-  assert.ok(result.gaps.every((g) => /fragment/.test(g.why)));
+  assert.ok(result.gaps.every((g) => /fragment/.test(g.reason)));
 });
+
+for (const source of [
+  "export default function f(): { class: 'ty-old' } { el.className='tk-old js-hook'; return value; }",
+  "export default {data:1}; let p: { class: 'ty-old' };",
+])
+  test(`export default is not a switch label: ${source}`, () => {
+    const literals = classLiterals(source, 'app.ts');
+    assert.ok(literals.filter((l) => l.words.some((w) => w.token === 'ty-old')).every((l) => !l.explicit));
+  });

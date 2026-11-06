@@ -31,7 +31,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   use decoded spelling; encoded component markup and escaped dynamic templates stay unmeasured.
   Inherited type mode keeps annotations, nested generics/tuples/conditionals, aliases/interfaces,
   return types and assertions non-explicit, including generic constraints/defaults. Runtime
-  initializers, function bodies and labeled blocks keep positive class values. Bracket caps discard
+  initializers, parenthesized arrow returns, ASI statements and case-expression blocks keep positive class values.
+  Angle matching stops at statement/operator/declarator boundaries; opaque TSX generic prefixes use
+  the existing TS lexer in J3. Both-direction oracle tests pin type negatives and runtime positives.
+  Unsupported lexical forms may still omit occurrences and gaps, a documented checking limit. Bracket caps discard
   the unfinished statement back to the previous top-level semicolon, preserve earlier
   statement roles, and cover the unread remainder through EOF where class-role analysis runs. Template depth
   gaps remain unconditional, and flat else-if chains do not consume nesting depth.

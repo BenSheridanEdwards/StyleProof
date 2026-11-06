@@ -9,7 +9,7 @@ function declarationCall(nodes: RoleToken[], index: number, member: boolean): bo
   const before = nodes[index - 1]?.text,
     after = nodes[index + 2];
   if (before === 'function' || (before === '*' && nodes[index - 2]?.text === 'function')) return true;
-  if (after?.text === '{' || after?.text === ':') return true;
+  if (after?.text === '{' || (after?.text === ':' && nodes[index + 3]?.typeOnly)) return true;
   return member && !['=', 'return', '(', ',', ':', '?', '=>', '&&', '||', '??'].includes(before);
 }
 function callRoot(reader: RoleReader, nodes: RoleToken[], index: number, member: boolean): number | undefined {

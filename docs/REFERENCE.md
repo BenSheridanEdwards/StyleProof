@@ -2424,11 +2424,18 @@ union/intersection and conditional types keep that mode; their class-shaped
 properties cannot lower J2. Initializers, parameter separators, semicolons,
 recognized statement ends and function bodies resume runtime discovery.
 Property-value and runtime ternary colons retain class values; case/default and
-statement labels (including Svelte `$:`) retain runtime blocks. Balanced angles
-that are ambiguous with comparisons are conservatively treated as type syntax;
-recognized JSX class attributes remain runtime. Unbalanced angles stay operators.
-This lexical boundary can lose negative evidence; it does not type-check bindings
-or promise full TypeScript grammar coverage. Malformed brackets produce a
+statement labels (including Svelte `$:`) retain runtime blocks. Balanced angles are bounded by statement ends, runtime operators and declarator
+commas. Parenthesized arrow return annotations resume their runtime body at the
+final arrow; ASI boundaries and parenthesized/call case labels retain runtime
+values. Generic `<Ident extends` prefixes are re-lexed with the existing TS lexer
+for J3 and never enter markup mode; J2 token evidence is unchanged.
+Residual lexical ambiguities still exist: a balanced comparison that resembles
+type arguments, opaque JSX text, unsupported syntax or receiver/data-flow
+ambiguities can omit a candidate and its gap. No gap is guaranteed for every
+unsupported expression, and absence from the J3 list does not prove the line was
+checked. Recognized depth limits and recognized unresolved/fragment contexts
+produce named gaps; untouched J2 evidence remains conservative. The reader does
+not type-check bindings or promise full JS/TS grammar coverage. Malformed brackets produce a
 named extraction gap; unknown expressions never inherit explicit evidence.
 Bracket and expression nesting are capped at 128 only when role analysis runs:
 files with recognized class syntax, or explicit class-binding expressions. Files

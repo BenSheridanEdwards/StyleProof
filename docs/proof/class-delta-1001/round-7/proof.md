@@ -1,5 +1,9 @@
 # J3 round-seven type-mode correction (#1001)
 
+Historical receipt: round eight supersedes the runtime-retention claims below.
+The round-seven type mode could omit runtime occurrences and their gaps; see
+[round-eight correction](../round-8/proof.md).
+
 Baseline: 6dc28f584884ec249449c72a3063ebc895e8d112. Fetched and rebased onto
 origin/main (0cc4bd2dc); already current. Test-first checkpoint: bf89166b3.
 Inherited mode: d7cb4bd1e. Final source: 4f0f69a81e8301667fe3ea68d318fd55dd065e7b.
@@ -18,8 +22,9 @@ work stack and a linear angle-balancing pass, with a fast path for regions witho
 type syntax. Runtime case/default/statement labels (including Svelte $:) and
 property/ternary values retain positive roles.
 
-Balanced angles that are ambiguous with comparisons conservatively lose positive
-evidence. This is a lexical reader, not a full TypeScript parser or binding
+At this revision, balanced comparisons and some return/ASI boundaries could omit
+both positive occurrences and their gaps. This was a coverage defect, corrected
+for the listed forms in round eight. Residual lexical omissions remain documented. This is a lexical reader, not a full TypeScript parser or binding
 analysis. Unsupported/ambiguous syntax stays J3-only; plain runtime class-shaped
 data objects remain the documented Vue h() ambiguity. No J2 classification,
 capture, report rendering or verdict code changed.

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import ts from 'typescript';
+import { runtimeForms } from './class-join-round8-cases.mjs';
 import { classLiterals } from '../dist/class-join-literals.js';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
@@ -58,6 +59,7 @@ for (const source of [...typeForms, ...qaForms])
   });
 
 for (const source of [
+  ...runtimeForms.map((source) => source.replaceAll('tk-old js-hook', 'old')),
   "switch(k) { default: { el.className='old'; } }",
   "switch(k) { case A: { el.className='old'; } }",
   "switch(k) { case K.A: { el.className='old'; } }",
@@ -138,7 +140,7 @@ test('nested inline type evidence cannot lower a same-line visual-change J2 rang
   assertTypeJoin(base, head);
 });
 
-test('dev-only TypeScript AST oracle: 8000 nested type-position literals have zero positive roles', (t) => {
+test('dev-only two-way TS oracle: nested types stay negative and supported runtime roles stay positive', (t) => {
   const wrappers = [
     (v) => `let p: ${v} = value;`,
     (v) => `function f(e: ${v}) {}`,
@@ -173,30 +175,79 @@ test('dev-only TypeScript AST oracle: 8000 nested type-position literals have ze
   const failures = [];
   let checked = 0;
   let falsePositives = 0;
+  let runtimeChecked = 0;
+  let falseNegatives = 0;
+  const missed = [];
   for (let i = 0; i < 8000 + qaForms.length; i++) {
     const leaf = i % 2 ? "{ class: 'old' }" : "{ className: 'old' }";
     const value = nests[Math.floor(i / 16) % nests.length](nests[Math.floor(i / 160) % nests.length](leaf));
-    const source = i < 8000 ? wrappers[i % wrappers.length](value) : qaForms[i - 8000];
-    const tree = ts.createSourceFile('app.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const typeSource = i < 8000 ? wrappers[i % wrappers.length](value) : qaForms[i - 8000];
+    const kind = ['ts', 'tsx', 'vue', 'svelte'][i % 4];
+    const jsx = [
+      `const view = <div className="rt${i} js-hook"/>;`,
+      `const view = <div className={on ? 'rt${i}' : 'rt${i}-else'}/>;`,
+      `const view = <div className={cn('rt${i}')}/>;`,
+    ];
+    const source =
+      typeSource +
+      '\n' +
+      runtimeForms[i % runtimeForms.length].replaceAll('tk-old', `rt${i}`) +
+      (kind === 'tsx' ? '\n' + jsx[i % jsx.length] : '');
+    const tree = ts.createSourceFile(
+      'app.ts',
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      kind === 'tsx' ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
     assert.equal(tree.parseDiagnostics.length, 0, source);
     const typePositions = new Set();
+    const runtimePositions = new Set();
     const pending = [{ node: tree, type: false }];
     while (pending.length) {
       const { node, type } = pending.pop();
       const inType = type || ts.isTypeNode(node);
       if (ts.isStringLiteral(node) && node.text === 'old' && inType) typePositions.add(node.getStart(tree));
+      if (ts.isStringLiteral(node) && node.text.startsWith(`rt${i}`) && !inType)
+        runtimePositions.add(node.getStart(tree));
       ts.forEachChild(node, (child) => {
         pending.push({ node: child, type: inType });
       });
     }
     assert.ok(typePositions.size >= 1, source);
     checked += typePositions.size;
-    for (const literal of classLiterals(source, 'app.ts'))
-      if (literal.explicit && typePositions.has(literal.range.start.column)) {
+    const prefix = kind === 'vue' || kind === 'svelte' ? '<script lang="ts">\n' : '';
+    const text = prefix ? prefix + source + '\n</script>' : source;
+    const lines = [0];
+    for (const match of text.matchAll(/\n/g)) lines.push(match.index + 1);
+    const explicit = new Set(
+      classLiterals(text, `app.${kind}`)
+        .filter((l) => l.explicit)
+        .map((l) => lines[l.range.start.line - 1] + l.range.start.column - prefix.length),
+    );
+    for (const position of typePositions)
+      if (explicit.has(position)) {
         falsePositives++;
         if (failures.length < 10) failures.push(source);
       }
+    assert.ok(runtimePositions.size, source);
+    runtimeChecked += runtimePositions.size;
+    for (const position of runtimePositions)
+      if (!explicit.has(position)) {
+        falseNegatives++;
+        if (missed.length < 10) missed.push(source);
+      }
   }
-  t.diagnostic(JSON.stringify({ checkedTypeLiterals: checked, falsePositives, falsePositiveExamples: failures }));
+  t.diagnostic(
+    JSON.stringify({
+      checkedTypeLiterals: checked,
+      falsePositives,
+      runtimeChecked,
+      falseNegatives,
+      falsePositiveExamples: failures,
+      falseNegativeExamples: missed,
+    }),
+  );
   assert.deepEqual(failures, []);
+  assert.deepEqual(missed, []);
 });

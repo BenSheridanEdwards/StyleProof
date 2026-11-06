@@ -25,9 +25,35 @@ export const valueRole = (name: string): PositiveRole => ({
 export function classAttribute(node: RoleToken): boolean {
   return !!node.attribute;
 }
-export function valueEnd(nodes: RoleToken[], start: number): number {
+const statementWords = new Set([
+  'const',
+  'let',
+  'var',
+  'function',
+  'class',
+  'return',
+  'throw',
+  'try',
+  'if',
+  'for',
+  'while',
+  'switch',
+  'do',
+  'export',
+]);
+function nextStatement(source: ClassSource, nodes: RoleToken[], index: number): boolean {
+  const previous = nodes[index - 1],
+    node = nodes[index];
+  if (!previous || previous.kind === 'operator' || node.kind !== 'word') return false;
+  if (!/[\n\r\u2028\u2029]/.test(source.text.slice(previous.end, node.start))) return false;
+  return statementWords.has(node.text) || ['.', '!', '[', '?.', '(', '='].includes(nodes[index + 1]?.text);
+}
+export function valueEnd(source: ClassSource, nodes: RoleToken[], start: number): number {
   let end = start;
-  while (end < nodes.length && nodes[end].text !== ',' && nodes[end].text !== ';') end++;
+  while (end < nodes.length && nodes[end].text !== ',' && nodes[end].text !== ';') {
+    if (end > start && nextStatement(source, nodes, end)) break;
+    end++;
+  }
   return end;
 }
 export function rootValue(source: ClassSource, nodes: RoleToken[], index: number, object: boolean) {
@@ -41,7 +67,7 @@ export function rootValue(source: ClassSource, nodes: RoleToken[], index: number
   if (!attribute && !assignment && !property) return;
   const first = nodes[index + 2];
   if (!first) return;
-  const end = attribute ? index + 3 : valueEnd(nodes, index + 2);
+  const end = attribute ? index + 3 : valueEnd(source, nodes, index + 2);
   const values = attribute && first.text === '{' ? first.children! : nodes.slice(index + 2, end);
   return { values, end, role: valueRole(name), attribute, span: tokenSpan(nodes.slice(index, end)) };
 }

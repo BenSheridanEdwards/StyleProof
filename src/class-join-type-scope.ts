@@ -2,7 +2,12 @@
 import { objectGroup } from './class-join-role-roots.js';
 import type { RoleToken } from './class-join-role-tokens.js';
 type Frame = { nodes: RoleToken[]; parent: string; object: boolean; member?: boolean };
-type Mode = { kind: 'annotation' | 'assertion' | 'alias' | 'interface' | 'heritage'; operand: boolean; body?: boolean };
+type Mode = {
+  kind: 'annotation' | 'assertion' | 'alias' | 'interface' | 'heritage';
+  operand: boolean;
+  body?: boolean;
+  arrowReturn?: boolean;
+};
 type Cursor = {
   mode?: Mode;
   alias?: boolean;
@@ -10,11 +15,100 @@ type Cursor = {
   binding?: boolean;
   conditionals: number;
   classHeader?: boolean;
+  functionHeader?: boolean;
+  genericDeclaration?: boolean;
+  caseLabel?: boolean;
 };
 const declarations = new Set(['let', 'const', 'var', 'using']);
 const typePrefixes = new Set(['as', 'satisfies']);
 const typeSyntax = /[:<]|\b(?:as|satisfies|type|interface|implements)\b/;
-const statementWords = new Set(['function', 'class', 'interface', 'type', 'export', 'import', 'return', 'throw']);
+const statementWords = new Set([
+  'function',
+  'class',
+  'interface',
+  'type',
+  'export',
+  'import',
+  'return',
+  'throw',
+  'try',
+  'do',
+  'async',
+  'await',
+  'if',
+  'for',
+  'while',
+  'switch',
+  'new',
+  'this',
+]);
+const angleStops = new Set([
+  ';',
+  '&&',
+  '||',
+  '??',
+  '==',
+  '===',
+  '!=',
+  '!==',
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '**',
+  'return',
+  'function',
+  'class',
+  'export',
+]);
+const arrowStops = new Set([';', ',', '=']);
+function runtimeStart(nodes: RoleToken[], index: number): boolean {
+  const node = nodes[index];
+  return (
+    node.text === '{' ||
+    declarations.has(node.text) ||
+    statementWords.has(node.text) ||
+    (node.kind === 'word' && ['.', '=', '(', '!', '[', '?.', ':'].includes(nodes[index + 1]?.text))
+  );
+}
+function newline(nodes: RoleToken[], index: number, text: string): boolean {
+  return index > 0 && /[\n\r\u2028\u2029]/.test(text.slice(nodes[index - 1].end, nodes[index].start));
+}
+function parameterAngles(nodes: RoleToken[], index: number): boolean {
+  const previous = nodes[index - 1]?.text;
+  return (
+    previous === undefined ||
+    ['=', ':', '(', '=>'].includes(previous) ||
+    ['function', 'class', 'interface', 'type'].includes(nodes[index - 2]?.text)
+  );
+}
+function angleBoundary(nodes: RoleToken[], index: number, text: string, open: number): boolean {
+  const node = nodes[index],
+    previous = nodes[index - 1]?.text;
+  if (angleStops.has(node.text)) return true;
+  if (declarations.has(node.text) && !(parameterAngles(nodes, open) && ['<', ','].includes(previous))) return true;
+  if (node.text === ',' && nodes[index + 1]?.kind === 'word' && ['=', ':'].includes(nodes[index + 2]?.text))
+    return !parameterAngles(nodes, open);
+  return (
+    newline(nodes, index, text) &&
+    runtimeStart(nodes, index) &&
+    !typeOperators.has(previous) &&
+    !['<', ',', '.'].includes(previous)
+  );
+}
+/** A reverse pass avoids rescanning the remainder for each function-type arrow. */
+function functionArrows(nodes: RoleToken[]): Set<number> {
+  const result = new Set<number>();
+  let later = false;
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (arrowStops.has(nodes[i].text)) later = false;
+    if (nodes[i].text !== '=>') continue;
+    if (later) result.add(i);
+    later = true;
+  }
+  return result;
+}
 const typeOperators = new Set([
   '|',
   '&',
@@ -31,11 +125,12 @@ const typeOperators = new Set([
   'asserts',
 ]);
 /** Balance angles once per sibling sequence; ambiguous balanced groups stay conservative. */
-function angleEnds(nodes: RoleToken[]): Map<number, number> {
+function angleEnds(nodes: RoleToken[], text: string): Map<number, number> {
   const ends = new Map<number, number>(),
     stack: number[] = [];
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
+    if (stack.length && angleBoundary(nodes, i, text, stack.at(-1)!)) stack.length = 0;
     if (node.text === '<') stack.push(i);
     else if (/^>{1,3}$/.test(node.text)) {
       for (let j = 0; j < node.text.length && stack.length; j++) ends.set(stack.pop()!, i);
@@ -61,22 +156,42 @@ function colon(frame: Frame, state: Cursor, index: number): void {
     state.conditionals--;
     return;
   }
+  if (state.caseLabel) {
+    state.caseLabel = false;
+    if (frame.nodes[index + 1]?.text === '{') frame.nodes[index + 1].runtimeBlock = true;
+    return;
+  }
   if (annotation(frame, state, index)) {
     const target = frame.nodes[index - 1];
-    state.mode = { kind: 'annotation', operand: true, body: target?.text === '(' };
+    const before = frame.nodes[index - 2];
+    state.mode = {
+      kind: 'annotation',
+      operand: true,
+      body: target?.text === '(',
+      arrowReturn:
+        !state.functionHeader && !state.genericDeclaration && (before?.kind !== 'word' || before.text === 'async'),
+    };
   } else if (!frame.object && frame.nodes[index + 1]?.text === '{') frame.nodes[index + 1].runtimeBlock = true;
 }
-function declarationStep(frame: Frame, state: Cursor, index: number): void {
-  const node = frame.nodes[index],
-    text = node.text;
-  if (declarations.has(text)) {
-    state.declaration = true;
-    state.binding = true;
-  }
+function declarationMode(frame: Frame, state: Cursor, index: number): void {
+  const text = frame.nodes[index].text;
+  if (text === 'function') state.functionHeader = true;
+  if (!frame.object && (text === 'case' || (text === 'default' && frame.nodes[index + 1]?.text === ':')))
+    state.caseLabel = true;
   if (text === 'class' && frame.nodes[index + 1]?.kind === 'word') state.classHeader = true;
   if (text === 'type' && !frame.object && frame.nodes[index + 1]?.kind === 'word') state.alias = true;
   if (text === 'interface' && frame.nodes[index + 1]?.kind === 'word')
     state.mode = { kind: 'interface', operand: true };
+}
+function declarationStep(frame: Frame, state: Cursor, index: number): void {
+  const text = frame.nodes[index].text;
+  if (declarations.has(text)) {
+    state.declaration = true;
+    state.binding = true;
+    state.functionHeader = false;
+    state.genericDeclaration = false;
+  }
+  declarationMode(frame, state, index);
   if (text === '=') {
     state.binding = false;
     if (state.alias) {
@@ -89,6 +204,8 @@ function declarationStep(frame: Frame, state: Cursor, index: number): void {
     state.declaration = false;
     state.binding = false;
     state.alias = false;
+    state.functionHeader = false;
+    state.genericDeclaration = false;
   }
 }
 function runtimeStep(frame: Frame, state: Cursor, index: number): void {
@@ -107,24 +224,17 @@ function runtimeStep(frame: Frame, state: Cursor, index: number): void {
 /** Preserve ASI runtime statements after a completed type, without ending type continuations. */
 function statementBoundary(frame: Frame, state: Cursor, index: number, text: string): void {
   if (!state.mode || state.mode.operand || index === 0) return;
-  const node = frame.nodes[index],
-    previous = frame.nodes[index - 1];
-  if (!/[\n\r\u2028\u2029]/.test(text.slice(previous.end, node.start))) return;
-  const statement =
-    declarations.has(node.text) ||
-    statementWords.has(node.text) ||
-    (node.kind === 'word' && ['.', '=', '('].includes(frame.nodes[index + 1]?.text));
-  if (!statement) return;
+  if (!newline(frame.nodes, index, text) || !runtimeStart(frame.nodes, index)) return;
   state.mode = undefined;
   state.binding = false;
   state.declaration = false;
 }
 /** A body follows a completed return/heritage type; an object type starts an operand. */
-function typeStep(state: Cursor, node: RoleToken, previous?: RoleToken): boolean {
+function typeStep(state: Cursor, node: RoleToken, previous: RoleToken | undefined, laterArrow: boolean): boolean {
   const mode = state.mode!;
   if (
     ['=', ',', ';'].includes(node.text) ||
-    (node.text === '=>' && mode.body && previous?.text !== '(') ||
+    (node.text === '=>' && mode.body && (previous?.text !== '(' || (mode.arrowReturn && !laterArrow))) ||
     (node.text === '{' && mode.body && !mode.operand)
   ) {
     state.mode = undefined;
@@ -139,6 +249,10 @@ function childFrame(frame: Frame, state: Cursor, index: number): Frame {
   const node = frame.nodes[index];
   const member = node.text === '{' && state.classHeader;
   if (node.text === '{') state.classHeader = false;
+  if (node.text === '{') {
+    state.functionHeader = false;
+    state.genericDeclaration = false;
+  }
   return {
     nodes: node.children!,
     parent: node.text,
@@ -146,20 +260,26 @@ function childFrame(frame: Frame, state: Cursor, index: number): Frame {
     object: !node.runtimeBlock && objectGroup(frame.nodes, index, frame.parent),
   };
 }
+function markAngles(frame: Frame, state: Cursor, index: number, end: number): void {
+  state.genericDeclaration =
+    frame.nodes[index - 1]?.kind === 'word' && (frame.object || !!frame.member || !!state.functionHeader);
+  for (let j = index; j <= end; j++) frame.nodes[j].typeOnly = true;
+  if (state.mode) state.mode.operand = false;
+}
 function markFrame(frame: Frame, pending: Frame[], text: string): void {
   const state: Cursor = { conditionals: 0 },
-    angles = angleEnds(frame.nodes);
+    angles = angleEnds(frame.nodes, text),
+    arrows = functionArrows(frame.nodes);
   for (let i = 0; i < frame.nodes.length; i++) {
     const node = frame.nodes[i],
       end = angles.get(i);
     statementBoundary(frame, state, i, text);
     if (end !== undefined) {
-      for (let j = i; j <= end; j++) frame.nodes[j].typeOnly = true;
-      if (state.mode) state.mode.operand = false;
+      markAngles(frame, state, i, end);
       i = end;
       continue;
     }
-    if (state.mode && typeStep(state, node, frame.nodes[i - 1])) continue;
+    if (state.mode && typeStep(state, node, frame.nodes[i - 1], arrows.has(i))) continue;
     runtimeStep(frame, state, i);
     if (node.children) pending.push(childFrame(frame, state, i));
   }
