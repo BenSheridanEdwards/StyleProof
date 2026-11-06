@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { classLiterals } from '../dist/class-join-literals.js';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
+import { assertLinearScaling } from './linearity-helper.mjs';
 
 for (const source of [
   "function f(e: { class: 'old'; id: string }) {}",
@@ -59,15 +60,17 @@ test('the depth gap covers unread words in an incomplete enclosing helper', () =
   assert.ok(gap.range.start.column <= source.indexOf("'old'"), JSON.stringify(gap));
 });
 
-test('ten thousand flat else-if arms retain positive roles without a depth gap', (t) => {
-  const source = 'el.className=' + Array.from({ length: 10000 }, (_, i) => `a${i}?'old':`).join('') + "'new';";
-  const start = performance.now(),
-    literals = classLiterals(source, 'app.ts'),
-    ms = performance.now() - start;
-  t.diagnostic(JSON.stringify({ arms: 10000, ms }));
-  assert.equal(literals.filter((l) => l.explicit && l.words.length).length, 10001);
-  assert.ok(!literals.some((l) => l.extractionGap));
-  assert.ok(ms < 1000, String(ms));
+test('flat else-if arms scale linearly to ten thousand without a depth gap', (t) => {
+  assertLinearScaling(t, {
+    name: 'flat else-if extraction',
+    n: 2500,
+    make: (count) => 'el.className=' + Array.from({ length: count }, (_, i) => `a${i}?'old':`).join('') + "'new';",
+    run: (source) => classLiterals(source, 'app.ts'),
+    check: (literals, source, count) => {
+      assert.equal(literals.filter((l) => l.explicit && l.words.length).length, count + 1);
+      assert.ok(!literals.some((l) => l.extractionGap));
+    },
+  });
 });
 
 function residual(base, head) {

@@ -4,6 +4,7 @@ import ts from 'typescript';
 import { classLiterals } from '../dist/class-join-literals.js';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
+import { assertLinearScaling } from './linearity-helper.mjs';
 
 const types = [
   "function f<T extends A<B>={class:'tk-old'}>() {}",
@@ -102,15 +103,20 @@ for (const start of [
     );
   });
 
-test('four megabytes of template occurrences complete without an argument-stack overflow', { timeout: 30000 }, (t) => {
-  const row = 'el.className=`btn ${on?"old":"new"}`;\n';
-  const count = Math.ceil((4 * 1024 * 1024) / row.length),
-    source = row.repeat(count);
-  const start = performance.now(),
-    literals = classLiterals(source, 'app.ts');
-  assert.equal(literals.filter((l) => l.explicit && l.words.some((w) => w.token === 'old')).length, count);
-  assert.equal(literals.filter((l) => l.explicit && l.words.some((w) => w.token === 'new')).length, count);
-  t.diagnostic(
-    JSON.stringify({ bytes: source.length, lines: count, literals: literals.length, ms: performance.now() - start }),
-  );
-});
+test(
+  'template occurrences scale linearly to four megabytes without argument-stack overflow',
+  { timeout: 120000 },
+  (t) => {
+    const row = 'el.className=`btn ${on?"old":"new"}`;\n';
+    assertLinearScaling(t, {
+      name: 'four MB template extraction',
+      n: Math.ceil((1024 * 1024) / row.length),
+      make: (count) => row.repeat(count),
+      run: (source) => classLiterals(source, 'app.ts'),
+      check: (literals, source, count) => {
+        assert.equal(literals.filter((l) => l.explicit && l.words.some((w) => w.token === 'old')).length, count);
+        assert.equal(literals.filter((l) => l.explicit && l.words.some((w) => w.token === 'new')).length, count);
+      },
+    });
+  },
+);

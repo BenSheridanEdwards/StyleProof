@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { performance } from 'node:perf_hooks';
+import { assertLinearScaling } from './linearity-helper.mjs';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 
@@ -156,31 +156,46 @@ test('Solid classList object keys yield explicit class occurrences', () => {
   );
 });
 
-test('16k scoped gaps and negative lookups stay below one second', (t) => {
-  const count = 16000;
-  const source = 'el.className="old"; el.className=dynamic;\n'.repeat(count);
-  const changes = Array.from({ length: count }, (_, i) => ({
-    sourceKey: 'app.tsx',
-    side: 'head',
-    contentHash: 'same',
-    text: 'el.className="old";',
-    classSource: source,
-    range: { start: { line: i + 1, column: 0 }, end: { line: i + 2, column: 0 } },
-  }));
-  const start = performance.now();
-  const result = judge(changes);
-  const classifiedMs = performance.now() - start;
-  assert.equal(result.units.length, count);
-  assert.equal(result.gaps.length, 1);
-  assert.equal(result.gaps[0].occurrenceCount, count);
-  assert.equal(result.gaps[0].sampleRanges.length, 10);
-  assert.ok(result.units.every((u) => u.status === 'never-rendered'));
-  const negatives = result.units.map((u) => ({ ...u, explicit: true, status: 'never-rendered' }));
-  const begin = performance.now();
-  const combined = combineClassReach(scripts(changes), negatives);
-  const combinedMs = performance.now() - begin;
-  t.diagnostic(JSON.stringify({ count, classifiedMs, combinedMs }));
-  assert.ok(combined.every((u) => u.status === 'never-rendered'));
-  assert.ok(classifiedMs < 1000, `classify: ${classifiedMs}ms`);
-  assert.ok(combinedMs < 1000, `combine: ${combinedMs}ms`);
+test('scoped gaps and negative lookups scale linearly from 4k to 16k lines', (t) => {
+  const make = (count) => {
+    const source = 'el.className="old"; el.className=dynamic;\n'.repeat(count);
+    return Array.from({ length: count }, (_, i) => ({
+      sourceKey: 'app.tsx',
+      side: 'head',
+      contentHash: 'same',
+      text: 'el.className="old";',
+      classSource: source,
+      range: { start: { line: i + 1, column: 0 }, end: { line: i + 2, column: 0 } },
+    }));
+  };
+  assertLinearScaling(t, {
+    name: 'scoped gap classification',
+    n: 4000,
+    make,
+    run: judge,
+    check: (result, changes, count) => {
+      assert.equal(result.units.length, count);
+      assert.equal(result.gaps.length, 1);
+      assert.equal(result.gaps[0].occurrenceCount, count);
+      assert.equal(result.gaps[0].sampleRanges.length, 10);
+      assert.ok(result.units.every((u) => u.status === 'never-rendered'));
+    },
+  });
+  assertLinearScaling(t, {
+    name: 'negative evidence lookup',
+    n: 4000,
+    make: (count) => {
+      const changes = make(count),
+        result = judge(changes);
+      return {
+        scripts: scripts(changes),
+        negatives: result.units.map((u) => ({ ...u, explicit: true, status: 'never-rendered' })),
+      };
+    },
+    run: ({ scripts, negatives }) => combineClassReach(scripts, negatives),
+    check: (combined, input, count) => {
+      assert.equal(combined.length, count);
+      assert.ok(combined.every((u) => u.status === 'never-rendered'));
+    },
+  });
 });

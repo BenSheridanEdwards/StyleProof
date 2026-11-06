@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { execFileSync } from 'node:child_process';
+import { assertLinearScaling } from './linearity-helper.mjs';
 import { classifyClassReach, classVocabulary, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 import { classLiterals } from '../dist/class-join-literals.js';
@@ -218,17 +218,18 @@ test('positions retain JavaScript line terminators and UTF-16 columns', () => {
 });
 
 for (const kind of ['string', 'template'])
-  test(`one MB of ${kind} literals scans in under one second`, (t) => {
-    const script = `import {classLiterals} from './dist/class-join-literals.js'; const line = ${JSON.stringify(kind === 'string' ? "const C = 'old known';\n" : 'const C = `btn ${on ? "old" : "new"}`;\n')}; const text=line.repeat(Math.ceil(1_000_000/line.length)); const start=performance.now(); const literals=classLiterals(text,'app.ts'); console.log(JSON.stringify({bytes:text.length,ms:performance.now()-start,count:literals.length}));`;
-    const output = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
-      cwd: new URL('..', import.meta.url),
-      encoding: 'utf8',
-      timeout: 5000,
+  test(`one MB of ${kind} literals scans with linear growth`, (t) => {
+    const line = kind === 'string' ? "const C = 'old known';\n" : 'const C = `btn ${on ? "old" : "new"}`;\n';
+    assertLinearScaling(t, {
+      name: `${kind} literal extraction`,
+      n: Math.ceil(1_000_000 / (4 * line.length)),
+      make: (count) => line.repeat(count),
+      run: (text) => classLiterals(text, 'app.ts'),
+      check: (literals, text, count) => {
+        assert.equal(literals.length, count * (kind === 'string' ? 1 : 3));
+        assert.ok(literals.length > 0 && text.length >= count * line.length);
+      },
     });
-    const measured = JSON.parse(output);
-    t.diagnostic(JSON.stringify({ kind, ...measured }));
-    assert.ok(measured.count > 10000);
-    assert.ok(measured.ms < 1000, JSON.stringify(measured));
   });
 
 test('a bare className assignment with no static tokens is a scoped gap', () => {

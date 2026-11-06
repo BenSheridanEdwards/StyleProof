@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
+import { assertLinearScaling } from './linearity-helper.mjs';
 
 const map = () => ({
   defaults: {},
@@ -193,19 +194,22 @@ test('component markup inside a script template remains prose', () => {
   );
 });
 
-test('replacement-hunk matching is cached for sixteen thousand changed lines', (t) => {
-  const count = 16000;
-  const base = Array.from({ length: count }, (_, i) => `el${i}.className = 'old';`).join('\n');
-  const head = base.replaceAll("'old'", "'new'");
-  const changes = edits(base, head);
-  const started = performance.now(),
-    result = judge(base, head, changes),
-    ms = performance.now() - started;
-  t.diagnostic(JSON.stringify({ replacementLines: count, classifiedMs: ms }));
-  assert.equal(result.units.length, count * 2);
-  assert.ok(result.units.every((u) => u.explicit));
-  assert.equal(result.gaps.length, 0);
-  assert.ok(ms < 1000, JSON.stringify({ count, ms }));
+test('cached replacement-hunk matching scales linearly from 4k to 16k changed lines', (t) => {
+  assertLinearScaling(t, {
+    name: 'replacement-hunk matching',
+    n: 4000,
+    make: (count) => {
+      const base = Array.from({ length: count }, (_, i) => `el${i}.className = 'old';`).join('\n');
+      const head = base.replaceAll("'old'", "'new'");
+      return { base, head, changes: edits(base, head) };
+    },
+    run: ({ base, head, changes }) => judge(base, head, changes),
+    check: (result, input, count) => {
+      assert.equal(result.units.length, count * 2);
+      assert.ok(result.units.every((u) => u.explicit));
+      assert.equal(result.gaps.length, 0);
+    },
+  });
 });
 
 test('JSX entity spelling does not create an absent runtime token', () => {
