@@ -158,12 +158,12 @@ test('Solid classList object keys yield explicit class occurrences', () => {
 
 test('16k scoped gaps and negative lookups stay below one second', (t) => {
   const count = 16000;
-  const source = 'className="old"; className={dynamic};\n'.repeat(count);
+  const source = 'el.className="old"; el.className=dynamic;\n'.repeat(count);
   const changes = Array.from({ length: count }, (_, i) => ({
     sourceKey: 'app.tsx',
     side: 'head',
     contentHash: 'same',
-    text: 'className="old";',
+    text: 'el.className="old";',
     classSource: source,
     range: { start: { line: i + 1, column: 0 }, end: { line: i + 2, column: 0 } },
   }));

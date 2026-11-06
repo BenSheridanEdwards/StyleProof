@@ -1,0 +1,46 @@
+✖ JSX entity spelling does not create an absent runtime token (6.547792ms)
+✖ component entity encodings get a named conservative gap (0.719542ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 89.770459
+
+✖ failing tests:
+
+test at test/class-join-round5.test.mjs:211:1
+✖ JSX entity spelling does not create an absent runtime token (6.547792ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":15},"end":{"line":1,"column":25}},"token":"o&#108;d","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":15},"end":{"line":1,"column":25}},"token":"o&#x6c;d","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (<workspace>/test/class-join-round5.test.mjs:222:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:229:1
+✖ component entity encodings get a named conservative gap (0.719542ms)
+  AssertionError [ERR_ASSERTION]: {"units":[],"gaps":[{"join":"J3","status":"unmeasured","kind":"class-list","side":"base","paths":["App.svelte"],"reason":"App.svelte:1:11: explicit class expression unresolved; no served class tokens","remedy":"capture both revisions with captureReach and retain paired maps, served CSS class vocabulary and changed source ranges","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":21}}},{"join":"J3","status":"unmeasured","kind":"class-list","side":"head","paths":["App.svelte"],"reason":"App.svelte:1:11: explicit class expression unresolved; no served class tokens","remedy":"capture both revisions with captureReach and retain paired maps, served CSS class vocabulary and changed source ranges","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":21}}}]}
+      at TestContext.<anonymous> (<workspace>/test/class-join-round5.test.mjs:233:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

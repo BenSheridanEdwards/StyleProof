@@ -23,7 +23,7 @@ const map = () => ({
     rules: [{ key: '.old.new.open.active.selected.card.tab.btn.x.y', hash: 'x', sheet: 0 }],
   },
 });
-const edits = (base, head) =>
+const edits = (base, head, key = 'app.tsx') =>
   changedScriptRanges(
     `@@ -1,${base.split('\n').length} +1,${head.split('\n').length} @@\n` +
       base
@@ -35,7 +35,7 @@ const edits = (base, head) =>
         .map((l) => '+' + l + '\n')
         .join(''),
     { base, head },
-    'app.tsx',
+    key,
   );
 const judge = (base, head, changes = edits(base, head)) => {
   const before = map(),
@@ -77,6 +77,9 @@ for (const [name, expression, positive] of [
   ['arrow body', "cn(s => 'TOKEN')", false],
   ['void operand', "cn(void 'TOKEN')", false],
   ['increment assignment', "cn(s += 'TOKEN')", false],
+  ['bare className variable assignment', "className = 'TOKEN'", false],
+  ['class expando assignment', "el.class = 'TOKEN'", false],
+  ['classList property assignment', "el.classList = 'TOKEN'", false],
   ['ordinary assignment', "cn(s = 'TOKEN')", false],
   ['unary operand', "cn(!'TOKEN')", false],
   ['arithmetic operand', "cn(1 + 'TOKEN')", false],
@@ -166,4 +169,93 @@ test('depth limit outside a class context names the uncaptured remainder on both
     assert.equal(gap.range.end.line, 2);
   }
   assert.ok(result.units.every((u) => u.status !== 'never-rendered'));
+});
+
+for (const file of ['App.svelte', 'App.vue'])
+  test(`class attribute expression retains positive roles: ${file}`, () => {
+    const base = "<div class={on ? 'old' : 'card'}/>",
+      head = "<div class={on ? 'new' : 'card'}/>";
+    const result = judge(base, head, edits(base, head, file));
+    assert.equal(result.units.length, 2, JSON.stringify(result));
+    assert.ok(
+      result.units.every((u) => u.explicit),
+      JSON.stringify(result.units),
+    );
+  });
+
+test('component markup inside a script template remains prose', () => {
+  const base = "<script>const copy = `prefix ${'x'} <div class={on ? 'old' : 'card'}>`;</script>";
+  const head = base.replace("'old'", "'new'");
+  const result = judge(base, head, edits(base, head, 'App.svelte'));
+  assert.ok(
+    result.units.every((u) => !u.explicit),
+    JSON.stringify(result),
+  );
+});
+
+test('replacement-hunk matching is cached for sixteen thousand changed lines', (t) => {
+  const count = 16000;
+  const base = Array.from({ length: count }, (_, i) => `el${i}.className = 'old';`).join('\n');
+  const head = base.replaceAll("'old'", "'new'");
+  const changes = edits(base, head);
+  const started = performance.now(),
+    result = judge(base, head, changes),
+    ms = performance.now() - started;
+  t.diagnostic(JSON.stringify({ replacementLines: count, classifiedMs: ms }));
+  assert.equal(result.units.length, count * 2);
+  assert.ok(result.units.every((u) => u.explicit));
+  assert.equal(result.gaps.length, 0);
+  assert.ok(ms < 1000, JSON.stringify({ count, ms }));
+});
+
+test('JSX entity spelling does not create an absent runtime token', () => {
+  const base = '<div className="o&#108;d"/>',
+    head = '<div className="o&#x6c;d"/>';
+  const before = map(),
+    after = map();
+  for (const m of [before, after]) {
+    m.elements = { body: { tag: 'body', cls: 'old', style: {} } };
+    m.reach.rules[0].key = '.old.o\\&\\#108\\;d.o\\&\\#x6c\\;d';
+  }
+  const changes = edits(base, head);
+  const result = classifyClassReach([before], [after], changes, [{ base: before, head: after }]);
+  assert.ok(
+    result.units.every((u) => !u.explicit || u.status !== 'never-rendered'),
+    JSON.stringify(result),
+  );
+  assert.ok(combineClassReach(scripts(changes), result.units).every((u) => u.status === 'reached'));
+});
+
+test('component entity encodings get a named conservative gap', () => {
+  const base = '<div class="o&#108;d"/>',
+    head = '<div class="n&#101;w"/>';
+  const result = judge(base, head, edits(base, head, 'App.svelte'));
+  assert.ok(
+    result.gaps.some((g) => /encoded markup/.test(g.reason)),
+    JSON.stringify(result),
+  );
+  assert.ok(result.units.every((u) => !u.explicit || u.status !== 'never-rendered'));
+});
+
+test('an unrelated helper identifier cannot change an unchanged quoted class property', () => {
+  const base = "const props = { 'class': 'old' };";
+  const head = "const cn = 1; const props = { 'class': 'old' };";
+  const changes = edits(base, head),
+    result = judge(base, head, changes);
+  assert.ok(
+    result.units.every((u) => u.token !== 'old' || !u.explicit),
+    JSON.stringify(result),
+  );
+  assert.ok(combineClassReach(scripts(changes), result.units).every((u) => u.status === 'reached'));
+});
+
+test('cva selection data cannot introduce a positive nested helper root', () => {
+  const result = judge(
+    "cva('card',{defaultVariants:{tone:cn('old')}})",
+    "cva('card',{defaultVariants:{tone:cn('new')}})",
+  );
+  assert.ok(
+    result.units.every((u) => !u.explicit),
+    JSON.stringify(result),
+  );
 });

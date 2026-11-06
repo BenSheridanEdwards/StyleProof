@@ -207,7 +207,7 @@ function extractionGaps(
 ): ClassJoinGap[] {
   const stable = unchangedLiterals(change, index, opposite);
   return literalsInChange(change, index)
-    .filter((literal) => literal.explicit && (!stable.has(literal) || literal.residual))
+    .filter((literal) => literal.extractionGap || (literal.explicit && (!stable.has(literal) || literal.residual)))
     .flatMap((literal) => {
       const known = literalsInChange({ range: literal.range }, index).some(
         (entry) => entry.explicit && entry.words.some((word) => vocabulary.has(word.token)),

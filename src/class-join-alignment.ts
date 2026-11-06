@@ -1,81 +1,72 @@
-/** Replacement-line alignment never excludes occurrences on pure additions/deletions. */
+/** Ordered value/role/slot matching is cached once for each replacement hunk. */
 import type { ScriptChange } from './script-join.js';
 import { literalsInChange, type ClassLiteral, type ClassWord, type indexClassLiterals } from './class-join-literals.js';
 type Index = ReturnType<typeof indexClassLiterals>;
-
-function aligned(change: ScriptChange, index: Index, opposite?: Index): [ClassLiteral, ClassLiteral][] {
-  if (!change.classCounterpart || !opposite) return [];
-  const current = literalsInChange(
-    { range: { start: change.classCounterpart.current, end: change.range.end } },
-    index,
-  ).filter((literal) => !literal.context);
-  const other = literalsInChange({ range: change.classCounterpart.range }, opposite).filter(
-    (literal) => !literal.context,
-  );
-  const key = (literal: ClassLiteral) =>
-    JSON.stringify([literal.explicit, literal.explicit || !!literal.classContext, literal.words.map((w) => w.token)]);
+type Alignment = { literals: Set<ClassLiteral>; words: Set<ClassWord> };
+const cache = new WeakMap<Index, WeakMap<Index, Map<string, Alignment>>>();
+function wordSequence(literals: ClassLiteral[]) {
+  return literals
+    .flatMap((literal) =>
+      literal.context
+        ? []
+        : literal.words.map((word) => ({
+            literal,
+            word,
+            key: JSON.stringify([literal.explicit, !!literal.classContext, literal.role, word.token]),
+          })),
+    )
+    .sort(
+      (a, b) =>
+        a.word.range.start.line - b.word.range.start.line || a.word.range.start.column - b.word.range.start.column,
+    );
+}
+function match(current: ClassLiteral[], other: ClassLiteral[]): Alignment {
+  const before = wordSequence(other),
+    after = wordSequence(current);
   const positions = new Map<string, { indices: number[]; next: number }>();
-  other.forEach((literal, i) => {
-    const entry = positions.get(key(literal)) ?? { indices: [], next: 0 };
-    entry.indices.push(i);
-    positions.set(key(literal), entry);
+  before.forEach((entry, i) => {
+    const queue = positions.get(entry.key) ?? { indices: [], next: 0 };
+    queue.indices.push(i);
+    positions.set(entry.key, queue);
   });
-  const used = new Set<number>(),
-    matched = new Set<ClassLiteral>();
-  const pairs: [ClassLiteral, ClassLiteral][] = [];
-  for (const literal of current) {
-    const entry = positions.get(key(literal));
-    if (!literal.words.length || !entry || entry.next === entry.indices.length) continue;
-    const i = entry.indices[entry.next++];
-    used.add(i);
-    matched.add(literal);
-    pairs.push([literal, other[i]]);
-  }
-  const remaining = other.filter((_, i) => !used.has(i));
-  current
-    .filter((literal) => !matched.has(literal))
-    .forEach((literal, i) => {
-      const counterpart = remaining[i];
-      if (
-        counterpart &&
-        literal.explicit === counterpart.explicit &&
-        (literal.explicit || !!literal.classContext === !!counterpart.classContext)
-      )
-        pairs.push([literal, counterpart]);
-    });
-  return pairs;
-}
-export function unchangedLiterals(change: ScriptChange, index: Index, opposite?: Index): Set<ClassLiteral> {
-  return new Set(
-    aligned(change, index, opposite)
-      .filter(
-        ([a, b]) =>
-          a.words.length > 0 &&
-          JSON.stringify(a.words.map((w) => w.token)) === JSON.stringify(b.words.map((w) => w.token)),
-      )
-      .map(([literal]) => literal),
-  );
-}
-/** Match token occurrences within the aligned literal, allowing unchanged neighbours to shift columns. */
-export function unchangedWords(change: ScriptChange, index: Index, opposite?: Index): Set<ClassWord> {
-  const unchanged = new Set<ClassWord>();
-  for (const [literal, counterpart] of aligned(change, index, opposite)) {
-    const positions = new Map<string, { indices: number[]; next: number }>();
-    counterpart.words.forEach((word, i) => {
-      const entry = positions.get(word.token) ?? { indices: [], next: 0 };
-      entry.indices.push(i);
-      positions.set(word.token, entry);
-    });
-    let minimum = 0;
-    for (const word of literal.words) {
-      const entry = positions.get(word.token);
-      if (!entry) continue;
-      while (entry.next < entry.indices.length && entry.indices[entry.next] < minimum) entry.next++;
-      if (entry.next < entry.indices.length) {
-        unchanged.add(word);
-        minimum = entry.indices[entry.next++] + 1;
-      }
+  const words = new Set<ClassWord>();
+  let minimum = 0;
+  for (const entry of after) {
+    const queue = positions.get(entry.key);
+    if (!queue) continue;
+    while (queue.next < queue.indices.length && queue.indices[queue.next] < minimum) queue.next++;
+    if (queue.next < queue.indices.length) {
+      words.add(entry.word);
+      minimum = queue.indices[queue.next++] + 1;
     }
   }
-  return unchanged;
+  return { words, literals: new Set(current.filter((l) => l.words.length > 0 && l.words.every((w) => words.has(w)))) };
+}
+function aligned(change: ScriptChange, index: Index, opposite?: Index): Alignment {
+  const counterpart = change.classCounterpart;
+  if (!counterpart || !opposite) return { literals: new Set(), words: new Set() };
+  let byOther = cache.get(index);
+  if (!byOther) {
+    byOther = new WeakMap();
+    cache.set(index, byOther);
+  }
+  let hunks = byOther.get(opposite);
+  if (!hunks) {
+    hunks = new Map();
+    byOther.set(opposite, hunks);
+  }
+  const range = { start: counterpart.current, end: counterpart.end ?? change.range.end };
+  const key = JSON.stringify([range, counterpart.range]);
+  let result = hunks.get(key);
+  if (!result) {
+    result = match(literalsInChange({ range }, index), literalsInChange({ range: counterpart.range }, opposite));
+    hunks.set(key, result);
+  }
+  return result;
+}
+export function unchangedLiterals(change: ScriptChange, index: Index, opposite?: Index): Set<ClassLiteral> {
+  return aligned(change, index, opposite).literals;
+}
+export function unchangedWords(change: ScriptChange, index: Index, opposite?: Index): Set<ClassWord> {
+  return aligned(change, index, opposite).words;
 }

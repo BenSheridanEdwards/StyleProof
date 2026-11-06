@@ -21,10 +21,10 @@ export type ScriptChange = {
   text: string;
   /** Full git-side source for J3 lexical context only. Never persisted. */
   classSource?: string;
-  /** Opposite blob only excludes identical literal words at identical positions. Never persisted. */
+  /** Opposite blob supplies replacement-hunk token alignment. Never persisted. */
   classOtherSource?: string;
-  /** Only a replacement block can align a class word with its opposite git line. Never persisted. */
-  classCounterpart?: { range: SourceSpan; current: SourcePosition };
+  /** Only a replacement block can align class words across both complete hunk sides. Never persisted. */
+  classCounterpart?: { range: SourceSpan; current: SourcePosition; end?: SourcePosition };
   /** Raw changed columns, before J2 expands to evaluation tokens. J3 excludes unchanged words. */
   classRange?: SourceSpan;
   /** Bounded preceding source lines used only to name parameter residuals. Never persisted. */

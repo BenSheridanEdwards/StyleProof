@@ -56,7 +56,7 @@ for (const [name, expression, positive] of [
   ['ternary alternate', "el.className = on ? 'card' : 'TOKEN'", true],
   ['ternary result', "el.className = on ? 'TOKEN' : 'card'", true],
   ['and result', "cn(on && 'TOKEN')", true],
-  ['lookup object value', "el.className = ({ size: 'TOKEN' })[size]", true],
+  ['lookup object value', "el.className = ({ size: 'TOKEN' })[size]", false],
   ['plain class property', "const fare = { class: 'TOKEN' }", true],
   ['Vue props', "h('div', { class: 'TOKEN' })", true],
   ['classList add', "el.classList.add('TOKEN')", true],

@@ -234,7 +234,7 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
   return (['base', 'head'] as const).flatMap((side) => {
     const source = sources[side],
       other = endings[side === 'base' ? 'head' : 'base'];
-    return lines[side].flatMap((line, index) => {
+    return lines[side].flatMap((line) => {
       const changedEnding = [...(other.get(source.lines[line - 1]) ?? [])].some(
         (ending) => ending !== source.endings[line - 1],
       );
@@ -250,9 +250,12 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
       );
       const offset = source.gitStarts[line - 1];
       const opposite = side === 'base' ? 'head' : 'base';
-      const counterpart = lines[opposite][index];
-      const otherSource = sources[opposite],
-        otherOffset = otherSource.gitStarts[counterpart - 1];
+      const counterpart = lines[opposite][0];
+      const otherSource = sources[opposite];
+      const endOf = (s: Source, changed: number[]) => {
+        const last = changed.at(-1)!;
+        return positionAt(s, s.gitStarts[last - 1] + s.lines[last - 1].length);
+      };
       return entries.map((entry) => ({
         ...entry,
         ...(raw
@@ -266,10 +269,11 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
         ...(counterpart
           ? {
               classCounterpart: {
-                current: positionAt(source, offset),
+                current: positionAt(source, source.gitStarts[lines[side][0] - 1]),
+                end: endOf(source, lines[side]),
                 range: {
-                  start: positionAt(otherSource, otherOffset),
-                  end: positionAt(otherSource, otherOffset + otherSource.lines[counterpart - 1].length),
+                  start: positionAt(otherSource, otherSource.gitStarts[counterpart - 1]),
+                  end: endOf(otherSource, lines[opposite]),
                 },
               },
             }

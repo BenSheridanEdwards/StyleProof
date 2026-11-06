@@ -1,305 +1,172 @@
-/** J3 lexical class sources. Full source is transient and never enters a report. */
+/** J3 candidates are lexical; only approved syntax roles supply positive evidence. */
 import type { SourcePosition, SourceSpan } from './script-reach.js';
-import type { ScriptToken } from './script-join-tokens.js';
 import type { ScriptChange } from './script-join.js';
-import { classSource, classWords, commentEnd, literalAt, sourceSpan, type ClassSource } from './class-join-source.js';
-import { beginsValue, callRole, classAttribute, delimiterEnds, followedBy, nonValue } from './class-join-context.js';
+import {
+  classSource,
+  classWords,
+  literalAt,
+  sourceSpan,
+  tokenIndex,
+  type ClassSource,
+  type Literal,
+} from './class-join-source.js';
+import { classRoles, scriptParts } from './class-join-context.js';
 import { bindingLiteral, svelteDirectives } from './class-join-bindings.js';
-
+import { containingPart, inMarkupTag, markupExpressions, mergeParts } from './class-join-markup.js';
+import type { ClassRoles, RoleState } from './class-join-role-types.js';
 export type ClassWord = { token: string; range: SourceSpan };
 export type ClassLiteral = {
   range: SourceSpan;
   words: ClassWord[];
   explicit: boolean;
-  /** Lexical class-helper candidates can be listed without supplying positive value evidence. */
   classContext?: boolean;
   context?: boolean;
   residual?: string;
+  /** Positive role and local slot, used only for replacement-hunk alignment. */
+  role?: string;
+  /** A truncated reader must name its gap even outside a positive class source. */
+  extractionGap?: true;
 };
 const comparePosition = (a: SourcePosition, b: SourcePosition) => a.line - b.line || a.column - b.column;
 export const spansOverlap = (a: SourceSpan, b: SourceSpan): boolean =>
   comparePosition(a.start, b.end) < 0 && comparePosition(b.start, a.end) < 0;
-
-type Frame = {
-  inherited: boolean;
-  value: boolean;
-  start: number;
-  own: boolean;
-  valueStart?: number;
-  measured?: boolean;
-  residual?: string;
-  cva?: 'call' | 'options' | 'variants' | 'values' | 'excluded';
-  bracket?: string;
-  classContext?: boolean;
-  blocked?: boolean;
-  method?: string;
-  argument?: number;
-  indexed?: boolean;
-};
-type Scan = {
+type RawLiteral = { start: number; literal: Literal };
+function sourceLiterals(source: ClassSource): RawLiteral[] {
+  const found: RawLiteral[] = [],
+    pending = [{ start: 0, end: source.text.length }];
+  while (pending.length) {
+    const part = pending.pop()!;
+    let cursor = part.start;
+    for (let i = tokenIndex(source, part.start); i < source.tokens.length && source.tokens[i].index < part.end; i++) {
+      const token = source.tokens[i];
+      if (token.index < cursor || token.negativeOnly || !'\'"`'.includes(source.text[token.index])) continue;
+      const literal = literalAt(source, token);
+      cursor = literal.end;
+      found.push({ start: token.index, literal });
+      if (!literal.limit) pending.push(...literal.substitutions.filter((p) => p.whole));
+    }
+  }
+  return found;
+}
+type Reader = {
   source: ClassSource;
   key: string;
-  frames: Frame[];
-  prefix: string;
-  literals: ClassLiteral[];
-  ends?: Map<number, number>;
+  roles: ClassRoles;
+  scripts: ReturnType<typeof scriptParts>;
+  markupParts: { start: number; end: number }[];
 };
-const explicit = (scan: Scan) => {
-  const frame = scan.frames.at(-1)!;
-  if (frame.blocked) return false;
-  if (frame.method) return frame.method === 'add' || (frame.method === 'replace' && frame.argument === 1);
-  if (frame.cva) return frame.value || frame.cva === 'call' || frame.cva === 'values';
-  return frame.inherited || frame.value;
-};
-
-function cvaContext(scan: Scan, char: string): Frame['cva'] {
-  if (/\bcva\s*$/.test(scan.prefix)) return 'call';
-  const frame = scan.frames.at(-1)!,
-    parent = frame.cva;
-  if (parent && char === '[' && frame.bracket === '{' && !scan.prefix.trim()) return 'excluded';
-  if (parent === 'call') return char === '{' ? 'options' : 'values';
-  if (parent === 'options')
-    return /(?:\bvariants|['"]variants['"])\s*:\s*$/.test(scan.prefix) ? 'variants' : 'excluded';
-  if (parent === 'variants') return 'values';
-  return parent;
-}
-
-function addLiteral(scan: Scan, token: ScriptToken, inherited = explicit(scan)): number {
-  const { source } = scan,
-    { text } = source;
-  const literal = literalAt(source, token);
-  if (inherited) scan.frames.at(-1)!.measured = true;
-  if (literal.limit) {
-    scan.literals.push({
-      range: sourceSpan(source, token.index, literal.end),
-      words: [],
-      explicit: inherited,
-      context: true,
-      residual: 'template nesting depth limit (128) exceeded',
-    });
-    return literal.end;
-  }
-  if (text[literal.end - 1] !== text[token.index]) return literal.end;
-  const binding = bindingLiteral(source, token.index, literal.end, scan.key, readExpression);
-  if (binding) {
-    scan.literals.push(...binding);
-    return literal.end;
-  }
-  const isClass =
-    !scan.frames.at(-1)!.blocked &&
-    (inherited || classAttribute(scan.prefix)) &&
-    !nonValue(source, scan.prefix, { start: token.index, end: literal.end }, !!scan.frames.at(-1)!.indexed);
-  const cva = scan.frames.at(-1)!.cva;
-  const cvaKey = cva && !scan.prefix.trim() && /^\s*:/.test(text.slice(literal.end, literal.end + 128));
-  if (cva && (!isClass || cvaKey)) {
-    scan.prefix += text.slice(token.index, literal.end);
-    return literal.end;
-  }
-  pushLiteral(scan, token, literal, isClass);
-  scan.prefix += ' value ';
-  return literal.end;
-}
-function pushLiteral(scan: Scan, token: ScriptToken, literal: ReturnType<typeof literalAt>, isClass: boolean): void {
-  const { source } = scan,
-    { text } = source;
-  const concatenated = /\+\s*$/.test(scan.prefix) || /^\s*\+/.test(text.slice(literal.end, literal.end + 128));
-  const residual = concatenated
-    ? 'dynamic class concatenation fragment excluded'
-    : literal.substitutions.some((part) => !part.whole)
-      ? 'dynamic class template fragment excluded'
-      : undefined;
-  if (isClass && residual) for (const frame of scan.frames) if (frame.own || frame.value) frame.residual = residual;
-  scan.literals.push({
-    range: sourceSpan(source, token.index, literal.end),
-    words: classWords(source, literal.parts),
-    explicit: isClass,
-    classContext: isClass || !!scan.frames.at(-1)!.classContext,
-    ...(residual ? { residual } : {}),
-  });
-  addSubstitutionLiterals(scan, literal.substitutions, isClass);
-}
-function addSubstitutionLiterals(
-  scan: Scan,
-  substitutions: ReturnType<typeof literalAt>['substitutions'],
-  isClass: boolean,
-): void {
-  for (const part of substitutions) {
-    if (!part.whole) continue;
-    const nested: Scan = {
-      ...scan,
-      prefix: '',
-      frames: [
-        {
-          inherited: isClass,
-          value: false,
-          own: false,
-          start: part.start,
-          classContext: isClass || !!scan.frames.at(-1)!.classContext,
-          blocked: scan.frames.at(-1)!.blocked,
-        },
-      ],
-    };
-    scanRange(nested, part.start, part.end);
-  }
-}
-function flushValue(scan: Scan, cursor: number): void {
-  const frame = scan.frames.at(-1)!;
-  if (frame.valueStart !== undefined && (!frame.measured || frame.residual))
-    scan.literals.push({
-      range: sourceSpan(scan.source, frame.valueStart, cursor),
-      words: [],
-      explicit: !frame.blocked,
-      context: true,
-      ...(frame.residual ? { residual: frame.residual } : {}),
-    });
-  frame.valueStart = undefined;
-  frame.measured = false;
-  if (!frame.own) frame.residual = undefined;
-}
-function closeFrame(scan: Scan, cursor: number): void {
-  if (scan.frames.length <= 1) return;
-  flushValue(scan, cursor);
-  const frame = scan.frames.pop()!;
-  if (frame.own && !frame.blocked)
-    scan.literals.push({
-      range: sourceSpan(scan.source, frame.start, cursor + 1),
-      words: [],
-      explicit: true,
-      context: true,
-      ...(frame.residual ? { residual: frame.residual } : {}),
-    });
-}
-function openFrame(char: string, cursor: number, scan: Scan): void {
-  const parent = scan.frames.at(-1)!;
-  const { method, own, call } = callRole(scan.prefix, char);
-  const close = scan.ends?.get(cursor);
-  const receiver =
-    char === '[' &&
-    (/[\w$)\]]\s*$/.test(scan.prefix) || followedBy(scan.source, close, /^\s*\)*\s*(?:\?\.|\.)\s*[\w$]+\s*\(/));
-  const indexed = char === '{' && followedBy(scan.source, close, /^\s*\)*\s*\[/);
-  const blocked =
-    receiver ||
-    !!parent.blocked ||
-    (!!parent.method && !explicit(scan)) ||
-    (call && (!!parent.classContext || explicit(scan)));
-  const cva = cvaContext(scan, char);
-  if (own) parent.measured = true;
-  scan.frames.push({
-    inherited: explicit(scan) || own,
-    value: false,
-    own,
-    start: cursor,
-    cva,
-    bracket: char,
-    classContext: !!parent.classContext || explicit(scan) || own || !!method,
-    blocked,
-    method,
-    argument: 0,
-    indexed,
-  });
-  scan.prefix = '';
-}
-function delimiter(char: string, cursor: number, scan: Scan): void {
-  if ('([{'.includes(char)) {
-    openFrame(char, cursor, scan);
-  } else if (')]}'.includes(char)) {
-    closeFrame(scan, cursor);
-    // Retain a completed receiver so computed/wrapped calls still form call barriers.
-    scan.prefix = char;
-  } else if (',;>'.includes(char)) {
-    flushValue(scan, cursor);
-    scan.prefix = '';
-    scan.frames.at(-1)!.value = false;
-    if (char === ',' && scan.frames.at(-1)!.method) scan.frames.at(-1)!.argument!++;
-  } else {
-    if (beginsValue(scan.prefix, char, scan.source.text[cursor + 1])) {
-      flushValue(scan, cursor);
-      const frame = scan.frames.at(-1)!;
-      frame.value = classAttribute(scan.prefix + char);
-      if (frame.value) frame.valueStart = cursor + 1;
-    }
-    scan.prefix = (scan.prefix + char).slice(-256);
-  }
-}
-function ordinaryToken(scan: Scan, token: ScriptToken): void {
-  const raw = scan.source.text.slice(token.index, token.end);
-  if (
-    explicit(scan) &&
-    !scan.frames.at(-1)!.cva &&
-    !scan.prefix.trim() &&
-    /^[\w$-]+$/.test(raw) &&
-    /^\s*:/.test(scan.source.text.slice(token.end, token.end + 128))
-  )
-    scan.literals.push({
-      range: sourceSpan(scan.source, token.index, token.end),
-      words: classWords(scan.source, [{ start: token.index, end: token.end }]),
-      explicit: !scan.frames.at(-1)!.indexed,
-      classContext: true,
-    });
-  scan.prefix += raw;
-}
-/** Literal positions and template-token walks are indexed once per blob. */
-export function classLiterals(text: string, sourceKey: string): ClassLiteral[] {
-  const source = classSource(text, sourceKey);
-  const scan: Scan = {
-    source,
-    key: sourceKey,
-    frames: [{ inherited: false, value: false, own: false, start: 0 }],
-    prefix: '',
-    literals: svelteDirectives(source, sourceKey),
+function candidate(source: ClassSource, entry: RawLiteral, state?: RoleState): ClassLiteral {
+  const { start, literal } = entry,
+    end = state?.end ?? literal.end;
+  const range = sourceSpan(source, start, end),
+    rawWords = classWords(source, literal.parts);
+  const cooked = state?.cooked?.split(/\s+/).filter(Boolean);
+  const words = cooked
+    ? cooked.map((token, i) => ({ token, range: rawWords.length === cooked.length ? rawWords[i].range : range }))
+    : rawWords;
+  const escaped = !!state?.role && state.escapedTemplate;
+  return {
+    range,
+    words,
+    explicit: !!state?.role && !escaped,
+    ...(state?.role ? { role: state.role } : {}),
+    classContext: !!state?.context,
+    ...(escaped
+      ? { extractionGap: true as const, residual: 'escaped dynamic template class text unmeasured' }
+      : literal.substitutions.some((p) => !p.whole)
+        ? { residual: 'dynamic class template fragment excluded' }
+        : {}),
   };
-  scanRange(scan, 0, text.length);
-  flushValue(scan, text.length);
-  return scan.literals.sort(
+}
+function qualify(reader: Reader, entry: RawLiteral): ClassLiteral[] {
+  const { source, key, roles, scripts, markupParts } = reader,
+    { start, literal } = entry;
+  if (literal.limit)
+    return [
+      {
+        range: sourceSpan(source, start, source.text.length),
+        words: [],
+        explicit: false,
+        context: true,
+        extractionGap: true,
+        residual: 'template nesting depth limit (128) exceeded',
+      },
+    ];
+  if (containingPart(markupParts, start)) return [];
+  const binding =
+    scripts !== undefined && !containingPart(scripts, start)
+      ? bindingLiteral(source, start, literal.end, key, readExpression)
+      : undefined;
+  if (binding) return binding;
+  const state = roles.states.get(start);
+  return state?.excluded ? [] : [candidate(source, entry, state)];
+}
+function readLiterals(source: ClassSource, key: string, expression = false): ClassLiteral[] {
+  const raw = sourceLiterals(source);
+  const roles: ClassRoles = raw.some((r) => r.literal.limit)
+    ? { states: new Map(), contexts: [] }
+    : classRoles(source, key, expression);
+  const scripts = scriptParts(source, key);
+  const excluded = scripts ? mergeParts([...scripts, ...raw.map((r) => ({ start: r.start, end: r.literal.end }))]) : [];
+  const markup = scripts ? markupExpressions(source, key, excluded, readExpression) : { literals: [], parts: [] };
+  const literals: ClassLiteral[] = [
+    ...markup.literals,
+    ...svelteDirectives(source, key).filter((l) => {
+      const offset = source.lines[l.range.start.line - 1] + l.range.start.column;
+      return !containingPart(excluded, offset) && inMarkupTag(source, offset);
+    }),
+  ];
+  const reader: Reader = { source, key, roles, scripts, markupParts: markup.parts };
+  literals.push(...raw.flatMap((entry) => qualify(reader, entry)));
+  appendRoles(literals, source, roles);
+  return literals.sort(
     (a, b) => comparePosition(a.range.start, b.range.start) || comparePosition(a.range.end, b.range.end),
   );
 }
-function scanRange(scan: Scan, start: number, end: number): void {
-  const { source } = scan,
-    { text } = source;
-  scan.ends = delimiterEnds(source, start, end);
-  for (let cursor = start; cursor < end; cursor++) {
-    const comment = commentEnd(text, cursor);
-    if (comment !== undefined) {
-      cursor = comment - 1;
-      scan.prefix += ' ';
-      continue;
-    }
-    const token = source.byStart.get(cursor);
-    if (!token) {
-      delimiter(text[cursor], cursor, scan);
-      continue;
-    }
-    if (!token.negativeOnly && '\'"`'.includes(text[cursor])) cursor = addLiteral(scan, token) - 1;
-    else {
-      ordinaryToken(scan, token);
-      cursor = token.end - 1;
-    }
-  }
+function appendRoles(literals: ClassLiteral[], source: ClassSource, roles: ClassRoles): void {
+  for (const [start, state] of roles.states)
+    if (state.bareEnd !== undefined && !state.excluded && state.context)
+      literals.push({
+        range: sourceSpan(source, start, state.bareEnd),
+        words: classWords(source, [{ start, end: state.bareEnd }]),
+        explicit: !!state.role,
+        classContext: true,
+        ...(state.role ? { role: state.role } : {}),
+      });
+  for (const context of roles.contexts)
+    literals.push({
+      range: sourceSpan(source, context.start, context.end),
+      words: [],
+      explicit: true,
+      context: true,
+      ...(context.residual ? { residual: context.residual } : {}),
+      ...(context.extractionGap ? { extractionGap: true } : {}),
+    });
+  if ('failed' in roles && roles.failed)
+    literals.push({
+      range: sourceSpan(source, 0, source.text.length),
+      words: [],
+      explicit: false,
+      context: true,
+      extractionGap: true,
+      residual: 'class role syntax unreadable; positive values unmeasured',
+    });
 }
-
-/** Framework expressions share the JS call barriers; only their positions need translation. */
+export function classLiterals(text: string, sourceKey: string): ClassLiteral[] {
+  return readLiterals(classSource(text, sourceKey), sourceKey);
+}
 function readExpression(source: ClassSource, start: number, end: number): ClassLiteral[] {
   const local = classSource(source.text.slice(start, end), 'binding.ts');
-  const scan: Scan = {
-    source: local,
-    key: 'binding.ts',
-    prefix: '',
-    literals: [],
-    frames: [{ inherited: true, value: false, own: false, start: 0, classContext: true }],
-  };
-  scanRange(scan, 0, local.text.length);
-  flushValue(scan, local.text.length);
-  const translated = (range: SourceSpan): SourceSpan =>
+  const translate = (range: SourceSpan) =>
     sourceSpan(
       source,
       start + local.lines[range.start.line - 1] + range.start.column,
       start + local.lines[range.end.line - 1] + range.end.column,
     );
-  return scan.literals.map((literal) => ({
+  return readLiterals(local, 'binding.ts', true).map((literal) => ({
     ...literal,
-    range: translated(literal.range),
-    words: literal.words.map((word) => ({ ...word, range: translated(word.range) })),
+    range: translate(literal.range),
+    words: literal.words.map((word) => ({ ...word, range: translate(word.range) })),
   }));
 }
 
