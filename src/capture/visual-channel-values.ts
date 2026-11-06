@@ -140,13 +140,12 @@ export function normalizeImageSource(source: string, origin: string, base: strin
   const signed = has('signature') || has('key-pair-id');
   const sas = has('sig');
   const marker = names.some(
-    (name) => /^(?:sig|signature|token|hdnts|__token__|oh|key-pair-id)$/.test(name) || /^x-.+-signature$/.test(name),
+    (name) => /^(?:sig|signature|token|hdnts|__token__)$/.test(name) || /^x-.+-signature$/.test(name),
   );
   const retained = query.filter((_, index) => {
     const name = names[index];
-    if (['token', 'access_token', 'awsaccesskeyid', 'hdnts', '__token__', 'x-amz-security-token'].includes(name))
-      return false;
-    if (marker && /^(?:exp|expires|expiry|se|st|oe|oh)$/.test(name)) return false;
+    if (['token', 'access_token', 'awsaccesskeyid', 'hdnts', '__token__'].includes(name)) return false;
+    if (marker && /^(?:exp|expires|expiry|se|st)$/.test(name)) return false;
     if (/^x-.+-signature$/.test(name)) return false;
     if (aws && name.startsWith('x-amz-')) return false;
     if (google && name.startsWith('x-goog-')) return false;

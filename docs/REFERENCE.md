@@ -1535,18 +1535,21 @@ without re-encoding retained parameters. Provider markers bound the removal:
   (S3 V2/CloudFront).
 - `sig` removes Azure SAS fields `sig`, `se`, `sp`, `sv`, `st`, `sr`, `ss`, `srt`,
   `si`, `skt`, `ske`, `skoid`, `sktid`, `sks`, `skv`, `sdd`, and `spr`.
-- `token`, `access_token`, `AWSAccessKeyId`, `X-Amz-Security-Token`, Akamai
-  `hdnts` and `__token__` are always removed.
+- `token`, `access_token`, `AWSAccessKeyId`, Akamai `hdnts` and `__token__`
+  are always removed.
 - Any signing marker (`sig`, `Signature`, `token`, `hdnts`, `__token__`,
-  `Key-Pair-Id`, `x-*-signature`, or Meta CDN `oh`) also removes rotation fields
-  `exp`, `expires`, `expiry`, `se`, `st`, `oe`, and `oh`. This includes Cloudflare
-  Images, Bunny and Meta CDN rotations. Generic `x-*-signature` fields are removed.
+  or `x-*-signature`) also removes rotation fields
+  `exp`, `expires`, `expiry`, `se`, and `st`. This includes Cloudflare
+  Images and Bunny rotations. Generic `x-*-signature` fields are removed.
   An access-key field alone does not remove unsigned expiry or `Policy` fields.
 
 Unsigned parameters such as `?sp=1`, other parameters, and fragments retain
 identity. GCS V2 `GoogleAccessId` and Google Maps `key=` remain stored as
-non-rotating source identities; changing either is a finding. An unsigned
-`expires`/`exp` change also retains identity. Data URIs become `data:sha256:<digest>`. Blob URLs are stored as the
+non-rotating source identities; changing either is a finding. Known residuals: Meta CDN
+`oh`/`oe` remain stored and their rotation can produce findings. Unsigned/Firebase
+`token` is still dropped by the token policy, so a content change represented only
+by that parameter is not detected. An unsigned `expires`/`exp` change also retains
+identity. Data URIs become `data:sha256:<digest>`. Blob URLs are stored as the
 stable marker `(blob URL; not compared)` with a named **not compared (blob URL)**
 report limit: no per-run UUID or blob bytes are stored or compared. Empty
 lazy/unloaded sources remain empty in the map; either side empty skips that image

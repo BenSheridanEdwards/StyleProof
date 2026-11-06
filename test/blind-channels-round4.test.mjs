@@ -19,13 +19,12 @@ for (const marker of [
   'x-other-signature',
   'X-Amz-Signature',
   'X-Goog-Signature',
-  'oh',
 ])
   test(`signing marker ${marker} removes rotation fields but retains content identity`, () => {
     const normalize = (q) =>
       normalizeImageSource('https://asset.test/a.png?' + q, 'https://fixture.test', 'https://fixture.test/', true);
-    const a = normalize(`${marker}=first&exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100`);
-    const b = normalize(`${marker}=second&exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100`);
+    const a = normalize(`${marker}=first&exp=1&expires=1&expiry=1&se=1&st=1&w=100`);
+    const b = normalize(`${marker}=second&exp=2&expires=2&expiry=2&se=2&st=2&w=100`);
     assert.equal(a, b);
     assert.doesNotMatch(a, /first|second/);
     assert.match(a, /w=100/);
@@ -40,4 +39,16 @@ test('unsigned rotation-like parameters retain identity', () => {
       true,
     );
   assert.notEqual(f(1), f(2));
+});
+
+test('Meta CDN oh/oe rotation remains source identity', () => {
+  const f = (n) =>
+    normalizeImageSource(
+      `https://asset.test/a.png?oh=signature${n}&oe=${n}`,
+      'https://fixture.test',
+      'https://fixture.test/',
+      true,
+    );
+  assert.notEqual(f(1), f(2));
+  assert.match(f(1), /oh=signature1&oe=1/);
 });

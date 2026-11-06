@@ -30,7 +30,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Model reads precede protocol work without pausing the page. Animated variable
   inputs stay unknown; disjoint timing groups canonicalise independently. Loaded
   opaque sheets and identical duplicates no longer taint verified winners.
-  Signature markers remove shared expiry fields, including Cloudflare/Meta CDN.
+  Signature markers remove shared expiry fields, including Cloudflare Images; Meta CDN fields remain source identity.
 
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;

@@ -140,3 +140,10 @@ test('engine and matched source agreement overrides an unreadable later sheet', 
   const map = await captureStyleMap(page, options);
   expect(Object.values(map.visualChannels!.keyframes)[0].status).toBe('known');
 });
+
+for (const style of ['display:none;animation:g 1s infinite', 'animation:g 1s,g 2s'])
+  test(`unavailable or ambiguous live model stays unknown: ${style}`, async ({ page }) => {
+    await page.setContent(`<style>@keyframes g{to{opacity:.5}}.a{${style}}</style><div class=a>x</div>`);
+    const map = await captureStyleMap(page, options);
+    expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'g', status: 'unknown' }]);
+  });
