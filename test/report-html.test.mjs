@@ -7,8 +7,82 @@ import test from 'node:test';
 import { renderArtifactHtml, renderReportHtml } from '../dist/report/html.js';
 import { writeReportArtifacts } from '../dist/report/sections.js';
 import { createCropBudget } from '../dist/report/crop-budget.js';
+import { assessReachMaps, reachSectionLines } from '../dist/report/reach.js';
+import { makeMap, solidPng } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+test('HTML tables keep semantics without repeated property labels or explicit tab stops', () => {
+  const tables = [
+    '| Property | Before | After |\n| --- | --- | --- |\n| `color` | `red` | `blue` |',
+    '| Property | Value |\n| --- | --- |\n| `color` | `red` |',
+    '| State | Property | Before → After |\n| --- | --- | --- |\n| `:hover` | `color` | `red` → `blue` |',
+    '| State | Property | Value |\n| --- | --- | --- |\n| `:hover` | `color` | `red` |',
+    '| Rule | Change | Gated by | Source | Why |\n| --- | --- | --- | --- | --- |\n| `.overlay` | changed | — | `/styles.css` | never matched |',
+  ];
+  const html = renderReportHtml(tables.join('\n\n'));
+  assert.equal((html.match(/<table\b/g) ?? []).length, tables.length);
+  assert.equal((html.match(/<table class="table-scroll" role="table"/g) ?? []).length, tables.length);
+  assert.doesNotMatch(html, /tabindex=/);
+  assert.doesNotMatch(html, /aria-label="(?:Property|State),/);
+  assert.match(html, /aria-label="Rule, Change, Gated by, Source, Why"/);
+  const repeated = renderReportHtml(Array(100).fill(tables[0]).join('\n\n'));
+  assert.equal((repeated.match(/aria-label=/g) ?? []).length, 0);
+});
+
+test('wide table labels escape header text without rewriting cell HTML', () => {
+  const html = renderReportHtml(
+    '| " onfocus="alert(1) | Change | Source | Why |\n| --- | --- | --- | --- |\n| `red` | changed | — | example |',
+  );
+  assert.match(html, /aria-label="&quot; onfocus=&quot;alert\(1\), Change, Source, Why"/);
+  assert.doesNotMatch(html, / onfocus="/);
+  assert.match(html, /<code>red<\/code>/);
+});
+
+test('long code-like link targets do not acquire markup attributes', () => {
+  const value = 'a'.repeat(70);
+  const html = renderReportHtml(`| Property | Value |\n| --- | --- |\n| link | [x](\`${value}\`) |`);
+  assert.match(html, /<a href="[^"]*">x<\/a>/);
+});
+
+test('long code-like image alt text still participates in the HTML image budget', (t) => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-table-alt-'));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(outDir, 'crops'));
+  const png = solidPng(1, 1);
+  fs.writeFileSync(path.join(outDir, 'crops/a.png'), png);
+  const value = 'a'.repeat(70);
+  const markdown = `| Property | Value |\n| --- | --- |\n| image | ![\`${value}\`](crops/a.png) |`;
+  const html = renderReportHtml(markdown, { outDir });
+  assert.ok(html.includes(`src="data:image/png;base64,${png.toString('base64')}"`));
+  assert.match(html, new RegExp(`alt="[^"]*${value}[^"]*" loading="lazy">`));
+  fs.unlinkSync(path.join(outDir, 'crops/a.png'));
+  assert.match(renderReportHtml(markdown, { outDir }), /1 image omitted/);
+});
+
+test('script reach input currently emits CSS reach gaps, not a script reach table', () => {
+  const capture = {
+    ...makeMap(),
+    scriptReach: {
+      version: 1,
+      window: 'navigation',
+      status: 'measured',
+      scripts: [
+        {
+          url: '/assets/app.js',
+          status: 'mapped',
+          files: [{ source: '/src/app.ts', executed: [[1, 0, 20]], mixed: [], unexecuted: [[2, 0, 20]] }],
+        },
+      ],
+    },
+  };
+  const reach = assessReachMaps([capture], [capture], 'warn');
+  const markdown = reachSectionLines(reach).join('\n');
+  assert.match(reach.gaps.find((gap) => gap.join === 'J2').reason, /script execution is not joined/);
+  assert.doesNotMatch(markdown, /Script change reach/);
+  const html = renderReportHtml(markdown);
+  assert.match(html, /<table class="table-scroll" role="table" aria-label="Rule, Change, Gated by, Source, Why">/);
+});
 
 test('report.html covers the report Markdown grammar (#698)', () => {
   const html = renderReportHtml(

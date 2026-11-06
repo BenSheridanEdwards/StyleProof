@@ -132,7 +132,8 @@ function renderTable(rows: string[]): string {
   const tbody = body.length
     ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
     : '';
-  return `<table>${thead}${tbody}</table>`;
+  const label = header.length >= 4 ? ` aria-label="${escapeHtml(header.join(', '))}"` : '';
+  return `<table class="table-scroll" role="table"${label}>${thead}${tbody}</table>`;
 }
 
 type Block = { html: string; next: number };
@@ -218,7 +219,18 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   h2 { border-bottom: 1px solid #d1d9e0; padding-bottom: 6px; }
   h3 { margin-top: 28px; }
   img { max-width: 100%; height: auto; border: 1px solid #d1d9e0; border-radius: 6px; }
-  table { border-collapse: collapse; margin: 8px 0 16px; }
+  .table-scroll { display: block; inline-size: max-content; max-inline-size: 100%; overflow-x: auto;
+    margin-block: 8px 16px;
+    background:
+      linear-gradient(to right, oklch(1 0 none) 50%, oklch(1 0 none / 0)) left / 40px 100%,
+      linear-gradient(to left, oklch(1 0 none) 50%, oklch(1 0 none / 0)) right / 40px 100%,
+      radial-gradient(farthest-side at 0 50%, oklch(0 0 none / 0.2), oklch(0 0 none / 0)) left / 14px 100%,
+      radial-gradient(farthest-side at 100% 50%, oklch(0 0 none / 0.2), oklch(0 0 none / 0)) right / 14px 100%;
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll; }
+  .table-scroll:focus-visible { outline: 2px solid oklch(0.55 0.18 255); outline-offset: 2px; }
+  .table-scroll code { overflow-wrap: break-word; }
+  table { border-collapse: collapse; }
   th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
   th { background: #f6f8fa; }
   code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }

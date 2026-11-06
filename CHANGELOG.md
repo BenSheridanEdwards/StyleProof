@@ -294,6 +294,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Later-attempt receipts need a bot or repository write permission, so read-only members and
   collaborators cannot suppress delivery; reviewer ticks wait for the run (#1147).
 
+- HTML report tables scroll in their own boxes on narrow screens, with scroll-edge shadows, natural code wrapping and native overflow-only keyboard focus in Chromium and Firefox.
+
 ### Security
 
 - Refuse approval re-runs started by anyone other than the original ticker in both
