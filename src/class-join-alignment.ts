@@ -1,28 +1,41 @@
 /** Ordered value/role/slot matching is cached once for each replacement hunk. */
+import type { SourceSpan } from './script-reach.js';
 import type { ScriptChange } from './script-join.js';
-import { literalsInChange, type ClassLiteral, type ClassWord, type indexClassLiterals } from './class-join-literals.js';
+import {
+  literalsInChange,
+  spansOverlap,
+  type ClassLiteral,
+  type ClassWord,
+  type indexClassLiterals,
+} from './class-join-literals.js';
 type Index = ReturnType<typeof indexClassLiterals>;
 type Alignment = { literals: Set<ClassLiteral>; words: Set<ClassWord> };
 const cache = new WeakMap<Index, WeakMap<Index, Map<string, Alignment>>>();
-function wordSequence(literals: ClassLiteral[]) {
+function wordSequence(literals: ClassLiteral[], range: SourceSpan) {
   return literals
     .flatMap((literal) =>
       literal.context
         ? []
-        : literal.words.map((word) => ({
-            literal,
-            word,
-            key: JSON.stringify([literal.explicit, !!literal.classContext, literal.role, word.token]),
-          })),
+        : literal.words
+            .filter((word) => spansOverlap(word.range, range))
+            .map((word) => ({
+              literal,
+              word,
+              key: JSON.stringify([literal.explicit, !!literal.classContext, literal.role, word.token]),
+            })),
     )
     .sort(
       (a, b) =>
         a.word.range.start.line - b.word.range.start.line || a.word.range.start.column - b.word.range.start.column,
     );
 }
-function match(current: ClassLiteral[], other: ClassLiteral[]): Alignment {
-  const before = wordSequence(other),
-    after = wordSequence(current);
+function match(
+  current: ClassLiteral[],
+  other: ClassLiteral[],
+  ranges: { current: SourceSpan; other: SourceSpan },
+): Alignment {
+  const before = wordSequence(other, ranges.other),
+    after = wordSequence(current, ranges.current);
   const positions = new Map<string, { indices: number[]; next: number }>();
   before.forEach((entry, i) => {
     const queue = positions.get(entry.key) ?? { indices: [], next: 0 };
@@ -59,7 +72,10 @@ function aligned(change: ScriptChange, index: Index, opposite?: Index): Alignmen
   const key = JSON.stringify([range, counterpart.range]);
   let result = hunks.get(key);
   if (!result) {
-    result = match(literalsInChange({ range }, index), literalsInChange({ range: counterpart.range }, opposite));
+    result = match(literalsInChange({ range }, index), literalsInChange({ range: counterpart.range }, opposite), {
+      current: range,
+      other: counterpart.range,
+    });
     hunks.set(key, result);
   }
   return result;

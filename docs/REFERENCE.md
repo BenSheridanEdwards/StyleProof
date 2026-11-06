@@ -2256,7 +2256,9 @@ positive role and local argument/branch/array slot, with multiplicity. Unchanged
 words may shift columns or lines, including when an extracted constant precedes
 or follows a call with blank lines between. A token moved to a different positive
 role or slot remains changed. Reordered words still yield units. Each hunk's match
-is cached once per side; textual alignment never supplies render provenance.
+is cached once per side. Words outside the hunk bounds cannot participate, even
+when their multiline literal overlaps the hunk. Textual alignment never supplies
+render provenance.
 
 CSS vocabulary is read as selector identifiers: escapes inside an ID cannot create
 class delimiters; attribute values and strings cannot contribute classes. Escaped

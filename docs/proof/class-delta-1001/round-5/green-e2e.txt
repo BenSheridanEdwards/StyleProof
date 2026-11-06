@@ -3,22 +3,22 @@ Done in 56ms using pnpm v11.7.0
 
 Running 15 tests using 1 worker
 
-(node:8586) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:30797) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
-  ✓   1 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tag to call (159ms)
-  ✓   2 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list in to hasOwn (145ms)
-  ✓   3 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tagged CSS (129ms)
-  ✓   4 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional call (139ms)
-  ✓   5 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list non-null call (121ms)
-  ✓   6 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list generic call (127ms)
-  ✓   7 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list comments (127ms)
-  ✓   8 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional lookup (111ms)
-  ✓   9 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list cast lookup (110ms)
-  ✓  10 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list satisfies lookup (132ms)
-  ✓  11 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list relational (133ms)
-  ✓  12 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list arrow body (138ms)
-  ✓  13 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list false and control (108ms)
-  ✓  14 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list ternary control (126ms)
+  ✓   1 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tag to call (169ms)
+  ✓   2 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list in to hasOwn (148ms)
+  ✓   3 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list tagged CSS (146ms)
+  ✓   4 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional call (144ms)
+  ✓   5 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list non-null call (142ms)
+  ✓   6 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list generic call (129ms)
+  ✓   7 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list comments (128ms)
+  ✓   8 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list optional lookup (129ms)
+  ✓   9 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list cast lookup (127ms)
+  ✓  10 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list satisfies lookup (133ms)
+  ✓  11 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list relational (127ms)
+  ✓  12 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list arrow body (135ms)
+  ✓  13 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list false and control (127ms)
+  ✓  14 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list ternary control (127ms)
   ✓  15 [chromium] › test/class-join-round5.e2e.spec.ts:39:3 › real Chromium allow-list helper key control (126ms)
 
-  15 passed (2.4s)
+  15 passed (3.4s)
