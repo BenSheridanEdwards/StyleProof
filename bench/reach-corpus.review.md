@@ -100,3 +100,8 @@ arguments survive inserted constants. Omission facts are opt-in, and complete fa
 now verify head content and announcer author children. Older version-2 facts without
 document-boundary verification remain conservative. This fixture has no such
 omissions, and the independent base-removal checks continue to pass.
+
+Round five preserves every round-four case, J3/base-removal status and count, with
+7/8 unknown totals and zero J2/J3 gaps. The positive AST role allow-list and ordered
+whole-hunk token/role/slot matching do not change this fixture. The measured
+receipt differs only in its generation timestamp.

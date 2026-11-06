@@ -13,15 +13,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Version-2 capture omission facts cover volatile/ignored regions, html children outside head/body,
   omitted head content, route-announcer light-DOM author children, object/embed documents and open/closed author roots verified through CDP when captureReach is enabled. Version-1/missing facts,
   older version-2 maps without document-boundary verification, unmatched surfaces and changing self-check facts keep absence unknown. Framework exemptions are shared. Captures record no per-occurrence render provenance. Ordinary
-  prose is skipped. Only positive class values can lower J2, never upgrade it; query/removal/toggle
-  classList arguments, nested unrelated/method calls, comparison operands, case labels, receiver-array/lookup keys, dataset assignments and data-class attributes stay J3-only; findings and missing-evidence gaps stay warn-only at both levels,
-  with bounded report detail and full status counts. Pure additions/deletions retain their occurrences;
-  replacement exclusions use hunk-aligned lines. CSS escapes, simple Vue/Svelte bindings, helper
-  object keys and nested templates are supported; fragments are excluded and unresolved explicit
-  class contexts get scoped gaps, including concatenated fragments. Solid classList keys and cva variant
-  values are read; cva keys are excluded. Zero-width edits retain both tokens; aligned unchanged neighbours can shift columns without being flagged,
-  while reordered class words remain measured. Source positions, template
-  walks, scoped gaps and negative joins are indexed; template nesting over 128 levels gets a named gap. Literal insertion preserves unchanged token strings on counterpart lines. Omission facts are collected/written only with captureReach, preserving default capture output. Plain `{ class: 'economy' }` data objects remain explicit to support Vue h() props, a documented lexical ambiguity; the corpus checks base removals too (#1001).
+  prose is skipped. Only positive class values can lower J2, never upgrade it. An AST allow-list grants
+  explicit roles to class attributes / `.className =` values, bare helper arguments and their array
+  elements/object keys, ternary results and logical RHS values recursively inside positive roles,
+  classList.add arguments, replace's second argument, supported framework bindings and known cva class values.
+  Non-helper/optional/non-null/generic calls, tagged templates, binary/relational operands, lookups,
+  case labels, arrow bodies, unary/void expressions and ordinary assignments remain J3-only, as do
+  query/removal/toggle classList arguments, dataset/data-class and vocabulary-only candidates. Comments
+  do not change roles. Babel parser/types are runtime dependencies for JS/TS/JSX syntax analysis;
+  unsupported syntax emits a conservative named gap. Findings stay warn-only at both levels, with
+  bounded detail and full counts. Whole replacement hunks match ordered token values plus role/slot,
+  preserving unchanged arguments when constants move to other lines; pure additions/deletions retain
+  occurrences. CSS escapes, simple Vue/Svelte bindings, Solid classList keys, nested templates and cva
+  variant values are supported. Fragments and unresolved explicit contexts get scoped gaps. Template
+  depth limits always cover the capped template through EOF, even outside class contexts. JSX values
+  use decoded spelling; encoded component markup and escaped dynamic templates stay unmeasured.
+  Source positions, template walks, hunk matches, scoped gaps and negative joins are indexed.
+  Omission facts remain opt-in, preserving default capture output. Plain `{ class: 'economy' }`
+  properties remain explicit for Vue h() props, a documented data-object/type/name ambiguity;
+  aliases and data flow remain unsupported. The corpus checks base removals too (#1001).
 
 - Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
   on compared elements when the capture recorded the layer and a compared owner.

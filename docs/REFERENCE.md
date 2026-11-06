@@ -2249,14 +2249,14 @@ are known class tokens, or they are in a class attribute/assignment or helper
 `twJoin`, `cn`). Only vocabulary tokens enter the join; a sentence with one matching
 word is skipped. Comments, regex bodies and dynamic word fragments are excluded.
 The full git blobs and literal text are transient, never report fields. Raw changed
-columns exclude untouched words in single-line replacements. Purely added or deleted
-lines never use an opposite-blob exclusion. Replacement blocks compare only with
-the opposite line at the same hunk-relative index, including when line numbers shift.
-Literal matching first pairs identical token strings, with multiplicity, within the
-aligned counterpart line. Inserting an unrelated constant cannot turn an unchanged
-helper argument into a change. Remaining literals pair for word-level comparison;
-unchanged words can shift columns. Word matching preserves order and multiplicity,
-so reordered words within a class string still yield units. This textual alignment is never render provenance.
+columns limit changed candidates in single-line replacements. Pure additions/deletions
+never use an opposite-blob exclusion. Within a replacement hunk, ordered token
+sequences are matched across **all** base/head lines, by decoded token value,
+positive role and local argument/branch/array slot, with multiplicity. Unchanged
+words may shift columns or lines, including when an extracted constant precedes
+or follows a call with blank lines between. A token moved to a different positive
+role or slot remains changed. Reordered words still yield units. Each hunk's match
+is cached once per side; textual alignment never supplies render provenance.
 
 CSS vocabulary is read as selector identifiers: escapes inside an ID cannot create
 class delimiters; attribute values and strings cannot contribute classes. Escaped
@@ -2323,10 +2323,10 @@ Svelte `class:name` directives, and whitespace-bounded Svelte class interpolatio
 In `cva`, base class strings and variant values are class contexts; option/variant
 keys (bare or quoted) and default variant selections are excluded. Compound variant
 conditions are excluded; literal `class`/`className` values can still be read.
-Template nesting is capped at 128 levels. Exceeding the cap records a named
-extraction gap for the affected side/file/range, rather than throwing or supplying
-negative evidence from a partially read template. The capped template and the
-remaining blob are covered by the gap rather than read further.
+Template nesting is capped at 128 levels. Exceeding the cap **always** records a
+named extraction gap, including outside a class context. The gap covers the capped
+template through the end of that side/file, including later changed lines that the
+reader cannot inspect; a partially read template supplies no negative evidence.
 Substitution literals adjoining static text are dynamic fragments, not whole tokens:
 `` `${flag ? 'old' : 'keep'}-suffix` `` never contributes the token `old`.
 String concatenation such as `className={'card card--' + tone}` emits a named
@@ -2342,9 +2342,9 @@ recognised helper is deliberately conservative: `cn('btn', t('old thing'))` can 
 `old` if it is in the CSS vocabulary, but the non-helper call makes it J3-only.
 Literals inside an unrelated call cannot inherit positive class evidence, including
 inside template substitutions. Ordinary prose outside class contexts is skipped.
-A remaining line-alignment residual can exclude a newly introduced occurrence:
+A remaining token-alignment residual can exclude a newly introduced occurrence:
 base `const A='tone'` → head `const B='tone'` plus `const A='tone2'` can align the
-first line's identical literal and exclude `tone`, even though its binding changed.
+identical token/role/slot and exclude `tone`, even though its binding changed.
 This reader does not establish binding identity. Shadow content and embedded
 documents remain untraversed; their omission facts prevent false absence proof.
 Line starts are precomputed for binary position lookup, and substitution token scans
@@ -2361,21 +2361,48 @@ J3 negative from an **explicit class context** can lower a J2 range that ran to
 `never-rendered`, retaining its execution. Vocabulary-only candidates never lower
 J2, even when every word is a CSS class name. Older class units lacking explicit
 context evidence also cannot lower J2.
-For classList calls, only `add` arguments and the second `replace` argument are
-positive contexts. `remove`, `contains`, the first/extra `replace` arguments and
-both forms of `toggle` stay J3-only. Attribute matching rejects word/hyphen prefixes:
-`data-class="open"` is not a positive class attribute. Nested unrelated calls such
-as `cn('card', t('open'))` also stay J3-only, even with a vocabulary match.
-Within class expressions, equality/inequality operands (`===`, `!==`, `==`, `!=`),
-case labels, method arguments, receiver arrays such as `['open'].includes(state)`,
-and keys of immediately indexed objects are J3-only. This includes methods named
-like helpers; bare `clsx({ open: condition })` keys remain positive. Ternary result
-branches, right-hand `&&` results, ordinary class arrays and indexed-object values
-remain class values. `dataset.class` and `dataset['class']`/`dataset["class"]`
-assignments are J3-only, like data-class attributes.
-The lexical reader deliberately accepts plain `{ class: 'economy' }` properties
-as explicit, to support Vue `h()` props without data flow. Unrelated data objects
-with this spelling remain an ambiguity; use source context when reviewing them.
+Explicit evidence uses a **positive syntax allow-list**, parsed with Babel's
+JavaScript/TypeScript/JSX AST (comments cannot change an operand's role). A class
+frame grants a positive role only to:
+
+- direct arguments of a bare, statically named class helper (`clsx`, `cx`, `cn`,
+  `classnames`, `classNames`, `twMerge`, `twJoin`, or the `cva` base argument);
+- elements of arrays and non-computed object keys in those helper value positions
+  (recursively through supported containers);
+- ternary result branches, and right-hand results of `&&`, `||` and `??`,
+  recursively inside an already positive value;
+- exact `class`/`className` attribute values, `.className =` assignment values,
+  `classList.add` arguments and the second `classList.replace` argument;
+- supported Vue/Svelte class bindings and Solid `classList` object keys, plus the
+  known `cva` variant-value / compound `class` and `className` value positions.
+
+Parentheses and JSX expression containers preserve a positive role. An unrelated
+expression does not pass its role to descendants: non-helper calls (including
+optional, non-null and generic calls), tagged templates, all binary/relational
+operands (including equality, `in` and `instanceof`), lookup keys and lookup
+containers, case labels, arrow bodies, unary/`void` expressions, and ordinary
+assignments are J3-only. This includes `styles?.['active']`, receiver arrays used by
+`.includes`, indexed objects behind optional access or type assertions, and
+`cn(s => 'x')`, `cn(void 'x')`, `cn(s += 'x')`. Logical left operands and ternary
+tests are J3-only. A ternary inside a non-helper call cannot regain explicit status.
+Tagged text and template substitutions adjoining static text never qualify as
+whole positive class tokens. `remove`, `contains`, the first/extra `replace`
+arguments and both forms of `toggle` stay J3-only. `data-class` and
+`dataset.class` / `dataset['class']` assignments stay J3-only. Bare `className`
+variables and `.class` / `.classList` expando assignments are not class setters.
+
+This is syntax evidence, not type or binding analysis. Aliased/member/optional,
+non-null or generic helper invocations and TypeScript assertion wrappers do not
+supply positive roles. Plain `{ class: 'economy' }` (also `className`/`classList`)
+properties remain explicit to support Vue `h()` props; unrelated data objects with
+this spelling remain an ambiguity. Helper names and `.className` receivers are
+not type-checked. Known `cva` configuration values are supported; arbitrary
+configuration data is excluded. Framework scripts and simple bindings are parsed
+separately; complex directives/frontmatter, custom syntax, spreads and data flow
+remain residuals. Unsupported or malformed AST syntax produces a named extraction
+gap; it cannot supply explicit negative evidence. JSX literal escapes/entities use
+decoded values. Encoded component markup and escaped dynamic-template text produce
+named conservative gaps rather than guessing a runtime token.
 A class occurrence never corroborates a different style value on the same line.
 
 `report.json.reach.classes` lists `sourceKey`, base/head `side`, literal `range`,
