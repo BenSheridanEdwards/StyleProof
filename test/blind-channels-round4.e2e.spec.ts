@@ -162,3 +162,25 @@ test('a variable consumer stays unknown when an opaque ancestor animation drives
   const map = await captureStyleMap(page, options);
   expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe('unknown');
 });
+
+test('a paused Web Animation driving a variable input cannot produce known time-dependent endpoints', async ({
+  page,
+}) => {
+  const evidence = [];
+  for (const time of [0, 900]) {
+    await page.setContent(
+      `<style>@property --x{syntax:'<length>';inherits:true;initial-value:0px}@keyframes pulse{to{margin-left:var(--x)}}.a{animation:pulse 1s linear infinite paused}</style><div class=parent><div class=a>x</div></div>`,
+    );
+    await page.evaluate((t) => {
+      const a = document
+        .querySelector('.parent')!
+        .animate({ '--x': ['10px', '20px'] }, { duration: 1000, fill: 'both' });
+      a.pause();
+      a.currentTime = t;
+    }, time);
+    const map = await captureStyleMap(page, options);
+    evidence.push(map.visualChannels);
+    expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe('unknown');
+  }
+  expect(evidence[0]).toEqual(evidence[1]);
+});

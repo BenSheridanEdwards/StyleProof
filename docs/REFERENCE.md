@@ -1511,7 +1511,9 @@ without a usable live model stays unknown. Empty or unusable engine frames,
 unrepresentable timeline ranges, and keyframes that animate custom properties
 whose complete model is unavailable also stay unknown. A `var()`-dependent model
 also stays unknown when the element or an ancestor has a custom-property animation,
-including paused animations: its substituted values could depend on progress. In particular, Chromium
+including paused animations: its substituted values could depend on progress.
+Non-CSS animation inputs (including Web Animations and transitions) have no
+verified CSSOM declarations and conservatively hold `var()` consumers unknown. In particular, Chromium
 can omit animated custom-property declarations and expose progress-dependent
 substitutions; we do not guess those bodies. Unknown and none have distinct
 references even for the same name. Implicit from/to frames contain the element's

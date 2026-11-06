@@ -300,24 +300,30 @@ export function installVisualChannels(enabled: boolean): void {
     custom: WeakSet<Element>;
     inherited: WeakMap<Element, boolean>;
   };
+  const readModel = (effect: KeyframeEffect): string | undefined => {
+    try {
+      return values.canonicalEngineKeyframes(effect.getKeyframes());
+    } catch {
+      return undefined;
+    }
+  };
   const readAnimationIndex = (): AnimationIndex | undefined => {
     const index: AnimationIndex = { targets: new Map(), custom: new WeakSet(), inherited: new WeakMap() };
     try {
       for (const animation of document.getAnimations()) {
-        if (!(animation instanceof CSSAnimation) || !(animation.effect instanceof KeyframeEffect)) continue;
+        if (!(animation.effect instanceof KeyframeEffect)) continue;
         const element = animation.effect.target;
         if (!(element instanceof Element)) continue;
+        if (!(animation instanceof CSSAnimation)) {
+          // Its declarations have no CSSOM provenance; a var() consumer cannot assume static inputs.
+          index.custom.add(element);
+          continue;
+        }
         const name = animation.animationName;
         const pseudo = animation.effect.pseudoElement ?? '';
         const byPseudo = index.targets.get(element) ?? new Map<string, Model[]>();
         const models = byPseudo.get(pseudo) ?? [];
-        let body: string | undefined;
-        try {
-          body = values.canonicalEngineKeyframes(animation.effect.getKeyframes());
-        } catch {
-          /* unavailable model */
-        }
-        models.push({ name, body });
+        models.push({ name, body: readModel(animation.effect) });
         byPseudo.set(pseudo, models);
         index.targets.set(element, byPseudo);
         const rule = rootRules(element.getRootNode() as Document | ShadowRoot).winners.get(name)?.rule;
