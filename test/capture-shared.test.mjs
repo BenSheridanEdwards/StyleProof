@@ -25,7 +25,8 @@ test('skipSelector: nothing ignored is the empty selector', () => {
   assert.equal(skipSelector([]), '');
 });
 
-// Execute the serialized callbacks in an isolated page realm; no browser or timing races.
+// Bookkeeping-only page realm: CSSStyleSheet does not implement the browser cascade.
+// Real motion effects and restoration are proved in capture-motion.e2e.spec.ts.
 function capturePageHarness() {
   const appSheet = { cssRules: [] };
   const document = {
@@ -239,8 +240,6 @@ function forcedStateHarness({
       assert.ok(expression.endsWith('\n//# sourceURL=styleproof://capture/forced-states\n'));
       const body = expression.replace(/\n\/\/# sourceURL=[^\r\n]*(?:\r?\n)?$/, '');
 
-      if (body.endsWith('getComputedStyle(element).display; return true; })()')) resetBarriers++;
-
       const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
       // Force the production legacy path; all per-target reads still run unmodified.
       if (legacy && sessionBaseline) return { result: { value: false } };
@@ -254,7 +253,11 @@ function forcedStateHarness({
           if (key.startsWith('__spForcedStateBaseline')) delete context.window[key];
         }
       }
-      const value = runInContext(expression, context);
+      const readsBefore = reads;
+      const value = runInContext(body, context);
+      // A standalone reset barrier performs one layout read and returns true.
+      // Count its observable work rather than the spelling of its statement.
+      if (value === true && reads - readsBefore === 1) resetBarriers++;
       if (expression.includes('"countOnly":true')) counts++;
       else if (expression.includes('"saveBaseline":true') && (!sessionBaseline || value)) baselines++;
       return { result: { value } };
