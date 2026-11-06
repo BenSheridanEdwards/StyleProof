@@ -1,0 +1,253 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/blind-channels-round4.test.mjs
+✖ disjoint timing groups commute while shared-property groups retain order (0.902541ms)
+✖ signing marker sig removes rotation fields but retains content identity (0.345459ms)
+✖ signing marker Signature removes rotation fields but retains content identity (0.106958ms)
+✖ signing marker token removes rotation fields but retains content identity (0.08425ms)
+✖ signing marker hdnts removes rotation fields but retains content identity (0.113166ms)
+✖ signing marker __token__ removes rotation fields but retains content identity (0.115708ms)
+✖ signing marker x-other-signature removes rotation fields but retains content identity (0.094584ms)
+✖ signing marker X-Amz-Signature removes rotation fields but retains content identity (0.077375ms)
+✖ signing marker X-Goog-Signature removes rotation fields but retains content identity (0.396291ms)
+✖ signing marker oh removes rotation fields but retains content identity (0.250834ms)
+✔ unsigned rotation-like parameters retain identity (0.138958ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 1
+ℹ fail 10
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.720791
+
+✖ failing tests:
+
+test at test/blind-channels-round4.test.mjs:5:1
+✖ disjoint timing groups commute while shared-property groups retain order (0.902541ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + '[{"offset":0.5,"easing":"steps(1)","composite":"auto","opacity":"1"},{"offset":0.5,"easing":"cubic-bezier(0.42,0,1,1)","composite":"auto","transform":"translateX(30px)"}]'
+  - '[{"offset":0.5,"easing":"cubic-bezier(0.42,0,1,1)","composite":"auto","transform":"translateX(30px)"},{"offset":0.5,"easing":"steps(1)","composite":"auto","opacity":"1"}]'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:8:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '[{"offset":0.5,"easing":"steps(1)","composite":"auto","opacity":"1"},{"offset":0.5,"easing":"cubic-bezier(0.42,0,1,1)","composite":"auto","transform":"translateX(30px)"}]',
+    expected: '[{"offset":0.5,"easing":"cubic-bezier(0.42,0,1,1)","composite":"auto","transform":"translateX(30px)"},{"offset":0.5,"easing":"steps(1)","composite":"auto","opacity":"1"}]',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker sig removes rotation fields but retains content identity (0.345459ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?exp=1&expires=1&expiry=1&oe=1&w=100'
+  - 'https://asset.test/a.png?exp=2&expires=2&expiry=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?exp=1&expires=1&expiry=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?exp=2&expires=2&expiry=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker Signature removes rotation fields but retains content identity (0.106958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?exp=1&expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?exp=2&expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?exp=1&expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?exp=2&expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker token removes rotation fields but retains content identity (0.08425ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker hdnts removes rotation fields but retains content identity (0.113166ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker __token__ removes rotation fields but retains content identity (0.115708ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker x-other-signature removes rotation fields but retains content identity (0.094584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?x-other-signature=first&exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?x-other-signature=second&exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?x-other-signature=first&exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?x-other-signature=second&exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker X-Amz-Signature removes rotation fields but retains content identity (0.077375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker X-Goog-Signature removes rotation fields but retains content identity (0.396291ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-round4.test.mjs:24:3
+✖ signing marker oh removes rotation fields but retains content identity (0.250834ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'https://asset.test/a.png?oh=first&exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100'
+  - 'https://asset.test/a.png?oh=second&exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100'
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round4.test.mjs:29:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://asset.test/a.png?oh=first&exp=1&expires=1&expiry=1&se=1&st=1&oe=1&w=100',
+    expected: 'https://asset.test/a.png?oh=second&exp=2&expires=2&expiry=2&se=2&st=2&oe=2&w=100',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.

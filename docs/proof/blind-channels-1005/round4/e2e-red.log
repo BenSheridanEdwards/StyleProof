@@ -1,0 +1,201 @@
+Already up to date
+Done in 56ms using pnpm v11.7.0
+
+Running 7 tests using 1 worker
+
+(node:47787) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round4.e2e.spec.ts:8:1 › one flat animation index per channel read, without per-element native lookups (162ms)
+(node:47795) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/blind-channels-round4.e2e.spec.ts:23:1 › reset and finishing animations have identical evidence across ten captures (1.5s)
+(node:47800) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [chromium] › test/blind-channels-round4.e2e.spec.ts:37:3 › animated custom-property input stays unknown (self) (112ms)
+(node:47805) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 [chromium] › test/blind-channels-round4.e2e.spec.ts:37:3 › animated custom-property input stays unknown (ancestor) (142ms)
+(node:47862) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  5 [chromium] › test/blind-channels-round4.e2e.spec.ts:54:1 › T2 disjoint reorder stays clean and shared-property timing order still flags (166ms)
+(node:47872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  6 [chromium] › test/blind-channels-round4.e2e.spec.ts:68:1 › identical duplicated definitions remain known (109ms)
+(node:47877) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  7 [chromium] › test/blind-channels-round4.e2e.spec.ts:73:1 › capture does not pause an inline important animation (111ms)
+
+
+  1) [chromium] › test/blind-channels-round4.e2e.spec.ts:8:1 › one flat animation index per channel read, without per-element native lookups
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 40
+
+      19 |   void calls;
+      20 |   await captureStyleMap(page, options);
+    > 21 |   expect(await page.evaluate(() => (window as Window & { count: () => number }).count())).toBe(0);
+         |                                                                                           ^
+      22 | });
+      23 | test('reset and finishing animations have identical evidence across ten captures', async ({ page }) => {
+      24 |   let first: unknown;
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:21:91
+
+    Error Context: test-results/test-blind-channels-round4-add78--per-element-native-lookups-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round4.e2e.spec.ts:23:1 › reset and finishing animations have identical evidence across ten captures
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 8
+
+      Object {
+        "keyframes": Object {
+    -     "[\"enter\",\"unknown\"]": Object {
+    +     "[\"enter\",\"15b9e0068eb1e5c00c121a03979e263f7e3e8875af23223e9b0afeb90be688cd\"]": Object {
+    +       "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"}]",
+    +       "hash": "15b9e0068eb1e5c00c121a03979e263f7e3e8875af23223e9b0afeb90be688cd",
+            "name": "enter",
+    -       "status": "unknown",
+    +       "status": "known",
+          },
+    -     "[\"spin\",\"unknown\"]": Object {
+    +     "[\"spin\",\"534ac8db7b61d24db2035022715e5ae3ad1f3645c9f1040475ae619914fd3b8e\"]": Object {
+    +       "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"transform\":\"none\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"transform\":\"rotate(360deg)\"}]",
+    +       "hash": "534ac8db7b61d24db2035022715e5ae3ad1f3645c9f1040475ae619914fd3b8e",
+            "name": "spin",
+    -       "status": "unknown",
+    +       "status": "known",
+          },
+        },
+        "version": 1,
+      }
+
+      31 |     const evidence = map.visualChannels;
+      32 |     if (i === 0) first = evidence;
+    > 33 |     else expect(evidence).toEqual(first);
+         |                           ^
+      34 |   }
+      35 | });
+      36 | for (const inherited of [false, true])
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:33:27
+
+    Error Context: test-results/test-blind-channels-round4-d842d-vidence-across-ten-captures-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels-round4.e2e.spec.ts:37:3 › animated custom-property input stays unknown (self)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |       const map = await captureStyleMap(page, options);
+      47 |       maps.push(map);
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe(
+         |                                                                                                          ^
+      49 |         'unknown',
+      50 |       );
+      51 |     }
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:48:106
+
+    Error Context: test-results/test-blind-channels-round4-9435d-y-input-stays-unknown-self--chromium/error-context.md
+
+  4) [chromium] › test/blind-channels-round4.e2e.spec.ts:37:3 › animated custom-property input stays unknown (ancestor)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |       const map = await captureStyleMap(page, options);
+      47 |       maps.push(map);
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe(
+         |                                                                                                          ^
+      49 |         'unknown',
+      50 |       );
+      51 |     }
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:48:106
+
+    Error Context: test-results/test-blind-channels-round4-3bddf-put-stays-unknown-ancestor--chromium/error-context.md
+
+  5) [chromium] › test/blind-channels-round4.e2e.spec.ts:54:1 › T2 disjoint reorder stays clean and shared-property timing order still flags
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 15
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "cls": "a",
+    +     "kind": "style",
+    +     "path": "body > div:nth-child(1)",
+    +     "props": Array [
+    +       Object {
+    +         "after": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.42,0,1,1)\",\"composite\":\"auto\",\"transform\":\"translateX(30px)\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"composite\":\"auto\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"}]",
+    +         "before": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"composite\":\"auto\",\"opacity\":\"1\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.42,0,1,1)\",\"composite\":\"auto\",\"transform\":\"translateX(30px)\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"opacity\":\"1\",\"transform\":\"none\"}]",
+    +         "prop": "animation keyframes (pulse)",
+    +       },
+    +     ],
+    +     "pseudo": null,
+    +   },
+    + ]
+
+      64 |     maps.push(await captureStyleMap(page, options));
+      65 |   }
+    > 66 |   expect(diffStyleMaps(maps[0], maps[1])).toEqual([]);
+         |                                           ^
+      67 | });
+      68 | test('identical duplicated definitions remain known', async ({ page }) => {
+      69 |   await page.setContent(`<style>${css}</style><style>${css}</style><div class=a>x</div>`);
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:66:43
+
+    Error Context: test-results/test-blind-channels-round4-8249f-ty-timing-order-still-flags-chromium/error-context.md
+
+  6) [chromium] › test/blind-channels-round4.e2e.spec.ts:68:1 › identical duplicated definitions remain known
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "known"
+    Received: "unknown"
+
+      69 |   await page.setContent(`<style>${css}</style><style>${css}</style><div class=a>x</div>`);
+      70 |   const map = await captureStyleMap(page, options);
+    > 71 |   expect(Object.values(map.visualChannels!.keyframes)[0].status).toBe('known');
+         |                                                                  ^
+      72 | });
+      73 | test('capture does not pause an inline important animation', async ({ page }) => {
+      74 |   await page.setContent(`<style>${css}</style><div class=a style="animation:pulse 1s infinite!important">x</div>`);
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:71:66
+
+    Error Context: test-results/test-blind-channels-round4-775fe-ed-definitions-remain-known-chromium/error-context.md
+
+  7) [chromium] › test/blind-channels-round4.e2e.spec.ts:73:1 › capture does not pause an inline important animation
+
+    Error: expect(received).not.toContain(expected) // indexOf
+
+    Expected value: not "paused"
+    Received array:     ["paused"]
+
+      74 |   await page.setContent(`<style>${css}</style><div class=a style="animation:pulse 1s infinite!important">x</div>`);
+      75 |   await captureStyleMap(page, options);
+    > 76 |   expect(await page.evaluate(() => document.getAnimations().map((a) => a.playState))).not.toContain('paused');
+         |                                                                                           ^
+      77 | });
+      78 | test('animated element scans scale linearly at 500, 1000 and 2000 elements', async ({ page }) => {
+      79 |   test.setTimeout(180_000);
+        at <checkout>/test/blind-channels-round4.e2e.spec.ts:76:91
+
+    Error Context: test-results/test-blind-channels-round4-a51df--inline-important-animation-chromium/error-context.md
+
+  7 failed
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:8:1 › one flat animation index per channel read, without per-element native lookups
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:23:1 › reset and finishing animations have identical evidence across ten captures
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:37:3 › animated custom-property input stays unknown (self)
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:37:3 › animated custom-property input stays unknown (ancestor)
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:54:1 › T2 disjoint reorder stays clean and shared-property timing order still flags
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:68:1 › identical duplicated definitions remain known
+    [chromium] › test/blind-channels-round4.e2e.spec.ts:73:1 › capture does not pause an inline important animation
