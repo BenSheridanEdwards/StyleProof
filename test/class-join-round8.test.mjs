@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { classLiterals } from '../dist/class-join-literals.js';
 import { classifyClassReach, combineClassReach } from '../dist/class-join.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
@@ -107,3 +109,44 @@ for (const source of [
     const literals = classLiterals(source, 'app.ts');
     assert.ok(literals.filter((l) => l.words.some((w) => w.token === 'ty-old')).every((l) => !l.explicit));
   });
+
+test('reviewer AST sample bounds type positives and runtime misses in all four languages', (t) => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const child = spawnSync(
+    process.execPath,
+    [
+      fileURLToPath(new URL('./class-join-review-oracle.mjs', import.meta.url)),
+      '1',
+      '1000',
+      'ts',
+      'tsx',
+      'vue',
+      'svelte',
+    ],
+    {
+      encoding: 'utf8',
+      env: { ...process.env, R: root.replace(/\/$/, '') },
+      timeout: 30000,
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  const { summary } = JSON.parse(child.stdout);
+  const limits = { ts: 0, tsx: 0.06, vue: 0.01, svelte: 0.01 };
+  const failed = [];
+  for (const [kind, result] of Object.entries(summary)) {
+    assert.ok(result.typeLits > 0 && result.rtLits > 0);
+    if (result.errors || result.fp || result.fn / result.rtLits > limits[kind]) failed.push(kind);
+    t.diagnostic(
+      JSON.stringify({
+        kind,
+        typeLiterals: result.typeLits,
+        falsePositives: result.fp,
+        runtimeLiterals: result.rtLits,
+        falseNegatives: result.fn,
+        maximumMissRate: limits[kind],
+      }),
+    );
+  }
+  assert.deepEqual(failed, []);
+});
