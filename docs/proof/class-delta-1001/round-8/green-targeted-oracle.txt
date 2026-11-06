@@ -1,0 +1,115 @@
+✔ nested type has no positive role: type X = () => A extends B ? { class: 'old' } : C; (1.892875ms)
+✔ nested type has no positive role: let f: () => A extends B ? { class: 'old' } : C; (0.5505ms)
+✔ nested type has no positive role: let f: () => { class: 'old' }; (0.084084ms)
+✔ nested type has no positive role: function f(e: () => { class: 'old' }) {} (0.119709ms)
+✔ nested type has no positive role: type X = () => { class: 'old' }; (0.067375ms)
+✔ nested type has no positive role: const f = value as () => { class: 'old' }; (0.072584ms)
+✔ nested type has no positive role: function f(): () => { class: 'old' } { return value; } (0.072375ms)
+✔ nested type has no positive role: function f(x: unknown): x is { class: 'old' } { return true; } (0.070041ms)
+✔ nested type has no positive role: let m: Record<string, { className: 'old' }>; (0.147042ms)
+✔ nested type has no positive role: function f(e: Record<K, { class: 'old' }>) {} (0.125417ms)
+✔ nested type has no positive role: new Map<string, { class: 'old' }>(); (0.065792ms)
+✔ nested type has no positive role: foo<A, { class: 'old' }>(x); (0.05625ms)
+✔ nested type has no positive role: function f(e: [{ class: 'old' }]) {} (0.046083ms)
+✔ nested type has no positive role: let t: [A, { class: 'old' }]; (0.041875ms)
+✔ nested type has no positive role: let t: [a: string, b?: { class: 'old' }]; (0.046125ms)
+✔ nested type has no positive role: const t = x as ({ class: 'old' }); (0.042209ms)
+✔ nested type has no positive role: const t = x as [{ class: 'old' }]; (0.048125ms)
+✔ nested type has no positive role: const t = x as Map<K, { class: 'old' }>; (0.048083ms)
+✔ nested type has no positive role: const t = x satisfies Record<K, { class: 'old' }>; (0.038ms)
+✔ nested type has no positive role: let x: A extends B ? { class: 'old' } : C; (0.030459ms)
+✔ nested type has no positive role: let x: A extends B ? C : { class: 'old' }; (0.02875ms)
+✔ nested type has no positive role: function f<G = { class: 'old' }>() {} (0.050291ms)
+✔ nested type has no positive role: const [a]: [{ class: 'old' }] = v; (0.035834ms)
+✔ nested type has no positive role: type X = [{ class: 'old' }]; (0.025792ms)
+✔ nested type has no positive role: type X = ({ class: 'old' }); (0.021792ms)
+✔ nested type has no positive role: interface X { prop: Record<K, { class: 'old' }> } (0.029417ms)
+✔ nested type has no positive role: class X implements Record<K, { class: 'old' }> {} (0.048292ms)
+✔ nested type has no positive role: const f = <T extends { class: 'old' }>(x: T) => x; (0.0675ms)
+✔ nested type has no positive role: function f(): Record<K, { class: 'old' }> { return value; } (0.043792ms)
+✔ nested type has no positive role: let a: ({ class: 'old' } | [{ className: 'old' }]) & A; (0.04425ms)
+✔ nested type has no positive role: type C<T> = T extends {class:'old'} ? {className:'old'} : never; (0.038541ms)
+✔ nested type has no positive role: let p: string extends unknown ? {class:'old'} : {className:'old'}; (0.03825ms)
+✔ nested type has no positive role: const p=value as ({class:'old'} & {inner:{className:'old'}}); (0.041625ms)
+✔ nested type has no positive role: const p:readonly [{class:'old'},{className:'old'}?]=value; (0.031875ms)
+✔ nested type has no positive role: function f<T={inner:{class:'old'}}>(p:T) {} (0.04125ms)
+✔ nested type has no positive role: function f<X,Y,T extends (X extends Y ? {class:'old'} : {className:'old'})>() {} (0.042458ms)
+✔ runtime boundary keeps positive values: const subscribe = (cb: Cb): (() => void) => { el.className='old'; return f; }; (0.1825ms)
+✔ runtime boundary keeps positive values: const o = { open: (e: Ev): (() => void) => { el.className='old'; return f; } }; (0.066208ms)
+✔ runtime boundary keeps positive values: const f = (): (A | B) => cn('old'); (0.089042ms)
+✔ runtime boundary keeps positive values: const narrow = w < 640; el.className='old'; const wide = w > 1280; (0.036209ms)
+✔ runtime boundary keeps positive values: const ok = n < 3, cls = cn('old'), big = n > 9; (0.043792ms)
+✔ runtime boundary keeps positive values: const ok = a < b && c > d; el.className='old'; (0.032166ms)
+✔ runtime boundary keeps positive values: const ok = a < b || c > d; el.className='old'; (0.032584ms)
+✔ runtime boundary keeps positive values: const ok = a < b ?? c > d; el.className='old'; (0.033959ms)
+✔ runtime boundary keeps positive values: const ok = a < b === c > d; el.className='old'; (0.034833ms)
+✔ runtime boundary keeps positive values: const ok = a < b + c > d; el.className='old'; (0.038125ms)
+✔ runtime boundary keeps positive values: const small = n < 3
+el.className='old'
+const big = n > 9; (0.060166ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+try { el.className='old'; } catch {} (0.0365ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+async function open() { el.className='old'; } (0.031125ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+do { el.className='old'; } while (on); (0.030625ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+{ el.className='old'; } (0.024375ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+el!.className='old'; (0.026417ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+els[0].className='old'; (0.027875ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+els?.[0].className='old'; (0.039083ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+outer: { el.className='old'; } (0.051333ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+$: { el.className='old'; } (0.033916ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+await cn('old'); (0.040625ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+if (on) { el.className='old'; } (0.0325ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+for (;;) { el.className='old'; break; } (0.033583ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+while (on) { el.className='old'; } (0.028958ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+switch (k) { default: { el.className='old'; } } (0.033958ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+new Box({class:'old'}); (0.028417ms)
+✔ runtime boundary keeps positive values: let timer: number | undefined
+this.el.className='old'; (0.024458ms)
+✔ runtime boundary keeps positive values: switch (0) { case (0): { el.className='old'; } } (0.035292ms)
+✔ runtime boundary keeps positive values: switch (0) { case zero(): { el.className='old'; } } (0.034833ms)
+✔ runtime boundary keeps positive values: x = cond ? cn('old') : cn('tk-other'); (0.038792ms)
+✔ runtime boundary keeps positive values: switch(k) { default: { el.className='old'; } } (0.036167ms)
+✔ runtime boundary keeps positive values: switch(k) { case A: { el.className='old'; } } (0.02825ms)
+✔ runtime boundary keeps positive values: switch(k) { case K.A: { el.className='old'; } } (0.0365ms)
+✔ runtime boundary keeps positive values: outer: { el.className='old'; } (0.025333ms)
+✔ runtime boundary keeps positive values: $: { el.className='old'; } (0.021959ms)
+✔ runtime boundary keeps positive values: let x: Record<K, { class: 'type' }> = { class: 'old' }; (0.037958ms)
+✔ runtime boundary keeps positive values: function f(e: Record<K, { class: 'type' }>) { el.className='old'; } (0.034875ms)
+✔ runtime boundary keeps positive values: function f(): Record<K, { class: 'type' }> { el.className='old'; return value; } (0.038333ms)
+✔ runtime boundary keeps positive values: const f = (e: Record<K, { class: 'type' }>) => ({ class: 'old' }); (0.037917ms)
+✔ runtime boundary keeps positive values: const cfg = { as: { class: 'old' } }; (0.025333ms)
+✔ runtime boundary keeps positive values: const cfg = { implements: { class: 'old' } }; (0.029625ms)
+✔ runtime boundary keeps positive values: type X = { class: 'type' }
+el.className='old'; (0.033875ms)
+✔ runtime boundary keeps positive values: let p: Record<K, { class: 'type' }>
+el.className='old'; (0.027166ms)
+✔ runtime boundary keeps positive values: const p = value as { class: 'type' }
+el.className='old'; (0.032166ms)
+✔ runtime boundary keeps positive values: const f = (r): { class: 'type' } => { el.className='old'; return value; }; (0.034ms)
+✔ runtime boundary keeps positive values: const cfg = on ? value : { class: 'old' }; (0.024833ms)
+✔ a bracket cap drops the entire unfinished statement but keeps earlier statements (0.625208ms)
+✔ nested inline type evidence cannot lower a same-line visual-change J2 range (1.696209ms)
+✔ dev-only two-way TS oracle: nested types stay negative and supported runtime roles stay positive (322.336167ms)
+ℹ {"checkedTypeLiterals":8011,"falsePositives":0,"runtimeChecked":10676,"falseNegatives":0,"falsePositiveExamples":[],"falseNegativeExamples":[]}
+ℹ tests 85
+ℹ suites 0
+ℹ pass 85
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 494.232208
