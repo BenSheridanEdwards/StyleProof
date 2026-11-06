@@ -261,8 +261,10 @@ export function installVisualChannels(enabled: boolean): void {
     const url = source ? new URL(source, document.baseURI) : undefined;
     if (!url || !/^https?:$/.test(url.protocol)) return source;
     const sensitive = /^(?:x-amz-.*|signature|token|access_token|sig|se|sp|sv|expires|key-pair-id|policy)$/i;
-    const names = [...url.searchParams.keys()].filter((name) => sensitive.test(name));
-    for (const name of names) url.searchParams.delete(name);
+    const query = url.search.slice(1).split('&');
+    const retained = query.filter((part) => !sensitive.test(new URLSearchParams('?' + part).keys().next().value ?? ''));
+    // Keep the original spelling/order of every non-credential field; URLSearchParams.delete re-encodes it.
+    if (retained.length !== query.length) url.search = retained.join('&');
     return url.origin === location.origin ? `${url.pathname}${url.search}${url.hash}` : url.href;
   };
   const layerProperties = (element: Element, pseudo: string, rules: Rules, scopes: Rules[]): Props => {

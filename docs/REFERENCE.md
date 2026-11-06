@@ -1465,7 +1465,8 @@ through the ordinary findings, approvals, budgets, certify and review-gate paths
 Opt in on both base and head to expand what the gate compares; upgrading alone
 keeps existing verdicts. Exactly one side carrying the channel marker skips both new
 channels and the report names **not compared (map predates keyframes/currentSrc
-capture)**. With both sides off there is no channel evidence block. Older maps remain
+capture)**. With both sides off there is no legacy-channel limit. Independent
+font-face advice can still appear when both sides carry reach evidence. Older maps remain
 loadable; no existing schema version changes.
 
 Each enabled map adds `visualChannels: { version: 1, keyframes }`. The dictionary
