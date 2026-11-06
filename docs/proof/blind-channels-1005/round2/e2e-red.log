@@ -1,0 +1,300 @@
+Already up to date
+Done in 56ms using pnpm v11.7.0
+
+Running 19 tests using 1 worker
+
+(node:60441) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘   1 [chromium] › test/blind-channels-round2.e2e.spec.ts:31:1 › every root in a re-slot chain keeps untraversed keyframes unknown, never definite none (205ms)
+(node:60452) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/blind-channels-round2.e2e.spec.ts:47:1 › a closed slotted root cannot produce a false definite absence (119ms)
+(node:60459) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves background-position var substitution (173ms)
+(node:60464) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves margin var deletion (173ms)
+(node:60471) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves timing function groups (147ms)
+(node:60483) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves composition groups (134ms)
+(node:60488) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   7 [chromium] › test/blind-channels-round2.e2e.spec.ts:107:3 › equivalent keyframes stay clean for var shorthand split and merge (165ms)
+  ✓   8 [chromium] › test/blind-channels-round2.e2e.spec.ts:107:3 › equivalent keyframes stay clean for var shorthand later wins (143ms)
+  ✓   9 [chromium] › test/blind-channels-round2.e2e.spec.ts:107:3 › equivalent keyframes stay clean for matching timing groups merge (112ms)
+  ✓  10 [chromium] › test/blind-channels-round2.e2e.spec.ts:107:3 › equivalent keyframes stay clean for independent timing groups reorder (112ms)
+  ✓  11 [chromium] › test/blind-channels-round2.e2e.spec.ts:107:3 › equivalent keyframes stay clean for quoted semicolon and var fallback (125ms)
+  ✘  12 [chromium] › test/blind-channels-round2.e2e.spec.ts:115:1 › identical blob images are stable skipped evidence without exposing per-run URLs (138ms)
+(node:60498) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › S3 v2 credential rotations expose no credential text in map or report (193ms)
+(node:60503) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  14 [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › S3 v4 credential rotations expose no credential text in map or report (226ms)
+  ✘  15 [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › GCS v4 credential rotations expose no credential text in map or report (139ms)
+(node:60509) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  16 [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › Azure SAS credential rotations expose no credential text in map or report (188ms)
+(node:60514) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  17 [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › CloudFront credential rotations expose no credential text in map or report (230ms)
+  ✘  18 [chromium] › test/blind-channels-round2.e2e.spec.ts:175:1 › unsigned query fields keep identity without provider signature markers (136ms)
+(node:60525) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  19 [chromium] › test/blind-channels-round2.e2e.spec.ts:205:1 › loaded image to complete no-source is compared; unloaded lazy image remains skipped (187ms)
+
+
+  1) [chromium] › test/blind-channels-round2.e2e.spec.ts:31:1 › every root in a re-slot chain keeps untraversed keyframes unknown, never definite none
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        Object {
+          "name": "deep",
+    -     "status": "unknown",
+    +     "status": "none",
+        },
+      ]
+
+      40 |   const after = await capture(page, html('.8'));
+      41 |   for (const map of [before, after])
+    > 42 |     expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'deep', status: 'unknown' }]);
+         |                                                          ^
+      43 |   expect(changes(before, after)).toEqual([]);
+      44 |   expect(report(before, after)).toContain('unknown; not compared');
+      45 | });
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:42:58
+
+    Error Context: test-results/test-blind-channels-round2-6fb3e-unknown-never-definite-none-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round2.e2e.spec.ts:47:1 › a closed slotted root cannot produce a false definite absence
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        Object {
+          "name": "deep",
+    -     "status": "unknown",
+    +     "status": "none",
+        },
+      ]
+
+      58 |     })),
+      59 |   ).toEqual({ assignedSlot: null, animations: 1 });
+    > 60 |   expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'deep', status: 'unknown' }]);
+         |                                                        ^
+      61 | });
+      62 |
+      63 | for (const [name, a, b] of [
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:60:56
+
+    Error Context: test-results/test-blind-channels-round2-3e251-ce-a-false-definite-absence-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves background-position var substitution
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      82 |     const before = await capture(page, markup(a));
+      83 |     const after = await capture(page, markup(b));
+    > 84 |     expect(changes(before, after).map((property) => property.prop)).toContain('animation keyframes (pulse)');
+         |                                                                     ^
+      85 |   });
+      86 | }
+      87 |
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:84:69
+
+    Error Context: test-results/test-blind-channels-round2-3cb2d-d-position-var-substitution-chromium/error-context.md
+
+  4) [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves margin var deletion
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      82 |     const before = await capture(page, markup(a));
+      83 |     const after = await capture(page, markup(b));
+    > 84 |     expect(changes(before, after).map((property) => property.prop)).toContain('animation keyframes (pulse)');
+         |                                                                     ^
+      85 |   });
+      86 | }
+      87 |
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:84:69
+
+    Error Context: test-results/test-blind-channels-round2-adefd-eserves-margin-var-deletion-chromium/error-context.md
+
+  5) [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves timing function groups
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      82 |     const before = await capture(page, markup(a));
+      83 |     const after = await capture(page, markup(b));
+    > 84 |     expect(changes(before, after).map((property) => property.prop)).toContain('animation keyframes (pulse)');
+         |                                                                     ^
+      85 |   });
+      86 | }
+      87 |
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:84:69
+
+    Error Context: test-results/test-blind-channels-round2-56c9e-rves-timing-function-groups-chromium/error-context.md
+
+  6) [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves composition groups
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      82 |     const before = await capture(page, markup(a));
+      83 |     const after = await capture(page, markup(b));
+    > 84 |     expect(changes(before, after).map((property) => property.prop)).toContain('animation keyframes (pulse)');
+         |                                                                     ^
+      85 |   });
+      86 | }
+      87 |
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:84:69
+
+    Error Context: test-results/test-blind-channels-round2-855b6-reserves-composition-groups-chromium/error-context.md
+
+  7) [chromium] › test/blind-channels-round2.e2e.spec.ts:115:1 › identical blob images are stable skipped evidence without exposing per-run URLs
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "(blob URL; not compared)"
+    Received: "blob:null/8d77ed35-d02c-4af7-92de-fc11ed583fc1"
+
+      117 |   const before = await capture(page, html);
+      118 |   const after = await capture(page, html);
+    > 119 |   expect(sourceOf(before)).toBe('(blob URL; not compared)');
+          |                            ^
+      120 |   expect(sourceOf(after)).toBe('(blob URL; not compared)');
+      121 |   expect(changes(before, after)).toEqual([]);
+      122 |   expect(() => assertDeterministicVisualChannels(before, after, 'home')).not.toThrow();
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:119:28
+
+    Error Context: test-results/test-blind-channels-round2-2eff3-thout-exposing-per-run-URLs-chromium/error-context.md
+
+  8) [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › S3 v2 credential rotations expose no credential text in map or report
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "http://assets.test/a.svg?asset=a%20b#part"
+    Received: "http://assets.test/a.svg?asset=a%20b&AWSAccessKeyId=fixture-private-first-AWSAccessKeyId#part"
+
+      159 |     const before = await capture(page, html('first'));
+      160 |     const after = await capture(page, html('second'));
+    > 161 |     expect(sourceOf(before)).toBe('http://assets.test/a.svg?asset=a%20b#part');
+          |                              ^
+      162 |     expect(sourceOf(after)).toBe(sourceOf(before));
+      163 |     expect(JSON.stringify([before, after])).not.toContain('fixture-private');
+      164 |     expect(changes(before, after)).toEqual([]);
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:161:30
+
+    Error Context: test-results/test-blind-channels-round2-875a7-ntial-text-in-map-or-report-chromium/error-context.md
+
+  9) [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › GCS v4 credential rotations expose no credential text in map or report
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "http://assets.test/a.svg?asset=a%20b#part"
+    Received: "http://assets.test/a.svg?asset=a%20b&X-Goog-Algorithm=fixture-private-first-X-Goog-Algorithm&X-Goog-Credential=fixture-private-first-X-Goog-Credential&X-Goog-Date=fixture-private-first-X-Goog-Date&X-Goog-Expires=fixture-private-first-X-Goog-Expires&X-Goog-SignedHeaders=fixture-private-first-X-Goog-SignedHeaders&X-Goog-Signature=fixture-private-first-X-Goog-Signature#part"
+
+      159 |     const before = await capture(page, html('first'));
+      160 |     const after = await capture(page, html('second'));
+    > 161 |     expect(sourceOf(before)).toBe('http://assets.test/a.svg?asset=a%20b#part');
+          |                              ^
+      162 |     expect(sourceOf(after)).toBe(sourceOf(before));
+      163 |     expect(JSON.stringify([before, after])).not.toContain('fixture-private');
+      164 |     expect(changes(before, after)).toEqual([]);
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:161:30
+
+    Error Context: test-results/test-blind-channels-round2-6038f-ntial-text-in-map-or-report-chromium/error-context.md
+
+  10) [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › Azure SAS credential rotations expose no credential text in map or report
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "http://assets.test/a.svg?asset=a%20b#part"
+    Received: "http://assets.test/a.svg?asset=a%20b&st=fixture-private-first-st&sr=fixture-private-first-sr&skt=fixture-private-first-skt&ske=fixture-private-first-ske&skoid=fixture-private-first-skoid&sktid=fixture-private-first-sktid&sks=fixture-private-first-sks&skv=fixture-private-first-skv&sdd=fixture-private-first-sdd&spr=fixture-private-first-spr#part"
+
+      159 |     const before = await capture(page, html('first'));
+      160 |     const after = await capture(page, html('second'));
+    > 161 |     expect(sourceOf(before)).toBe('http://assets.test/a.svg?asset=a%20b#part');
+          |                              ^
+      162 |     expect(sourceOf(after)).toBe(sourceOf(before));
+      163 |     expect(JSON.stringify([before, after])).not.toContain('fixture-private');
+      164 |     expect(changes(before, after)).toEqual([]);
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:161:30
+
+    Error Context: test-results/test-blind-channels-round2-6870a-ntial-text-in-map-or-report-chromium/error-context.md
+
+  11) [chromium] › test/blind-channels-round2.e2e.spec.ts:175:1 › unsigned query fields keep identity without provider signature markers
+
+    Error: sp
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: "img currentSrc"
+    Received array: []
+
+      199 |       changes(before, after).map((property) => property.prop),
+      200 |       key,
+    > 201 |     ).toContain('img currentSrc');
+          |       ^
+      202 |   }
+      203 | });
+      204 |
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:201:7
+
+    Error Context: test-results/test-blind-channels-round2-e4590--provider-signature-markers-chromium/error-context.md
+
+  12) [chromium] › test/blind-channels-round2.e2e.spec.ts:205:1 › loaded image to complete no-source is compared; unloaded lazy image remains skipped
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "(no source)"
+    Received: ""
+
+      208 |   const after = await capture(page, '<img width="10" height="10">');
+      209 |   expect(await page.locator('img').evaluate((element) => element.complete)).toBe(true);
+    > 210 |   expect(sourceOf(after)).toBe('(no source)');
+          |                           ^
+      211 |   expect(changes(before, after)).toContainEqual({
+      212 |     prop: 'img currentSrc',
+      213 |     before: 'http://assets.test/a.svg',
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:210:27
+
+    Error Context: test-results/test-blind-channels-round2-18276--lazy-image-remains-skipped-chromium/error-context.md
+
+  12 failed
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:31:1 › every root in a re-slot chain keeps untraversed keyframes unknown, never definite none
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:47:1 › a closed slotted root cannot produce a false definite absence
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves background-position var substitution
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves margin var deletion
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves timing function groups
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:81:3 › keyframe canonicalisation preserves composition groups
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:115:1 › identical blob images are stable skipped evidence without exposing per-run URLs
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › S3 v2 credential rotations expose no credential text in map or report
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › GCS v4 credential rotations expose no credential text in map or report
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:155:3 › Azure SAS credential rotations expose no credential text in map or report
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:175:1 › unsigned query fields keep identity without provider signature markers
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:205:1 › loaded image to complete no-source is compared; unloaded lazy image remains skipped
+  7 passed (7.2s)

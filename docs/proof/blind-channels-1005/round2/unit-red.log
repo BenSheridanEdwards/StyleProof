@@ -1,0 +1,52 @@
+Already up to date
+Done in 57ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/blind-channels-round2.test.mjs
+✖ blob sources are stable skipped evidence on either side with a named report limit (1.567667ms)
+✔ a complete image with no source is compared, rather than skipped as unloaded (0.19025ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 106.658667
+
+✖ failing tests:
+
+test at test/blind-channels-round2.test.mjs:15:1
+✖ blob sources are stable skipped evidence on either side with a named report limit (1.567667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   {
+  +     cls: 'asset',
+  +     contentLengthSignal: 'unknown',
+  +     kind: 'style',
+  +     path: 'image',
+  +     props: [
+  +       {
+  +         after: '/a.png',
+  +         before: '(blob URL; not compared)',
+  +         prop: 'img currentSrc'
+  +       }
+  +     ],
+  +     pseudo: null
+  +   }
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round2.test.mjs:21:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { kind: 'style', path: 'image', cls: 'asset', pseudo: null, props: [Array], contentLengthSignal: 'unknown' } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.
