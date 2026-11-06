@@ -13,6 +13,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   includes the evidence. Legacy maps skip both channels with a named report limit.
   Matched changed font faces get surface-specific `--pixels` advice. Defaults and
   J1 blind-channel classification stay unchanged; no runtime dependency is added.
+  Referenced rule deletion and inactive media now compare as definite absence;
+  effective offsets canonicalise timeline ranges, lists, order and duplicate declarations.
+  CSSOM resolution is cached per root per capture and preserves provable winners
+  over opaque sheets. Unloaded images get a named skip, signed-URL credential
+  parameters are removed, and reports with both sides opted out stay unchanged.
 
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;

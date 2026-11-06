@@ -137,6 +137,7 @@ test('credential query fields are removed from stored sources but benign paramet
 for (const ruleCount of [5000, 20000]) {
   test(`channel CSSOM cost is one root walk per capture with ${ruleCount} rules`, async ({ page }) => {
     await page.setContent(markup('@keyframes pulse{to{opacity:1}}' + '.unrelated{color:red}'.repeat(ruleCount)));
+    expect(await page.evaluate(() => document.styleSheets[0].cssRules.length)).toBe(ruleCount + 2);
     await page.evaluate(installVisualChannels, true);
     const counts = await page.evaluate(() => {
       const sheet = Object.getOwnPropertyDescriptor(CSSStyleSheet.prototype, 'cssRules')!;

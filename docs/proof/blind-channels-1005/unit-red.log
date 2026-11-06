@@ -16,7 +16,7 @@ test at test/blind-channels.test.mjs:16:1
 ✖ legacy maps skip keyframes and currentSrc on either side without hiding CSS changes (1.360833ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
   + [
   +   {
   +     cls: '',
@@ -39,7 +39,7 @@ test at test/blind-channels.test.mjs:16:1
   +   }
   + ]
   - []
-  
+
       at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:22:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -57,10 +57,10 @@ test at test/blind-channels.test.mjs:32:1
 ✖ keyframe references compare canonical bodies, even if reference IDs agree (0.141625ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   + actual - expected
-  
+
   + undefined
   - 'animation keyframes (pulse)'
-  
+
       at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:35:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)

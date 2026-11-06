@@ -660,9 +660,11 @@ The same summary lands machine-readably in `report.json` (`confidence`).
 adds referenced `@keyframes` bodies and resolved `img.currentSrc` to the normal
 diff, approvals, budgets and certification verdict. It is off by default so an
 upgrade preserves existing verdicts. Both sides must opt in; older maps name
-these channels as not compared. See [visual channels](docs/REFERENCE.md#optional-keyframes-and-image-sources).
+these channels as not compared when exactly one side opted in. Unloaded images
+have a named comparison limit. Known signed-URL credential parameters are removed.
+See [visual channels](docs/REFERENCE.md#optional-keyframes-and-image-sources).
 Matched changed font faces get a surface-specific `--pixels` recommendation;
-it does not change the verdict.
+it needs `captureReach` on both sides and does not change the verdict.
 
 StyleProof certifies only what it captured: a surface that was never captured
 has no base and no head map, so its change can never appear in a diff and the

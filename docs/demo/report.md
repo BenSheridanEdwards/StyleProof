@@ -197,9 +197,6 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 <details>
 <summary>Evidence (warnings & failures)</summary>
 
-**Visual channel evidence limits and recommendations**
-
-- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on 3 paired capture(s); recapture both sides with `captureVisualChannels: true`.
 ⚠️ **Product-state comparison** — unproven on 3 paired capture(s) with no product-state declared.
 
 </details>

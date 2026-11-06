@@ -15,7 +15,7 @@ export function channelValuesDiffer(
   unsetB: string,
 ): boolean {
   if (before === '(keyframes unknown; not compared)' || after === '(keyframes unknown; not compared)') return false;
-  if (property === 'img currentSrc' && (before === unsetA || after === unsetB)) return false;
+  if (property === 'img currentSrc' && (!before || !after || before === unsetA || after === unsetB)) return false;
   return before !== after;
 }
 
@@ -42,8 +42,15 @@ export function finalizeVisualChannels(map: StyleMap, bodies: ChannelBody[]): vo
       const body = bodies[Number(value)];
       if (!body) throw new Error('styleproof: missing captured keyframes body');
       const hash = body.body === undefined ? undefined : createHash('sha256').update(body.body).digest('hex');
-      id = JSON.stringify([body.name, hash ?? 'unknown']);
-      keyframes[id] = { ...body, ...(hash ? { hash, status: 'known' as const } : { status: 'unknown' as const }) };
+      id = JSON.stringify([body.name, body.status ?? hash ?? 'unknown']);
+      keyframes[id] = {
+        ...body,
+        ...(body.status === 'none'
+          ? { status: 'none' as const }
+          : hash
+            ? { hash, status: 'known' as const }
+            : { status: 'unknown' as const }),
+      };
       ids.set(value, id);
     }
     return id;
@@ -73,7 +80,13 @@ export function comparableVisualChannels(map: StyleMap, compared: boolean): Styl
         if (!compared) return [];
         if (property === 'img currentSrc') return [[property, value]];
         if (value === '(gone)') return [[property, value]];
-        return [[property, map.visualChannels?.keyframes?.[value]?.body ?? '(keyframes unknown; not compared)']];
+        const frame = map.visualChannels?.keyframes?.[value];
+        return [
+          [
+            property,
+            frame?.status === 'none' ? '(no @keyframes)' : (frame?.body ?? '(keyframes unknown; not compared)'),
+          ],
+        ];
       }),
     );
   for (const [path, element] of Object.entries(map.elements))

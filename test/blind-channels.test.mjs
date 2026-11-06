@@ -63,7 +63,7 @@ test('unknown keyframes do not fabricate a body difference', () => {
   assert.deepEqual(diffStyleMaps(before, after), []);
 });
 
-test('report names skipped legacy evidence and recommends pixels only for matched changed fonts', () => {
+test('report recommends pixels for matched fonts without legacy notices when both channel captures are off', () => {
   const fontMap = (hash, used) => ({
     ...map({}),
     reach: {
@@ -81,10 +81,22 @@ test('report names skipped legacy evidence and recommends pixels only for matche
     try {
       const result = generateStyleMapReport(fixture);
       const report = fs.readFileSync(result.reportMdPath, 'utf8');
-      assert.match(report, /not compared \(map predates keyframes\/currentSrc capture\)/);
+      assert.doesNotMatch(report, /map predates/);
       assert.equal(report.includes('run `--pixels` for this surface'), matched);
       if (matched) assert.match(report, /home@800.*changed `@font-face`/);
       assert.equal(result.comparison.rawCounts.style, 0);
+    } finally {
+      rmTmp(fixture.root);
+    }
+  }
+  for (const missing of ['base', 'head']) {
+    const before = fontMap('a', true),
+      after = fontMap('b', true);
+    delete (missing === 'base' ? before : after).reach;
+    const fixture = pairFixture({ surface: 'home@800', before, after });
+    try {
+      const text = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
+      assert.doesNotMatch(text, /run `--pixels` for this surface/);
     } finally {
       rmTmp(fixture.root);
     }

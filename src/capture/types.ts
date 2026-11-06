@@ -104,8 +104,8 @@ export type StyleMap = {
   /** Opt-in deterministic visual channels. Absent on legacy/default captures; never infer evidence from absence. */
   visualChannels?: {
     version: 1;
-    /** Shared by property-layer references; key is JSON [name, SHA-256] (or [name, "unknown"]). */
-    keyframes: Record<string, { name: string; status: 'known' | 'unknown'; body?: string; hash?: string }>;
+    /** Shared by property-layer references; key is JSON [name, SHA-256], [name, "none"] or [name, "unknown"]. */
+    keyframes: Record<string, { name: string; status: 'known' | 'none' | 'unknown'; body?: string; hash?: string }>;
   };
   /** Runner-supplied context; ignored by the certification diff. */
   metadata?: CaptureMetadata;

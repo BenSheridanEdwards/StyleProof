@@ -16,7 +16,7 @@
 test at test/blind-channels-round1.test.mjs:24:1
 ✖ both sides opted out produce no visual-channel evidence block (7.233416ms)
   AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /Visual channel evidence|map predates/. Input:
-  
+
   '## 🗺️ StyleProof report\n' +
     '\n' +
     '⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.\n' +
@@ -32,7 +32,7 @@ test at test/blind-channels-round1.test.mjs:24:1
     '⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.\n' +
     '\n' +
     '</details>\n'
-  
+
       at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:26:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -49,7 +49,7 @@ test at test/blind-channels-round1.test.mjs:24:1
 test at test/blind-channels-round1.test.mjs:29:1
 ✖ one-sided channel marker names the limit and leaves the following warning a separate paragraph (2.637583ms)
   AssertionError [ERR_ASSERTION]: The input did not match the regular expression /recapture both sides[^\n]+\n\n⚠️/. Input:
-  
+
   '## 🗺️ StyleProof report\n' +
     '\n' +
     '⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.\n' +
@@ -65,7 +65,7 @@ test at test/blind-channels-round1.test.mjs:29:1
     '⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.\n' +
     '\n' +
     '</details>\n'
-  
+
       at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:37:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -85,7 +85,7 @@ test at test/blind-channels-round1.test.mjs:41:1
 ✖ unloaded sources are skipped on either side, including empty against empty, with a named limit (0.424916ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
   + [
   +   {
   +     cls: 'asset',
@@ -103,7 +103,7 @@ test at test/blind-channels-round1.test.mjs:41:1
   +   }
   + ]
   - []
-  
+
       at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:47:12)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)
@@ -123,7 +123,7 @@ test at test/blind-channels-round1.test.mjs:52:1
 ✖ proved keyframes absence is a normal compared change; unreadable stays unknown (0.169583ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
-  
+
   + undefined
   - [
   -   {
@@ -132,7 +132,7 @@ test at test/blind-channels-round1.test.mjs:52:1
   -     prop: 'animation keyframes (pulse)'
   -   }
   - ]
-  
+
       at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round1.test.mjs:61:10)
       at Test.runInAsyncScope (node:async_hooks:226:14)
       at Test.run (node:internal/test_runner/test:1402:25)

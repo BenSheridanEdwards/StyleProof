@@ -1463,34 +1463,48 @@ Off by default, `captureVisualChannels` records referenced `@keyframes` bodies a
 `img.currentSrc`, including the image selected by `srcset`/`picture`. Changes flow
 through the ordinary findings, approvals, budgets, certify and review-gate paths.
 Opt in on both base and head to expand what the gate compares; upgrading alone
-keeps existing verdicts. A missing channel marker on either map skips both new
+keeps existing verdicts. Exactly one side carrying the channel marker skips both new
 channels and the report names **not compared (map predates keyframes/currentSrc
-capture)**. Older maps remain loadable; no existing schema version changes.
+capture)**. With both sides off there is no channel evidence block. Older maps remain
+loadable; no existing schema version changes.
 
 Each enabled map adds `visualChannels: { version: 1, keyframes }`. The dictionary
 stores bodies once, keyed by JSON `[name, SHA-256]`; property layers carry those
 references under `animation keyframes (name)`. `img currentSrc` is stored directly
 in the image's style layer. Reports expand changed references to canonical bodies.
-Selectors use percentages and declarations use code-point property order; repeated
-keyframe blocks keep their order because duplicate offsets cascade. Resolution
+`from`/`to` become `0%`/`100%`, plain percentages are normalised, and timeline-range
+selectors retain their CSSOM spelling. Selector lists expand to individual offsets;
+duplicate offsets merge declarations in source order (later wins per property),
+then offsets and declarations sort deterministically. Reordering independent blocks
+or merging/splitting equivalent blocks therefore stays clean. Resolution
 uses CSSOM, currently applying media/supports and normal cascade layers, imports,
-disabled sheets and stylesheet order. Missing/unreadable rules or unsupported
-conditional scopes record `unknown`; the comparison skips them and names the
+disabled sheets and stylesheet order, cached once per root for each capture.
+No winning rule in a fully readable, unambiguous scope records definite `none`
+(displayed as `(no @keyframes)`), so deleting a referenced rule or moving it into
+non-applying media is compared. Unreadable sheets or unsupported conditional scopes
+remain `unknown` unless a readable winner provably outranks them: an unlayered rule
+after all unreadable sheets, or a stronger known layer than an opaque import's layer.
+The comparison skips unknowns and names the
 limit. Shadow roots and frames remain untraversed. Host/slotted names that could
 refer to an untraversed root stay unknown. No animation progress is recorded.
 
 Same-origin HTTP(S) sources become pathname + query + fragment, so different
 base/head hosts and ports do not create differences. External URLs keep their
-identity. No query parameters are stripped: StyleProof has no applicable URL
-volatility rule. Data URIs become `data:sha256:<digest>`; empty lazy/unloaded
-sources remain empty and are compared as such. Self-check compares the shared
+identity: cross-origin asset host differences are findings under the same-environment
+comparison rule. Known credential/signature query parameters are removed, case-insensitively:
+`X-Amz-*`, `Signature`, `token`, `access_token`, `sig`, SAS `se`/`sp`/`sv`,
+`Expires`, `Key-Pair-Id`, and `Policy`. Other parameters and fragments retain identity.
+Data URIs become `data:sha256:<digest>`; empty lazy/unloaded sources remain empty
+in the map, but either side empty skips that image comparison and the report names
+**not compared (unloaded image)**, including empty versus empty. Self-check compares the shared
 dictionary and every property-layer reference/source, including missing or unknown
 evidence the compatibility diff skips. Body storage is shared across elements.
 
-This option does not change J1 reference classification: keyframes remain
-`blind-channel` in Change Reach. A changed `@font-face` referenced by a matched
-rule (the same J1 blind-channel case) gets a surface-specific `--pixels`
-recommendation in report evidence. It is advice only and never changes a verdict.
+Even with both `captureReach` and `captureVisualChannels` enabled, J1 reference
+classification conservatively keeps the reach corpus keyframes unit `blind-channel`.
+A changed `@font-face` referenced by a matched rule (the J1 blind-channel case)
+gets a surface-specific `--pixels` recommendation only when both sides captured
+`captureReach` evidence. It is advice only and never changes a verdict.
 
 ## Optional: served-rule ledger (Change Reach, opt-in)
 

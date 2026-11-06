@@ -1,6 +1,6 @@
 import type { Props } from './types.js';
 
-export type ChannelBody = { name: string; body?: string };
+export type ChannelBody = { name: string; body?: string; status?: 'none' };
 export type VisualChannelWindow = {
   __spChannelBodies?: ChannelBody[];
   __spReadChannels?: (elements: Element[], pseudos: string[]) => Map<Element, Record<string, Props>>;
@@ -15,39 +15,62 @@ export function installVisualChannels(enabled: boolean): void {
   const bodies: ChannelBody[] = [];
   const ids = new Map<string, string>();
   target.__spChannelBodies = bodies;
-  const reference = (name: string, body?: string): string => {
+  const reference = (name: string, body?: string | null): string => {
     const key = JSON.stringify([name, body]);
     let id = ids.get(key);
     if (id === undefined) {
       id = String(bodies.length);
-      bodies.push({ name, ...(body === undefined ? {} : { body }) });
+      bodies.push({ name, ...(body === null ? { status: 'none' as const } : body === undefined ? {} : { body }) });
       ids.set(key, id);
     }
     return id;
   };
-  const canonicalBody = (rule: CSSKeyframesRule): string =>
-    Array.from(rule.cssRules)
-      .map((child) => {
-        const frame = child as CSSKeyframeRule;
-        const selectors = frame.keyText
-          .split(',')
-          .map((key) => {
-            const value = key.trim();
-            return value === 'from' ? '0%' : value === 'to' ? '100%' : `${Number.parseFloat(value)}%`;
-          })
-          .sort((a, b) => Number.parseFloat(a) - Number.parseFloat(b));
-        const declarations = Array.from(frame.style)
-          .sort()
-          .map(
-            (property) =>
-              `${property}: ${frame.style.getPropertyValue(property)}${frame.style.getPropertyPriority(property) ? ' !important' : ''};`,
-          );
-        return `${selectors.join(', ')} { ${declarations.join(' ')} }`;
-      })
+  const percentage = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/i;
+  const offsetOf = (text: string): string => {
+    const value = text.trim();
+    if (value === 'from') return '0%';
+    if (value === 'to') return '100%';
+    return percentage.test(value) ? `${Number(value.slice(0, -1))}%` : value;
+  };
+  const offsetOrder = (a: string, b: string): number => {
+    const plainA = percentage.test(a),
+      plainB = percentage.test(b);
+    if (plainA && plainB) return Number.parseFloat(a) - Number.parseFloat(b);
+    if (plainA !== plainB) return plainA ? -1 : 1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+  const mergeFrame = (offsets: Map<string, CSSStyleDeclaration>, frame: CSSKeyframeRule): void => {
+    for (const offset of frame.keyText.split(',').map(offsetOf)) {
+      let declarations = offsets.get(offset);
+      if (!declarations) offsets.set(offset, (declarations = document.createElement('span').style));
+      for (const property of Array.from(frame.style))
+        declarations.setProperty(
+          property,
+          frame.style.getPropertyValue(property),
+          frame.style.getPropertyPriority(property),
+        );
+    }
+  };
+  const declarationText = (style: CSSStyleDeclaration): string =>
+    Array.from(style)
+      .sort()
+      .map(
+        (property) =>
+          `${property}: ${style.getPropertyValue(property)}${style.getPropertyPriority(property) ? ' !important' : ''};`,
+      )
       .join(' ');
+  const canonicalBody = (rule: CSSKeyframesRule): string => {
+    const offsets = new Map<string, CSSStyleDeclaration>();
+    for (const child of Array.from(rule.cssRules)) mergeFrame(offsets, child as CSSKeyframeRule);
+    return [...offsets.keys()]
+      .sort(offsetOrder)
+      .map((offset) => `${offset} { ${declarationText(offsets.get(offset)!)} }`)
+      .join(' ');
+  };
 
-  type Winner = { id: string; layer: number[] };
-  type Rules = { winners: Map<string, Winner>; unknown: boolean };
+  type Winner = { id: string; layer: number[]; order: number };
+  type Opaque = { layer: number[]; order: number; names?: Set<string> };
+  type Rules = { winners: Map<string, Winner>; opaque: Opaque[] };
   // Normal cascade layers: later siblings win, and a parent's unlayered rules win over its children.
   const wins = (next: number[], previous: number[]): boolean => {
     for (let index = 0; index < Math.max(next.length, previous.length); index++) {
@@ -58,13 +81,11 @@ export function installVisualChannels(enabled: boolean): void {
     return true;
   };
   const rulesFor = (root: Document | ShadowRoot): Rules => {
-    const result: Rules = { winners: new Map(), unknown: false };
-    for (const link of root.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet" i]')) {
-      if (!link.sheet && !link.disabled && (!link.media || matchMedia(link.media).matches)) result.unknown = true;
-    }
+    const result: Rules = { winners: new Map(), opaque: [] };
     const layers = new Map<string, Map<string, number>>();
     const visiting = new Set<CSSStyleSheet>();
     let anonymous = 0;
+    let order = 0;
     const layerPath = (parent: string[], name: string): string[] => [
       ...parent,
       ...(name ? name.split('.') : [`#${anonymous++}`]),
@@ -77,6 +98,36 @@ export function installVisualChannels(enabled: boolean): void {
         if (!siblings.has(name)) siblings.set(name, siblings.size);
         return siblings.get(name)!;
       });
+    const opaque = (path: string[], names?: Set<string>): void => {
+      result.opaque.push({ layer: rank(path), order: order++, ...(names ? { names } : {}) });
+    };
+    const conditionalRules = (rule: CSSRule): CSSRuleList | undefined => {
+      if (typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule) return rule.cssRules;
+      if (typeof CSSScopeRule !== 'undefined' && rule instanceof CSSScopeRule) return rule.cssRules;
+      if (rule instanceof CSSGroupingRule || rule instanceof CSSStyleRule) return rule.cssRules;
+      return undefined;
+    };
+    const opaqueRules = (rules: CSSRuleList, path: string[]): void => {
+      const names = new Set<string>();
+      const collect = (children: CSSRuleList): void => {
+        for (const child of Array.from(children)) {
+          if (child instanceof CSSKeyframesRule) names.add(child.name);
+          else if (child instanceof CSSImportRule) {
+            if (!child.styleSheet) throw new Error('missing conditional import');
+            collect(child.styleSheet.cssRules);
+          } else {
+            const nested = conditionalRules(child);
+            if (nested) collect(nested);
+          }
+        }
+      };
+      try {
+        collect(rules);
+        if (names.size) opaque(path, names);
+      } catch {
+        opaque(path);
+      }
+    };
     const visitImport = (rule: CSSImportRule, path: string[]): void => {
       if (rule.media.mediaText && !matchMedia(rule.media.mediaText).matches) return;
       const imported = rule as CSSImportRule & { supportsText?: string; layerName?: string | null };
@@ -87,9 +138,10 @@ export function installVisualChannels(enabled: boolean): void {
     };
     const recordKeyframes = (rule: CSSKeyframesRule, path: string[]): void => {
       const layer = rank(path);
+      const position = order++;
       const previous = result.winners.get(rule.name);
       if (!previous || wins(layer, previous.layer))
-        result.winners.set(rule.name, { id: reference(rule.name, canonicalBody(rule)), layer });
+        result.winners.set(rule.name, { id: reference(rule.name, canonicalBody(rule)), layer, order: position });
     };
     const visitRule = (rule: CSSRule, path: string[]): void => {
       if (rule instanceof CSSKeyframesRule) return recordKeyframes(rule, path);
@@ -114,15 +166,16 @@ export function installVisualChannels(enabled: boolean): void {
         visit(block.cssRules, next);
         return;
       }
-      // Container/scope conditions cannot be proved from a global CSSOM walk.
-      if ('cssRules' in rule && /@(?:-[a-z]+-)?keyframes\b/i.test(rule.cssText)) result.unknown = true;
+      // Walk unsupported conditions for possible names, without serialising every ordinary style rule.
+      const conditional = conditionalRules(rule);
+      if (conditional?.length) opaqueRules(conditional, path);
     };
     const visit = (rules: CSSRuleList, path: string[]): void => {
       for (const rule of Array.from(rules)) visitRule(rule, path);
     };
     const sheet = (styleSheet: CSSStyleSheet | null, path: string[]): void => {
       if (!styleSheet) {
-        result.unknown = true;
+        opaque(path);
         return;
       }
       if (styleSheet.disabled || visiting.has(styleSheet)) return;
@@ -131,13 +184,38 @@ export function installVisualChannels(enabled: boolean): void {
       try {
         visit(styleSheet.cssRules, path);
       } catch {
-        result.unknown = true;
+        opaque(path);
       } finally {
         visiting.delete(styleSheet);
       }
     };
-    for (const styleSheet of [...Array.from(root.styleSheets), ...root.adoptedStyleSheets]) sheet(styleSheet, []);
+    const seen = new Set<CSSStyleSheet>();
+    // Missing links do not appear in styleSheets. Keep their position among readable owner nodes.
+    for (const node of root.querySelectorAll<HTMLStyleElement | HTMLLinkElement>('style,link[rel~="stylesheet" i]')) {
+      if (node.sheet) {
+        seen.add(node.sheet);
+        sheet(node.sheet, []);
+      } else if (node instanceof HTMLLinkElement && !node.disabled && (!node.media || matchMedia(node.media).matches))
+        opaque([]);
+    }
+    for (const styleSheet of Array.from(root.styleSheets)) if (!seen.has(styleSheet)) sheet(styleSheet, []);
+    for (const styleSheet of root.adoptedStyleSheets) sheet(styleSheet, []);
     return result;
+  };
+  const roots = new Map<Document | ShadowRoot, Rules>();
+  const rootRules = (root: Document | ShadowRoot): Rules => {
+    let rules = roots.get(root);
+    if (!rules) roots.set(root, (rules = rulesFor(root)));
+    return rules;
+  };
+  const couldContain = (opaque: Opaque, name: string): boolean => !opaque.names || opaque.names.has(name);
+  const beatsOpaque = (winner: Winner, opaque: Opaque): boolean => {
+    if (!wins(winner.layer, opaque.layer)) return false;
+    return !wins(opaque.layer, winner.layer) || winner.order > opaque.order;
+  };
+  const ambiguous = (rules: Rules, name: string): boolean => {
+    const winner = rules.winners.get(name);
+    return rules.opaque.some((opaque) => couldContain(opaque, name) && (!winner || !beatsOpaque(winner, opaque)));
   };
   // Animation names can be strings containing commas or escapes; do not split their contents.
   const splitNames = (text: string): string[] => {
@@ -181,28 +259,26 @@ export function installVisualChannels(enabled: boolean): void {
   const imageSource = (element: HTMLImageElement): string => {
     const source = element.currentSrc;
     const url = source ? new URL(source, document.baseURI) : undefined;
-    return url && /^https?:$/.test(url.protocol) && url.origin === location.origin
-      ? `${url.pathname}${url.search}${url.hash}`
-      : source;
+    if (!url || !/^https?:$/.test(url.protocol)) return source;
+    const sensitive = /^(?:x-amz-.*|signature|token|access_token|sig|se|sp|sv|expires|key-pair-id|policy)$/i;
+    const names = [...url.searchParams.keys()].filter((name) => sensitive.test(name));
+    for (const name of names) url.searchParams.delete(name);
+    return url.origin === location.origin ? `${url.pathname}${url.search}${url.hash}` : url.href;
   };
   const layerProperties = (element: Element, pseudo: string, rules: Rules, scopes: Rules[]): Props => {
     const values: Props = {};
     if (!pseudo && element instanceof HTMLImageElement) values['img currentSrc'] = imageSource(element);
     for (const name of namesOf(getComputedStyle(element, pseudo || null).animationName)) {
       const winner = rules.winners.get(name);
-      const unknown = rules.unknown || scopes.some((scope) => scope.unknown || scope.winners.has(name));
-      values[`animation keyframes (${name})`] = unknown || !winner ? reference(name) : winner.id;
+      const unknown =
+        ambiguous(rules, name) ||
+        scopes.some((scope) => scope.winners.has(name) || scope.opaque.some((item) => couldContain(item, name)));
+      values[`animation keyframes (${name})`] = unknown ? reference(name) : (winner?.id ?? reference(name, null));
     }
     return values;
   };
   target.__spReadChannels = (elements, pseudos) => {
     const output = new Map<Element, Record<string, Props>>();
-    const roots = new Map<Document | ShadowRoot, Rules>();
-    const rootRules = (root: Document | ShadowRoot): Rules => {
-      let rules = roots.get(root);
-      if (!rules) roots.set(root, (rules = rulesFor(root)));
-      return rules;
-    };
     const freeze = (window as Window & { __spFreeze?: CSSStyleSheet }).__spFreeze;
     const disabled = freeze?.disabled;
     // Read only names while unfrozen, then restore before any used styles/geometry are read.

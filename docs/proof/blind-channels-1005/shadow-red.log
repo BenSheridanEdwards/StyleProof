@@ -9,7 +9,7 @@ styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — 
   ✘  1 [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope (151ms)
 
 
-  1) [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope 
+  1) [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -37,4 +37,4 @@ styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — 
     Error Context: test-results/test-blind-channels.e2e-sl-f86f6-y-from-the-wrong-tree-scope-chromium/error-context.md
 
   1 failed
-    [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope 
+    [chromium] › test/blind-channels.e2e.spec.ts:202:1 › slotted light-DOM names never claim a body from the wrong tree scope

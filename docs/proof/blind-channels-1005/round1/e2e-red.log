@@ -45,7 +45,7 @@ Running 14 tests using 1 worker
   ✘  14 [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 20000 rules (204ms)
 
 
-  1) [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes deleted is proved absent rather than unknown 
+  1) [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes deleted is proved absent rather than unknown
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -71,7 +71,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-2ca8b--absent-rather-than-unknown-chromium/error-context.md
 
-  2) [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes non-applying media is proved absent rather than unknown 
+  2) [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes non-applying media is proved absent rather than unknown
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -97,7 +97,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-600d6--absent-rather-than-unknown-chromium/error-context.md
 
-  3) [chromium] › test/blind-channels-round1.e2e.spec.ts:31:1 › timeline range selectors retain their identity and never collapse to NaN 
+  3) [chromium] › test/blind-channels-round1.e2e.spec.ts:31:1 › timeline range selectors retain their identity and never collapse to NaN
 
     Error: expect(received).toContain(expected) // indexOf
 
@@ -115,7 +115,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-bfe42-y-and-never-collapse-to-NaN-chromium/error-context.md
 
-  4) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise reorder 
+  4) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise reorder
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -142,7 +142,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-fe399-frames-canonicalise-reorder-chromium/error-context.md
 
-  5) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise split lists 
+  5) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise split lists
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -169,7 +169,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-3c9ec-es-canonicalise-split-lists-chromium/error-context.md
 
-  6) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise merge declarations 
+  6) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise merge declarations
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -196,7 +196,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-c887c-nicalise-merge-declarations-chromium/error-context.md
 
-  7) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise duplicate cascade 
+  7) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise duplicate cascade
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -223,7 +223,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-70e89-onicalise-duplicate-cascade-chromium/error-context.md
 
-  8) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise range reorder 
+  8) [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise range reorder
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -250,7 +250,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-359bc--canonicalise-range-reorder-chromium/error-context.md
 
-  9) [chromium] › test/blind-channels-round1.e2e.spec.ts:61:1 › a readable unlayered winner after an opaque sheet is compared; an opaque later sheet stays unknown 
+  9) [chromium] › test/blind-channels-round1.e2e.spec.ts:61:1 › a readable unlayered winner after an opaque sheet is compared; an opaque later sheet stays unknown
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -268,7 +268,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-29844-e-later-sheet-stays-unknown-chromium/error-context.md
 
-  10) [chromium] › test/blind-channels-round1.e2e.spec.ts:81:1 › an opaque imported layer cannot beat a readable later layer 
+  10) [chromium] › test/blind-channels-round1.e2e.spec.ts:81:1 › an opaque imported layer cannot beat a readable later layer
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -286,7 +286,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-cab3f-beat-a-readable-later-layer-chromium/error-context.md
 
-  11) [chromium] › test/blind-channels-round1.e2e.spec.ts:97:1 › credential query fields are removed from stored sources but benign parameters and external hosts retain identity 
+  11) [chromium] › test/blind-channels-round1.e2e.spec.ts:97:1 › credential query fields are removed from stored sources but benign parameters and external hosts retain identity
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -304,7 +304,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-276e9-ernal-hosts-retain-identity-chromium/error-context.md
 
-  12) [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 5000 rules 
+  12) [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 5000 rules
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -322,7 +322,7 @@ Running 14 tests using 1 worker
 
     Error Context: test-results/test-blind-channels-round1-873b5-per-capture-with-5000-rules-chromium/error-context.md
 
-  13) [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 20000 rules 
+  13) [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 20000 rules
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -341,17 +341,17 @@ Running 14 tests using 1 worker
     Error Context: test-results/test-blind-channels-round1-73ce4-er-capture-with-20000-rules-chromium/error-context.md
 
   13 failed
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes deleted is proved absent rather than unknown 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes non-applying media is proved absent rather than unknown 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:31:1 › timeline range selectors retain their identity and never collapse to NaN 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise reorder 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise split lists 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise merge declarations 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise duplicate cascade 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise range reorder 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:61:1 › a readable unlayered winner after an opaque sheet is compared; an opaque later sheet stays unknown 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:81:1 › an opaque imported layer cannot beat a readable later layer 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:97:1 › credential query fields are removed from stored sources but benign parameters and external hosts retain identity 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 5000 rules 
-    [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 20000 rules 
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes deleted is proved absent rather than unknown
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:19:3 › keyframes non-applying media is proved absent rather than unknown
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:31:1 › timeline range selectors retain their identity and never collapse to NaN
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise reorder
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise split lists
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise merge declarations
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise duplicate cascade
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:47:3 › effective keyframes canonicalise range reorder
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:61:1 › a readable unlayered winner after an opaque sheet is compared; an opaque later sheet stays unknown
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:81:1 › an opaque imported layer cannot beat a readable later layer
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:97:1 › credential query fields are removed from stored sources but benign parameters and external hosts retain identity
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 5000 rules
+    [chromium] › test/blind-channels-round1.e2e.spec.ts:138:3 › channel CSSOM cost is one root walk per capture with 20000 rules
   1 passed (7.5s)

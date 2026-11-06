@@ -18,7 +18,7 @@ Running 5 tests using 1 worker
   ✘  5 [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body (205ms)
 
 
-  1) [chromium] › test/blind-channels.e2e.spec.ts:17:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged 
+  1) [chromium] › test/blind-channels.e2e.spec.ts:17:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged
 
     Error: expect(received).toContain(expected) // indexOf
 
@@ -36,7 +36,7 @@ Running 5 tests using 1 worker
 
     Error Context: test-results/test-blind-channels.e2e-ke-7505c-t-captures-remain-unchanged-chromium/error-context.md
 
-  2) [chromium] › test/blind-channels.e2e.spec.ts:60:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical 
+  2) [chromium] › test/blind-channels.e2e.spec.ts:60:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical
 
     TypeError: Cannot read properties of undefined (reading 'keyframes')
 
@@ -51,7 +51,7 @@ Running 5 tests using 1 worker
 
     Error Context: test-results/test-blind-channels.e2e-ke-52f0f-and-captures-byte-identical-chromium/error-context.md
 
-  3) [chromium] › test/blind-channels.e2e.spec.ts:73:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured 
+  3) [chromium] › test/blind-channels.e2e.spec.ts:73:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured
 
     Error: expect(received).toContain(expected) // indexOf
 
@@ -69,7 +69,7 @@ Running 5 tests using 1 worker
 
     Error Context: test-results/test-blind-channels.e2e-im-cb0ba-azy-currentSrc-are-captured-chromium/error-context.md
 
-  4) [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body 
+  4) [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body
 
     Error: expect(received).toBe(expected) // Object.is equality
 
@@ -87,8 +87,8 @@ Running 5 tests using 1 worker
     Error Context: test-results/test-blind-channels.e2e-ps-84a5f-rt-their-own-keyframes-body-chromium/error-context.md
 
   4 failed
-    [chromium] › test/blind-channels.e2e.spec.ts:17:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged 
-    [chromium] › test/blind-channels.e2e.spec.ts:60:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical 
-    [chromium] › test/blind-channels.e2e.spec.ts:73:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured 
-    [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body 
+    [chromium] › test/blind-channels.e2e.spec.ts:17:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged
+    [chromium] › test/blind-channels.e2e.spec.ts:60:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical
+    [chromium] › test/blind-channels.e2e.spec.ts:73:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured
+    [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body
   1 passed (3.0s)

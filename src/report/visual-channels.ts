@@ -13,9 +13,11 @@ export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
     .sort()) {
     const before = ctx.load(ctx.beforeDir, surface);
     const after = ctx.load(ctx.afterDir, surface);
-    if (before.visualChannels?.version !== 1 || after.visualChannels?.version !== 1) {
+    const beforeEnabled = before.visualChannels?.version === 1;
+    const afterEnabled = after.visualChannels?.version === 1;
+    if (beforeEnabled !== afterEnabled) {
       legacy++;
-    } else {
+    } else if (beforeEnabled && afterEnabled) {
       const unknown = [
         ...new Set(
           [before, after].flatMap((map) =>
@@ -29,11 +31,20 @@ export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
         lines.push(
           `- ${codeValue(surface)}: animation keyframes ${codeValue(name)} unknown; not compared (unreadable, missing or unsupported stylesheet scope).`,
         );
+      const unloaded = new Set(
+        [before, after].flatMap((map) =>
+          Object.entries(map.elements)
+            .filter(([, element]) => element.tag === 'img' && element.style['img currentSrc'] === '')
+            .map(([path]) => path),
+        ),
+      );
+      if (unloaded.size)
+        lines.push(
+          `- ${codeValue(surface)}: img currentSrc not compared (unloaded image) on ${unloaded.size} captured image(s).`,
+        );
     }
     const fonts = classifyRuleReach([before], [after]).rules.filter(
-      (rule) =>
-        /(?:^| > )@font-face(?: #\d+)?$/.test(rule.key) &&
-        (rule.status === 'reached' || rule.status === 'blind-channel'),
+      (rule) => /(?:^| > )@font-face(?: #\d+)?$/.test(rule.key) && rule.status === 'blind-channel',
     );
     if (fonts.length)
       lines.push(
@@ -44,5 +55,5 @@ export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
     lines.unshift(
       `- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on ${legacy} paired capture(s); recapture both sides with \`captureVisualChannels: true\`.`,
     );
-  return lines.length ? ['', '**Visual channel evidence limits and recommendations**', '', ...lines] : [];
+  return lines.length ? ['', '**Visual channel evidence limits and recommendations**', '', ...lines, ''] : [];
 }
